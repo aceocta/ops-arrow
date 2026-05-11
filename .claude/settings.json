@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir \"j:\\\\ScratchCard\\\\ScratchCard.Mobile\")",
+      "Bash(dotnet ef *)",
+      "Bash(dotnet build *)",
+      "Bash(npx eas *)",
+      "Bash(eas --version)",
+      "Bash(eas whoami *)",
+      "PowerShell(eas --version)",
+      "PowerShell(eas whoami)",
+      "PowerShell(npm install -g eas-cli 2>&1)",
+      "PowerShell(tail -5)",
+      "PowerShell(npm install -g eas-cli; Write-Host \"Exit: $LASTEXITCODE\")"
+    ]
+  }
+}

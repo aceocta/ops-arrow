@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="ScratchCard.Api/ScratchCard.Api.csproj" />
+  <Project Path="ScratchCard.Application/ScratchCard.Application.csproj" />
+  <Project Path="ScratchCard.Domain/ScratchCard.Domain.csproj" />
+  <Project Path="ScratchCard.Infrastructure/ScratchCard.Infrastructure.csproj" />
+  <Project Path="ScratchCard.Shared/ScratchCard.Shared.csproj" />
+</Solution>

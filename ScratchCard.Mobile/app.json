@@ -1,0 +1,64 @@
+{
+  "expo": {
+    "name": "Ops Arrow",
+    "slug": "scratchcard-mobile",
+    "scheme": "scratchcard",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0F3D3E"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.example.scratchcard"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0F3D3E"
+      },
+      "package": "com.example.scratchcard",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Ops Arrow to use your camera for barcode scanning."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Allow Ops Arrow to use your camera to capture delivery notes.",
+          "photosPermission": "Allow Ops Arrow to access photos to import delivery notes."
+        }
+      ],
+      "expo-font",
+      "expo-web-browser",
+      "expo-sharing"
+    ],
+    "extra": {
+      "apiBaseUrl": "http://localhost:5268/api",
+      "appDisplayName": "Ops Arrow",
+      "enableDevAuthBypass": true,
+      "devBypassEmail": "dev.shopowner@scratchcard.local",
+      "devBypassFullName": "Development Shop Owner",
+      "devBypassRole": "ShopOwner",
+      "eas": {
+        "projectId": "4d91d2b0-0c8a-4bdf-80c8-241402b24026"
+      }
+    }
+  }
+}
