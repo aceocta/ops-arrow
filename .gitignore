@@ -1,0 +1,42 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# .NET
+**/bin/
+**/obj/
+TestResults/
+
+# Node / Expo / React Native
+**/node_modules/
+**/.expo/
+**/.expo-shared/
+**/dist/
+**/.turbo/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment and local overrides
+.env
+.env.*
+!.env.example
+
+# Build artifacts and local temp
+_build_tmp/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+ScratchCard.Api/appsettings.json
+ScratchCard.Api/appsettings.Development.json
+
+
+**/appsettings.Development.json
+**/appsettings.Production.json
