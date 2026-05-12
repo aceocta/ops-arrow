@@ -7,6 +7,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { StatusBadge } from "../../components/StatusBadge";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 import { getStaffDisplayName } from "./refusalStaffUtils";
@@ -137,21 +138,43 @@ export function RefusalManagerReviewScreen() {
 
   return (
     <ScreenContainer>
-      {/* <View style={styles.hero}>
-        <Text style={styles.heroTitle}>Refusal Manager Review</Text>
-        <Text style={styles.heroNote}>Filter by date range, select entries, then apply one manager signature review.</Text>
+      {/* <View style={styles.screenHeaderCard}>
+        <View style={styles.screenHeaderTop}>
+          <View style={styles.screenHeaderTitleWrap}>
+            <Text style={styles.screenHeaderEyebrow}>No ID / No Sale</Text>
+            <Text style={styles.screenHeaderTitle}>Manager Review</Text>
+            <Text style={styles.screenHeaderMeta}>Batch review with a single manager signature.</Text>
+          </View>
+          <StatusBadge label={canReview ? "Review Access" : "Read Only"} tone={canReview ? "success" : "danger"} />
+        </View>
+        
       </View> */}
 
       <View style={ui.card}>
-        <Text style={styles.sectionTitle}>Date Range</Text>
+        {/* <Text style={styles.sectionTitle}>Date Range</Text>
+        <Text style={styles.sectionSubtitle}>Filter entries before selecting items for manager review.</Text> */}
         <View style={styles.row}>
           <DateTimeField style={{ flex: 1 }} mode="date" value={fromDate} onChange={setFromDate} placeholder="From date" />
           <DateTimeField style={{ flex: 1 }} mode="date" value={toDate} onChange={setToDate} placeholder="To date" />
         </View>
+        <View style={styles.metricRow}>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricValue}>{entries.length}</Text>
+            <Text style={styles.metricLabel}>In Range</Text>
+          </View>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricValue}>{pendingEntries.length}</Text>
+            <Text style={styles.metricLabel}>Pending</Text>
+          </View>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricValue}>{selectedEntryIds.length}</Text>
+            <Text style={styles.metricLabel}>Selected</Text>
+          </View>
+        </View>
         {hasDateRangeError ? <Text style={styles.errorText}>From date cannot be after to date.</Text> : null}
-        <Text style={styles.meta}>
+        {/* <Text style={styles.meta}>
           {entries.length} total | {pendingEntries.length} pending review | {selectedEntryIds.length} selected
-        </Text>
+        </Text> */}
         <View style={styles.actionRow}>
           <Pressable style={styles.secondaryButton} onPress={selectAllPending} disabled={pendingEntries.length === 0}>
             <Text style={styles.secondaryButtonText}>Select Pending</Text>
@@ -170,6 +193,7 @@ export function RefusalManagerReviewScreen() {
 
       <View style={ui.card}>
         <Text style={styles.sectionTitle}>Entries</Text>
+        <Text style={styles.sectionSubtitle}>Tap an entry to toggle selection for batch review.</Text>
         {entriesQuery.isLoading ? <Text style={styles.meta}>Loading entries...</Text> : null}
         {!entriesQuery.isLoading && entries.length === 0 ? <Text style={styles.meta}>No entries in selected range.</Text> : null}
         <ScrollView style={styles.listScroll} contentContainerStyle={styles.listContent}>
@@ -185,6 +209,10 @@ export function RefusalManagerReviewScreen() {
                 <View style={styles.entryTopRow}>
                   <Text style={styles.entryNo}>[{isSelected ? "x" : " "}] No. {entry.sequenceNo}</Text>
                   <Text style={styles.entryDate}>{entry.refusalDate} {entry.refusalTime || "--:--"}</Text>
+                </View>
+                <View style={styles.entryBadgeRow}>
+                  <StatusBadge label={entry.signatureImagePath ? "Signed" : "No Signature"} tone={entry.signatureImagePath ? "success" : "danger"} />
+                  <StatusBadge label={entry.reviewedOn ? "Reviewed" : "Pending Review"} tone={entry.reviewedOn ? "success" : "warning"} />
                 </View>
                 <Text style={styles.entryProduct}>{entry.product}</Text>
                 <Text style={styles.meta}>Person: {entry.personDescription}</Text>
@@ -311,31 +339,82 @@ export function RefusalManagerReviewScreen() {
 }
 
 const styles = StyleSheet.create({
-  hero: {
-    backgroundColor: appTheme.colors.primary,
-    borderRadius: appTheme.radius.lg,
+  screenHeaderCard: {
     borderWidth: 1,
-    borderColor: appTheme.colors.primaryPressed,
-    padding: appTheme.spacing.lg,
-    gap: appTheme.spacing.xs,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.md,
+    backgroundColor: "#F1F6FC",
+    paddingHorizontal: appTheme.spacing.md,
+    paddingVertical: appTheme.spacing.md,
+    gap: appTheme.spacing.sm,
   },
-  heroTitle: {
-    color: appTheme.colors.onPrimary,
+  screenHeaderTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: appTheme.spacing.sm,
+  },
+  screenHeaderTitleWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  screenHeaderEyebrow: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 14,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  screenHeaderTitle: {
+    color: appTheme.colors.text,
     fontFamily: appTheme.fonts.heading,
-    fontSize: 20,
-    lineHeight: 24,
+    fontSize: 25,
+    lineHeight: 30,
   },
-  heroNote: {
-    color: "#DCEAF4",
+  screenHeaderMeta: {
+    color: appTheme.colors.textMuted,
     fontFamily: appTheme.fonts.body,
     fontSize: 13,
     lineHeight: 17,
+  },
+  metricRow: {
+    flexDirection: "row",
+    gap: appTheme.spacing.xs,
+  },
+  metricCard: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    paddingVertical: appTheme.spacing.xs,
+    alignItems: "center",
+    gap: 2,
+  },
+  metricValue: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.heading,
+    fontSize: 18,
+    lineHeight: 21,
+  },
+  metricLabel: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 11,
+    lineHeight: 14,
   },
   sectionTitle: {
     color: appTheme.colors.text,
     fontSize: 17,
     lineHeight: 22,
     fontFamily: appTheme.fonts.bodyMedium,
+  },
+  sectionSubtitle: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
   },
   fieldLabel: {
     color: appTheme.colors.text,
@@ -421,6 +500,11 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 14,
     lineHeight: 18,
+  },
+  entryBadgeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: appTheme.spacing.xs,
   },
   modalBackdrop: {
     flex: 1,

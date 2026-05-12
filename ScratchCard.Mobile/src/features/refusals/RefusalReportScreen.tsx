@@ -70,6 +70,7 @@ export function RefusalReportScreen() {
   const groupedEntries = useMemo(() => groupEntriesByReviewedDateTime(entries), [entries]);
   const reviewedCount = useMemo(() => entries.filter((entry) => Boolean(entry.reviewedOn)).length, [entries]);
   const pendingCount = entries.length - reviewedCount;
+  const reviewRate = entries.length > 0 ? Math.round((reviewedCount / entries.length) * 100) : 0;
   const reportDateTime = useMemo(() => {
     const now = new Date();
     return `${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
@@ -169,15 +170,15 @@ export function RefusalReportScreen() {
 
   return (
     <ScreenContainer>
-      <View style={ui.card}>
-        <Text style={styles.sectionTitle}>No ID / No Sale Refusal Report</Text>
-        <Text style={styles.subtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
-        <Text style={styles.meta}>Report Date Time: {reportDateTime}</Text>
-        <View style={styles.rangeRow}>
-          <DateTimeField style={{ flex: 1 }} mode="date" value={fromDate} onChange={setFromDate} />
-          <DateTimeField style={{ flex: 1 }} mode="date" value={toDate} onChange={setToDate} />
+      <View style={styles.screenHeaderCard}>
+        <View style={styles.screenHeaderTop}>
+          <View style={styles.screenHeaderTitleWrap}>
+            {/* <Text style={styles.screenHeaderEyebrow}>No ID / No Sale</Text> */}
+            <Text style={styles.screenHeaderTitle}>Refusal Report</Text>
+            <Text style={styles.subtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
+          </View>
+          <StatusBadge label={pendingCount > 0 ? "Attention Needed" : "Healthy"} tone={pendingCount > 0 ? "warning" : "success"} />
         </View>
-        {!rangeIsValid ? <Text style={styles.warning}>From date must be earlier than or equal to To date.</Text> : null}
         <View style={styles.metricsRow}>
           <View style={styles.metricCard}>
             <Text style={styles.metricValue}>{entries.length}</Text>
@@ -188,15 +189,25 @@ export function RefusalReportScreen() {
             <Text style={styles.metricLabel}>Reviewed</Text>
           </View>
           <View style={styles.metricCard}>
-            <Text style={styles.metricValue}>{pendingCount}</Text>
-            <Text style={styles.metricLabel}>Pending</Text>
+            <Text style={styles.metricValue}>{reviewRate}%</Text>
+            <Text style={styles.metricLabel}>Reviewed</Text>
           </View>
         </View>
+      </View>
+
+      <View style={ui.card}>
+        <Text style={styles.sectionTitle}>Report Filters</Text>
+        <Text style={styles.sectionSubtitle}>Choose the date range and generate printable output.</Text>
+        <Text style={styles.meta}>Report Date Time: {reportDateTime}</Text>
+        <View style={styles.rangeRow}>
+          <DateTimeField style={{ flex: 1 }} mode="date" value={fromDate} onChange={setFromDate} />
+          <DateTimeField style={{ flex: 1 }} mode="date" value={toDate} onChange={setToDate} />
+        </View>
+        {!rangeIsValid ? <Text style={styles.warning}>From date must be earlier than or equal to To date.</Text> : null}
         <View style={styles.actionRow}>
           <PrimaryButton
             label="Print Report PDF"
             onPress={() => void printReport()}
-            tone="neutral"
             disabled={!rangeIsValid || rangeQuery.isLoading || entries.length === 0}
           />
           <PrimaryButton
@@ -216,6 +227,7 @@ export function RefusalReportScreen() {
 
       <View style={ui.card}>
         <Text style={styles.sectionTitle}>Refusal Entries ({fromDate} to {toDate})</Text>
+        <Text style={styles.sectionSubtitle}>Grouped by review completion timestamp.</Text>
         {rangeQuery.isLoading ? <Text style={styles.meta}>Loading entries...</Text> : null}
         {!rangeQuery.isLoading && entries.length === 0 ? (
           <Text style={styles.meta}>No refusal entries found for this date range.</Text>
@@ -255,12 +267,15 @@ export function RefusalReportScreen() {
                   <Text style={styles.detailLabel}>Manager</Text>
                   <Text style={styles.detailValue}>{entry.reviewedOn ? `Reviewed by ${entry.reviewedByName ?? "-"}` : "Pending"}</Text>
                 </View>
-                <Pressable
-                  style={styles.rowActionButton}
-                  onPress={() => navigation.navigate("RefusalEntryDetails", { entryId: entry.id })}
-                >
-                  <Text style={styles.rowActionButtonText}>View Details</Text>
-                </Pressable>
+                <View style={styles.entryFooterRow}>
+                  <StatusBadge label={entry.signatureImagePath ? "Signed" : "No Signature"} tone={entry.signatureImagePath ? "success" : "danger"} />
+                  <Pressable
+                    style={styles.rowActionButton}
+                    onPress={() => navigation.navigate("RefusalEntryDetails", { entryId: entry.id })}
+                  >
+                    <Text style={styles.rowActionButtonText}>View Details</Text>
+                  </Pressable>
+                </View>
               </View>
             ))}
           </View>
@@ -271,6 +286,39 @@ export function RefusalReportScreen() {
 }
 
 const styles = StyleSheet.create({
+  screenHeaderCard: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.md,
+    backgroundColor: "#F1F6FC",
+    paddingHorizontal: appTheme.spacing.md,
+    paddingVertical: appTheme.spacing.md,
+    gap: appTheme.spacing.sm,
+  },
+  screenHeaderTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: appTheme.spacing.sm,
+  },
+  screenHeaderTitleWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  screenHeaderEyebrow: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 14,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  screenHeaderTitle: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.heading,
+    fontSize: 25,
+    lineHeight: 30,
+  },
   sectionTitle: {
     color: appTheme.colors.text,
     fontSize: 17,
@@ -282,6 +330,12 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 13,
     lineHeight: 17,
+  },
+  sectionSubtitle: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
   },
   meta: {
     color: appTheme.colors.textMuted,
@@ -400,7 +454,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   rowActionButton: {
-    marginTop: appTheme.spacing.xs,
     borderWidth: 1,
     borderColor: appTheme.colors.borderStrong,
     borderRadius: appTheme.radius.sm,
@@ -414,5 +467,12 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 12,
     lineHeight: 16,
+  },
+  entryFooterRow: {
+    marginTop: appTheme.spacing.xs,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.xs,
   },
 });

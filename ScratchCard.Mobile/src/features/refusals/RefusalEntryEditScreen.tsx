@@ -8,6 +8,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField } from "../../components/DateTimeField";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -116,9 +117,10 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
 
   return (
     <ScreenContainer>
-      <View style={styles.hero}>
-        <Text style={styles.heroTitle}>Edit Refusal Entry</Text>
-        <Text style={styles.heroNote}>Update the refusal details and optionally replace signature.</Text>
+      <View style={styles.screenHeaderCard}>
+        <Text style={styles.screenHeaderEyebrow}>No ID / No Sale</Text>
+        <Text style={styles.screenHeaderTitle}>Edit Refusal Entry</Text>
+        <Text style={styles.screenHeaderMeta}>Update details and optionally replace the staff signature.</Text>
       </View>
 
       <View style={ui.card}>
@@ -128,6 +130,10 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
           <>
             <Text style={styles.meta}>No. {entry.sequenceNo}</Text>
             <Text style={styles.meta}>Date: {entry.refusalDate}</Text>
+            <View style={styles.badgeRow}>
+              <StatusBadge label={entry.signatureImagePath ? "Signed" : "No Signature"} tone={entry.signatureImagePath ? "success" : "danger"} />
+              <StatusBadge label={entry.reviewedOn ? "Reviewed" : "Pending Review"} tone={entry.reviewedOn ? "success" : "warning"} />
+            </View>
             <DateTimeField mode="time" value={refusalTime} onChange={setRefusalTime} />
 
             <Text style={styles.fieldLabel}>Product</Text>
@@ -208,6 +214,7 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
               onPress={() => updateMutation.mutate()}
               disabled={updateMutation.isPending}
             />
+            <PrimaryButton label="Cancel" tone="neutral" onPress={() => navigation.goBack()} disabled={updateMutation.isPending} />
           </>
         ) : null}
       </View>
@@ -267,22 +274,31 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  hero: {
-    backgroundColor: appTheme.colors.primary,
-    borderRadius: appTheme.radius.lg,
+  screenHeaderCard: {
     borderWidth: 1,
-    borderColor: appTheme.colors.primaryPressed,
-    padding: appTheme.spacing.lg,
-    gap: appTheme.spacing.xs,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.md,
+    backgroundColor: "#F1F6FC",
+    paddingHorizontal: appTheme.spacing.md,
+    paddingVertical: appTheme.spacing.md,
+    gap: 2,
   },
-  heroTitle: {
-    color: appTheme.colors.onPrimary,
+  screenHeaderEyebrow: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 14,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  screenHeaderTitle: {
+    color: appTheme.colors.text,
     fontFamily: appTheme.fonts.heading,
-    fontSize: 20,
-    lineHeight: 24,
+    fontSize: 25,
+    lineHeight: 30,
   },
-  heroNote: {
-    color: "#DCEAF4",
+  screenHeaderMeta: {
+    color: appTheme.colors.textMuted,
     fontFamily: appTheme.fonts.body,
     fontSize: 13,
     lineHeight: 17,
@@ -292,6 +308,11 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 22,
     fontFamily: appTheme.fonts.bodyMedium,
+  },
+  badgeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: appTheme.spacing.xs,
   },
   fieldLabel: {
     color: appTheme.colors.text,

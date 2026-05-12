@@ -4,7 +4,9 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRefusalEntry, getRefusalEntryReviewSignature, getRefusalEntrySignature, reviewRefusalEntry } from "../../api/refusalRegisterApi";
 import { useAuth } from "../../auth/AuthContext";
+import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -81,9 +83,10 @@ export function RefusalEntryDetailsScreen({ route, navigation }: Props) {
 
   return (
     <ScreenContainer>
-      <View style={styles.hero}>
-        <Text style={styles.heroTitle}>Refusal Details</Text>
-        <Text style={styles.heroNote}>Review full refusal record before editing.</Text>
+      <View style={styles.screenHeaderCard}>
+        <Text style={styles.screenHeaderEyebrow}>No ID / No Sale</Text>
+        <Text style={styles.screenHeaderTitle}>Refusal Details</Text>
+        <Text style={styles.screenHeaderMeta}>Review full refusal record and manager decision trail.</Text>
       </View>
 
       <View style={ui.card}>
@@ -92,6 +95,10 @@ export function RefusalEntryDetailsScreen({ route, navigation }: Props) {
         {entry ? (
           <>
             <Text style={styles.title}>No. {entry.sequenceNo}</Text>
+            <View style={styles.badgeRow}>
+              <StatusBadge label={entry.signatureImagePath ? "Signed" : "No Signature"} tone={entry.signatureImagePath ? "success" : "danger"} />
+              <StatusBadge label={entry.reviewedOn ? "Reviewed" : "Pending Review"} tone={entry.reviewedOn ? "success" : "warning"} />
+            </View>
             <Text style={styles.meta}>Date: {entry.refusalDate}</Text>
             <Text style={styles.meta}>Time: {entry.refusalTime || "--:--"}</Text>
             <Text style={styles.meta}>Product: {entry.product}</Text>
@@ -137,22 +144,12 @@ export function RefusalEntryDetailsScreen({ route, navigation }: Props) {
                 </View>
               ) : null}
               {canReview ? (
-                <Pressable
-                  style={styles.reviewButton}
-                  onPress={openReviewModal}
-                >
-                  <Text style={styles.reviewButtonText}>{entry.reviewedOn ? "Update Review" : "Mark as Reviewed"}</Text>
-                </Pressable>
+                <PrimaryButton label={entry.reviewedOn ? "Update Review" : "Mark as Reviewed"} onPress={openReviewModal} />
               ) : (
                 <Text style={styles.pathText}>Only manager or shop owner can complete review.</Text>
               )}
             </View>
-            <Pressable
-              style={styles.editButton}
-              onPress={() => navigation.navigate("RefusalEntryEdit", { entryId: entry.id })}
-            >
-              <Text style={styles.editButtonText}>Edit Entry</Text>
-            </Pressable>
+            <PrimaryButton label="Edit Entry" tone="neutral" onPress={() => navigation.navigate("RefusalEntryEdit", { entryId: entry.id })} />
           </>
         ) : null}
       </View>
@@ -200,22 +197,31 @@ export function RefusalEntryDetailsScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  hero: {
-    backgroundColor: appTheme.colors.primary,
-    borderRadius: appTheme.radius.lg,
+  screenHeaderCard: {
     borderWidth: 1,
-    borderColor: appTheme.colors.primaryPressed,
-    padding: appTheme.spacing.lg,
-    gap: appTheme.spacing.xs,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.md,
+    backgroundColor: "#F1F6FC",
+    paddingHorizontal: appTheme.spacing.md,
+    paddingVertical: appTheme.spacing.md,
+    gap: 2,
   },
-  heroTitle: {
-    color: appTheme.colors.onPrimary,
+  screenHeaderEyebrow: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 14,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  screenHeaderTitle: {
+    color: appTheme.colors.text,
     fontFamily: appTheme.fonts.heading,
-    fontSize: 20,
-    lineHeight: 24,
+    fontSize: 25,
+    lineHeight: 30,
   },
-  heroNote: {
-    color: "#DCEAF4",
+  screenHeaderMeta: {
+    color: appTheme.colors.textMuted,
     fontFamily: appTheme.fonts.body,
     fontSize: 13,
     lineHeight: 17,
@@ -225,6 +231,11 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 16,
     lineHeight: 20,
+  },
+  badgeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: appTheme.spacing.xs,
   },
   meta: {
     color: appTheme.colors.textMuted,
@@ -278,38 +289,6 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 14,
     lineHeight: 18,
-  },
-  reviewButton: {
-    marginTop: appTheme.spacing.xs,
-    borderWidth: 1,
-    borderColor: appTheme.colors.primary,
-    borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surface,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    alignSelf: "flex-start",
-  },
-  reviewButtonText: {
-    color: appTheme.colors.primary,
-    fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  editButton: {
-    marginTop: appTheme.spacing.xs,
-    borderWidth: 1,
-    borderColor: appTheme.colors.primary,
-    borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surfaceMuted,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    alignSelf: "flex-start",
-  },
-  editButtonText: {
-    color: appTheme.colors.primary,
-    fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 12,
-    lineHeight: 16,
   },
   modalBackdrop: {
     flex: 1,

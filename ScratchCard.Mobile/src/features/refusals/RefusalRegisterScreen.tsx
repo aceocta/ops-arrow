@@ -11,6 +11,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, formatTimeValue } from "../../components/DateTimeField";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -287,6 +288,8 @@ export function RefusalRegisterScreen() {
   });
 
   const entries = dailyLogQuery.data?.entries ?? [];
+  const reviewedCount = entries.filter((entry) => Boolean(entry.reviewedOn)).length;
+  const pendingCount = entries.length - reviewedCount;
 
   const recordMutation = useMutation({
     mutationFn: async () => {
@@ -410,14 +413,34 @@ export function RefusalRegisterScreen() {
 
   return (
     <ScreenContainer>
-      {/* <View style={styles.hero}>
-        <Text style={styles.heroTitle}>No ID / No Sale Register</Text>
-        <Text style={styles.heroSubtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
-        <Text style={styles.heroNote}>Each refusal entry must include staff signature.</Text>
-      </View> */}
+      <View style={styles.screenHeaderCard}>
+        <View style={styles.screenHeaderTopRow}>
+          <View style={styles.screenHeaderTitleWrap}>
+            <Text style={styles.screenHeaderEyebrow}>No ID / No Sale</Text>
+            <Text style={styles.screenHeaderTitle}>Refusal Register</Text>
+            <Text style={styles.screenHeaderMeta}>Shop: {activeShop?.shopName ?? "-"}</Text>
+          </View>
+          <StatusBadge label={pendingCount > 0 ? "Pending Reviews" : "Up To Date"} tone={pendingCount > 0 ? "warning" : "success"} />
+        </View>
+        <View style={styles.headerMetricRow}>
+          <View style={styles.headerMetricCard}>
+            <Text style={styles.headerMetricValue}>{entries.length}</Text>
+            <Text style={styles.headerMetricLabel}>Total Entries</Text>
+          </View>
+          <View style={styles.headerMetricCard}>
+            <Text style={styles.headerMetricValue}>{reviewedCount}</Text>
+            <Text style={styles.headerMetricLabel}>Reviewed</Text>
+          </View>
+          <View style={styles.headerMetricCard}>
+            <Text style={styles.headerMetricValue}>{pendingCount}</Text>
+            <Text style={styles.headerMetricLabel}>Pending</Text>
+          </View>
+        </View>
+      </View>
 
       <View style={ui.card}>
         <Text style={styles.sectionTitle}>Refusal</Text>
+        <Text style={styles.sectionSubtitle}>Record refusal details and capture a staff signature.</Text>
         <View style={styles.row}>
           <DateTimeField style={{ flex: 1 }} mode="date" value={selectedDate} onChange={setSelectedDate} />
           <DateTimeField style={{ flex: 1 }} mode="time" value={refusalTime} onChange={setRefusalTime} />
@@ -500,44 +523,49 @@ export function RefusalRegisterScreen() {
           disabled={recordMutation.isPending || !shopId || !signatureDataUrl.trim()}
         />
 
-        {/* <Pressable
-          accessibilityRole="button"
-          style={styles.secondaryButton}
-          onPress={() => navigation.navigate("RefusalRegisterByDay")}
-        >
-          <Text style={styles.secondaryButtonText}>View Logs by Day</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          style={styles.secondaryButton}
-          onPress={() => navigation.navigate("RefusalManagerReview")}
-        >
-          <Text style={styles.secondaryButtonText}>Manager Review List</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          style={styles.secondaryButton}
-          onPress={() => navigation.navigate("RefusalReport")}
-        >
-          <Text style={styles.secondaryButtonText}>Refusal Report (Date Range)</Text>
-        </Pressable> */}
+        <View style={styles.utilityActionGrid}>
+          <Pressable accessibilityRole="button" style={styles.secondaryButton} onPress={() => navigation.navigate("RefusalRegisterByDay")}>
+            <Text style={styles.secondaryButtonText}>Logs By Day</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" style={styles.secondaryButton} onPress={() => navigation.navigate("RefusalManagerReview")}>
+            <Text style={styles.secondaryButtonText}>Manager Review</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" style={styles.secondaryButton} onPress={() => navigation.navigate("RefusalReport")}>
+            <Text style={styles.secondaryButtonText}>Range Report</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" style={styles.secondaryButton} onPress={() => void printRefusalReport()}>
+            <Text style={styles.secondaryButtonText}>Print Daily PDF</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" style={styles.secondaryButton} onPress={() => void shareRefusalReport()}>
+            <Text style={styles.secondaryButtonText}>Share Daily PDF</Text>
+          </Pressable>
+        </View>
       </View>
 
       <View style={ui.card}>
         <Text style={styles.sectionTitle}>Entries ({selectedDate})</Text>
+        <Text style={styles.sectionSubtitle}>Latest refusal records for this date.</Text>
         {dailyLogQuery.isLoading ? <Text style={styles.meta}>Loading entries...</Text> : null}
         {entries.length === 0 && !dailyLogQuery.isLoading ? <Text style={styles.meta}>No entries for this date.</Text> : null}
         {entries.map((entry) => (
           <View key={entry.id} style={styles.entryItem}>
-            <View style={styles.entryTopRow}>
-              <Text style={styles.entryNo}>No. {entry.sequenceNo}</Text>
-              <Text style={styles.entryTime}>{entry.refusalTime || "--:--"}</Text>
+            <View style={styles.entryHeaderTop}>
+              <View style={styles.entryTopRow}>
+                <Text style={styles.entryNo}>No. {entry.sequenceNo}</Text>
+                <Text style={styles.entryTime}>{entry.refusalTime || "--:--"}</Text>
+              </View>
+              <View style={styles.entryBadgeRow}>
+                <StatusBadge label={entry.signatureImagePath ? "Signed" : "No Signature"} tone={entry.signatureImagePath ? "success" : "danger"} />
+                <StatusBadge
+                  label={entry.reviewedOn ? "Reviewed" : "Pending Review"}
+                  tone={entry.reviewedOn ? "success" : "warning"}
+                />
+              </View>
             </View>
             <Text style={styles.entryProduct}>{entry.product}</Text>
             <Text style={styles.meta}>Person: {entry.personDescription}</Text>
             {entry.observations ? <Text style={styles.meta}>Obs: {entry.observations}</Text> : null}
             <Text style={styles.meta}>Staff: {getStaffDisplayName(entry)}</Text>
-            <Text style={styles.meta}>Signature: {entry.signatureImagePath ? "Saved" : "Missing"}</Text>
             <Text style={styles.meta}>Manager Review: {entry.reviewedOn ? `Reviewed by ${entry.reviewedByName ?? "-"}` : "Pending"}</Text>
             <View style={styles.entryActions}>
               <Pressable
@@ -612,37 +640,82 @@ export function RefusalRegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  hero: {
-    backgroundColor: appTheme.colors.primary,
-    borderRadius: appTheme.radius.lg,
+  screenHeaderCard: {
     borderWidth: 1,
-    borderColor: appTheme.colors.primaryPressed,
-    padding: appTheme.spacing.lg,
-    gap: appTheme.spacing.xs,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.md,
+    backgroundColor: "#F1F6FC",
+    paddingHorizontal: appTheme.spacing.md,
+    paddingVertical: appTheme.spacing.md,
+    gap: appTheme.spacing.sm,
   },
-  heroTitle: {
-    color: appTheme.colors.onPrimary,
-    fontFamily: appTheme.fonts.heading,
-    fontSize: 20,
-    lineHeight: 24,
+  screenHeaderTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.sm,
   },
-  heroSubtitle: {
-    color: appTheme.colors.onPrimary,
+  screenHeaderTitleWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  screenHeaderEyebrow: {
+    color: appTheme.colors.textSubtle,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 14,
-    lineHeight: 18,
+    fontSize: 11,
+    lineHeight: 14,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
   },
-  heroNote: {
-    color: "#DCEAF4",
+  screenHeaderTitle: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.heading,
+    fontSize: 25,
+    lineHeight: 30,
+  },
+  screenHeaderMeta: {
+    color: appTheme.colors.textMuted,
     fontFamily: appTheme.fonts.body,
     fontSize: 13,
     lineHeight: 17,
+  },
+  headerMetricRow: {
+    flexDirection: "row",
+    gap: appTheme.spacing.xs,
+  },
+  headerMetricCard: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    paddingVertical: appTheme.spacing.xs,
+    alignItems: "center",
+    gap: 2,
+  },
+  headerMetricValue: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.heading,
+    fontSize: 18,
+    lineHeight: 21,
+  },
+  headerMetricLabel: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 11,
+    lineHeight: 14,
   },
   sectionTitle: {
     color: appTheme.colors.text,
     fontSize: 17,
     lineHeight: 22,
     fontFamily: appTheme.fonts.bodyMedium,
+  },
+  sectionSubtitle: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
   },
   fieldLabel: {
     color: appTheme.colors.text,
@@ -740,6 +813,11 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: appTheme.spacing.xs,
   },
+  utilityActionGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: appTheme.spacing.xs,
+  },
   meta: {
     color: appTheme.colors.textMuted,
     fontFamily: appTheme.fonts.body,
@@ -754,10 +832,18 @@ const styles = StyleSheet.create({
     padding: appTheme.spacing.sm,
     gap: 3,
   },
+  entryHeaderTop: {
+    gap: appTheme.spacing.xs,
+  },
   entryTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    gap: appTheme.spacing.xs,
+  },
+  entryBadgeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: appTheme.spacing.xs,
   },
   entryNo: {
