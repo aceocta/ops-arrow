@@ -19,6 +19,7 @@ export enum PackStatus {
 }
 
 export enum ShiftStatus {
+  Scheduled = "Scheduled",
   Open = "Open",
   Closed = "Closed",
   Reopened = "Reopened",

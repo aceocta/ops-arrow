@@ -27,11 +27,36 @@ public class ConfigurationService : IConfigurationService
 
     public async Task<IReadOnlyCollection<ConfigurationItemDto>> GetAsync(Guid? shopId, CancellationToken cancellationToken = default)
     {
-        var query = _configurationRepository.Query().AsNoTracking().Where(x => x.IsActive);
-        query = shopId.HasValue ? query.Where(x => x.ShopId == shopId || x.ShopId == null) : query.Where(x => x.ShopId == null);
+        var query = _configurationRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.IsActive);
 
-        var list = await query.OrderBy(x => x.GroupName).ThenBy(x => x.ConfigKey).ToListAsync(cancellationToken);
-        return list.Select(x => x.ToDto()).ToArray();
+        if (!shopId.HasValue)
+        {
+            var globalOnly = await query
+                .Where(x => x.ShopId == null)
+                .OrderBy(x => x.GroupName)
+                .ThenBy(x => x.ConfigKey)
+                .ToListAsync(cancellationToken);
+
+            return globalOnly.Select(x => x.ToDto()).ToArray();
+        }
+
+        var candidateRows = await query
+            .Where(x => x.ShopId == null || x.ShopId == shopId.Value)
+            .ToListAsync(cancellationToken);
+
+        var effectiveRows = candidateRows
+            .GroupBy(x => x.ConfigKey, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group
+                .OrderByDescending(x => x.ShopId == shopId.Value)
+                .ThenByDescending(x => x.ModifiedOn ?? x.CreatedOn)
+                .First())
+            .OrderBy(x => x.GroupName)
+            .ThenBy(x => x.ConfigKey)
+            .ToArray();
+
+        return effectiveRows.Select(x => x.ToDto()).ToArray();
     }
 
     public async Task UpdateAsync(UpdateConfigurationRequest request, CancellationToken cancellationToken = default)
@@ -42,6 +67,13 @@ public class ConfigurationService : IConfigurationService
             .ToListAsync(cancellationToken);
 
         var byKey = existing.ToDictionary(x => x.ConfigKey, StringComparer.OrdinalIgnoreCase);
+
+        var globalTemplates = request.ShopId.HasValue
+            ? await _configurationRepository.Query()
+                .AsNoTracking()
+                .Where(x => x.ShopId == null && keys.Contains(x.ConfigKey))
+                .ToDictionaryAsync(x => x.ConfigKey, StringComparer.OrdinalIgnoreCase, cancellationToken)
+            : new Dictionary<string, AppConfiguration>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var item in request.Items)
         {
@@ -54,13 +86,15 @@ public class ConfigurationService : IConfigurationService
             }
             else
             {
+                var template = globalTemplates.TryGetValue(item.ConfigKey, out var source) ? source : null;
                 await _configurationRepository.AddAsync(new AppConfiguration
                 {
                     ShopId = request.ShopId,
                     ConfigKey = item.ConfigKey,
                     ConfigValue = item.ConfigValue,
-                    DataType = "string",
-                    GroupName = "Custom",
+                    DataType = template?.DataType ?? "string",
+                    GroupName = template?.GroupName ?? "Custom",
+                    Description = template?.Description,
                     IsActive = true,
                     CreatedOn = DateTimeOffset.UtcNow,
                     CreatedBy = _currentUserService.UserId

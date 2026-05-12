@@ -4,11 +4,13 @@ import { useFocusEffect } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { closeBusinessDay, getBusinessDay, listBusinessDays, openBusinessDay, reopenBusinessDay } from "../../api/businessDaysApi";
+import { getConfigurations } from "../../api/configurationsApi";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
-import { getShiftSales, listShifts, openShift, reopenShift } from "../../api/shiftsApi";
+import { getShiftSales, listShifts, openShift, reopenShift, startScheduledShift } from "../../api/shiftsApi";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
+import { deriveShopOperationalSetup } from "../settings/shopConfiguration";
 import { ShiftStatus } from "../../types/enums";
 import { MainStackParamList } from "../../types/navigation";
 import { BusinessDay } from "../../types/models";
@@ -27,6 +29,7 @@ function getStatusTone(status?: string): "neutral" | "warning" | "danger" | "suc
 
 function getShiftTone(status: ShiftStatus): "neutral" | "warning" | "danger" | "success" {
   if (status === ShiftStatus.Open) return "success";
+  if (status === ShiftStatus.Scheduled) return "warning";
   if (status === ShiftStatus.Reopened) return "warning";
   if (status === ShiftStatus.Closed || status === ShiftStatus.Approved) return "neutral";
   return "neutral";
@@ -76,7 +79,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   const [isCloseDayModalVisible, setIsCloseDayModalVisible] = useState(false);
   const [isReopenDayModalVisible, setIsReopenDayModalVisible] = useState(false);
   const [isOpenShiftModalVisible, setIsOpenShiftModalVisible] = useState(false);
-  const [newShiftName, setNewShiftName] = useState(getDefaultShiftNameForNow());
+  const [newShiftName, setNewShiftName] = useState("");
 
   const dayQuery = useQuery({
     queryKey: ["business-day", businessDayId],
@@ -140,13 +143,16 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       if (!day?.shopId) {
         throw new Error("Shop context is missing.");
       }
-      const normalizedShiftName = newShiftName.trim();
-      if (!normalizedShiftName) {
-        throw new Error("Shift name is required.");
-      }
-      const duplicateShift = shiftsQuery.data?.find(
-        (shift) => shift.shiftName.trim().toLowerCase() === normalizedShiftName.toLowerCase(),
-      );
+      const defaultShiftName = shopOperationalSetup.shiftDefaultName.trim() || getDefaultShiftNameForNow();
+      const normalizedShiftName = shopOperationalSetup.allowCustomShiftName
+        ? (newShiftName.trim() || defaultShiftName)
+        : defaultShiftName;
+
+      const duplicateShift = shopOperationalSetup.allowCustomShiftName
+        ? shiftsQuery.data?.find(
+            (shift) => shift.shiftName.trim().toLowerCase() === normalizedShiftName.toLowerCase(),
+          )
+        : undefined;
       if (duplicateShift) {
         throw new Error(`Shift '${normalizedShiftName}' already exists for this business day.`);
       }
@@ -159,7 +165,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     },
     onSuccess: async () => {
       setIsOpenShiftModalVisible(false);
-      setNewShiftName(getDefaultShiftNameForNow());
+      setNewShiftName(shopOperationalSetup.shiftDefaultName.trim() || getDefaultShiftNameForNow());
       Alert.alert("Shift opened", "New shift opened successfully.");
       await shiftsQuery.refetch();
     },
@@ -175,6 +181,16 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     },
     onError: (error: any) => {
       Alert.alert("Failed", error?.response?.data?.message ?? "Unable to reopen shift.");
+    },
+  });
+  const startScheduledShiftMutation = useMutation({
+    mutationFn: async ({ shiftId }: { shiftId: string }) => startScheduledShift(shiftId),
+    onSuccess: async () => {
+      Alert.alert("Started", "Scheduled shift started successfully.");
+      await shiftsQuery.refetch();
+    },
+    onError: (error: any) => {
+      Alert.alert("Failed", error?.response?.data?.message ?? "Unable to start scheduled shift.");
     },
   });
 
@@ -208,6 +224,23 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     queryFn: () => listShifts(day?.shopId as string, businessDayId),
     enabled: Boolean(day?.shopId),
   });
+  const configurationQuery = useQuery({
+    queryKey: ["configurations", day?.shopId],
+    queryFn: () => getConfigurations(day?.shopId as string),
+    enabled: Boolean(day?.shopId),
+  });
+  const shopOperationalSetup = useMemo(
+    () => deriveShopOperationalSetup(configurationQuery.data),
+    [configurationQuery.data],
+  );
+
+  useEffect(() => {
+    if (!isOpenShiftModalVisible) {
+      return;
+    }
+
+    setNewShiftName(shopOperationalSetup.shiftDefaultName.trim() || getDefaultShiftNameForNow());
+  }, [isOpenShiftModalVisible, shopOperationalSetup.shiftDefaultName]);
 
   useFocusEffect(
     useCallback(() => {
@@ -293,6 +326,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   const closableStatuses = new Set<ShiftStatus>([ShiftStatus.Open, ShiftStatus.Reopened]);
   const hasOpenShifts = shifts.some((shift) => closableStatuses.has(shift.status));
   const openShiftCount = shifts.filter((shift) => closableStatuses.has(shift.status)).length;
+  const scheduledShiftCount = shifts.filter((shift) => shift.status === ShiftStatus.Scheduled).length;
   const closedShiftCount = shifts.filter((shift) => closedSummaryStatuses.has(shift.status)).length;
   const dayStatusMessage = canClose
     ? hasOpenShifts
@@ -384,6 +418,10 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               <Text style={styles.summaryMetaLabel}>Closed Shifts</Text>
               <Text style={styles.summaryMetaValue}>{closedShiftCount}</Text>
             </View>
+            <View style={styles.summaryMetaItem}>
+              <Text style={styles.summaryMetaLabel}>Scheduled</Text>
+              <Text style={styles.summaryMetaValue}>{scheduledShiftCount}</Text>
+            </View>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={daysQuery.isFetching ? "Refreshing available dates" : "Change business date"}
@@ -414,7 +452,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 accessibilityLabel="Open new shift"
                 style={[styles.shiftOpenButton, !canManageShifts ? styles.shiftOpenButtonDisabled : null]}
                 onPress={() => {
-                  setNewShiftName(getDefaultShiftNameForNow());
+                  setNewShiftName(shopOperationalSetup.shiftDefaultName.trim() || getDefaultShiftNameForNow());
                   setIsOpenShiftModalVisible(true);
                 }}
                 disabled={!canManageShifts}
@@ -439,6 +477,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
 
           {shifts.map((shift) => {
             const canCloseShift = closableStatuses.has(shift.status);
+            const canStartScheduledShift = shift.status === ShiftStatus.Scheduled;
             const shiftSalesTotal = shiftSalesTotalsQuery.data?.[shift.id];
             return (
               <View key={shift.id} style={styles.shiftItem}>
@@ -466,6 +505,14 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                       label="Close Shift"
                       onPress={() => navigation.navigate("ShiftClose", { shiftId: shift.id, shopId: shift.shopId })}
                       disabled={!canManageShifts}
+                    />
+                  </View>
+                ) : canStartScheduledShift ? (
+                  <View style={styles.shiftActionRow}>
+                    <PrimaryButton
+                      label={startScheduledShiftMutation.isPending ? "Starting..." : "Start Shift"}
+                      onPress={() => startScheduledShiftMutation.mutate({ shiftId: shift.id })}
+                      disabled={!canManageShifts || startScheduledShiftMutation.isPending}
                     />
                   </View>
                 ) : null}
@@ -677,15 +724,27 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           <View style={styles.modalBackdrop}>
             <View style={styles.modalCard}>
               <Text style={styles.sectionTitle}>Open New Shift</Text>
-              <Text style={styles.meta}>Default shift name follows time of day.</Text>
-              <Text style={styles.fieldLabel}>Shift Name</Text>
-              <TextInput
-                style={styles.input}
-                value={newShiftName}
-                onChangeText={setNewShiftName}
-                placeholder="Shift name"
-                placeholderTextColor={appTheme.colors.textSubtle}
-              />
+              <Text style={styles.meta}>
+                Configured window: {shopOperationalSetup.shiftStartTime} - {shopOperationalSetup.shiftEndTime}
+                {shopOperationalSetup.enforceShiftTimeWindow ? " (enforced)." : " (advisory)."}
+              </Text>
+              {shopOperationalSetup.allowCustomShiftName ? (
+                <>
+                  <Text style={styles.fieldLabel}>Shift Name</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={newShiftName}
+                    onChangeText={setNewShiftName}
+                    placeholder="Shift name"
+                    placeholderTextColor={appTheme.colors.textSubtle}
+                  />
+                </>
+              ) : (
+                <View style={styles.reviewSnapshotCard}>
+                  <Text style={styles.reviewSnapshotTitle}>Shift Name</Text>
+                  <Text style={styles.meta}>{shopOperationalSetup.shiftDefaultName}</Text>
+                </View>
+              )}
               <View style={styles.modalActionRow}>
                 <Pressable
                   style={[

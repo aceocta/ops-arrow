@@ -187,6 +187,7 @@ function getLastSerialForPack(pack: ScratchCardPack) {
 function getShiftStatusTone(status?: string): "neutral" | "warning" | "danger" | "success" {
   if (!status) return "neutral";
   if (status === ShiftStatus.Open) return "success";
+  if (status === ShiftStatus.Scheduled) return "warning";
   if (status === ShiftStatus.Reopened) return "warning";
   if (status === ShiftStatus.Closed || status === ShiftStatus.Approved) return "neutral";
   return "neutral";

@@ -177,6 +177,8 @@ export type Shift = {
   endTime?: string;
   status: ShiftStatus;
   syncStatus?: SyncStatus;
+  isAutoCreated?: boolean;
+  autoTemplateId?: string;
 };
 
 export type PrizePayout = {

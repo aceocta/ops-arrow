@@ -1,6 +1,7 @@
 using ScratchCard.Application.DTOs.Auth;
 using ScratchCard.Application.DTOs.BusinessDays;
 using ScratchCard.Application.DTOs.Companies;
+using ScratchCard.Application.Common.Models;
 using ScratchCard.Application.DTOs.Configurations;
 using ScratchCard.Application.DTOs.Deliveries;
 using ScratchCard.Application.DTOs.Games;
@@ -127,6 +128,12 @@ public interface IConfigurationService
     Task UpdateAsync(UpdateConfigurationRequest request, CancellationToken cancellationToken = default);
 }
 
+public interface IShopConfigurationService
+{
+    Task<ShopShiftSetup> GetShiftSetupAsync(Guid shopId, CancellationToken cancellationToken = default);
+    Task<ShopPackSetup> GetPackSetupAsync(Guid shopId, CancellationToken cancellationToken = default);
+}
+
 public interface IGameService
 {
     Task<GameDto> CreateAsync(CreateGameRequest request, CancellationToken cancellationToken = default);
@@ -168,10 +175,12 @@ public interface IBusinessDayService
 public interface IShiftService
 {
     Task<ShiftDto> OpenAsync(OpenShiftRequest request, CancellationToken cancellationToken = default);
+    Task<ShiftDto> StartScheduledAsync(Guid id, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<ShiftDto>> ListAsync(Guid shopId, Guid? businessDayId = null, CancellationToken cancellationToken = default);
     Task<ShiftDto> GetAsync(Guid id, CancellationToken cancellationToken = default);
     Task<ShiftCloseResultDto> CloseAsync(Guid id, FinalizeShiftRequest request, bool isOfflineSync, CancellationToken cancellationToken = default);
     Task<ShiftDto> ReopenAsync(Guid id, ReopenShiftRequest request, CancellationToken cancellationToken = default);
+    Task DeleteAsync(Guid id, DeleteShiftRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<PackDto>> GetActivePacksForShiftCloseAsync(Guid shiftId, CancellationToken cancellationToken = default);
 }
 

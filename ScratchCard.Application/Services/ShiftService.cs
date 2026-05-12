@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
+using ScratchCard.Application.Common.Models;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Packs;
 using ScratchCard.Application.DTOs.Shifts;
@@ -13,9 +14,12 @@ namespace ScratchCard.Application.Services;
 
 public class ShiftService : IShiftService
 {
+    private const string DefaultShiftName = "Main Shift";
+
     private readonly IRepository<Shift> _shiftRepository;
     private readonly IRepository<BusinessDay> _businessDayRepository;
     private readonly IRepository<ScratchCardPack> _packRepository;
+    private readonly IShopConfigurationService _shopConfigurationService;
     private readonly IShiftSalesService _shiftSalesService;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
@@ -25,6 +29,7 @@ public class ShiftService : IShiftService
         IRepository<Shift> shiftRepository,
         IRepository<BusinessDay> businessDayRepository,
         IRepository<ScratchCardPack> packRepository,
+        IShopConfigurationService shopConfigurationService,
         IShiftSalesService shiftSalesService,
         IAuditService auditService,
         ICurrentUserService currentUserService,
@@ -33,6 +38,7 @@ public class ShiftService : IShiftService
         _shiftRepository = shiftRepository;
         _businessDayRepository = businessDayRepository;
         _packRepository = packRepository;
+        _shopConfigurationService = shopConfigurationService;
         _shiftSalesService = shiftSalesService;
         _auditService = auditService;
         _currentUserService = currentUserService;
@@ -49,16 +55,86 @@ public class ShiftService : IShiftService
             throw new AppException("business_day_closed", "Cannot open shifts for a closed business day.");
         }
 
+        if (businessDay.ShopId != request.ShopId)
+        {
+            throw new AppException("invalid_shop_for_business_day", "Business day does not belong to the provided shop.", 400);
+        }
+
+        var setup = await _shopConfigurationService.GetShiftSetupAsync(request.ShopId, cancellationToken);
+        var utcNow = DateTimeOffset.UtcNow;
+        var shopNow = ConvertToShopTime(utcNow, setup.TimeZoneId);
+
+        if (setup.EnforceShiftTimeWindow && !IsWithinAnyShiftWindow(shopNow.TimeOfDay, setup.ShiftTemplates))
+        {
+            throw new AppException(
+                "shift_outside_time_window",
+                $"Shift can only be opened inside a configured shift window ({setup.TimeZoneId}).",
+                400);
+        }
+
+        var shiftName = ResolveShiftName(request.ShiftName, setup);
+        if (shiftName.Length > 100)
+        {
+            shiftName = shiftName[..100].TrimEnd();
+        }
+        if (string.IsNullOrWhiteSpace(shiftName))
+        {
+            shiftName = DefaultShiftName;
+        }
+
+        var duplicateShift = await _shiftRepository.Query()
+            .AsNoTracking()
+            .AnyAsync(
+                x => x.BusinessDayId == request.BusinessDayId &&
+                     x.ShopId == request.ShopId &&
+                     x.ShiftName == shiftName,
+                cancellationToken);
+
+        if (duplicateShift && setup.AllowCustomShiftName)
+        {
+            throw new AppException("duplicate_shift_name", $"Shift '{shiftName}' already exists for this business day.", 409);
+        }
+
+        if (duplicateShift && !setup.AllowCustomShiftName)
+        {
+            var sequence = 2;
+            var baseName = shiftName;
+            while (true)
+            {
+                var suffix = $" {sequence}";
+                var allowedNameLength = Math.Max(1, 100 - suffix.Length);
+                var trimmedBase = baseName.Length > allowedNameLength
+                    ? baseName[..allowedNameLength].TrimEnd()
+                    : baseName;
+                shiftName = $"{trimmedBase}{suffix}";
+
+                var exists = await _shiftRepository.Query()
+                    .AsNoTracking()
+                    .AnyAsync(
+                        x => x.BusinessDayId == request.BusinessDayId &&
+                             x.ShopId == request.ShopId &&
+                             x.ShiftName == shiftName,
+                        cancellationToken);
+
+                if (!exists)
+                {
+                    break;
+                }
+
+                sequence++;
+            }
+        }
+
         var shift = new Shift
         {
             BusinessDayId = request.BusinessDayId,
             ShopId = request.ShopId,
-            ShiftName = request.ShiftName,
-            StartTime = DateTimeOffset.UtcNow,
+            ShiftName = shiftName,
+            StartTime = utcNow,
             OpenedByUserId = _currentUserService.UserId ?? Guid.Empty,
             Status = ShiftStatus.Open,
             SyncStatus = SyncStatus.Synced,
-            CreatedOn = DateTimeOffset.UtcNow,
+            CreatedOn = utcNow,
             CreatedBy = _currentUserService.UserId
         };
 
@@ -66,6 +142,39 @@ public class ShiftService : IShiftService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await _auditService.LogAsync(nameof(Shift), shift.Id, "ShiftOpened", shift.ShopId, cancellationToken: cancellationToken);
+        return shift.ToDto();
+    }
+
+    public async Task<ShiftDto> StartScheduledAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var shift = await _shiftRepository.GetByIdAsync(id, cancellationToken)
+            ?? throw new AppException("shift_not_found", "Shift not found.", 404);
+
+        if (shift.Status != ShiftStatus.Scheduled)
+        {
+            throw new AppException("shift_not_scheduled", "Only scheduled shifts can be started.", 409);
+        }
+
+        var businessDay = await _businessDayRepository.GetByIdAsync(shift.BusinessDayId, cancellationToken)
+            ?? throw new AppException("business_day_not_found", "Business day not found.", 404);
+
+        if (businessDay.Status == BusinessDayStatus.Closed)
+        {
+            throw new AppException("business_day_closed", "Cannot start a shift for a closed business day.", 400);
+        }
+
+        shift.Status = ShiftStatus.Open;
+        shift.StartTime = DateTimeOffset.UtcNow;
+        shift.EndTime = null;
+        shift.OpenedByUserId = _currentUserService.UserId ?? Guid.Empty;
+        shift.SyncStatus = SyncStatus.Synced;
+        shift.ModifiedOn = DateTimeOffset.UtcNow;
+        shift.ModifiedBy = _currentUserService.UserId;
+
+        _shiftRepository.Update(shift);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _auditService.LogAsync(nameof(Shift), shift.Id, "ScheduledShiftStarted", shift.ShopId, cancellationToken: cancellationToken);
         return shift.ToDto();
     }
 
@@ -85,6 +194,33 @@ public class ShiftService : IShiftService
             .ToListAsync(cancellationToken);
 
         return shifts.Select(x => x.ToDto()).ToArray();
+    }
+
+    public async Task DeleteAsync(Guid id, DeleteShiftRequest request, CancellationToken cancellationToken = default)
+    {
+        var shift = await _shiftRepository.GetByIdAsync(id, cancellationToken)
+            ?? throw new AppException("shift_not_found", "Shift not found.", 404);
+
+        if (!ShiftMetadata.IsAutoCreated(shift.Notes))
+        {
+            throw new AppException("shift_delete_not_allowed", "Only auto-created shifts can be deleted from this screen.", 409);
+        }
+
+        if (shift.Status != ShiftStatus.Scheduled)
+        {
+            throw new AppException("shift_delete_not_allowed", "Only scheduled auto-created shifts can be deleted.", 409);
+        }
+
+        _shiftRepository.Remove(shift);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _auditService.LogAsync(
+            nameof(Shift),
+            shift.Id,
+            "AutoCreatedShiftDeleted",
+            shift.ShopId,
+            reason: request.Reason,
+            cancellationToken: cancellationToken);
     }
 
     public async Task<ShiftDto> GetAsync(Guid id, CancellationToken cancellationToken = default)
@@ -143,12 +279,101 @@ public class ShiftService : IShiftService
         var shift = await _shiftRepository.GetByIdAsync(shiftId, cancellationToken)
             ?? throw new AppException("shift_not_found", "Shift not found.", 404);
 
+        var packSetup = await _shopConfigurationService.GetPackSetupAsync(shift.ShopId, cancellationToken);
         var packs = await _packRepository.Query()
             .AsNoTracking()
             .Where(x => x.ShopId == shift.ShopId && x.Status == PackStatus.Active && !x.IsDeleted)
             .Include(x => x.Game)
             .ToListAsync(cancellationToken);
 
-        return packs.Select(x => x.ToDto()).ToArray();
+        return packs
+            .Select(x =>
+            {
+                var dto = x.ToDto();
+                dto.SellingOrder = packSetup.SellingOrder;
+                return dto;
+            })
+            .ToArray();
+    }
+
+    private static string ResolveShiftName(string? requestedShiftName, ShopShiftSetup setup)
+    {
+        var configuredName = string.IsNullOrWhiteSpace(setup.DefaultShiftName)
+            ? DefaultShiftName
+            : setup.DefaultShiftName.Trim();
+
+        var requestedName = requestedShiftName?.Trim();
+        if (!setup.AllowCustomShiftName || string.IsNullOrWhiteSpace(requestedName))
+        {
+            return configuredName;
+        }
+
+        return requestedName;
+    }
+
+    private static bool IsWithinAnyShiftWindow(TimeSpan current, IReadOnlyCollection<ShopShiftTemplate> templates)
+    {
+        var activeTemplates = templates.Where(x => x.IsActive).ToArray();
+        if (activeTemplates.Length == 0)
+        {
+            return true;
+        }
+
+        foreach (var template in activeTemplates)
+        {
+            if (IsWithinShiftWindow(current, template.StartTime, template.EndTime))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsWithinShiftWindow(TimeSpan current, TimeSpan start, TimeSpan end)
+    {
+        if (start == end)
+        {
+            return true;
+        }
+
+        if (start < end)
+        {
+            return current >= start && current <= end;
+        }
+
+        return current >= start || current <= end;
+    }
+
+    private static DateTimeOffset ConvertToShopTime(DateTimeOffset utcNow, string? timeZoneId)
+    {
+        if (string.IsNullOrWhiteSpace(timeZoneId))
+        {
+            return utcNow;
+        }
+
+        static TimeZoneInfo? TryResolveTimeZone(string id)
+        {
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById(id);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        var resolved = TryResolveTimeZone(timeZoneId.Trim());
+        if (resolved is null && string.Equals(timeZoneId.Trim(), "Europe/London", StringComparison.OrdinalIgnoreCase))
+        {
+            resolved = TryResolveTimeZone("GMT Standard Time");
+        }
+        else if (resolved is null && string.Equals(timeZoneId.Trim(), "GMT Standard Time", StringComparison.OrdinalIgnoreCase))
+        {
+            resolved = TryResolveTimeZone("Europe/London");
+        }
+
+        return resolved is null ? utcNow : TimeZoneInfo.ConvertTime(utcNow, resolved);
     }
 }

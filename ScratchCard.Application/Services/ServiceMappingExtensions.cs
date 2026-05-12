@@ -209,7 +209,11 @@ internal static class ServiceMappingExtensions
         StartTime = shift.StartTime,
         EndTime = shift.EndTime,
         Status = shift.Status.ToString(),
-        SyncStatus = shift.SyncStatus.ToString()
+        SyncStatus = shift.SyncStatus.ToString(),
+        IsAutoCreated = ShiftMetadata.IsAutoCreated(shift.Notes),
+        AutoTemplateId = ShiftMetadata.TryGetAutoTemplateId(shift.Notes, out var templateId) && !string.IsNullOrWhiteSpace(templateId)
+            ? templateId
+            : null
     };
 
     public static PrizePayoutDto ToDto(this PrizePayout payout) => new()

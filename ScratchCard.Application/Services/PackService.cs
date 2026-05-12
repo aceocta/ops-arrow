@@ -16,11 +16,9 @@ public class PackService : IPackService
         @"(?<game>[0-9A-Za-z]{2,20})\s*[-]\s*(?<pack>[0-9A-Za-z]{3,16})",
         RegexOptions.Compiled);
 
-    private static SellingOrder NormalizeSellingOrder(SellingOrder sellingOrder, SellingOrder fallback) =>
-        sellingOrder == (SellingOrder)0 ? fallback : sellingOrder;
-
     private readonly IRepository<ScratchCardPack> _packRepository;
     private readonly IRepository<ShopScratchCardGame> _shopGameRepository;
+    private readonly IShopConfigurationService _shopConfigurationService;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
@@ -28,12 +26,14 @@ public class PackService : IPackService
     public PackService(
         IRepository<ScratchCardPack> packRepository,
         IRepository<ShopScratchCardGame> shopGameRepository,
+        IShopConfigurationService shopConfigurationService,
         IAuditService auditService,
         ICurrentUserService currentUserService,
         IUnitOfWork unitOfWork)
     {
         _packRepository = packRepository;
         _shopGameRepository = shopGameRepository;
+        _shopConfigurationService = shopConfigurationService;
         _auditService = auditService;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
@@ -73,7 +73,8 @@ public class PackService : IPackService
         var endSerial = request.EndSerialNumber.Trim();
         ValidateSerialRange(startSerial, endSerial);
 
-        var sellingOrder = NormalizeSellingOrder(request.SellingOrder, game.DefaultSellingOrder);
+        var packSetup = await _shopConfigurationService.GetPackSetupAsync(request.ShopId, cancellationToken);
+        var sellingOrder = packSetup.SellingOrder;
         var openingSerial = GetDefaultOpeningSerial(startSerial, endSerial, sellingOrder);
         ValidateSerialInRange(openingSerial, startSerial, endSerial);
 
@@ -111,6 +112,7 @@ public class PackService : IPackService
 
     public async Task<IReadOnlyCollection<PackDto>> ListAsync(Guid shopId, CancellationToken cancellationToken = default)
     {
+        var packSetup = await _shopConfigurationService.GetPackSetupAsync(shopId, cancellationToken);
         var packs = await _packRepository.Query()
             .AsNoTracking()
             .Where(x => x.ShopId == shopId && !x.IsDeleted)
@@ -118,13 +120,22 @@ public class PackService : IPackService
             .OrderByDescending(x => x.ReceivedDate)
             .ToListAsync(cancellationToken);
 
-        return packs.Select(x => x.ToDto()).ToArray();
+        return packs
+            .Select(x =>
+            {
+                var dto = x.ToDto();
+                dto.SellingOrder = packSetup.SellingOrder;
+                return dto;
+            })
+            .ToArray();
     }
 
     public async Task<PackDto> GetAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var pack = await GetPackEntityAsync(id, cancellationToken);
-        return pack.ToDto();
+        var dto = pack.ToDto();
+        dto.SellingOrder = (await _shopConfigurationService.GetPackSetupAsync(pack.ShopId, cancellationToken)).SellingOrder;
+        return dto;
     }
 
     public async Task<PackDto> UpdateDetailsAsync(Guid id, UpdatePackDetailsRequest request, CancellationToken cancellationToken = default)
@@ -155,7 +166,7 @@ public class PackService : IPackService
         pack.TotalTickets = request.TotalTickets;
         pack.StartSerialNumber = request.StartSerialNumber.Trim();
         pack.EndSerialNumber = request.EndSerialNumber.Trim();
-        pack.SellingOrder = NormalizeSellingOrder(request.SellingOrder, pack.SellingOrder);
+        pack.SellingOrder = (await _shopConfigurationService.GetPackSetupAsync(pack.ShopId, cancellationToken)).SellingOrder;
         pack.ModifiedOn = DateTimeOffset.UtcNow;
         pack.ModifiedBy = _currentUserService.UserId;
 
@@ -177,7 +188,7 @@ public class PackService : IPackService
 
         ValidateSerialInRange(request.OpeningSerialNumber, pack.StartSerialNumber, pack.EndSerialNumber);
 
-        pack.SellingOrder = NormalizeSellingOrder(request.SellingOrder, pack.SellingOrder);
+        pack.SellingOrder = (await _shopConfigurationService.GetPackSetupAsync(pack.ShopId, cancellationToken)).SellingOrder;
         pack.CurrentSerialNumber = request.OpeningSerialNumber;
         pack.Status = PackStatus.Active;
         pack.ActivatedDate = DateTimeOffset.UtcNow;

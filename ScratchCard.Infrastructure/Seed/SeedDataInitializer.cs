@@ -328,12 +328,13 @@ public static class SeedDataInitializer
         {
             // General
             Cfg("Currency", "GBP", "General Settings", "string", "Default currency", now),
-            Cfg("TimeZone", "Europe/London", "General Settings", "string", "Default timezone", now),
+            Cfg(ConfigurationKeys.TimeZone, "Europe/London", "General Settings", "string", "Default timezone", now),
             Cfg("BusinessDateCutOffTime", "23:59", "General Settings", "string", "Business date cutoff", now),
             Cfg("EnableAuditLog", "true", "General Settings", "bool", "Audit logs enabled", now),
 
             // Pack
             Cfg("DefaultSellingOrder", "Ascending", "Pack Settings", "string", null, now),
+            Cfg(ConfigurationKeys.PackSellingOrder, "Ascending", "Pack Settings", "string", "Shop-wide pack selling order: Ascending (0 to end) or Descending (end to 0)", now),
             Cfg("DefaultStartSerialNumber", "000", "Pack Settings", "string", null, now),
             Cfg("DefaultEndSerialNumber", "099", "Pack Settings", "string", null, now),
             Cfg("SerialNumberLength", "3", "Pack Settings", "int", null, now),
@@ -356,6 +357,18 @@ public static class SeedDataInitializer
             Cfg("RequireShiftClose", "true", "Shift Settings", "bool", null, now),
             Cfg("AllowShiftReopen", "true", "Shift Settings", "bool", null, now),
             Cfg("WhoCanReopenShift", "Manager,ShopOwner", "Shift Settings", "string", null, now),
+            Cfg(ConfigurationKeys.ShiftStartTime, "06:00", "Shift Settings", "string", "Configured shift opening window start time (HH:mm)", now),
+            Cfg(ConfigurationKeys.ShiftEndTime, "23:00", "Shift Settings", "string", "Configured shift opening window end time (HH:mm)", now),
+            Cfg(ConfigurationKeys.ShiftDefaultName, "Main Shift", "Shift Settings", "string", "Default shift name used when custom names are not allowed", now),
+            Cfg(
+                ConfigurationKeys.ShiftTemplates,
+                "[{\"id\":\"main\",\"name\":\"Main Shift\",\"startTime\":\"06:00\",\"endTime\":\"23:00\",\"isActive\":true}]",
+                "Shift Settings",
+                "json",
+                "Shop shift templates. Supports multiple shifts and overnight windows (end time earlier than start means next day).",
+                now),
+            Cfg(ConfigurationKeys.EnforceShiftTimeWindow, "false", "Shift Settings", "bool", "Allow opening shifts only inside configured start/end time window", now),
+            Cfg(ConfigurationKeys.AllowCustomShiftName, "true", "Shift Settings", "bool", "Allow manually entering shift name when opening a shift", now),
             Cfg("RequireReasonForManualClosingSerial", "false", "Shift Settings", "bool", null, now),
             Cfg("NotifyOnManualClosingSerialEntry", "true", "Shift Settings", "bool", null, now),
             Cfg("NotifyOnScannedSerialEdit", "true", "Shift Settings", "bool", null, now),

@@ -18,8 +18,13 @@ export async function listShifts(shopId: string, businessDayId?: string) {
   return response.data.data;
 }
 
-export async function openShift(payload: { businessDayId: string; shopId: string; shiftName: string }) {
+export async function openShift(payload: { businessDayId: string; shopId: string; shiftName?: string }) {
   const response = await apiClient.post<ApiResponse<Shift>>("/shifts/open", payload);
+  return response.data.data;
+}
+
+export async function startScheduledShift(shiftId: string) {
+  const response = await apiClient.post<ApiResponse<Shift>>(`/shifts/${shiftId}/start`);
   return response.data.data;
 }
 
@@ -30,6 +35,13 @@ export async function getShift(shiftId: string) {
 
 export async function reopenShift(shiftId: string, payload: { reason?: string }) {
   const response = await apiClient.post<ApiResponse<Shift>>(`/shifts/${shiftId}/reopen`, payload);
+  return response.data.data;
+}
+
+export async function deleteShift(shiftId: string, payload?: { reason?: string }) {
+  const response = await apiClient.delete<ApiResponse<{ deleted: boolean }>>(`/shifts/${shiftId}`, {
+    data: payload ?? {},
+  });
   return response.data.data;
 }
 

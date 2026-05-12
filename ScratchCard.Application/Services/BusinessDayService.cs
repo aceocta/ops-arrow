@@ -16,6 +16,7 @@ public class BusinessDayService : IBusinessDayService
     private readonly IRepository<ShiftScratchCardSale> _salesRepository;
     private readonly IRepository<PrizePayout> _payoutRepository;
     private readonly IRepository<ScratchCardDayCloseSummary> _dayCloseSummaryRepository;
+    private readonly IShopConfigurationService _shopConfigurationService;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
@@ -26,6 +27,7 @@ public class BusinessDayService : IBusinessDayService
         IRepository<ShiftScratchCardSale> salesRepository,
         IRepository<PrizePayout> payoutRepository,
         IRepository<ScratchCardDayCloseSummary> dayCloseSummaryRepository,
+        IShopConfigurationService shopConfigurationService,
         IAuditService auditService,
         ICurrentUserService currentUserService,
         IUnitOfWork unitOfWork)
@@ -35,6 +37,7 @@ public class BusinessDayService : IBusinessDayService
         _salesRepository = salesRepository;
         _payoutRepository = payoutRepository;
         _dayCloseSummaryRepository = dayCloseSummaryRepository;
+        _shopConfigurationService = shopConfigurationService;
         _auditService = auditService;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
@@ -68,6 +71,7 @@ public class BusinessDayService : IBusinessDayService
 
         await _businessDayRepository.AddAsync(day, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await AutoCreateScheduledShiftsAsync(day, cancellationToken);
 
         await _auditService.LogAsync(nameof(BusinessDay), day.Id, "BusinessDayOpened", day.ShopId, cancellationToken: cancellationToken);
         return day.ToDto();
@@ -205,5 +209,163 @@ public class BusinessDayService : IBusinessDayService
             cancellationToken: cancellationToken);
 
         return day.ToDto();
+    }
+
+    private async Task AutoCreateScheduledShiftsAsync(BusinessDay day, CancellationToken cancellationToken)
+    {
+        var setup = await _shopConfigurationService.GetShiftSetupAsync(day.ShopId, cancellationToken);
+        var activeTemplates = setup.ShiftTemplates
+            .Where(x => x.IsActive)
+            .ToArray();
+
+        if (activeTemplates.Length == 0)
+        {
+            return;
+        }
+
+        var existingNames = await _shiftRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.BusinessDayId == day.Id)
+            .Select(x => x.ShiftName)
+            .ToListAsync(cancellationToken);
+
+        var usedNames = new HashSet<string>(existingNames, StringComparer.OrdinalIgnoreCase);
+        var now = DateTimeOffset.UtcNow;
+        var newShifts = new List<Shift>(activeTemplates.Length);
+
+        foreach (var template in activeTemplates)
+        {
+            var shiftName = BuildUniqueShiftName(template.Name, usedNames);
+            if (string.IsNullOrWhiteSpace(shiftName))
+            {
+                continue;
+            }
+
+            var scheduledStart = ToUtcDateTime(day.BusinessDate, template.StartTime, setup.TimeZoneId);
+            var endDate = template.EndTime <= template.StartTime
+                ? day.BusinessDate.AddDays(1)
+                : day.BusinessDate;
+            var scheduledEnd = ToUtcDateTime(endDate, template.EndTime, setup.TimeZoneId);
+
+            newShifts.Add(new Shift
+            {
+                BusinessDayId = day.Id,
+                ShopId = day.ShopId,
+                ShiftName = shiftName,
+                StartTime = scheduledStart,
+                EndTime = scheduledEnd,
+                OpenedByUserId = day.OpenedByUserId,
+                Status = ShiftStatus.Scheduled,
+                SyncStatus = SyncStatus.Synced,
+                Notes = ShiftMetadata.BuildAutoCreatedNote(template.TemplateId, template.StartTime, template.EndTime),
+                CreatedOn = now,
+                CreatedBy = _currentUserService.UserId
+            });
+        }
+
+        if (newShifts.Count == 0)
+        {
+            return;
+        }
+
+        await _shiftRepository.AddRangeAsync(newShifts, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        foreach (var shift in newShifts)
+        {
+            await _auditService.LogAsync(
+                nameof(Shift),
+                shift.Id,
+                "ShiftAutoCreated",
+                shift.ShopId,
+                reason: shift.ShiftName,
+                cancellationToken: cancellationToken);
+        }
+    }
+
+    private static string BuildUniqueShiftName(string requestedName, ISet<string> usedNames)
+    {
+        var baseName = string.IsNullOrWhiteSpace(requestedName)
+            ? "Shift"
+            : requestedName.Trim();
+
+        if (baseName.Length > 100)
+        {
+            baseName = baseName[..100].TrimEnd();
+        }
+
+        if (usedNames.Add(baseName))
+        {
+            return baseName;
+        }
+
+        var sequence = 2;
+        while (sequence < 1000)
+        {
+            var suffix = $" {sequence}";
+            var allowedNameLength = Math.Max(1, 100 - suffix.Length);
+            var candidate = $"{baseName[..Math.Min(baseName.Length, allowedNameLength)].TrimEnd()}{suffix}";
+            if (usedNames.Add(candidate))
+            {
+                return candidate;
+            }
+
+            sequence++;
+        }
+
+        return string.Empty;
+    }
+
+    private static DateTimeOffset ToUtcDateTime(DateOnly businessDate, TimeSpan timeOfDay, string? timeZoneId)
+    {
+        var localDateTime = businessDate.ToDateTime(TimeOnly.FromTimeSpan(timeOfDay), DateTimeKind.Unspecified);
+        var zone = ResolveTimeZone(timeZoneId);
+        if (zone is null)
+        {
+            return new DateTimeOffset(localDateTime, TimeSpan.Zero);
+        }
+
+        var offset = zone.GetUtcOffset(localDateTime);
+        var localOffsetTime = new DateTimeOffset(localDateTime, offset);
+        return localOffsetTime.ToUniversalTime();
+    }
+
+    private static TimeZoneInfo? ResolveTimeZone(string? timeZoneId)
+    {
+        if (string.IsNullOrWhiteSpace(timeZoneId))
+        {
+            return null;
+        }
+
+        static TimeZoneInfo? TryResolve(string id)
+        {
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById(id);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        var normalized = timeZoneId.Trim();
+        var resolved = TryResolve(normalized);
+        if (resolved is not null)
+        {
+            return resolved;
+        }
+
+        if (string.Equals(normalized, "Europe/London", StringComparison.OrdinalIgnoreCase))
+        {
+            return TryResolve("GMT Standard Time");
+        }
+
+        if (string.Equals(normalized, "GMT Standard Time", StringComparison.OrdinalIgnoreCase))
+        {
+            return TryResolve("Europe/London");
+        }
+
+        return null;
     }
 }

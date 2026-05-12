@@ -18,14 +18,12 @@ public class DeliveryService : IDeliveryService
         RegexOptions.Compiled);
     private static readonly Regex GameCodeRegex = new("^[0-9A-Z]{2,20}$", RegexOptions.Compiled);
 
-    private static SellingOrder NormalizeSellingOrder(SellingOrder sellingOrder) =>
-        sellingOrder == (SellingOrder)0 ? SellingOrder.Ascending : sellingOrder;
-
     private readonly IRepository<Delivery> _deliveryRepository;
     private readonly IRepository<ScratchCardPack> _packRepository;
     private readonly IRepository<ScratchCardGame> _masterGameRepository;
     private readonly IRepository<ShopScratchCardGame> _shopGameRepository;
     private readonly IRepository<DeliveryPack> _deliveryPackRepository;
+    private readonly IShopConfigurationService _shopConfigurationService;
     private readonly IDeliveryNoteAiParser _deliveryNoteAiParser;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
@@ -37,6 +35,7 @@ public class DeliveryService : IDeliveryService
         IRepository<ScratchCardGame> masterGameRepository,
         IRepository<ShopScratchCardGame> shopGameRepository,
         IRepository<DeliveryPack> deliveryPackRepository,
+        IShopConfigurationService shopConfigurationService,
         IDeliveryNoteAiParser deliveryNoteAiParser,
         IAuditService auditService,
         ICurrentUserService currentUserService,
@@ -47,6 +46,7 @@ public class DeliveryService : IDeliveryService
         _masterGameRepository = masterGameRepository;
         _shopGameRepository = shopGameRepository;
         _deliveryPackRepository = deliveryPackRepository;
+        _shopConfigurationService = shopConfigurationService;
         _deliveryNoteAiParser = deliveryNoteAiParser;
         _auditService = auditService;
         _currentUserService = currentUserService;
@@ -55,6 +55,8 @@ public class DeliveryService : IDeliveryService
 
     public async Task<DeliveryDto> CreateAsync(CreateDeliveryRequest request, CancellationToken cancellationToken = default)
     {
+        var packSetup = await _shopConfigurationService.GetPackSetupAsync(request.ShopId, cancellationToken);
+
         var shopGames = await _shopGameRepository.Query()
             .Where(x => x.ShopId == request.ShopId && !x.IsDeleted)
             .Include(x => x.MasterGame)
@@ -147,7 +149,7 @@ public class DeliveryService : IDeliveryService
                         IsActive = true,
                         DefaultStartSerialNumber = string.IsNullOrWhiteSpace(packRequest.StartSerialNumber) ? "000" : packRequest.StartSerialNumber.Trim(),
                         DefaultEndSerialNumber = string.IsNullOrWhiteSpace(packRequest.EndSerialNumber) ? "099" : packRequest.EndSerialNumber.Trim(),
-                        DefaultSellingOrder = NormalizeSellingOrder(packRequest.SellingOrder),
+                        DefaultSellingOrder = packSetup.SellingOrder,
                         CreatedOn = DateTimeOffset.UtcNow,
                         CreatedBy = _currentUserService.UserId
                     };
@@ -208,8 +210,8 @@ public class DeliveryService : IDeliveryService
                 TotalTickets = packRequest.TotalTickets,
                 StartSerialNumber = packRequest.StartSerialNumber,
                 EndSerialNumber = packRequest.EndSerialNumber,
-                SellingOrder = NormalizeSellingOrder(packRequest.SellingOrder),
-                CurrentSerialNumber = packRequest.StartSerialNumber,
+                SellingOrder = packSetup.SellingOrder,
+                CurrentSerialNumber = GetDefaultOpeningSerial(packRequest.StartSerialNumber, packRequest.EndSerialNumber, packSetup.SellingOrder),
                 Status = PackStatus.InStock,
                 IsManuallyAdded = false,
                 ReceivedDate = request.DeliveryDate,
@@ -256,6 +258,8 @@ public class DeliveryService : IDeliveryService
         {
             throw new AppException(ErrorCodes.DeliveryNoteImageRequired, "Image is required to parse delivery note.");
         }
+
+        var packSetup = await _shopConfigurationService.GetPackSetupAsync(request.ShopId, cancellationToken);
 
         var aiResult = await _deliveryNoteAiParser.ParseAsync(
             request.ImageBytes,
@@ -339,7 +343,7 @@ public class DeliveryService : IDeliveryService
                 suggestion.TotalTickets = game.MasterGame.TicketsPerPack;
                 suggestion.StartSerialNumber = game.DefaultStartSerialNumber;
                 suggestion.EndSerialNumber = game.DefaultEndSerialNumber;
-                suggestion.SellingOrder = NormalizeSellingOrder(game.DefaultSellingOrder);
+                suggestion.SellingOrder = packSetup.SellingOrder;
             }
             else
             {
@@ -349,7 +353,7 @@ public class DeliveryService : IDeliveryService
                 suggestion.TotalTickets = 100;
                 suggestion.StartSerialNumber = "00";
                 suggestion.EndSerialNumber = "99";
-                suggestion.SellingOrder = SellingOrder.Ascending;
+                suggestion.SellingOrder = packSetup.SellingOrder;
 
                 if (masterGamesByCode.ContainsKey(gameCode))
                 {
@@ -552,5 +556,17 @@ public class DeliveryService : IDeliveryService
         }
 
         return null;
+    }
+
+    private static string GetDefaultOpeningSerial(string start, string end, SellingOrder sellingOrder)
+    {
+        if (!int.TryParse(start, out var startNo) || !int.TryParse(end, out var endNo))
+        {
+            return start;
+        }
+
+        return sellingOrder == SellingOrder.Descending
+            ? startNo >= endNo ? start : end
+            : startNo <= endNo ? start : end;
     }
 }

@@ -19,7 +19,6 @@ import { listGames } from "../../api/gamesApi";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
-import { SellingOrder } from "../../types/enums";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -35,7 +34,6 @@ type DraftPackRow = {
   totalTickets: string;
   startSerialNumber: string;
   endSerialNumber: string;
-  sellingOrder: SellingOrder;
 };
 
 function normalizeGameCodeInput(value: string) {
@@ -55,7 +53,6 @@ function createDefaultPackRow(seed: number): DraftPackRow {
     totalTickets: "100",
     startSerialNumber: "000",
     endSerialNumber: "099",
-    sellingOrder: SellingOrder.Ascending,
   };
 }
 
@@ -144,8 +141,6 @@ export function ReceiveDeliveryScreen() {
         totalTickets: `${suggestion.totalTickets ?? 100}`,
         startSerialNumber: suggestion.startSerialNumber ?? "000",
         endSerialNumber: suggestion.endSerialNumber ?? "099",
-        sellingOrder:
-          suggestion.sellingOrder === SellingOrder.Descending ? SellingOrder.Descending : SellingOrder.Ascending,
       }));
 
       if (normalizedRows.length > 0) {
@@ -227,7 +222,6 @@ export function ReceiveDeliveryScreen() {
           totalTickets: Number(row.totalTickets),
           startSerialNumber: row.startSerialNumber.trim(),
           endSerialNumber: row.endSerialNumber.trim(),
-          sellingOrder: row.sellingOrder,
           notes: undefined,
         };
       });
@@ -458,7 +452,6 @@ export function ReceiveDeliveryScreen() {
                 <Text style={styles.meta}>Display Number: {row.displayNumber || "-"}</Text>
                 <Text style={styles.meta}>Price: £ {Number(row.ticketPrice || 0).toFixed(2)} | Tickets: {row.totalTickets || "-"}</Text>
                 <Text style={styles.meta}>Serial: {row.startSerialNumber || "-"} {"->"} {row.endSerialNumber || "-"}</Text>
-                <Text style={styles.meta}>Order: {row.sellingOrder === SellingOrder.Descending ? "Descending" : "Ascending"}</Text>
                 {needsNewGame ? (
                   <Text style={styles.newGameWarning}>New master game will be created and assigned to this shop on save.</Text>
                 ) : null}
@@ -541,7 +534,6 @@ export function ReceiveDeliveryScreen() {
                           totalTickets: `${game.defaultTicketsPerPack}`,
                           startSerialNumber: game.defaultStartSerialNumber,
                           endSerialNumber: game.defaultEndSerialNumber,
-                          sellingOrder: game.defaultSellingOrder,
                         }));
                       }}
                     >
@@ -609,21 +601,6 @@ export function ReceiveDeliveryScreen() {
                 onChangeText={(v) => updateEditingRow((current) => ({ ...current, endSerialNumber: v }))}
                 placeholder="End serial"
               />
-
-              <View style={styles.choiceRow}>
-                <Pressable
-                  style={[styles.choice, editingRow?.sellingOrder === SellingOrder.Ascending && styles.choiceSelected]}
-                  onPress={() => updateEditingRow((current) => ({ ...current, sellingOrder: SellingOrder.Ascending }))}
-                >
-                  <Text style={[styles.choiceText, editingRow?.sellingOrder === SellingOrder.Ascending && styles.choiceTextSelected]}>Ascending</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.choice, editingRow?.sellingOrder === SellingOrder.Descending && styles.choiceSelected]}
-                  onPress={() => updateEditingRow((current) => ({ ...current, sellingOrder: SellingOrder.Descending }))}
-                >
-                  <Text style={[styles.choiceText, editingRow?.sellingOrder === SellingOrder.Descending && styles.choiceTextSelected]}>Descending</Text>
-                </Pressable>
-              </View>
 
               <PrimaryButton label="Save Row" onPress={saveRowEditor} />
               <PrimaryButton label="Cancel" tone="neutral" onPress={closeRowEditor} />
@@ -731,18 +708,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 17,
   },
-  choiceRow: { flexDirection: "row", gap: 8 },
-  choice: {
-    borderWidth: 1,
-    borderColor: appTheme.colors.primary,
-    borderRadius: appTheme.radius.pill,
-    backgroundColor: "#ECF7F6",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  choiceSelected: { backgroundColor: appTheme.colors.primary },
-  choiceText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 14 },
-  choiceTextSelected: { color: "#FFFDF7" },
   removeButton: {
     alignSelf: "flex-start",
     backgroundColor: appTheme.colors.danger,

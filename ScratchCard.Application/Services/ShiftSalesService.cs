@@ -21,6 +21,7 @@ public class ShiftSalesService : IShiftSalesService
     private readonly IRepository<ShiftReconciliation> _reconciliationRepository;
     private readonly IRepository<ShopUser> _shopUserRepository;
     private readonly IRepository<Shop> _shopRepository;
+    private readonly IShopConfigurationService _shopConfigurationService;
     private readonly ISerialCalculationService _serialCalculationService;
     private readonly INotificationService _notificationService;
     private readonly IAuditService _auditService;
@@ -36,6 +37,7 @@ public class ShiftSalesService : IShiftSalesService
         IRepository<ShiftReconciliation> reconciliationRepository,
         IRepository<ShopUser> shopUserRepository,
         IRepository<Shop> shopRepository,
+        IShopConfigurationService shopConfigurationService,
         ISerialCalculationService serialCalculationService,
         INotificationService notificationService,
         IAuditService auditService,
@@ -50,6 +52,7 @@ public class ShiftSalesService : IShiftSalesService
         _reconciliationRepository = reconciliationRepository;
         _shopUserRepository = shopUserRepository;
         _shopRepository = shopRepository;
+        _shopConfigurationService = shopConfigurationService;
         _serialCalculationService = serialCalculationService;
         _notificationService = notificationService;
         _auditService = auditService;
@@ -118,6 +121,8 @@ public class ShiftSalesService : IShiftSalesService
             throw new AppException(ErrorCodes.PackNotFound, "One or more packs were not found.");
         }
 
+        var packSetup = await _shopConfigurationService.GetPackSetupAsync(shift.ShopId, cancellationToken);
+
         foreach (var pack in packs.Values)
         {
             if (pack.Status != PackStatus.Active)
@@ -148,7 +153,7 @@ public class ShiftSalesService : IShiftSalesService
                 entry.ClosingSerialNumber,
                 pack.StartSerialNumber,
                 pack.EndSerialNumber,
-                pack.SellingOrder,
+                packSetup.SellingOrder,
                 pack.TicketPrice,
                 pack.TotalTickets);
 
@@ -170,7 +175,7 @@ public class ShiftSalesService : IShiftSalesService
                 OpeningSerialNumber = pack.CurrentSerialNumber,
                 ClosingSerialNumber = entry.ClosingSerialNumber,
                 OriginalScannedSerialNumber = entry.OriginalScannedSerialNumber,
-                SellingOrder = pack.SellingOrder,
+                SellingOrder = packSetup.SellingOrder,
                 EntryMethod = persistedEntryMethod,
                 SoldQuantity = calc.SoldQuantity,
                 TicketPrice = pack.TicketPrice,
@@ -188,8 +193,9 @@ public class ShiftSalesService : IShiftSalesService
             });
 
             pack.CurrentSerialNumber = entry.ClosingSerialNumber;
-            if ((pack.SellingOrder == SellingOrder.Ascending && pack.CurrentSerialNumber == pack.EndSerialNumber) ||
-                (pack.SellingOrder == SellingOrder.Descending && pack.CurrentSerialNumber == pack.StartSerialNumber))
+            pack.SellingOrder = packSetup.SellingOrder;
+            if ((packSetup.SellingOrder == SellingOrder.Ascending && pack.CurrentSerialNumber == pack.EndSerialNumber) ||
+                (packSetup.SellingOrder == SellingOrder.Descending && pack.CurrentSerialNumber == pack.StartSerialNumber))
             {
                 pack.Status = PackStatus.Completed;
                 pack.CompletedDate = DateTimeOffset.UtcNow;

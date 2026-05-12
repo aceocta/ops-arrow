@@ -14,7 +14,7 @@ export type CreateDeliveryPackPayload = {
   totalTickets: number;
   startSerialNumber: string;
   endSerialNumber: string;
-  sellingOrder: SellingOrder;
+  sellingOrder?: SellingOrder;
   notes?: string;
 };
 
@@ -39,7 +39,7 @@ export async function createDelivery(payload: CreateDeliveryPayload) {
     ...payload,
     packs: payload.packs.map((pack) => ({
       ...pack,
-      sellingOrder: toApiSellingOrder(pack.sellingOrder),
+      ...(pack.sellingOrder ? { sellingOrder: toApiSellingOrder(pack.sellingOrder) } : {}),
     })),
   });
   return response.data.data;

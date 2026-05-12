@@ -4,10 +4,15 @@ public class OpenShiftRequest
 {
     public Guid BusinessDayId { get; set; }
     public Guid ShopId { get; set; }
-    public string ShiftName { get; set; } = string.Empty;
+    public string? ShiftName { get; set; }
 }
 
 public class ReopenShiftRequest
+{
+    public string? Reason { get; set; }
+}
+
+public class DeleteShiftRequest
 {
     public string? Reason { get; set; }
 }
@@ -22,4 +27,6 @@ public class ShiftDto
     public DateTimeOffset? EndTime { get; set; }
     public string Status { get; set; } = string.Empty;
     public string SyncStatus { get; set; } = string.Empty;
+    public bool IsAutoCreated { get; set; }
+    public string? AutoTemplateId { get; set; }
 }

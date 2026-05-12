@@ -4,9 +4,12 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import { listBusinessDays } from "../../api/businessDaysApi";
-import { getShift, getShiftSales, listShifts, openShift } from "../../api/shiftsApi";
+import { getConfigurations } from "../../api/configurationsApi";
+import { deleteShift, getShift, getShiftSales, listShifts, openShift, startScheduledShift } from "../../api/shiftsApi";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
+import { deriveShopOperationalSetup } from "../settings/shopConfiguration";
+import { ShiftStatus } from "../../types/enums";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -23,12 +26,13 @@ function getDefaultShiftNameForNow(reference = new Date()) {
 }
 
 export function OpenShiftScreen({ navigation }: OpenShiftProps) {
-  const { activeShopId, activeShop } = useAuth();
+  const { activeShopId, activeShop, profile } = useAuth();
   const shopId = activeShopId;
+  const canDeleteAutoShift = profile?.roles?.some((role) => role === "ShopOwner" || role === "Manager") ?? false;
 
   const [viewMode, setViewMode] = useState<"open" | "close">("open");
   const [selectedBusinessDayId, setSelectedBusinessDayId] = useState("");
-  const [shiftName, setShiftName] = useState(getDefaultShiftNameForNow());
+  const [shiftName, setShiftName] = useState("");
 
   const dayListQuery = useQuery({
     queryKey: ["business-days", shopId],
@@ -53,6 +57,23 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
     queryFn: () => listShifts(shopId as string, selectedBusinessDayId),
     enabled: Boolean(shopId) && selectedBusinessDayId.length > 0,
   });
+  const configurationQuery = useQuery({
+    queryKey: ["configurations", shopId],
+    queryFn: () => getConfigurations(shopId as string),
+    enabled: Boolean(shopId),
+  });
+  const shopOperationalSetup = useMemo(
+    () => deriveShopOperationalSetup(configurationQuery.data),
+    [configurationQuery.data],
+  );
+
+  useEffect(() => {
+    if (viewMode !== "open") {
+      return;
+    }
+
+    setShiftName((previous) => previous || shopOperationalSetup.shiftDefaultName.trim() || getDefaultShiftNameForNow());
+  }, [shopOperationalSetup.shiftDefaultName, viewMode]);
 
   const openShiftMutation = useMutation({
     mutationFn: async () => {
@@ -62,13 +83,15 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
       if (!selectedBusinessDayId) {
         throw new Error("Select a business day first.");
       }
-      const normalizedShiftName = shiftName.trim();
-      if (!normalizedShiftName) {
-        throw new Error("Shift name is required.");
-      }
-      const duplicateShift = shiftsQuery.data?.find(
-        (shift) => shift.shiftName.trim().toLowerCase() === normalizedShiftName.toLowerCase(),
-      );
+      const defaultShiftName = shopOperationalSetup.shiftDefaultName.trim() || getDefaultShiftNameForNow();
+      const normalizedShiftName = shopOperationalSetup.allowCustomShiftName
+        ? (shiftName.trim() || defaultShiftName)
+        : defaultShiftName;
+      const duplicateShift = shopOperationalSetup.allowCustomShiftName
+        ? shiftsQuery.data?.find(
+            (shift) => shift.shiftName.trim().toLowerCase() === normalizedShiftName.toLowerCase(),
+          )
+        : undefined;
       if (duplicateShift) {
         throw new Error(`Shift '${normalizedShiftName}' already exists for the selected business day.`);
       }
@@ -82,7 +105,7 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
     onSuccess: async (shift) => {
       Alert.alert("Shift opened", `Shift '${shift.shiftName}' opened.`);
       await shiftsQuery.refetch();
-      setShiftName(getDefaultShiftNameForNow());
+      setShiftName(shopOperationalSetup.shiftDefaultName.trim() || getDefaultShiftNameForNow());
       setViewMode("close");
     },
     onError: (error: any) => {
@@ -90,12 +113,39 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
     },
   });
 
+  const startScheduledShiftMutation = useMutation({
+    mutationFn: async (shiftId: string) => startScheduledShift(shiftId),
+    onSuccess: async (shift) => {
+      Alert.alert("Shift started", `Shift '${shift.shiftName}' is now open.`);
+      await shiftsQuery.refetch();
+      setViewMode("close");
+    },
+    onError: (error: any) => {
+      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to start scheduled shift.");
+    },
+  });
+
+  const deleteAutoShiftMutation = useMutation({
+    mutationFn: async (shiftId: string) => deleteShift(shiftId, { reason: "Removed from shift operations." }),
+    onSuccess: async () => {
+      Alert.alert("Removed", "Auto-created scheduled shift removed.");
+      await shiftsQuery.refetch();
+    },
+    onError: (error: any) => {
+      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to remove scheduled shift.");
+    },
+  });
+
   const closableShifts = useMemo(
     () => (shiftsQuery.data ?? []).filter((shift) => shift.status === "Open" || shift.status === "Reopened"),
     [shiftsQuery.data],
   );
+  const scheduledShifts = useMemo(
+    () => (shiftsQuery.data ?? []).filter((shift) => shift.status === ShiftStatus.Scheduled),
+    [shiftsQuery.data],
+  );
   const closedShifts = useMemo(
-    () => (shiftsQuery.data ?? []).filter((shift) => shift.status !== "Open" && shift.status !== "Reopened"),
+    () => (shiftsQuery.data ?? []).filter((shift) => shift.status !== "Open" && shift.status !== "Reopened" && shift.status !== ShiftStatus.Scheduled),
     [shiftsQuery.data],
   );
 
@@ -122,7 +172,7 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
 
         {viewMode === "open" ? (
           <View style={ui.card}>
-            <Text style={styles.sectionTitle}>Open New Shift</Text>
+            <Text style={styles.sectionTitle}>Shift Setup for Day</Text>
             <PrimaryButton
               label="Refresh Business Days"
               tone="neutral"
@@ -148,14 +198,64 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
               <Text style={styles.meta}>No open business day found. Open a business day first.</Text>
             ) : null}
 
-            <Text style={styles.fieldLabel}>Shift Name</Text>
-            <Text style={styles.meta}>Default shift name follows current time (Morning/Evening/Night).</Text>
-            <TextInput style={styles.input} value={shiftName} onChangeText={setShiftName} placeholder="Shift name" />
+            <Text style={styles.meta}>
+              Configured templates: {shopOperationalSetup.shiftTemplates.map((x) => `${x.name} (${x.startTime}-${x.endTime})`).join(", ")}
+              {shopOperationalSetup.enforceShiftTimeWindow ? " (enforced)." : " (advisory)."}
+            </Text>
+
+            <Text style={styles.sectionTitle}>Scheduled Shifts</Text>
+            {scheduledShifts.length === 0 && !shiftsQuery.isFetching ? (
+              <Text style={styles.meta}>No scheduled shifts available for the selected business day.</Text>
+            ) : null}
+            {scheduledShifts.map((shift) => (
+              <View key={shift.id} style={styles.item}>
+                <Text style={styles.itemTitle}>{shift.shiftName}</Text>
+                <Text style={styles.meta}>Status: {shift.status}</Text>
+                <Text style={styles.meta}>Planned Start: {new Date(shift.startTime).toLocaleString()}</Text>
+                {shift.endTime ? <Text style={styles.meta}>Planned End: {new Date(shift.endTime).toLocaleString()}</Text> : null}
+                <View style={styles.row}>
+                  <Pressable
+                    style={styles.smallButton}
+                    onPress={() => startScheduledShiftMutation.mutate(shift.id)}
+                    disabled={startScheduledShiftMutation.isPending || deleteAutoShiftMutation.isPending}
+                  >
+                    <Text style={styles.smallButtonText}>{startScheduledShiftMutation.isPending ? "Starting..." : "Start"}</Text>
+                  </Pressable>
+                  {canDeleteAutoShift ? (
+                    <Pressable
+                      style={[styles.smallButton, styles.smallButtonDanger]}
+                      onPress={() => deleteAutoShiftMutation.mutate(shift.id)}
+                      disabled={startScheduledShiftMutation.isPending || deleteAutoShiftMutation.isPending}
+                    >
+                      <Text style={styles.smallButtonText}>{deleteAutoShiftMutation.isPending ? "Removing..." : "Remove"}</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
+            ))}
+
+            <View style={styles.item}>
+              <Text style={styles.sectionTitle}>Manual Exception Shift</Text>
+              <Text style={styles.meta}>
+                Use this only for exceptions. Anyone with shift access can create a manual shift.
+              </Text>
+            {shopOperationalSetup.allowCustomShiftName ? (
+              <>
+                <Text style={styles.fieldLabel}>Shift Name</Text>
+                <TextInput style={styles.input} value={shiftName} onChangeText={setShiftName} placeholder="Shift name" />
+              </>
+            ) : (
+              <View style={styles.item}>
+                <Text style={styles.fieldLabel}>Shift Name</Text>
+                <Text style={styles.meta}>{shopOperationalSetup.shiftDefaultName}</Text>
+              </View>
+            )}
             <PrimaryButton
-              label={openShiftMutation.isPending ? "Opening..." : "Open Shift"}
+              label={openShiftMutation.isPending ? "Creating..." : "Create Manual Shift"}
               onPress={() => openShiftMutation.mutate()}
               disabled={openShiftMutation.isPending || !shopId || !selectedBusinessDayId}
             />
+            </View>
           </View>
         ) : null}
 
@@ -533,6 +633,9 @@ const styles = StyleSheet.create({
     borderRadius: appTheme.radius.sm,
     paddingHorizontal: 10,
     paddingVertical: 8,
+  },
+  smallButtonDanger: {
+    backgroundColor: appTheme.colors.danger,
   },
   smallButtonText: { color: "#FFF", fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 14 },
 });

@@ -165,7 +165,7 @@ public class CreateDeliveryPackRequestValidator : AbstractValidator<CreateDelive
         RuleFor(x => x.TotalTickets).GreaterThan(0);
         RuleFor(x => x.StartSerialNumber).NotEmpty();
         RuleFor(x => x.EndSerialNumber).NotEmpty();
-        RuleFor(x => x.SellingOrder).IsInEnum().NotEqual((ScratchCard.Domain.Enums.SellingOrder)0);
+        RuleFor(x => x.SellingOrder).IsInEnum().When(x => x.SellingOrder != (ScratchCard.Domain.Enums.SellingOrder)0);
     }
 }
 
@@ -201,7 +201,7 @@ public class CreateManualPackRequestValidator : AbstractValidator<CreateManualPa
         RuleFor(x => x.TotalTickets).GreaterThan(0);
         RuleFor(x => x.StartSerialNumber).NotEmpty();
         RuleFor(x => x.EndSerialNumber).NotEmpty();
-        RuleFor(x => x.SellingOrder).IsInEnum().NotEqual((ScratchCard.Domain.Enums.SellingOrder)0);
+        RuleFor(x => x.SellingOrder).IsInEnum().When(x => x.SellingOrder != (ScratchCard.Domain.Enums.SellingOrder)0);
     }
 }
 
@@ -215,7 +215,7 @@ public class UpdatePackDetailsRequestValidator : AbstractValidator<UpdatePackDet
         RuleFor(x => x.TotalTickets).GreaterThan(0);
         RuleFor(x => x.StartSerialNumber).NotEmpty();
         RuleFor(x => x.EndSerialNumber).NotEmpty();
-        RuleFor(x => x.SellingOrder).IsInEnum().NotEqual((ScratchCard.Domain.Enums.SellingOrder)0);
+        RuleFor(x => x.SellingOrder).IsInEnum().When(x => x.SellingOrder != (ScratchCard.Domain.Enums.SellingOrder)0);
     }
 }
 
@@ -245,7 +245,15 @@ public class OpenShiftRequestValidator : AbstractValidator<OpenShiftRequest>
     {
         RuleFor(x => x.BusinessDayId).NotEmpty();
         RuleFor(x => x.ShopId).NotEmpty();
-        RuleFor(x => x.ShiftName).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.ShiftName).MaximumLength(100);
+    }
+}
+
+public class DeleteShiftRequestValidator : AbstractValidator<DeleteShiftRequest>
+{
+    public DeleteShiftRequestValidator()
+    {
+        RuleFor(x => x.Reason).MaximumLength(500);
     }
 }
 

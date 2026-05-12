@@ -31,12 +31,13 @@ export async function createManualPack(payload: {
   totalTickets: number;
   startSerialNumber: string;
   endSerialNumber: string;
-  sellingOrder: SellingOrder;
+  sellingOrder?: SellingOrder;
   notes?: string;
 }) {
+  const { sellingOrder, ...rest } = payload;
   const response = await apiClient.post<ApiResponse<ScratchCardPack>>("/packs/manual", {
-    ...payload,
-    sellingOrder: toApiSellingOrder(payload.sellingOrder),
+    ...rest,
+    ...(sellingOrder ? { sellingOrder: toApiSellingOrder(sellingOrder) } : {}),
   });
   return mapPack(response.data.data);
 }
@@ -50,20 +51,22 @@ export async function updatePackDetails(
     totalTickets: number;
     startSerialNumber: string;
     endSerialNumber: string;
-    sellingOrder: SellingOrder;
+    sellingOrder?: SellingOrder;
   }
 ) {
+  const { sellingOrder, ...rest } = payload;
   const response = await apiClient.put<ApiResponse<ScratchCardPack>>(`/packs/${packId}`, {
-    ...payload,
-    sellingOrder: toApiSellingOrder(payload.sellingOrder),
+    ...rest,
+    ...(sellingOrder ? { sellingOrder: toApiSellingOrder(sellingOrder) } : {}),
   });
   return mapPack(response.data.data);
 }
 
-export async function activatePack(packId: string, payload: { openingSerialNumber: string; sellingOrder: SellingOrder }) {
+export async function activatePack(packId: string, payload: { openingSerialNumber: string; sellingOrder?: SellingOrder }) {
+  const { sellingOrder, ...rest } = payload;
   const response = await apiClient.post<ApiResponse<ScratchCardPack>>(`/packs/${packId}/activate`, {
-    ...payload,
-    sellingOrder: toApiSellingOrder(payload.sellingOrder),
+    ...rest,
+    ...(sellingOrder ? { sellingOrder: toApiSellingOrder(sellingOrder) } : {}),
   });
   return mapPack(response.data.data);
 }

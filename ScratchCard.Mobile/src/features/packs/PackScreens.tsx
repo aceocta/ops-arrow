@@ -651,7 +651,6 @@ export function ManualPackCreateScreen({ navigation }: ManualPackCreateProps) {
         totalTickets: Number(totalTickets),
         startSerialNumber: startSerialNumber.trim(),
         endSerialNumber: endSerialNumber.trim(),
-        sellingOrder: SellingOrder.Ascending,
         notes: notes.trim() || undefined,
       });
     },
@@ -832,7 +831,6 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
   const [editTotalTickets, setEditTotalTickets] = useState("");
   const [editStartSerial, setEditStartSerial] = useState("");
   const [editEndSerial, setEditEndSerial] = useState("");
-  const [editSellingOrder, setEditSellingOrder] = useState<SellingOrder>(SellingOrder.Ascending);
 
   const actionMutation = useMutation({
     mutationFn: async (action: "pause" | "return" | "issue" | "complete") => {
@@ -867,7 +865,6 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
     setEditTotalTickets(String(pack.totalTickets));
     setEditStartSerial(pack.startSerialNumber);
     setEditEndSerial(pack.endSerialNumber);
-    setEditSellingOrder(pack.sellingOrder);
   }, [pack, isEditingDetails]);
 
   const updateDetailsMutation = useMutation({
@@ -890,7 +887,6 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
         totalTickets: Number(editTotalTickets),
         startSerialNumber: editStartSerial.trim(),
         endSerialNumber: editEndSerial.trim(),
-        sellingOrder: editSellingOrder,
       });
     },
     onSuccess: () => {
@@ -915,7 +911,6 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
     setEditTotalTickets(String(pack.totalTickets));
     setEditStartSerial(pack.startSerialNumber);
     setEditEndSerial(pack.endSerialNumber);
-    setEditSellingOrder(pack.sellingOrder);
     setIsEditingDetails(false);
   }
 
@@ -936,7 +931,7 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
               </Text>
             </View>
             <View style={styles.metricChip}>
-              <Text style={styles.metricText}>Selling: {isEditingDetails ? (editSellingOrder === SellingOrder.Descending ? "Descending" : "Ascending") : (pack?.sellingOrder ?? "-")}</Text>
+              <Text style={styles.metricText}>Selling: {pack?.sellingOrder ?? "-"}</Text>
             </View>
             <View style={styles.metricChip}>
               <Text style={styles.metricText}>Current: {pack?.currentSerialNumber ?? "-"}</Text>
@@ -968,15 +963,6 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
               <TextInput style={styles.input} value={editStartSerial} onChangeText={setEditStartSerial} placeholder="Start serial" placeholderTextColor={appTheme.colors.textSubtle} />
               <Text style={styles.fieldLabel}>End Serial</Text>
               <TextInput style={styles.input} value={editEndSerial} onChangeText={setEditEndSerial} placeholder="End serial" placeholderTextColor={appTheme.colors.textSubtle} />
-              <Text style={styles.fieldLabel}>Selling Order</Text>
-              <View style={styles.row}>
-                <Pressable style={[styles.choice, editSellingOrder === SellingOrder.Ascending && styles.choiceSelected]} onPress={() => setEditSellingOrder(SellingOrder.Ascending)}>
-                  <Text style={[styles.choiceText, editSellingOrder === SellingOrder.Ascending && styles.choiceTextSelected]}>Ascending</Text>
-                </Pressable>
-                <Pressable style={[styles.choice, editSellingOrder === SellingOrder.Descending && styles.choiceSelected]} onPress={() => setEditSellingOrder(SellingOrder.Descending)}>
-                  <Text style={[styles.choiceText, editSellingOrder === SellingOrder.Descending && styles.choiceTextSelected]}>Descending</Text>
-                </Pressable>
-              </View>
               <PrimaryButton
                 label={updateDetailsMutation.isPending ? "Saving..." : "Save Pack Details"}
                 onPress={() => updateDetailsMutation.mutate()}
@@ -1031,19 +1017,15 @@ export function ActivatePackScreen({ route, navigation }: ActivatePackProps) {
 
   const pack = packQuery.data;
   const [openingSerialNumber, setOpeningSerialNumber] = useState("");
-  const [sellingOrder, setSellingOrder] = useState<SellingOrder>(SellingOrder.Ascending);
 
   useEffect(() => {
     if (!openingSerialNumber && pack?.currentSerialNumber) {
       setOpeningSerialNumber(pack.currentSerialNumber);
     }
-    if (pack?.sellingOrder) {
-      setSellingOrder(pack.sellingOrder);
-    }
   }, [pack, openingSerialNumber]);
 
   const activateMutation = useMutation({
-    mutationFn: async () => activatePack(packId, { openingSerialNumber: openingSerialNumber.trim(), sellingOrder }),
+    mutationFn: async () => activatePack(packId, { openingSerialNumber: openingSerialNumber.trim() }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pack", packId] });
       void queryClient.invalidateQueries({ queryKey: ["packs"] });
@@ -1072,15 +1054,6 @@ export function ActivatePackScreen({ route, navigation }: ActivatePackProps) {
             placeholder="Opening serial number"
             placeholderTextColor={appTheme.colors.textSubtle}
           />
-          <Text style={styles.fieldLabel}>Selling Order</Text>
-          <View style={styles.row}>
-            <Pressable style={[styles.choice, sellingOrder === SellingOrder.Ascending && styles.choiceSelected]} onPress={() => setSellingOrder(SellingOrder.Ascending)}>
-              <Text style={[styles.choiceText, sellingOrder === SellingOrder.Ascending && styles.choiceTextSelected]}>Ascending</Text>
-            </Pressable>
-            <Pressable style={[styles.choice, sellingOrder === SellingOrder.Descending && styles.choiceSelected]} onPress={() => setSellingOrder(SellingOrder.Descending)}>
-              <Text style={[styles.choiceText, sellingOrder === SellingOrder.Descending && styles.choiceTextSelected]}>Descending</Text>
-            </Pressable>
-          </View>
 
           <PrimaryButton
             label={activateMutation.isPending ? "Activating..." : "Activate"}

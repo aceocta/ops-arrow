@@ -15,15 +15,98 @@ import { deactivateUser, listUsers, reactivateUser, updateUserRole } from "../..
 import { useAuth } from "../../auth/AuthContext";
 import { LabeledValue } from "../../components/LabeledValue";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { SellingOrder } from "../../types/enums";
 import { Company, ConfigurationItem, Shop } from "../../types/models";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
+import { buildShiftTemplateId, SHOP_CONFIG_KEYS, serializeShiftTemplates, ShiftTemplateSetup } from "./shopConfiguration";
 
 const timeValuePattern = /^\d{2}:\d{2}$/;
 
 function isTimeConfiguration(configKey: string, value: string) {
   return /time/i.test(configKey) && timeValuePattern.test(value);
+}
+
+function isBooleanConfiguration(item: ConfigurationItem, currentValue: string) {
+  if (item.dataType?.toLowerCase() === "bool") {
+    return true;
+  }
+
+  const normalized = currentValue.trim().toLowerCase();
+  return normalized === "true" || normalized === "false" || normalized === "1" || normalized === "0";
+}
+
+function isSellingOrderConfiguration(configKey: string) {
+  return configKey.toLowerCase() === SHOP_CONFIG_KEYS.packSellingOrder.toLowerCase();
+}
+
+function isShiftTemplatesConfiguration(configKey: string) {
+  return configKey.toLowerCase() === SHOP_CONFIG_KEYS.shiftTemplates.toLowerCase();
+}
+
+function prettifyConfigKey(configKey: string) {
+  return configKey
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/_/g, " ")
+    .trim();
+}
+
+function parseBooleanValue(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true" || normalized === "1" || normalized === "yes") return true;
+  if (normalized === "false" || normalized === "0" || normalized === "no") return false;
+  return false;
+}
+
+function parseShiftTemplatesEditor(value: string): ShiftTemplateSetup[] {
+  const fallback: ShiftTemplateSetup[] = [
+    { id: "main-shift", name: "Main Shift", startTime: "06:00", endTime: "23:00", isActive: true },
+  ];
+
+  if (!value.trim()) {
+    return fallback;
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    const source: any[] = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed?.templates)
+        ? parsed.templates
+        : [];
+
+    if (source.length === 0) {
+      return fallback;
+    }
+
+    const templates: ShiftTemplateSetup[] = [];
+    source.forEach((item, index) => {
+      const name = `${item?.name ?? item?.shiftName ?? ""}`.trim();
+      const startTime = `${item?.startTime ?? ""}`.trim();
+      const endTime = `${item?.endTime ?? ""}`.trim();
+
+      if (!name || !timeValuePattern.test(startTime) || !timeValuePattern.test(endTime)) {
+        return;
+      }
+
+      templates.push({
+        id: buildShiftTemplateId(`${item?.id ?? item?.templateId ?? name}`, index),
+        name: name.slice(0, 100),
+        startTime,
+        endTime,
+        isActive: item?.isActive !== false,
+      });
+    });
+
+    if (templates.length === 0) {
+      return fallback;
+    }
+
+    return templates.sort((a, b) => a.startTime.localeCompare(b.startTime));
+  } catch {
+    return fallback;
+  }
 }
 
 function buildDisplayName(input: { firstName?: string; lastName?: string; displayName?: string; email?: string }) {
@@ -126,13 +209,28 @@ export function AppConfigurationScreen() {
   });
 
   const grouped = useMemo(() => {
+    const hiddenConfigKeys = new Set([
+      "DefaultSellingOrder",
+      SHOP_CONFIG_KEYS.shiftStartTime,
+      SHOP_CONFIG_KEYS.shiftEndTime,
+      SHOP_CONFIG_KEYS.shiftDefaultName,
+    ]);
     const output = new Map<string, ConfigurationItem[]>();
     for (const item of configurationsQuery.data ?? []) {
+      if (hiddenConfigKeys.has(item.configKey)) {
+        continue;
+      }
       const arr = output.get(item.groupName) ?? [];
       arr.push(item);
       output.set(item.groupName, arr);
     }
-    return output;
+
+    return [...output.entries()]
+      .map(([groupName, items]) => ([
+        groupName,
+        items.slice().sort((a, b) => a.configKey.localeCompare(b.configKey)),
+      ] as const))
+      .sort(([groupA], [groupB]) => groupA.localeCompare(groupB));
   }, [configurationsQuery.data]);
 
   const saveMutation = useMutation({
@@ -141,7 +239,16 @@ export function AppConfigurationScreen() {
         throw new Error("Shop context missing.");
       }
 
-      const changedItems = Object.entries(draftValues).map(([configKey, configValue]) => ({ configKey, configValue }));
+      const draftEntries = new Map<string, string>(Object.entries(draftValues));
+      if (draftEntries.has(SHOP_CONFIG_KEYS.shiftTemplates)) {
+        const templates = parseShiftTemplatesEditor(draftEntries.get(SHOP_CONFIG_KEYS.shiftTemplates) ?? "");
+        const primaryTemplate = templates[0];
+        draftEntries.set(SHOP_CONFIG_KEYS.shiftStartTime, primaryTemplate.startTime);
+        draftEntries.set(SHOP_CONFIG_KEYS.shiftEndTime, primaryTemplate.endTime);
+        draftEntries.set(SHOP_CONFIG_KEYS.shiftDefaultName, primaryTemplate.name);
+      }
+
+      const changedItems = [...draftEntries.entries()].map(([configKey, configValue]) => ({ configKey, configValue }));
 
       if (changedItems.length === 0) {
         throw new Error("No configuration changes to save.");
@@ -167,22 +274,167 @@ export function AppConfigurationScreen() {
       <ScrollView contentContainerStyle={{ gap: 12 }}>
         <View style={ui.card}>
           <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
-          {[...grouped.entries()].map(([groupName, items]) => (
+          {grouped.map(([groupName, items]) => (
             <View key={groupName} style={styles.groupCard}>
               <Text style={styles.sectionTitle}>{groupName}</Text>
               {items.map((item) => {
                 const draft = draftValues[item.configKey];
                 const currentValue = draft ?? item.configValue;
+                const currentBoolValue = parseBooleanValue(currentValue);
                 return (
                   <View key={item.id} style={{ gap: 4 }}>
-                    <Text style={styles.meta}>{item.configKey}</Text>
-                    {isTimeConfiguration(item.configKey, currentValue) ? (
+                    <Text style={styles.meta}>{prettifyConfigKey(item.configKey)}</Text>
+                    {isShiftTemplatesConfiguration(item.configKey) ? (
+                      <View style={styles.shiftTemplateList}>
+                        {parseShiftTemplatesEditor(currentValue).map((template, index, sourceTemplates) => {
+                          const updateTemplates = (nextTemplates: ShiftTemplateSetup[]) => {
+                            setDraftValues((prev) => ({
+                              ...prev,
+                              [item.configKey]: serializeShiftTemplates(nextTemplates),
+                            }));
+                          };
+
+                          const updateCurrentTemplate = (patch: Partial<ShiftTemplateSetup>) => {
+                            const nextTemplates = sourceTemplates.map((entry, rowIndex) => (
+                              rowIndex === index ? { ...entry, ...patch } : entry
+                            ));
+                            updateTemplates(nextTemplates);
+                          };
+
+                          const removeTemplate = () => {
+                            if (sourceTemplates.length <= 1) {
+                              Alert.alert("At least one shift is required.");
+                              return;
+                            }
+
+                            const nextTemplates = sourceTemplates.filter((_, rowIndex) => rowIndex !== index);
+                            updateTemplates(nextTemplates);
+                          };
+
+                          return (
+                            <View key={`${template.id}-${index}`} style={styles.shiftTemplateCard}>
+                              <View style={styles.shiftTemplateHeaderRow}>
+                                <Text style={styles.itemTitle}>Shift {index + 1}</Text>
+                                <Pressable
+                                  style={[styles.smallButton, styles.smallButtonDanger]}
+                                  onPress={removeTemplate}
+                                >
+                                  <Text style={styles.smallButtonText}>Remove</Text>
+                                </Pressable>
+                              </View>
+                              <Text style={styles.fieldLabel}>Shift Name</Text>
+                              <TextInput
+                                style={styles.input}
+                                value={template.name}
+                                onChangeText={(value) => updateCurrentTemplate({ name: value })}
+                                placeholder={`Shift ${index + 1}`}
+                              />
+                              <View style={styles.shiftTemplateTimeRow}>
+                                <View style={styles.shiftTemplateTimeColumn}>
+                                  <Text style={styles.fieldLabel}>Start Time</Text>
+                                  <DateTimeField
+                                    mode="time"
+                                    value={template.startTime}
+                                    onChange={(value) => updateCurrentTemplate({ startTime: value })}
+                                    placeholder="Start"
+                                  />
+                                </View>
+                                <View style={styles.shiftTemplateTimeColumn}>
+                                  <Text style={styles.fieldLabel}>End Time</Text>
+                                  <DateTimeField
+                                    mode="time"
+                                    value={template.endTime}
+                                    onChange={(value) => updateCurrentTemplate({ endTime: value })}
+                                    placeholder="End"
+                                  />
+                                </View>
+                              </View>
+                              <View style={styles.row}>
+                                <Pressable
+                                  style={[styles.choiceChip, template.isActive ? styles.choiceChipSelected : null]}
+                                  onPress={() => updateCurrentTemplate({ isActive: true })}
+                                >
+                                  <Text style={[styles.choiceChipText, template.isActive ? styles.choiceChipTextSelected : null]}>Active</Text>
+                                </Pressable>
+                                <Pressable
+                                  style={[styles.choiceChip, !template.isActive ? styles.choiceChipSelected : null]}
+                                  onPress={() => updateCurrentTemplate({ isActive: false })}
+                                >
+                                  <Text style={[styles.choiceChipText, !template.isActive ? styles.choiceChipTextSelected : null]}>Inactive</Text>
+                                </Pressable>
+                              </View>
+                            </View>
+                          );
+                        })}
+                        <Pressable
+                          style={styles.smallButton}
+                          onPress={() => {
+                            const templates = parseShiftTemplatesEditor(currentValue);
+                            const nextIndex = templates.length;
+                            const nextTemplates = [
+                              ...templates,
+                              {
+                                id: buildShiftTemplateId(`shift-${nextIndex + 1}`, nextIndex),
+                                name: `Shift ${nextIndex + 1}`,
+                                startTime: "06:00",
+                                endTime: "14:00",
+                                isActive: true,
+                              },
+                            ];
+
+                            setDraftValues((prev) => ({
+                              ...prev,
+                              [item.configKey]: serializeShiftTemplates(nextTemplates),
+                            }));
+                          }}
+                        >
+                          <Text style={styles.smallButtonText}>Add Shift</Text>
+                        </Pressable>
+                        <Text style={styles.caption}>
+                          Overnight shift is supported. Example: 22:00 to 06:00 belongs to the starting business day.
+                        </Text>
+                      </View>
+                    ) : isTimeConfiguration(item.configKey, currentValue) ? (
                       <DateTimeField
                         mode="time"
                         value={currentValue}
                         onChange={(value) => setDraftValues((prev) => ({ ...prev, [item.configKey]: value }))}
                         placeholder="Select time"
                       />
+                    ) : isSellingOrderConfiguration(item.configKey) ? (
+                      <View style={styles.row}>
+                        <Pressable
+                          style={[styles.choiceChip, currentValue.toLowerCase() === SellingOrder.Ascending.toLowerCase() ? styles.choiceChipSelected : null]}
+                          onPress={() => setDraftValues((prev) => ({ ...prev, [item.configKey]: SellingOrder.Ascending }))}
+                        >
+                          <Text style={[styles.choiceChipText, currentValue.toLowerCase() === SellingOrder.Ascending.toLowerCase() ? styles.choiceChipTextSelected : null]}>
+                            0 To End
+                          </Text>
+                        </Pressable>
+                        <Pressable
+                          style={[styles.choiceChip, currentValue.toLowerCase() === SellingOrder.Descending.toLowerCase() ? styles.choiceChipSelected : null]}
+                          onPress={() => setDraftValues((prev) => ({ ...prev, [item.configKey]: SellingOrder.Descending }))}
+                        >
+                          <Text style={[styles.choiceChipText, currentValue.toLowerCase() === SellingOrder.Descending.toLowerCase() ? styles.choiceChipTextSelected : null]}>
+                            End To 0
+                          </Text>
+                        </Pressable>
+                      </View>
+                    ) : isBooleanConfiguration(item, currentValue) ? (
+                      <View style={styles.row}>
+                        <Pressable
+                          style={[styles.choiceChip, currentBoolValue ? styles.choiceChipSelected : null]}
+                          onPress={() => setDraftValues((prev) => ({ ...prev, [item.configKey]: "true" }))}
+                        >
+                          <Text style={[styles.choiceChipText, currentBoolValue ? styles.choiceChipTextSelected : null]}>Enabled</Text>
+                        </Pressable>
+                        <Pressable
+                          style={[styles.choiceChip, !currentBoolValue ? styles.choiceChipSelected : null]}
+                          onPress={() => setDraftValues((prev) => ({ ...prev, [item.configKey]: "false" }))}
+                        >
+                          <Text style={[styles.choiceChipText, !currentBoolValue ? styles.choiceChipTextSelected : null]}>Disabled</Text>
+                        </Pressable>
+                      </View>
                     ) : (
                       <TextInput
                         style={styles.input}
@@ -197,7 +449,7 @@ export function AppConfigurationScreen() {
               })}
             </View>
           ))}
-          <Pressable style={styles.actionButton} onPress={() => saveMutation.mutate()}>
+          <Pressable style={[styles.actionButton, saveMutation.isPending ? styles.dateActionButtonDisabled : null]} onPress={() => saveMutation.mutate()}>
             <Text style={styles.actionButtonText}>{saveMutation.isPending ? "Saving..." : "Save Configuration"}</Text>
           </Pressable>
         </View>
@@ -912,6 +1164,9 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     paddingHorizontal: 12,
   },
+  dateActionButtonDisabled: {
+    opacity: 0.6,
+  },
   actionButtonText: { color: "#ECFEFC", fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 18 },
   groupCard: {
     borderWidth: 1,
@@ -920,6 +1175,31 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.surfaceMuted,
     padding: 10,
     gap: 8,
+  },
+  shiftTemplateList: {
+    gap: 8,
+  },
+  shiftTemplateCard: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    padding: 10,
+    gap: 6,
+  },
+  shiftTemplateHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+  },
+  shiftTemplateTimeRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  shiftTemplateTimeColumn: {
+    flex: 1,
+    gap: 4,
   },
   item: {
     borderWidth: 1,

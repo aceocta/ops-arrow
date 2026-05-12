@@ -25,6 +25,13 @@ public class ShiftsController : BaseApiController
         return Success(result);
     }
 
+    [HttpPost("{id:guid}/start")]
+    public async Task<IActionResult> StartScheduled(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _shiftService.StartScheduledAsync(id, cancellationToken);
+        return Success(result);
+    }
+
     [HttpGet]
     public async Task<IActionResult> List([FromQuery] Guid shopId, [FromQuery] Guid? businessDayId, CancellationToken cancellationToken)
     {
@@ -52,6 +59,14 @@ public class ShiftsController : BaseApiController
     {
         var result = await _shiftService.ReopenAsync(id, request, cancellationToken);
         return Success(result);
+    }
+
+    [HttpDelete("{id:guid}")]
+    [Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager}")]
+    public async Task<IActionResult> Delete(Guid id, [FromBody] DeleteShiftRequest? request, CancellationToken cancellationToken)
+    {
+        await _shiftService.DeleteAsync(id, request ?? new DeleteShiftRequest(), cancellationToken);
+        return Success(new { Deleted = true });
     }
 
     [HttpGet("{id:guid}/active-packs")]
