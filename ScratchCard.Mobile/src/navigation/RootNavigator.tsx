@@ -33,16 +33,17 @@ export function RootNavigator() {
     queryKey: ["subscription-summary-root", companyId],
     queryFn: () => getSubscriptionSummary(companyId as string),
     enabled: shouldLoadSubscription,
+    retry: 0,
+    staleTime: 5 * 60 * 1000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
-  const isSubscriptionLoading = shouldLoadSubscription && subscriptionSummaryQuery.isLoading;
-
-  if (isLoading || isSubscriptionLoading) {
-    const loadingMessage = isSubscriptionLoading ? "Loading..." : undefined;
-    return <SplashLoadingScreen message={loadingMessage} />;
+  if (isLoading) {
+    return <SplashLoadingScreen />;
   }
 
-  const requiresBillingAction = Boolean(subscriptionSummaryQuery.data?.requiresBillingAction);
+  const requiresBillingAction = shouldLoadSubscription && Boolean(subscriptionSummaryQuery.data?.requiresBillingAction);
   const billingMessage = subscriptionSummaryQuery.data?.status === "TrialExpired"
     ? "Your free trial has ended. Please select a monthly or annual subscription to continue."
     : "Your subscription is not active. Please choose a plan to continue using the application.";

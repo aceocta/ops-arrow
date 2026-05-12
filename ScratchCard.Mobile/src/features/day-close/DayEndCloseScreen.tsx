@@ -369,7 +369,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
         <View style={[ui.card, styles.dayHeaderCard]}>
           <View style={styles.summaryHeaderRow}>
             <View style={styles.summaryHeading}>
-              <Text style={styles.summaryEyebrow}>Business Date</Text>
+              {/* <Text style={styles.summaryEyebrow}>Business Date</Text> */}
               <Text style={styles.summaryDate}>{day?.businessDate ?? "-"}</Text>
             </View>
             <StatusBadge label={status ?? "-"} tone={getStatusTone(status)} />

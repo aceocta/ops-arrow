@@ -96,7 +96,7 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
         <View style={[ui.card, styles.summaryCard]}>
           <View style={styles.headerRow}>
             <View style={styles.headingBlock}>
-              <Text style={styles.headerEyebrow}>Shift Details</Text>
+              {/* <Text style={styles.headerEyebrow}>Shift Details</Text> */}
               <Text style={styles.shiftName}>{shift?.shiftName ?? "Shift"}</Text>
             </View>
             <StatusBadge label={shift?.status ?? "-"} tone={getShiftTone(shift?.status)} />
