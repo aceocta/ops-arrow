@@ -159,7 +159,7 @@ function parseShiftTemplates(raw: string, fallbackTemplates: ShiftTemplateSetup[
 export function serializeShiftTemplates(templates: ShiftTemplateSetup[]): string {
   const normalized = templates.map((template, index) => ({
     id: buildShiftTemplateId(template.id || template.name || `shift-${index + 1}`, index),
-    name: (template.name || `Shift ${index + 1}`).trim().slice(0, 100),
+    name: (template.name ?? "").slice(0, 100),
     startTime: template.startTime,
     endTime: template.endTime,
     isActive: template.isActive !== false,

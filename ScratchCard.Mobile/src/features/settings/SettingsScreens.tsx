@@ -23,6 +23,7 @@ import { appTheme } from "../../ui/theme";
 import { buildShiftTemplateId, SHOP_CONFIG_KEYS, serializeShiftTemplates, ShiftTemplateSetup } from "./shopConfiguration";
 
 const timeValuePattern = /^\d{2}:\d{2}$/;
+const time24HourPattern = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 function isTimeConfiguration(configKey: string, value: string) {
   return /time/i.test(configKey) && timeValuePattern.test(value);
@@ -59,6 +60,10 @@ function parseBooleanValue(value: string) {
   return false;
 }
 
+function isValid24HourTime(value: string) {
+  return time24HourPattern.test(value.trim());
+}
+
 function parseShiftTemplatesEditor(value: string): ShiftTemplateSetup[] {
   const fallback: ShiftTemplateSetup[] = [
     { id: "main-shift", name: "Main Shift", startTime: "06:00", endTime: "23:00", isActive: true },
@@ -86,15 +91,11 @@ function parseShiftTemplatesEditor(value: string): ShiftTemplateSetup[] {
       const startTime = `${item?.startTime ?? ""}`.trim();
       const endTime = `${item?.endTime ?? ""}`.trim();
 
-      if (!name || !timeValuePattern.test(startTime) || !timeValuePattern.test(endTime)) {
-        return;
-      }
-
       templates.push({
-        id: buildShiftTemplateId(`${item?.id ?? item?.templateId ?? name}`, index),
+        id: buildShiftTemplateId(`${(item?.id ?? item?.templateId ?? name) || `shift-${index + 1}`}`, index),
         name: name.slice(0, 100),
-        startTime,
-        endTime,
+        startTime: startTime.slice(0, 5),
+        endTime: endTime.slice(0, 5),
         isActive: item?.isActive !== false,
       });
     });
@@ -242,10 +243,28 @@ export function AppConfigurationScreen() {
       const draftEntries = new Map<string, string>(Object.entries(draftValues));
       if (draftEntries.has(SHOP_CONFIG_KEYS.shiftTemplates)) {
         const templates = parseShiftTemplatesEditor(draftEntries.get(SHOP_CONFIG_KEYS.shiftTemplates) ?? "");
+        if (templates.length === 0) {
+          throw new Error("At least one shift template is required.");
+        }
+
+        for (let i = 0; i < templates.length; i += 1) {
+          const template = templates[i];
+          if (!template.name.trim()) {
+            throw new Error(`Shift ${i + 1}: name is required.`);
+          }
+          if (!isValid24HourTime(template.startTime)) {
+            throw new Error(`Shift ${i + 1}: start time must be HH:mm (24-hour).`);
+          }
+          if (!isValid24HourTime(template.endTime)) {
+            throw new Error(`Shift ${i + 1}: end time must be HH:mm (24-hour).`);
+          }
+        }
+
         const primaryTemplate = templates[0];
         draftEntries.set(SHOP_CONFIG_KEYS.shiftStartTime, primaryTemplate.startTime);
         draftEntries.set(SHOP_CONFIG_KEYS.shiftEndTime, primaryTemplate.endTime);
         draftEntries.set(SHOP_CONFIG_KEYS.shiftDefaultName, primaryTemplate.name);
+        draftEntries.set(SHOP_CONFIG_KEYS.shiftTemplates, serializeShiftTemplates(templates));
       }
 
       const changedItems = [...draftEntries.entries()].map(([configKey, configValue]) => ({ configKey, configValue }));
@@ -332,20 +351,28 @@ export function AppConfigurationScreen() {
                               <View style={styles.shiftTemplateTimeRow}>
                                 <View style={styles.shiftTemplateTimeColumn}>
                                   <Text style={styles.fieldLabel}>Start Time</Text>
-                                  <DateTimeField
-                                    mode="time"
+                                  <TextInput
+                                    style={styles.input}
                                     value={template.startTime}
-                                    onChange={(value) => updateCurrentTemplate({ startTime: value })}
-                                    placeholder="Start"
+                                    onChangeText={(value) => updateCurrentTemplate({ startTime: value })}
+                                    placeholder="HH:mm"
+                                    keyboardType="numbers-and-punctuation"
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                    maxLength={5}
                                   />
                                 </View>
                                 <View style={styles.shiftTemplateTimeColumn}>
                                   <Text style={styles.fieldLabel}>End Time</Text>
-                                  <DateTimeField
-                                    mode="time"
+                                  <TextInput
+                                    style={styles.input}
                                     value={template.endTime}
-                                    onChange={(value) => updateCurrentTemplate({ endTime: value })}
-                                    placeholder="End"
+                                    onChangeText={(value) => updateCurrentTemplate({ endTime: value })}
+                                    placeholder="HH:mm"
+                                    keyboardType="numbers-and-punctuation"
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                    maxLength={5}
                                   />
                                 </View>
                               </View>
@@ -375,7 +402,7 @@ export function AppConfigurationScreen() {
                               ...templates,
                               {
                                 id: buildShiftTemplateId(`shift-${nextIndex + 1}`, nextIndex),
-                                name: `Shift ${nextIndex + 1}`,
+                                name: "",
                                 startTime: "06:00",
                                 endTime: "14:00",
                                 isActive: true,
@@ -391,7 +418,7 @@ export function AppConfigurationScreen() {
                           <Text style={styles.smallButtonText}>Add Shift</Text>
                         </Pressable>
                         <Text style={styles.caption}>
-                          Overnight shift is supported. Example: 22:00 to 06:00 belongs to the starting business day.
+                          Use 24-hour format (HH:mm). Overnight shift is supported; e.g. 22:00 to 06:00 belongs to the starting business day.
                         </Text>
                       </View>
                     ) : isTimeConfiguration(item.configKey, currentValue) ? (
