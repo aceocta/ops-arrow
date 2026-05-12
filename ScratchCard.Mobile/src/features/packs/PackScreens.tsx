@@ -279,9 +279,9 @@ export function ScratchCardGamesScreen() {
               <View style={styles.metricRow}>
                 <View style={styles.metricChip}><Text style={styles.metricText}>£ {Number(game.defaultTicketPrice).toFixed(2)}</Text></View>
                 <View style={styles.metricChip}><Text style={styles.metricText}>{game.defaultTicketsPerPack} Tickets</Text></View>
-                <View style={styles.metricChip}><Text style={styles.metricText}>{game.defaultSellingOrder}</Text></View>
+                {/* <View style={styles.metricChip}><Text style={styles.metricText}>{game.defaultSellingOrder}</Text></View> */}
               </View>
-              <Text style={styles.meta}>Serial: {game.defaultStartSerialNumber} {"->"} {game.defaultEndSerialNumber}</Text>
+              {/* <Text style={styles.meta}>Serial: {game.defaultStartSerialNumber} {"->"} {game.defaultEndSerialNumber}</Text> */}
             </View>
           ))}
         </View>
@@ -450,7 +450,23 @@ export function ScratchCardPacksScreen({ navigation }: PackListProps) {
           <Text style={styles.heroSubtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
           <Text style={styles.heroNote}>Track stock state, activation progress, and serial position.</Text>
         </View> */}
-          <PrimaryButton label="Add Manual Pack" onPress={() => navigation.navigate("ManualPackCreate")} disabled={!shopId} />
+        <View style={styles.headerActionsRow}>
+          <View style={styles.headerActionItem}>
+            <PrimaryButton
+              label="Add Manual Pack"
+              onPress={() => navigation.navigate("ManualPackCreate")}
+              disabled={!shopId}
+            />
+          </View>
+          <View style={styles.headerActionItem}>
+            <PrimaryButton
+              label="Pack Scanner"
+              tone="neutral"
+              onPress={() => navigation.navigate("ManualPackCreate", { autoOpenScanner: true })}
+              disabled={!shopId}
+            />
+          </View>
+        </View>
 
         <View style={ui.card}>
           <Text style={styles.sectionTitle}>Pack Inventory</Text>
@@ -496,7 +512,22 @@ export function ScratchCardPacksScreen({ navigation }: PackListProps) {
 
 type ManualPackCreateProps = NativeStackScreenProps<MainStackParamList, "ManualPackCreate">;
 
-export function ManualPackCreateScreen({ navigation }: ManualPackCreateProps) {
+type PendingManualPackDraft = {
+  id: string;
+  gameId: string;
+  gameCode: string;
+  gameName: string;
+  packNumber: string;
+  displayNumber?: number;
+  ticketPrice: number;
+  totalTickets: number;
+  startSerialNumber: string;
+  endSerialNumber: string;
+  sellingOrder: SellingOrder;
+  notes?: string;
+};
+
+export function ManualPackCreateScreen({ navigation, route }: ManualPackCreateProps) {
   const queryClient = useQueryClient();
   const { activeShopId, activeShop } = useAuth();
   const shopId = activeShopId;
@@ -510,8 +541,10 @@ export function ManualPackCreateScreen({ navigation }: ManualPackCreateProps) {
   const [endSerialNumber, setEndSerialNumber] = useState("");
   const [notes, setNotes] = useState("");
   const [scanMessage, setScanMessage] = useState<string | null>(null);
+  const [pendingPacks, setPendingPacks] = useState<PendingManualPackDraft[]>([]);
   const lastAutoSerialRangeRef = useRef<{ start: string; end: string } | null>(null);
   const awaitingPackScanRef = useRef(false);
+  const hasAutoOpenedScannerRef = useRef(false);
   const activeGamesRef = useRef<Game[]>([]);
 
   const gamesQuery = useQuery({
@@ -546,6 +579,84 @@ export function ManualPackCreateScreen({ navigation }: ManualPackCreateProps) {
     [totalTickets]
   );
 
+  function buildDraftFromForm(): PendingManualPackDraft {
+    if (!gameId) {
+      throw new Error("Select a game.");
+    }
+    if (!selectedGame) {
+      throw new Error("Selected game is not available.");
+    }
+
+    const normalizedPackNumber = packNumber.trim().toUpperCase();
+    if (!normalizedPackNumber) {
+      throw new Error("Pack number is required.");
+    }
+
+    const parsedTicketPrice = Number(ticketPrice);
+    if (!Number.isFinite(parsedTicketPrice) || parsedTicketPrice <= 0) {
+      throw new Error("Ticket price must be greater than zero.");
+    }
+
+    const parsedTotalTickets = Number(totalTickets);
+    if (!Number.isInteger(parsedTotalTickets) || parsedTotalTickets <= 0) {
+      throw new Error("Total tickets must be a whole number greater than zero.");
+    }
+
+    const trimmedStartSerial = startSerialNumber.trim();
+    const trimmedEndSerial = endSerialNumber.trim();
+    if (!trimmedStartSerial || !trimmedEndSerial) {
+      throw new Error("Start and end serial numbers are required.");
+    }
+
+    const trimmedDisplayNumber = displayNumber.trim();
+    const parsedDisplayNumber = trimmedDisplayNumber.length > 0 ? Number(trimmedDisplayNumber) : undefined;
+    if (trimmedDisplayNumber.length > 0 && (!Number.isInteger(parsedDisplayNumber) || (parsedDisplayNumber ?? 0) < 0)) {
+      throw new Error("Display number must be a non-negative whole number.");
+    }
+
+    return {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      gameId,
+      gameCode: selectedGame.gameCode,
+      gameName: selectedGame.gameName,
+      packNumber: normalizedPackNumber,
+      displayNumber: parsedDisplayNumber,
+      ticketPrice: parsedTicketPrice,
+      totalTickets: parsedTotalTickets,
+      startSerialNumber: trimmedStartSerial,
+      endSerialNumber: trimmedEndSerial,
+      sellingOrder: selectedGame.defaultSellingOrder,
+      notes: notes.trim() || undefined,
+    };
+  }
+
+  function resetForNextPackEntry() {
+    setPackNumber("");
+    setDisplayNumber("");
+    setNotes("");
+    setScanMessage("Pack added to temporary list. Add another pack or confirm batch create.");
+  }
+
+  function addCurrentPackToQueue() {
+    try {
+      const draft = buildDraftFromForm();
+      const duplicate = pendingPacks.some(
+        (item) =>
+          item.gameId === draft.gameId &&
+          item.packNumber.toUpperCase() === draft.packNumber.toUpperCase()
+      );
+
+      if (duplicate) {
+        throw new Error(`Pack ${draft.packNumber} for ${draft.gameCode} is already in the temporary list.`);
+      }
+
+      setPendingPacks((previous) => [...previous, draft]);
+      resetForNextPackEntry();
+    } catch (error: any) {
+      Alert.alert("Validation", error?.message ?? "Unable to add pack.");
+    }
+  }
+
   function openManualPackScanner() {
     awaitingPackScanRef.current = true;
     setScanMessage("Scan pack barcode and keep the label text in view.");
@@ -558,6 +669,19 @@ export function ManualPackCreateScreen({ navigation }: ManualPackCreateProps) {
   }, [activeGames]);
 
   useEffect(() => {
+    if (!shopId) {
+      return;
+    }
+
+    if (!route.params?.autoOpenScanner || hasAutoOpenedScannerRef.current) {
+      return;
+    }
+
+    hasAutoOpenedScannerRef.current = true;
+    openManualPackScanner();
+  }, [route.params?.autoOpenScanner, shopId]);
+
+  useEffect(() => {
     const unsubscribe = subscribeScan((payload) => {
       if (!awaitingPackScanRef.current) {
         return;
@@ -565,7 +689,9 @@ export function ManualPackCreateScreen({ navigation }: ManualPackCreateProps) {
 
       awaitingPackScanRef.current = false;
 
-      const parsed = parseScannedPackCode(payload.parsedPackNumber ?? "");
+      const parsed =
+        parseScannedPackCode(payload.rawBarcode) ??
+        parseScannedPackCode(payload.parsedPackNumber ?? "");
       if (!parsed) {
         setScanMessage("Could not parse pack number from scan. Try again.");
         return;
@@ -621,46 +747,52 @@ export function ManualPackCreateScreen({ navigation }: ManualPackCreateProps) {
     lastAutoSerialRangeRef.current = ascendingSerialDefaults;
   }, [ascendingSerialDefaults, startSerialNumber, endSerialNumber]);
 
-  const createManualPackMutation = useMutation({
+  const createAndActivateBatchMutation = useMutation({
     mutationFn: async () => {
       if (!shopId) {
         throw new Error("No shop selected.");
       }
-      if (!gameId) {
-        throw new Error("Select a game.");
-      }
-      if (!packNumber.trim()) {
-        throw new Error("Pack number is required.");
-      }
-      if (!startSerialNumber.trim() || !endSerialNumber.trim()) {
-        throw new Error("Start and end serial numbers are required.");
-      }
-      if (displayNumber.trim().length > 0) {
-        const parsedDisplayNumber = Number(displayNumber);
-        if (!Number.isInteger(parsedDisplayNumber) || parsedDisplayNumber < 0) {
-          throw new Error("Display number must be a non-negative whole number.");
-        }
+
+      if (pendingPacks.length === 0) {
+        throw new Error("Temporary list is empty. Add at least one pack first.");
       }
 
-      return createManualPack({
-        shopId,
-        gameId,
-        packNumber: packNumber.trim().toUpperCase(),
-        displayNumber: displayNumber.trim().length > 0 ? Number(displayNumber) : undefined,
-        ticketPrice: Number(ticketPrice),
-        totalTickets: Number(totalTickets),
-        startSerialNumber: startSerialNumber.trim(),
-        endSerialNumber: endSerialNumber.trim(),
-        notes: notes.trim() || undefined,
-      });
+      const created = [];
+      for (const draft of pendingPacks) {
+        const createdPack = await createManualPack({
+          shopId,
+          gameId: draft.gameId,
+          packNumber: draft.packNumber,
+          displayNumber: draft.displayNumber,
+          ticketPrice: draft.ticketPrice,
+          totalTickets: draft.totalTickets,
+          startSerialNumber: draft.startSerialNumber,
+          endSerialNumber: draft.endSerialNumber,
+          sellingOrder: draft.sellingOrder,
+          notes: draft.notes,
+        });
+
+        if (createdPack.status !== "Active") {
+          await activatePack(createdPack.id, {
+            openingSerialNumber: createdPack.currentSerialNumber || draft.startSerialNumber,
+            sellingOrder: draft.sellingOrder,
+          });
+        }
+
+        created.push(createdPack);
+      }
+
+      return created;
     },
-    onSuccess: () => {
+    onSuccess: (createdPacks) => {
       void queryClient.invalidateQueries({ queryKey: ["packs", shopId] });
-      Alert.alert("Created", "Pack created and activated.");
+      setPendingPacks([]);
+      setScanMessage(null);
+      Alert.alert("Created", `${createdPacks.length} pack(s) created and activated.`);
       navigation.goBack();
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to create manual pack.");
+      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to create manual packs.");
     },
   });
 
@@ -803,9 +935,49 @@ export function ManualPackCreateScreen({ navigation }: ManualPackCreateProps) {
           />
 
           <PrimaryButton
-            label={createManualPackMutation.isPending ? "Creating..." : "Create And Active Pack"}
-            onPress={() => createManualPackMutation.mutate()}
-            disabled={createManualPackMutation.isPending || !shopId}
+            label="Add To Temporary List"
+            onPress={addCurrentPackToQueue}
+            disabled={createAndActivateBatchMutation.isPending || !shopId}
+          />
+
+          <View style={styles.summaryQueueCard}>
+            <View style={styles.rowBetween}>
+              <Text style={styles.sectionTitle}>Temporary Pack List</Text>
+              <Text style={styles.meta}>{pendingPacks.length} item(s)</Text>
+            </View>
+            {pendingPacks.length === 0 ? (
+              <Text style={styles.meta}>No packs queued yet.</Text>
+            ) : (
+              pendingPacks.map((item, index) => (
+                <View key={item.id} style={styles.item}>
+                  <View style={styles.rowBetween}>
+                    <Text style={styles.itemTitle}>
+                      {index + 1}. {item.gameCode} - {item.packNumber}
+                    </Text>
+                    <Pressable
+                      style={styles.smallButton}
+                      onPress={() => setPendingPacks((previous) => previous.filter((candidate) => candidate.id !== item.id))}
+                      disabled={createAndActivateBatchMutation.isPending}
+                    >
+                      <Text style={styles.smallButtonText}>Remove</Text>
+                    </Pressable>
+                  </View>
+                  <Text style={styles.meta}>
+                    {item.gameName} | £ {item.ticketPrice.toFixed(2)} | {item.totalTickets} tickets
+                  </Text>
+                  <Text style={styles.meta}>
+                    {item.startSerialNumber} {"->"} {item.endSerialNumber}
+                    {item.displayNumber != null ? ` | Display ${item.displayNumber}` : ""}
+                  </Text>
+                </View>
+              ))
+            )}
+          </View>
+
+          <PrimaryButton
+            label={createAndActivateBatchMutation.isPending ? "Creating..." : `Confirm Create & Activate (${pendingPacks.length})`}
+            onPress={() => createAndActivateBatchMutation.mutate()}
+            disabled={createAndActivateBatchMutation.isPending || pendingPacks.length === 0 || !shopId}
           />
         </View>
       </ScrollView>
@@ -1068,6 +1240,13 @@ export function ActivatePackScreen({ route, navigation }: ActivatePackProps) {
 
 const styles = StyleSheet.create({
   screenContent: { gap: appTheme.spacing.sm },
+  headerActionsRow: {
+    flexDirection: "row",
+    gap: appTheme.spacing.xs,
+  },
+  headerActionItem: {
+    flex: 1,
+  },
   heroCard: {
     backgroundColor: appTheme.colors.primary,
     borderRadius: appTheme.radius.lg,
@@ -1284,6 +1463,14 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.body,
     fontSize: 13,
     lineHeight: 17,
+  },
+  summaryQueueCard: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    padding: appTheme.spacing.sm,
+    gap: appTheme.spacing.xs,
   },
   smallButton: {
     backgroundColor: appTheme.colors.primary,

@@ -38,7 +38,7 @@ export type MainStackParamList = {
   RefusalEntryDetails: { entryId: string };
   RefusalEntryEdit: { entryId: string };
   ScratchCardPacks: undefined;
-  ManualPackCreate: undefined;
+  ManualPackCreate: { autoOpenScanner?: boolean } | undefined;
   PackDetails: { packId: string };
   ActivatePack: { packId: string };
   BusinessDay: undefined;
