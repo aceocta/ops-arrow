@@ -53,9 +53,12 @@ type MainDrawerParamList = {
   MainStack: NavigatorScreenParams<MainStackParamList> | undefined;
 };
 
+type MenuIcon = keyof typeof Ionicons.glyphMap;
+
 type MenuItem = {
   label: string;
   screen: keyof MainStackParamList;
+  icon: MenuIcon;
   shopOwnerOnly?: boolean;
   mode?: EntryOperation;
 };
@@ -66,48 +69,60 @@ const Drawer = createDrawerNavigator<MainDrawerParamList>();
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
 const operationsItems: MenuItem[] = [
-  { label: "Home", screen: "BestEntry" },
-  { label: "Day Management", screen: "Dashboard", mode: "scratchCard" },
-  { label: "Deliveries", screen: "Deliveries", mode: "scratchCard" },
-  { label: "Temperature Logs", screen: "TemperatureLogs", mode: "temperature" },
-  { label: "Temperature Logs by Day", screen: "TemperatureLogsByDay", mode: "temperature" },
-  { label: "Temperature Logs Report", screen: "TemperatureLogsReport", mode: "temperature" },
-  { label: "Temperature Units", screen: "TemperatureUnits", mode: "temperature" },
-  { label: "No ID / No Sale", screen: "RefusalRegister", mode: "refusals" },
+  { label: "Home", screen: "BestEntry", icon: "home-outline" },
+  { label: "Day Management", screen: "Dashboard", icon: "calendar-outline", mode: "scratchCard" },
+  { label: "Deliveries", screen: "Deliveries", icon: "cube-outline", mode: "scratchCard" },
+  { label: "Temperature Logs", screen: "TemperatureLogs", icon: "thermometer-outline", mode: "temperature" },
+  { label: "Temperature Logs by Day", screen: "TemperatureLogsByDay", icon: "calendar-number-outline", mode: "temperature" },
+  { label: "Temperature Logs Report", screen: "TemperatureLogsReport", icon: "bar-chart-outline", mode: "temperature" },
+  { label: "Temperature Units", screen: "TemperatureUnits", icon: "options-outline", mode: "temperature" },
+  { label: "No ID / No Sale", screen: "RefusalRegister", icon: "shield-checkmark-outline", mode: "refusals" },
   // { label: "Refusals by Day", screen: "RefusalRegisterByDay", mode: "refusals" },
-  { label: "Refusal Report", screen: "RefusalReport", mode: "refusals" },
-  { label: "Refusal Manager Review", screen: "RefusalManagerReview", mode: "refusals" },
-  { label: "Card Packs", screen: "ScratchCardPacks", mode: "scratchCard" },
-  { label: "Card Games", screen: "ScratchCardGames", mode: "scratchCard" },
+  { label: "Refusal Report", screen: "RefusalReport", icon: "document-text-outline", mode: "refusals" },
+  { label: "Refusal Manager Review", screen: "RefusalManagerReview", icon: "clipboard-outline", mode: "refusals" },
+  { label: "Card Packs", screen: "ScratchCardPacks", icon: "albums-outline", mode: "scratchCard" },
+  { label: "Card Games", screen: "ScratchCardGames", icon: "game-controller-outline", mode: "scratchCard" },
   // { label: "Business Day", screen: "BusinessDay" },
   // { label: "Open Shift", screen: "OpenShift" },
   // { label: "Close Shift", screen: "CloseShift" },
 ];
 
 const managementItems: MenuItem[] = [
-  { label: "Settings", screen: "Settings" },
-  { label: "User Invitations", screen: "UserInvitations" },
-  // { label: "Company Management", screen: "CompanyManagement", shopOwnerOnly: true },
-  { label: "Shop Management", screen: "ShopManagement", shopOwnerOnly: true },
-  { label: "User Management", screen: "UserManagement", shopOwnerOnly: true },
-  { label: "App Configuration", screen: "AppConfiguration", shopOwnerOnly: true },
+  { label: "Settings", screen: "Settings", icon: "settings-outline" },
+  { label: "User Invitations", screen: "UserInvitations", icon: "mail-outline" },
+  // { label: "Company Management", screen: "CompanyManagement", icon: "business-outline", shopOwnerOnly: true },
+  { label: "Shop Management", screen: "ShopManagement", icon: "storefront-outline", shopOwnerOnly: true },
+  { label: "User Management", screen: "UserManagement", icon: "people-outline", shopOwnerOnly: true },
+  { label: "App Configuration", screen: "AppConfiguration", icon: "construct-outline", shopOwnerOnly: true },
 ];
 
 const reportItems: MenuItem[] = [
-  { label: "Daily Sales Report", screen: "DailySalesReport", mode: "scratchCard" },
-  { label: "Shift Sales Report", screen: "ShiftSalesReport", mode: "scratchCard" },
-  { label: "Manual Entry Review", screen: "ManualClosingReview", mode: "scratchCard" },
-  { label: "Stock Report", screen: "StockReport", mode: "scratchCard" },
-  { label: "Audit Log", screen: "AuditLog", mode: "scratchCard" },
-  { label: "Notification Log", screen: "NotificationLog", mode: "scratchCard" },
+  { label: "Daily Sales Report", screen: "DailySalesReport", icon: "stats-chart-outline", mode: "scratchCard" },
+  // { label: "Shift Sales Report", screen: "ShiftSalesReport", mode: "scratchCard" },
+  // { label: "Manual Entry Review", screen: "ManualClosingReview", mode: "scratchCard" },
+  { label: "Stock Report", screen: "StockReport", icon: "archive-outline", mode: "scratchCard" },
+  // { label: "Audit Log", screen: "AuditLog", mode: "scratchCard" },
+  { label: "Notification Log", screen: "NotificationLog", icon: "notifications-outline", mode: "scratchCard" },
 ];
 
-const bottomDockItems: Array<{ icon: keyof typeof Ionicons.glyphMap; screen: keyof MainStackParamList }> = [
-  { icon: "albums-outline", screen: "Dashboard" },
-  { icon: "thermometer-outline", screen: "TemperatureLogs" },
-  { icon: "shield-checkmark-outline", screen: "RefusalRegister" },
-  { icon: "settings-outline", screen: "Settings" },
+const bottomDockItems: Array<{
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  screen: keyof MainStackParamList;
+}> = [
+  { icon: "calendar-outline", label: "Day", screen: "Dashboard" },
+  { icon: "albums-outline", label: "Cards", screen: "ScratchCardPacks" },
+  { icon: "thermometer-outline", label: "Temp", screen: "TemperatureLogs" },
+  { icon: "shield-checkmark-outline", label: "No Sale", screen: "RefusalRegister" },
+  { icon: "settings-outline", label: "Settings", screen: "Settings" },
 ];
+
+function getOperationLabel(operation: EntryOperation | null) {
+  if (operation === "temperature") return "Temperature";
+  if (operation === "scratchCard") return "Scratch Card";
+  if (operation === "refusals") return "No ID / No Sale";
+  return "All";
+}
 
 function getDeepestRouteName(state: any): string | undefined {
   if (!state?.routes?.length) {
@@ -205,12 +220,17 @@ function MainStackScreens() {
       screenOptions={({ navigation, route }) => ({
         headerStyle: { backgroundColor: appTheme.colors.background },
         headerTintColor: appTheme.colors.text,
+        headerTitleAlign: "left",
         headerTitleStyle: {
           fontFamily: appTheme.fonts.bodyMedium,
-          fontSize: 16,
+          fontSize: 17,
+          lineHeight: 21,
         },
         headerShadowVisible: false,
         headerBackTitleVisible: false,
+        headerRightContainerStyle: {
+          paddingRight: appTheme.spacing.xs,
+        },
         contentStyle: {
           backgroundColor: appTheme.colors.background,
           paddingBottom: 0,
@@ -282,7 +302,7 @@ function MainStackScreens() {
       {/* <Stack.Screen name="ShiftSalesReport" component={ShiftSalesReportScreen} options={{ title: "Shift Sales Report" }} /> */}
       <Stack.Screen name="ManualClosingReview" component={ManualClosingReviewScreen} options={{ title: "Manual Entry Review" }} />
       <Stack.Screen name="StockReport" component={StockReportScreen} options={{ title: "Stock Report" }} />
-      <Stack.Screen name="AuditLog" component={AuditLogScreen} options={{ title: "Audit Log" }} />
+      {/* <Stack.Screen name="AuditLog" component={AuditLogScreen} options={{ title: "Audit Log" }} /> */}
       <Stack.Screen name="NotificationLog" component={NotificationLogScreen} options={{ title: "Notification Log" }} />
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
     </Stack.Navigator>
@@ -299,7 +319,7 @@ function MainBottomDock() {
   }
 
   const activeScreen = resolveActiveBottomDockScreen(currentRouteName);
-  const dockBottomInset = insets.bottom + (Platform.OS === "android" ? 0 : 0);
+  const dockBottomInset = Math.max(insets.bottom, appTheme.spacing.xs);
   const dockVerticalOffset = Platform.OS === "android" ? -8 : 0;
 
   return (
@@ -310,10 +330,13 @@ function MainBottomDock() {
           return (
             <Pressable
               key={item.screen}
-              style={styles.bottomDockItem}
+              style={[styles.bottomDockItem, isActive ? styles.bottomDockItemActive : null]}
               onPress={() => navigation.navigate("MainTabs", { screen: "MainStack", params: { screen: item.screen } })}
+              accessibilityRole="button"
+              accessibilityLabel={`Open ${item.label}`}
             >
-              <Ionicons name={item.icon} size={20} color={isActive ? appTheme.colors.primary : "#9AA5BE"} />
+              <Ionicons name={item.icon} size={18} color={isActive ? appTheme.colors.primary : "#8E99AF"} />
+              <Text style={[styles.bottomDockItemLabel, isActive ? styles.bottomDockItemLabelActive : null]}>{item.label}</Text>
             </Pressable>
           );
         })}
@@ -331,6 +354,7 @@ function DrawerSection({
   selectedOperation,
   expanded,
   onToggle,
+  activeScreen,
 }: {
   sectionKey: DrawerSectionKey;
   title: string;
@@ -340,12 +364,17 @@ function DrawerSection({
   selectedOperation: EntryOperation | null;
   expanded: boolean;
   onToggle: (sectionKey: DrawerSectionKey) => void;
+  activeScreen?: keyof MainStackParamList;
 }) {
   const visibleItems = items.filter(
     (item) =>
       (!item.shopOwnerOnly || isShopOwner) &&
       (!selectedOperation || !item.mode || item.mode === selectedOperation)
   );
+
+  if (visibleItems.length === 0) {
+    return null;
+  }
 
   return (
     <View style={styles.drawerSection}>
@@ -354,16 +383,46 @@ function DrawerSection({
         onPress={() => onToggle(sectionKey)}
         accessibilityRole="button"
         accessibilityLabel={`${expanded ? "Collapse" : "Expand"} ${title} menu`}
+        accessibilityState={{ expanded }}
       >
         <Text style={styles.drawerSectionTitle}>{title}</Text>
-        <Text style={styles.drawerSectionIcon}>{expanded ? "v" : ">"}</Text>
+        <Ionicons
+          name={expanded ? "chevron-up-outline" : "chevron-down-outline"}
+          size={14}
+          color={appTheme.colors.textSubtle}
+        />
       </Pressable>
       {expanded ? (
         <View style={styles.drawerSectionItems}>
           {visibleItems.map((item) => (
-          <Pressable key={item.screen} style={styles.drawerItem} onPress={() => onPress(item)}>
-            <Text style={styles.drawerItemText}>{item.label}</Text>
-          </Pressable>
+            <Pressable
+              key={item.screen}
+              style={[styles.drawerItem, activeScreen === item.screen ? styles.drawerItemActive : null]}
+              onPress={() => onPress(item)}
+            >
+              <View style={styles.drawerItemMain}>
+                <View
+                  style={[
+                    styles.drawerItemIconWrap,
+                    activeScreen === item.screen ? styles.drawerItemIconWrapActive : null,
+                  ]}
+                >
+                  <Ionicons
+                    name={item.icon}
+                    size={15}
+                    color={activeScreen === item.screen ? appTheme.colors.onPrimary : appTheme.colors.textMuted}
+                  />
+                </View>
+                <Text style={[styles.drawerItemText, activeScreen === item.screen ? styles.drawerItemTextActive : null]}>
+                  {item.label}
+                </Text>
+              </View>
+              <Ionicons
+                name={activeScreen === item.screen ? "checkmark-circle" : "chevron-forward"}
+                size={14}
+                color={activeScreen === item.screen ? appTheme.colors.primary : appTheme.colors.textSubtle}
+              />
+            </Pressable>
           ))}
         </View>
       ) : null}
@@ -376,6 +435,10 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
   const insets = useSafeAreaInsets();
   const { profile, activeShop } = useAuth();
   const isShopOwner = profile?.roles?.some((role) => role === "ShopOwner") ?? false;
+  const activeRouteName = getDeepestRouteName(props.state);
+  const activeScreen = activeRouteName as keyof MainStackParamList | undefined;
+  const operationLabel = getOperationLabel(selectedOperation);
+  const currentUser = profile?.displayName ?? profile?.email ?? "Signed-in user";
   const [expandedSections, setExpandedSections] = useState<Record<DrawerSectionKey, boolean>>({
     operations: true,
     management: false,
@@ -401,11 +464,19 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
   return (
     <DrawerContentScrollView {...props} contentContainerStyle={styles.drawerScrollContent}>
       <View style={[styles.drawerHeader, { paddingTop: appTheme.spacing.md + insets.top }]}>
+        <Text style={styles.drawerEyebrow}>Navigation</Text>
         <Text style={styles.drawerTitle}>Menu</Text>
-        <Text style={styles.drawerSubtle}>{activeShop?.shopName ?? "No active shop selected"}</Text>
-        <Text style={styles.drawerSubtle}>
-          Operation: {selectedOperation === "temperature" ? "Temperature" : selectedOperation === "scratchCard" ? "Scratch Card" : selectedOperation === "refusals" ? "No ID / No Sale" : "All"}
-        </Text>
+        <Text style={styles.drawerSubtle}>{currentUser}</Text>
+        <Text style={styles.drawerShopName}>{activeShop?.shopName ?? "No active shop selected"}</Text>
+        <View style={styles.drawerPillRow}>
+          <View style={styles.drawerModePill}>
+            <Ionicons name="compass-outline" size={12} color={appTheme.colors.primary} />
+            <Text style={styles.drawerModePillText}>{operationLabel}</Text>
+          </View>
+          <View style={styles.drawerRolePill}>
+            <Text style={styles.drawerRolePillText}>{isShopOwner ? "Shop Owner" : "Staff"}</Text>
+          </View>
+        </View>
       </View>
 
       <DrawerSection
@@ -417,6 +488,7 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
         selectedOperation={selectedOperation}
         expanded={expandedSections.operations}
         onToggle={toggleSection}
+        activeScreen={activeScreen}
       />
       <DrawerSection
         sectionKey="management"
@@ -427,6 +499,7 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
         selectedOperation={selectedOperation}
         expanded={expandedSections.management}
         onToggle={toggleSection}
+        activeScreen={activeScreen}
       />
       <DrawerSection
         sectionKey="reports"
@@ -437,6 +510,7 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
         selectedOperation={selectedOperation}
         expanded={expandedSections.reports}
         onToggle={toggleSection}
+        activeScreen={activeScreen}
       />
     </DrawerContentScrollView>
   );
@@ -450,8 +524,9 @@ export function MainNavigator() {
           screenOptions={{
             headerShown: false,
             drawerType: "slide",
+            overlayColor: "rgba(15, 23, 28, 0.34)",
             drawerStyle: {
-              width: 324,
+              width: 332,
               backgroundColor: appTheme.colors.surface,
             },
             swipeEdgeWidth: 48,
@@ -471,8 +546,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   menuButton: {
-    width: 38,
-    height: 38,
+    width: 40,
+    height: 40,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: appTheme.radius.pill,
@@ -490,7 +565,16 @@ const styles = StyleSheet.create({
     paddingVertical: appTheme.spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: appTheme.colors.border,
-    backgroundColor: appTheme.colors.backgroundAlt,
+    backgroundColor: "#EEF3FB",
+    gap: 4,
+  },
+  drawerEyebrow: {
+    color: appTheme.colors.textSubtle,
+    fontSize: 11,
+    lineHeight: 14,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+    fontFamily: appTheme.fonts.bodyMedium,
   },
   drawerTitle: {
     color: appTheme.colors.text,
@@ -499,11 +583,53 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.heading,
   },
   drawerSubtle: {
-    marginTop: 4,
     color: appTheme.colors.textMuted,
     fontSize: 13,
     lineHeight: 16,
     fontFamily: appTheme.fonts.body,
+  },
+  drawerShopName: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  drawerPillRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+    marginTop: appTheme.spacing.xs,
+  },
+  drawerModePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: appTheme.radius.pill,
+    borderWidth: 1,
+    borderColor: "#BBDDE2",
+    backgroundColor: "#E9F8FA",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  drawerModePillText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 14,
+  },
+  drawerRolePill: {
+    borderRadius: appTheme.radius.pill,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surface,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  drawerRolePillText: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 14,
   },
   drawerSection: {
     paddingHorizontal: appTheme.spacing.md,
@@ -527,19 +653,38 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     fontFamily: appTheme.fonts.bodyMedium,
   },
-  drawerSectionIcon: {
-    color: appTheme.colors.textSubtle,
-    fontSize: 14,
-    lineHeight: 16,
-    fontFamily: appTheme.fonts.bodyMedium,
-  },
   drawerItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 13,
+    paddingVertical: 10,
+    paddingHorizontal: 11,
     borderRadius: appTheme.radius.sm,
     borderWidth: 1,
     borderColor: appTheme.colors.border,
     backgroundColor: appTheme.colors.surface,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.xs,
+  },
+  drawerItemActive: {
+    borderColor: "#C6E6EA",
+    backgroundColor: "#EAF7F9",
+  },
+  drawerItemMain: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+    flex: 1,
+  },
+  drawerItemIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: appTheme.radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: appTheme.colors.surfaceMuted,
+  },
+  drawerItemIconWrapActive: {
+    backgroundColor: appTheme.colors.primary,
   },
   drawerItemText: {
     color: appTheme.colors.text,
@@ -547,28 +692,46 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontFamily: appTheme.fonts.bodyMedium,
   },
+  drawerItemTextActive: {
+    color: "#0E5560",
+  },
   bottomDockWrap: {
     position: "absolute",
-    left: 0,
-    right: 0,
+    left: appTheme.spacing.md,
+    right: appTheme.spacing.md,
     bottom: 0,
-    backgroundColor: appTheme.colors.background,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: appTheme.colors.border,
+    backgroundColor: "transparent",
   },
   bottomDock: {
-    backgroundColor: appTheme.colors.background,
-    paddingVertical: 8,
-    paddingHorizontal: appTheme.spacing.md,
+    backgroundColor: appTheme.colors.surface,
+    borderRadius: appTheme.radius.pill,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    paddingVertical: 6,
+    paddingHorizontal: 6,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
   bottomDockItem: {
+    gap: 3,
     alignItems: "center",
     justifyContent: "center",
     flex: 1,
-    minHeight: 40,
-    borderRadius: appTheme.radius.sm,
+    minHeight: 44,
+    borderRadius: appTheme.radius.pill,
+    paddingVertical: 5,
+  },
+  bottomDockItemActive: {
+    backgroundColor: "#E9F7F8",
+  },
+  bottomDockItemLabel: {
+    color: "#8E99AF",
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 13,
+  },
+  bottomDockItemLabelActive: {
+    color: appTheme.colors.primary,
   },
 });

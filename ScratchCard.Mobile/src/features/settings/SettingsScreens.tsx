@@ -4,6 +4,7 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Constants from "expo-constants";
+import { Ionicons } from "@expo/vector-icons";
 import { createCompany, listMyCompanies, updateCompany } from "../../api/companiesApi";
 import { getConfigurations, updateConfigurations } from "../../api/configurationsApi";
 import { resolvedApiBaseUrl } from "../../api/client";
@@ -473,24 +474,194 @@ export function ShopManagementScreen() {
   );
 }
 
+function SettingsNavRow({
+  icon,
+  title,
+  description,
+  onPress,
+  tone = "default",
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  description: string;
+  onPress: () => void;
+  tone?: "default" | "danger";
+}) {
+  const isDanger = tone === "danger";
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.settingsNavRow,
+        isDanger ? styles.settingsNavRowDanger : null,
+        pressed ? styles.settingsNavRowPressed : null,
+      ]}
+      onPress={onPress}
+    >
+      <View style={[styles.settingsNavIconWrap, isDanger ? styles.settingsNavIconWrapDanger : null]}>
+        <Ionicons name={icon} size={17} color={isDanger ? appTheme.colors.danger : appTheme.colors.primary} />
+      </View>
+      <View style={styles.settingsNavTextWrap}>
+        <Text style={[styles.settingsNavTitle, isDanger ? styles.settingsNavTitleDanger : null]}>{title}</Text>
+        <Text style={styles.settingsNavDescription}>{description}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={15} color={appTheme.colors.textSubtle} />
+    </Pressable>
+  );
+}
+
 export function SettingsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const { profile, activeShop, signOut } = useAuth();
 
+  const displayName = profile ? buildDisplayName(profile) : "-";
+  const avatarInitial = displayName !== "-" && displayName.trim().length > 0 ? displayName.trim().charAt(0).toUpperCase() : "?";
   const shopCount = profile?.shops?.length ?? 0;
   const primaryRole = profile?.roles?.[0] ?? "-";
   const isShopOwner = profile?.roles?.some((role) => role === "ShopOwner") ?? false;
   const appVersion = Constants.expoConfig?.version ?? "1.0.0";
+
   type OperationsMenuScreen = "Deliveries" | "TemperatureLogs" | "RefusalRegister" | "ScratchCardPacks" | "ScratchCardGames" | "BusinessDay" | "OpenShift" | "CloseShift";
-  const operationActions: Array<{ label: string; screen: OperationsMenuScreen }> = [
-    { label: "Deliveries", screen: "Deliveries" },
-    { label: "Temperature Logs", screen: "TemperatureLogs" },
-    { label: "No ID / No Sale", screen: "RefusalRegister" },
-    { label: "Card Packs", screen: "ScratchCardPacks" },
-    { label: "Card Games", screen: "ScratchCardGames" },
-    { label: "Business Day", screen: "BusinessDay" },
-    { label: "Open Shift", screen: "OpenShift" },
-    { label: "Close Shift", screen: "CloseShift" },
+  type SettingsAction = {
+    key: string;
+    title: string;
+    description: string;
+    icon: keyof typeof Ionicons.glyphMap;
+    onPress: () => void;
+    tone?: "default" | "danger";
+  };
+
+  const managementActions: SettingsAction[] = [
+    {
+      key: "switch-shop",
+      title: "Switch Shop",
+      description: "Change your active store and company context.",
+      icon: "swap-horizontal-outline",
+      onPress: () => (navigation.getParent() as any)?.navigate("ShopSelector"),
+    },
+    {
+      key: "user-invitations",
+      title: "User Invitations",
+      description: "Invite team members and manage invitation requests.",
+      icon: "mail-outline",
+      onPress: () => navigation.navigate("UserInvitations"),
+    },
+  ];
+
+  if (isShopOwner) {
+    managementActions.push(
+      {
+        key: "company-management",
+        title: "Company Management",
+        description: "Update company records and activation status.",
+        icon: "business-outline",
+        onPress: () => navigation.navigate("CompanyManagement"),
+      },
+      {
+        key: "shop-management",
+        title: "Shop Management",
+        description: "Create or edit shops and maintain store details.",
+        icon: "storefront-outline",
+        onPress: () => navigation.navigate("ShopManagement"),
+      },
+      {
+        key: "user-management",
+        title: "User Management",
+        description: "Change user roles and active states.",
+        icon: "people-outline",
+        onPress: () => navigation.navigate("UserManagement"),
+      },
+      {
+        key: "app-configuration",
+        title: "App Configuration",
+        description: "Control operational times and runtime settings.",
+        icon: "construct-outline",
+        onPress: () => navigation.navigate("AppConfiguration"),
+      },
+    );
+  }
+
+  const operationActions: Array<SettingsAction & { screen: OperationsMenuScreen }> = [
+    {
+      key: "deliveries",
+      title: "Deliveries",
+      description: "Receive deliveries and update pack rows.",
+      icon: "cube-outline",
+      screen: "Deliveries",
+      onPress: () => navigation.navigate("Deliveries"),
+    },
+    {
+      key: "temperature-logs",
+      title: "Temperature Logs",
+      description: "Record checks and verify compliance readings.",
+      icon: "thermometer-outline",
+      screen: "TemperatureLogs",
+      onPress: () => navigation.navigate("TemperatureLogs"),
+    },
+    {
+      key: "no-sale",
+      title: "No ID / No Sale",
+      description: "Review refusals and follow-up actions.",
+      icon: "shield-checkmark-outline",
+      screen: "RefusalRegister",
+      onPress: () => navigation.navigate("RefusalRegister"),
+    },
+    {
+      key: "card-packs",
+      title: "Card Packs",
+      description: "Manage activated packs and stock movement.",
+      icon: "albums-outline",
+      screen: "ScratchCardPacks",
+      onPress: () => navigation.navigate("ScratchCardPacks"),
+    },
+    {
+      key: "card-games",
+      title: "Card Games",
+      description: "Create and edit scratch card game metadata.",
+      icon: "game-controller-outline",
+      screen: "ScratchCardGames",
+      onPress: () => navigation.navigate("ScratchCardGames"),
+    },
+    {
+      key: "business-day",
+      title: "Business Day",
+      description: "Inspect business-day lifecycle and shift status.",
+      icon: "calendar-outline",
+      screen: "BusinessDay",
+      onPress: () => navigation.navigate("BusinessDay"),
+    },
+    {
+      key: "open-shift",
+      title: "Open Shift",
+      description: "Create a new shift for the active business day.",
+      icon: "play-circle-outline",
+      screen: "OpenShift",
+      onPress: () => navigation.navigate("OpenShift"),
+    },
+    {
+      key: "close-shift",
+      title: "Close Shift",
+      description: "Complete payouts and final shift reconciliation.",
+      icon: "checkmark-done-circle-outline",
+      screen: "CloseShift",
+      onPress: () => navigation.navigate("CloseShift"),
+    },
+  ];
+
+  const reportActions: SettingsAction[] = [
+    {
+      key: "daily-sales",
+      title: "Daily Sales Report",
+      description: "View per-day sales totals and close summaries.",
+      icon: "stats-chart-outline",
+      onPress: () => navigation.navigate("DailySalesReport"),
+    },
+    {
+      key: "stock-report",
+      title: "Stock Report",
+      description: "Track pack stock balance and movement by game.",
+      icon: "archive-outline",
+      onPress: () => navigation.navigate("StockReport"),
+    },
   ];
 
   async function onSignOut() {
@@ -503,64 +674,79 @@ export function SettingsScreen() {
 
   return (
     <ScreenContainer>
-      <View style={ui.card}>
-        <LabeledValue label="User" value={profile ? buildDisplayName(profile) : "-"} />
-        <LabeledValue label="Email" value={profile?.email ?? "-"} />
-        <LabeledValue label="Primary role" value={primaryRole} />
-        <LabeledValue label="Active shop" value={activeShop?.shopName ?? "-"} />
-        <LabeledValue label="Active company" value={activeShop?.companyName ?? "-"} />
-        <LabeledValue label="Shops assigned" value={shopCount} />
+      <View style={[ui.card, styles.settingsHeroCard]}>
+        <View style={styles.settingsHeroHeader}>
+          <View style={styles.settingsAvatar}>
+            <Text style={styles.settingsAvatarText}>{avatarInitial}</Text>
+          </View>
+          <View style={styles.settingsHeroTextWrap}>
+            <Text style={styles.settingsHeroName}>{displayName}</Text>
+            <Text style={styles.settingsHeroEmail}>{profile?.email ?? "-"}</Text>
+            <View style={styles.settingsMetaChipRow}>
+              <View style={styles.settingsMetaChip}>
+                <Ionicons name="shield-checkmark-outline" size={12} color={appTheme.colors.primary} />
+                <Text style={styles.settingsMetaChipText}>{primaryRole}</Text>
+              </View>
+              <View style={styles.settingsMetaChip}>
+                <Ionicons name="business-outline" size={12} color={appTheme.colors.primary} />
+                <Text style={styles.settingsMetaChipText}>{shopCount} assigned shops</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+        <View style={styles.settingsContextCard}>
+          <LabeledValue label="Active shop" value={activeShop?.shopName ?? "-"} />
+          <LabeledValue label="Active company" value={activeShop?.companyName ?? "-"} />
+        </View>
       </View>
 
       <View style={ui.card}>
         <Text style={styles.sectionTitle}>Management</Text>
-        <Pressable style={styles.actionButton} onPress={() => (navigation.getParent() as any)?.navigate("ShopSelector")}>
-          <Text style={styles.actionButtonText}>Switch Shop</Text>
-        </Pressable>
-        <Pressable style={styles.actionButton} onPress={() => navigation.navigate("UserInvitations")}>
-          <Text style={styles.actionButtonText}>User Invitations</Text>
-        </Pressable>
-        {isShopOwner ? (
-          <>
-            <Pressable style={styles.actionButton} onPress={() => navigation.navigate("CompanyManagement")}>
-              <Text style={styles.actionButtonText}>Company Management</Text>
-            </Pressable>
-            <Pressable style={styles.actionButton} onPress={() => navigation.navigate("ShopManagement")}>
-              <Text style={styles.actionButtonText}>Shop Management</Text>
-            </Pressable>
-            <Pressable style={styles.actionButton} onPress={() => navigation.navigate("UserManagement")}>
-              <Text style={styles.actionButtonText}>User Management</Text>
-            </Pressable>
-            <Pressable style={styles.actionButton} onPress={() => navigation.navigate("AppConfiguration")}>
-              <Text style={styles.actionButtonText}>App Configuration</Text>
-            </Pressable>
-          </>
-        ) : null}
+        <Text style={styles.settingsSectionMeta}>Admin tools for teams, stores, and platform behavior.</Text>
+        <View style={styles.settingsSectionRows}>
+          {managementActions.map((action) => (
+            <SettingsNavRow
+              key={action.key}
+              icon={action.icon}
+              title={action.title}
+              description={action.description}
+              onPress={action.onPress}
+              tone={action.tone}
+            />
+          ))}
+        </View>
       </View>
 
       <View style={ui.card}>
         <Text style={styles.sectionTitle}>Operations</Text>
+        <Text style={styles.settingsSectionMeta}>Fast shortcuts to daily workflows and records.</Text>
+        <View style={styles.settingsSectionRows}>
         {operationActions.map((action) => (
-          <Pressable key={action.screen} style={styles.actionButton} onPress={() => navigation.navigate(action.screen)}>
-            <Text style={styles.actionButtonText}>{action.label}</Text>
-          </Pressable>
+          <SettingsNavRow
+            key={action.key}
+            icon={action.icon}
+            title={action.title}
+            description={action.description}
+            onPress={action.onPress}
+          />
         ))}
+        </View>
       </View>
 
       <View style={ui.card}>
         <Text style={styles.sectionTitle}>Reports</Text>
-        <Pressable style={styles.actionButton} onPress={() => navigation.navigate("DailySalesReport")}>
-          <Text style={styles.actionButtonText}>Daily Sales Report</Text>
-        </Pressable>
-        <Pressable style={styles.actionButton} onPress={() => navigation.navigate("StockReport")}>
-          <Text style={styles.actionButtonText}>Stock Report</Text>
-        </Pressable>
-        <Pressable style={styles.actionButton} onPress={() => navigation.navigate("ManualClosingReview")}>
-          <Text style={styles.actionButtonText}>Manual Entry Review</Text>
-        </Pressable>
-        <Pressable style={styles.actionButton} onPress={() => navigation.navigate("NotificationLog")}>
-          <Text style={styles.actionButtonText}>Notification Log</Text>
-        </Pressable>
+        <Text style={styles.settingsSectionMeta}>Visibility into sales performance and stock position.</Text>
+        <View style={styles.settingsSectionRows}>
+          {reportActions.map((action) => (
+            <SettingsNavRow
+              key={action.key}
+              icon={action.icon}
+              title={action.title}
+              description={action.description}
+              onPress={action.onPress}
+            />
+          ))}
+        </View>
       </View>
 
       <View style={ui.card}>
@@ -570,9 +756,17 @@ export function SettingsScreen() {
         <LabeledValue label="Mode" value={__DEV__ ? "Development" : "Production"} />
       </View>
 
-      <Pressable style={styles.logoutButton} onPress={onSignOut}>
-        <Text style={styles.logoutButtonText}>Sign Out</Text>
-      </Pressable>
+      <View style={ui.card}>
+        <Text style={styles.sectionTitle}>Session</Text>
+        <Text style={styles.settingsSectionMeta}>End your current authenticated session on this device.</Text>
+        <SettingsNavRow
+          icon="log-out-outline"
+          title="Sign Out"
+          description="You can sign back in with your company account."
+          onPress={onSignOut}
+          tone="danger"
+        />
+      </View>
     </ScreenContainer>
   );
 }
@@ -580,6 +774,136 @@ export function SettingsScreen() {
 const styles = StyleSheet.create({
   title: { fontSize: 24, lineHeight: 28, color: appTheme.colors.text, fontFamily: appTheme.fonts.heading },
   sectionTitle: { fontSize: 17, lineHeight: 22, color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium },
+  settingsHeroCard: {
+    gap: appTheme.spacing.md,
+    backgroundColor: "#F2F6FD",
+  },
+  settingsHeroHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: appTheme.spacing.sm,
+  },
+  settingsAvatar: {
+    width: 54,
+    height: 54,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  settingsAvatarText: {
+    color: appTheme.colors.onPrimary,
+    fontFamily: appTheme.fonts.heading,
+    fontSize: 22,
+    lineHeight: 26,
+  },
+  settingsHeroTextWrap: {
+    flex: 1,
+    gap: 3,
+  },
+  settingsHeroName: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.heading,
+    fontSize: 22,
+    lineHeight: 28,
+  },
+  settingsHeroEmail: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 13,
+    lineHeight: 17,
+  },
+  settingsMetaChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 2,
+  },
+  settingsMetaChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: appTheme.radius.pill,
+    borderWidth: 1,
+    borderColor: "#BFE2E7",
+    backgroundColor: "#E8F8FB",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  settingsMetaChipText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 14,
+  },
+  settingsContextCard: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.sm,
+    gap: appTheme.spacing.xs,
+  },
+  settingsSectionMeta: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 1,
+  },
+  settingsSectionRows: {
+    gap: appTheme.spacing.xs,
+    marginTop: 2,
+  },
+  settingsNavRow: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+  },
+  settingsNavRowPressed: {
+    opacity: 0.9,
+  },
+  settingsNavRowDanger: {
+    backgroundColor: "#FFF0F3",
+    borderColor: "#EEC5CF",
+  },
+  settingsNavIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: appTheme.radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#E8F8FB",
+  },
+  settingsNavIconWrapDanger: {
+    backgroundColor: "#FFE2E8",
+  },
+  settingsNavTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  settingsNavTitle: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  settingsNavTitleDanger: {
+    color: appTheme.colors.danger,
+  },
+  settingsNavDescription: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
+  },
   actionButton: {
     backgroundColor: appTheme.colors.primary,
     borderRadius: appTheme.radius.sm,

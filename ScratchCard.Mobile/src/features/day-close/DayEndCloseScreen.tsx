@@ -458,7 +458,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     label="Sales Total"
                     value={shiftSalesTotal != null ? formatCurrency(shiftSalesTotal) : "Loading..."}
                   />
-                  <Text style={styles.shiftDetailsHint}>Tap to open shift details</Text>
+                  {/* <Text style={styles.shiftDetailsHint}>Tap to open shift details</Text> */}
                 </Pressable>
                 {canCloseShift ? (
                   <View style={styles.shiftActionRow}>
