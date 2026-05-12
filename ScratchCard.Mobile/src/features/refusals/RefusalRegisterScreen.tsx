@@ -416,7 +416,7 @@ export function RefusalRegisterScreen() {
       <View style={styles.screenHeaderCard}>
         <View style={styles.screenHeaderTopRow}>
           <View style={styles.screenHeaderTitleWrap}>
-            <Text style={styles.screenHeaderEyebrow}>No ID / No Sale</Text>
+            {/* <Text style={styles.screenHeaderEyebrow}>No ID / No Sale</Text> */}
             <Text style={styles.screenHeaderTitle}>Refusal Register</Text>
             <Text style={styles.screenHeaderMeta}>Shop: {activeShop?.shopName ?? "-"}</Text>
           </View>
@@ -523,23 +523,7 @@ export function RefusalRegisterScreen() {
           disabled={recordMutation.isPending || !shopId || !signatureDataUrl.trim()}
         />
 
-        <View style={styles.utilityActionGrid}>
-          <Pressable accessibilityRole="button" style={styles.secondaryButton} onPress={() => navigation.navigate("RefusalRegisterByDay")}>
-            <Text style={styles.secondaryButtonText}>Logs By Day</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" style={styles.secondaryButton} onPress={() => navigation.navigate("RefusalManagerReview")}>
-            <Text style={styles.secondaryButtonText}>Manager Review</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" style={styles.secondaryButton} onPress={() => navigation.navigate("RefusalReport")}>
-            <Text style={styles.secondaryButtonText}>Range Report</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" style={styles.secondaryButton} onPress={() => void printRefusalReport()}>
-            <Text style={styles.secondaryButtonText}>Print Daily PDF</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" style={styles.secondaryButton} onPress={() => void shareRefusalReport()}>
-            <Text style={styles.secondaryButtonText}>Share Daily PDF</Text>
-          </Pressable>
-        </View>
+      
       </View>
 
       <View style={ui.card}>

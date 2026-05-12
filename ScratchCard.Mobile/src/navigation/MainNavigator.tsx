@@ -110,8 +110,8 @@ const bottomDockItems: Array<{
   label: string;
   screen: keyof MainStackParamList;
 }> = [
-  { icon: "calendar-outline", label: "Day", screen: "Dashboard" },
-  { icon: "albums-outline", label: "Cards", screen: "ScratchCardPacks" },
+  // { icon: "calendar-outline", label: "Day", screen: "Dashboard" },
+  { icon: "albums-outline", label: "Scratch Cards", screen: "Dashboard" },
   { icon: "thermometer-outline", label: "Temp", screen: "TemperatureLogs" },
   { icon: "shield-checkmark-outline", label: "No Sale", screen: "RefusalRegister" },
   { icon: "settings-outline", label: "Settings", screen: "Settings" },

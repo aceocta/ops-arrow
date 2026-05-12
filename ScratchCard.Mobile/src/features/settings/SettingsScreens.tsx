@@ -502,7 +502,7 @@ function SettingsNavRow({
       </View>
       <View style={styles.settingsNavTextWrap}>
         <Text style={[styles.settingsNavTitle, isDanger ? styles.settingsNavTitleDanger : null]}>{title}</Text>
-        <Text style={styles.settingsNavDescription}>{description}</Text>
+        {/* <Text style={styles.settingsNavDescription}>{description}</Text> */}
       </View>
       <Ionicons name="chevron-forward" size={15} color={appTheme.colors.textSubtle} />
     </Pressable>
@@ -749,16 +749,16 @@ export function SettingsScreen() {
         </View>
       </View>
 
-      <View style={ui.card}>
+      {/* <View style={ui.card}>
         <Text style={styles.sectionTitle}>Environment</Text>
         <LabeledValue label="App version" value={appVersion} />
         <LabeledValue label="API base URL" value={resolvedApiBaseUrl} />
         <LabeledValue label="Mode" value={__DEV__ ? "Development" : "Production"} />
-      </View>
+      </View> */}
 
       <View style={ui.card}>
-        <Text style={styles.sectionTitle}>Session</Text>
-        <Text style={styles.settingsSectionMeta}>End your current authenticated session on this device.</Text>
+        {/* <Text style={styles.sectionTitle}>Session</Text> */}
+        {/* <Text style={styles.settingsSectionMeta}>End your current authenticated session on this device.</Text> */}
         <SettingsNavRow
           icon="log-out-outline"
           title="Sign Out"

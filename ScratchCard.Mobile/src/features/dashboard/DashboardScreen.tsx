@@ -60,14 +60,14 @@ export function DashboardScreen() {
 
   return (
     <ScreenContainer>
-      <View style={styles.hero}>
+      {/* <View style={styles.hero}>
         <View style={styles.heroTop}>
           <StatusBadge label={dayListQuery.isFetching ? "Loading" : "Ready"} tone="success" />
         </View>
         <Text style={styles.heroTitle}>Day Management</Text>
         <Text style={styles.heroSubtitle}>{activeShop?.shopName ?? "No active shop selected"}</Text>
         <Text style={styles.heroNote}>Open, track, and close the active business day.</Text>
-      </View>
+      </View> */}
 
       <View style={ui.card}>
         {selectedShopId ? (
@@ -81,7 +81,7 @@ export function DashboardScreen() {
             <>
               <Text style={styles.sectionTitle}>Open Business Day</Text>
               <Text style={styles.meta}>No existing business day found. Open one to continue.</Text>
-              <Text style={styles.fieldLabel}>Date</Text>
+              {/* <Text style={styles.fieldLabel}>Date</Text> */}
               <DateTimeField mode="date" value={businessDate} onChange={setBusinessDate} />
               <PrimaryButton
                 label={openDayMutation.isPending ? "Opening..." : "Open Day"}
