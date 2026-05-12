@@ -38,7 +38,7 @@ export function RootNavigator() {
   const isSubscriptionLoading = shouldLoadSubscription && subscriptionSummaryQuery.isLoading;
 
   if (isLoading || isSubscriptionLoading) {
-    const loadingMessage = isSubscriptionLoading ? "Setting up shop..." : undefined;
+    const loadingMessage = isSubscriptionLoading ? "Loading..." : undefined;
     return <SplashLoadingScreen message={loadingMessage} />;
   }
 

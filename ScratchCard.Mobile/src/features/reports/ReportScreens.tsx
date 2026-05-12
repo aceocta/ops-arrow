@@ -301,9 +301,9 @@ export function DailySalesReportScreen() {
         <View style={[ui.card, styles.dailyReportCard]}>
           <View style={styles.dailyReportHeader}>
             <View style={styles.dailyReportHeaderMain}>
-              <Text style={styles.reportTitle}>Scratch Card Daily Sales Report</Text>
-              <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
-              <Text style={styles.meta}>Generated: {reportDateTime}</Text>
+              {/* <Text style={styles.reportTitle}>Scratch Card Daily Sales Report</Text> */}
+              <Text style={styles.reportTitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
+              {/* <Text style={styles.meta}>Generated: {reportDateTime}</Text> */}
             </View>
             <StatusBadge label={`${totalDays} days`} tone="neutral" />
           </View>
@@ -325,6 +325,7 @@ export function DailySalesReportScreen() {
             </View>
           </View>
 
+{totalDifference!=0 ?(
           <View
             style={[
               styles.summaryCard,
@@ -341,7 +342,8 @@ export function DailySalesReportScreen() {
             >
               Net Difference: {formatCurrency(totalDifference)}
             </Text>
-          </View>
+          </View>):null}
+
 
           <View style={styles.dailyActionRow}>
             <DailyReportActionButton

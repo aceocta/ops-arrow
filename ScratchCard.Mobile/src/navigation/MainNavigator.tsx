@@ -279,7 +279,7 @@ function MainStackScreens() {
       />
       <Stack.Screen name="DayEndClose" component={DayEndCloseScreen} options={{ title: "Day Management" }} />
       <Stack.Screen name="DailySalesReport" component={DailySalesReportScreen} options={{ title: "Daily Sales Report" }} />
-      <Stack.Screen name="ShiftSalesReport" component={ShiftSalesReportScreen} options={{ title: "Shift Sales Report" }} />
+      {/* <Stack.Screen name="ShiftSalesReport" component={ShiftSalesReportScreen} options={{ title: "Shift Sales Report" }} /> */}
       <Stack.Screen name="ManualClosingReview" component={ManualClosingReviewScreen} options={{ title: "Manual Entry Review" }} />
       <Stack.Screen name="StockReport" component={StockReportScreen} options={{ title: "Stock Report" }} />
       <Stack.Screen name="AuditLog" component={AuditLogScreen} options={{ title: "Audit Log" }} />
