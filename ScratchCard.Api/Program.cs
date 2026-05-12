@@ -15,6 +15,7 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
+
 builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddSwaggerGen(options =>
@@ -23,6 +24,23 @@ builder.Services.AddSwaggerGen(options =>
     {
         Title = "ScratchCard Management API",
         Version = "v1"
+    });
+});
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy
+            .WithOrigins(
+                "http://localhost:4200",
+                "http://localhost:5173",
+                "http://localhost:8081",
+                "https://gaming-lent-startup.ngrok-free.dev"
+            )
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
     });
 });
 
@@ -71,11 +89,15 @@ if (app.Environment.IsDevelopment())
 
 //if (builder.Configuration.GetValue<bool>("SeedOnStartup"))
 //{
-    await app.Services.SeedDatabaseAsync();
+await app.Services.SeedDatabaseAsync();
 //}
 
+app.UseCors("AllowFrontend");
+
 app.UseAuthentication();
+
 app.UseMiddleware<SubscriptionAccessMiddleware>();
+
 app.UseAuthorization();
 
 app.MapControllers();
