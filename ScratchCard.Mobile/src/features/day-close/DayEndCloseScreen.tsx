@@ -502,8 +502,21 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             </View>
           </View>
         </View>
-
-        <View style={[ui.card, styles.sectionCard]}>
+ {canClose ? (
+            <PrimaryButton
+              label="Close Day"
+              onPress={() => setIsCloseDayModalVisible(true)}
+              disabled={hasOpenShifts}
+            />
+          ) : null}
+          {canReopen ? (
+            <PrimaryButton
+              label="Reopen Day"
+              tone="neutral"
+              onPress={() => setIsReopenDayModalVisible(true)}
+            />
+          ) : null}
+        {/* <View style={[ui.card, styles.sectionCard]}>
           <Text style={styles.sectionTitle}>Day Action</Text>
           <Text style={styles.meta}>{dayStatusMessage}</Text>
           {canClose ? (
@@ -520,7 +533,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               onPress={() => setIsReopenDayModalVisible(true)}
             />
           ) : null}
-        </View>
+        </View> */}
         <Modal
           visible={isDayPickerModalVisible}
           transparent
