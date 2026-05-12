@@ -10,6 +10,7 @@ public class NotificationMessage
     public string Recipient { get; set; } = string.Empty;
     public string Subject { get; set; } = string.Empty;
     public string Body { get; set; } = string.Empty;
+    public bool IsBodyHtml { get; set; }
     public string RelatedEntityName { get; set; } = string.Empty;
     public Guid? RelatedEntityId { get; set; }
 }

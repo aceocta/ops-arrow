@@ -51,7 +51,13 @@ public class NotificationService : INotificationService
             switch (message.Channel)
             {
                 case NotificationChannel.Email:
-                    await _emailSender.SendAsync(message.Recipient, message.Subject, message.Body, cancellationToken);
+                    await _emailSender.SendAsync(new EmailMessage
+                    {
+                        Recipient = message.Recipient,
+                        Subject = message.Subject,
+                        Body = message.Body,
+                        IsBodyHtml = message.IsBodyHtml
+                    }, cancellationToken);
                     break;
                 case NotificationChannel.SMS:
                     await _smsSender.SendAsync(message.Recipient, message.Body, cancellationToken);

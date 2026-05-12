@@ -1,4 +1,6 @@
 using System.Text;
+using System.Globalization;
+using System.Net;
 using Microsoft.EntityFrameworkCore;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
@@ -267,6 +269,8 @@ public class ShiftSalesService : IShiftSalesService
             await SendManualEntryNotificationsAsync(shift, businessDay, salesEntries, cancellationToken);
         }
 
+        await SendShiftCloseSummaryToOwnersAsync(shift, businessDay, salesEntries, packs, cancellationToken);
+
         await _auditService.LogAsync(
             nameof(Shift),
             shift.Id,
@@ -284,6 +288,60 @@ public class ShiftSalesService : IShiftSalesService
             Difference = difference,
             HasManualOrEditedEntries = hasFlags
         };
+    }
+
+    private async Task SendShiftCloseSummaryToOwnersAsync(
+        Shift shift,
+        BusinessDay businessDay,
+        IReadOnlyCollection<ShiftScratchCardSale> entries,
+        IReadOnlyDictionary<Guid, ScratchCardPack> packs,
+        CancellationToken cancellationToken)
+    {
+        var recipients = await _shopUserRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shift.ShopId && x.IsActive && x.Role.Name == RoleNames.ShopOwner)
+            .Include(x => x.Role)
+            .Include(x => x.User)
+            .Select(x => x.User.Email)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        if (recipients.Count == 0)
+        {
+            return;
+        }
+
+        var shopName = await _shopRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.Id == shift.ShopId)
+            .Select(x => x.ShopName)
+            .FirstOrDefaultAsync(cancellationToken) ?? "Unknown Shop";
+
+        var subject = $"Shift Close Summary - {shopName} - {businessDay.BusinessDate:yyyy-MM-dd} - {shift.ShiftName}";
+        var body = BuildShiftCloseSummaryBodyHtml(shopName, shift, businessDay, entries, packs);
+
+        foreach (var recipient in recipients)
+        {
+            try
+            {
+                await _notificationService.SendAsync(new NotificationMessage
+                {
+                    ShopId = shift.ShopId,
+                    NotificationType = NotificationType.ShiftCloseSummary,
+                    Channel = NotificationChannel.Email,
+                    Recipient = recipient,
+                    Subject = subject,
+                    Body = body,
+                    IsBodyHtml = true,
+                    RelatedEntityName = nameof(Shift),
+                    RelatedEntityId = shift.Id
+                }, cancellationToken);
+            }
+            catch
+            {
+                // Notification failures are logged by notification service and must not block shift close.
+            }
+        }
     }
 
     private async Task SendManualEntryNotificationsAsync(
@@ -395,6 +453,81 @@ public class ShiftSalesService : IShiftSalesService
             sb.AppendLine(new string('-', 40));
         }
 
+        return sb.ToString();
+    }
+
+    private static string BuildShiftCloseSummaryBodyHtml(
+        string shopName,
+        Shift shift,
+        BusinessDay businessDay,
+        IReadOnlyCollection<ShiftScratchCardSale> entries,
+        IReadOnlyDictionary<Guid, ScratchCardPack> packs)
+    {
+        var rows = entries
+            .Select(entry =>
+            {
+                packs.TryGetValue(entry.PackId, out var pack);
+                var displayNumber = pack?.DisplayNumber;
+                var gameName = pack?.Game?.GameName ?? "Unknown";
+                return new
+                {
+                    DisplayNumber = displayNumber,
+                    GameName = gameName,
+                    TicketPrice = entry.TicketPrice,
+                    SoldQuantity = entry.SoldQuantity,
+                    SalesAmount = entry.SalesAmount
+                };
+            })
+            .OrderBy(x => x.DisplayNumber ?? int.MaxValue)
+            .ThenBy(x => x.GameName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var totalSoldQty = rows.Sum(x => x.SoldQuantity);
+        var totalSales = rows.Sum(x => x.SalesAmount);
+
+        var sb = new StringBuilder();
+        sb.Append("<html><body style=\"font-family:Arial,Helvetica,sans-serif;color:#172033;\">");
+        sb.Append($"<h3 style=\"margin:0 0 8px 0;\">Shift Close Summary</h3>");
+        sb.Append("<div style=\"margin-bottom:12px;\">");
+        sb.Append($"<div><strong>Shop:</strong> {WebUtility.HtmlEncode(shopName)}</div>");
+        sb.Append($"<div><strong>Business Date:</strong> {businessDay.BusinessDate:yyyy-MM-dd}</div>");
+        sb.Append($"<div><strong>Shift:</strong> {WebUtility.HtmlEncode(shift.ShiftName)}</div>");
+        sb.Append($"<div><strong>Closed Time (UTC):</strong> {(shift.EndTime?.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ?? "-")}</div>");
+        sb.Append("</div>");
+        sb.Append("<table style=\"border-collapse:collapse;width:100%;font-size:13px;\">");
+        sb.Append("<thead><tr style=\"background:#EEF3FB;\">");
+        sb.Append("<th style=\"border:1px solid #C7D2E3;padding:6px;text-align:left;\">Display No</th>");
+        sb.Append("<th style=\"border:1px solid #C7D2E3;padding:6px;text-align:left;\">Game Name</th>");
+        sb.Append("<th style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">Price</th>");
+        sb.Append("<th style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">Sold Qty</th>");
+        sb.Append("<th style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">Sales Total</th>");
+        sb.Append("</tr></thead><tbody>");
+
+        if (rows.Length == 0)
+        {
+            sb.Append("<tr><td colspan=\"5\" style=\"border:1px solid #C7D2E3;padding:8px;text-align:center;\">No shift entries.</td></tr>");
+        }
+        else
+        {
+            foreach (var row in rows)
+            {
+                sb.Append("<tr>");
+                sb.Append($"<td style=\"border:1px solid #C7D2E3;padding:6px;\">{(row.DisplayNumber.HasValue ? row.DisplayNumber.Value.ToString(CultureInfo.InvariantCulture) : "-")}</td>");
+                sb.Append($"<td style=\"border:1px solid #C7D2E3;padding:6px;\">{WebUtility.HtmlEncode(row.GameName)}</td>");
+                sb.Append($"<td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{row.TicketPrice.ToString("0.00", CultureInfo.InvariantCulture)}</td>");
+                sb.Append($"<td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{row.SoldQuantity}</td>");
+                sb.Append($"<td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{row.SalesAmount.ToString("0.00", CultureInfo.InvariantCulture)}</td>");
+                sb.Append("</tr>");
+            }
+        }
+
+        sb.Append("<tr style=\"background:#F5F8FD;font-weight:700;\">");
+        sb.Append("<td colspan=\"3\" style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">Total</td>");
+        sb.Append($"<td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{totalSoldQty}</td>");
+        sb.Append($"<td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{totalSales.ToString("0.00", CultureInfo.InvariantCulture)}</td>");
+        sb.Append("</tr>");
+
+        sb.Append("</tbody></table></body></html>");
         return sb.ToString();
     }
 }
