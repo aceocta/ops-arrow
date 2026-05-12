@@ -32,6 +32,14 @@ function getShiftTone(status: ShiftStatus): "neutral" | "warning" | "danger" | "
   return "neutral";
 }
 
+function getBusinessDayStatusHint(status?: string) {
+  if (status === "Open") return "Day is active and can take transactions.";
+  if (status === "ReadyToClose") return "All shifts are closed and day is ready to close.";
+  if (status === "Closed") return "Day is closed and available for historical review.";
+  if (status === "Reopened") return "Day was reopened for additional adjustments.";
+  return "Review this day before switching.";
+}
+
 function getDefaultShiftNameForNow(reference = new Date()) {
   const hour = reference.getHours();
   if (hour < 12) return "Morning";
@@ -321,6 +329,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     () => (daysQuery.data ?? []).find((item) => item.businessDate === targetBusinessDate),
     [daysQuery.data, targetBusinessDate],
   );
+  const selectedDayIsCurrent = selectedDateDay?.id === businessDayId;
+  const selectedDateStatusHint = getBusinessDayStatusHint(selectedDateDay?.status);
 
   const selectDay = (selectedDay: BusinessDay) => {
     setIsDayPickerModalVisible(false);
@@ -514,58 +524,131 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
         <Modal
           visible={isDayPickerModalVisible}
           transparent
-          animationType="fade"
+          animationType="slide"
           onRequestClose={() => setIsDayPickerModalVisible(false)}
         >
-          <View style={styles.modalBackdrop}>
-            <View style={styles.modalCard}>
-              <Text style={styles.sectionTitle}>Select Business Date</Text>
-              <Text style={styles.meta}>Pick a date, then open or switch to that day.</Text>
-              <Text style={styles.fieldLabel}>Date</Text>
-              <DateTimeField mode="date" value={targetBusinessDate} onChange={setTargetBusinessDate} />
-              {selectedDateDay ? (
-                <>
-                  <Text style={styles.meta}>Selected day status</Text>
-                  <View style={styles.selectedDayStatusRow}>
-                    <Text style={styles.dayPickerDate}>{selectedDateDay.businessDate}</Text>
-                    <StatusBadge label={selectedDateDay.status} tone={getStatusTone(selectedDateDay.status)} />
-                  </View>
-                  <PrimaryButton
-                    label={selectedDateDay.id === businessDayId ? "Already Managing This Day" : "Go To Selected Day"}
-                    tone="neutral"
-                    onPress={() => selectDay(selectedDateDay)}
-                    disabled={selectedDateDay.id === businessDayId}
-                  />
-                </>
-              ) : (
-                <PrimaryButton
-                  label={openDayMutation.isPending ? "Opening..." : "Open Day"}
-                  onPress={() => openDayMutation.mutate()}
-                  disabled={openDayMutation.isPending || !day?.shopId}
-                />
-              )}
-              <View style={styles.dayPickerList}>
-                {availableDays.map((item) => {
-                  const isSelected = item.id === businessDayId;
-                  return (
-                    <Pressable
-                      key={item.id}
-                      style={[styles.dayPickerItem, isSelected ? styles.dayPickerItemSelected : null]}
-                      onPress={() => selectDay(item)}
-                    >
-                      <Text style={styles.dayPickerDate}>{item.businessDate}</Text>
-                      <StatusBadge label={item.status} tone={getStatusTone(item.status)} />
-                    </Pressable>
-                  );
-                })}
-                {!daysQuery.isFetching && availableDays.length === 0 ? <Text style={styles.meta}>No business days found.</Text> : null}
+          <View style={styles.dayPickerBackdrop}>
+            <View style={[styles.modalCard, styles.dayPickerModalCard]}>
+              <View style={styles.dayPickerHeaderRow}>
+                <View style={styles.dayPickerHeaderTextWrap}>
+                  <Text style={styles.dayPickerEyebrow}>Business Day</Text>
+                  <Text style={styles.dayPickerTitle}>Change Date</Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Close date picker"
+                  style={styles.dayPickerCloseButton}
+                  onPress={() => setIsDayPickerModalVisible(false)}
+                >
+                  <Text style={styles.dayPickerCloseButtonText}>X</Text>
+                </Pressable>
               </View>
+              <Text style={styles.dayPickerSubtitle}>Select a date to switch to an existing day or open a new one.</Text>
+
+              <View style={styles.dayPickerCurrentDayCard}>
+                <View style={styles.dayPickerCurrentDayHeader}>
+                  <Text style={styles.dayPickerCurrentDayLabel}>Currently Managing</Text>
+                  <StatusBadge label={status ?? "-"} tone={getStatusTone(status)} />
+                </View>
+                <Text style={styles.dayPickerCurrentDayValue}>{day?.businessDate ?? "-"}</Text>
+              </View>
+
+              <View style={styles.dayPickerDateSection}>
+                <Text style={styles.dayPickerSectionLabel}>Select Business Date</Text>
+                <DateTimeField
+                  mode="date"
+                  value={targetBusinessDate}
+                  onChange={setTargetBusinessDate}
+                  style={styles.dayPickerDateField}
+                />
+              </View>
+
+              <View style={styles.dayPickerSelectionCard}>
+                {selectedDateDay ? (
+                  <>
+                    <View style={styles.dayPickerSelectionHeader}>
+                      <Text style={styles.dayPickerSelectionTitle}>
+                        {selectedDayIsCurrent ? "Current Day Selected" : "Existing Day Found"}
+                      </Text>
+                      <StatusBadge label={selectedDateDay.status} tone={getStatusTone(selectedDateDay.status)} />
+                    </View>
+                    <Text style={styles.dayPickerSelectionDate}>{selectedDateDay.businessDate}</Text>
+                    <Text style={styles.dayPickerSelectionMeta}>{selectedDateStatusHint}</Text>
+                    <PrimaryButton
+                      label={selectedDayIsCurrent ? "Already Managing This Day" : "Switch To This Day"}
+                      tone={selectedDayIsCurrent ? "neutral" : "primary"}
+                      onPress={() => selectDay(selectedDateDay)}
+                      disabled={selectedDayIsCurrent}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.dayPickerSelectionTitle}>No Existing Day For {targetBusinessDate}</Text>
+                    <Text style={styles.dayPickerSelectionMeta}>
+                      Open a new business day for this date and continue operations.
+                    </Text>
+                    <PrimaryButton
+                      label={openDayMutation.isPending ? "Opening..." : "Open New Business Day"}
+                      onPress={() => openDayMutation.mutate()}
+                      disabled={openDayMutation.isPending || !day?.shopId}
+                    />
+                  </>
+                )}
+              </View>
+
+              {/* <View style={styles.dayPickerListSection}>
+                <View style={styles.dayPickerListHeader}>
+                  <Text style={styles.dayPickerSectionLabel}>Recent Business Days</Text>
+                  <Text style={styles.dayPickerListMeta}>
+                    {daysQuery.isFetching ? "Refreshing..." : `${availableDays.length} loaded`}
+                  </Text>
+                </View>
+                <ScrollView
+                  style={styles.dayPickerList}
+                  contentContainerStyle={styles.dayPickerListContent}
+                  showsVerticalScrollIndicator={false}
+                  nestedScrollEnabled
+                >
+                  {availableDays.map((item) => {
+                    const isCurrentDay = item.id === businessDayId;
+                    const isTargetDate = item.businessDate === targetBusinessDate;
+                    return (
+                      <Pressable
+                        key={item.id}
+                        style={[
+                          styles.dayPickerItem,
+                          isTargetDate ? styles.dayPickerItemTargetDate : null,
+                          isCurrentDay ? styles.dayPickerItemCurrentDay : null,
+                        ]}
+                        onPress={() => selectDay(item)}
+                        disabled={isCurrentDay}
+                      >
+                        <View style={styles.dayPickerItemInfo}>
+                          <Text style={styles.dayPickerDate}>{item.businessDate}</Text>
+                          <Text style={styles.dayPickerItemMeta}>
+                            {isCurrentDay ? "Currently open in this screen" : getBusinessDayStatusHint(item.status)}
+                          </Text>
+                        </View>
+                        <View style={styles.dayPickerItemBadgeWrap}>
+                          <StatusBadge label={item.status} tone={getStatusTone(item.status)} />
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                  {!daysQuery.isFetching && availableDays.length === 0 ? (
+                    <View style={styles.dayPickerEmptyState}>
+                      <Text style={styles.meta}>No business days found.</Text>
+                    </View>
+                  ) : null}
+                </ScrollView>
+              </View> */}
+
               <View style={styles.modalActionRow}>
                 <Pressable
                   style={[styles.modalActionButton, styles.modalActionNeutral]}
                   onPress={() => setIsDayPickerModalVisible(false)}
                 >
-                  <Text style={styles.modalActionNeutralText}>Close</Text>
+                  <Text style={styles.modalActionNeutralText}>Cancel</Text>
                 </Pressable>
               </View>
             </View>
@@ -1059,21 +1142,169 @@ const styles = StyleSheet.create({
   shiftActionRow: {
     marginTop: 2,
   },
-  dayPickerList: {
-    maxHeight: 320,
+  dayPickerModalCard: {
+    width: "100%",
+    maxHeight: "92%",
+    borderTopLeftRadius: appTheme.radius.lg,
+    borderTopRightRadius: appTheme.radius.lg,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    paddingTop: appTheme.spacing.sm,
+    paddingBottom: appTheme.spacing.lg,
+  },
+  dayPickerBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 28, 0.45)",
+    justifyContent: "flex-end",
+  },
+  dayPickerHeaderRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.sm,
+  },
+  dayPickerHeaderTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  dayPickerEyebrow: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 14,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  dayPickerTitle: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.heading,
+    fontSize: 24,
+    lineHeight: 29,
+  },
+  dayPickerCloseButton: {
+    width: 34,
+    height: 34,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dayPickerCloseButtonText: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 21,
+    lineHeight: 21,
+    marginTop: -1,
+  },
+  dayPickerSubtitle: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  dayPickerCurrentDayCard: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: "#F2F7FC",
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.sm,
+    gap: 6,
+  },
+  dayPickerCurrentDayHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: appTheme.spacing.xs,
   },
-  selectedDayStatusRow: {
+  dayPickerCurrentDayLabel: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 14,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  dayPickerCurrentDayValue: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.heading,
+    fontSize: 19,
+    lineHeight: 24,
+  },
+  dayPickerDateSection: {
+    gap: 6,
+  },
+  dayPickerSectionLabel: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 16,
+  },
+  dayPickerDateField: {
+    marginTop: 0,
+  },
+  dayPickerSelectionCard: {
     borderWidth: 1,
     borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceMuted,
     paddingHorizontal: appTheme.spacing.sm,
-    paddingVertical: appTheme.spacing.xs,
+    paddingVertical: appTheme.spacing.sm,
+    gap: appTheme.spacing.xs,
+  },
+  dayPickerSelectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: appTheme.spacing.sm,
+    gap: appTheme.spacing.xs,
+  },
+  dayPickerSelectionTitle: {
+    flex: 1,
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  dayPickerSelectionDate: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.heading,
+    fontSize: 16,
+    lineHeight: 20,
+  },
+  dayPickerSelectionMeta: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  dayPickerListSection: {
+    gap: appTheme.spacing.xs,
+    minHeight: 0,
+    flex: 1,
+  },
+  dayPickerListHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+  },
+  dayPickerListMeta: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 15,
+  },
+  dayPickerList: {
+    maxHeight: 220,
+    minHeight: 88,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+  },
+  dayPickerListContent: {
+    gap: appTheme.spacing.xs,
+    padding: appTheme.spacing.xs,
   },
   dayPickerItem: {
     borderWidth: 1,
@@ -1084,12 +1315,36 @@ const styles = StyleSheet.create({
     paddingVertical: appTheme.spacing.xs,
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: appTheme.spacing.sm,
   },
-  dayPickerItemSelected: {
+  dayPickerItemTargetDate: {
     borderColor: appTheme.colors.primary,
-    backgroundColor: "#E9F7F6",
+    backgroundColor: "#E9F6FA",
+  },
+  dayPickerItemCurrentDay: {
+    opacity: 0.72,
+  },
+  dayPickerItemInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  dayPickerItemMeta: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  dayPickerItemBadgeWrap: {
+    alignSelf: "center",
+  },
+  dayPickerEmptyState: {
+    borderRadius: appTheme.radius.sm,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.sm,
+    backgroundColor: appTheme.colors.surfaceMuted,
   },
   dayPickerDate: {
     color: appTheme.colors.text,
