@@ -776,7 +776,7 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
           <Text style={styles.cardTitle}>Shift Totals</Text>
           <Text style={styles.readonly}>Total sales: {formatCurrency(totals.salesAmount)}</Text>
           <Text style={styles.meta}>{pendingRows > 0 ? `Pending: ${pendingRows}` : ""}</Text>
-          <Text style={styles.fieldLabel}>Close Attachments (Optional)</Text>
+          <Text style={styles.fieldLabel}>Attachments (Optional)</Text>
           <Text style={styles.meta}>Up to 10 files. Images show a preview.</Text>
           {closeAttachments.length === 0 ? (
             <Text style={styles.meta}>No attachments selected.</Text>
@@ -823,7 +823,7 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
             <Pressable
               style={styles.attachmentActionButton}
               accessibilityRole="button"
-              accessibilityLabel={closeAttachments.length > 0 ? "Add more close attachments" : "Add close attachments"}
+              accessibilityLabel={closeAttachments.length > 0 ? "Add more attachments" : "Add attachments"}
               onPress={() => void selectCloseAttachments()}
               disabled={isSubmitting}
             >
@@ -835,7 +835,7 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
               <Pressable
                 style={[styles.attachmentActionButton, styles.attachmentActionButtonDanger]}
                 accessibilityRole="button"
-                accessibilityLabel="Clear all close attachments"
+                accessibilityLabel="Clear all attachments"
                 onPress={() => setCloseAttachments([])}
                 disabled={isSubmitting}
               >

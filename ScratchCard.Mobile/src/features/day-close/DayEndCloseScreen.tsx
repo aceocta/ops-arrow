@@ -801,7 +801,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
         </View>
 
         <View style={[ui.card, styles.sectionCard]}>
-          <Text style={styles.sectionTitle}>Day Close Attachments</Text>
+          <Text style={styles.sectionTitle}>Attachments</Text>
           {persistedDayAttachments.length === 0 ? (
             <Text style={styles.meta}>No saved attachments for this day.</Text>
           ) : (
@@ -1190,7 +1190,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 placeholder="Additional notes (optional)"
                 placeholderTextColor={appTheme.colors.textSubtle}
               />
-              <Text style={styles.fieldLabel}>Close Attachments (Optional)</Text>
+              <Text style={styles.fieldLabel}>Attachments (Optional)</Text>
               <Text style={styles.meta}>Up to 10 files. Images show a preview.</Text>
               {closeDayAttachments.length === 0 ? (
                 <Text style={styles.meta}>No attachments selected.</Text>

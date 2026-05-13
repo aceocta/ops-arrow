@@ -324,9 +324,9 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
         </View>
 
         <View style={[ui.card, styles.summaryCard]}>
-          <Text style={styles.sectionTitle}>Close Attachments</Text>
+          <Text style={styles.sectionTitle}>Attachments</Text>
           {closeAttachments.length === 0 ? (
-            <Text style={styles.meta}>No close attachments saved for this shift.</Text>
+            <Text style={styles.meta}>No attachments saved for this shift.</Text>
           ) : (
             <View style={styles.attachmentList}>
               {closeAttachments.map((attachment) => {
