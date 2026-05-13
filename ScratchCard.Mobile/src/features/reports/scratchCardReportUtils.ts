@@ -73,6 +73,7 @@ export function buildScratchCardDailySalesReportHtml(input: {
   );
 
   const totalSales = input.rows.reduce((sum, row) => sum + Number(row.salesAmount ?? 0), 0);
+  const totalSoldQuantity = input.rows.reduce((sum, row) => sum + Number(row.soldQuantity ?? 0), 0);
   const totalPayout = input.rows.reduce((sum, row) => sum + Number(row.prizePayout ?? 0), 0);
   const totalExpected = input.rows.reduce((sum, row) => sum + Number(row.expectedCash ?? 0), 0);
   const totalDifference = input.rows.reduce((sum, row) => sum + getDifferenceValue(row), 0);
@@ -94,6 +95,7 @@ export function buildScratchCardDailySalesReportHtml(input: {
             <tr>
               <td>${escapeHtml(row.shiftName)}</td>
               <td>${escapeHtml(formatMoney(Number(row.salesAmount ?? 0)))}</td>
+              <td>${escapeHtml(String(Number(row.soldQuantity ?? 0)))}</td>
               <td>${escapeHtml(formatMoney(Number(row.prizePayout ?? 0)))}</td>
               <td>${escapeHtml(formatMoney(Number(row.expectedCash ?? 0)))}</td>
               <td>${escapeHtml(formatMoney(difference))}</td>
@@ -104,6 +106,7 @@ export function buildScratchCardDailySalesReportHtml(input: {
         .join("");
 
       const daySales = group.rows.reduce((sum, row) => sum + Number(row.salesAmount ?? 0), 0);
+      const daySoldQuantity = group.rows.reduce((sum, row) => sum + Number(row.soldQuantity ?? 0), 0);
       const dayPayout = group.rows.reduce((sum, row) => sum + Number(row.prizePayout ?? 0), 0);
       const dayExpected = group.rows.reduce((sum, row) => sum + Number(row.expectedCash ?? 0), 0);
       const dayDifference = group.rows.reduce((sum, row) => sum + getDifferenceValue(row), 0);
@@ -130,6 +133,7 @@ export function buildScratchCardDailySalesReportHtml(input: {
             <tr>
               <th class="col-shift">Shift</th>
               <th class="col-money">Sales</th>
+              <th class="col-qty">Qty</th>
               <th class="col-money">Payout</th>
               <th class="col-money">Expected</th>
               <th class="col-money">Difference</th>
@@ -137,10 +141,11 @@ export function buildScratchCardDailySalesReportHtml(input: {
             </tr>
           </thead>
           <tbody>
-            ${rowsHtml || `<tr><td colspan="6">No shift records for this business date.</td></tr>`}
+            ${rowsHtml || `<tr><td colspan="7">No shift records for this business date.</td></tr>`}
             <tr class="summary-row">
               <td>Day Total</td>
               <td>${escapeHtml(formatMoney(daySales))}</td>
+              <td>${escapeHtml(String(daySoldQuantity))}</td>
               <td>${escapeHtml(formatMoney(dayPayout))}</td>
               <td>${escapeHtml(formatMoney(dayExpected))}</td>
               <td>${escapeHtml(formatMoney(dayDifference))}</td>
@@ -186,6 +191,7 @@ export function buildScratchCardDailySalesReportHtml(input: {
           <tr>
             <th class="col-shift">Shift</th>
             <th class="col-money">Sales</th>
+            <th class="col-qty">Qty</th>
             <th class="col-money">Payout</th>
             <th class="col-money">Expected</th>
             <th class="col-money">Difference</th>
@@ -196,6 +202,7 @@ export function buildScratchCardDailySalesReportHtml(input: {
           <tr class="grand-total-row">
             <td>All Dates Total</td>
             <td>${escapeHtml(formatMoney(totalSales))}</td>
+            <td>${escapeHtml(String(totalSoldQuantity))}</td>
             <td>${escapeHtml(formatMoney(totalPayout))}</td>
             <td>${escapeHtml(formatMoney(totalExpected))}</td>
             <td>${escapeHtml(formatMoney(totalDifference))}</td>
@@ -281,8 +288,9 @@ export function buildScratchCardDailySalesReportHtml(input: {
             background: #e9f3fb;
             font-weight: 700;
           }
-          .col-shift { width: 24%; }
-          .col-money { width: 12%; }
+          .col-shift { width: 22%; }
+          .col-money { width: 11%; }
+          .col-qty { width: 8%; }
           .col-status { width: 8%; }
           .missing-wrap {
             border: 1px solid #9aa9b5;
@@ -313,7 +321,7 @@ export function buildScratchCardDailySalesReportHtml(input: {
         <div class="subtitle">Shop: ${escapeHtml(input.shopName)} | Date Range: ${escapeHtml(input.from)} to ${escapeHtml(input.to)}</div>
         <div class="report-meta">Report Date Time: ${escapeHtml(reportDateTime)}</div>
         <div class="summary">
-          Days: ${groups.length} | Shifts: ${input.rows.length} | Total Sales: ${escapeHtml(formatMoney(totalSales))} | Total Payout: ${escapeHtml(formatMoney(totalPayout))} | Net Difference: ${escapeHtml(formatMoney(totalDifference))} | Missing Tickets: ${escapeHtml(String(totalMissingTickets))}
+          Days: ${groups.length} | Shifts: ${input.rows.length} | Total Sales: ${escapeHtml(formatMoney(totalSales))} | Tickets: ${escapeHtml(String(totalSoldQuantity))} | Total Payout: ${escapeHtml(formatMoney(totalPayout))} | Net Difference: ${escapeHtml(formatMoney(totalDifference))} | Missing Tickets: ${escapeHtml(String(totalMissingTickets))}
         </div>
         ${groupsHtml || "<div>No scratch card sales found for this date range.</div>"}
         ${grandTotalHtml}

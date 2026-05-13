@@ -246,6 +246,7 @@ export type ConfigurationItem = {
 export type DailySalesReportRow = {
   businessDate: string;
   shiftName: string;
+  soldQuantity?: number;
   salesAmount: number;
   prizePayout: number;
   expectedCash: number;

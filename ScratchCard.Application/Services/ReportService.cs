@@ -53,6 +53,7 @@ public class ReportService : IReportService
             {
                 BusinessDate = x.BusinessDay.BusinessDate,
                 ShiftName = x.ShiftName,
+                SoldQuantity = x.ShiftSales.Sum(s => s.SoldQuantity),
                 SalesAmount = x.ShiftSales.Sum(s => s.SalesAmount),
                 PrizePayout = x.PrizePayouts.Sum(p => p.PrizeAmount),
                 ExpectedCash = x.ShiftReconciliation != null ? x.ShiftReconciliation.ExpectedCash : 0,

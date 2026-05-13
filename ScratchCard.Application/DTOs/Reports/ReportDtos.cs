@@ -4,6 +4,7 @@ public class DailySalesReportRowDto
 {
     public DateOnly BusinessDate { get; set; }
     public string ShiftName { get; set; } = string.Empty;
+    public int SoldQuantity { get; set; }
     public decimal SalesAmount { get; set; }
     public decimal PrizePayout { get; set; }
     public decimal ExpectedCash { get; set; }

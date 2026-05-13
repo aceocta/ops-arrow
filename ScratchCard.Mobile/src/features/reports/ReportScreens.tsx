@@ -89,12 +89,11 @@ function isNegativeVariance(row: { difference?: number }) {
   return getDifferenceValue(row) < -0.009;
 }
 
-function getDayAggregate(rows: Array<{ salesAmount: number; prizePayout: number; expectedCash: number; difference?: number }>) {
+function getDayAggregate(rows: Array<{ soldQuantity?: number; salesAmount: number; difference?: number }>) {
+  const totalQuantity = rows.reduce((acc, row) => acc + Number(row.soldQuantity ?? 0), 0);
   const totalSales = rows.reduce((acc, row) => acc + Number(row.salesAmount ?? 0), 0);
-  const totalPayout = rows.reduce((acc, row) => acc + Number(row.prizePayout ?? 0), 0);
-  const totalExpected = rows.reduce((acc, row) => acc + Number(row.expectedCash ?? 0), 0);
   const totalDifference = rows.reduce((acc, row) => acc + getDifferenceValue(row), 0);
-  return { totalSales, totalPayout, totalExpected, totalDifference };
+  return { totalQuantity, totalSales, totalDifference };
 }
 
 function getDayClosePayoutSnapshot(rows: Array<{ lottoPayout?: number; scratchCardPayout?: number; tillPayout?: number }>) {
@@ -391,6 +390,14 @@ export function DailySalesReportScreen() {
           {groupedRows.map(([businessDate, rows]) => {
             const dayAggregate = getDayAggregate(rows ?? []);
             const dayClosePayouts = getDayClosePayoutSnapshot(rows ?? []);
+            const payoutDifference =
+              dayClosePayouts?.lottoPayout != null &&
+              dayClosePayouts?.scratchCardPayout != null &&
+              dayClosePayouts?.tillPayout != null
+                ? Number(dayClosePayouts.lottoPayout) +
+                  Number(dayClosePayouts.scratchCardPayout) -
+                  Number(dayClosePayouts.tillPayout)
+                : null;
             const dayContext = businessDayByDate.get(businessDate);
             const dayMissingCount = Number(dayContext?.missingOpeningTicketCount ?? 0);
             const dayMissingDetails = dayContext?.missingOpeningTicketDetails ?? [];
@@ -428,18 +435,8 @@ export function DailySalesReportScreen() {
                   onPress={() => openBusinessDateDayManagement(businessDate)}
                 >
                   <View style={styles.daySummaryCard}>
-                    <Text style={styles.meta}>Day Sales: {formatCurrency(dayAggregate.totalSales)}</Text>
-                    <Text style={styles.meta}>Day Payout: {formatCurrency(dayAggregate.totalPayout)}</Text>
-                    <Text style={styles.meta}>Day Expected: {formatCurrency(dayAggregate.totalExpected)}</Text>
-                    <Text
-                      style={[
-                        styles.meta,
-                        isDayPositive ? styles.varianceTextPositive : null,
-                        isDayNegative ? styles.varianceTextNegative : null,
-                      ]}
-                    >
-                      Day Difference: {formatCurrency(dayAggregate.totalDifference)}
-                    </Text>
+                    <Text style={styles.meta}>Total Sales: {formatCurrency(dayAggregate.totalSales)}</Text>
+                    <Text style={styles.meta}>Number of Tickets: {dayAggregate.totalQuantity}</Text>
                     <Text style={[styles.meta, dayMissingCount > 0 ? styles.varianceTextNegative : null]}>
                       Missing Tickets: {dayMissingCount}
                     </Text>
@@ -455,6 +452,15 @@ export function DailySalesReportScreen() {
                   </Text>
                   <Text style={styles.meta}>
                     Till Payout: {dayClosePayouts?.tillPayout != null ? formatCurrency(Number(dayClosePayouts.tillPayout)) : "-"}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.meta,
+                      payoutDifference != null && payoutDifference > 0.009 ? styles.varianceTextPositive : null,
+                      payoutDifference != null && payoutDifference < -0.009 ? styles.varianceTextNegative : null,
+                    ]}
+                  >
+                    Difference ((Lotto + Scratch) - Till): {payoutDifference != null ? formatCurrency(payoutDifference) : "-"}
                   </Text>
                 </View>
                 <View style={styles.dayReviewCard}>
@@ -500,9 +506,8 @@ export function DailySalesReportScreen() {
                           {isNegativeVariance(row) ? <StatusBadge label="Short" tone="danger" /> : null}
                           {!hasVariance(row) ? <StatusBadge label="Balanced" tone="success" /> : null}
                         </View>
-                        <Text style={styles.meta}>Sales: {formatCurrency(Number(row.salesAmount))}</Text>
-                        <Text style={styles.meta}>Payout: {formatCurrency(Number(row.prizePayout))}</Text>
-                        <Text style={styles.meta}>Expected: {formatCurrency(Number(row.expectedCash))}</Text>
+                        <Text style={styles.meta}>Total Sales: {formatCurrency(Number(row.salesAmount))}</Text>
+                        <Text style={styles.meta}>Qty: {Number(row.soldQuantity ?? 0)}</Text>
                         <Text
                           style={[
                             styles.meta,
@@ -557,7 +562,8 @@ export function ShiftSalesReportScreen() {
                 {isNegativeVariance(row) ? <StatusBadge label="Short" tone="danger" /> : null}
                 {!hasVariance(row) ? <StatusBadge label="Balanced" tone="success" /> : null}
               </View>
-              <Text style={styles.meta}>Sales: {formatCurrency(Number(row.salesAmount))}</Text>
+              <Text style={styles.meta}>Total Sales: {formatCurrency(Number(row.salesAmount))}</Text>
+              <Text style={styles.meta}>Qty: {Number(row.soldQuantity ?? 0)}</Text>
               <Text
                 style={[
                   styles.meta,
