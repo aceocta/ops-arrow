@@ -525,7 +525,6 @@ type PendingManualPackDraft = {
   totalTickets: number;
   startSerialNumber: string;
   endSerialNumber: string;
-  sellingOrder: SellingOrder;
   notes?: string;
 };
 
@@ -566,6 +565,7 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
     [configurationQuery.data]
   );
   const maxDisplayCount = shopOperationalSetup.scratchCardDisplayCount;
+  const configuredPackSellingOrder = shopOperationalSetup.packSellingOrder;
   const selectedGame = activeGames.find((item) => item.id === gameId);
   const selectedGameLabel = selectedGame ? `${selectedGame.gameCode} - ${selectedGame.gameName}` : "";
   const filteredGames = useMemo(() => {
@@ -586,9 +586,9 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
     activeGames.length > 0 &&
     !isSearchMatchingSelectedGame &&
     (gameSearch.trim().length > 0 || !gameId);
-  const ascendingSerialDefaults = useMemo(
-    () => getSerialBoundsByOrder(totalTickets, SellingOrder.Ascending),
-    [totalTickets]
+  const configuredSerialDefaults = useMemo(
+    () => getSerialBoundsByOrder(totalTickets, configuredPackSellingOrder),
+    [totalTickets, configuredPackSellingOrder]
   );
 
   function buildDraftFromForm(): PendingManualPackDraft {
@@ -643,7 +643,6 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
       totalTickets: parsedTotalTickets,
       startSerialNumber: trimmedStartSerial,
       endSerialNumber: trimmedEndSerial,
-      sellingOrder: selectedGame.defaultSellingOrder,
       notes: notes.trim() || undefined,
     };
   }
@@ -755,15 +754,15 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
     const shouldApplyEnd =
       !endSerialNumber.trim() || (previousAuto ? endSerialNumber === previousAuto.end : false);
 
-    if (shouldApplyStart && startSerialNumber !== ascendingSerialDefaults.start) {
-      setStartSerialNumber(ascendingSerialDefaults.start);
+    if (shouldApplyStart && startSerialNumber !== configuredSerialDefaults.start) {
+      setStartSerialNumber(configuredSerialDefaults.start);
     }
-    if (shouldApplyEnd && endSerialNumber !== ascendingSerialDefaults.end) {
-      setEndSerialNumber(ascendingSerialDefaults.end);
+    if (shouldApplyEnd && endSerialNumber !== configuredSerialDefaults.end) {
+      setEndSerialNumber(configuredSerialDefaults.end);
     }
 
-    lastAutoSerialRangeRef.current = ascendingSerialDefaults;
-  }, [ascendingSerialDefaults, startSerialNumber, endSerialNumber]);
+    lastAutoSerialRangeRef.current = configuredSerialDefaults;
+  }, [configuredSerialDefaults, startSerialNumber, endSerialNumber]);
 
   const createAndActivateBatchMutation = useMutation({
     mutationFn: async () => {
@@ -786,14 +785,12 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
           totalTickets: draft.totalTickets,
           startSerialNumber: draft.startSerialNumber,
           endSerialNumber: draft.endSerialNumber,
-          sellingOrder: draft.sellingOrder,
           notes: draft.notes,
         });
 
         if (createdPack.status !== "Active") {
           await activatePack(createdPack.id, {
             openingSerialNumber: createdPack.currentSerialNumber || draft.startSerialNumber,
-            sellingOrder: draft.sellingOrder,
           });
         }
 
@@ -945,7 +942,7 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
             placeholderTextColor={appTheme.colors.textSubtle}
           />
           <Text style={styles.meta}>
-            Default range (ascending): {ascendingSerialDefaults.start} {"->"} {ascendingSerialDefaults.end}
+            Default range ({configuredPackSellingOrder.toLowerCase()}): {configuredSerialDefaults.start} {"->"} {configuredSerialDefaults.end}
           </Text>
 
           <Text style={styles.fieldLabel}>Notes (Optional)</Text>

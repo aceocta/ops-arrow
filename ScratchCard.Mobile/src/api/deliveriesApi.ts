@@ -2,7 +2,7 @@ import { apiClient } from "./client";
 import { ApiResponse } from "./types";
 import { Delivery, DeliveryNoteParseResult } from "../types/models";
 import { SellingOrder } from "../types/enums";
-import { parseSellingOrder, toApiSellingOrder } from "../utils/enumParsers";
+import { parseSellingOrder } from "../utils/enumParsers";
 
 export type CreateDeliveryPackPayload = {
   gameId?: string;
@@ -14,7 +14,6 @@ export type CreateDeliveryPackPayload = {
   totalTickets: number;
   startSerialNumber: string;
   endSerialNumber: string;
-  sellingOrder?: SellingOrder;
   notes?: string;
 };
 
@@ -35,13 +34,7 @@ export async function listDeliveries(shopId: string) {
 }
 
 export async function createDelivery(payload: CreateDeliveryPayload) {
-  const response = await apiClient.post<ApiResponse<Delivery>>("/deliveries", {
-    ...payload,
-    packs: payload.packs.map((pack) => ({
-      ...pack,
-      ...(pack.sellingOrder ? { sellingOrder: toApiSellingOrder(pack.sellingOrder) } : {}),
-    })),
-  });
+  const response = await apiClient.post<ApiResponse<Delivery>>("/deliveries", payload);
   return response.data.data;
 }
 

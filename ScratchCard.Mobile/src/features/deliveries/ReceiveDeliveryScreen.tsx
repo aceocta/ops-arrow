@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import * as ImagePicker from "expo-image-picker";
 import {
   Alert,
@@ -15,12 +15,15 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import { createDelivery, parseDeliveryNote } from "../../api/deliveriesApi";
+import { getConfigurations } from "../../api/configurationsApi";
 import { listGames } from "../../api/gamesApi";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
+import { SellingOrder } from "../../types/enums";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
+import { deriveShopOperationalSetup } from "../settings/shopConfiguration";
 
 type DraftPackRow = {
   id: string;
@@ -40,7 +43,23 @@ function normalizeGameCodeInput(value: string) {
   return value.replace(/[^0-9A-Za-z]/g, "").trim().toUpperCase();
 }
 
-function createDefaultPackRow(seed: number): DraftPackRow {
+function getSerialBoundsByOrder(totalTicketsRaw: string | number, order: SellingOrder) {
+  const parsedTotal = Number(totalTicketsRaw);
+  const safeTotal = Number.isFinite(parsedTotal) && parsedTotal > 0 ? Math.floor(parsedTotal) : 1;
+  const maxSerial = safeTotal - 1;
+  const width = Math.max(2, String(maxSerial).length);
+  const minSerial = "0".padStart(width, "0");
+  const maxSerialText = String(maxSerial).padStart(width, "0");
+
+  if (order === SellingOrder.Descending) {
+    return { start: maxSerialText, end: minSerial };
+  }
+
+  return { start: minSerial, end: maxSerialText };
+}
+
+function createDefaultPackRow(seed: number, sellingOrder: SellingOrder): DraftPackRow {
+  const defaults = getSerialBoundsByOrder(100, sellingOrder);
   return {
     id: `row-${seed}-${Date.now()}`,
     gameId: "",
@@ -51,8 +70,8 @@ function createDefaultPackRow(seed: number): DraftPackRow {
     displayNumber: "",
     ticketPrice: "0",
     totalTickets: "100",
-    startSerialNumber: "000",
-    endSerialNumber: "099",
+    startSerialNumber: defaults.start,
+    endSerialNumber: defaults.end,
   };
 }
 
@@ -66,7 +85,7 @@ export function ReceiveDeliveryScreen() {
   const [supplierName, setSupplierName] = useState("");
   const [deliveryReference, setDeliveryReference] = useState("");
   const [notes, setNotes] = useState("");
-  const [packRows, setPackRows] = useState<DraftPackRow[]>([createDefaultPackRow(1)]);
+  const [packRows, setPackRows] = useState<DraftPackRow[]>([createDefaultPackRow(1, SellingOrder.Ascending)]);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [editingRow, setEditingRow] = useState<DraftPackRow | null>(null);
   const [editingGameSearch, setEditingGameSearch] = useState("");
@@ -77,9 +96,19 @@ export function ReceiveDeliveryScreen() {
     queryFn: () => listGames(shopId as string),
     enabled: Boolean(shopId),
   });
+  const configurationQuery = useQuery({
+    queryKey: ["configurations", shopId],
+    queryFn: () => getConfigurations(shopId ?? undefined),
+    enabled: Boolean(shopId),
+  });
 
   const gameOptions = gamesQuery.data ?? [];
   const activeGameOptions = useMemo(() => gameOptions.filter((game) => game.isActive), [gameOptions]);
+  const shopOperationalSetup = useMemo(
+    () => deriveShopOperationalSetup(configurationQuery.data),
+    [configurationQuery.data]
+  );
+  const configuredPackSellingOrder = shopOperationalSetup.packSellingOrder;
 
   const gameMap = useMemo(() => {
     return new Map(gameOptions.map((game) => [game.id, game]));
@@ -115,6 +144,37 @@ export function ReceiveDeliveryScreen() {
     return new Set([...map.entries()].filter(([, count]) => count > 1).map(([key]) => key));
   }, [packRows]);
 
+  useEffect(() => {
+    setPackRows((previous) => {
+      if (previous.length !== 1) {
+        return previous;
+      }
+
+      const [row] = previous;
+      const isUntouched =
+        !row.gameId &&
+        !row.gameCode.trim() &&
+        !row.gameName.trim() &&
+        !row.packNumber.trim() &&
+        !row.displayNumber.trim();
+
+      if (!isUntouched) {
+        return previous;
+      }
+
+      const defaults = getSerialBoundsByOrder(row.totalTickets, configuredPackSellingOrder);
+      if (row.startSerialNumber === defaults.start && row.endSerialNumber === defaults.end) {
+        return previous;
+      }
+
+      return [{
+        ...row,
+        startSerialNumber: defaults.start,
+        endSerialNumber: defaults.end,
+      }];
+    });
+  }, [configuredPackSellingOrder]);
+
   const parseDeliveryNoteMutation = useMutation({
     mutationFn: (input: { uri: string; fileName?: string; mimeType?: string }) => {
       if (!shopId) {
@@ -129,19 +189,23 @@ export function ReceiveDeliveryScreen() {
       });
     },
     onSuccess: (result) => {
-      const normalizedRows: DraftPackRow[] = result.packSuggestions.map((suggestion, index) => ({
-        id: `row-ai-${index}-${Date.now()}`,
-        gameId: suggestion.gameId ?? "",
-        gameCode: suggestion.gameCode ?? "",
-        gameName: suggestion.gameName ?? "",
-        isNewGameCandidate: suggestion.isNewGameCandidate ?? false,
-        packNumber: suggestion.packNumber ?? "",
-        displayNumber: "",
-        ticketPrice: `${suggestion.ticketPrice ?? 0}`,
-        totalTickets: `${suggestion.totalTickets ?? 100}`,
-        startSerialNumber: suggestion.startSerialNumber ?? "000",
-        endSerialNumber: suggestion.endSerialNumber ?? "099",
-      }));
+      const normalizedRows: DraftPackRow[] = result.packSuggestions.map((suggestion, index) => {
+        const totalTickets = suggestion.totalTickets ?? 100;
+        const serialDefaults = getSerialBoundsByOrder(totalTickets, configuredPackSellingOrder);
+        return {
+          id: `row-ai-${index}-${Date.now()}`,
+          gameId: suggestion.gameId ?? "",
+          gameCode: suggestion.gameCode ?? "",
+          gameName: suggestion.gameName ?? "",
+          isNewGameCandidate: suggestion.isNewGameCandidate ?? false,
+          packNumber: suggestion.packNumber ?? "",
+          displayNumber: "",
+          ticketPrice: `${suggestion.ticketPrice ?? 0}`,
+          totalTickets: `${totalTickets}`,
+          startSerialNumber: serialDefaults.start,
+          endSerialNumber: serialDefaults.end,
+        };
+      });
 
       if (normalizedRows.length > 0) {
         setPackRows(normalizedRows);
@@ -241,7 +305,7 @@ export function ReceiveDeliveryScreen() {
       setSupplierName("");
       setDeliveryReference("");
       setNotes("");
-      setPackRows([createDefaultPackRow(1)]);
+      setPackRows([createDefaultPackRow(1, configuredPackSellingOrder)]);
       setParseWarnings([]);
       setEditingRow(null);
       setEditingRowId(null);
@@ -359,7 +423,7 @@ export function ReceiveDeliveryScreen() {
   }
 
   function addRowAndOpenEditor() {
-    const nextRow = createDefaultPackRow(packRows.length + 1);
+    const nextRow = createDefaultPackRow(packRows.length + 1, configuredPackSellingOrder);
     setPackRows((prev) => [...prev, nextRow]);
     setEditingRowId(nextRow.id);
     setEditingRow(nextRow);
@@ -395,6 +459,7 @@ export function ReceiveDeliveryScreen() {
       <ScrollView contentContainerStyle={{ gap: 12 }}>
         <View style={ui.card}>
           <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
+          <Text style={styles.meta}>Pack Selling Order: {configuredPackSellingOrder}</Text>
           <Text style={styles.fieldLabel}>Delivery Date</Text>
           <DateTimeField mode="date" value={deliveryDate} onChange={setDeliveryDate} />
           <Text style={styles.fieldLabel}>Supplier Name</Text>
@@ -523,6 +588,7 @@ export function ReceiveDeliveryScreen() {
                       key={game.id}
                       style={styles.autocompleteItem}
                       onPress={() => {
+                        const serialDefaults = getSerialBoundsByOrder(game.defaultTicketsPerPack, configuredPackSellingOrder);
                         setEditingGameSearch(`${game.gameCode} - ${game.gameName}`);
                         updateEditingRow((current) => ({
                           ...current,
@@ -532,8 +598,8 @@ export function ReceiveDeliveryScreen() {
                           isNewGameCandidate: false,
                           ticketPrice: `${game.defaultTicketPrice}`,
                           totalTickets: `${game.defaultTicketsPerPack}`,
-                          startSerialNumber: game.defaultStartSerialNumber,
-                          endSerialNumber: game.defaultEndSerialNumber,
+                          startSerialNumber: serialDefaults.start,
+                          endSerialNumber: serialDefaults.end,
                         }));
                       }}
                     >

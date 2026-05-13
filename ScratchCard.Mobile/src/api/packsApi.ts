@@ -31,14 +31,9 @@ export async function createManualPack(payload: {
   totalTickets: number;
   startSerialNumber: string;
   endSerialNumber: string;
-  sellingOrder?: SellingOrder;
   notes?: string;
 }) {
-  const { sellingOrder, ...rest } = payload;
-  const response = await apiClient.post<ApiResponse<ScratchCardPack>>("/packs/manual", {
-    ...rest,
-    ...(sellingOrder ? { sellingOrder: toApiSellingOrder(sellingOrder) } : {}),
-  });
+  const response = await apiClient.post<ApiResponse<ScratchCardPack>>("/packs/manual", payload);
   return mapPack(response.data.data);
 }
 
