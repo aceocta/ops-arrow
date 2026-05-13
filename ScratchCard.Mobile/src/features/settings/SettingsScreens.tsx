@@ -147,6 +147,44 @@ function buildDisplayName(input: { firstName?: string; lastName?: string; displa
   return input.email ?? "-";
 }
 
+type ConfigurationGroupSummary = {
+  title: string;
+  description: string;
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+};
+
+function getConfigurationGroupSummary(groupName: string): ConfigurationGroupSummary {
+  if (groupName === "General Settings") {
+    return {
+      title: "General",
+      description: "Currency, timezone, and core behavior defaults.",
+      icon: "settings-outline",
+    };
+  }
+
+  if (groupName === "Pack Settings") {
+    return {
+      title: "Pack",
+      description: "Pack selling order and ticket display behavior.",
+      icon: "albums-outline",
+    };
+  }
+
+  if (groupName === "Shift Settings") {
+    return {
+      title: "Shift",
+      description: "Shift templates, timing, and close controls.",
+      icon: "time-outline",
+    };
+  }
+
+  return {
+    title: groupName.replace(/ Settings$/i, ""),
+    description: "Shop configuration controls.",
+    icon: "options-outline",
+  };
+}
+
 export function UserManagementScreen() {
   const queryClient = useQueryClient();
   const { activeShopId, activeShop } = useAuth();
@@ -245,9 +283,17 @@ export function AppConfigurationScreen() {
       SHOP_CONFIG_KEYS.shiftEndTime,
       SHOP_CONFIG_KEYS.shiftDefaultName,
     ]);
+    const visibleGroups = new Set([
+      "General Settings",
+      "Pack Settings",
+      "Shift Settings",
+    ]);
     const output = new Map<string, ConfigurationItem[]>();
     for (const item of configurationsQuery.data ?? []) {
       if (hiddenConfigKeys.has(item.configKey)) {
+        continue;
+      }
+      if (!visibleGroups.has(item.groupName)) {
         continue;
       }
       const arr = output.get(item.groupName) ?? [];
@@ -262,6 +308,9 @@ export function AppConfigurationScreen() {
       ] as const))
       .sort(([groupA], [groupB]) => groupA.localeCompare(groupB));
   }, [configurationsQuery.data]);
+  const draftChangeCount = Object.keys(draftValues).length;
+  const hasDraftChanges = draftChangeCount > 0;
+  const totalVisibleConfigurationCount = grouped.reduce((total, [, items]) => total + items.length, 0);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -341,198 +390,306 @@ export function AppConfigurationScreen() {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={{ gap: 12 }}>
-        <View style={ui.card}>
-          <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
-          {grouped.map(([groupName, items]) => (
-            <View key={groupName} style={styles.groupCard}>
-              <Text style={styles.sectionTitle}>{groupName}</Text>
-              {items.map((item) => {
-                const itemDraftKey = buildConfigDraftKey(item.groupName, item.configKey);
-                const draft = draftValues[itemDraftKey];
-                const currentValue = draft ?? item.configValue;
-                const currentBoolValue = parseBooleanValue(currentValue);
-                return (
-                  <View key={item.id} style={{ gap: 4 }}>
-                    <Text style={styles.meta}>{prettifyConfigKey(item.configKey)}</Text>
-                    {isShiftTemplatesConfiguration(item.configKey) ? (
-                      <View style={styles.shiftTemplateList}>
-                        {parseShiftTemplatesEditor(currentValue).map((template, index, sourceTemplates) => {
-                          const updateTemplates = (nextTemplates: ShiftTemplateSetup[]) => {
-                            setDraftValues((prev) => ({
-                              ...prev,
-                              [itemDraftKey]: serializeShiftTemplates(nextTemplates),
-                            }));
-                          };
-
-                          const updateCurrentTemplate = (patch: Partial<ShiftTemplateSetup>) => {
-                            const nextTemplates = sourceTemplates.map((entry, rowIndex) => (
-                              rowIndex === index ? { ...entry, ...patch } : entry
-                            ));
-                            updateTemplates(nextTemplates);
-                          };
-
-                          const removeTemplate = () => {
-                            if (sourceTemplates.length <= 1) {
-                              Alert.alert("At least one shift is required.");
-                              return;
-                            }
-
-                            const nextTemplates = sourceTemplates.filter((_, rowIndex) => rowIndex !== index);
-                            updateTemplates(nextTemplates);
-                          };
-
-                          return (
-                            <View key={`${template.id}-${index}`} style={styles.shiftTemplateCard}>
-                              <View style={styles.shiftTemplateHeaderRow}>
-                                <Text style={styles.itemTitle}>Shift {index + 1}</Text>
-                                <Pressable
-                                  style={[styles.smallButton, styles.smallButtonDanger]}
-                                  onPress={removeTemplate}
-                                >
-                                  <Text style={styles.smallButtonText}>Remove</Text>
-                                </Pressable>
-                              </View>
-                              <Text style={styles.fieldLabel}>Shift Name</Text>
-                              <TextInput
-                                style={styles.input}
-                                value={template.name}
-                                onChangeText={(value) => updateCurrentTemplate({ name: value })}
-                                placeholder={`Shift ${index + 1}`}
-                              />
-                              <View style={styles.shiftTemplateTimeRow}>
-                                <View style={styles.shiftTemplateTimeColumn}>
-                                  <Text style={styles.fieldLabel}>Start Time</Text>
-                                  <TextInput
-                                    style={styles.input}
-                                    value={template.startTime}
-                                    onChangeText={(value) => updateCurrentTemplate({ startTime: value })}
-                                    placeholder="HH:mm"
-                                    keyboardType="numbers-and-punctuation"
-                                    autoCapitalize="none"
-                                    autoCorrect={false}
-                                    maxLength={5}
-                                  />
-                                </View>
-                                <View style={styles.shiftTemplateTimeColumn}>
-                                  <Text style={styles.fieldLabel}>End Time</Text>
-                                  <TextInput
-                                    style={styles.input}
-                                    value={template.endTime}
-                                    onChangeText={(value) => updateCurrentTemplate({ endTime: value })}
-                                    placeholder="HH:mm"
-                                    keyboardType="numbers-and-punctuation"
-                                    autoCapitalize="none"
-                                    autoCorrect={false}
-                                    maxLength={5}
-                                  />
-                                </View>
-                              </View>
-                              <View style={styles.row}>
-                                <Pressable
-                                  style={[styles.choiceChip, template.isActive ? styles.choiceChipSelected : null]}
-                                  onPress={() => updateCurrentTemplate({ isActive: true })}
-                                >
-                                  <Text style={[styles.choiceChipText, template.isActive ? styles.choiceChipTextSelected : null]}>Active</Text>
-                                </Pressable>
-                                <Pressable
-                                  style={[styles.choiceChip, !template.isActive ? styles.choiceChipSelected : null]}
-                                  onPress={() => updateCurrentTemplate({ isActive: false })}
-                                >
-                                  <Text style={[styles.choiceChipText, !template.isActive ? styles.choiceChipTextSelected : null]}>Inactive</Text>
-                                </Pressable>
-                              </View>
-                            </View>
-                          );
-                        })}
-                        <Pressable
-                          style={styles.smallButton}
-                          onPress={() => {
-                            const templates = parseShiftTemplatesEditor(currentValue);
-                            const nextIndex = templates.length;
-                            const nextTemplates = [
-                              ...templates,
-                              {
-                                id: buildShiftTemplateId(`shift-${nextIndex + 1}`, nextIndex),
-                                name: "",
-                                startTime: "06:00",
-                                endTime: "14:00",
-                                isActive: true,
-                              },
-                            ];
-
-                            setDraftValues((prev) => ({
-                              ...prev,
-                              [itemDraftKey]: serializeShiftTemplates(nextTemplates),
-                            }));
-                          }}
-                        >
-                          <Text style={styles.smallButtonText}>Add Shift</Text>
-                        </Pressable>
-                        <Text style={styles.caption}>
-                          Use 24-hour format (HH:mm). Overnight shift is supported; e.g. 22:00 to 06:00 belongs to the starting business day.
-                        </Text>
-                      </View>
-                    ) : isTimeConfiguration(item.configKey, currentValue) ? (
-                      <DateTimeField
-                        mode="time"
-                        value={currentValue}
-                        onChange={(value) => setDraftValues((prev) => ({ ...prev, [itemDraftKey]: value }))}
-                        placeholder="Select time"
-                      />
-                    ) : isSellingOrderConfiguration(item.configKey) ? (
-                      <View style={styles.row}>
-                        <Pressable
-                          style={[styles.choiceChip, currentValue.toLowerCase() === SellingOrder.Ascending.toLowerCase() ? styles.choiceChipSelected : null]}
-                          onPress={() => setDraftValues((prev) => ({ ...prev, [itemDraftKey]: SellingOrder.Ascending }))}
-                        >
-                          <Text style={[styles.choiceChipText, currentValue.toLowerCase() === SellingOrder.Ascending.toLowerCase() ? styles.choiceChipTextSelected : null]}>
-                            Start From 0
-                          </Text>
-                        </Pressable>
-                        <Pressable
-                          style={[styles.choiceChip, currentValue.toLowerCase() === SellingOrder.Descending.toLowerCase() ? styles.choiceChipSelected : null]}
-                          onPress={() => setDraftValues((prev) => ({ ...prev, [itemDraftKey]: SellingOrder.Descending }))}
-                        >
-                          <Text style={[styles.choiceChipText, currentValue.toLowerCase() === SellingOrder.Descending.toLowerCase() ? styles.choiceChipTextSelected : null]}>
-                            End To 0
-                          </Text>
-                        </Pressable>
-                      </View>
-                    ) : isBooleanConfiguration(item, currentValue) ? (
-                      <View style={styles.row}>
-                        <Pressable
-                          style={[styles.choiceChip, currentBoolValue ? styles.choiceChipSelected : null]}
-                          onPress={() => setDraftValues((prev) => ({ ...prev, [itemDraftKey]: "true" }))}
-                        >
-                          <Text style={[styles.choiceChipText, currentBoolValue ? styles.choiceChipTextSelected : null]}>Enabled</Text>
-                        </Pressable>
-                        <Pressable
-                          style={[styles.choiceChip, !currentBoolValue ? styles.choiceChipSelected : null]}
-                          onPress={() => setDraftValues((prev) => ({ ...prev, [itemDraftKey]: "false" }))}
-                        >
-                          <Text style={[styles.choiceChipText, !currentBoolValue ? styles.choiceChipTextSelected : null]}>Disabled</Text>
-                        </Pressable>
-                      </View>
-                    ) : (
-                      <TextInput
-                        style={styles.input}
-                        value={currentValue}
-                        onChangeText={(value) => setDraftValues((prev) => ({ ...prev, [itemDraftKey]: value }))}
-                        placeholder={item.configValue}
-                        keyboardType={isScratchCardDisplayCountConfiguration(item.configKey) ? "number-pad" : "default"}
-                      />
-                    )}
-                    {item.description ? <Text style={styles.caption}>{item.description}</Text> : null}
-                  </View>
-                );
-              })}
+      <ScrollView contentContainerStyle={styles.configPageContent}>
+        <View style={[ui.card, styles.configHeroCard]}>
+          <View style={styles.configHeroHeaderRow}>
+            <View style={styles.configHeroHeaderTextWrap}>
+              <Text style={styles.configHeroTitle}>App Configuration</Text>
+              <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
             </View>
-          ))}
-          <Pressable style={[styles.actionButton, saveMutation.isPending ? styles.dateActionButtonDisabled : null]} onPress={() => saveMutation.mutate()}>
-            <Text style={styles.actionButtonText}>{saveMutation.isPending ? "Saving..." : "Save Configuration"}</Text>
-          </Pressable>
+            <View style={styles.configCountPill}>
+              <Text style={styles.configCountPillText}>{totalVisibleConfigurationCount} fields</Text>
+            </View>
+          </View>
+          <Text style={styles.configHeroSubtitle}>
+            Update operational behavior for general shop setup, scratch-card pack flow, and shifts.
+          </Text>
+          <View style={styles.configHeroStatusRow}>
+            <View style={[styles.configStatusChip, hasDraftChanges ? styles.configStatusChipWarning : styles.configStatusChipSuccess]}>
+              <Ionicons
+                name={hasDraftChanges ? "create-outline" : "checkmark-circle-outline"}
+                size={14}
+                color={hasDraftChanges ? "#7A4B00" : "#0D5F2D"}
+              />
+              <Text style={[styles.configStatusChipText, hasDraftChanges ? styles.configStatusChipTextWarning : styles.configStatusChipTextSuccess]}>
+                {hasDraftChanges ? `${draftChangeCount} unsaved change${draftChangeCount > 1 ? "s" : ""}` : "All changes saved"}
+              </Text>
+            </View>
+          </View>
         </View>
+
+        {configurationsQuery.isLoading ? (
+          <View style={[ui.card, styles.configStateCard]}>
+            <Text style={styles.itemTitle}>Loading settings...</Text>
+            <Text style={styles.meta}>Fetching configuration values for this shop.</Text>
+          </View>
+        ) : null}
+
+        {configurationsQuery.isError ? (
+          <View style={[ui.card, styles.configStateCard]}>
+            <Text style={styles.itemTitle}>Failed to load settings</Text>
+            <Text style={styles.meta}>
+              {(configurationsQuery.error as any)?.response?.data?.message
+                ?? (configurationsQuery.error as any)?.message
+                ?? "Unable to retrieve configuration values."}
+            </Text>
+            <Pressable
+              style={styles.secondaryActionButton}
+              onPress={() => void configurationsQuery.refetch()}
+            >
+              <Text style={styles.secondaryActionButtonText}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {!configurationsQuery.isLoading && !configurationsQuery.isError && grouped.map(([groupName, items]) => {
+          const groupSummary = getConfigurationGroupSummary(groupName);
+          return (
+            <View key={groupName} style={styles.groupCard}>
+              <View style={styles.groupHeaderRow}>
+                <View style={styles.groupHeaderInfo}>
+                  <View style={styles.groupHeaderIconWrap}>
+                    <Ionicons name={groupSummary.icon} size={16} color={appTheme.colors.primary} />
+                  </View>
+                  <View style={styles.groupHeaderTextWrap}>
+                    <Text style={styles.groupHeaderTitle}>{groupSummary.title}</Text>
+                    <Text style={styles.groupHeaderDescription}>{groupSummary.description}</Text>
+                  </View>
+                </View>
+                <View style={styles.groupCountPill}>
+                  <Text style={styles.groupCountPillText}>{items.length}</Text>
+                </View>
+              </View>
+
+              <View style={styles.groupFieldList}>
+                {items.map((item) => {
+                  const itemDraftKey = buildConfigDraftKey(item.groupName, item.configKey);
+                  const draft = draftValues[itemDraftKey];
+                  const currentValue = draft ?? item.configValue;
+                  const currentBoolValue = parseBooleanValue(currentValue);
+                  const isEdited = typeof draft === "string" && draft !== item.configValue;
+
+                  return (
+                    <View
+                      key={item.id}
+                      style={[
+                        styles.configFieldCard,
+                        isEdited ? styles.configFieldCardEdited : null,
+                      ]}
+                    >
+                      <View style={styles.configFieldHeaderRow}>
+                        <Text style={styles.configFieldLabel}>{prettifyConfigKey(item.configKey)}</Text>
+                        {isEdited ? (
+                          <View style={styles.configEditedBadge}>
+                            <Text style={styles.configEditedBadgeText}>Edited</Text>
+                          </View>
+                        ) : null}
+                      </View>
+
+                      {isShiftTemplatesConfiguration(item.configKey) ? (
+                        <View style={styles.shiftTemplateList}>
+                          {parseShiftTemplatesEditor(currentValue).map((template, index, sourceTemplates) => {
+                            const updateTemplates = (nextTemplates: ShiftTemplateSetup[]) => {
+                              setDraftValues((prev) => ({
+                                ...prev,
+                                [itemDraftKey]: serializeShiftTemplates(nextTemplates),
+                              }));
+                            };
+
+                            const updateCurrentTemplate = (patch: Partial<ShiftTemplateSetup>) => {
+                              const nextTemplates = sourceTemplates.map((entry, rowIndex) => (
+                                rowIndex === index ? { ...entry, ...patch } : entry
+                              ));
+                              updateTemplates(nextTemplates);
+                            };
+
+                            const removeTemplate = () => {
+                              if (sourceTemplates.length <= 1) {
+                                Alert.alert("At least one shift is required.");
+                                return;
+                              }
+
+                              const nextTemplates = sourceTemplates.filter((_, rowIndex) => rowIndex !== index);
+                              updateTemplates(nextTemplates);
+                            };
+
+                            return (
+                              <View key={`${template.id}-${index}`} style={styles.shiftTemplateCard}>
+                                <View style={styles.shiftTemplateHeaderRow}>
+                                  <Text style={styles.itemTitle}>Shift {index + 1}</Text>
+                                  <Pressable
+                                    style={[styles.smallButton, styles.smallButtonDanger]}
+                                    onPress={removeTemplate}
+                                  >
+                                    <Text style={styles.smallButtonText}>Remove</Text>
+                                  </Pressable>
+                                </View>
+                                <Text style={styles.fieldLabel}>Shift Name</Text>
+                                <TextInput
+                                  style={styles.input}
+                                  value={template.name}
+                                  onChangeText={(value) => updateCurrentTemplate({ name: value })}
+                                  placeholder={`Shift ${index + 1}`}
+                                />
+                                <View style={styles.shiftTemplateTimeRow}>
+                                  <View style={styles.shiftTemplateTimeColumn}>
+                                    <Text style={styles.fieldLabel}>Start Time</Text>
+                                    <TextInput
+                                      style={styles.input}
+                                      value={template.startTime}
+                                      onChangeText={(value) => updateCurrentTemplate({ startTime: value })}
+                                      placeholder="HH:mm"
+                                      keyboardType="numbers-and-punctuation"
+                                      autoCapitalize="none"
+                                      autoCorrect={false}
+                                      maxLength={5}
+                                    />
+                                  </View>
+                                  <View style={styles.shiftTemplateTimeColumn}>
+                                    <Text style={styles.fieldLabel}>End Time</Text>
+                                    <TextInput
+                                      style={styles.input}
+                                      value={template.endTime}
+                                      onChangeText={(value) => updateCurrentTemplate({ endTime: value })}
+                                      placeholder="HH:mm"
+                                      keyboardType="numbers-and-punctuation"
+                                      autoCapitalize="none"
+                                      autoCorrect={false}
+                                      maxLength={5}
+                                    />
+                                  </View>
+                                </View>
+                                <View style={styles.row}>
+                                  <Pressable
+                                    style={[styles.choiceChip, template.isActive ? styles.choiceChipSelected : null]}
+                                    onPress={() => updateCurrentTemplate({ isActive: true })}
+                                  >
+                                    <Text style={[styles.choiceChipText, template.isActive ? styles.choiceChipTextSelected : null]}>Active</Text>
+                                  </Pressable>
+                                  <Pressable
+                                    style={[styles.choiceChip, !template.isActive ? styles.choiceChipSelected : null]}
+                                    onPress={() => updateCurrentTemplate({ isActive: false })}
+                                  >
+                                    <Text style={[styles.choiceChipText, !template.isActive ? styles.choiceChipTextSelected : null]}>Inactive</Text>
+                                  </Pressable>
+                                </View>
+                              </View>
+                            );
+                          })}
+                          <Pressable
+                            style={[styles.smallButton, styles.smallButtonSecondary]}
+                            onPress={() => {
+                              const templates = parseShiftTemplatesEditor(currentValue);
+                              const nextIndex = templates.length;
+                              const nextTemplates = [
+                                ...templates,
+                                {
+                                  id: buildShiftTemplateId(`shift-${nextIndex + 1}`, nextIndex),
+                                  name: "",
+                                  startTime: "06:00",
+                                  endTime: "14:00",
+                                  isActive: true,
+                                },
+                              ];
+
+                              setDraftValues((prev) => ({
+                                ...prev,
+                                [itemDraftKey]: serializeShiftTemplates(nextTemplates),
+                              }));
+                            }}
+                          >
+                            <Text style={[styles.smallButtonText, styles.smallButtonTextSecondary]}>Add Shift</Text>
+                          </Pressable>
+                          <Text style={styles.caption}>
+                            Use 24-hour format (HH:mm). Overnight shift is supported; e.g. 22:00 to 06:00 belongs to the starting business day.
+                          </Text>
+                        </View>
+                      ) : isTimeConfiguration(item.configKey, currentValue) ? (
+                        <DateTimeField
+                          mode="time"
+                          value={currentValue}
+                          onChange={(value) => setDraftValues((prev) => ({ ...prev, [itemDraftKey]: value }))}
+                          placeholder="Select time"
+                        />
+                      ) : isSellingOrderConfiguration(item.configKey) ? (
+                        <View style={styles.row}>
+                          <Pressable
+                            style={[styles.choiceChip, currentValue.toLowerCase() === SellingOrder.Ascending.toLowerCase() ? styles.choiceChipSelected : null]}
+                            onPress={() => setDraftValues((prev) => ({ ...prev, [itemDraftKey]: SellingOrder.Ascending }))}
+                          >
+                            <Text style={[styles.choiceChipText, currentValue.toLowerCase() === SellingOrder.Ascending.toLowerCase() ? styles.choiceChipTextSelected : null]}>
+                              Start From 0
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            style={[styles.choiceChip, currentValue.toLowerCase() === SellingOrder.Descending.toLowerCase() ? styles.choiceChipSelected : null]}
+                            onPress={() => setDraftValues((prev) => ({ ...prev, [itemDraftKey]: SellingOrder.Descending }))}
+                          >
+                            <Text style={[styles.choiceChipText, currentValue.toLowerCase() === SellingOrder.Descending.toLowerCase() ? styles.choiceChipTextSelected : null]}>
+                              End To 0
+                            </Text>
+                          </Pressable>
+                        </View>
+                      ) : isBooleanConfiguration(item, currentValue) ? (
+                        <View style={styles.row}>
+                          <Pressable
+                            style={[styles.choiceChip, currentBoolValue ? styles.choiceChipSelected : null]}
+                            onPress={() => setDraftValues((prev) => ({ ...prev, [itemDraftKey]: "true" }))}
+                          >
+                            <Text style={[styles.choiceChipText, currentBoolValue ? styles.choiceChipTextSelected : null]}>Enabled</Text>
+                          </Pressable>
+                          <Pressable
+                            style={[styles.choiceChip, !currentBoolValue ? styles.choiceChipSelected : null]}
+                            onPress={() => setDraftValues((prev) => ({ ...prev, [itemDraftKey]: "false" }))}
+                          >
+                            <Text style={[styles.choiceChipText, !currentBoolValue ? styles.choiceChipTextSelected : null]}>Disabled</Text>
+                          </Pressable>
+                        </View>
+                      ) : (
+                        <TextInput
+                          style={styles.input}
+                          value={currentValue}
+                          onChangeText={(value) => setDraftValues((prev) => ({ ...prev, [itemDraftKey]: value }))}
+                          placeholder={item.configValue}
+                          keyboardType={isScratchCardDisplayCountConfiguration(item.configKey) ? "number-pad" : "default"}
+                        />
+                      )}
+
+                      {item.description ? <Text style={styles.caption}>{item.description}</Text> : null}
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          );
+        })}
+
+        {!configurationsQuery.isLoading && !configurationsQuery.isError ? (
+          <View style={[ui.card, styles.configFooterCard]}>
+            <View style={styles.configFooterActionRow}>
+              <Pressable
+                style={[
+                  styles.secondaryActionButton,
+                  !hasDraftChanges || saveMutation.isPending ? styles.dateActionButtonDisabled : null,
+                ]}
+                onPress={() => setDraftValues({})}
+                disabled={!hasDraftChanges || saveMutation.isPending}
+              >
+                <Text style={styles.secondaryActionButtonText}>Discard Changes</Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.actionButton,
+                  !hasDraftChanges || saveMutation.isPending ? styles.dateActionButtonDisabled : null,
+                ]}
+                onPress={() => saveMutation.mutate()}
+                disabled={!hasDraftChanges || saveMutation.isPending}
+              >
+                <Text style={styles.actionButtonText}>{saveMutation.isPending ? "Saving..." : "Save Configuration"}</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
       </ScrollView>
     </ScreenContainer>
   );
@@ -1106,6 +1263,87 @@ export function SettingsScreen() {
 const styles = StyleSheet.create({
   title: { fontSize: 24, lineHeight: 28, color: appTheme.colors.text, fontFamily: appTheme.fonts.heading },
   sectionTitle: { fontSize: 17, lineHeight: 22, color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium },
+  configPageContent: {
+    gap: 12,
+    paddingBottom: appTheme.spacing.sm,
+  },
+  configHeroCard: {
+    gap: appTheme.spacing.sm,
+    backgroundColor: "#F4F8FF",
+    borderWidth: 1,
+    borderColor: "#D8E5F9",
+  },
+  configHeroHeaderRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.sm,
+  },
+  configHeroHeaderTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  configHeroTitle: {
+    fontFamily: appTheme.fonts.heading,
+    color: appTheme.colors.text,
+    fontSize: 20,
+    lineHeight: 26,
+  },
+  configCountPill: {
+    borderRadius: appTheme.radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: "#E2ECFB",
+    borderWidth: 1,
+    borderColor: "#C4D7F7",
+  },
+  configCountPillText: {
+    color: "#2B4E83",
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 15,
+  },
+  configHeroSubtitle: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  configHeroStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  configStatusChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: appTheme.radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+  },
+  configStatusChipWarning: {
+    backgroundColor: "#FFF4DF",
+    borderColor: "#E9C789",
+  },
+  configStatusChipSuccess: {
+    backgroundColor: "#E8F9ED",
+    borderColor: "#A9D9B8",
+  },
+  configStatusChipText: {
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 15,
+  },
+  configStatusChipTextWarning: {
+    color: "#7A4B00",
+  },
+  configStatusChipTextSuccess: {
+    color: "#0D5F2D",
+  },
+  configStateCard: {
+    gap: appTheme.spacing.xs,
+  },
   settingsHeroCard: {
     gap: appTheme.spacing.md,
     backgroundColor: "#F2F6FD",
@@ -1243,6 +1481,9 @@ const styles = StyleSheet.create({
     borderColor: "#0A3B3D",
     paddingVertical: 11,
     paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
   },
   dateActionButtonDisabled: {
     opacity: 0.6,
@@ -1250,11 +1491,105 @@ const styles = StyleSheet.create({
   actionButtonText: { color: "#ECFEFC", fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 18 },
   groupCard: {
     borderWidth: 1,
+    borderColor: "#D9E2EE",
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: "#F8FBFF",
+    padding: 12,
+    gap: 10,
+  },
+  groupHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  groupHeaderInfo: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  groupHeaderIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: appTheme.radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EAF6F8",
+    borderWidth: 1,
+    borderColor: "#BFE2E7",
+  },
+  groupHeaderTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  groupHeaderTitle: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  groupHeaderDescription: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  groupCountPill: {
+    borderRadius: appTheme.radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: "#C8D8EA",
+    backgroundColor: "#EEF4FC",
+  },
+  groupCountPillText: {
+    color: "#375C8D",
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 15,
+  },
+  groupFieldList: {
+    gap: 8,
+  },
+  configFieldCard: {
+    borderWidth: 1,
     borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surfaceMuted,
+    backgroundColor: appTheme.colors.surface,
     padding: 10,
+    gap: 6,
+  },
+  configFieldCardEdited: {
+    borderColor: "#58A0A7",
+    backgroundColor: "#F4FBFB",
+  },
+  configFieldHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: 8,
+  },
+  configFieldLabel: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 17,
+    flex: 1,
+  },
+  configEditedBadge: {
+    borderRadius: appTheme.radius.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: "#DBF3F5",
+    borderWidth: 1,
+    borderColor: "#91CDD4",
+  },
+  configEditedBadgeText: {
+    color: "#0F666B",
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 13,
   },
   shiftTemplateList: {
     gap: 8,
@@ -1336,10 +1671,44 @@ const styles = StyleSheet.create({
     borderRadius: appTheme.radius.sm,
     paddingHorizontal: 10,
     paddingVertical: 7,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  smallButtonSecondary: {
+    backgroundColor: "#EAF6F8",
+    borderWidth: 1,
+    borderColor: "#A9D5DC",
   },
   smallButtonDanger: { backgroundColor: appTheme.colors.danger },
   smallButtonSuccess: { backgroundColor: appTheme.colors.success },
   smallButtonText: { color: "#FFF", fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 14 },
+  smallButtonTextSecondary: {
+    color: "#1A646A",
+  },
+  configFooterCard: {
+    gap: appTheme.spacing.xs,
+  },
+  configFooterActionRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  secondaryActionButton: {
+    borderRadius: appTheme.radius.sm,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
+  },
+  secondaryActionButtonText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
+  },
   logoutButton: {
     backgroundColor: appTheme.colors.danger,
     borderRadius: appTheme.radius.sm,
