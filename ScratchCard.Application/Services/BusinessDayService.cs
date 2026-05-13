@@ -17,6 +17,7 @@ public class BusinessDayService : IBusinessDayService
 {
     private readonly IRepository<BusinessDay> _businessDayRepository;
     private readonly IRepository<Shift> _shiftRepository;
+    private readonly IRepository<ShiftOpeningSerial> _shiftOpeningSerialRepository;
     private readonly IRepository<ShiftScratchCardSale> _salesRepository;
     private readonly IRepository<PrizePayout> _payoutRepository;
     private readonly IRepository<ScratchCardDayCloseSummary> _dayCloseSummaryRepository;
@@ -32,6 +33,7 @@ public class BusinessDayService : IBusinessDayService
     public BusinessDayService(
         IRepository<BusinessDay> businessDayRepository,
         IRepository<Shift> shiftRepository,
+        IRepository<ShiftOpeningSerial> shiftOpeningSerialRepository,
         IRepository<ShiftScratchCardSale> salesRepository,
         IRepository<PrizePayout> payoutRepository,
         IRepository<ScratchCardDayCloseSummary> dayCloseSummaryRepository,
@@ -46,6 +48,7 @@ public class BusinessDayService : IBusinessDayService
     {
         _businessDayRepository = businessDayRepository;
         _shiftRepository = shiftRepository;
+        _shiftOpeningSerialRepository = shiftOpeningSerialRepository;
         _salesRepository = salesRepository;
         _payoutRepository = payoutRepository;
         _dayCloseSummaryRepository = dayCloseSummaryRepository;
@@ -90,7 +93,9 @@ public class BusinessDayService : IBusinessDayService
         await AutoCreateScheduledShiftsAsync(day, cancellationToken);
 
         await _auditService.LogAsync(nameof(BusinessDay), day.Id, "BusinessDayOpened", day.ShopId, cancellationToken: cancellationToken);
-        return day.ToDto();
+        var openedDayDto = day.ToDto();
+        openedDayDto.MissingOpeningTicketCount = 0;
+        return openedDayDto;
     }
 
     public async Task<IReadOnlyCollection<BusinessDayDto>> ListAsync(Guid shopId, DateOnly? from = null, DateOnly? to = null, CancellationToken cancellationToken = default)
@@ -114,8 +119,13 @@ public class BusinessDayService : IBusinessDayService
         var days = await query
             .OrderByDescending(x => x.BusinessDate)
             .ToListAsync(cancellationToken);
-
-        return days.Select(x => x.ToDto()).ToArray();
+        var missingByDayId = await GetMissingOpeningTicketsByDayIdAsync(days.Select(x => x.Id), cancellationToken);
+        return days.Select(day =>
+        {
+            var dto = day.ToDto();
+            dto.MissingOpeningTicketCount = missingByDayId.GetValueOrDefault(day.Id);
+            return dto;
+        }).ToArray();
     }
 
     public async Task<BusinessDayDto> GetAsync(Guid id, CancellationToken cancellationToken = default)
@@ -125,8 +135,10 @@ public class BusinessDayService : IBusinessDayService
             .Include(x => x.CloseAttachments)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new AppException("business_day_not_found", "Business day not found.", 404);
-
-        return day.ToDto();
+        var missingByDayId = await GetMissingOpeningTicketsByDayIdAsync([day.Id], cancellationToken);
+        var dayDto = day.ToDto();
+        dayDto.MissingOpeningTicketCount = missingByDayId.GetValueOrDefault(day.Id);
+        return dayDto;
     }
 
     public async Task<string?> GetCloseAttachmentDataUrlAsync(Guid attachmentId, CancellationToken cancellationToken = default)
@@ -270,8 +282,10 @@ public class BusinessDayService : IBusinessDayService
             .Include(x => x.CloseAttachments)
             .FirstOrDefaultAsync(x => x.Id == day.Id, cancellationToken)
             ?? day;
-
-        return closedDay.ToDto();
+        var missingByDayId = await GetMissingOpeningTicketsByDayIdAsync([closedDay.Id], cancellationToken);
+        var closedDayDto = closedDay.ToDto();
+        closedDayDto.MissingOpeningTicketCount = missingByDayId.GetValueOrDefault(closedDay.Id);
+        return closedDayDto;
     }
 
     public async Task<BusinessDayDto> ReopenAsync(Guid id, ReopenBusinessDayRequest request, CancellationToken cancellationToken = default)
@@ -295,8 +309,10 @@ public class BusinessDayService : IBusinessDayService
             day.ShopId,
             reason: request.Reason,
             cancellationToken: cancellationToken);
-
-        return day.ToDto();
+        var missingByDayId = await GetMissingOpeningTicketsByDayIdAsync([day.Id], cancellationToken);
+        var reopenedDto = day.ToDto();
+        reopenedDto.MissingOpeningTicketCount = missingByDayId.GetValueOrDefault(day.Id);
+        return reopenedDto;
     }
 
     private async Task AutoCreateScheduledShiftsAsync(BusinessDay day, CancellationToken cancellationToken)
@@ -494,6 +510,28 @@ public class BusinessDayService : IBusinessDayService
         };
     }
 
+    private async Task<Dictionary<Guid, int>> GetMissingOpeningTicketsByDayIdAsync(
+        IEnumerable<Guid> businessDayIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = businessDayIds.Distinct().ToArray();
+        if (ids.Length == 0)
+        {
+            return new Dictionary<Guid, int>();
+        }
+
+        return await _shiftOpeningSerialRepository.Query()
+            .AsNoTracking()
+            .Where(x => ids.Contains(x.BusinessDayId))
+            .GroupBy(x => x.BusinessDayId)
+            .Select(group => new
+            {
+                BusinessDayId = group.Key,
+                MissingTicketCount = group.Sum(x => x.MissingQuantity)
+            })
+            .ToDictionaryAsync(x => x.BusinessDayId, x => x.MissingTicketCount, cancellationToken);
+    }
+
     private async Task SendDayCloseSummaryToOwnersAsync(
         BusinessDay day,
         IReadOnlyCollection<Shift> shifts,
@@ -520,8 +558,13 @@ public class BusinessDayService : IBusinessDayService
             .Select(x => x.ShopName)
             .FirstOrDefaultAsync(cancellationToken) ?? "Unknown Shop";
 
+        var missingOpeningTicketCount = await _shiftOpeningSerialRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.BusinessDayId == day.Id)
+            .SumAsync(x => (int?)x.MissingQuantity, cancellationToken) ?? 0;
+
         var subject = $"Day Close Summary - {shopName} - {day.BusinessDate:yyyy-MM-dd}";
-        var body = BuildDayCloseSummaryBodyHtml(shopName, day, shifts, entries);
+        var body = BuildDayCloseSummaryBodyHtml(shopName, day, shifts, entries, missingOpeningTicketCount);
 
         foreach (var recipient in recipients)
         {
@@ -551,7 +594,8 @@ public class BusinessDayService : IBusinessDayService
         string shopName,
         BusinessDay day,
         IReadOnlyCollection<Shift> shifts,
-        IReadOnlyCollection<ShiftScratchCardSale> entries)
+        IReadOnlyCollection<ShiftScratchCardSale> entries,
+        int missingOpeningTicketCount)
     {
         var rows = entries
             .Select(entry => new
@@ -612,6 +656,7 @@ public class BusinessDayService : IBusinessDayService
         sb.Append($"<tr><td style=\"border:1px solid #C7D2E3;padding:6px;\">Lottery Machine Payout</td><td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{(summary?.LottoPayout ?? 0m).ToString("0.00", CultureInfo.InvariantCulture)}</td></tr>");
         sb.Append($"<tr><td style=\"border:1px solid #C7D2E3;padding:6px;\">Scratch Card Payout</td><td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{(summary?.ScratchCardPayout ?? 0m).ToString("0.00", CultureInfo.InvariantCulture)}</td></tr>");
         sb.Append($"<tr><td style=\"border:1px solid #C7D2E3;padding:6px;\">Till Payout</td><td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{tillPayout.ToString("0.00", CultureInfo.InvariantCulture)}</td></tr>");
+        sb.Append($"<tr><td style=\"border:1px solid #C7D2E3;padding:6px;\">Missing Tickets (Opening Serial)</td><td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{missingOpeningTicketCount}</td></tr>");
         sb.Append("</tbody></table>");
 
         sb.Append("<h4 style=\"margin:0 0 8px 0;\">Shift Breakdown</h4>");

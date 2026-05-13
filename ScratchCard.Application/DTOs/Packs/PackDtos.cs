@@ -8,6 +8,7 @@ public class PackDto
     public Guid ShopId { get; set; }
     public Guid GameId { get; set; }
     public string GameName { get; set; } = string.Empty;
+    public string GameCode { get; set; } = string.Empty;
     public string PackNumber { get; set; } = string.Empty;
     public int? DisplayNumber { get; set; }
     public decimal TicketPrice { get; set; }

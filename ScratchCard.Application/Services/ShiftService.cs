@@ -19,6 +19,7 @@ public class ShiftService : IShiftService
     private readonly IRepository<Shift> _shiftRepository;
     private readonly IRepository<BusinessDay> _businessDayRepository;
     private readonly IRepository<ScratchCardPack> _packRepository;
+    private readonly IRepository<ShiftOpeningSerial> _shiftOpeningSerialRepository;
     private readonly IRepository<ShiftCloseAttachment> _shiftCloseAttachmentRepository;
     private readonly IShopConfigurationService _shopConfigurationService;
     private readonly IShiftSalesService _shiftSalesService;
@@ -30,6 +31,7 @@ public class ShiftService : IShiftService
         IRepository<Shift> shiftRepository,
         IRepository<BusinessDay> businessDayRepository,
         IRepository<ScratchCardPack> packRepository,
+        IRepository<ShiftOpeningSerial> shiftOpeningSerialRepository,
         IRepository<ShiftCloseAttachment> shiftCloseAttachmentRepository,
         IShopConfigurationService shopConfigurationService,
         IShiftSalesService shiftSalesService,
@@ -40,6 +42,7 @@ public class ShiftService : IShiftService
         _shiftRepository = shiftRepository;
         _businessDayRepository = businessDayRepository;
         _packRepository = packRepository;
+        _shiftOpeningSerialRepository = shiftOpeningSerialRepository;
         _shiftCloseAttachmentRepository = shiftCloseAttachmentRepository;
         _shopConfigurationService = shopConfigurationService;
         _shiftSalesService = shiftSalesService;
@@ -128,6 +131,17 @@ public class ShiftService : IShiftService
             }
         }
 
+        var packSetup = await _shopConfigurationService.GetPackSetupAsync(request.ShopId, cancellationToken);
+        var activePacks = await _packRepository.Query()
+            .Include(x => x.Game)
+            .Where(x => x.ShopId == request.ShopId && x.Status == PackStatus.Active && !x.IsDeleted)
+            .ToListAsync(cancellationToken);
+
+        var openingSerialEntries = ResolveOpeningSerialEntries(
+            request.OpeningSerialConfirmations,
+            activePacks,
+            packSetup.SellingOrder);
+
         var shift = new Shift
         {
             BusinessDayId = request.BusinessDayId,
@@ -142,13 +156,41 @@ public class ShiftService : IShiftService
         };
 
         await _shiftRepository.AddAsync(shift, cancellationToken);
+
+        if (openingSerialEntries.Count > 0)
+        {
+            var openingSerialRows = openingSerialEntries.Select(entry => new ShiftOpeningSerial
+            {
+                ShiftId = shift.Id,
+                BusinessDayId = request.BusinessDayId,
+                ShopId = request.ShopId,
+                PackId = entry.Pack.Id,
+                ExpectedOpeningSerialNumber = entry.ExpectedOpeningSerialNumber,
+                ActualOpeningSerialNumber = entry.ActualOpeningSerialNumber,
+                MissingQuantity = entry.MissingQuantity,
+                OverageQuantity = entry.OverageQuantity,
+                CreatedOn = utcNow,
+                CreatedBy = _currentUserService.UserId
+            }).ToArray();
+
+            await _shiftOpeningSerialRepository.AddRangeAsync(openingSerialRows, cancellationToken);
+
+            foreach (var entry in openingSerialEntries)
+            {
+                entry.Pack.CurrentSerialNumber = entry.ActualOpeningSerialNumber;
+                entry.Pack.ModifiedOn = utcNow;
+                entry.Pack.ModifiedBy = _currentUserService.UserId;
+                _packRepository.Update(entry.Pack);
+            }
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await _auditService.LogAsync(nameof(Shift), shift.Id, "ShiftOpened", shift.ShopId, cancellationToken: cancellationToken);
         return shift.ToDto();
     }
 
-    public async Task<ShiftDto> StartScheduledAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<ShiftDto> StartScheduledAsync(Guid id, StartScheduledShiftRequest request, CancellationToken cancellationToken = default)
     {
         var shift = await _shiftRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new AppException("shift_not_found", "Shift not found.", 404);
@@ -166,15 +208,53 @@ public class ShiftService : IShiftService
             throw new AppException("business_day_closed", "Cannot start a shift for a closed business day.", 400);
         }
 
+        var packSetup = await _shopConfigurationService.GetPackSetupAsync(shift.ShopId, cancellationToken);
+        var activePacks = await _packRepository.Query()
+            .Include(x => x.Game)
+            .Where(x => x.ShopId == shift.ShopId && x.Status == PackStatus.Active && !x.IsDeleted)
+            .ToListAsync(cancellationToken);
+        var openingSerialEntries = ResolveOpeningSerialEntries(
+            request.OpeningSerialConfirmations,
+            activePacks,
+            packSetup.SellingOrder);
+
+        var utcNow = DateTimeOffset.UtcNow;
         shift.Status = ShiftStatus.Open;
-        shift.StartTime = DateTimeOffset.UtcNow;
+        shift.StartTime = utcNow;
         shift.EndTime = null;
         shift.OpenedByUserId = _currentUserService.UserId ?? Guid.Empty;
         shift.SyncStatus = SyncStatus.Synced;
-        shift.ModifiedOn = DateTimeOffset.UtcNow;
+        shift.ModifiedOn = utcNow;
         shift.ModifiedBy = _currentUserService.UserId;
 
         _shiftRepository.Update(shift);
+
+        if (openingSerialEntries.Count > 0)
+        {
+            var openingSerialRows = openingSerialEntries.Select(entry => new ShiftOpeningSerial
+            {
+                ShiftId = shift.Id,
+                BusinessDayId = shift.BusinessDayId,
+                ShopId = shift.ShopId,
+                PackId = entry.Pack.Id,
+                ExpectedOpeningSerialNumber = entry.ExpectedOpeningSerialNumber,
+                ActualOpeningSerialNumber = entry.ActualOpeningSerialNumber,
+                MissingQuantity = entry.MissingQuantity,
+                OverageQuantity = entry.OverageQuantity,
+                CreatedOn = utcNow,
+                CreatedBy = _currentUserService.UserId
+            }).ToArray();
+            await _shiftOpeningSerialRepository.AddRangeAsync(openingSerialRows, cancellationToken);
+
+            foreach (var entry in openingSerialEntries)
+            {
+                entry.Pack.CurrentSerialNumber = entry.ActualOpeningSerialNumber;
+                entry.Pack.ModifiedOn = utcNow;
+                entry.Pack.ModifiedBy = _currentUserService.UserId;
+                _packRepository.Update(entry.Pack);
+            }
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await _auditService.LogAsync(nameof(Shift), shift.Id, "ScheduledShiftStarted", shift.ShopId, cancellationToken: cancellationToken);
@@ -314,6 +394,128 @@ public class ShiftService : IShiftService
             })
             .ToArray();
     }
+
+    private static IReadOnlyCollection<ResolvedOpeningSerialEntry> ResolveOpeningSerialEntries(
+        IReadOnlyCollection<OpenShiftPackSerialConfirmationRequest>? confirmations,
+        IReadOnlyCollection<ScratchCardPack> activePacks,
+        SellingOrder sellingOrder)
+    {
+        if (activePacks.Count == 0)
+        {
+            return [];
+        }
+
+        var submittedConfirmations = confirmations ?? [];
+        if (submittedConfirmations.Count == 0)
+        {
+            throw new AppException(
+                "opening_serial_confirmation_required",
+                "Confirm opening serial numbers for all active packs before opening a shift.",
+                400);
+        }
+
+        var activePackById = activePacks.ToDictionary(x => x.Id);
+        var confirmationByPackId = new Dictionary<Guid, OpenShiftPackSerialConfirmationRequest>();
+
+        foreach (var confirmation in submittedConfirmations)
+        {
+            if (confirmationByPackId.ContainsKey(confirmation.PackId))
+            {
+                throw new AppException(
+                    "duplicate_opening_serial_confirmation",
+                    "Duplicate opening serial confirmation was submitted for the same pack.",
+                    400);
+            }
+
+            confirmationByPackId[confirmation.PackId] = confirmation;
+        }
+
+        var unknownConfirmation = submittedConfirmations.FirstOrDefault(x => !activePackById.ContainsKey(x.PackId));
+        if (unknownConfirmation is not null)
+        {
+            throw new AppException(
+                "invalid_opening_serial_confirmation_pack",
+                "Opening serial confirmation included a pack that is not currently active.",
+                400);
+        }
+
+        var resolvedEntries = new List<ResolvedOpeningSerialEntry>(activePacks.Count);
+        foreach (var activePack in activePacks)
+        {
+            if (!confirmationByPackId.TryGetValue(activePack.Id, out var confirmation))
+            {
+                throw new AppException(
+                    "missing_opening_serial_confirmation",
+                    $"Missing opening serial confirmation for pack {activePack.PackNumber}.",
+                    400);
+            }
+
+            var expected = activePack.CurrentSerialNumber?.Trim() ?? string.Empty;
+            var actual = confirmation.OpeningSerialNumber?.Trim() ?? string.Empty;
+            EnsureSerialIsWithinPackRange(activePack, actual);
+            EnsureSerialIsWithinPackRange(activePack, expected);
+
+            var (missingQuantity, overageQuantity) = CalculateOpeningGap(expected, actual, sellingOrder);
+            resolvedEntries.Add(new ResolvedOpeningSerialEntry(
+                activePack,
+                expected,
+                actual,
+                missingQuantity,
+                overageQuantity));
+        }
+
+        return resolvedEntries;
+    }
+
+    private static (int missingQuantity, int overageQuantity) CalculateOpeningGap(
+        string expectedOpeningSerial,
+        string actualOpeningSerial,
+        SellingOrder sellingOrder)
+    {
+        if (!int.TryParse(expectedOpeningSerial, out var expected) || !int.TryParse(actualOpeningSerial, out var actual))
+        {
+            throw new AppException(ErrorCodes.InvalidSerialRange, "Serial numbers must be numeric.");
+        }
+
+        var normalizedSellingOrder = sellingOrder == (SellingOrder)0 ? SellingOrder.Ascending : sellingOrder;
+        var delta = normalizedSellingOrder == SellingOrder.Descending
+            ? expected - actual
+            : actual - expected;
+
+        return delta >= 0
+            ? (delta, 0)
+            : (0, Math.Abs(delta));
+    }
+
+    private static void EnsureSerialIsWithinPackRange(ScratchCardPack pack, string serial)
+    {
+        if (!int.TryParse(serial, out var serialNo) ||
+            !int.TryParse(pack.StartSerialNumber, out var startNo) ||
+            !int.TryParse(pack.EndSerialNumber, out var endNo))
+        {
+            throw new AppException(ErrorCodes.InvalidSerialRange, "Serial numbers must be numeric.");
+        }
+
+        var min = Math.Min(startNo, endNo);
+        var max = Math.Max(startNo, endNo);
+        if (serialNo < min || serialNo > max)
+        {
+            var displayLabel = pack.DisplayNumber.HasValue ? pack.DisplayNumber.Value.ToString() : "-";
+            var gameName = pack.Game?.GameName ?? string.Empty;
+            var gameCode = pack.Game?.GameCode ?? string.Empty;
+            throw new AppException(
+                ErrorCodes.InvalidSerialRange,
+                $"Starting serial for display {displayLabel} ({gameName} {gameCode}) must be within pack range {min}-{max}.",
+                400);
+        }
+    }
+
+    private sealed record ResolvedOpeningSerialEntry(
+        ScratchCardPack Pack,
+        string ExpectedOpeningSerialNumber,
+        string ActualOpeningSerialNumber,
+        int MissingQuantity,
+        int OverageQuantity);
 
     private static async Task<string?> ReadAttachmentDataUrlAsync(
         string? storedPath,

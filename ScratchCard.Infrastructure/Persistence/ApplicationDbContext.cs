@@ -24,6 +24,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<ScratchCardPack> ScratchCardPacks => Set<ScratchCardPack>();
     public DbSet<BusinessDay> BusinessDays => Set<BusinessDay>();
     public DbSet<Shift> Shifts => Set<Shift>();
+    public DbSet<ShiftOpeningSerial> ShiftOpeningSerials => Set<ShiftOpeningSerial>();
     public DbSet<ShiftScratchCardSale> ShiftScratchCardSales => Set<ShiftScratchCardSale>();
     public DbSet<PrizePayout> PrizePayouts => Set<PrizePayout>();
     public DbSet<ScratchCardDayCloseSummary> ScratchCardDayCloseSummaries => Set<ScratchCardDayCloseSummary>();
@@ -211,6 +212,18 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.Notes).HasMaxLength(1000);
             entity.HasOne(x => x.BusinessDay).WithMany(x => x.Shifts).HasForeignKey(x => x.BusinessDayId);
             entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId);
+        });
+
+        modelBuilder.Entity<ShiftOpeningSerial>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShiftId, x.PackId }).IsUnique();
+            entity.HasIndex(x => new { x.BusinessDayId, x.ShopId });
+            entity.Property(x => x.ExpectedOpeningSerialNumber).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.ActualOpeningSerialNumber).HasMaxLength(30).IsRequired();
+            entity.HasOne(x => x.Shift).WithMany(x => x.OpeningSerials).HasForeignKey(x => x.ShiftId);
+            entity.HasOne(x => x.BusinessDay).WithMany().HasForeignKey(x => x.BusinessDayId);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId);
+            entity.HasOne(x => x.Pack).WithMany(x => x.OpeningSerials).HasForeignKey(x => x.PackId);
         });
 
         modelBuilder.Entity<ShiftScratchCardSale>(entity =>

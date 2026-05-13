@@ -5,11 +5,12 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import { listBusinessDays } from "../../api/businessDaysApi";
 import { getConfigurations } from "../../api/configurationsApi";
+import { listPacks } from "../../api/packsApi";
 import { deleteShift, getShift, getShiftSales, listShifts, openShift, startScheduledShift } from "../../api/shiftsApi";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { deriveShopOperationalSetup } from "../settings/shopConfiguration";
-import { ShiftStatus } from "../../types/enums";
+import { PackStatus, ShiftStatus } from "../../types/enums";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -25,6 +26,28 @@ function getDefaultShiftNameForNow(reference = new Date()) {
   return "Night";
 }
 
+function comparePacksByDisplayOrder(a: { displayNumber?: number; packNumber: string }, b: { displayNumber?: number; packNumber: string }) {
+  const aDisplay = a.displayNumber;
+  const bDisplay = b.displayNumber;
+  if (aDisplay != null && bDisplay != null && aDisplay !== bDisplay) {
+    return aDisplay - bDisplay;
+  }
+  if (aDisplay != null && bDisplay == null) return -1;
+  if (aDisplay == null && bDisplay != null) return 1;
+  return a.packNumber.localeCompare(b.packNumber);
+}
+
+function resolveGameCodeFromPack(pack: { gameCode?: string; packNumber: string }) {
+  if (pack.gameCode?.trim()) {
+    return pack.gameCode.trim().toUpperCase();
+  }
+  const normalized = pack.packNumber.trim();
+  if (!normalized.includes("-")) {
+    return "-";
+  }
+  return normalized.split("-")[0]?.trim().toUpperCase() || "-";
+}
+
 export function OpenShiftScreen({ navigation }: OpenShiftProps) {
   const { activeShopId, activeShop, profile } = useAuth();
   const shopId = activeShopId;
@@ -33,6 +56,8 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
   const [viewMode, setViewMode] = useState<"open" | "close">("open");
   const [selectedBusinessDayId, setSelectedBusinessDayId] = useState("");
   const [shiftName, setShiftName] = useState("");
+  const [confirmedOpeningSerialByPackId, setConfirmedOpeningSerialByPackId] = useState<Record<string, boolean>>({});
+  const [openingSerialNumberByPackId, setOpeningSerialNumberByPackId] = useState<Record<string, string>>({});
 
   const dayListQuery = useQuery({
     queryKey: ["business-days", shopId],
@@ -66,6 +91,19 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
     () => deriveShopOperationalSetup(configurationQuery.data),
     [configurationQuery.data],
   );
+  const packsQuery = useQuery({
+    queryKey: ["packs", shopId],
+    queryFn: () => listPacks(shopId as string),
+    enabled: Boolean(shopId),
+  });
+  const activePacksForOpening = useMemo(
+    () =>
+      (packsQuery.data ?? [])
+        .filter((pack) => pack.status === PackStatus.Active)
+        .slice()
+        .sort(comparePacksByDisplayOrder),
+    [packsQuery.data],
+  );
 
   useEffect(() => {
     if (viewMode !== "open") {
@@ -74,6 +112,49 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
 
     setShiftName((previous) => previous || shopOperationalSetup.shiftDefaultName.trim() || getDefaultShiftNameForNow());
   }, [shopOperationalSetup.shiftDefaultName, viewMode]);
+
+  useEffect(() => {
+    setConfirmedOpeningSerialByPackId((previous) => {
+      const next: Record<string, boolean> = {};
+      for (const pack of activePacksForOpening) {
+        next[pack.id] = previous[pack.id] ?? false;
+      }
+      return next;
+    });
+    setOpeningSerialNumberByPackId((previous) => {
+      const next: Record<string, string> = {};
+      for (const pack of activePacksForOpening) {
+        next[pack.id] = previous[pack.id] ?? pack.currentSerialNumber;
+      }
+      return next;
+    });
+  }, [activePacksForOpening]);
+
+  function getOpeningSerialForPack(packId: string, fallback: string) {
+    return (openingSerialNumberByPackId[packId] ?? fallback).trim();
+  }
+
+  function getUnconfirmedOpeningSerialPacks() {
+    return activePacksForOpening.filter((pack) => {
+      const enteredSerial = getOpeningSerialForPack(pack.id, pack.currentSerialNumber);
+      return !confirmedOpeningSerialByPackId[pack.id] || enteredSerial.length === 0;
+    });
+  }
+
+  const hasUnconfirmedOpeningSerials = activePacksForOpening.some((pack) => {
+    const enteredSerial = getOpeningSerialForPack(pack.id, pack.currentSerialNumber);
+    return !confirmedOpeningSerialByPackId[pack.id] || enteredSerial.length === 0;
+  });
+
+  function confirmAllOpeningSerials() {
+    setConfirmedOpeningSerialByPackId(() => {
+      const next: Record<string, boolean> = {};
+      for (const pack of activePacksForOpening) {
+        next[pack.id] = getOpeningSerialForPack(pack.id, pack.currentSerialNumber).length > 0;
+      }
+      return next;
+    });
+  }
 
   const openShiftMutation = useMutation({
     mutationFn: async () => {
@@ -96,10 +177,19 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
         throw new Error(`Shift '${normalizedShiftName}' already exists for the selected business day.`);
       }
 
+      const unconfirmedPacks = getUnconfirmedOpeningSerialPacks();
+      if (unconfirmedPacks.length > 0) {
+        throw new Error("Confirm starting serial numbers for all active packs before opening a shift.");
+      }
+
       return openShift({
         businessDayId: selectedBusinessDayId,
         shopId,
         shiftName: normalizedShiftName,
+        openingSerialConfirmations: activePacksForOpening.map((pack) => ({
+          packId: pack.id,
+          openingSerialNumber: getOpeningSerialForPack(pack.id, pack.currentSerialNumber),
+        })),
       });
     },
     onSuccess: async (shift) => {
@@ -114,7 +204,8 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
   });
 
   const startScheduledShiftMutation = useMutation({
-    mutationFn: async (shiftId: string) => startScheduledShift(shiftId),
+    mutationFn: async (payload: { shiftId: string; openingSerialConfirmations: Array<{ packId: string; openingSerialNumber: string }> }) =>
+      startScheduledShift(payload.shiftId, { openingSerialConfirmations: payload.openingSerialConfirmations }),
     onSuccess: async (shift) => {
       Alert.alert("Shift started", `Shift '${shift.shiftName}' is now open.`);
       await shiftsQuery.refetch();
@@ -204,6 +295,78 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
             </Text>
 
             <Text style={styles.sectionTitle}>Scheduled Shifts</Text>
+            <View style={styles.item}>
+              <Text style={styles.sectionTitle}>Confirm Starting Serials</Text>
+              <Text style={styles.meta}>
+                Confirm each active pack before opening the shift.
+              </Text>
+              {activePacksForOpening.length > 0 ? (
+                <View style={styles.serialConfirmActionRow}>
+                  <Pressable
+                    style={[
+                      styles.choiceChip,
+                      !hasUnconfirmedOpeningSerials ? styles.choiceChipSelected : null,
+                      !hasUnconfirmedOpeningSerials ? styles.choiceChipDisabled : null,
+                    ]}
+                    onPress={confirmAllOpeningSerials}
+                    disabled={!hasUnconfirmedOpeningSerials}
+                  >
+                    <Text style={[styles.choiceChipText, !hasUnconfirmedOpeningSerials ? styles.choiceChipTextSelected : null]}>
+                      {hasUnconfirmedOpeningSerials ? "Confirm All" : "All Confirmed"}
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : null}
+              {packsQuery.isFetching ? <Text style={styles.meta}>Loading active packs...</Text> : null}
+              {!packsQuery.isFetching && activePacksForOpening.length === 0 ? (
+                <Text style={styles.meta}>No active packs found for this shop.</Text>
+              ) : null}
+              {activePacksForOpening.map((pack) => {
+                const isConfirmed = Boolean(confirmedOpeningSerialByPackId[pack.id]);
+                const enteredOpeningSerial = openingSerialNumberByPackId[pack.id] ?? pack.currentSerialNumber;
+                return (
+                  <View key={pack.id} style={styles.serialConfirmRow}>
+                    <View style={styles.serialConfirmTextWrap}>
+                      <Text style={styles.itemTitle}>
+                        Display: {pack.displayNumber != null ? `#${pack.displayNumber}` : "-"} | {pack.gameName}
+                      </Text>
+                      <Text style={styles.meta}>Game Code: {resolveGameCodeFromPack(pack)}</Text>
+                      <Text style={styles.meta}>Expected Serial: {pack.currentSerialNumber}</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={enteredOpeningSerial}
+                        placeholder="Enter actual starting serial"
+                        placeholderTextColor={appTheme.colors.textSubtle}
+                        keyboardType="numeric"
+                        onChangeText={(value) => {
+                          setOpeningSerialNumberByPackId((previous) => ({
+                            ...previous,
+                            [pack.id]: value,
+                          }));
+                          setConfirmedOpeningSerialByPackId((previous) => ({
+                            ...previous,
+                            [pack.id]: false,
+                          }));
+                        }}
+                      />
+                    </View>
+                    <Pressable
+                      style={[styles.choiceChip, isConfirmed ? styles.choiceChipSelected : null]}
+                      onPress={() =>
+                        setConfirmedOpeningSerialByPackId((previous) => ({
+                          ...previous,
+                          [pack.id]: !isConfirmed,
+                        }))
+                      }
+                    >
+                      <Text style={[styles.choiceChipText, isConfirmed ? styles.choiceChipTextSelected : null]}>
+                        {isConfirmed ? "Confirmed" : "Confirm"}
+                      </Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
             {scheduledShifts.length === 0 && !shiftsQuery.isFetching ? (
               <Text style={styles.meta}>No scheduled shifts available for the selected business day.</Text>
             ) : null}
@@ -216,7 +379,20 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
                 <View style={styles.row}>
                   <Pressable
                     style={styles.smallButton}
-                    onPress={() => startScheduledShiftMutation.mutate(shift.id)}
+                    onPress={() => {
+                      const unconfirmedPacks = getUnconfirmedOpeningSerialPacks();
+                      if (unconfirmedPacks.length > 0) {
+                        Alert.alert("Confirmation required", "Confirm starting serial numbers for all active packs first.");
+                        return;
+                      }
+                      startScheduledShiftMutation.mutate({
+                        shiftId: shift.id,
+                        openingSerialConfirmations: activePacksForOpening.map((pack) => ({
+                          packId: pack.id,
+                          openingSerialNumber: getOpeningSerialForPack(pack.id, pack.currentSerialNumber),
+                        })),
+                      });
+                    }}
                     disabled={startScheduledShiftMutation.isPending || deleteAutoShiftMutation.isPending}
                   >
                     <Text style={styles.smallButtonText}>{startScheduledShiftMutation.isPending ? "Starting..." : "Start"}</Text>
@@ -576,6 +752,30 @@ const styles = StyleSheet.create({
   modeChipTextSelected: {
     color: "#F4FFFE",
   },
+  choiceChip: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.primary,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: "#E9F7F6",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignSelf: "flex-start",
+  },
+  choiceChipSelected: {
+    backgroundColor: appTheme.colors.primary,
+  },
+  choiceChipDisabled: {
+    opacity: 0.72,
+  },
+  choiceChipText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 14,
+  },
+  choiceChipTextSelected: {
+    color: "#F4FFFE",
+  },
   meta: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, lineHeight: 18, fontSize: 13 },
   hint: { color: appTheme.colors.textSubtle, fontSize: 12, lineHeight: 16, fontFamily: appTheme.fonts.body },
   dayRow: {
@@ -617,6 +817,20 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 12,
     lineHeight: 14,
+  },
+  serialConfirmRow: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    padding: 8,
+    gap: 8,
+  },
+  serialConfirmTextWrap: {
+    gap: 2,
+  },
+  serialConfirmActionRow: {
+    flexDirection: "row",
   },
   row: {
     flexDirection: "row",

@@ -7,6 +7,18 @@ public class OpenShiftRequest
     public Guid BusinessDayId { get; set; }
     public Guid ShopId { get; set; }
     public string? ShiftName { get; set; }
+    public IReadOnlyCollection<OpenShiftPackSerialConfirmationRequest> OpeningSerialConfirmations { get; set; } = [];
+}
+
+public class StartScheduledShiftRequest
+{
+    public IReadOnlyCollection<OpenShiftPackSerialConfirmationRequest> OpeningSerialConfirmations { get; set; } = [];
+}
+
+public class OpenShiftPackSerialConfirmationRequest
+{
+    public Guid PackId { get; set; }
+    public string OpeningSerialNumber { get; set; } = string.Empty;
 }
 
 public class ReopenShiftRequest

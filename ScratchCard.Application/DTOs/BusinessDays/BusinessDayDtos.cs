@@ -34,6 +34,7 @@ public class BusinessDayDto
     public decimal TotalPrizePayout { get; set; }
     public decimal ExpectedCash { get; set; }
     public decimal Difference { get; set; }
+    public int MissingOpeningTicketCount { get; set; }
     public ScratchCardDayCloseSummaryDto? ScratchCardDayCloseSummary { get; set; }
     public IReadOnlyCollection<CloseAttachmentDto> CloseAttachments { get; set; } = [];
 }

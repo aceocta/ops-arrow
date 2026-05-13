@@ -18,6 +18,7 @@ public class Shift : AuditableEntity
 
     public BusinessDay BusinessDay { get; set; } = null!;
     public Shop Shop { get; set; } = null!;
+    public ICollection<ShiftOpeningSerial> OpeningSerials { get; set; } = new List<ShiftOpeningSerial>();
     public ICollection<ShiftScratchCardSale> ShiftSales { get; set; } = new List<ShiftScratchCardSale>();
     public ICollection<PrizePayout> PrizePayouts { get; set; } = new List<PrizePayout>();
     public ShiftReconciliation? ShiftReconciliation { get; set; }

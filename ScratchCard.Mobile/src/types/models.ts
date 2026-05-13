@@ -139,6 +139,7 @@ export type ScratchCardPack = {
   shopId: string;
   gameId: string;
   gameName: string;
+  gameCode?: string;
   packNumber: string;
   displayNumber?: number;
   ticketPrice: number;
@@ -160,6 +161,7 @@ export type BusinessDay = {
   totalPrizePayout: number;
   expectedCash: number;
   difference: number;
+  missingOpeningTicketCount?: number;
   scratchCardDayCloseSummary?: {
     lottoPayout: number;
     scratchCardPayout: number;

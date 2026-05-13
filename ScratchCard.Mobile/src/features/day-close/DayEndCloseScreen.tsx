@@ -15,13 +15,14 @@ import {
   reopenBusinessDay,
 } from "../../api/businessDaysApi";
 import { getConfigurations } from "../../api/configurationsApi";
+import { listPacks } from "../../api/packsApi";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
 import { getShiftSales, listShifts, openShift, reopenShift, startScheduledShift } from "../../api/shiftsApi";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { deriveShopOperationalSetup } from "../settings/shopConfiguration";
-import { ShiftStatus } from "../../types/enums";
+import { PackStatus, ShiftStatus } from "../../types/enums";
 import { MainStackParamList } from "../../types/navigation";
 import { BusinessDay } from "../../types/models";
 import { ui } from "../../ui/primitives";
@@ -70,6 +71,28 @@ function getDefaultShiftNameForNow(reference = new Date()) {
   if (hour < 12) return "Morning";
   if (hour < 18) return "Evening";
   return "Night";
+}
+
+function comparePacksByDisplayOrder(a: { displayNumber?: number; packNumber: string }, b: { displayNumber?: number; packNumber: string }) {
+  const aDisplay = a.displayNumber;
+  const bDisplay = b.displayNumber;
+  if (aDisplay != null && bDisplay != null && aDisplay !== bDisplay) {
+    return aDisplay - bDisplay;
+  }
+  if (aDisplay != null && bDisplay == null) return -1;
+  if (aDisplay == null && bDisplay != null) return 1;
+  return a.packNumber.localeCompare(b.packNumber);
+}
+
+function resolveGameCodeFromPack(pack: { gameCode?: string; packNumber: string }) {
+  if (pack.gameCode?.trim()) {
+    return pack.gameCode.trim().toUpperCase();
+  }
+  const normalized = pack.packNumber.trim();
+  if (!normalized.includes("-")) {
+    return "-";
+  }
+  return normalized.split("-")[0]?.trim().toUpperCase() || "-";
 }
 
 function formatCurrency(value?: number) {
@@ -178,6 +201,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   const [isCloseDayModalVisible, setIsCloseDayModalVisible] = useState(false);
   const [isReopenDayModalVisible, setIsReopenDayModalVisible] = useState(false);
   const [isOpenShiftModalVisible, setIsOpenShiftModalVisible] = useState(false);
+  const [isStartScheduledShiftModalVisible, setIsStartScheduledShiftModalVisible] = useState(false);
+  const [pendingScheduledShiftStart, setPendingScheduledShiftStart] = useState<{ id: string; shiftName: string } | null>(null);
   const [isAttachmentPreviewModalVisible, setIsAttachmentPreviewModalVisible] = useState(false);
   const [attachmentPreviewId, setAttachmentPreviewId] = useState<string | null>(null);
   const [newShiftName, setNewShiftName] = useState("");
@@ -186,6 +211,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   const [attachmentPreviewUri, setAttachmentPreviewUri] = useState<string>();
   const [loadingDayAttachmentId, setLoadingDayAttachmentId] = useState<string | null>(null);
   const [downloadingDayAttachmentId, setDownloadingDayAttachmentId] = useState<string | null>(null);
+  const [confirmedOpeningSerialByPackId, setConfirmedOpeningSerialByPackId] = useState<Record<string, boolean>>({});
+  const [openingSerialNumberByPackId, setOpeningSerialNumberByPackId] = useState<Record<string, string>>({});
 
   const dayQuery = useQuery({
     queryKey: ["business-day", businessDayId],
@@ -268,10 +295,19 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
         throw new Error(`Shift '${normalizedShiftName}' already exists for this business day.`);
       }
 
+      const unconfirmedPacks = getUnconfirmedOpeningSerialPacks();
+      if (unconfirmedPacks.length > 0) {
+        throw new Error("Confirm starting serial numbers for all active packs before opening a shift.");
+      }
+
       return openShift({
         businessDayId,
         shopId: day.shopId,
         shiftName: normalizedShiftName,
+        openingSerialConfirmations: activePacksForOpening.map((pack) => ({
+          packId: pack.id,
+          openingSerialNumber: getOpeningSerialForPack(pack.id, pack.currentSerialNumber),
+        })),
       });
     },
     onSuccess: async () => {
@@ -295,8 +331,16 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     },
   });
   const startScheduledShiftMutation = useMutation({
-    mutationFn: async ({ shiftId }: { shiftId: string }) => startScheduledShift(shiftId),
+    mutationFn: async ({
+      shiftId,
+      openingSerialConfirmations,
+    }: {
+      shiftId: string;
+      openingSerialConfirmations: Array<{ packId: string; openingSerialNumber: string }>;
+    }) => startScheduledShift(shiftId, { openingSerialConfirmations }),
     onSuccess: async () => {
+      setIsStartScheduledShiftModalVisible(false);
+      setPendingScheduledShiftStart(null);
       Alert.alert("Started", "Scheduled shift started successfully.");
       await shiftsQuery.refetch();
     },
@@ -341,10 +385,173 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     queryFn: () => getConfigurations(day?.shopId as string),
     enabled: Boolean(day?.shopId),
   });
+  const packsQuery = useQuery({
+    queryKey: ["packs", day?.shopId],
+    queryFn: () => listPacks(day?.shopId as string),
+    enabled: Boolean(day?.shopId),
+  });
   const shopOperationalSetup = useMemo(
     () => deriveShopOperationalSetup(configurationQuery.data),
     [configurationQuery.data],
   );
+  const activePacksForOpening = useMemo(
+    () =>
+      (packsQuery.data ?? [])
+        .filter((pack) => pack.status === PackStatus.Active)
+        .slice()
+        .sort(comparePacksByDisplayOrder),
+    [packsQuery.data],
+  );
+  const hasUnconfirmedOpeningSerials = activePacksForOpening.some((pack) => {
+    const enteredSerial = getOpeningSerialForPack(pack.id, pack.currentSerialNumber);
+    return !confirmedOpeningSerialByPackId[pack.id] || enteredSerial.length === 0;
+  });
+
+  function getOpeningSerialForPack(packId: string, fallback: string) {
+    return (openingSerialNumberByPackId[packId] ?? fallback).trim();
+  }
+
+  function getUnconfirmedOpeningSerialPacks() {
+    return activePacksForOpening.filter((pack) => {
+      const enteredSerial = getOpeningSerialForPack(pack.id, pack.currentSerialNumber);
+      return !confirmedOpeningSerialByPackId[pack.id] || enteredSerial.length === 0;
+    });
+  }
+
+  function confirmAllOpeningSerials() {
+    setConfirmedOpeningSerialByPackId(() => {
+      const next: Record<string, boolean> = {};
+      for (const pack of activePacksForOpening) {
+        next[pack.id] = getOpeningSerialForPack(pack.id, pack.currentSerialNumber).length > 0;
+      }
+      return next;
+    });
+  }
+
+  function openStartScheduledShiftConfirmation(shiftId: string, shiftName: string) {
+    setPendingScheduledShiftStart({ id: shiftId, shiftName });
+    setIsStartScheduledShiftModalVisible(true);
+  }
+
+  function closeStartScheduledShiftConfirmation() {
+    if (startScheduledShiftMutation.isPending) {
+      return;
+    }
+    setIsStartScheduledShiftModalVisible(false);
+    setPendingScheduledShiftStart(null);
+  }
+
+  function startPendingScheduledShift() {
+    if (!pendingScheduledShiftStart) {
+      return;
+    }
+
+    const unconfirmedPacks = getUnconfirmedOpeningSerialPacks();
+    if (unconfirmedPacks.length > 0) {
+      Alert.alert("Confirmation required", "Confirm starting serial numbers for all active packs first.");
+      return;
+    }
+
+    startScheduledShiftMutation.mutate({
+      shiftId: pendingScheduledShiftStart.id,
+      openingSerialConfirmations: activePacksForOpening.map((pack) => ({
+        packId: pack.id,
+        openingSerialNumber: getOpeningSerialForPack(pack.id, pack.currentSerialNumber),
+      })),
+    });
+  }
+
+  function renderOpeningSerialConfirmationCard(confirmationHint: string) {
+    return (
+      <View style={styles.reviewSnapshotCard}>
+        <Text style={styles.reviewSnapshotTitle}>Confirm Starting Serials</Text>
+        <Text style={styles.meta}>{confirmationHint}</Text>
+        {activePacksForOpening.length > 0 ? (
+          <View style={styles.serialConfirmActionRow}>
+            <Pressable
+              style={[
+                styles.serialConfirmButton,
+                !hasUnconfirmedOpeningSerials ? styles.serialConfirmButtonSelected : null,
+                !hasUnconfirmedOpeningSerials ? styles.serialConfirmButtonDisabled : null,
+              ]}
+              onPress={confirmAllOpeningSerials}
+              disabled={!hasUnconfirmedOpeningSerials}
+            >
+              <Text style={[styles.serialConfirmButtonText, !hasUnconfirmedOpeningSerials ? styles.serialConfirmButtonTextSelected : null]}>
+                {hasUnconfirmedOpeningSerials ? "Confirm All" : "All Confirmed"}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+        {packsQuery.isFetching ? <Text style={styles.meta}>Loading active packs...</Text> : null}
+        {!packsQuery.isFetching && activePacksForOpening.length === 0 ? (
+          <Text style={styles.meta}>No active packs found for this shop.</Text>
+        ) : null}
+        {activePacksForOpening.map((pack) => {
+          const isConfirmed = Boolean(confirmedOpeningSerialByPackId[pack.id]);
+          const enteredOpeningSerial = openingSerialNumberByPackId[pack.id] ?? pack.currentSerialNumber;
+          return (
+            <View key={pack.id} style={styles.serialConfirmRow}>
+              <View style={styles.serialConfirmTextWrap}>
+                <Text style={styles.reviewSnapshotTitle}>
+                  Display: {pack.displayNumber != null ? `#${pack.displayNumber}` : "-"} | {pack.gameName}
+                </Text>
+                <Text style={styles.meta}>Game Code: {resolveGameCodeFromPack(pack)}</Text>
+                <Text style={styles.meta}>Expected Serial: {pack.currentSerialNumber}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={enteredOpeningSerial}
+                  placeholder="Enter actual starting serial"
+                  placeholderTextColor={appTheme.colors.textSubtle}
+                  keyboardType="numeric"
+                  onChangeText={(value) => {
+                    setOpeningSerialNumberByPackId((previous) => ({
+                      ...previous,
+                      [pack.id]: value,
+                    }));
+                    setConfirmedOpeningSerialByPackId((previous) => ({
+                      ...previous,
+                      [pack.id]: false,
+                    }));
+                  }}
+                />
+              </View>
+              <Pressable
+                style={[styles.serialConfirmButton, isConfirmed ? styles.serialConfirmButtonSelected : null]}
+                onPress={() =>
+                  setConfirmedOpeningSerialByPackId((previous) => ({
+                    ...previous,
+                    [pack.id]: !isConfirmed,
+                  }))
+                }
+              >
+                <Text style={[styles.serialConfirmButtonText, isConfirmed ? styles.serialConfirmButtonTextSelected : null]}>
+                  {isConfirmed ? "Confirmed" : "Confirm"}
+                </Text>
+              </Pressable>
+            </View>
+          );
+        })}
+      </View>
+    );
+  }
+
+  useEffect(() => {
+    setConfirmedOpeningSerialByPackId((previous) => {
+      const next: Record<string, boolean> = {};
+      for (const pack of activePacksForOpening) {
+        next[pack.id] = previous[pack.id] ?? false;
+      }
+      return next;
+    });
+    setOpeningSerialNumberByPackId((previous) => {
+      const next: Record<string, string> = {};
+      for (const pack of activePacksForOpening) {
+        next[pack.id] = previous[pack.id] ?? pack.currentSerialNumber;
+      }
+      return next;
+    });
+  }, [activePacksForOpening]);
 
   useEffect(() => {
     if (!isOpenShiftModalVisible) {
@@ -761,7 +968,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   <View style={styles.shiftActionRow}>
                     <PrimaryButton
                       label={startScheduledShiftMutation.isPending ? "Starting..." : "Start Shift"}
-                      onPress={() => startScheduledShiftMutation.mutate({ shiftId: shift.id })}
+                      onPress={() => openStartScheduledShiftConfirmation(shift.id, shift.shiftName)}
                       disabled={!canManageShifts || startScheduledShiftMutation.isPending}
                     />
                   </View>
@@ -1115,6 +1322,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   <Text style={styles.meta}>{shopOperationalSetup.shiftDefaultName}</Text>
                 </View>
               )}
+              {renderOpeningSerialConfirmationCard("Confirm each active pack before opening the shift.")}
               <View style={styles.modalActionRow}>
                 <Pressable
                   style={[
@@ -1137,6 +1345,55 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   ]}
                   onPress={() => setIsOpenShiftModalVisible(false)}
                   disabled={openShiftMutation.isPending}
+                >
+                  <Text style={styles.modalActionNeutralText}>Close</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal
+          visible={isStartScheduledShiftModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={closeStartScheduledShiftConfirmation}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              <Text style={styles.sectionTitle}>Start - {pendingScheduledShiftStart?.shiftName}</Text>
+              {/* <Text style={styles.meta}>
+                {pendingScheduledShiftStart
+                  ? `Shift: ${pendingScheduledShiftStart.shiftName}. Confirm each active pack before starting the shift.`
+                  : "Confirm each active pack before starting the shift."}
+              </Text> */}
+              {renderOpeningSerialConfirmationCard("Update any serial that is not correct, then confirm it before start.")}
+              <View style={styles.modalActionRow}>
+                <Pressable
+                  style={[
+                    styles.modalActionButton,
+                    styles.modalActionButtonLeft,
+                    styles.modalActionPrimary,
+                    (startScheduledShiftMutation.isPending || !canManageShifts || !pendingScheduledShiftStart || packsQuery.isFetching)
+                      ? styles.modalActionDisabled
+                      : null,
+                  ]}
+                  onPress={startPendingScheduledShift}
+                  disabled={startScheduledShiftMutation.isPending || !canManageShifts || !pendingScheduledShiftStart || packsQuery.isFetching}
+                >
+                  <Text style={styles.modalActionPrimaryText}>
+                    {startScheduledShiftMutation.isPending ? "Starting..." : "Start Shift"}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.modalActionButton,
+                    styles.modalActionButtonRight,
+                    styles.modalActionNeutral,
+                    startScheduledShiftMutation.isPending ? styles.modalActionDisabled : null,
+                  ]}
+                  onPress={closeStartScheduledShiftConfirmation}
+                  disabled={startScheduledShiftMutation.isPending}
                 >
                   <Text style={styles.modalActionNeutralText}>Close</Text>
                 </Pressable>
@@ -1643,6 +1900,44 @@ const styles = StyleSheet.create({
   },
   shiftActionRow: {
     marginTop: 2,
+  },
+  serialConfirmRow: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    padding: 8,
+    gap: 8,
+  },
+  serialConfirmTextWrap: {
+    gap: 2,
+  },
+  serialConfirmActionRow: {
+    flexDirection: "row",
+  },
+  serialConfirmButton: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.primary,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: "#E9F7F6",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignSelf: "flex-start",
+  },
+  serialConfirmButtonSelected: {
+    backgroundColor: appTheme.colors.primary,
+  },
+  serialConfirmButtonDisabled: {
+    opacity: 0.72,
+  },
+  serialConfirmButtonText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 14,
+  },
+  serialConfirmButtonTextSelected: {
+    color: "#F4FFFE",
   },
   dayPickerModalCard: {
     width: "100%",

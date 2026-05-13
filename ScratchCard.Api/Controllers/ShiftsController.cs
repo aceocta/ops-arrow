@@ -26,9 +26,9 @@ public class ShiftsController : BaseApiController
     }
 
     [HttpPost("{id:guid}/start")]
-    public async Task<IActionResult> StartScheduled(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> StartScheduled(Guid id, [FromBody] StartScheduledShiftRequest? request, CancellationToken cancellationToken)
     {
-        var result = await _shiftService.StartScheduledAsync(id, cancellationToken);
+        var result = await _shiftService.StartScheduledAsync(id, request ?? new StartScheduledShiftRequest(), cancellationToken);
         return Success(result);
     }
 

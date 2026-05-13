@@ -18,13 +18,23 @@ export async function listShifts(shopId: string, businessDayId?: string) {
   return response.data.data;
 }
 
-export async function openShift(payload: { businessDayId: string; shopId: string; shiftName?: string }) {
+export async function openShift(payload: {
+  businessDayId: string;
+  shopId: string;
+  shiftName?: string;
+  openingSerialConfirmations?: Array<{ packId: string; openingSerialNumber: string }>;
+}) {
   const response = await apiClient.post<ApiResponse<Shift>>("/shifts/open", payload);
   return response.data.data;
 }
 
-export async function startScheduledShift(shiftId: string) {
-  const response = await apiClient.post<ApiResponse<Shift>>(`/shifts/${shiftId}/start`);
+export async function startScheduledShift(
+  shiftId: string,
+  payload?: {
+    openingSerialConfirmations?: Array<{ packId: string; openingSerialNumber: string }>;
+  },
+) {
+  const response = await apiClient.post<ApiResponse<Shift>>(`/shifts/${shiftId}/start`, payload ?? {});
   return response.data.data;
 }
 

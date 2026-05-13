@@ -250,6 +250,24 @@ public class OpenShiftRequestValidator : AbstractValidator<OpenShiftRequest>
         RuleFor(x => x.BusinessDayId).NotEmpty();
         RuleFor(x => x.ShopId).NotEmpty();
         RuleFor(x => x.ShiftName).MaximumLength(100);
+        RuleForEach(x => x.OpeningSerialConfirmations).SetValidator(new OpenShiftPackSerialConfirmationRequestValidator());
+    }
+}
+
+public class OpenShiftPackSerialConfirmationRequestValidator : AbstractValidator<OpenShiftPackSerialConfirmationRequest>
+{
+    public OpenShiftPackSerialConfirmationRequestValidator()
+    {
+        RuleFor(x => x.PackId).NotEmpty();
+        RuleFor(x => x.OpeningSerialNumber).NotEmpty().MaximumLength(30);
+    }
+}
+
+public class StartScheduledShiftRequestValidator : AbstractValidator<StartScheduledShiftRequest>
+{
+    public StartScheduledShiftRequestValidator()
+    {
+        RuleForEach(x => x.OpeningSerialConfirmations).SetValidator(new OpenShiftPackSerialConfirmationRequestValidator());
     }
 }
 

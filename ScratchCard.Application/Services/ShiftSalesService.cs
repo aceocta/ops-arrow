@@ -18,6 +18,7 @@ public class ShiftSalesService : IShiftSalesService
     private readonly IRepository<Shift> _shiftRepository;
     private readonly IRepository<BusinessDay> _businessDayRepository;
     private readonly IRepository<ScratchCardPack> _packRepository;
+    private readonly IRepository<ShiftOpeningSerial> _shiftOpeningSerialRepository;
     private readonly IRepository<ShiftScratchCardSale> _salesRepository;
     private readonly IRepository<PrizePayout> _payoutRepository;
     private readonly IRepository<ShiftReconciliation> _reconciliationRepository;
@@ -35,6 +36,7 @@ public class ShiftSalesService : IShiftSalesService
         IRepository<Shift> shiftRepository,
         IRepository<BusinessDay> businessDayRepository,
         IRepository<ScratchCardPack> packRepository,
+        IRepository<ShiftOpeningSerial> shiftOpeningSerialRepository,
         IRepository<ShiftScratchCardSale> salesRepository,
         IRepository<PrizePayout> payoutRepository,
         IRepository<ShiftReconciliation> reconciliationRepository,
@@ -51,6 +53,7 @@ public class ShiftSalesService : IShiftSalesService
         _shiftRepository = shiftRepository;
         _businessDayRepository = businessDayRepository;
         _packRepository = packRepository;
+        _shiftOpeningSerialRepository = shiftOpeningSerialRepository;
         _salesRepository = salesRepository;
         _payoutRepository = payoutRepository;
         _reconciliationRepository = reconciliationRepository;
@@ -136,6 +139,11 @@ public class ShiftSalesService : IShiftSalesService
             }
         }
 
+        var openingSerialByPackId = await _shiftOpeningSerialRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShiftId == shift.Id && packIds.Contains(x.PackId))
+            .ToDictionaryAsync(x => x.PackId, cancellationToken);
+
         var existingSales = await _salesRepository.Query()
             .Where(x => x.ShiftId == shift.Id)
             .ToListAsync(cancellationToken);
@@ -153,8 +161,12 @@ public class ShiftSalesService : IShiftSalesService
                 throw new AppException(ErrorCodes.PackNotFound, "Referenced pack was not found.");
             }
 
+            var openingSerial = openingSerialByPackId.TryGetValue(pack.Id, out var openingSnapshot)
+                ? openingSnapshot.ActualOpeningSerialNumber
+                : pack.CurrentSerialNumber;
+
             var calc = _serialCalculationService.Calculate(
-                pack.CurrentSerialNumber,
+                openingSerial,
                 entry.ClosingSerialNumber,
                 pack.StartSerialNumber,
                 pack.EndSerialNumber,
@@ -177,7 +189,7 @@ public class ShiftSalesService : IShiftSalesService
                 ShiftId = shift.Id,
                 ShopId = shift.ShopId,
                 PackId = pack.Id,
-                OpeningSerialNumber = pack.CurrentSerialNumber,
+                OpeningSerialNumber = openingSerial,
                 ClosingSerialNumber = entry.ClosingSerialNumber,
                 OriginalScannedSerialNumber = entry.OriginalScannedSerialNumber,
                 SellingOrder = packSetup.SellingOrder,

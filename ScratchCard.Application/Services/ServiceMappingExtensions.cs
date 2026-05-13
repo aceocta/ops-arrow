@@ -149,6 +149,7 @@ internal static class ServiceMappingExtensions
         ShopId = pack.ShopId,
         GameId = pack.GameId,
         GameName = pack.Game?.GameName ?? string.Empty,
+        GameCode = pack.Game?.GameCode ?? string.Empty,
         PackNumber = pack.PackNumber,
         DisplayNumber = pack.DisplayNumber,
         TicketPrice = pack.TicketPrice,

@@ -27,5 +27,6 @@ public class ScratchCardPack : SoftDeletableAuditableEntity
     public Shop Shop { get; set; } = null!;
     public ScratchCardGame Game { get; set; } = null!;
     public ICollection<DeliveryPack> DeliveryPacks { get; set; } = new List<DeliveryPack>();
+    public ICollection<ShiftOpeningSerial> OpeningSerials { get; set; } = new List<ShiftOpeningSerial>();
     public ICollection<ShiftScratchCardSale> ShiftSales { get; set; } = new List<ShiftScratchCardSale>();
 }

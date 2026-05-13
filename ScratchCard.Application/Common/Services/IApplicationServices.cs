@@ -176,7 +176,7 @@ public interface IBusinessDayService
 public interface IShiftService
 {
     Task<ShiftDto> OpenAsync(OpenShiftRequest request, CancellationToken cancellationToken = default);
-    Task<ShiftDto> StartScheduledAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<ShiftDto> StartScheduledAsync(Guid id, StartScheduledShiftRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<ShiftDto>> ListAsync(Guid shopId, Guid? businessDayId = null, CancellationToken cancellationToken = default);
     Task<ShiftDto> GetAsync(Guid id, CancellationToken cancellationToken = default);
     Task<ShiftCloseResultDto> CloseAsync(Guid id, FinalizeShiftRequest request, bool isOfflineSync, CancellationToken cancellationToken = default);
