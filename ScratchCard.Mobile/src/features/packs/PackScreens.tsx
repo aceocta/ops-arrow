@@ -942,7 +942,7 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
             placeholderTextColor={appTheme.colors.textSubtle}
           />
           <Text style={styles.meta}>
-            Default range ({configuredPackSellingOrder.toLowerCase()}): {configuredSerialDefaults.start} {"->"} {configuredSerialDefaults.end}
+            Selling Order: {configuredSerialDefaults.start} {"->"} {configuredSerialDefaults.end}
           </Text>
 
           <Text style={styles.fieldLabel}>Notes (Optional)</Text>

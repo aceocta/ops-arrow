@@ -12,8 +12,8 @@ using ScratchCard.Infrastructure.Persistence;
 namespace ScratchCard.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260513113915_RemoveActualCashFromBusinessDayAndShiftReconciliation")]
-    partial class RemoveActualCashFromBusinessDayAndShiftReconciliation
+    [Migration("20260513192532_init")]
+    partial class init
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -24,63 +24,6 @@ namespace ScratchCard.Infrastructure.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
-
-            modelBuilder.Entity("ScratchCard.Domain.Entities.AppConfiguration", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ConfigKey")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
-                    b.Property<string>("ConfigValue")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset>("CreatedOn")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("DataType")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("GroupName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<Guid?>("ModifiedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset?>("ModifiedOn")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid?>("ShopId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ShopId", "ConfigKey")
-                        .IsUnique()
-                        .HasFilter("[ShopId] IS NOT NULL");
-
-                    b.ToTable("AppConfigurations");
-                });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.AuditLog", b =>
                 {
@@ -298,6 +241,582 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.HasIndex("ShopId");
 
                     b.ToTable("BusinessDayCloseAttachments");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.CfgBarcodeSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool?>("AllowManualEntryIfScanFails")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("BarcodeContains")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("BarcodeSerialNumberLength")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool?>("EnableMobileCameraBarcodeScanning")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int?>("PackNumberLength")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("PackNumberStartPosition")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RemovePrefix")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("RemoveSuffix")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("SerialNumberStartPosition")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("ShopId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShopId")
+                        .IsUnique()
+                        .HasFilter("[ShopId] IS NOT NULL");
+
+                    b.ToTable("CfgBarcodeSettings", (string)null);
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.CfgDayCloseSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool?>("AllowDayReopen")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool?>("RequireAllShiftsClosedBeforeDayClose")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("RequireDayEndClose")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("RequireNoteWhenDayDifferenceExists")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("ShopId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("WhoCanReopenDay")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShopId")
+                        .IsUnique()
+                        .HasFilter("[ShopId] IS NOT NULL");
+
+                    b.ToTable("CfgDayCloseSettings", (string)null);
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.CfgGeneralSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BusinessDateCutOffTime")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Currency")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<bool?>("EnableAuditLog")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("ShopId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TimeZone")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShopId")
+                        .IsUnique()
+                        .HasFilter("[ShopId] IS NOT NULL");
+
+                    b.ToTable("CfgGeneralSettings", (string)null);
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.CfgNotificationSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CashDifferenceNotificationRecipients")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("HighPrizePayoutNotificationRecipients")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("ManualEntryNotificationRecipients")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("NotificationChannels")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<bool?>("SendNotificationOnShiftFinalize")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("ShopId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShopId")
+                        .IsUnique()
+                        .HasFilter("[ShopId] IS NOT NULL");
+
+                    b.ToTable("CfgNotificationSettings", (string)null);
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.CfgOfflineSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool?>("AllowOfflinePrizePayout")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("AllowOfflineShiftReconciliation")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("AutoSyncWhenOnline")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("ConflictRequiresManagerReview")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool?>("EnableOfflineShiftClose")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("ShopId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShopId")
+                        .IsUnique()
+                        .HasFilter("[ShopId] IS NOT NULL");
+
+                    b.ToTable("CfgOfflineSettings", (string)null);
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.CfgPackSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool?>("AllowIssueMarking")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("AllowLeadingZeros")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("AllowMultipleActivePacksForSameGame")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("AllowPackPause")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("AllowPackReturn")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("AutoCompletePackWhenFinalSerialReached")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DefaultEndSerialNumber")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("DefaultSellingOrder")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("DefaultStartSerialNumber")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("PackSellingOrder")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<bool?>("PreventDuplicatePackNumbers")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("RequirePackActivationBeforeSale")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("ScratchCardDisplayCount")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("SerialNumberLength")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("ShopId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShopId")
+                        .IsUnique()
+                        .HasFilter("[ShopId] IS NOT NULL");
+
+                    b.ToTable("CfgPackSettings", (string)null);
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.CfgPrizePayoutSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AllowedPayoutMethods")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal?>("CashierPayoutLimit")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool?>("ManagerApprovalAboveLimit")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool?>("PreventDuplicatePayoutForSameTicket")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("RequirePackNumberForPayout")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("RequireTicketNumberForPayout")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("ShopId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShopId")
+                        .IsUnique()
+                        .HasFilter("[ShopId] IS NOT NULL");
+
+                    b.ToTable("CfgPrizePayoutSettings", (string)null);
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.CfgSalesSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool?>("AllowBackdatedSales")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("AllowFutureDatedSales")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<int?>("MaximumBackdateDays")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool?>("RequireManagerApprovalForCorrection")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("ShopId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShopId")
+                        .IsUnique()
+                        .HasFilter("[ShopId] IS NOT NULL");
+
+                    b.ToTable("CfgSalesSettings", (string)null);
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.CfgShiftSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool?>("AllowCustomShiftName")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("AllowShiftReopen")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool?>("EnforceShiftTimeWindow")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool?>("NotifyOnManualClosingSerialEntry")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("NotifyOnScannedSerialEdit")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("RequireReasonForManualClosingSerial")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("RequireShiftClose")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ShiftDefaultName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ShiftEndTime")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("ShiftStartTime")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("ShiftTemplates")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<Guid?>("ShopId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("WhoCanReopenShift")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShopId")
+                        .IsUnique()
+                        .HasFilter("[ShopId] IS NOT NULL");
+
+                    b.ToTable("CfgShiftSettings", (string)null);
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.CfgSubscriptionSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool?>("BulkDiscountEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int?>("DefaultTrialDays")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int?>("PaymentGracePeriodDays")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("ShopId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("TrialEndingReminderDays")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShopId")
+                        .IsUnique()
+                        .HasFilter("[ShopId] IS NOT NULL");
+
+                    b.ToTable("CfgSubscriptionSettings", (string)null);
                 });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.Company", b =>
@@ -1276,6 +1795,66 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.ToTable("ShiftCloseAttachments");
                 });
 
+            modelBuilder.Entity("ScratchCard.Domain.Entities.ShiftOpeningSerial", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ActualOpeningSerialNumber")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<Guid>("BusinessDayId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ExpectedOpeningSerialNumber")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<int>("MissingQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("OverageQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("PackId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ShiftId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PackId");
+
+                    b.HasIndex("ShopId");
+
+                    b.HasIndex("BusinessDayId", "ShopId");
+
+                    b.HasIndex("ShiftId", "PackId")
+                        .IsUnique();
+
+                    b.ToTable("ShiftOpeningSerials");
+                });
+
             modelBuilder.Entity("ScratchCard.Domain.Entities.ShiftReconciliation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2118,16 +2697,6 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.ToTable("UserInvitations");
                 });
 
-            modelBuilder.Entity("ScratchCard.Domain.Entities.AppConfiguration", b =>
-                {
-                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
-                        .WithMany("Configurations")
-                        .HasForeignKey("ShopId")
-                        .OnDelete(DeleteBehavior.NoAction);
-
-                    b.Navigation("Shop");
-                });
-
             modelBuilder.Entity("ScratchCard.Domain.Entities.BillingEvent", b =>
                 {
                     b.HasOne("ScratchCard.Domain.Entities.Company", "Company")
@@ -2172,6 +2741,106 @@ namespace ScratchCard.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("BusinessDay");
+
+                    b.Navigation("Shop");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.CfgBarcodeSettings", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
+                        .WithMany("BarcodeSettings")
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Shop");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.CfgDayCloseSettings", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
+                        .WithMany("DayCloseSettings")
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Shop");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.CfgGeneralSettings", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
+                        .WithMany("GeneralSettings")
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Shop");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.CfgNotificationSettings", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
+                        .WithMany("NotificationSettings")
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Shop");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.CfgOfflineSettings", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
+                        .WithMany("OfflineSettings")
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Shop");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.CfgPackSettings", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
+                        .WithMany("PackSettings")
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Shop");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.CfgPrizePayoutSettings", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
+                        .WithMany("PrizePayoutSettings")
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Shop");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.CfgSalesSettings", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
+                        .WithMany("SalesSettings")
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Shop");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.CfgShiftSettings", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
+                        .WithMany("ShiftSettings")
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Shop");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.CfgSubscriptionSettings", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
+                        .WithMany("SubscriptionSettings")
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("Shop");
                 });
@@ -2410,6 +3079,41 @@ namespace ScratchCard.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("ShiftReconciliation");
+
+                    b.Navigation("Shop");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.ShiftOpeningSerial", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.BusinessDay", "BusinessDay")
+                        .WithMany()
+                        .HasForeignKey("BusinessDayId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("ScratchCard.Domain.Entities.ScratchCardPack", "Pack")
+                        .WithMany("OpeningSerials")
+                        .HasForeignKey("PackId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("ScratchCard.Domain.Entities.Shift", "Shift")
+                        .WithMany("OpeningSerials")
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
+                        .WithMany()
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("BusinessDay");
+
+                    b.Navigation("Pack");
+
+                    b.Navigation("Shift");
 
                     b.Navigation("Shop");
                 });
@@ -2674,11 +3378,15 @@ namespace ScratchCard.Infrastructure.Migrations
                 {
                     b.Navigation("DeliveryPacks");
 
+                    b.Navigation("OpeningSerials");
+
                     b.Navigation("ShiftSales");
                 });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.Shift", b =>
                 {
+                    b.Navigation("OpeningSerials");
+
                     b.Navigation("PrizePayouts");
 
                     b.Navigation("ShiftReconciliation");
@@ -2693,23 +3401,41 @@ namespace ScratchCard.Infrastructure.Migrations
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.Shop", b =>
                 {
+                    b.Navigation("BarcodeSettings");
+
                     b.Navigation("BusinessDays");
 
-                    b.Navigation("Configurations");
+                    b.Navigation("DayCloseSettings");
 
                     b.Navigation("Deliveries");
 
+                    b.Navigation("GeneralSettings");
+
                     b.Navigation("Invitations");
+
+                    b.Navigation("NotificationSettings");
+
+                    b.Navigation("OfflineSettings");
+
+                    b.Navigation("PackSettings");
+
+                    b.Navigation("PrizePayoutSettings");
 
                     b.Navigation("RefusalRegisterDailySignoffs");
 
                     b.Navigation("RefusalRegisterEntries");
 
+                    b.Navigation("SalesSettings");
+
                     b.Navigation("ScratchCardPacks");
+
+                    b.Navigation("ShiftSettings");
 
                     b.Navigation("ShopScratchCardGames");
 
                     b.Navigation("ShopUsers");
+
+                    b.Navigation("SubscriptionSettings");
 
                     b.Navigation("TemperatureDailySignoffs");
 

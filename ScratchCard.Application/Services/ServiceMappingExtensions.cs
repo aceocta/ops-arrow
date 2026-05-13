@@ -116,18 +116,6 @@ internal static class ServiceMappingExtensions
         Description = rule.Description
     };
 
-    public static ConfigurationItemDto ToDto(this AppConfiguration item) => new()
-    {
-        Id = item.Id,
-        ShopId = item.ShopId,
-        ConfigKey = item.ConfigKey,
-        ConfigValue = item.ConfigValue,
-        DataType = item.DataType,
-        GroupName = item.GroupName,
-        Description = item.Description,
-        IsActive = item.IsActive
-    };
-
     public static GameDto ToDto(this ShopScratchCardGame game) => new()
     {
         Id = game.Id,

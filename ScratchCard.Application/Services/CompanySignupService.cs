@@ -19,7 +19,7 @@ public class CompanySignupService : ICompanySignupService
     private readonly IRepository<ShopUser> _shopUserRepository;
     private readonly IRepository<SubscriptionPlan> _subscriptionPlanRepository;
     private readonly IRepository<CompanySubscription> _companySubscriptionRepository;
-    private readonly IRepository<AppConfiguration> _configurationRepository;
+    private readonly IRepository<CfgSubscriptionSettings> _subscriptionSettingsRepository;
     private readonly IRepository<BillingEvent> _billingEventRepository;
     private readonly IPasswordHashService _passwordHashService;
     private readonly IJwtTokenService _jwtTokenService;
@@ -34,7 +34,7 @@ public class CompanySignupService : ICompanySignupService
         IRepository<ShopUser> shopUserRepository,
         IRepository<SubscriptionPlan> subscriptionPlanRepository,
         IRepository<CompanySubscription> companySubscriptionRepository,
-        IRepository<AppConfiguration> configurationRepository,
+        IRepository<CfgSubscriptionSettings> subscriptionSettingsRepository,
         IRepository<BillingEvent> billingEventRepository,
         IPasswordHashService passwordHashService,
         IJwtTokenService jwtTokenService,
@@ -48,7 +48,7 @@ public class CompanySignupService : ICompanySignupService
         _shopUserRepository = shopUserRepository;
         _subscriptionPlanRepository = subscriptionPlanRepository;
         _companySubscriptionRepository = companySubscriptionRepository;
-        _configurationRepository = configurationRepository;
+        _subscriptionSettingsRepository = subscriptionSettingsRepository;
         _billingEventRepository = billingEventRepository;
         _passwordHashService = passwordHashService;
         _jwtTokenService = jwtTokenService;
@@ -308,15 +308,16 @@ public class CompanySignupService : ICompanySignupService
 
     private async Task<int> ResolveTrialDaysAsync(SubscriptionPlan trialPlan, CancellationToken cancellationToken)
     {
-        var configuredDaysRaw = await _configurationRepository.Query()
+        var configuredDays = await _subscriptionSettingsRepository.Query()
             .AsNoTracking()
-            .Where(x => x.ShopId == null && x.ConfigKey == "DefaultTrialDays" && x.IsActive)
-            .Select(x => x.ConfigValue)
+            .Where(x => x.ShopId == null && x.IsActive)
+            .OrderByDescending(x => x.ModifiedOn ?? x.CreatedOn)
+            .Select(x => x.DefaultTrialDays)
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (int.TryParse(configuredDaysRaw, out var configuredDays) && configuredDays > 0)
+        if (configuredDays.HasValue && configuredDays.Value > 0)
         {
-            return configuredDays;
+            return configuredDays.Value;
         }
 
         if (trialPlan.TrialDays > 0)

@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Models;
 using ScratchCard.Application.Common.Services;
-using ScratchCard.Domain.Constants;
 using ScratchCard.Domain.Entities;
 using ScratchCard.Domain.Enums;
 
@@ -18,127 +17,96 @@ public class ShopConfigurationService : IShopConfigurationService
         PropertyNameCaseInsensitive = true
     };
 
-    private readonly IRepository<AppConfiguration> _configurationRepository;
+    private readonly IRepository<CfgGeneralSettings> _generalRepository;
+    private readonly IRepository<CfgShiftSettings> _shiftRepository;
+    private readonly IRepository<CfgPackSettings> _packRepository;
 
-    public ShopConfigurationService(IRepository<AppConfiguration> configurationRepository)
+    public ShopConfigurationService(
+        IRepository<CfgGeneralSettings> generalRepository,
+        IRepository<CfgShiftSettings> shiftRepository,
+        IRepository<CfgPackSettings> packRepository)
     {
-        _configurationRepository = configurationRepository;
+        _generalRepository = generalRepository;
+        _shiftRepository = shiftRepository;
+        _packRepository = packRepository;
     }
 
     public async Task<ShopShiftSetup> GetShiftSetupAsync(Guid shopId, CancellationToken cancellationToken = default)
     {
-        var values = await GetEffectiveValuesAsync(shopId, new[]
-        {
-            ConfigurationKeys.TimeZone,
-            ConfigurationKeys.ShiftStartTime,
-            ConfigurationKeys.ShiftEndTime,
-            ConfigurationKeys.ShiftDefaultName,
-            ConfigurationKeys.ShiftTemplates,
-            ConfigurationKeys.EnforceShiftTimeWindow,
-            ConfigurationKeys.AllowCustomShiftName
-        }, cancellationToken);
+        var (globalGeneral, shopGeneral) = await LoadRowsAsync(_generalRepository, shopId, cancellationToken);
+        var (globalShift, shopShift) = await LoadRowsAsync(_shiftRepository, shopId, cancellationToken);
 
-        var fallbackStartTime = ParseTime(values, ConfigurationKeys.ShiftStartTime, new TimeSpan(6, 0, 0));
-        var fallbackEndTime = ParseTime(values, ConfigurationKeys.ShiftEndTime, new TimeSpan(23, 0, 0));
-        var fallbackDefaultShiftName = values.TryGetValue(ConfigurationKeys.ShiftDefaultName, out var shiftName) && !string.IsNullOrWhiteSpace(shiftName)
-            ? shiftName.Trim()
-            : "Main Shift";
-        var templates = ParseShiftTemplates(values, fallbackDefaultShiftName, fallbackStartTime, fallbackEndTime);
+        var fallbackStartTime = ParseTime(Resolve(shopShift?.ShiftStartTime, globalShift?.ShiftStartTime, "06:00"), new TimeSpan(6, 0, 0));
+        var fallbackEndTime = ParseTime(Resolve(shopShift?.ShiftEndTime, globalShift?.ShiftEndTime, "23:00"), new TimeSpan(23, 0, 0));
+        var fallbackDefaultShiftName = Resolve(shopShift?.ShiftDefaultName, globalShift?.ShiftDefaultName, "Main Shift");
+        var templates = ParseShiftTemplates(
+            Resolve(shopShift?.ShiftTemplates, globalShift?.ShiftTemplates, string.Empty),
+            fallbackDefaultShiftName,
+            fallbackStartTime,
+            fallbackEndTime);
         var firstTemplate = templates.First();
 
         return new ShopShiftSetup
         {
-            TimeZoneId = values.TryGetValue(ConfigurationKeys.TimeZone, out var timeZone) && !string.IsNullOrWhiteSpace(timeZone)
-                ? timeZone.Trim()
-                : "UTC",
+            TimeZoneId = Resolve(shopGeneral?.TimeZone, globalGeneral?.TimeZone, "UTC"),
             ShiftStartTime = firstTemplate.StartTime,
             ShiftEndTime = firstTemplate.EndTime,
             DefaultShiftName = firstTemplate.Name,
-            EnforceShiftTimeWindow = ParseBool(values, ConfigurationKeys.EnforceShiftTimeWindow, false),
-            AllowCustomShiftName = ParseBool(values, ConfigurationKeys.AllowCustomShiftName, true),
+            EnforceShiftTimeWindow = Resolve(shopShift?.EnforceShiftTimeWindow, globalShift?.EnforceShiftTimeWindow, false),
+            AllowCustomShiftName = Resolve(shopShift?.AllowCustomShiftName, globalShift?.AllowCustomShiftName, true),
             ShiftTemplates = templates
         };
     }
 
     public async Task<ShopPackSetup> GetPackSetupAsync(Guid shopId, CancellationToken cancellationToken = default)
     {
-        var values = await GetEffectiveValuesAsync(shopId, new[]
+        var (globalPack, shopPack) = await LoadRowsAsync(_packRepository, shopId, cancellationToken);
+        var displayCount = Resolve(shopPack?.ScratchCardDisplayCount, globalPack?.ScratchCardDisplayCount, 24);
+        if (displayCount <= 0)
         {
-            ConfigurationKeys.PackSellingOrder,
-            ConfigurationKeys.ScratchCardDisplayCount
-        }, cancellationToken);
+            displayCount = 24;
+        }
 
         return new ShopPackSetup
         {
-            SellingOrder = ParseSellingOrder(values, ConfigurationKeys.PackSellingOrder),
-            DisplayCount = ParsePositiveInt(values, ConfigurationKeys.ScratchCardDisplayCount, 24)
+            SellingOrder = ParseSellingOrder(Resolve(shopPack?.PackSellingOrder, globalPack?.PackSellingOrder, "Ascending")),
+            DisplayCount = displayCount
         };
     }
 
-    private async Task<Dictionary<string, string>> GetEffectiveValuesAsync(
+    private static async Task<(TEntity? Global, TEntity? Shop)> LoadRowsAsync<TEntity>(
+        IRepository<TEntity> repository,
         Guid shopId,
-        IReadOnlyCollection<string> keys,
         CancellationToken cancellationToken)
+        where TEntity : CfgSettingsBase
     {
-        var normalizedKeys = keys
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        if (normalizedKeys.Length == 0)
-        {
-            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        }
-
-        var rows = await _configurationRepository.Query()
+        var rows = await repository.Query()
             .AsNoTracking()
             .Where(x =>
                 x.IsActive &&
-                normalizedKeys.Contains(x.ConfigKey) &&
                 (x.ShopId == null || x.ShopId == shopId))
-            .OrderByDescending(x => x.ShopId.HasValue)
-            .ThenByDescending(x => x.CreatedOn)
             .ToListAsync(cancellationToken);
 
-        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var row in rows)
-        {
-            if (!values.ContainsKey(row.ConfigKey))
-            {
-                values[row.ConfigKey] = row.ConfigValue;
-            }
-        }
+        var global = rows
+            .Where(x => x.ShopId == null)
+            .OrderByDescending(x => x.ModifiedOn ?? x.CreatedOn)
+            .FirstOrDefault();
 
-        return values;
-    }
+        var shop = rows
+            .Where(x => x.ShopId == shopId)
+            .OrderByDescending(x => x.ModifiedOn ?? x.CreatedOn)
+            .FirstOrDefault();
 
-    private static bool ParseBool(IReadOnlyDictionary<string, string> values, string key, bool fallback)
-    {
-        if (!values.TryGetValue(key, out var value) || string.IsNullOrWhiteSpace(value))
-        {
-            return fallback;
-        }
-
-        if (bool.TryParse(value, out var parsed))
-        {
-            return parsed;
-        }
-
-        return value.Trim() switch
-        {
-            "1" => true,
-            "0" => false,
-            _ => fallback
-        };
+        return (global, shop);
     }
 
     private static IReadOnlyCollection<ShopShiftTemplate> ParseShiftTemplates(
-        IReadOnlyDictionary<string, string> values,
+        string raw,
         string fallbackDefaultShiftName,
         TimeSpan fallbackStartTime,
         TimeSpan fallbackEndTime)
     {
-        if (!values.TryGetValue(ConfigurationKeys.ShiftTemplates, out var raw) || string.IsNullOrWhiteSpace(raw))
+        if (string.IsNullOrWhiteSpace(raw))
         {
             return BuildFallbackTemplates(fallbackDefaultShiftName, fallbackStartTime, fallbackEndTime);
         }
@@ -290,19 +258,9 @@ public class ShopConfigurationService : IShopConfigurationService
         return compact.Length > 80 ? compact[..80].TrimEnd('-') : compact;
     }
 
-    private static TimeSpan ParseTime(IReadOnlyDictionary<string, string> values, string key, TimeSpan fallback)
+    private static TimeSpan ParseTime(string? raw, TimeSpan fallback)
     {
-        if (!values.TryGetValue(key, out var raw) || string.IsNullOrWhiteSpace(raw))
-        {
-            return fallback;
-        }
-
-        if (TryParseTime(raw, out var parsed))
-        {
-            return parsed;
-        }
-
-        return fallback;
+        return TryParseTime(raw, out var parsed) ? parsed : fallback;
     }
 
     private static bool TryParseTime(string? raw, out TimeSpan value)
@@ -336,9 +294,9 @@ public class ShopConfigurationService : IShopConfigurationService
         return false;
     }
 
-    private static SellingOrder ParseSellingOrder(IReadOnlyDictionary<string, string> values, string key)
+    private static SellingOrder ParseSellingOrder(string raw)
     {
-        if (!values.TryGetValue(key, out var raw) || string.IsNullOrWhiteSpace(raw))
+        if (string.IsNullOrWhiteSpace(raw))
         {
             return SellingOrder.Ascending;
         }
@@ -365,16 +323,15 @@ public class ShopConfigurationService : IShopConfigurationService
         return SellingOrder.Ascending;
     }
 
-    private static int ParsePositiveInt(IReadOnlyDictionary<string, string> values, string key, int fallback)
+    private static string Resolve(string? shopValue, string? globalValue, string fallback)
     {
-        if (!values.TryGetValue(key, out var raw) || string.IsNullOrWhiteSpace(raw))
-        {
-            return fallback;
-        }
+        var selected = shopValue ?? globalValue;
+        return string.IsNullOrWhiteSpace(selected) ? fallback : selected.Trim();
+    }
 
-        return int.TryParse(raw.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) && parsed > 0
-            ? parsed
-            : fallback;
+    private static T Resolve<T>(T? shopValue, T? globalValue, T fallback) where T : struct
+    {
+        return shopValue ?? globalValue ?? fallback;
     }
 
     private sealed class ShiftTemplatePayload

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using ScratchCard.Domain.Entities;
 using ScratchCard.Domain.Enums;
 
@@ -16,7 +17,16 @@ public class ApplicationDbContext : DbContext
     public DbSet<Shop> Shops => Set<Shop>();
     public DbSet<ShopUser> ShopUsers => Set<ShopUser>();
     public DbSet<UserInvitation> UserInvitations => Set<UserInvitation>();
-    public DbSet<AppConfiguration> AppConfigurations => Set<AppConfiguration>();
+    public DbSet<CfgGeneralSettings> CfgGeneralSettings => Set<CfgGeneralSettings>();
+    public DbSet<CfgPackSettings> CfgPackSettings => Set<CfgPackSettings>();
+    public DbSet<CfgSalesSettings> CfgSalesSettings => Set<CfgSalesSettings>();
+    public DbSet<CfgShiftSettings> CfgShiftSettings => Set<CfgShiftSettings>();
+    public DbSet<CfgDayCloseSettings> CfgDayCloseSettings => Set<CfgDayCloseSettings>();
+    public DbSet<CfgPrizePayoutSettings> CfgPrizePayoutSettings => Set<CfgPrizePayoutSettings>();
+    public DbSet<CfgNotificationSettings> CfgNotificationSettings => Set<CfgNotificationSettings>();
+    public DbSet<CfgBarcodeSettings> CfgBarcodeSettings => Set<CfgBarcodeSettings>();
+    public DbSet<CfgOfflineSettings> CfgOfflineSettings => Set<CfgOfflineSettings>();
+    public DbSet<CfgSubscriptionSettings> CfgSubscriptionSettings => Set<CfgSubscriptionSettings>();
     public DbSet<ScratchCardGame> ScratchCardGames => Set<ScratchCardGame>();
     public DbSet<ShopScratchCardGame> ShopScratchCardGames => Set<ShopScratchCardGame>();
     public DbSet<Delivery> Deliveries => Set<Delivery>();
@@ -115,14 +125,84 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(x => x.Role).WithMany(x => x.UserInvitations).HasForeignKey(x => x.RoleId);
         });
 
-        modelBuilder.Entity<AppConfiguration>(entity =>
+        ConfigureCfgSettings<CfgGeneralSettings>(modelBuilder, entity =>
         {
-            entity.HasIndex(x => new { x.ShopId, x.ConfigKey }).IsUnique();
-            entity.Property(x => x.ConfigKey).HasMaxLength(150).IsRequired();
-            entity.Property(x => x.ConfigValue).HasMaxLength(2000).IsRequired();
-            entity.Property(x => x.DataType).HasMaxLength(40).IsRequired();
-            entity.Property(x => x.GroupName).HasMaxLength(100).IsRequired();
-            entity.Property(x => x.Description).HasMaxLength(500);
+            entity.ToTable("CfgGeneralSettings");
+            entity.Property(x => x.Currency).HasMaxLength(20);
+            entity.Property(x => x.TimeZone).HasMaxLength(100);
+            entity.Property(x => x.BusinessDateCutOffTime).HasMaxLength(20);
+            entity.HasOne(x => x.Shop).WithMany(x => x.GeneralSettings).HasForeignKey(x => x.ShopId);
+        });
+
+        ConfigureCfgSettings<CfgPackSettings>(modelBuilder, entity =>
+        {
+            entity.ToTable("CfgPackSettings");
+            entity.Property(x => x.DefaultSellingOrder).HasMaxLength(40);
+            entity.Property(x => x.PackSellingOrder).HasMaxLength(40);
+            entity.HasOne(x => x.Shop).WithMany(x => x.PackSettings).HasForeignKey(x => x.ShopId);
+        });
+
+        ConfigureCfgSettings<CfgSalesSettings>(modelBuilder, entity =>
+        {
+            entity.ToTable("CfgSalesSettings");
+            entity.HasOne(x => x.Shop).WithMany(x => x.SalesSettings).HasForeignKey(x => x.ShopId);
+        });
+
+        ConfigureCfgSettings<CfgShiftSettings>(modelBuilder, entity =>
+        {
+            entity.ToTable("CfgShiftSettings");
+            entity.Property(x => x.WhoCanReopenShift).HasMaxLength(200);
+            entity.Property(x => x.ShiftStartTime).HasMaxLength(20);
+            entity.Property(x => x.ShiftEndTime).HasMaxLength(20);
+            entity.Property(x => x.ShiftDefaultName).HasMaxLength(100);
+            entity.Property(x => x.ShiftTemplates).HasMaxLength(4000);
+            entity.HasOne(x => x.Shop).WithMany(x => x.ShiftSettings).HasForeignKey(x => x.ShopId);
+        });
+
+        ConfigureCfgSettings<CfgDayCloseSettings>(modelBuilder, entity =>
+        {
+            entity.ToTable("CfgDayCloseSettings");
+            entity.Property(x => x.WhoCanReopenDay).HasMaxLength(200);
+            entity.HasOne(x => x.Shop).WithMany(x => x.DayCloseSettings).HasForeignKey(x => x.ShopId);
+        });
+
+        ConfigureCfgSettings<CfgPrizePayoutSettings>(modelBuilder, entity =>
+        {
+            entity.ToTable("CfgPrizePayoutSettings");
+            entity.Property(x => x.CashierPayoutLimit).HasPrecision(18, 2);
+            entity.Property(x => x.AllowedPayoutMethods).HasMaxLength(500);
+            entity.HasOne(x => x.Shop).WithMany(x => x.PrizePayoutSettings).HasForeignKey(x => x.ShopId);
+        });
+
+        ConfigureCfgSettings<CfgNotificationSettings>(modelBuilder, entity =>
+        {
+            entity.ToTable("CfgNotificationSettings");
+            entity.Property(x => x.NotificationChannels).HasMaxLength(400);
+            entity.Property(x => x.ManualEntryNotificationRecipients).HasMaxLength(500);
+            entity.Property(x => x.CashDifferenceNotificationRecipients).HasMaxLength(500);
+            entity.Property(x => x.HighPrizePayoutNotificationRecipients).HasMaxLength(500);
+            entity.HasOne(x => x.Shop).WithMany(x => x.NotificationSettings).HasForeignKey(x => x.ShopId);
+        });
+
+        ConfigureCfgSettings<CfgBarcodeSettings>(modelBuilder, entity =>
+        {
+            entity.ToTable("CfgBarcodeSettings");
+            entity.Property(x => x.BarcodeContains).HasMaxLength(100);
+            entity.Property(x => x.RemovePrefix).HasMaxLength(100);
+            entity.Property(x => x.RemoveSuffix).HasMaxLength(100);
+            entity.HasOne(x => x.Shop).WithMany(x => x.BarcodeSettings).HasForeignKey(x => x.ShopId);
+        });
+
+        ConfigureCfgSettings<CfgOfflineSettings>(modelBuilder, entity =>
+        {
+            entity.ToTable("CfgOfflineSettings");
+            entity.HasOne(x => x.Shop).WithMany(x => x.OfflineSettings).HasForeignKey(x => x.ShopId);
+        });
+
+        ConfigureCfgSettings<CfgSubscriptionSettings>(modelBuilder, entity =>
+        {
+            entity.ToTable("CfgSubscriptionSettings");
+            entity.HasOne(x => x.Shop).WithMany(x => x.SubscriptionSettings).HasForeignKey(x => x.ShopId);
         });
 
         modelBuilder.Entity<ScratchCardGame>(entity =>
@@ -459,5 +539,18 @@ public class ApplicationDbContext : DbContext
                 foreignKey.DeleteBehavior = DeleteBehavior.NoAction;
             }
         }
+    }
+
+    private static void ConfigureCfgSettings<TEntity>(
+        ModelBuilder modelBuilder,
+        Action<EntityTypeBuilder<TEntity>> configure)
+        where TEntity : CfgSettingsBase
+    {
+        modelBuilder.Entity<TEntity>(entity =>
+        {
+            entity.HasIndex(x => x.ShopId).IsUnique();
+            entity.Property(x => x.IsActive).HasDefaultValue(true);
+            configure(entity);
+        });
     }
 }

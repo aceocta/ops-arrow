@@ -24,6 +24,26 @@ import { buildShiftTemplateId, SHOP_CONFIG_KEYS, serializeShiftTemplates, ShiftT
 
 const timeValuePattern = /^\d{2}:\d{2}$/;
 const time24HourPattern = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const configDraftSeparator = "||";
+
+function buildConfigDraftKey(groupName: string, configKey: string) {
+  return `${groupName}${configDraftSeparator}${configKey}`;
+}
+
+function parseConfigDraftKey(draftKey: string) {
+  const separatorIndex = draftKey.indexOf(configDraftSeparator);
+  if (separatorIndex <= 0) {
+    return {
+      groupName: "",
+      configKey: draftKey,
+    };
+  }
+
+  return {
+    groupName: draftKey.slice(0, separatorIndex),
+    configKey: draftKey.slice(separatorIndex + configDraftSeparator.length),
+  };
+}
 
 function isTimeConfiguration(configKey: string, value: string) {
   return /time/i.test(configKey) && timeValuePattern.test(value);
@@ -206,6 +226,11 @@ export function AppConfigurationScreen() {
   const queryClient = useQueryClient();
   const shopId = activeShopId;
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
+  const shiftTemplatesDraftKey = buildConfigDraftKey("Shift Settings", SHOP_CONFIG_KEYS.shiftTemplates);
+  const shiftStartTimeDraftKey = buildConfigDraftKey("Shift Settings", SHOP_CONFIG_KEYS.shiftStartTime);
+  const shiftEndTimeDraftKey = buildConfigDraftKey("Shift Settings", SHOP_CONFIG_KEYS.shiftEndTime);
+  const shiftDefaultNameDraftKey = buildConfigDraftKey("Shift Settings", SHOP_CONFIG_KEYS.shiftDefaultName);
+  const scratchCardDisplayCountDraftKey = buildConfigDraftKey("Pack Settings", SHOP_CONFIG_KEYS.scratchCardDisplayCount);
 
   const configurationsQuery = useQuery({
     queryKey: ["configurations", shopId],
@@ -245,8 +270,8 @@ export function AppConfigurationScreen() {
       }
 
       const draftEntries = new Map<string, string>(Object.entries(draftValues));
-      if (draftEntries.has(SHOP_CONFIG_KEYS.shiftTemplates)) {
-        const templates = parseShiftTemplatesEditor(draftEntries.get(SHOP_CONFIG_KEYS.shiftTemplates) ?? "");
+      if (draftEntries.has(shiftTemplatesDraftKey)) {
+        const templates = parseShiftTemplatesEditor(draftEntries.get(shiftTemplatesDraftKey) ?? "");
         if (templates.length === 0) {
           throw new Error("At least one shift template is required.");
         }
@@ -265,22 +290,35 @@ export function AppConfigurationScreen() {
         }
 
         const primaryTemplate = templates[0];
-        draftEntries.set(SHOP_CONFIG_KEYS.shiftStartTime, primaryTemplate.startTime);
-        draftEntries.set(SHOP_CONFIG_KEYS.shiftEndTime, primaryTemplate.endTime);
-        draftEntries.set(SHOP_CONFIG_KEYS.shiftDefaultName, primaryTemplate.name);
-        draftEntries.set(SHOP_CONFIG_KEYS.shiftTemplates, serializeShiftTemplates(templates));
+        draftEntries.set(shiftStartTimeDraftKey, primaryTemplate.startTime);
+        draftEntries.set(shiftEndTimeDraftKey, primaryTemplate.endTime);
+        draftEntries.set(shiftDefaultNameDraftKey, primaryTemplate.name);
+        draftEntries.set(shiftTemplatesDraftKey, serializeShiftTemplates(templates));
       }
 
-      if (draftEntries.has(SHOP_CONFIG_KEYS.scratchCardDisplayCount)) {
-        const rawDisplayCount = (draftEntries.get(SHOP_CONFIG_KEYS.scratchCardDisplayCount) ?? "").trim();
+      if (draftEntries.has(scratchCardDisplayCountDraftKey)) {
+        const rawDisplayCount = (draftEntries.get(scratchCardDisplayCountDraftKey) ?? "").trim();
         const parsedDisplayCount = Number(rawDisplayCount);
         if (!Number.isInteger(parsedDisplayCount) || parsedDisplayCount <= 0) {
           throw new Error("Scratch Card Display Count must be a whole number greater than zero.");
         }
-        draftEntries.set(SHOP_CONFIG_KEYS.scratchCardDisplayCount, String(parsedDisplayCount));
+        draftEntries.set(scratchCardDisplayCountDraftKey, String(parsedDisplayCount));
       }
 
-      const changedItems = [...draftEntries.entries()].map(([configKey, configValue]) => ({ configKey, configValue }));
+      const changedItems = [...draftEntries.entries()]
+        .map(([draftKey, configValue]) => {
+          const parsedKey = parseConfigDraftKey(draftKey);
+          if (!parsedKey.groupName || !parsedKey.configKey) {
+            return null;
+          }
+
+          return {
+            groupName: parsedKey.groupName,
+            configKey: parsedKey.configKey,
+            configValue,
+          };
+        })
+        .filter((item): item is { groupName: string; configKey: string; configValue: string } => Boolean(item));
 
       if (changedItems.length === 0) {
         throw new Error("No configuration changes to save.");
@@ -310,7 +348,8 @@ export function AppConfigurationScreen() {
             <View key={groupName} style={styles.groupCard}>
               <Text style={styles.sectionTitle}>{groupName}</Text>
               {items.map((item) => {
-                const draft = draftValues[item.configKey];
+                const itemDraftKey = buildConfigDraftKey(item.groupName, item.configKey);
+                const draft = draftValues[itemDraftKey];
                 const currentValue = draft ?? item.configValue;
                 const currentBoolValue = parseBooleanValue(currentValue);
                 return (
@@ -322,7 +361,7 @@ export function AppConfigurationScreen() {
                           const updateTemplates = (nextTemplates: ShiftTemplateSetup[]) => {
                             setDraftValues((prev) => ({
                               ...prev,
-                              [item.configKey]: serializeShiftTemplates(nextTemplates),
+                              [itemDraftKey]: serializeShiftTemplates(nextTemplates),
                             }));
                           };
 
@@ -424,7 +463,7 @@ export function AppConfigurationScreen() {
 
                             setDraftValues((prev) => ({
                               ...prev,
-                              [item.configKey]: serializeShiftTemplates(nextTemplates),
+                              [itemDraftKey]: serializeShiftTemplates(nextTemplates),
                             }));
                           }}
                         >
@@ -438,14 +477,14 @@ export function AppConfigurationScreen() {
                       <DateTimeField
                         mode="time"
                         value={currentValue}
-                        onChange={(value) => setDraftValues((prev) => ({ ...prev, [item.configKey]: value }))}
+                        onChange={(value) => setDraftValues((prev) => ({ ...prev, [itemDraftKey]: value }))}
                         placeholder="Select time"
                       />
                     ) : isSellingOrderConfiguration(item.configKey) ? (
                       <View style={styles.row}>
                         <Pressable
                           style={[styles.choiceChip, currentValue.toLowerCase() === SellingOrder.Ascending.toLowerCase() ? styles.choiceChipSelected : null]}
-                          onPress={() => setDraftValues((prev) => ({ ...prev, [item.configKey]: SellingOrder.Ascending }))}
+                          onPress={() => setDraftValues((prev) => ({ ...prev, [itemDraftKey]: SellingOrder.Ascending }))}
                         >
                           <Text style={[styles.choiceChipText, currentValue.toLowerCase() === SellingOrder.Ascending.toLowerCase() ? styles.choiceChipTextSelected : null]}>
                             Start From 0
@@ -453,7 +492,7 @@ export function AppConfigurationScreen() {
                         </Pressable>
                         <Pressable
                           style={[styles.choiceChip, currentValue.toLowerCase() === SellingOrder.Descending.toLowerCase() ? styles.choiceChipSelected : null]}
-                          onPress={() => setDraftValues((prev) => ({ ...prev, [item.configKey]: SellingOrder.Descending }))}
+                          onPress={() => setDraftValues((prev) => ({ ...prev, [itemDraftKey]: SellingOrder.Descending }))}
                         >
                           <Text style={[styles.choiceChipText, currentValue.toLowerCase() === SellingOrder.Descending.toLowerCase() ? styles.choiceChipTextSelected : null]}>
                             End To 0
@@ -464,13 +503,13 @@ export function AppConfigurationScreen() {
                       <View style={styles.row}>
                         <Pressable
                           style={[styles.choiceChip, currentBoolValue ? styles.choiceChipSelected : null]}
-                          onPress={() => setDraftValues((prev) => ({ ...prev, [item.configKey]: "true" }))}
+                          onPress={() => setDraftValues((prev) => ({ ...prev, [itemDraftKey]: "true" }))}
                         >
                           <Text style={[styles.choiceChipText, currentBoolValue ? styles.choiceChipTextSelected : null]}>Enabled</Text>
                         </Pressable>
                         <Pressable
                           style={[styles.choiceChip, !currentBoolValue ? styles.choiceChipSelected : null]}
-                          onPress={() => setDraftValues((prev) => ({ ...prev, [item.configKey]: "false" }))}
+                          onPress={() => setDraftValues((prev) => ({ ...prev, [itemDraftKey]: "false" }))}
                         >
                           <Text style={[styles.choiceChipText, !currentBoolValue ? styles.choiceChipTextSelected : null]}>Disabled</Text>
                         </Pressable>
@@ -479,7 +518,7 @@ export function AppConfigurationScreen() {
                       <TextInput
                         style={styles.input}
                         value={currentValue}
-                        onChangeText={(value) => setDraftValues((prev) => ({ ...prev, [item.configKey]: value }))}
+                        onChangeText={(value) => setDraftValues((prev) => ({ ...prev, [itemDraftKey]: value }))}
                         placeholder={item.configValue}
                         keyboardType={isScratchCardDisplayCountConfiguration(item.configKey) ? "number-pad" : "default"}
                       />

@@ -9,7 +9,7 @@ export async function getConfigurations(shopId?: string) {
   return response.data.data;
 }
 
-export async function updateConfigurations(payload: { shopId?: string; items: { configKey: string; configValue: string }[] }) {
+export async function updateConfigurations(payload: { shopId?: string; items: { groupName?: string; configKey: string; configValue: string }[] }) {
   const response = await apiClient.put<ApiResponse<{ updated: boolean }>>("/configurations", payload);
   return response.data.data;
 }

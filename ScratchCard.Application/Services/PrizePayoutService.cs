@@ -13,7 +13,7 @@ public class PrizePayoutService : IPrizePayoutService
 {
     private readonly IRepository<PrizePayout> _payoutRepository;
     private readonly IRepository<ScratchCardPack> _packRepository;
-    private readonly IRepository<AppConfiguration> _configurationRepository;
+    private readonly IRepository<CfgPrizePayoutSettings> _prizePayoutSettingsRepository;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
@@ -21,14 +21,14 @@ public class PrizePayoutService : IPrizePayoutService
     public PrizePayoutService(
         IRepository<PrizePayout> payoutRepository,
         IRepository<ScratchCardPack> packRepository,
-        IRepository<AppConfiguration> configurationRepository,
+        IRepository<CfgPrizePayoutSettings> prizePayoutSettingsRepository,
         IAuditService auditService,
         ICurrentUserService currentUserService,
         IUnitOfWork unitOfWork)
     {
         _payoutRepository = payoutRepository;
         _packRepository = packRepository;
-        _configurationRepository = configurationRepository;
+        _prizePayoutSettingsRepository = prizePayoutSettingsRepository;
         _auditService = auditService;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
@@ -120,18 +120,19 @@ public class PrizePayoutService : IPrizePayoutService
 
     private async Task<decimal> ResolveCashierLimitAsync(Guid shopId, CancellationToken cancellationToken)
     {
-        var values = await _configurationRepository.Query()
+        var values = await _prizePayoutSettingsRepository.Query()
             .AsNoTracking()
-            .Where(x => x.ConfigKey == "CashierPayoutLimit" && x.IsActive && (x.ShopId == null || x.ShopId == shopId))
+            .Where(x => x.IsActive && (x.ShopId == null || x.ShopId == shopId))
             .OrderByDescending(x => x.ShopId.HasValue)
-            .Select(x => x.ConfigValue)
+            .ThenByDescending(x => x.ModifiedOn ?? x.CreatedOn)
+            .Select(x => x.CashierPayoutLimit)
             .ToListAsync(cancellationToken);
 
         foreach (var value in values)
         {
-            if (decimal.TryParse(value, out var parsed))
+            if (value.HasValue)
             {
-                return parsed;
+                return value.Value;
             }
         }
 

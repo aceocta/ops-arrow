@@ -17,7 +17,16 @@ public class Shop : AuditableEntity
     public Company? Company { get; set; }
     public ICollection<ShopUser> ShopUsers { get; set; } = new List<ShopUser>();
     public ICollection<UserInvitation> Invitations { get; set; } = new List<UserInvitation>();
-    public ICollection<AppConfiguration> Configurations { get; set; } = new List<AppConfiguration>();
+    public ICollection<CfgGeneralSettings> GeneralSettings { get; set; } = new List<CfgGeneralSettings>();
+    public ICollection<CfgPackSettings> PackSettings { get; set; } = new List<CfgPackSettings>();
+    public ICollection<CfgSalesSettings> SalesSettings { get; set; } = new List<CfgSalesSettings>();
+    public ICollection<CfgShiftSettings> ShiftSettings { get; set; } = new List<CfgShiftSettings>();
+    public ICollection<CfgDayCloseSettings> DayCloseSettings { get; set; } = new List<CfgDayCloseSettings>();
+    public ICollection<CfgPrizePayoutSettings> PrizePayoutSettings { get; set; } = new List<CfgPrizePayoutSettings>();
+    public ICollection<CfgNotificationSettings> NotificationSettings { get; set; } = new List<CfgNotificationSettings>();
+    public ICollection<CfgBarcodeSettings> BarcodeSettings { get; set; } = new List<CfgBarcodeSettings>();
+    public ICollection<CfgOfflineSettings> OfflineSettings { get; set; } = new List<CfgOfflineSettings>();
+    public ICollection<CfgSubscriptionSettings> SubscriptionSettings { get; set; } = new List<CfgSubscriptionSettings>();
     public ICollection<ShopScratchCardGame> ShopScratchCardGames { get; set; } = new List<ShopScratchCardGame>();
     public ICollection<Delivery> Deliveries { get; set; } = new List<Delivery>();
     public ICollection<ScratchCardPack> ScratchCardPacks { get; set; } = new List<ScratchCardPack>();

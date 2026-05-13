@@ -324,135 +324,220 @@ public static class SeedDataInitializer
     private static async Task SeedDefaultConfigurationsAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
-        var defaults = new List<AppConfiguration>
+        var hasChanges = false;
+
+        var globalGeneral = await dbContext.CfgGeneralSettings
+            .FirstOrDefaultAsync(x => x.ShopId == null, cancellationToken);
+        if (globalGeneral is null)
         {
-            // General
-            Cfg("Currency", "GBP", "General Settings", "string", "Default currency", now),
-            Cfg(ConfigurationKeys.TimeZone, "Europe/London", "General Settings", "string", "Default timezone", now),
-            Cfg("BusinessDateCutOffTime", "23:59", "General Settings", "string", "Business date cutoff", now),
-            Cfg("EnableAuditLog", "true", "General Settings", "bool", "Audit logs enabled", now),
+            await dbContext.CfgGeneralSettings.AddAsync(new CfgGeneralSettings
+            {
+                ShopId = null,
+                Currency = "GBP",
+                TimeZone = "Europe/London",
+                BusinessDateCutOffTime = "23:59",
+                EnableAuditLog = true,
+                IsActive = true,
+                CreatedOn = now
+            }, cancellationToken);
+            hasChanges = true;
+        }
 
-            // Pack
-            Cfg("DefaultSellingOrder", "Ascending", "Pack Settings", "string", null, now),
-            Cfg(ConfigurationKeys.PackSellingOrder, "Ascending", "Pack Settings", "string", "", now),
-            Cfg(
-                ConfigurationKeys.ScratchCardDisplayCount,
-                "24",
-                "Pack Settings",
-                "int",
-                "Number of scratch-card display positions available in this shop.",
-                now),
-            Cfg("DefaultStartSerialNumber", "000", "Pack Settings", "string", null, now),
-            Cfg("DefaultEndSerialNumber", "099", "Pack Settings", "string", null, now),
-            Cfg("SerialNumberLength", "3", "Pack Settings", "int", null, now),
-            Cfg("AllowLeadingZeros", "true", "Pack Settings", "bool", null, now),
-            Cfg("PreventDuplicatePackNumbers", "true", "Pack Settings", "bool", null, now),
-            Cfg("RequirePackActivationBeforeSale", "true", "Pack Settings", "bool", null, now),
-            Cfg("AllowMultipleActivePacksForSameGame", "true", "Pack Settings", "bool", null, now),
-            Cfg("AutoCompletePackWhenFinalSerialReached", "true", "Pack Settings", "bool", null, now),
-            Cfg("AllowPackPause", "true", "Pack Settings", "bool", null, now),
-            Cfg("AllowPackReturn", "true", "Pack Settings", "bool", null, now),
-            Cfg("AllowIssueMarking", "true", "Pack Settings", "bool", null, now),
-
-            // Sales
-            Cfg("AllowBackdatedSales", "false", "Sales Settings", "bool", null, now),
-            Cfg("MaximumBackdateDays", "1", "Sales Settings", "int", null, now),
-            Cfg("AllowFutureDatedSales", "false", "Sales Settings", "bool", null, now),
-            Cfg("RequireManagerApprovalForCorrection", "true", "Sales Settings", "bool", null, now),
-
-            // Shift
-            Cfg("RequireShiftClose", "true", "Shift Settings", "bool", null, now),
-            Cfg("AllowShiftReopen", "true", "Shift Settings", "bool", null, now),
-            Cfg("WhoCanReopenShift", "Manager,ShopOwner", "Shift Settings", "string", null, now),
-            Cfg(ConfigurationKeys.ShiftStartTime, "06:00", "Shift Settings", "string", "Configured shift opening window start time (HH:mm)", now),
-            Cfg(ConfigurationKeys.ShiftEndTime, "23:00", "Shift Settings", "string", "Configured shift opening window end time (HH:mm)", now),
-            Cfg(ConfigurationKeys.ShiftDefaultName, "Main Shift", "Shift Settings", "string", "Default shift name used when custom names are not allowed", now),
-            Cfg(
-                ConfigurationKeys.ShiftTemplates,
-                "[{\"id\":\"main\",\"name\":\"Main Shift\",\"startTime\":\"06:00\",\"endTime\":\"23:00\",\"isActive\":true}]",
-                "Shift Settings",
-                "json",
-                "Shop shift templates. Supports multiple shifts and overnight windows (end time earlier than start means next day).",
-                now),
-            Cfg(ConfigurationKeys.EnforceShiftTimeWindow, "false", "Shift Settings", "bool", "Allow opening shifts only inside configured start/end time window", now),
-            Cfg(ConfigurationKeys.AllowCustomShiftName, "true", "Shift Settings", "bool", "Allow manually entering shift name when opening a shift", now),
-            Cfg("RequireReasonForManualClosingSerial", "false", "Shift Settings", "bool", null, now),
-            Cfg("NotifyOnManualClosingSerialEntry", "true", "Shift Settings", "bool", null, now),
-            Cfg("NotifyOnScannedSerialEdit", "true", "Shift Settings", "bool", null, now),
-
-            // Day close
-            Cfg("RequireDayEndClose", "true", "Day Close Settings", "bool", null, now),
-            Cfg("AllowDayReopen", "true", "Day Close Settings", "bool", null, now),
-            Cfg("WhoCanReopenDay", "Manager,ShopOwner", "Day Close Settings", "string", null, now),
-            Cfg("RequireAllShiftsClosedBeforeDayClose", "true", "Day Close Settings", "bool", null, now),
-            Cfg("RequireNoteWhenDayDifferenceExists", "true", "Day Close Settings", "bool", null, now),
-
-            // Prize payout
-            Cfg("RequirePackNumberForPayout", "true", "Prize Payout Settings", "bool", null, now),
-            Cfg("RequireTicketNumberForPayout", "true", "Prize Payout Settings", "bool", null, now),
-            Cfg("CashierPayoutLimit", "200", "Prize Payout Settings", "decimal", null, now),
-            Cfg("ManagerApprovalAboveLimit", "true", "Prize Payout Settings", "bool", null, now),
-            Cfg("PreventDuplicatePayoutForSameTicket", "true", "Prize Payout Settings", "bool", null, now),
-            Cfg("AllowedPayoutMethods", "Cash,Card,Transfer", "Prize Payout Settings", "string", null, now),
-
-            // Notifications
-            Cfg("NotificationChannels", "Email", "Notification Settings", "string", null, now),
-            Cfg("ManualEntryNotificationRecipients", "ShopOwner,Manager", "Notification Settings", "string", null, now),
-            Cfg("CashDifferenceNotificationRecipients", "ShopOwner,Manager", "Notification Settings", "string", null, now),
-            Cfg("HighPrizePayoutNotificationRecipients", "ShopOwner,Manager", "Notification Settings", "string", null, now),
-            Cfg("SendNotificationOnShiftFinalize", "true", "Notification Settings", "bool", null, now),
-
-            // Barcode
-            Cfg("EnableMobileCameraBarcodeScanning", "true", "Barcode Settings", "bool", null, now),
-            Cfg("AllowManualEntryIfScanFails", "true", "Barcode Settings", "bool", null, now),
-            Cfg("BarcodeContains", "PackAndSerial", "Barcode Settings", "string", null, now),
-            Cfg("PackNumberStartPosition", "0", "Barcode Settings", "int", null, now),
-            Cfg("PackNumberLength", "6", "Barcode Settings", "int", null, now),
-            Cfg("SerialNumberStartPosition", "6", "Barcode Settings", "int", null, now),
-            Cfg("SerialNumberLength", "3", "Barcode Settings", "int", null, now),
-            Cfg("RemovePrefix", "", "Barcode Settings", "string", null, now),
-            Cfg("RemoveSuffix", "", "Barcode Settings", "string", null, now),
-
-            // Offline
-            Cfg("EnableOfflineShiftClose", "true", "Offline Settings", "bool", null, now),
-            Cfg("AllowOfflinePrizePayout", "true", "Offline Settings", "bool", null, now),
-            Cfg("AllowOfflineShiftReconciliation", "true", "Offline Settings", "bool", null, now),
-            Cfg("AutoSyncWhenOnline", "true", "Offline Settings", "bool", null, now),
-            Cfg("ConflictRequiresManagerReview", "true", "Offline Settings", "bool", null, now),
-
-            // Subscription
-            Cfg("DefaultTrialDays", "30", "Subscription Settings", "int", "Default trial length in days", now),
-            Cfg("TrialEndingReminderDays", "7", "Subscription Settings", "int", "Send reminder N days before trial end", now),
-            Cfg("PaymentGracePeriodDays", "7", "Subscription Settings", "int", "Grace period in days for overdue payments", now),
-            Cfg("BulkDiscountEnabled", "true", "Subscription Settings", "bool", "Enable subscription bulk discount rules", now)
-        };
-
-        var existingKeys = await dbContext.AppConfigurations
-            .Where(x => x.ShopId == null)
-            .Select(x => x.ConfigKey)
-            .ToListAsync(cancellationToken);
-
-        var missing = defaults
-            .Where(x => !existingKeys.Contains(x.ConfigKey, StringComparer.OrdinalIgnoreCase))
-            .ToArray();
-
-        if (missing.Length > 0)
+        var globalPack = await dbContext.CfgPackSettings
+            .FirstOrDefaultAsync(x => x.ShopId == null, cancellationToken);
+        if (globalPack is null)
         {
-            await dbContext.AppConfigurations.AddRangeAsync(missing, cancellationToken);
+            await dbContext.CfgPackSettings.AddAsync(new CfgPackSettings
+            {
+                ShopId = null,
+                DefaultSellingOrder = "Ascending",
+                PackSellingOrder = "Ascending",
+                ScratchCardDisplayCount = 24,
+                AllowLeadingZeros = true,
+                PreventDuplicatePackNumbers = true,
+                RequirePackActivationBeforeSale = true,
+                AllowMultipleActivePacksForSameGame = true,
+                AutoCompletePackWhenFinalSerialReached = true,
+                AllowPackPause = true,
+                AllowPackReturn = true,
+                AllowIssueMarking = true,
+                IsActive = true,
+                CreatedOn = now
+            }, cancellationToken);
+            hasChanges = true;
+        }
+
+        var globalSales = await dbContext.CfgSalesSettings
+            .FirstOrDefaultAsync(x => x.ShopId == null, cancellationToken);
+        if (globalSales is null)
+        {
+            await dbContext.CfgSalesSettings.AddAsync(new CfgSalesSettings
+            {
+                ShopId = null,
+                AllowBackdatedSales = false,
+                MaximumBackdateDays = 1,
+                AllowFutureDatedSales = false,
+                RequireManagerApprovalForCorrection = true,
+                IsActive = true,
+                CreatedOn = now
+            }, cancellationToken);
+            hasChanges = true;
+        }
+
+        var globalShift = await dbContext.CfgShiftSettings
+            .FirstOrDefaultAsync(x => x.ShopId == null, cancellationToken);
+        if (globalShift is null)
+        {
+            await dbContext.CfgShiftSettings.AddAsync(new CfgShiftSettings
+            {
+                ShopId = null,
+                RequireShiftClose = true,
+                AllowShiftReopen = true,
+                WhoCanReopenShift = "Manager,ShopOwner",
+                ShiftStartTime = "06:00",
+                ShiftEndTime = "23:00",
+                ShiftDefaultName = "Main Shift",
+                ShiftTemplates = "[{\"id\":\"main\",\"name\":\"Main Shift\",\"startTime\":\"06:00\",\"endTime\":\"23:00\",\"isActive\":true}]",
+                EnforceShiftTimeWindow = false,
+                AllowCustomShiftName = true,
+                RequireReasonForManualClosingSerial = false,
+                NotifyOnManualClosingSerialEntry = true,
+                NotifyOnScannedSerialEdit = true,
+                IsActive = true,
+                CreatedOn = now
+            }, cancellationToken);
+            hasChanges = true;
+        }
+
+        var globalDayClose = await dbContext.CfgDayCloseSettings
+            .FirstOrDefaultAsync(x => x.ShopId == null, cancellationToken);
+        if (globalDayClose is null)
+        {
+            await dbContext.CfgDayCloseSettings.AddAsync(new CfgDayCloseSettings
+            {
+                ShopId = null,
+                RequireDayEndClose = true,
+                AllowDayReopen = true,
+                WhoCanReopenDay = "Manager,ShopOwner",
+                RequireAllShiftsClosedBeforeDayClose = true,
+                RequireNoteWhenDayDifferenceExists = true,
+                IsActive = true,
+                CreatedOn = now
+            }, cancellationToken);
+            hasChanges = true;
+        }
+
+        var globalPrizePayout = await dbContext.CfgPrizePayoutSettings
+            .FirstOrDefaultAsync(x => x.ShopId == null, cancellationToken);
+        if (globalPrizePayout is null)
+        {
+            await dbContext.CfgPrizePayoutSettings.AddAsync(new CfgPrizePayoutSettings
+            {
+                ShopId = null,
+                RequirePackNumberForPayout = true,
+                RequireTicketNumberForPayout = true,
+                CashierPayoutLimit = 200m,
+                ManagerApprovalAboveLimit = true,
+                PreventDuplicatePayoutForSameTicket = true,
+                AllowedPayoutMethods = "Cash,Card,Transfer",
+                IsActive = true,
+                CreatedOn = now
+            }, cancellationToken);
+            hasChanges = true;
+        }
+
+        var globalNotification = await dbContext.CfgNotificationSettings
+            .FirstOrDefaultAsync(x => x.ShopId == null, cancellationToken);
+        if (globalNotification is null)
+        {
+            await dbContext.CfgNotificationSettings.AddAsync(new CfgNotificationSettings
+            {
+                ShopId = null,
+                NotificationChannels = "Email",
+                ManualEntryNotificationRecipients = "ShopOwner,Manager",
+                CashDifferenceNotificationRecipients = "ShopOwner,Manager",
+                HighPrizePayoutNotificationRecipients = "ShopOwner,Manager",
+                SendNotificationOnShiftFinalize = true,
+                IsActive = true,
+                CreatedOn = now
+            }, cancellationToken);
+            hasChanges = true;
+        }
+
+        var globalBarcode = await dbContext.CfgBarcodeSettings
+            .FirstOrDefaultAsync(x => x.ShopId == null, cancellationToken);
+        if (globalBarcode is null)
+        {
+            await dbContext.CfgBarcodeSettings.AddAsync(new CfgBarcodeSettings
+            {
+                ShopId = null,
+                EnableMobileCameraBarcodeScanning = true,
+                AllowManualEntryIfScanFails = true,
+                BarcodeContains = "PackAndSerial",
+                PackNumberStartPosition = 0,
+                PackNumberLength = 6,
+                SerialNumberStartPosition = 6,
+                BarcodeSerialNumberLength = 3,
+                RemovePrefix = string.Empty,
+                RemoveSuffix = string.Empty,
+                IsActive = true,
+                CreatedOn = now
+            }, cancellationToken);
+            hasChanges = true;
+        }
+
+        var globalOffline = await dbContext.CfgOfflineSettings
+            .FirstOrDefaultAsync(x => x.ShopId == null, cancellationToken);
+        if (globalOffline is null)
+        {
+            await dbContext.CfgOfflineSettings.AddAsync(new CfgOfflineSettings
+            {
+                ShopId = null,
+                EnableOfflineShiftClose = true,
+                AllowOfflinePrizePayout = true,
+                AllowOfflineShiftReconciliation = true,
+                AutoSyncWhenOnline = true,
+                ConflictRequiresManagerReview = true,
+                IsActive = true,
+                CreatedOn = now
+            }, cancellationToken);
+            hasChanges = true;
+        }
+
+        var globalSubscription = await dbContext.CfgSubscriptionSettings
+            .FirstOrDefaultAsync(x => x.ShopId == null, cancellationToken);
+        if (globalSubscription is null)
+        {
+            await dbContext.CfgSubscriptionSettings.AddAsync(new CfgSubscriptionSettings
+            {
+                ShopId = null,
+                DefaultTrialDays = 30,
+                TrialEndingReminderDays = 7,
+                PaymentGracePeriodDays = 7,
+                BulkDiscountEnabled = true,
+                IsActive = true,
+                CreatedOn = now
+            }, cancellationToken);
+            hasChanges = true;
+        }
+
+        if (hasChanges)
+        {
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        var globalScratchCardDisplayCount = await dbContext.AppConfigurations
-            .FirstOrDefaultAsync(
-                x => x.ShopId == null && x.ConfigKey == ConfigurationKeys.ScratchCardDisplayCount,
-                cancellationToken);
-
-        if (globalScratchCardDisplayCount is not null &&
-            string.Equals(globalScratchCardDisplayCount.ConfigValue?.Trim(), "20", StringComparison.Ordinal))
+        var scratchCardDisplayCountChanged = false;
+        globalPack ??= await dbContext.CfgPackSettings.FirstOrDefaultAsync(x => x.ShopId == null, cancellationToken);
+        if (globalPack is not null && globalPack.ScratchCardDisplayCount == 20)
         {
-            globalScratchCardDisplayCount.ConfigValue = "24";
-            globalScratchCardDisplayCount.ModifiedOn = DateTimeOffset.UtcNow;
-            dbContext.AppConfigurations.Update(globalScratchCardDisplayCount);
+            globalPack.ScratchCardDisplayCount = 24;
+            globalPack.ModifiedOn = DateTimeOffset.UtcNow;
+            dbContext.CfgPackSettings.Update(globalPack);
+            scratchCardDisplayCountChanged = true;
+        }
+
+        if (scratchCardDisplayCountChanged)
+        {
             await dbContext.SaveChangesAsync(cancellationToken);
         }
     }
@@ -559,23 +644,4 @@ public static class SeedDataInitializer
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    private static AppConfiguration Cfg(
-        string key,
-        string value,
-        string group,
-        string type,
-        string? description,
-        DateTimeOffset createdOn)
-    {
-        return new AppConfiguration
-        {
-            ConfigKey = key,
-            ConfigValue = value,
-            GroupName = group,
-            DataType = type,
-            Description = description,
-            IsActive = true,
-            CreatedOn = createdOn
-        };
-    }
 }

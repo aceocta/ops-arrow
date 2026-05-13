@@ -315,33 +315,6 @@ namespace ScratchCard.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "AppConfigurations",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    ConfigKey = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: false),
-                    ConfigValue = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: false),
-                    DataType = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
-                    Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    GroupName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
-                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
-                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_AppConfigurations", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_AppConfigurations_Shops_ShopId",
-                        column: x => x.ShopId,
-                        principalTable: "Shops",
-                        principalColumn: "Id");
-                });
-
-            migrationBuilder.CreateTable(
                 name: "BusinessDays",
                 columns: table => new
                 {
@@ -356,7 +329,6 @@ namespace ScratchCard.Infrastructure.Migrations
                     TotalSalesAmount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
                     TotalPrizePayout = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
                     ExpectedCash = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
-                    ActualCash = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
                     Difference = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
                     Notes = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
                     CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
@@ -369,6 +341,294 @@ namespace ScratchCard.Infrastructure.Migrations
                     table.PrimaryKey("PK_BusinessDays", x => x.Id);
                     table.ForeignKey(
                         name: "FK_BusinessDays_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "CfgBarcodeSettings",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    EnableMobileCameraBarcodeScanning = table.Column<bool>(type: "bit", nullable: true),
+                    AllowManualEntryIfScanFails = table.Column<bool>(type: "bit", nullable: true),
+                    BarcodeContains = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    PackNumberStartPosition = table.Column<int>(type: "int", nullable: true),
+                    PackNumberLength = table.Column<int>(type: "int", nullable: true),
+                    SerialNumberStartPosition = table.Column<int>(type: "int", nullable: true),
+                    BarcodeSerialNumberLength = table.Column<int>(type: "int", nullable: true),
+                    RemovePrefix = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    RemoveSuffix = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CfgBarcodeSettings", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_CfgBarcodeSettings_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "CfgDayCloseSettings",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    RequireDayEndClose = table.Column<bool>(type: "bit", nullable: true),
+                    AllowDayReopen = table.Column<bool>(type: "bit", nullable: true),
+                    WhoCanReopenDay = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    RequireAllShiftsClosedBeforeDayClose = table.Column<bool>(type: "bit", nullable: true),
+                    RequireNoteWhenDayDifferenceExists = table.Column<bool>(type: "bit", nullable: true),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CfgDayCloseSettings", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_CfgDayCloseSettings_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "CfgGeneralSettings",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Currency = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
+                    TimeZone = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    BusinessDateCutOffTime = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
+                    EnableAuditLog = table.Column<bool>(type: "bit", nullable: true),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CfgGeneralSettings", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_CfgGeneralSettings_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "CfgNotificationSettings",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    NotificationChannels = table.Column<string>(type: "nvarchar(400)", maxLength: 400, nullable: true),
+                    ManualEntryNotificationRecipients = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    CashDifferenceNotificationRecipients = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    HighPrizePayoutNotificationRecipients = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    SendNotificationOnShiftFinalize = table.Column<bool>(type: "bit", nullable: true),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CfgNotificationSettings", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_CfgNotificationSettings_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "CfgOfflineSettings",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    EnableOfflineShiftClose = table.Column<bool>(type: "bit", nullable: true),
+                    AllowOfflinePrizePayout = table.Column<bool>(type: "bit", nullable: true),
+                    AllowOfflineShiftReconciliation = table.Column<bool>(type: "bit", nullable: true),
+                    AutoSyncWhenOnline = table.Column<bool>(type: "bit", nullable: true),
+                    ConflictRequiresManagerReview = table.Column<bool>(type: "bit", nullable: true),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CfgOfflineSettings", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_CfgOfflineSettings_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "CfgPackSettings",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    DefaultSellingOrder = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: true),
+                    PackSellingOrder = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: true),
+                    ScratchCardDisplayCount = table.Column<int>(type: "int", nullable: true),
+                    DefaultStartSerialNumber = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: true),
+                    DefaultEndSerialNumber = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: true),
+                    SerialNumberLength = table.Column<int>(type: "int", nullable: true),
+                    AllowLeadingZeros = table.Column<bool>(type: "bit", nullable: true),
+                    PreventDuplicatePackNumbers = table.Column<bool>(type: "bit", nullable: true),
+                    RequirePackActivationBeforeSale = table.Column<bool>(type: "bit", nullable: true),
+                    AllowMultipleActivePacksForSameGame = table.Column<bool>(type: "bit", nullable: true),
+                    AutoCompletePackWhenFinalSerialReached = table.Column<bool>(type: "bit", nullable: true),
+                    AllowPackPause = table.Column<bool>(type: "bit", nullable: true),
+                    AllowPackReturn = table.Column<bool>(type: "bit", nullable: true),
+                    AllowIssueMarking = table.Column<bool>(type: "bit", nullable: true),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CfgPackSettings", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_CfgPackSettings_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "CfgPrizePayoutSettings",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    RequirePackNumberForPayout = table.Column<bool>(type: "bit", nullable: true),
+                    RequireTicketNumberForPayout = table.Column<bool>(type: "bit", nullable: true),
+                    CashierPayoutLimit = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: true),
+                    ManagerApprovalAboveLimit = table.Column<bool>(type: "bit", nullable: true),
+                    PreventDuplicatePayoutForSameTicket = table.Column<bool>(type: "bit", nullable: true),
+                    AllowedPayoutMethods = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CfgPrizePayoutSettings", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_CfgPrizePayoutSettings_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "CfgSalesSettings",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    AllowBackdatedSales = table.Column<bool>(type: "bit", nullable: true),
+                    MaximumBackdateDays = table.Column<int>(type: "int", nullable: true),
+                    AllowFutureDatedSales = table.Column<bool>(type: "bit", nullable: true),
+                    RequireManagerApprovalForCorrection = table.Column<bool>(type: "bit", nullable: true),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CfgSalesSettings", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_CfgSalesSettings_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "CfgShiftSettings",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    RequireShiftClose = table.Column<bool>(type: "bit", nullable: true),
+                    AllowShiftReopen = table.Column<bool>(type: "bit", nullable: true),
+                    WhoCanReopenShift = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    ShiftStartTime = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
+                    ShiftEndTime = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
+                    ShiftDefaultName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    ShiftTemplates = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
+                    EnforceShiftTimeWindow = table.Column<bool>(type: "bit", nullable: true),
+                    AllowCustomShiftName = table.Column<bool>(type: "bit", nullable: true),
+                    RequireReasonForManualClosingSerial = table.Column<bool>(type: "bit", nullable: true),
+                    NotifyOnManualClosingSerialEntry = table.Column<bool>(type: "bit", nullable: true),
+                    NotifyOnScannedSerialEdit = table.Column<bool>(type: "bit", nullable: true),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CfgShiftSettings", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_CfgShiftSettings_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "CfgSubscriptionSettings",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    DefaultTrialDays = table.Column<int>(type: "int", nullable: true),
+                    TrialEndingReminderDays = table.Column<int>(type: "int", nullable: true),
+                    PaymentGracePeriodDays = table.Column<int>(type: "int", nullable: true),
+                    BulkDiscountEnabled = table.Column<bool>(type: "bit", nullable: true),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CfgSubscriptionSettings", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_CfgSubscriptionSettings_Shops_ShopId",
                         column: x => x.ShopId,
                         principalTable: "Shops",
                         principalColumn: "Id");
@@ -994,6 +1254,49 @@ namespace ScratchCard.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "ShiftOpeningSerials",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ShiftId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    BusinessDayId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    PackId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ExpectedOpeningSerialNumber = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: false),
+                    ActualOpeningSerialNumber = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: false),
+                    MissingQuantity = table.Column<int>(type: "int", nullable: false),
+                    OverageQuantity = table.Column<int>(type: "int", nullable: false),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ShiftOpeningSerials", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ShiftOpeningSerials_BusinessDays_BusinessDayId",
+                        column: x => x.BusinessDayId,
+                        principalTable: "BusinessDays",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_ShiftOpeningSerials_ScratchCardPacks_PackId",
+                        column: x => x.PackId,
+                        principalTable: "ScratchCardPacks",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_ShiftOpeningSerials_Shifts_ShiftId",
+                        column: x => x.ShiftId,
+                        principalTable: "Shifts",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_ShiftOpeningSerials_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
                 name: "ShiftReconciliations",
                 columns: table => new
                 {
@@ -1003,7 +1306,6 @@ namespace ScratchCard.Infrastructure.Migrations
                     TotalSalesAmount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
                     TotalPrizePayout = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
                     ExpectedCash = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
-                    ActualCash = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
                     Difference = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
                     Status = table.Column<int>(type: "int", nullable: false),
                     SubmittedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
@@ -1108,13 +1410,6 @@ namespace ScratchCard.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_AppConfigurations_ShopId_ConfigKey",
-                table: "AppConfigurations",
-                columns: new[] { "ShopId", "ConfigKey" },
-                unique: true,
-                filter: "[ShopId] IS NOT NULL");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_BillingEvents_CompanyId_CreatedOn",
                 table: "BillingEvents",
                 columns: new[] { "CompanyId", "CreatedOn" });
@@ -1139,6 +1434,76 @@ namespace ScratchCard.Infrastructure.Migrations
                 table: "BusinessDays",
                 columns: new[] { "ShopId", "BusinessDate" },
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CfgBarcodeSettings_ShopId",
+                table: "CfgBarcodeSettings",
+                column: "ShopId",
+                unique: true,
+                filter: "[ShopId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CfgDayCloseSettings_ShopId",
+                table: "CfgDayCloseSettings",
+                column: "ShopId",
+                unique: true,
+                filter: "[ShopId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CfgGeneralSettings_ShopId",
+                table: "CfgGeneralSettings",
+                column: "ShopId",
+                unique: true,
+                filter: "[ShopId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CfgNotificationSettings_ShopId",
+                table: "CfgNotificationSettings",
+                column: "ShopId",
+                unique: true,
+                filter: "[ShopId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CfgOfflineSettings_ShopId",
+                table: "CfgOfflineSettings",
+                column: "ShopId",
+                unique: true,
+                filter: "[ShopId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CfgPackSettings_ShopId",
+                table: "CfgPackSettings",
+                column: "ShopId",
+                unique: true,
+                filter: "[ShopId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CfgPrizePayoutSettings_ShopId",
+                table: "CfgPrizePayoutSettings",
+                column: "ShopId",
+                unique: true,
+                filter: "[ShopId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CfgSalesSettings_ShopId",
+                table: "CfgSalesSettings",
+                column: "ShopId",
+                unique: true,
+                filter: "[ShopId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CfgShiftSettings_ShopId",
+                table: "CfgShiftSettings",
+                column: "ShopId",
+                unique: true,
+                filter: "[ShopId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CfgSubscriptionSettings_ShopId",
+                table: "CfgSubscriptionSettings",
+                column: "ShopId",
+                unique: true,
+                filter: "[ShopId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Companies_CompanyName",
@@ -1282,6 +1647,27 @@ namespace ScratchCard.Infrastructure.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_ShiftCloseAttachments_ShopId",
                 table: "ShiftCloseAttachments",
+                column: "ShopId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ShiftOpeningSerials_BusinessDayId_ShopId",
+                table: "ShiftOpeningSerials",
+                columns: new[] { "BusinessDayId", "ShopId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ShiftOpeningSerials_PackId",
+                table: "ShiftOpeningSerials",
+                column: "PackId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ShiftOpeningSerials_ShiftId_PackId",
+                table: "ShiftOpeningSerials",
+                columns: new[] { "ShiftId", "PackId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ShiftOpeningSerials_ShopId",
+                table: "ShiftOpeningSerials",
                 column: "ShopId");
 
             migrationBuilder.CreateIndex(
@@ -1433,9 +1819,6 @@ namespace ScratchCard.Infrastructure.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "AppConfigurations");
-
-            migrationBuilder.DropTable(
                 name: "AuditLogs");
 
             migrationBuilder.DropTable(
@@ -1443,6 +1826,36 @@ namespace ScratchCard.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "BusinessDayCloseAttachments");
+
+            migrationBuilder.DropTable(
+                name: "CfgBarcodeSettings");
+
+            migrationBuilder.DropTable(
+                name: "CfgDayCloseSettings");
+
+            migrationBuilder.DropTable(
+                name: "CfgGeneralSettings");
+
+            migrationBuilder.DropTable(
+                name: "CfgNotificationSettings");
+
+            migrationBuilder.DropTable(
+                name: "CfgOfflineSettings");
+
+            migrationBuilder.DropTable(
+                name: "CfgPackSettings");
+
+            migrationBuilder.DropTable(
+                name: "CfgPrizePayoutSettings");
+
+            migrationBuilder.DropTable(
+                name: "CfgSalesSettings");
+
+            migrationBuilder.DropTable(
+                name: "CfgShiftSettings");
+
+            migrationBuilder.DropTable(
+                name: "CfgSubscriptionSettings");
 
             migrationBuilder.DropTable(
                 name: "DeliveryPacks");
@@ -1470,6 +1883,9 @@ namespace ScratchCard.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "ShiftCloseAttachments");
+
+            migrationBuilder.DropTable(
+                name: "ShiftOpeningSerials");
 
             migrationBuilder.DropTable(
                 name: "ShiftScratchCardSales");
