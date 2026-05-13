@@ -10,7 +10,6 @@ public class ShiftReconciliation : BaseEntity
     public decimal TotalSalesAmount { get; set; }
     public decimal TotalPrizePayout { get; set; }
     public decimal ExpectedCash { get; set; }
-    public decimal ActualCash { get; set; }
     public decimal Difference { get; set; }
     public ReconciliationStatus Status { get; set; } = ReconciliationStatus.Submitted;
     public Guid SubmittedByUserId { get; set; }

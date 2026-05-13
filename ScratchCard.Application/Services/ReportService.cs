@@ -56,7 +56,6 @@ public class ReportService : IReportService
                 SalesAmount = x.ShiftSales.Sum(s => s.SalesAmount),
                 PrizePayout = x.PrizePayouts.Sum(p => p.PrizeAmount),
                 ExpectedCash = x.ShiftReconciliation != null ? x.ShiftReconciliation.ExpectedCash : 0,
-                ActualCash = x.ShiftReconciliation != null ? x.ShiftReconciliation.ActualCash : 0,
                 Difference = x.ShiftReconciliation != null ? x.ShiftReconciliation.Difference : 0,
                 LottoPayout = x.BusinessDay.ScratchCardDayCloseSummary != null ? x.BusinessDay.ScratchCardDayCloseSummary.LottoPayout : null,
                 ScratchCardPayout = x.BusinessDay.ScratchCardDayCloseSummary != null ? x.BusinessDay.ScratchCardDayCloseSummary.ScratchCardPayout : null,

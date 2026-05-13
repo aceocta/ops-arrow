@@ -178,7 +178,6 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.TotalSalesAmount).HasPrecision(18, 2);
             entity.Property(x => x.TotalPrizePayout).HasPrecision(18, 2);
             entity.Property(x => x.ExpectedCash).HasPrecision(18, 2);
-            entity.Property(x => x.ActualCash).HasPrecision(18, 2);
             entity.Property(x => x.Difference).HasPrecision(18, 2);
             entity.Property(x => x.Notes).HasMaxLength(1000);
             entity.HasOne(x => x.Shop).WithMany(x => x.BusinessDays).HasForeignKey(x => x.ShopId);
@@ -247,7 +246,6 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.TotalSalesAmount).HasPrecision(18, 2);
             entity.Property(x => x.TotalPrizePayout).HasPrecision(18, 2);
             entity.Property(x => x.ExpectedCash).HasPrecision(18, 2);
-            entity.Property(x => x.ActualCash).HasPrecision(18, 2);
             entity.Property(x => x.Difference).HasPrecision(18, 2);
             entity.Property(x => x.Notes).HasMaxLength(1000);
             entity.HasOne(x => x.Shift).WithOne(x => x.ShiftReconciliation).HasForeignKey<ShiftReconciliation>(x => x.ShiftId);

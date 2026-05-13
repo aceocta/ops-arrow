@@ -168,7 +168,6 @@ function ensureFileNameWithExtension(fileName: string, contentType: string) {
 
 export function DayEndCloseScreen({ route, navigation }: Props) {
   const { businessDayId } = route.params;
-  const [actualCash, setActualCash] = useState("0");
   const [notes, setNotes] = useState("");
   const [lottoPayoutAmount, setLottoPayoutAmount] = useState("");
   const [scratchCardPayoutAmount, setScratchCardPayoutAmount] = useState("");
@@ -213,7 +212,6 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
 
   const closeMutation = useMutation({
     mutationFn: async () => closeBusinessDay(businessDayId, {
-      actualCash: Number(actualCash || "0"),
       lottoPayout: Number(lottoPayoutAmount),
       scratchCardPayout: Number(scratchCardPayoutAmount),
       tillPayout: Number(tillPayoutAmount),
@@ -632,7 +630,6 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       { label: "Lotto payout", raw: lottoPayoutAmount },
       { label: "Scratch card payout", raw: scratchCardPayoutAmount },
       { label: "Till payout", raw: tillPayoutAmount },
-      { label: "Actual cash", raw: actualCash },
     ];
 
     for (const value of values) {
@@ -1157,7 +1154,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           <View style={styles.modalBackdrop}>
             <View style={styles.modalCard}>
               <Text style={styles.sectionTitle}>Close Day</Text>
-              <Text style={styles.meta}>Enter payouts and final cash, then close this business day.</Text>
+              <Text style={styles.meta}>Enter payouts, then close this business day.</Text>
               <Text style={styles.fieldLabel}>Lotto Payout</Text>
               <TextInput
                 style={styles.input}
@@ -1182,15 +1179,6 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 value={tillPayoutAmount}
                 onChangeText={setTillPayoutAmount}
                 placeholder="Till payout"
-                placeholderTextColor={appTheme.colors.textSubtle}
-                keyboardType="decimal-pad"
-              />
-              <Text style={styles.fieldLabel}>Actual Cash</Text>
-              <TextInput
-                style={styles.input}
-                value={actualCash}
-                onChangeText={setActualCash}
-                placeholder="Actual cash"
                 placeholderTextColor={appTheme.colors.textSubtle}
                 keyboardType="decimal-pad"
               />

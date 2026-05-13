@@ -170,8 +170,7 @@ public class BusinessDayService : IBusinessDayService
         day.TotalSalesAmount = totalSales;
         day.TotalPrizePayout = totalPayout;
         day.ExpectedCash = totalSales - totalPayout;
-        day.ActualCash = request.ActualCash;
-        day.Difference = day.ActualCash - day.ExpectedCash;
+        day.Difference = request.TillPayout - day.ExpectedCash;
         day.Notes = request.Notes;
 
         var existingAttachments = await _dayCloseAttachmentRepository.Query()

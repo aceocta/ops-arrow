@@ -22,7 +22,6 @@ export async function getBusinessDay(businessDayId: string) {
 export async function closeBusinessDay(
   businessDayId: string,
   payload: {
-    actualCash: number;
     lottoPayout: number;
     scratchCardPayout: number;
     tillPayout: number;

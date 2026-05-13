@@ -189,7 +189,6 @@ internal static class ServiceMappingExtensions
         TotalSalesAmount = day.TotalSalesAmount,
         TotalPrizePayout = day.TotalPrizePayout,
         ExpectedCash = day.ExpectedCash,
-        ActualCash = day.ActualCash,
         Difference = day.Difference,
         CloseAttachments = day.CloseAttachments
             .OrderByDescending(x => x.CreatedOn)

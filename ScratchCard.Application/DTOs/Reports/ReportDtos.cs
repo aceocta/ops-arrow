@@ -7,7 +7,6 @@ public class DailySalesReportRowDto
     public decimal SalesAmount { get; set; }
     public decimal PrizePayout { get; set; }
     public decimal ExpectedCash { get; set; }
-    public decimal ActualCash { get; set; }
     public decimal Difference { get; set; }
     public decimal? LottoPayout { get; set; }
     public decimal? ScratchCardPayout { get; set; }

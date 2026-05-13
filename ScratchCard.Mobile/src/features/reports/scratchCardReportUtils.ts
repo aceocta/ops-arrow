@@ -19,12 +19,7 @@ function formatMoney(value: number) {
 }
 
 function getDifferenceValue(row: DailySalesReportRow) {
-  const explicitDifference = Number(row.difference ?? Number.NaN);
-  if (!Number.isNaN(explicitDifference)) {
-    return explicitDifference;
-  }
-
-  return Number(row.actualCash ?? 0) - Number(row.expectedCash ?? 0);
+  return Number(row.difference ?? 0);
 }
 
 function getVarianceStatus(difference: number) {
@@ -76,7 +71,6 @@ export function buildScratchCardDailySalesReportHtml(input: {
   const totalSales = input.rows.reduce((sum, row) => sum + Number(row.salesAmount ?? 0), 0);
   const totalPayout = input.rows.reduce((sum, row) => sum + Number(row.prizePayout ?? 0), 0);
   const totalExpected = input.rows.reduce((sum, row) => sum + Number(row.expectedCash ?? 0), 0);
-  const totalActual = input.rows.reduce((sum, row) => sum + Number(row.actualCash ?? 0), 0);
   const totalDifference = input.rows.reduce((sum, row) => sum + getDifferenceValue(row), 0);
 
   const groupsHtml = groups
@@ -90,7 +84,6 @@ export function buildScratchCardDailySalesReportHtml(input: {
               <td>${escapeHtml(formatMoney(Number(row.salesAmount ?? 0)))}</td>
               <td>${escapeHtml(formatMoney(Number(row.prizePayout ?? 0)))}</td>
               <td>${escapeHtml(formatMoney(Number(row.expectedCash ?? 0)))}</td>
-              <td>${escapeHtml(formatMoney(Number(row.actualCash ?? 0)))}</td>
               <td>${escapeHtml(formatMoney(difference))}</td>
               <td>${escapeHtml(getVarianceStatus(difference))}</td>
             </tr>
@@ -101,7 +94,6 @@ export function buildScratchCardDailySalesReportHtml(input: {
       const daySales = group.rows.reduce((sum, row) => sum + Number(row.salesAmount ?? 0), 0);
       const dayPayout = group.rows.reduce((sum, row) => sum + Number(row.prizePayout ?? 0), 0);
       const dayExpected = group.rows.reduce((sum, row) => sum + Number(row.expectedCash ?? 0), 0);
-      const dayActual = group.rows.reduce((sum, row) => sum + Number(row.actualCash ?? 0), 0);
       const dayDifference = group.rows.reduce((sum, row) => sum + getDifferenceValue(row), 0);
 
       return `
@@ -113,19 +105,17 @@ export function buildScratchCardDailySalesReportHtml(input: {
               <th class="col-money">Sales</th>
               <th class="col-money">Payout</th>
               <th class="col-money">Expected</th>
-              <th class="col-money">Actual</th>
               <th class="col-money">Difference</th>
               <th class="col-status">Status</th>
             </tr>
           </thead>
           <tbody>
-            ${rowsHtml || `<tr><td colspan="7">No shift records for this business date.</td></tr>`}
+            ${rowsHtml || `<tr><td colspan="6">No shift records for this business date.</td></tr>`}
             <tr class="summary-row">
               <td>Day Total</td>
               <td>${escapeHtml(formatMoney(daySales))}</td>
               <td>${escapeHtml(formatMoney(dayPayout))}</td>
               <td>${escapeHtml(formatMoney(dayExpected))}</td>
-              <td>${escapeHtml(formatMoney(dayActual))}</td>
               <td>${escapeHtml(formatMoney(dayDifference))}</td>
               <td>${escapeHtml(getVarianceStatus(dayDifference))}</td>
             </tr>
@@ -145,7 +135,6 @@ export function buildScratchCardDailySalesReportHtml(input: {
             <th class="col-money">Sales</th>
             <th class="col-money">Payout</th>
             <th class="col-money">Expected</th>
-            <th class="col-money">Actual</th>
             <th class="col-money">Difference</th>
             <th class="col-status">Status</th>
           </tr>
@@ -156,7 +145,6 @@ export function buildScratchCardDailySalesReportHtml(input: {
             <td>${escapeHtml(formatMoney(totalSales))}</td>
             <td>${escapeHtml(formatMoney(totalPayout))}</td>
             <td>${escapeHtml(formatMoney(totalExpected))}</td>
-            <td>${escapeHtml(formatMoney(totalActual))}</td>
             <td>${escapeHtml(formatMoney(totalDifference))}</td>
             <td>${escapeHtml(getVarianceStatus(totalDifference))}</td>
           </tr>

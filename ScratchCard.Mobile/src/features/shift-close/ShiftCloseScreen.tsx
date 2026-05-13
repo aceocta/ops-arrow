@@ -529,7 +529,6 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
     setIsSubmitting(true);
     try {
       const payload = {
-        actualCash: 0,
         attachments: closeAttachments.map((attachment) => ({
           fileName: attachment.fileName,
           base64: attachment.base64,

@@ -73,33 +73,28 @@ function DailyReportActionButton({
   );
 }
 
-function getDifferenceValue(row: { difference?: number; actualCash?: number; expectedCash?: number }) {
-  const explicitDifference = Number(row.difference ?? Number.NaN);
-  if (!Number.isNaN(explicitDifference)) {
-    return explicitDifference;
-  }
-  return Number(row.actualCash ?? 0) - Number(row.expectedCash ?? 0);
+function getDifferenceValue(row: { difference?: number }) {
+  return Number(row.difference ?? 0);
 }
 
-function hasVariance(row: { difference?: number; actualCash?: number; expectedCash?: number }) {
+function hasVariance(row: { difference?: number }) {
   return Math.abs(getDifferenceValue(row)) > 0.009;
 }
 
-function isPositiveVariance(row: { difference?: number; actualCash?: number; expectedCash?: number }) {
+function isPositiveVariance(row: { difference?: number }) {
   return getDifferenceValue(row) > 0.009;
 }
 
-function isNegativeVariance(row: { difference?: number; actualCash?: number; expectedCash?: number }) {
+function isNegativeVariance(row: { difference?: number }) {
   return getDifferenceValue(row) < -0.009;
 }
 
-function getDayAggregate(rows: Array<{ salesAmount: number; prizePayout: number; expectedCash: number; actualCash: number; difference?: number }>) {
+function getDayAggregate(rows: Array<{ salesAmount: number; prizePayout: number; expectedCash: number; difference?: number }>) {
   const totalSales = rows.reduce((acc, row) => acc + Number(row.salesAmount ?? 0), 0);
   const totalPayout = rows.reduce((acc, row) => acc + Number(row.prizePayout ?? 0), 0);
   const totalExpected = rows.reduce((acc, row) => acc + Number(row.expectedCash ?? 0), 0);
-  const totalActual = rows.reduce((acc, row) => acc + Number(row.actualCash ?? 0), 0);
   const totalDifference = rows.reduce((acc, row) => acc + getDifferenceValue(row), 0);
-  return { totalSales, totalPayout, totalExpected, totalActual, totalDifference };
+  return { totalSales, totalPayout, totalExpected, totalDifference };
 }
 
 function getDayClosePayoutSnapshot(rows: Array<{ lottoPayout?: number; scratchCardPayout?: number; tillPayout?: number }>) {
@@ -411,7 +406,6 @@ export function DailySalesReportScreen() {
                     <Text style={styles.meta}>Day Sales: {formatCurrency(dayAggregate.totalSales)}</Text>
                     <Text style={styles.meta}>Day Payout: {formatCurrency(dayAggregate.totalPayout)}</Text>
                     <Text style={styles.meta}>Day Expected: {formatCurrency(dayAggregate.totalExpected)}</Text>
-                    <Text style={styles.meta}>Day Actual: {formatCurrency(dayAggregate.totalActual)}</Text>
                     <Text
                       style={[
                         styles.meta,
@@ -460,7 +454,6 @@ export function DailySalesReportScreen() {
                         <Text style={styles.meta}>Sales: {formatCurrency(Number(row.salesAmount))}</Text>
                         <Text style={styles.meta}>Payout: {formatCurrency(Number(row.prizePayout))}</Text>
                         <Text style={styles.meta}>Expected: {formatCurrency(Number(row.expectedCash))}</Text>
-                        <Text style={styles.meta}>Actual: {formatCurrency(Number(row.actualCash))}</Text>
                         <Text
                           style={[
                             styles.meta,

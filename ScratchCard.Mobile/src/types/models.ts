@@ -159,7 +159,6 @@ export type BusinessDay = {
   totalSalesAmount: number;
   totalPrizePayout: number;
   expectedCash: number;
-  actualCash: number;
   difference: number;
   scratchCardDayCloseSummary?: {
     lottoPayout: number;
@@ -233,7 +232,6 @@ export type DailySalesReportRow = {
   salesAmount: number;
   prizePayout: number;
   expectedCash: number;
-  actualCash: number;
   difference: number;
   lottoPayout?: number;
   scratchCardPayout?: number;
@@ -296,7 +294,6 @@ export type ShiftCloseEntry = {
 };
 
 export type ShiftClosePayload = {
-  actualCash: number;
   notes?: string;
   attachments?: Array<{
     fileName: string;
@@ -313,7 +310,6 @@ export type ShiftCloseResult = {
   totalSalesAmount: number;
   totalPrizePayout: number;
   expectedCash: number;
-  actualCash: number;
   difference: number;
   hasManualOrEditedEntries: boolean;
 };

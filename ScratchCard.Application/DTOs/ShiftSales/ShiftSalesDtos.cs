@@ -15,7 +15,6 @@ public class ShiftClosePackEntryRequest
 
 public class FinalizeShiftRequest
 {
-    public decimal ActualCash { get; set; }
     public string? Notes { get; set; }
     public IReadOnlyCollection<CloseAttachmentUploadRequest> Attachments { get; set; } = [];
     public string? AttachmentFileName { get; set; }
@@ -37,7 +36,6 @@ public class ShiftCloseResultDto
     public decimal TotalSalesAmount { get; set; }
     public decimal TotalPrizePayout { get; set; }
     public decimal ExpectedCash { get; set; }
-    public decimal ActualCash { get; set; }
     public decimal Difference { get; set; }
     public bool HasManualOrEditedEntries { get; set; }
 }

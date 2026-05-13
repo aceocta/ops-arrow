@@ -10,7 +10,6 @@ public class OpenBusinessDayRequest
 
 public class CloseBusinessDayRequest
 {
-    public decimal ActualCash { get; set; }
     public decimal LottoPayout { get; set; }
     public decimal ScratchCardPayout { get; set; }
     public decimal TillPayout { get; set; }
@@ -34,7 +33,6 @@ public class BusinessDayDto
     public decimal TotalSalesAmount { get; set; }
     public decimal TotalPrizePayout { get; set; }
     public decimal ExpectedCash { get; set; }
-    public decimal ActualCash { get; set; }
     public decimal Difference { get; set; }
     public ScratchCardDayCloseSummaryDto? ScratchCardDayCloseSummary { get; set; }
     public IReadOnlyCollection<CloseAttachmentDto> CloseAttachments { get; set; } = [];

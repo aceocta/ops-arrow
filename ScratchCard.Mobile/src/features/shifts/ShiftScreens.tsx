@@ -500,7 +500,6 @@ export function CloseShiftScreen({ navigation }: CloseShiftProps) {
 
 export function ShiftReconciliationScreen({ route }: ReconciliationProps) {
   const { shiftId } = route.params;
-  const [actualCash, setActualCash] = useState("0");
   const shiftQuery = useQuery({
     queryKey: ["shift", shiftId],
     queryFn: () => getShift(shiftId),
@@ -518,8 +517,6 @@ export function ShiftReconciliationScreen({ route }: ReconciliationProps) {
   }, [salesQuery.data]);
 
   const expectedCash = totals.totalSales;
-  const actual = Number(actualCash || "0");
-  const difference = actual - expectedCash;
 
   return (
     <ScreenContainer>
@@ -528,15 +525,6 @@ export function ShiftReconciliationScreen({ route }: ReconciliationProps) {
           <Text style={styles.meta}>Shift: {shiftQuery.data?.shiftName ?? shiftId}</Text>
           <Text style={styles.meta}>Status: {shiftQuery.data?.status ?? "-"}</Text>
           <Text style={styles.meta}>Expected Cash: £ {expectedCash.toFixed(2)}</Text>
-          <Text style={styles.fieldLabel}>Actual Cash</Text>
-          <TextInput
-            style={styles.input}
-            value={actualCash}
-            onChangeText={setActualCash}
-            placeholder="Actual cash"
-            keyboardType="decimal-pad"
-          />
-          <Text style={styles.meta}>Difference: £ {difference.toFixed(2)}</Text>
           <Text style={styles.hint}>
             Reconciliation is calculated here for review. Final server reconciliation is captured during shift close submission.
           </Text>
@@ -645,3 +633,4 @@ const styles = StyleSheet.create({
   },
   smallButtonText: { color: "#FFF", fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 14 },
 });
+

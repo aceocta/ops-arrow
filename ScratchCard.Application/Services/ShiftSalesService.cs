@@ -217,7 +217,7 @@ public class ShiftSalesService : IShiftSalesService
             .SumAsync(x => x.PrizeAmount, cancellationToken);
 
         var expectedCash = totalSales - totalPrizePayout;
-        var difference = request.ActualCash - expectedCash;
+        var difference = -expectedCash;
 
         var reconciliation = await _reconciliationRepository.Query()
             .FirstOrDefaultAsync(x => x.ShiftId == shift.Id, cancellationToken);
@@ -242,7 +242,6 @@ public class ShiftSalesService : IShiftSalesService
         reconciliation.TotalSalesAmount = totalSales;
         reconciliation.TotalPrizePayout = totalPrizePayout;
         reconciliation.ExpectedCash = expectedCash;
-        reconciliation.ActualCash = request.ActualCash;
         reconciliation.Difference = difference;
         reconciliation.Status = ReconciliationStatus.Submitted;
         reconciliation.Notes = request.Notes;
@@ -328,7 +327,6 @@ public class ShiftSalesService : IShiftSalesService
             TotalSalesAmount = totalSales,
             TotalPrizePayout = totalPrizePayout,
             ExpectedCash = expectedCash,
-            ActualCash = request.ActualCash,
             Difference = difference,
             HasManualOrEditedEntries = hasFlags
         };

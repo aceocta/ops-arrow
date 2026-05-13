@@ -15,7 +15,6 @@ public class BusinessDay : AuditableEntity
     public decimal TotalSalesAmount { get; set; }
     public decimal TotalPrizePayout { get; set; }
     public decimal ExpectedCash { get; set; }
-    public decimal ActualCash { get; set; }
     public decimal Difference { get; set; }
     public string? Notes { get; set; }
 

@@ -232,7 +232,6 @@ public class CloseBusinessDayRequestValidator : AbstractValidator<CloseBusinessD
 {
     public CloseBusinessDayRequestValidator()
     {
-        RuleFor(x => x.ActualCash).GreaterThanOrEqualTo(0);
         RuleFor(x => x.LottoPayout).GreaterThanOrEqualTo(0);
         RuleFor(x => x.ScratchCardPayout).GreaterThanOrEqualTo(0);
         RuleFor(x => x.TillPayout).GreaterThanOrEqualTo(0);
@@ -266,7 +265,6 @@ public class FinalizeShiftRequestValidator : AbstractValidator<FinalizeShiftRequ
 {
     public FinalizeShiftRequestValidator()
     {
-        RuleFor(x => x.ActualCash).GreaterThanOrEqualTo(0);
         RuleFor(x => x.AttachmentFileName).MaximumLength(260);
         RuleFor(x => x.AttachmentBase64).MaximumLength(15_000_000);
         RuleFor(x => x.Attachments).Must(x => x is null || x.Count <= 10).WithMessage("A maximum of 10 attachments is allowed.");
