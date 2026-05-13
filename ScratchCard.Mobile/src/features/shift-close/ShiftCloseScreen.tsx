@@ -663,14 +663,24 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
               entry.originalScannedSerialNumber !== entry.closingSerialNumber);
           const rowStatusLabel = row.hasError ? "Error" : entry?.closingSerialNumber ? "Ready" : "Pending";
           const rowStatusTone: "danger" | "success" | "warning" = row.hasError ? "danger" : entry?.closingSerialNumber ? "success" : "warning";
+          const isPendingRow = rowStatusLabel === "Pending";
+          const isReadyRow = rowStatusLabel === "Ready";
 
           return (
-            <View style={[ui.card, styles.packCard]} key={row.pack.id}>
+            <View
+              style={[
+                ui.card,
+                styles.packCard,
+                isPendingRow ? styles.packCardPending : null,
+                isReadyRow ? styles.packCardReady : null,
+              ]}
+              key={row.pack.id}
+            >
               <View style={styles.packHeaderRow}>
                 <Text style={styles.packTitle}>
                   {row.pack.displayNumber != null ? `#${row.pack.displayNumber} - ` : ""}{row.pack.gameName}
                 </Text>
-                <StatusBadge label={rowStatusLabel} tone={rowStatusTone} />
+                {/* <StatusBadge label={rowStatusLabel} tone={rowStatusTone} /> */}
               </View>
 
               {/* <Text style={styles.packMeta}>Pack: {row.pack.packNumber}</Text> */}
@@ -682,72 +692,78 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
 
               <Text style={styles.fieldLabel}>Closing Serial Number</Text>
               <View style={styles.scanInputRow}>
-                <TextInput
-                  style={[styles.input, styles.inlineSerialInput]}
-                  value={entry?.closingSerialNumber ?? ""}
-                  placeholder="Closing serial number"
-                  placeholderTextColor={appTheme.colors.textSubtle}
-                  keyboardType="numeric"
-                  onChangeText={(value) => {
-                    setEntries((previous) => ({
-                      ...previous,
-                      [row.pack.id]: {
-                        closingSerialNumber: value,
-                        originalScannedSerialNumber: previous[row.pack.id]?.originalScannedSerialNumber,
-                        entryMethod: previous[row.pack.id]?.originalScannedSerialNumber
-                          ? EntryMethod.ScannedEdited
-                          : EntryMethod.Manual,
-                        manualEntryReason: previous[row.pack.id]?.manualEntryReason,
-                      },
-                    }));
-                  }}
-                />
+                <View style={styles.scanInputCell}>
+                  <TextInput
+                    style={[styles.input, styles.inlineSerialInput]}
+                    value={entry?.closingSerialNumber ?? ""}
+                    placeholder="Serial no"
+                    placeholderTextColor={appTheme.colors.textSubtle}
+                    keyboardType="numeric"
+                    onChangeText={(value) => {
+                      setEntries((previous) => ({
+                        ...previous,
+                        [row.pack.id]: {
+                          closingSerialNumber: value,
+                          originalScannedSerialNumber: previous[row.pack.id]?.originalScannedSerialNumber,
+                          entryMethod: previous[row.pack.id]?.originalScannedSerialNumber
+                            ? EntryMethod.ScannedEdited
+                            : EntryMethod.Manual,
+                          manualEntryReason: previous[row.pack.id]?.manualEntryReason,
+                        },
+                      }));
+                    }}
+                  />
+                </View>
 
-                <Pressable
-                  style={styles.soldOutButton}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Mark pack ${row.pack.packNumber} as sold out`}
-                  onPress={() => {
-                    const soldOutSerial = getLastSerialForPack(row.pack);
-                    setEntries((previous) => ({
-                      ...previous,
-                      [row.pack.id]: {
-                        closingSerialNumber: soldOutSerial,
-                        originalScannedSerialNumber: previous[row.pack.id]?.originalScannedSerialNumber,
-                        entryMethod: previous[row.pack.id]?.originalScannedSerialNumber
-                          ? EntryMethod.ScannedEdited
-                          : EntryMethod.Manual,
-                        manualEntryReason: previous[row.pack.id]?.manualEntryReason,
-                      },
-                    }));
-                  }}
-                >
-                  <Text style={styles.soldOutButtonText}>Sold Out</Text>
-                </Pressable>
+                <View style={styles.scanInputCell}>
+                  <Pressable
+                    style={styles.soldOutButton}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Mark pack ${row.pack.packNumber} as sold out`}
+                    onPress={() => {
+                      const soldOutSerial = getLastSerialForPack(row.pack);
+                      setEntries((previous) => ({
+                        ...previous,
+                        [row.pack.id]: {
+                          closingSerialNumber: soldOutSerial,
+                          originalScannedSerialNumber: previous[row.pack.id]?.originalScannedSerialNumber,
+                          entryMethod: previous[row.pack.id]?.originalScannedSerialNumber
+                            ? EntryMethod.ScannedEdited
+                            : EntryMethod.Manual,
+                          manualEntryReason: previous[row.pack.id]?.manualEntryReason,
+                        },
+                      }));
+                    }}
+                  >
+                    <Text style={styles.soldOutButtonText}>Sold Out</Text>
+                  </Pressable>
+                </View>
 
-                <Pressable
-                  style={styles.inlineScanButton}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Scan barcode for pack ${row.pack.packNumber}`}
-                  onPress={() => openBarcodeScanner({ mode: "single", packId: row.pack.id, packNumber: row.pack.packNumber })}
-                >
-                  <View style={styles.scanIconWrap}>
-                    <View style={[styles.scanCorner, styles.scanCornerTopLeft]} />
-                    <View style={[styles.scanCorner, styles.scanCornerTopRight]} />
-                    <View style={[styles.scanCorner, styles.scanCornerBottomLeft]} />
-                    <View style={[styles.scanCorner, styles.scanCornerBottomRight]} />
+                <View style={styles.scanInputCell}>
+                  <Pressable
+                    style={styles.inlineScanButton}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Scan barcode for pack ${row.pack.packNumber}`}
+                    onPress={() => openBarcodeScanner({ mode: "single", packId: row.pack.id, packNumber: row.pack.packNumber })}
+                  >
+                    <View style={styles.scanIconWrap}>
+                      <View style={[styles.scanCorner, styles.scanCornerTopLeft]} />
+                      <View style={[styles.scanCorner, styles.scanCornerTopRight]} />
+                      <View style={[styles.scanCorner, styles.scanCornerBottomLeft]} />
+                      <View style={[styles.scanCorner, styles.scanCornerBottomRight]} />
 
-                    <View style={styles.inlineScanGlyph}>
-                      <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
-                      <View style={[styles.barcodeBar, styles.barcodeBarWide]} />
-                      <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
-                      <View style={[styles.barcodeBar, styles.barcodeBarMedium]} />
-                      <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
-                      <View style={[styles.barcodeBar, styles.barcodeBarWide]} />
-                      <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
+                      <View style={styles.inlineScanGlyph}>
+                        <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
+                        <View style={[styles.barcodeBar, styles.barcodeBarWide]} />
+                        <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
+                        <View style={[styles.barcodeBar, styles.barcodeBarMedium]} />
+                        <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
+                        <View style={[styles.barcodeBar, styles.barcodeBarWide]} />
+                        <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
+                      </View>
                     </View>
-                  </View>
-                </Pressable>
+                  </Pressable>
+                </View>
               </View>
 
               {entry?.originalScannedSerialNumber ? (
@@ -785,7 +801,10 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
           <Text style={styles.cardTitle}>Shift Totals</Text>
           <Text style={styles.readonly}>Total sales: {formatCurrency(totals.salesAmount)}</Text>
           <Text style={styles.meta}>{pendingRows > 0 ? `Pending: ${pendingRows}` : ""}</Text>
-          </View><View style={[ui.card, styles.compactCard]}> <Text style={styles.fieldLabel}>Attachments (Optional)</Text>
+        </View>
+
+        <View style={[ui.card, styles.compactCard]}>
+          <Text style={styles.fieldLabel}>Attachments (Optional)</Text>
           {/* <Text style={styles.meta}>Up to 10 files. Images show a preview.</Text> */}
           {closeAttachments.length === 0 ? (
             <Text style={styles.meta}>No attachments selected.</Text>
@@ -852,21 +871,21 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
               </Pressable>
             ) : null}
           </View>
-         
         </View>
+
         <View style={[ui.card, styles.compactCard]}>
-        <View style={styles.actionGroup}> 
-          {!canFinalize ? (
-            <Text style={styles.meta}>Enter valid closing serials for all packs before finalising.</Text>
-          ) : null}
-          
+          <View style={styles.actionGroup}>
+            {!canFinalize ? (
+              <Text style={styles.meta}>Enter valid closing serials for all packs before finalising.</Text>
+            ) : null}
+
             <PrimaryButton
               label={isSubmitting ? "Finalising..." : "Finalise Shift"}
               onPress={onFinalize}
               disabled={!canFinalize}
             />
           </View>
-          </View>
+        </View>
       </ScrollView>
     </ScreenContainer>
   );
@@ -945,6 +964,16 @@ const styles = StyleSheet.create({
   packCard: {
     gap: appTheme.spacing.sm,
   },
+  packCardPending: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 0.8,
+    borderColor: "#F2D9A6",
+  },
+  packCardReady: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 0.8,
+    borderColor: "#B7E2C3",
+  },
   cardTitle: {
     fontSize: 18,
     lineHeight: 23,
@@ -1007,11 +1036,16 @@ const styles = StyleSheet.create({
   },
   scanInputRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "stretch",
     gap: appTheme.spacing.xs,
   },
+  scanInputCell: {
+    flex: 1,
+    flexBasis: 0,
+    minWidth: 0,
+  },
   inlineScanButton: {
-    width: 44,
+    width: "100%",
     height: 44,
     borderWidth: 0,
     borderRadius: appTheme.radius.sm,
@@ -1020,14 +1054,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   soldOutButton: {
+    width: "100%",
     height: 44,
-    // minWidth: 82,
     borderWidth: 0,
     borderRadius: appTheme.radius.sm,
     backgroundColor: "#F2F6FC",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
   },
   soldOutButtonText: {
     color: appTheme.colors.text,
@@ -1095,7 +1129,8 @@ const styles = StyleSheet.create({
     height: 14,
   },
   inlineSerialInput: {
-    flex: 1,
+    width: "100%",
+    height: 44,
     paddingVertical: 10,
   },
   readonly: {
