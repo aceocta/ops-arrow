@@ -21,4 +21,5 @@ public class ShiftReconciliation : BaseEntity
 
     public Shift Shift { get; set; } = null!;
     public Shop Shop { get; set; } = null!;
+    public ICollection<ShiftCloseAttachment> Attachments { get; set; } = new List<ShiftCloseAttachment>();
 }

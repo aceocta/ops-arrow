@@ -1,5 +1,6 @@
 using FluentValidation;
 using ScratchCard.Application.DTOs.BusinessDays;
+using ScratchCard.Application.DTOs.Common;
 using ScratchCard.Application.DTOs.Companies;
 using ScratchCard.Application.DTOs.Deliveries;
 using ScratchCard.Application.DTOs.Games;
@@ -236,6 +237,10 @@ public class CloseBusinessDayRequestValidator : AbstractValidator<CloseBusinessD
         RuleFor(x => x.ScratchCardPayout).GreaterThanOrEqualTo(0);
         RuleFor(x => x.TillPayout).GreaterThanOrEqualTo(0);
         RuleFor(x => x.Notes).MaximumLength(1000);
+        RuleFor(x => x.AttachmentFileName).MaximumLength(260);
+        RuleFor(x => x.AttachmentBase64).MaximumLength(15_000_000);
+        RuleFor(x => x.Attachments).Must(x => x is null || x.Count <= 10).WithMessage("A maximum of 10 attachments is allowed.");
+        RuleForEach(x => x.Attachments!).SetValidator(new CloseAttachmentUploadRequestValidator());
     }
 }
 
@@ -262,8 +267,22 @@ public class FinalizeShiftRequestValidator : AbstractValidator<FinalizeShiftRequ
     public FinalizeShiftRequestValidator()
     {
         RuleFor(x => x.ActualCash).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.AttachmentFileName).MaximumLength(260);
+        RuleFor(x => x.AttachmentBase64).MaximumLength(15_000_000);
+        RuleFor(x => x.Attachments).Must(x => x is null || x.Count <= 10).WithMessage("A maximum of 10 attachments is allowed.");
+        RuleForEach(x => x.Attachments!).SetValidator(new CloseAttachmentUploadRequestValidator());
         RuleFor(x => x.Entries).NotEmpty();
         RuleForEach(x => x.Entries).SetValidator(new ShiftClosePackEntryRequestValidator());
+    }
+}
+
+public class CloseAttachmentUploadRequestValidator : AbstractValidator<CloseAttachmentUploadRequest>
+{
+    public CloseAttachmentUploadRequestValidator()
+    {
+        RuleFor(x => x.FileName).NotEmpty().MaximumLength(260);
+        RuleFor(x => x.Base64).NotEmpty().MaximumLength(15_000_000);
+        RuleFor(x => x.ContentType).MaximumLength(120);
     }
 }
 

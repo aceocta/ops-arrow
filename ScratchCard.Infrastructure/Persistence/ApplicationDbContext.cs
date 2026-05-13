@@ -29,6 +29,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<ScratchCardDayCloseSummary> ScratchCardDayCloseSummaries => Set<ScratchCardDayCloseSummary>();
     public DbSet<ScratchCardDayReview> ScratchCardDayReviews => Set<ScratchCardDayReview>();
     public DbSet<ShiftReconciliation> ShiftReconciliations => Set<ShiftReconciliation>();
+    public DbSet<ShiftCloseAttachment> ShiftCloseAttachments => Set<ShiftCloseAttachment>();
+    public DbSet<BusinessDayCloseAttachment> BusinessDayCloseAttachments => Set<BusinessDayCloseAttachment>();
     public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<TemperatureMonitoringUnit> TemperatureMonitoringUnits => Set<TemperatureMonitoringUnit>();
@@ -250,6 +252,36 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.Notes).HasMaxLength(1000);
             entity.HasOne(x => x.Shift).WithOne(x => x.ShiftReconciliation).HasForeignKey<ShiftReconciliation>(x => x.ShiftId);
             entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId);
+        });
+
+        modelBuilder.Entity<ShiftCloseAttachment>(entity =>
+        {
+            entity.HasIndex(x => x.ShiftReconciliationId);
+            entity.Property(x => x.OriginalFileName).HasMaxLength(260).IsRequired();
+            entity.Property(x => x.StoredFileName).HasMaxLength(320).IsRequired();
+            entity.Property(x => x.StoredPath).HasMaxLength(1000).IsRequired();
+            entity.Property(x => x.ContentType).HasMaxLength(120);
+            entity.HasOne(x => x.ShiftReconciliation)
+                .WithMany(x => x.Attachments)
+                .HasForeignKey(x => x.ShiftReconciliationId);
+            entity.HasOne(x => x.Shop)
+                .WithMany()
+                .HasForeignKey(x => x.ShopId);
+        });
+
+        modelBuilder.Entity<BusinessDayCloseAttachment>(entity =>
+        {
+            entity.HasIndex(x => x.BusinessDayId);
+            entity.Property(x => x.OriginalFileName).HasMaxLength(260).IsRequired();
+            entity.Property(x => x.StoredFileName).HasMaxLength(320).IsRequired();
+            entity.Property(x => x.StoredPath).HasMaxLength(1000).IsRequired();
+            entity.Property(x => x.ContentType).HasMaxLength(120);
+            entity.HasOne(x => x.BusinessDay)
+                .WithMany(x => x.CloseAttachments)
+                .HasForeignKey(x => x.BusinessDayId);
+            entity.HasOne(x => x.Shop)
+                .WithMany()
+                .HasForeignKey(x => x.ShopId);
         });
 
         modelBuilder.Entity<NotificationLog>(entity =>

@@ -166,6 +166,13 @@ export type BusinessDay = {
     scratchCardPayout: number;
     tillPayout: number;
   };
+  closeAttachments?: Array<{
+    id: string;
+    fileName: string;
+    contentType?: string;
+    fileSizeBytes: number;
+    uploadedOn: string;
+  }>;
 };
 
 export type Shift = {
@@ -284,6 +291,13 @@ export type ShiftCloseEntry = {
 export type ShiftClosePayload = {
   actualCash: number;
   notes?: string;
+  attachments?: Array<{
+    fileName: string;
+    base64: string;
+    contentType?: string;
+  }>;
+  attachmentFileName?: string;
+  attachmentBase64?: string;
   entries: ShiftCloseEntry[];
 };
 

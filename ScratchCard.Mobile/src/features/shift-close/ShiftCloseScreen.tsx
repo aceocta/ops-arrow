@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import NetInfo, { useNetInfo } from "@react-native-community/netinfo";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import * as ImagePicker from "expo-image-picker";
 import { getBusinessDay } from "../../api/businessDaysApi";
 import { getActivePacksForShift, finalizeShift, getShift } from "../../api/shiftsApi";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -27,6 +28,18 @@ type EntryState = {
   entryMethod: EntryMethod;
   manualEntryReason?: string;
 };
+
+type CloseAttachmentState = {
+  id: string;
+  fileName: string;
+  base64: string;
+  contentType?: string;
+  uri?: string;
+  size?: number;
+};
+
+const MAX_CLOSE_ATTACHMENTS = 10;
+const MAX_CLOSE_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
 function normalizePackNumber(value: string) {
   return value.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
@@ -205,6 +218,24 @@ function formatCurrency(value: number) {
   return `\u00A3 ${value.toFixed(2)}`;
 }
 
+function formatFileSize(size?: number) {
+  if (!size || size <= 0) {
+    return "";
+  }
+
+  const units = ["B", "KB", "MB", "GB"];
+  let value = size;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex++;
+  }
+
+  const fixed = unitIndex === 0 ? value.toFixed(0) : value.toFixed(1);
+  return `${fixed} ${units[unitIndex]}`;
+}
+
 function comparePacksByDisplayOrder(a: ScratchCardPack, b: ScratchCardPack) {
   const aDisplay = a.displayNumber;
   const bDisplay = b.displayNumber;
@@ -224,12 +255,72 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
   const queryClient = useQueryClient();
   const [entries, setEntries] = useState<Record<string, EntryState>>({});
   const [scanStatus, setScanStatus] = useState<string | null>(null);
+  const [closeAttachments, setCloseAttachments] = useState<CloseAttachmentState[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const packsRef = useRef<ScratchCardPack[]>([]);
 
   function openBarcodeScanner(params: { mode: "single" | "auto"; packId?: string; packNumber?: string }) {
     const rootLikeNavigation = navigation.getParent()?.getParent() ?? navigation.getParent() ?? navigation;
     (rootLikeNavigation as any).navigate("BarcodeScanner", params);
+  }
+
+  async function selectCloseAttachments() {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permission required", "Photo access is required to add an attachment.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: "images",
+      quality: 0.85,
+      allowsEditing: false,
+      allowsMultipleSelection: true,
+      selectionLimit: MAX_CLOSE_ATTACHMENTS,
+      base64: true,
+    });
+
+    if (result.canceled || result.assets.length === 0) {
+      return;
+    }
+
+    let oversizedCount = 0;
+    const selected = result.assets
+      .filter((asset) => Boolean(asset.base64))
+      .flatMap((asset) => {
+        if (typeof asset.fileSize === "number" && asset.fileSize > MAX_CLOSE_ATTACHMENT_BYTES) {
+          oversizedCount++;
+          return [];
+        }
+
+        return [{
+          id: `${Date.now()}-${Math.random()}`,
+          fileName: asset.fileName ?? `shift-close-${Date.now()}.jpg`,
+          base64: asset.base64 as string,
+          contentType: asset.mimeType ?? "image/jpeg",
+          uri: asset.uri,
+          size: asset.fileSize,
+        }];
+      });
+
+    if (oversizedCount > 0) {
+      Alert.alert("File too large", `${oversizedCount} attachment(s) exceeded 10 MB and were skipped.`);
+    }
+
+    if (selected.length === 0) {
+      Alert.alert("Attachment failed", "Unable to read selected attachment(s).");
+      return;
+    }
+
+    setCloseAttachments((previous) => {
+      const combined = [...previous, ...selected];
+      if (combined.length <= MAX_CLOSE_ATTACHMENTS) {
+        return combined;
+      }
+
+      Alert.alert("Attachment limit", "A maximum of 10 attachments can be added.");
+      return combined.slice(0, MAX_CLOSE_ATTACHMENTS);
+    });
   }
 
   const packsQuery = useQuery({
@@ -439,6 +530,11 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
     try {
       const payload = {
         actualCash: 0,
+        attachments: closeAttachments.map((attachment) => ({
+          fileName: attachment.fileName,
+          base64: attachment.base64,
+          contentType: attachment.contentType,
+        })),
         entries: packs.map((pack) => {
           const entry = entries[pack.id];
           const wasEdited =
@@ -680,8 +776,75 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
         <View style={[ui.card, styles.compactCard]}>
           <Text style={styles.cardTitle}>Shift Totals</Text>
           <Text style={styles.readonly}>Total sales: {formatCurrency(totals.salesAmount)}</Text>
-         <Text style={styles.meta}>{pendingRows > 0 ? `Pending: ${pendingRows}` : ''}</Text> 
-         {!canFinalize ? (
+          <Text style={styles.meta}>{pendingRows > 0 ? `Pending: ${pendingRows}` : ""}</Text>
+          <Text style={styles.fieldLabel}>Close Attachments (Optional)</Text>
+          <Text style={styles.meta}>Up to 10 files. Images show a preview.</Text>
+          {closeAttachments.length === 0 ? (
+            <Text style={styles.meta}>No attachments selected.</Text>
+          ) : (
+            <Text style={styles.meta}>{closeAttachments.length} attachment(s) selected.</Text>
+          )}
+          {closeAttachments.length > 0 ? (
+            <View style={styles.attachmentList}>
+              {closeAttachments.map((attachment) => {
+                const canPreviewImage = Boolean(attachment.uri) && (attachment.contentType?.startsWith("image/") ?? false);
+                return (
+                  <View key={attachment.id} style={styles.attachmentItem}>
+                    {canPreviewImage ? (
+                      <Image source={{ uri: attachment.uri }} style={styles.attachmentPreviewImage} resizeMode="cover" />
+                    ) : (
+                      <View style={styles.attachmentFileIcon}>
+                        <Text style={styles.attachmentFileIconText}>FILE</Text>
+                      </View>
+                    )}
+                    <View style={styles.attachmentMeta}>
+                      <Text style={styles.attachmentFileName} numberOfLines={1}>
+                        {attachment.fileName}
+                      </Text>
+                      <Text style={styles.meta}>
+                        {(attachment.contentType ?? "application/octet-stream")}
+                        {attachment.size ? ` | ${formatFileSize(attachment.size)}` : ""}
+                      </Text>
+                    </View>
+                    <Pressable
+                      style={styles.attachmentRemoveButton}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove attachment ${attachment.fileName}`}
+                      onPress={() => setCloseAttachments((previous) => previous.filter((item) => item.id !== attachment.id))}
+                      disabled={isSubmitting}
+                    >
+                      <Text style={styles.attachmentRemoveButtonText}>Remove</Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
+          ) : null}
+          <View style={styles.attachmentActionRow}>
+            <Pressable
+              style={styles.attachmentActionButton}
+              accessibilityRole="button"
+              accessibilityLabel={closeAttachments.length > 0 ? "Add more close attachments" : "Add close attachments"}
+              onPress={() => void selectCloseAttachments()}
+              disabled={isSubmitting}
+            >
+              <Text style={styles.attachmentActionButtonText}>
+                {closeAttachments.length > 0 ? "Add More Attachments" : "Add Attachments"}
+              </Text>
+            </Pressable>
+            {closeAttachments.length > 0 ? (
+              <Pressable
+                style={[styles.attachmentActionButton, styles.attachmentActionButtonDanger]}
+                accessibilityRole="button"
+                accessibilityLabel="Clear all close attachments"
+                onPress={() => setCloseAttachments([])}
+                disabled={isSubmitting}
+              >
+                <Text style={[styles.attachmentActionButtonText, styles.attachmentActionButtonTextDanger]}>Clear All</Text>
+              </Pressable>
+            ) : null}
+          </View>
+          {!canFinalize ? (
             <Text style={styles.meta}>Enter valid closing serials for all packs before finalising.</Text>
           ) : null}
           <View style={styles.actionGroup}>
@@ -980,5 +1143,88 @@ const styles = StyleSheet.create({
   actionGroup: {
     gap: appTheme.spacing.xs,
     marginTop: 2,
+  },
+  attachmentList: {
+    gap: appTheme.spacing.xs,
+  },
+  attachmentItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    paddingHorizontal: appTheme.spacing.xs,
+    paddingVertical: appTheme.spacing.xs,
+  },
+  attachmentPreviewImage: {
+    width: 44,
+    height: 44,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+  },
+  attachmentFileIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: "#EEF3FB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  attachmentFileIconText: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 10,
+    lineHeight: 12,
+  },
+  attachmentMeta: {
+    flex: 1,
+    gap: 2,
+  },
+  attachmentFileName: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  attachmentRemoveButton: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderStrong,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  attachmentRemoveButtonText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 13,
+  },
+  attachmentActionRow: {
+    flexDirection: "row",
+    gap: appTheme.spacing.xs,
+  },
+  attachmentActionButton: {
+    flex: 1,
+    minHeight: 38,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: "#F2F6FC",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: appTheme.spacing.sm,
+  },
+  attachmentActionButtonDanger: {
+    backgroundColor: appTheme.colors.danger,
+  },
+  attachmentActionButtonText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 15,
+  },
+  attachmentActionButtonTextDanger: {
+    color: appTheme.colors.onPrimary,
   },
 });

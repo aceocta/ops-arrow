@@ -12,8 +12,8 @@ using ScratchCard.Infrastructure.Persistence;
 namespace ScratchCard.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260512223302_updated")]
-    partial class updated
+    [Migration("20260513082022_init")]
+    partial class init
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -247,6 +247,61 @@ namespace ScratchCard.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("BusinessDays");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.BusinessDayCloseAttachment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("BusinessDayId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContentType")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<long>("FileSizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("StoredFileName")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("nvarchar(320)");
+
+                    b.Property<string>("StoredPath")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BusinessDayId");
+
+                    b.HasIndex("ShopId");
+
+                    b.ToTable("BusinessDayCloseAttachments");
                 });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.Company", b =>
@@ -1170,6 +1225,61 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.ToTable("Shifts");
                 });
 
+            modelBuilder.Entity("ScratchCard.Domain.Entities.ShiftCloseAttachment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContentType")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<long>("FileSizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<Guid>("ShiftReconciliationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("StoredFileName")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("nvarchar(320)");
+
+                    b.Property<string>("StoredPath")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShiftReconciliationId");
+
+                    b.HasIndex("ShopId");
+
+                    b.ToTable("ShiftCloseAttachments");
+                });
+
             modelBuilder.Entity("ScratchCard.Domain.Entities.ShiftReconciliation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2055,6 +2165,25 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Navigation("Shop");
                 });
 
+            modelBuilder.Entity("ScratchCard.Domain.Entities.BusinessDayCloseAttachment", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.BusinessDay", "BusinessDay")
+                        .WithMany("CloseAttachments")
+                        .HasForeignKey("BusinessDayId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
+                        .WithMany()
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("BusinessDay");
+
+                    b.Navigation("Shop");
+                });
+
             modelBuilder.Entity("ScratchCard.Domain.Entities.Company", b =>
                 {
                     b.HasOne("ScratchCard.Domain.Entities.User", "OwnerUser")
@@ -2274,6 +2403,25 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Navigation("Shop");
                 });
 
+            modelBuilder.Entity("ScratchCard.Domain.Entities.ShiftCloseAttachment", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.ShiftReconciliation", "ShiftReconciliation")
+                        .WithMany("Attachments")
+                        .HasForeignKey("ShiftReconciliationId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
+                        .WithMany()
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("ShiftReconciliation");
+
+                    b.Navigation("Shop");
+                });
+
             modelBuilder.Entity("ScratchCard.Domain.Entities.ShiftReconciliation", b =>
                 {
                     b.HasOne("ScratchCard.Domain.Entities.Shift", "Shift")
@@ -2478,6 +2626,8 @@ namespace ScratchCard.Infrastructure.Migrations
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.BusinessDay", b =>
                 {
+                    b.Navigation("CloseAttachments");
+
                     b.Navigation("PrizePayouts");
 
                     b.Navigation("ScratchCardDayCloseSummary");
@@ -2542,6 +2692,11 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Navigation("ShiftReconciliation");
 
                     b.Navigation("ShiftSales");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.ShiftReconciliation", b =>
+                {
+                    b.Navigation("Attachments");
                 });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.Shop", b =>

@@ -768,6 +768,38 @@ namespace ScratchCard.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "BusinessDayCloseAttachments",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    BusinessDayId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    OriginalFileName = table.Column<string>(type: "nvarchar(260)", maxLength: 260, nullable: false),
+                    StoredFileName = table.Column<string>(type: "nvarchar(320)", maxLength: 320, nullable: false),
+                    StoredPath = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false),
+                    ContentType = table.Column<string>(type: "nvarchar(120)", maxLength: 120, nullable: true),
+                    FileSizeBytes = table.Column<long>(type: "bigint", nullable: false),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_BusinessDayCloseAttachments", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_BusinessDayCloseAttachments_BusinessDays_BusinessDayId",
+                        column: x => x.BusinessDayId,
+                        principalTable: "BusinessDays",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_BusinessDayCloseAttachments_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
                 name: "ScratchCardDayCloseSummaries",
                 columns: table => new
                 {
@@ -1043,6 +1075,38 @@ namespace ScratchCard.Infrastructure.Migrations
                         principalColumn: "Id");
                 });
 
+            migrationBuilder.CreateTable(
+                name: "ShiftCloseAttachments",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ShiftReconciliationId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    OriginalFileName = table.Column<string>(type: "nvarchar(260)", maxLength: 260, nullable: false),
+                    StoredFileName = table.Column<string>(type: "nvarchar(320)", maxLength: 320, nullable: false),
+                    StoredPath = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false),
+                    ContentType = table.Column<string>(type: "nvarchar(120)", maxLength: 120, nullable: true),
+                    FileSizeBytes = table.Column<long>(type: "bigint", nullable: false),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ShiftCloseAttachments", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ShiftCloseAttachments_ShiftReconciliations_ShiftReconciliationId",
+                        column: x => x.ShiftReconciliationId,
+                        principalTable: "ShiftReconciliations",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_ShiftCloseAttachments_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                });
+
             migrationBuilder.CreateIndex(
                 name: "IX_AppConfigurations_ShopId_ConfigKey",
                 table: "AppConfigurations",
@@ -1059,6 +1123,16 @@ namespace ScratchCard.Infrastructure.Migrations
                 name: "IX_BillingEvents_CompanySubscriptionId",
                 table: "BillingEvents",
                 column: "CompanySubscriptionId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_BusinessDayCloseAttachments_BusinessDayId",
+                table: "BusinessDayCloseAttachments",
+                column: "BusinessDayId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_BusinessDayCloseAttachments_ShopId",
+                table: "BusinessDayCloseAttachments",
+                column: "ShopId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_BusinessDays_ShopId_BusinessDate",
@@ -1199,6 +1273,16 @@ namespace ScratchCard.Infrastructure.Migrations
                 table: "ScratchCardPacks",
                 columns: new[] { "ShopId", "PackNumber" },
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ShiftCloseAttachments_ShiftReconciliationId",
+                table: "ShiftCloseAttachments",
+                column: "ShiftReconciliationId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ShiftCloseAttachments_ShopId",
+                table: "ShiftCloseAttachments",
+                column: "ShopId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_ShiftReconciliations_ShiftId",
@@ -1358,6 +1442,9 @@ namespace ScratchCard.Infrastructure.Migrations
                 name: "BillingEvents");
 
             migrationBuilder.DropTable(
+                name: "BusinessDayCloseAttachments");
+
+            migrationBuilder.DropTable(
                 name: "DeliveryPacks");
 
             migrationBuilder.DropTable(
@@ -1382,7 +1469,7 @@ namespace ScratchCard.Infrastructure.Migrations
                 name: "ScratchCardDayReviews");
 
             migrationBuilder.DropTable(
-                name: "ShiftReconciliations");
+                name: "ShiftCloseAttachments");
 
             migrationBuilder.DropTable(
                 name: "ShiftScratchCardSales");
@@ -1412,10 +1499,10 @@ namespace ScratchCard.Infrastructure.Migrations
                 name: "Deliveries");
 
             migrationBuilder.DropTable(
-                name: "ScratchCardPacks");
+                name: "ShiftReconciliations");
 
             migrationBuilder.DropTable(
-                name: "Shifts");
+                name: "ScratchCardPacks");
 
             migrationBuilder.DropTable(
                 name: "SubscriptionInvoices");
@@ -1427,19 +1514,22 @@ namespace ScratchCard.Infrastructure.Migrations
                 name: "Roles");
 
             migrationBuilder.DropTable(
-                name: "MasterScratchCardGames");
+                name: "Shifts");
 
             migrationBuilder.DropTable(
-                name: "BusinessDays");
+                name: "MasterScratchCardGames");
 
             migrationBuilder.DropTable(
                 name: "CompanySubscriptions");
 
             migrationBuilder.DropTable(
-                name: "Shops");
+                name: "BusinessDays");
 
             migrationBuilder.DropTable(
                 name: "SubscriptionPlans");
+
+            migrationBuilder.DropTable(
+                name: "Shops");
 
             migrationBuilder.DropTable(
                 name: "Companies");

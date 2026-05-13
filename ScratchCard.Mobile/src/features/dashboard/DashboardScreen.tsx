@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { listBusinessDays, openBusinessDay } from "../../api/businessDaysApi";
@@ -13,6 +13,11 @@ import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
+function isActiveBusinessDayStatus(status?: string) {
+  const normalized = (status ?? "").trim().toLowerCase();
+  return normalized === "open" || normalized === "reopened" || normalized === "readytoclose";
+}
+
 export function DashboardScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const { activeShopId, activeShop } = useAuth();
@@ -23,7 +28,19 @@ export function DashboardScreen() {
     queryKey: ["dashboard-business-days", selectedShopId],
     queryFn: () => listBusinessDays(selectedShopId),
     enabled: Boolean(selectedShopId),
+    refetchOnMount: "always",
+    refetchOnReconnect: true,
   });
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!selectedShopId) {
+        return;
+      }
+
+      void dayListQuery.refetch();
+    }, [dayListQuery.refetch, selectedShopId]),
+  );
 
   const openDayMutation = useMutation({
     mutationFn: async () => {
@@ -47,16 +64,19 @@ export function DashboardScreen() {
     }
 
     const sortedDays = [...days].sort((a, b) => b.businessDate.localeCompare(a.businessDate));
-    const activeDay = sortedDays.find((day) => day.status === "Open" || day.status === "Reopened" || day.status === "ReadyToClose");
+    const activeDay = sortedDays.find((day) => isActiveBusinessDayStatus(day.status));
     return activeDay ?? sortedDays[0];
   }, [dayListQuery.data]);
 
   useEffect(() => {
-    if (!preferredDay) {
+    if (!dayListQuery.isSuccess || !preferredDay) {
       return;
     }
+
     navigation.replace("DayEndClose", { businessDayId: preferredDay.id });
-  }, [navigation, preferredDay]);
+  }, [dayListQuery.isSuccess, navigation, preferredDay]);
+
+  const dayListErrorMessage = (dayListQuery.error as any)?.response?.data?.message ?? "Unable to load business days.";
 
   return (
     <ScreenContainer>
@@ -71,7 +91,23 @@ export function DashboardScreen() {
 
       <View style={ui.card}>
         {selectedShopId ? (
-          preferredDay ? (
+          dayListQuery.isError ? (
+            <>
+              <Text style={styles.sectionTitle}>Unable To Load Day Details</Text>
+              <Text style={styles.meta}>{dayListErrorMessage}</Text>
+              <PrimaryButton
+                tone="neutral"
+                label={dayListQuery.isFetching ? "Retrying..." : "Retry"}
+                onPress={() => void dayListQuery.refetch()}
+                disabled={dayListQuery.isFetching}
+              />
+            </>
+          ) : dayListQuery.isLoading || dayListQuery.isFetching ? (
+            <>
+              <Text style={styles.sectionTitle}>Loading Day Management...</Text>
+              <Text style={styles.meta}>Checking the current opened business day.</Text>
+            </>
+          ) : preferredDay ? (
             <>
               <Text style={styles.sectionTitle}>Opening Day Management...</Text>
               <Text style={styles.meta}>Date: {preferredDay.businessDate}</Text>

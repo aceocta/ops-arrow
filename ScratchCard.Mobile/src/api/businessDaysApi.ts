@@ -27,6 +27,13 @@ export async function closeBusinessDay(
     scratchCardPayout: number;
     tillPayout: number;
     notes?: string;
+    attachments?: Array<{
+      fileName: string;
+      base64: string;
+      contentType?: string;
+    }>;
+    attachmentFileName?: string;
+    attachmentBase64?: string;
   },
 ) {
   const response = await apiClient.post<ApiResponse<BusinessDay>>(`/business-days/${businessDayId}/close`, payload);

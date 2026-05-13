@@ -20,6 +20,7 @@ public class BusinessDayService : IBusinessDayService
     private readonly IRepository<ShiftScratchCardSale> _salesRepository;
     private readonly IRepository<PrizePayout> _payoutRepository;
     private readonly IRepository<ScratchCardDayCloseSummary> _dayCloseSummaryRepository;
+    private readonly IRepository<BusinessDayCloseAttachment> _dayCloseAttachmentRepository;
     private readonly IRepository<ShopUser> _shopUserRepository;
     private readonly IRepository<Shop> _shopRepository;
     private readonly IShopConfigurationService _shopConfigurationService;
@@ -34,6 +35,7 @@ public class BusinessDayService : IBusinessDayService
         IRepository<ShiftScratchCardSale> salesRepository,
         IRepository<PrizePayout> payoutRepository,
         IRepository<ScratchCardDayCloseSummary> dayCloseSummaryRepository,
+        IRepository<BusinessDayCloseAttachment> dayCloseAttachmentRepository,
         IRepository<ShopUser> shopUserRepository,
         IRepository<Shop> shopRepository,
         IShopConfigurationService shopConfigurationService,
@@ -47,6 +49,7 @@ public class BusinessDayService : IBusinessDayService
         _salesRepository = salesRepository;
         _payoutRepository = payoutRepository;
         _dayCloseSummaryRepository = dayCloseSummaryRepository;
+        _dayCloseAttachmentRepository = dayCloseAttachmentRepository;
         _shopUserRepository = shopUserRepository;
         _shopRepository = shopRepository;
         _shopConfigurationService = shopConfigurationService;
@@ -95,6 +98,7 @@ public class BusinessDayService : IBusinessDayService
         var query = _businessDayRepository.Query()
             .AsNoTracking()
             .Include(x => x.ScratchCardDayCloseSummary)
+            .Include(x => x.CloseAttachments)
             .Where(x => x.ShopId == shopId);
 
         if (from.HasValue)
@@ -118,6 +122,7 @@ public class BusinessDayService : IBusinessDayService
     {
         var day = await _businessDayRepository.Query()
             .Include(x => x.ScratchCardDayCloseSummary)
+            .Include(x => x.CloseAttachments)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new AppException("business_day_not_found", "Business day not found.", 404);
 
@@ -158,6 +163,48 @@ public class BusinessDayService : IBusinessDayService
         day.ActualCash = request.ActualCash;
         day.Difference = day.ActualCash - day.ExpectedCash;
         day.Notes = request.Notes;
+
+        var existingAttachments = await _dayCloseAttachmentRepository.Query()
+            .Where(x => x.BusinessDayId == day.Id)
+            .ToListAsync(cancellationToken);
+
+        foreach (var existingAttachment in existingAttachments)
+        {
+            CloseAttachmentStorage.TryDelete(existingAttachment.StoredPath);
+            _dayCloseAttachmentRepository.Remove(existingAttachment);
+        }
+
+        var attachmentInputs = CloseAttachmentStorage.BuildInputs(
+            request.Attachments,
+            request.AttachmentFileName,
+            request.AttachmentBase64);
+
+        if (attachmentInputs.Count > 0)
+        {
+            var savedAttachments = await CloseAttachmentStorage.SaveDayAttachmentsAsync(
+                attachmentInputs,
+                day.ShopId,
+                day.BusinessDate,
+                cancellationToken);
+
+            var now = DateTimeOffset.UtcNow;
+            var createdBy = _currentUserService.UserId;
+            var closeAttachments = savedAttachments.Select(saved => new BusinessDayCloseAttachment
+            {
+                BusinessDayId = day.Id,
+                ShopId = day.ShopId,
+                OriginalFileName = saved.OriginalFileName,
+                StoredFileName = saved.StoredFileName,
+                StoredPath = saved.StoredPath,
+                ContentType = saved.ContentType,
+                FileSizeBytes = saved.FileSizeBytes,
+                CreatedOn = now,
+                CreatedBy = createdBy
+            }).ToArray();
+
+            await _dayCloseAttachmentRepository.AddRangeAsync(closeAttachments, cancellationToken);
+        }
+
         day.ClosedByUserId = _currentUserService.UserId;
         day.ClosedOn = DateTimeOffset.UtcNow;
         day.Status = BusinessDayStatus.Closed;
@@ -207,7 +254,15 @@ public class BusinessDayService : IBusinessDayService
                 .ToArrayAsync(cancellationToken);
 
         await SendDayCloseSummaryToOwnersAsync(day, shifts, daySalesEntries, cancellationToken);
-        return day.ToDto();
+
+        var closedDay = await _businessDayRepository.Query()
+            .AsNoTracking()
+            .Include(x => x.ScratchCardDayCloseSummary)
+            .Include(x => x.CloseAttachments)
+            .FirstOrDefaultAsync(x => x.Id == day.Id, cancellationToken)
+            ?? day;
+
+        return closedDay.ToDto();
     }
 
     public async Task<BusinessDayDto> ReopenAsync(Guid id, ReopenBusinessDayRequest request, CancellationToken cancellationToken = default)

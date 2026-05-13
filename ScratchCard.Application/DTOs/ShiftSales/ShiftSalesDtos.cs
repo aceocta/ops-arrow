@@ -1,3 +1,4 @@
+using ScratchCard.Application.DTOs.Common;
 using ScratchCard.Domain.Enums;
 
 namespace ScratchCard.Application.DTOs.ShiftSales;
@@ -16,6 +17,9 @@ public class FinalizeShiftRequest
 {
     public decimal ActualCash { get; set; }
     public string? Notes { get; set; }
+    public IReadOnlyCollection<CloseAttachmentUploadRequest> Attachments { get; set; } = [];
+    public string? AttachmentFileName { get; set; }
+    public string? AttachmentBase64 { get; set; }
     public IReadOnlyCollection<ShiftClosePackEntryRequest> Entries { get; set; } = [];
 }
 

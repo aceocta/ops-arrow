@@ -1,4 +1,5 @@
 using ScratchCard.Application.DTOs.BusinessDays;
+using ScratchCard.Application.DTOs.Common;
 using ScratchCard.Application.DTOs.Companies;
 using ScratchCard.Application.DTOs.Configurations;
 using ScratchCard.Application.DTOs.Deliveries;
@@ -190,6 +191,10 @@ internal static class ServiceMappingExtensions
         ExpectedCash = day.ExpectedCash,
         ActualCash = day.ActualCash,
         Difference = day.Difference,
+        CloseAttachments = day.CloseAttachments
+            .OrderByDescending(x => x.CreatedOn)
+            .Select(x => x.ToDto())
+            .ToArray(),
         ScratchCardDayCloseSummary = day.ScratchCardDayCloseSummary is null
             ? null
             : new ScratchCardDayCloseSummaryDto
@@ -254,6 +259,24 @@ internal static class ServiceMappingExtensions
         RemainingTickets = sale.RemainingTickets,
         IsFlaggedForReview = sale.IsFlaggedForReview,
         NotificationSent = sale.NotificationSent
+    };
+
+    public static CloseAttachmentDto ToDto(this BusinessDayCloseAttachment attachment) => new()
+    {
+        Id = attachment.Id,
+        FileName = attachment.OriginalFileName,
+        ContentType = attachment.ContentType,
+        FileSizeBytes = attachment.FileSizeBytes,
+        UploadedOn = attachment.CreatedOn
+    };
+
+    public static CloseAttachmentDto ToDto(this ShiftCloseAttachment attachment) => new()
+    {
+        Id = attachment.Id,
+        FileName = attachment.OriginalFileName,
+        ContentType = attachment.ContentType,
+        FileSizeBytes = attachment.FileSizeBytes,
+        UploadedOn = attachment.CreatedOn
     };
 
     public static TemperatureMonitoringUnitDto ToDto(this TemperatureMonitoringUnit unit) => new()

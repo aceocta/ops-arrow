@@ -1,3 +1,5 @@
+using ScratchCard.Application.DTOs.Common;
+
 namespace ScratchCard.Application.DTOs.BusinessDays;
 
 public class OpenBusinessDayRequest
@@ -13,6 +15,9 @@ public class CloseBusinessDayRequest
     public decimal ScratchCardPayout { get; set; }
     public decimal TillPayout { get; set; }
     public string? Notes { get; set; }
+    public IReadOnlyCollection<CloseAttachmentUploadRequest> Attachments { get; set; } = [];
+    public string? AttachmentFileName { get; set; }
+    public string? AttachmentBase64 { get; set; }
 }
 
 public class ReopenBusinessDayRequest
@@ -32,6 +37,7 @@ public class BusinessDayDto
     public decimal ActualCash { get; set; }
     public decimal Difference { get; set; }
     public ScratchCardDayCloseSummaryDto? ScratchCardDayCloseSummary { get; set; }
+    public IReadOnlyCollection<CloseAttachmentDto> CloseAttachments { get; set; } = [];
 }
 
 public class ScratchCardDayCloseSummaryDto

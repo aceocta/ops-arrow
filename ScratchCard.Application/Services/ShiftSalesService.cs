@@ -21,6 +21,7 @@ public class ShiftSalesService : IShiftSalesService
     private readonly IRepository<ShiftScratchCardSale> _salesRepository;
     private readonly IRepository<PrizePayout> _payoutRepository;
     private readonly IRepository<ShiftReconciliation> _reconciliationRepository;
+    private readonly IRepository<ShiftCloseAttachment> _shiftCloseAttachmentRepository;
     private readonly IRepository<ShopUser> _shopUserRepository;
     private readonly IRepository<Shop> _shopRepository;
     private readonly IShopConfigurationService _shopConfigurationService;
@@ -37,6 +38,7 @@ public class ShiftSalesService : IShiftSalesService
         IRepository<ShiftScratchCardSale> salesRepository,
         IRepository<PrizePayout> payoutRepository,
         IRepository<ShiftReconciliation> reconciliationRepository,
+        IRepository<ShiftCloseAttachment> shiftCloseAttachmentRepository,
         IRepository<ShopUser> shopUserRepository,
         IRepository<Shop> shopRepository,
         IShopConfigurationService shopConfigurationService,
@@ -52,6 +54,7 @@ public class ShiftSalesService : IShiftSalesService
         _salesRepository = salesRepository;
         _payoutRepository = payoutRepository;
         _reconciliationRepository = reconciliationRepository;
+        _shiftCloseAttachmentRepository = shiftCloseAttachmentRepository;
         _shopUserRepository = shopUserRepository;
         _shopRepository = shopRepository;
         _shopConfigurationService = shopConfigurationService;
@@ -251,6 +254,47 @@ public class ShiftSalesService : IShiftSalesService
         else
         {
             _reconciliationRepository.Update(reconciliation);
+        }
+
+        var existingAttachments = await _shiftCloseAttachmentRepository.Query()
+            .Where(x => x.ShiftReconciliationId == reconciliation.Id)
+            .ToListAsync(cancellationToken);
+
+        foreach (var existingAttachment in existingAttachments)
+        {
+            CloseAttachmentStorage.TryDelete(existingAttachment.StoredPath);
+            _shiftCloseAttachmentRepository.Remove(existingAttachment);
+        }
+
+        var attachmentInputs = CloseAttachmentStorage.BuildInputs(
+            request.Attachments,
+            request.AttachmentFileName,
+            request.AttachmentBase64);
+        if (attachmentInputs.Count > 0)
+        {
+            var savedAttachments = await CloseAttachmentStorage.SaveShiftAttachmentsAsync(
+                attachmentInputs,
+                shift.ShopId,
+                businessDay.BusinessDate,
+                shift.ShiftName,
+                cancellationToken);
+
+            var now = DateTimeOffset.UtcNow;
+            var createdBy = _currentUserService.UserId;
+            var closeAttachments = savedAttachments.Select(saved => new ShiftCloseAttachment
+            {
+                ShiftReconciliationId = reconciliation.Id,
+                ShopId = shift.ShopId,
+                OriginalFileName = saved.OriginalFileName,
+                StoredFileName = saved.StoredFileName,
+                StoredPath = saved.StoredPath,
+                ContentType = saved.ContentType,
+                FileSizeBytes = saved.FileSizeBytes,
+                CreatedOn = now,
+                CreatedBy = createdBy
+            }).ToArray();
+
+            await _shiftCloseAttachmentRepository.AddRangeAsync(closeAttachments, cancellationToken);
         }
 
         shift.Status = ShiftStatus.Closed;
