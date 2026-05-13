@@ -625,8 +625,8 @@ export function RefusalRegisterScreen() {
 
 const styles = StyleSheet.create({
   screenHeaderCard: {
-    borderWidth: 1,
-    borderColor: appTheme.colors.border,
+    borderWidth: 0,
+    borderColor: "transparent",
     borderRadius: appTheme.radius.md,
     backgroundColor: "#F1F6FC",
     paddingHorizontal: appTheme.spacing.md,
@@ -669,8 +669,8 @@ const styles = StyleSheet.create({
   },
   headerMetricCard: {
     flex: 1,
-    borderWidth: 1,
-    borderColor: appTheme.colors.border,
+    borderWidth: 0,
+    borderColor: "transparent",
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surface,
     paddingVertical: appTheme.spacing.xs,
@@ -713,8 +713,8 @@ const styles = StyleSheet.create({
     gap: appTheme.spacing.xs,
   },
   input: {
-    borderWidth: 1,
-    borderColor: appTheme.colors.border,
+    borderWidth: 0,
+    borderColor: "transparent",
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceMuted,
     color: appTheme.colors.text,
@@ -731,15 +731,15 @@ const styles = StyleSheet.create({
     gap: appTheme.spacing.xs,
   },
   chip: {
-    borderWidth: 1,
-    borderColor: appTheme.colors.borderStrong,
+    borderWidth: 0,
+    borderColor: "transparent",
     borderRadius: appTheme.radius.pill,
     paddingHorizontal: 12,
     paddingVertical: 6,
     backgroundColor: appTheme.colors.surfaceMuted,
   },
   chipSelected: {
-    borderColor: appTheme.colors.primary,
+    borderColor: "transparent",
     backgroundColor: "#E9F7F6",
   },
   chipText: {
@@ -753,8 +753,8 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
   },
   secondaryButton: {
-    borderWidth: 1,
-    borderColor: appTheme.colors.primary,
+    borderWidth: 0,
+    borderColor: "transparent",
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceMuted,
     paddingHorizontal: 10,
@@ -768,8 +768,8 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   signaturePreviewCard: {
-    borderWidth: 1,
-    borderColor: appTheme.colors.border,
+    borderWidth: 0,
+    borderColor: "transparent",
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceMuted,
     minHeight: 120,
@@ -809,8 +809,8 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   entryItem: {
-    borderWidth: 1,
-    borderColor: appTheme.colors.border,
+    borderWidth: 0,
+    borderColor: "transparent",
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceMuted,
     padding: appTheme.spacing.sm,
@@ -854,8 +854,8 @@ const styles = StyleSheet.create({
     gap: appTheme.spacing.xs,
   },
   rowActionButton: {
-    borderWidth: 1,
-    borderColor: appTheme.colors.borderStrong,
+    borderWidth: 0,
+    borderColor: "transparent",
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surface,
     paddingHorizontal: 10,
@@ -876,15 +876,15 @@ const styles = StyleSheet.create({
   signatureModalCard: {
     backgroundColor: appTheme.colors.background,
     borderRadius: appTheme.radius.lg,
-    borderWidth: 1,
-    borderColor: appTheme.colors.border,
+    borderWidth: 0,
+    borderColor: "transparent",
     padding: appTheme.spacing.md,
     gap: appTheme.spacing.sm,
   },
   signaturePadWrap: {
     height: 240,
-    borderWidth: 1,
-    borderColor: appTheme.colors.border,
+    borderWidth: 0,
+    borderColor: "transparent",
     borderRadius: appTheme.radius.sm,
     overflow: "hidden",
     backgroundColor: appTheme.colors.surface,
@@ -896,18 +896,18 @@ const styles = StyleSheet.create({
   modalActionButton: {
     flex: 1,
     borderRadius: appTheme.radius.md,
-    borderWidth: 1,
+    borderWidth: 0,
     paddingVertical: 11,
     alignItems: "center",
     justifyContent: "center",
   },
   modalActionPrimary: {
     backgroundColor: appTheme.colors.primary,
-    borderColor: appTheme.colors.primaryPressed,
+    borderColor: "transparent",
   },
   modalActionSecondary: {
     backgroundColor: appTheme.colors.surfaceMuted,
-    borderColor: appTheme.colors.borderStrong,
+    borderColor: "transparent",
   },
   modalActionPrimaryText: {
     color: appTheme.colors.onPrimary,
