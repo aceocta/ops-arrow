@@ -91,6 +91,14 @@ export function BusinessDayScreen() {
                   >
                     <Text style={styles.dayTitle}>{day.businessDate}</Text>
                     <Text style={styles.meta}>Status: {day.status}</Text>
+                    <Text
+                      style={[
+                        styles.meta,
+                        (day.missingOpeningTicketCount ?? 0) > 0 ? styles.metaWarning : null,
+                      ]}
+                    >
+                      Missing Tickets: {day.missingOpeningTicketCount ?? 0}
+                    </Text>
                   </Pressable>
                 );
               })}
@@ -109,6 +117,7 @@ export function BusinessDayScreen() {
 const styles = StyleSheet.create({
   sectionTitle: { fontSize: 17, lineHeight: 22, fontFamily: appTheme.fonts.bodyMedium, color: appTheme.colors.text },
   meta: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, lineHeight: 18, fontSize: 13 },
+  metaWarning: { color: appTheme.colors.danger, fontFamily: appTheme.fonts.bodyMedium },
   modeRow: { flexDirection: "row", gap: 8 },
   modeChip: {
     borderWidth: 1,

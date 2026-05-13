@@ -1,4 +1,4 @@
-import { DailySalesReportRow } from "../../types/models";
+import { BusinessDay, DailySalesReportRow } from "../../types/models";
 
 type ScratchCardDailyGroup = {
   businessDate: string;
@@ -60,6 +60,7 @@ export function buildScratchCardDailySalesReportHtml(input: {
   from: string;
   to: string;
   rows: DailySalesReportRow[];
+  businessDays?: BusinessDay[];
   generatedOn?: string;
 }) {
   const generatedOnDate = input.generatedOn ? new Date(input.generatedOn) : new Date();
@@ -67,14 +68,25 @@ export function buildScratchCardDailySalesReportHtml(input: {
     ? input.generatedOn ?? "-"
     : formatReportDateTime(generatedOnDate);
   const groups = buildGroups(input.rows);
+  const businessDayByDate = new Map<string, BusinessDay>(
+    (input.businessDays ?? []).map((day) => [day.businessDate, day]),
+  );
 
   const totalSales = input.rows.reduce((sum, row) => sum + Number(row.salesAmount ?? 0), 0);
   const totalPayout = input.rows.reduce((sum, row) => sum + Number(row.prizePayout ?? 0), 0);
   const totalExpected = input.rows.reduce((sum, row) => sum + Number(row.expectedCash ?? 0), 0);
   const totalDifference = input.rows.reduce((sum, row) => sum + getDifferenceValue(row), 0);
+  const totalMissingTickets = (input.businessDays ?? []).reduce(
+    (sum, day) => sum + Number(day.missingOpeningTicketCount ?? 0),
+    0,
+  );
 
   const groupsHtml = groups
     .map((group) => {
+      const dayContext = businessDayByDate.get(group.businessDate);
+      const dayMissingCount = Number(dayContext?.missingOpeningTicketCount ?? 0);
+      const dayMissingDetails = dayContext?.missingOpeningTicketDetails ?? [];
+
       const rowsHtml = group.rows
         .map((row) => {
           const difference = getDifferenceValue(row);
@@ -95,6 +107,21 @@ export function buildScratchCardDailySalesReportHtml(input: {
       const dayPayout = group.rows.reduce((sum, row) => sum + Number(row.prizePayout ?? 0), 0);
       const dayExpected = group.rows.reduce((sum, row) => sum + Number(row.expectedCash ?? 0), 0);
       const dayDifference = group.rows.reduce((sum, row) => sum + getDifferenceValue(row), 0);
+
+      const dayMissingDetailsHtml = dayMissingDetails
+        .map((detail) => `
+          <tr>
+            <td>${escapeHtml(detail.shiftName)}</td>
+            <td>${escapeHtml(detail.displayNumber != null ? String(detail.displayNumber) : "-")}</td>
+            <td>${escapeHtml(detail.gameName)}</td>
+            <td>${escapeHtml(detail.gameCode || "-")}</td>
+            <td>${escapeHtml(detail.packNumber)}</td>
+            <td>${escapeHtml(detail.expectedOpeningSerialNumber)}</td>
+            <td>${escapeHtml(detail.actualOpeningSerialNumber)}</td>
+            <td>${escapeHtml(String(detail.missingQuantity))}</td>
+          </tr>
+        `)
+        .join("");
 
       return `
         <div class="group-title">Business Date: ${escapeHtml(group.businessDate)}</div>
@@ -121,6 +148,32 @@ export function buildScratchCardDailySalesReportHtml(input: {
             </tr>
           </tbody>
         </table>
+        <div class="missing-wrap">
+          <div class="missing-title">Missing Tickets (Opening Serial): ${escapeHtml(String(dayMissingCount))}</div>
+          ${
+            dayMissingDetails.length === 0
+              ? `<div class="missing-empty">No missing-ticket detail rows recorded.</div>`
+              : `
+              <table>
+                <thead>
+                  <tr>
+                    <th>Shift</th>
+                    <th>Display</th>
+                    <th>Game</th>
+                    <th>Code</th>
+                    <th>Pack</th>
+                    <th>Expected Serial</th>
+                    <th>Actual Serial</th>
+                    <th>Missing Qty</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${dayMissingDetailsHtml}
+                </tbody>
+              </table>
+            `
+          }
+        </div>
       `;
     })
     .join("");
@@ -231,6 +284,23 @@ export function buildScratchCardDailySalesReportHtml(input: {
           .col-shift { width: 24%; }
           .col-money { width: 12%; }
           .col-status { width: 8%; }
+          .missing-wrap {
+            border: 1px solid #9aa9b5;
+            border-radius: 8px;
+            background: #faf7f7;
+            padding: 8px 10px;
+            margin-bottom: 10px;
+          }
+          .missing-title {
+            font-size: 12px;
+            font-weight: 700;
+            margin-bottom: 6px;
+            color: #4a1f1f;
+          }
+          .missing-empty {
+            font-size: 10px;
+            color: #425463;
+          }
           .foot {
             margin-top: 14px;
             color: #425463;
@@ -243,7 +313,7 @@ export function buildScratchCardDailySalesReportHtml(input: {
         <div class="subtitle">Shop: ${escapeHtml(input.shopName)} | Date Range: ${escapeHtml(input.from)} to ${escapeHtml(input.to)}</div>
         <div class="report-meta">Report Date Time: ${escapeHtml(reportDateTime)}</div>
         <div class="summary">
-          Days: ${groups.length} | Shifts: ${input.rows.length} | Total Sales: ${escapeHtml(formatMoney(totalSales))} | Total Payout: ${escapeHtml(formatMoney(totalPayout))} | Net Difference: ${escapeHtml(formatMoney(totalDifference))}
+          Days: ${groups.length} | Shifts: ${input.rows.length} | Total Sales: ${escapeHtml(formatMoney(totalSales))} | Total Payout: ${escapeHtml(formatMoney(totalPayout))} | Net Difference: ${escapeHtml(formatMoney(totalDifference))} | Missing Tickets: ${escapeHtml(String(totalMissingTickets))}
         </div>
         ${groupsHtml || "<div>No scratch card sales found for this date range.</div>"}
         ${grandTotalHtml}

@@ -162,6 +162,7 @@ export type BusinessDay = {
   expectedCash: number;
   difference: number;
   missingOpeningTicketCount?: number;
+  missingOpeningTicketDetails?: MissingOpeningTicketDetail[];
   scratchCardDayCloseSummary?: {
     lottoPayout: number;
     scratchCardPayout: number;
@@ -174,6 +175,20 @@ export type BusinessDay = {
     fileSizeBytes: number;
     uploadedOn: string;
   }>;
+};
+
+export type MissingOpeningTicketDetail = {
+  shiftId: string;
+  shiftName: string;
+  packId: string;
+  packNumber: string;
+  displayNumber?: number;
+  gameName: string;
+  gameCode: string;
+  expectedOpeningSerialNumber: string;
+  actualOpeningSerialNumber: string;
+  missingQuantity: number;
+  overageQuantity: number;
 };
 
 export type Shift = {

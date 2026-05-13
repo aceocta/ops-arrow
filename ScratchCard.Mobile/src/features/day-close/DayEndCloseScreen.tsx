@@ -352,6 +352,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   const day = dayQuery.data;
   const status = day?.status;
   const persistedDayAttachments = day?.closeAttachments ?? [];
+  const missingOpeningTicketCount = day?.missingOpeningTicketCount ?? 0;
+  const missingOpeningTicketDetails = day?.missingOpeningTicketDetails ?? [];
   const canClose = status === "Open" || status === "Reopened" || status === "ReadyToClose";
   const canReopen = status === "Closed";
   const canManageShifts = canClose;
@@ -879,6 +881,17 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               <Text style={styles.summaryMetaLabel}>Scheduled</Text>
               <Text style={styles.summaryMetaValue}>{scheduledShiftCount}</Text>
             </View>
+            <View style={styles.summaryMetaItem}>
+              <Text style={styles.summaryMetaLabel}>Missing Tickets</Text>
+              <Text
+                style={[
+                  styles.summaryMetaValue,
+                  missingOpeningTicketCount > 0 ? styles.summaryMetaValueDanger : null,
+                ]}
+              >
+                {missingOpeningTicketCount}
+              </Text>
+            </View>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={daysQuery.isFetching ? "Refreshing available dates" : "Change business date"}
@@ -976,6 +989,39 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               </View>
             );
           })}
+        </View>
+
+        <View style={[ui.card, styles.sectionCard]}>
+          <View style={styles.sectionTitleRow}>
+            <Text style={styles.sectionTitle}>Missing Tickets (Opening Serial)</Text>
+            <StatusBadge
+              label={`${missingOpeningTicketCount}`}
+              tone={missingOpeningTicketCount > 0 ? "danger" : "success"}
+            />
+          </View>
+          {missingOpeningTicketDetails.length === 0 ? (
+            <Text style={styles.meta}>No missing tickets were recorded from opening serial confirmations.</Text>
+          ) : (
+            <View style={styles.missingTicketList}>
+              {missingOpeningTicketDetails.map((detail, index) => (
+                <View key={`${detail.shiftId}-${detail.packId}-${index}`} style={styles.missingTicketItem}>
+                  <Text style={styles.reviewSnapshotTitle}>
+                    Display: {detail.displayNumber != null ? `#${detail.displayNumber}` : "-"} | {detail.gameName}
+                  </Text>
+                  <Text style={styles.meta}>Shift: {detail.shiftName}</Text>
+                  <Text style={styles.meta}>Game Code: {detail.gameCode || "-"}</Text>
+                  <Text style={styles.meta}>Pack: {detail.packNumber}</Text>
+                  <Text style={styles.meta}>
+                    Expected: {detail.expectedOpeningSerialNumber} | Actual: {detail.actualOpeningSerialNumber}
+                  </Text>
+                  <Text style={styles.missingTicketQty}>Missing Qty: {detail.missingQuantity}</Text>
+                  {detail.overageQuantity > 0 ? (
+                    <Text style={styles.meta}>Overage Qty: {detail.overageQuantity}</Text>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          )}
         </View>
 
         <View style={[ui.card, styles.sectionCard]}>
@@ -1662,6 +1708,9 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontFamily: appTheme.fonts.heading,
   },
+  summaryMetaValueDanger: {
+    color: appTheme.colors.danger,
+  },
   dateActionInlineButton: {
     borderWidth: 0,
     borderRadius: appTheme.radius.sm,
@@ -1900,6 +1949,24 @@ const styles = StyleSheet.create({
   },
   shiftActionRow: {
     marginTop: 2,
+  },
+  missingTicketList: {
+    gap: appTheme.spacing.xs,
+  },
+  missingTicketItem: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.xs,
+    gap: 2,
+  },
+  missingTicketQty: {
+    color: appTheme.colors.danger,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 17,
   },
   serialConfirmRow: {
     borderWidth: 1,

@@ -156,6 +156,14 @@ export function DailySalesReportScreen() {
     queryFn: () => listBusinessDays(shopId as string, { from, to }),
     enabled: Boolean(shopId) && from.length === 10 && to.length === 10,
   });
+  const totalMissingTickets = useMemo(
+    () => (businessDaysQuery.data ?? []).reduce((sum, day) => sum + Number(day.missingOpeningTicketCount ?? 0), 0),
+    [businessDaysQuery.data],
+  );
+  const businessDayByDate = useMemo(
+    () => new Map((businessDaysQuery.data ?? []).map((day) => [day.businessDate, day])),
+    [businessDaysQuery.data],
+  );
 
   const shiftsQuery = useQuery({
     queryKey: ["shifts-for-daily-report", shopId],
@@ -170,6 +178,7 @@ export function DailySalesReportScreen() {
         from,
         to,
         rows: query.data ?? [],
+        businessDays: businessDaysQuery.data ?? [],
         generatedOn: new Date().toISOString(),
       });
 
@@ -189,6 +198,7 @@ export function DailySalesReportScreen() {
         from,
         to,
         rows: query.data ?? [],
+        businessDays: businessDaysQuery.data ?? [],
         generatedOn: new Date().toISOString(),
       });
 
@@ -210,6 +220,7 @@ export function DailySalesReportScreen() {
         from,
         to,
         rows: query.data ?? [],
+        businessDays: businessDaysQuery.data ?? [],
         generatedOn: new Date().toISOString(),
       });
 
@@ -318,6 +329,17 @@ export function DailySalesReportScreen() {
               <Text style={styles.metricValue}>{formatCurrency(totalSales)}</Text>
               <Text style={styles.metricLabel}>Total Sales</Text>
             </View>
+            <View style={styles.metricCard}>
+              <Text
+                style={[
+                  styles.metricValueLarge,
+                  totalMissingTickets > 0 ? styles.varianceTextNegative : null,
+                ]}
+              >
+                {totalMissingTickets}
+              </Text>
+              <Text style={styles.metricLabel}>Missing Tickets</Text>
+            </View>
           </View>
 
 {totalDifference!=0 ?(
@@ -369,6 +391,9 @@ export function DailySalesReportScreen() {
           {groupedRows.map(([businessDate, rows]) => {
             const dayAggregate = getDayAggregate(rows ?? []);
             const dayClosePayouts = getDayClosePayoutSnapshot(rows ?? []);
+            const dayContext = businessDayByDate.get(businessDate);
+            const dayMissingCount = Number(dayContext?.missingOpeningTicketCount ?? 0);
+            const dayMissingDetails = dayContext?.missingOpeningTicketDetails ?? [];
             const isDayPositive = dayAggregate.totalDifference > 0.009;
             const isDayNegative = dayAggregate.totalDifference < -0.009;
 
@@ -415,6 +440,9 @@ export function DailySalesReportScreen() {
                     >
                       Day Difference: {formatCurrency(dayAggregate.totalDifference)}
                     </Text>
+                    <Text style={[styles.meta, dayMissingCount > 0 ? styles.varianceTextNegative : null]}>
+                      Missing Tickets: {dayMissingCount}
+                    </Text>
                   </View>
                 </Pressable>
                 <View style={styles.dayReviewCard}>
@@ -428,6 +456,27 @@ export function DailySalesReportScreen() {
                   <Text style={styles.meta}>
                     Till Payout: {dayClosePayouts?.tillPayout != null ? formatCurrency(Number(dayClosePayouts.tillPayout)) : "-"}
                   </Text>
+                </View>
+                <View style={styles.dayReviewCard}>
+                  <Text style={styles.dayReviewTitle}>Missing Ticket Details (Opening Serial)</Text>
+                  {dayMissingDetails.length === 0 ? (
+                    <Text style={styles.meta}>No missing-ticket detail rows recorded for this day.</Text>
+                  ) : (
+                    dayMissingDetails.map((detail, index) => (
+                      <View key={`${detail.shiftId}-${detail.packId}-${index}`} style={styles.dayMissingDetailItem}>
+                        <Text style={styles.meta}>Shift: {detail.shiftName}</Text>
+                        <Text style={styles.meta}>
+                          Display: {detail.displayNumber != null ? `#${detail.displayNumber}` : "-"} | {detail.gameName}
+                        </Text>
+                        <Text style={styles.meta}>Game Code: {detail.gameCode || "-"}</Text>
+                        <Text style={styles.meta}>Pack: {detail.packNumber}</Text>
+                        <Text style={styles.meta}>
+                          Expected: {detail.expectedOpeningSerialNumber} | Actual: {detail.actualOpeningSerialNumber}
+                        </Text>
+                        <Text style={[styles.meta, styles.varianceTextNegative]}>Missing Qty: {detail.missingQuantity}</Text>
+                      </View>
+                    ))
+                  )}
                 </View>
                 <View style={styles.shiftListWrap}>
                   {(rows ?? []).map((row, index) => (
@@ -816,6 +865,14 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.surfaceMuted,
     padding: 10,
     gap: 4,
+  },
+  dayMissingDetailItem: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    padding: 8,
+    gap: 2,
   },
   dayReviewTitle: {
     color: appTheme.colors.text,

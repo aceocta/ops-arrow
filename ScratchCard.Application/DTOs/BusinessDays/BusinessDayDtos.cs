@@ -35,8 +35,24 @@ public class BusinessDayDto
     public decimal ExpectedCash { get; set; }
     public decimal Difference { get; set; }
     public int MissingOpeningTicketCount { get; set; }
+    public IReadOnlyCollection<MissingOpeningTicketDetailDto> MissingOpeningTicketDetails { get; set; } = [];
     public ScratchCardDayCloseSummaryDto? ScratchCardDayCloseSummary { get; set; }
     public IReadOnlyCollection<CloseAttachmentDto> CloseAttachments { get; set; } = [];
+}
+
+public class MissingOpeningTicketDetailDto
+{
+    public Guid ShiftId { get; set; }
+    public string ShiftName { get; set; } = string.Empty;
+    public Guid PackId { get; set; }
+    public string PackNumber { get; set; } = string.Empty;
+    public int? DisplayNumber { get; set; }
+    public string GameName { get; set; } = string.Empty;
+    public string GameCode { get; set; } = string.Empty;
+    public string ExpectedOpeningSerialNumber { get; set; } = string.Empty;
+    public string ActualOpeningSerialNumber { get; set; } = string.Empty;
+    public int MissingQuantity { get; set; }
+    public int OverageQuantity { get; set; }
 }
 
 public class ScratchCardDayCloseSummaryDto

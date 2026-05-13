@@ -95,6 +95,7 @@ public class BusinessDayService : IBusinessDayService
         await _auditService.LogAsync(nameof(BusinessDay), day.Id, "BusinessDayOpened", day.ShopId, cancellationToken: cancellationToken);
         var openedDayDto = day.ToDto();
         openedDayDto.MissingOpeningTicketCount = 0;
+        openedDayDto.MissingOpeningTicketDetails = [];
         return openedDayDto;
     }
 
@@ -120,10 +121,12 @@ public class BusinessDayService : IBusinessDayService
             .OrderByDescending(x => x.BusinessDate)
             .ToListAsync(cancellationToken);
         var missingByDayId = await GetMissingOpeningTicketsByDayIdAsync(days.Select(x => x.Id), cancellationToken);
+        var missingDetailsByDayId = await GetMissingOpeningTicketDetailsByDayIdAsync(days.Select(x => x.Id), cancellationToken);
         return days.Select(day =>
         {
             var dto = day.ToDto();
             dto.MissingOpeningTicketCount = missingByDayId.GetValueOrDefault(day.Id);
+            dto.MissingOpeningTicketDetails = missingDetailsByDayId.GetValueOrDefault(day.Id, []);
             return dto;
         }).ToArray();
     }
@@ -136,8 +139,10 @@ public class BusinessDayService : IBusinessDayService
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new AppException("business_day_not_found", "Business day not found.", 404);
         var missingByDayId = await GetMissingOpeningTicketsByDayIdAsync([day.Id], cancellationToken);
+        var missingDetailsByDayId = await GetMissingOpeningTicketDetailsByDayIdAsync([day.Id], cancellationToken);
         var dayDto = day.ToDto();
         dayDto.MissingOpeningTicketCount = missingByDayId.GetValueOrDefault(day.Id);
+        dayDto.MissingOpeningTicketDetails = missingDetailsByDayId.GetValueOrDefault(day.Id, []);
         return dayDto;
     }
 
@@ -283,8 +288,10 @@ public class BusinessDayService : IBusinessDayService
             .FirstOrDefaultAsync(x => x.Id == day.Id, cancellationToken)
             ?? day;
         var missingByDayId = await GetMissingOpeningTicketsByDayIdAsync([closedDay.Id], cancellationToken);
+        var missingDetailsByDayId = await GetMissingOpeningTicketDetailsByDayIdAsync([closedDay.Id], cancellationToken);
         var closedDayDto = closedDay.ToDto();
         closedDayDto.MissingOpeningTicketCount = missingByDayId.GetValueOrDefault(closedDay.Id);
+        closedDayDto.MissingOpeningTicketDetails = missingDetailsByDayId.GetValueOrDefault(closedDay.Id, []);
         return closedDayDto;
     }
 
@@ -310,8 +317,10 @@ public class BusinessDayService : IBusinessDayService
             reason: request.Reason,
             cancellationToken: cancellationToken);
         var missingByDayId = await GetMissingOpeningTicketsByDayIdAsync([day.Id], cancellationToken);
+        var missingDetailsByDayId = await GetMissingOpeningTicketDetailsByDayIdAsync([day.Id], cancellationToken);
         var reopenedDto = day.ToDto();
         reopenedDto.MissingOpeningTicketCount = missingByDayId.GetValueOrDefault(day.Id);
+        reopenedDto.MissingOpeningTicketDetails = missingDetailsByDayId.GetValueOrDefault(day.Id, []);
         return reopenedDto;
     }
 
@@ -530,6 +539,50 @@ public class BusinessDayService : IBusinessDayService
                 MissingTicketCount = group.Sum(x => x.MissingQuantity)
             })
             .ToDictionaryAsync(x => x.BusinessDayId, x => x.MissingTicketCount, cancellationToken);
+    }
+
+    private async Task<Dictionary<Guid, IReadOnlyCollection<MissingOpeningTicketDetailDto>>> GetMissingOpeningTicketDetailsByDayIdAsync(
+        IEnumerable<Guid> businessDayIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = businessDayIds.Distinct().ToArray();
+        if (ids.Length == 0)
+        {
+            return new Dictionary<Guid, IReadOnlyCollection<MissingOpeningTicketDetailDto>>();
+        }
+
+        var rows = await _shiftOpeningSerialRepository.Query()
+            .AsNoTracking()
+            .Where(x => ids.Contains(x.BusinessDayId) && x.MissingQuantity > 0)
+            .OrderBy(x => x.BusinessDayId)
+            .ThenBy(x => x.Pack.DisplayNumber)
+            .ThenBy(x => x.Pack.Game.GameName)
+            .ThenBy(x => x.Pack.PackNumber)
+            .Select(x => new
+            {
+                x.BusinessDayId,
+                Detail = new MissingOpeningTicketDetailDto
+                {
+                    ShiftId = x.ShiftId,
+                    ShiftName = x.Shift.ShiftName,
+                    PackId = x.PackId,
+                    PackNumber = x.Pack.PackNumber,
+                    DisplayNumber = x.Pack.DisplayNumber,
+                    GameName = x.Pack.Game.GameName,
+                    GameCode = x.Pack.Game.GameCode,
+                    ExpectedOpeningSerialNumber = x.ExpectedOpeningSerialNumber,
+                    ActualOpeningSerialNumber = x.ActualOpeningSerialNumber,
+                    MissingQuantity = x.MissingQuantity,
+                    OverageQuantity = x.OverageQuantity
+                }
+            })
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .GroupBy(x => x.BusinessDayId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyCollection<MissingOpeningTicketDetailDto>)group.Select(x => x.Detail).ToArray());
     }
 
     private async Task SendDayCloseSummaryToOwnersAsync(
