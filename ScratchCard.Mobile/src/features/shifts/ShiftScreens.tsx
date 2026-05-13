@@ -299,6 +299,9 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
 
               {closableShifts.map((shift) => (
                 <View key={shift.id} style={styles.item}>
+                  {shift.closeAttachments?.length ? (
+                    <Text style={styles.meta}>Attachments: {shift.closeAttachments.length}</Text>
+                  ) : null}
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`Open ${shift.shiftName} shift details`}
@@ -334,6 +337,9 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
               ) : null}
               {closedShifts.map((shift) => (
                 <View key={shift.id} style={styles.item}>
+                  {shift.closeAttachments?.length ? (
+                    <Text style={styles.meta}>Attachments: {shift.closeAttachments.length}</Text>
+                  ) : null}
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`Open ${shift.shiftName} shift details`}

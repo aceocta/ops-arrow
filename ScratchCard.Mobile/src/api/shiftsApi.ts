@@ -64,3 +64,8 @@ export async function getShiftSales(shiftId: string) {
   const response = await apiClient.get<ApiResponse<ShiftSalesEntry[]>>(`/shift-sales/${shiftId}`);
   return response.data.data;
 }
+
+export async function getShiftCloseAttachmentContent(attachmentId: string) {
+  const response = await apiClient.get<ApiResponse<string | null>>(`/shifts/attachments/${attachmentId}/content`);
+  return response.data.data ?? undefined;
+}

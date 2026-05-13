@@ -113,7 +113,7 @@ const bottomDockItems: Array<{
   // { icon: "calendar-outline", label: "Day", screen: "Dashboard" },
   { icon: "albums-outline", label: "Scratch Cards", screen: "Dashboard" },
   { icon: "thermometer-outline", label: "Temp", screen: "TemperatureLogs" },
-  { icon: "shield-checkmark-outline", label: "No Sale", screen: "RefusalRegister" },
+  { icon: "shield-checkmark-outline", label: "No ID/No Sale", screen: "RefusalRegister" },
   { icon: "settings-outline", label: "Settings", screen: "Settings" },
 ];
 

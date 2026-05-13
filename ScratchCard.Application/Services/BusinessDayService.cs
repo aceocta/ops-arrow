@@ -129,6 +129,16 @@ public class BusinessDayService : IBusinessDayService
         return day.ToDto();
     }
 
+    public async Task<string?> GetCloseAttachmentDataUrlAsync(Guid attachmentId, CancellationToken cancellationToken = default)
+    {
+        var attachment = await _dayCloseAttachmentRepository.Query()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == attachmentId, cancellationToken)
+            ?? throw new AppException("business_day_attachment_not_found", "Business day attachment not found.", 404);
+
+        return await ReadAttachmentDataUrlAsync(attachment.StoredPath, attachment.ContentType, cancellationToken);
+    }
+
     public async Task<BusinessDayDto> CloseAsync(Guid id, CloseBusinessDayRequest request, CancellationToken cancellationToken = default)
     {
         var day = await _businessDayRepository.GetByIdAsync(id, cancellationToken)
@@ -446,6 +456,43 @@ public class BusinessDayService : IBusinessDayService
         }
 
         return null;
+    }
+
+    private static async Task<string?> ReadAttachmentDataUrlAsync(
+        string? storedPath,
+        string? contentType,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(storedPath) || !File.Exists(storedPath))
+        {
+            return null;
+        }
+
+        var bytes = await File.ReadAllBytesAsync(storedPath, cancellationToken);
+        if (bytes.Length == 0)
+        {
+            return null;
+        }
+
+        var mimeType = string.IsNullOrWhiteSpace(contentType)
+            ? ResolveAttachmentContentTypeFromExtension(Path.GetExtension(storedPath))
+            : contentType.Trim();
+
+        return $"data:{mimeType};base64,{Convert.ToBase64String(bytes)}";
+    }
+
+    private static string ResolveAttachmentContentTypeFromExtension(string? extension)
+    {
+        return extension?.ToLowerInvariant() switch
+        {
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            ".webp" => "image/webp",
+            ".gif" => "image/gif",
+            ".pdf" => "application/pdf",
+            ".txt" => "text/plain",
+            _ => "application/octet-stream"
+        };
     }
 
     private async Task SendDayCloseSummaryToOwnersAsync(

@@ -186,6 +186,13 @@ export type Shift = {
   syncStatus?: SyncStatus;
   isAutoCreated?: boolean;
   autoTemplateId?: string;
+  closeAttachments?: Array<{
+    id: string;
+    fileName: string;
+    contentType?: string;
+    fileSizeBytes: number;
+    uploadedOn: string;
+  }>;
 };
 
 export type PrizePayout = {

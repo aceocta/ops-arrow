@@ -1,3 +1,5 @@
+using ScratchCard.Application.DTOs.Common;
+
 namespace ScratchCard.Application.DTOs.Shifts;
 
 public class OpenShiftRequest
@@ -29,4 +31,5 @@ public class ShiftDto
     public string SyncStatus { get; set; } = string.Empty;
     public bool IsAutoCreated { get; set; }
     public string? AutoTemplateId { get; set; }
+    public IReadOnlyCollection<CloseAttachmentDto> CloseAttachments { get; set; } = [];
 }

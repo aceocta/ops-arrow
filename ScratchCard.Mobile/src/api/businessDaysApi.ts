@@ -44,3 +44,8 @@ export async function reopenBusinessDay(businessDayId: string, payload: { reason
   const response = await apiClient.post<ApiResponse<BusinessDay>>(`/business-days/${businessDayId}/reopen`, payload);
   return response.data.data;
 }
+
+export async function getBusinessDayCloseAttachmentContent(attachmentId: string) {
+  const response = await apiClient.get<ApiResponse<string | null>>(`/business-days/attachments/${attachmentId}/content`);
+  return response.data.data ?? undefined;
+}

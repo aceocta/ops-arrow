@@ -54,4 +54,11 @@ public class BusinessDaysController : BaseApiController
         var result = await _businessDayService.ReopenAsync(id, request, cancellationToken);
         return Success(result);
     }
+
+    [HttpGet("attachments/{attachmentId:guid}/content")]
+    public async Task<IActionResult> GetCloseAttachmentContent(Guid attachmentId, CancellationToken cancellationToken)
+    {
+        var result = await _businessDayService.GetCloseAttachmentDataUrlAsync(attachmentId, cancellationToken);
+        return Success(result);
+    }
 }

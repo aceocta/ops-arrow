@@ -4,7 +4,16 @@ import { useFocusEffect } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker";
-import { closeBusinessDay, getBusinessDay, listBusinessDays, openBusinessDay, reopenBusinessDay } from "../../api/businessDaysApi";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
+import {
+  closeBusinessDay,
+  getBusinessDay,
+  getBusinessDayCloseAttachmentContent,
+  listBusinessDays,
+  openBusinessDay,
+  reopenBusinessDay,
+} from "../../api/businessDaysApi";
 import { getConfigurations } from "../../api/configurationsApi";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
 import { getShiftSales, listShifts, openShift, reopenShift, startScheduledShift } from "../../api/shiftsApi";
@@ -97,6 +106,66 @@ function formatFileSize(size?: number) {
   return `${fixed} ${units[unitIndex]}`;
 }
 
+function isImageContentType(contentType?: string) {
+  return (contentType ?? "").toLowerCase().startsWith("image/");
+}
+
+function getContentTypeFromDataUrl(dataUrl: string) {
+  const prefix = "data:";
+  const suffix = ";base64,";
+  if (!dataUrl.startsWith(prefix)) {
+    return "application/octet-stream";
+  }
+
+  const endIndex = dataUrl.indexOf(suffix);
+  if (endIndex <= prefix.length) {
+    return "application/octet-stream";
+  }
+
+  return dataUrl.slice(prefix.length, endIndex).trim() || "application/octet-stream";
+}
+
+function getBase64Payload(dataUrl: string) {
+  const marker = "base64,";
+  const markerIndex = dataUrl.indexOf(marker);
+  return markerIndex >= 0 ? dataUrl.slice(markerIndex + marker.length).trim() : dataUrl.trim();
+}
+
+function getFileExtensionFromContentType(contentType: string) {
+  switch (contentType.toLowerCase()) {
+    case "image/jpeg":
+      return ".jpg";
+    case "image/png":
+      return ".png";
+    case "image/webp":
+      return ".webp";
+    case "image/gif":
+      return ".gif";
+    case "application/pdf":
+      return ".pdf";
+    case "text/plain":
+      return ".txt";
+    default:
+      return "";
+  }
+}
+
+function ensureFileNameWithExtension(fileName: string, contentType: string) {
+  const trimmed = fileName.trim();
+  if (trimmed.length === 0) {
+    const extension = getFileExtensionFromContentType(contentType);
+    return `attachment${extension || ".bin"}`;
+  }
+
+  const hasExtension = /\.[A-Za-z0-9]{1,10}$/.test(trimmed);
+  if (hasExtension) {
+    return trimmed;
+  }
+
+  const extension = getFileExtensionFromContentType(contentType);
+  return `${trimmed}${extension || ""}`;
+}
+
 export function DayEndCloseScreen({ route, navigation }: Props) {
   const { businessDayId } = route.params;
   const [actualCash, setActualCash] = useState("0");
@@ -110,8 +179,14 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   const [isCloseDayModalVisible, setIsCloseDayModalVisible] = useState(false);
   const [isReopenDayModalVisible, setIsReopenDayModalVisible] = useState(false);
   const [isOpenShiftModalVisible, setIsOpenShiftModalVisible] = useState(false);
+  const [isAttachmentPreviewModalVisible, setIsAttachmentPreviewModalVisible] = useState(false);
+  const [attachmentPreviewId, setAttachmentPreviewId] = useState<string | null>(null);
   const [newShiftName, setNewShiftName] = useState("");
   const [closeDayAttachments, setCloseDayAttachments] = useState<CloseAttachmentState[]>([]);
+  const [attachmentPreviewTitle, setAttachmentPreviewTitle] = useState("");
+  const [attachmentPreviewUri, setAttachmentPreviewUri] = useState<string>();
+  const [loadingDayAttachmentId, setLoadingDayAttachmentId] = useState<string | null>(null);
+  const [downloadingDayAttachmentId, setDownloadingDayAttachmentId] = useState<string | null>(null);
 
   const dayQuery = useQuery({
     queryKey: ["business-day", businessDayId],
@@ -234,6 +309,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
 
   const day = dayQuery.data;
   const status = day?.status;
+  const persistedDayAttachments = day?.closeAttachments ?? [];
   const canClose = status === "Open" || status === "Reopened" || status === "ReadyToClose";
   const canReopen = status === "Closed";
   const canManageShifts = canClose;
@@ -390,6 +466,62 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     },
   });
 
+  const previewDayAttachmentMutation = useMutation({
+    mutationFn: async ({ attachmentId, fileName }: { attachmentId: string; fileName: string }) => {
+      const dataUrl = await getBusinessDayCloseAttachmentContent(attachmentId);
+      if (!dataUrl) {
+        throw new Error("Attachment file is not available.");
+      }
+
+      return { attachmentId, dataUrl, fileName };
+    },
+    onSuccess: ({ attachmentId, dataUrl, fileName }) => {
+      setAttachmentPreviewId(attachmentId);
+      setAttachmentPreviewTitle(fileName);
+      setAttachmentPreviewUri(dataUrl);
+      setIsAttachmentPreviewModalVisible(true);
+    },
+    onError: (error: any) => {
+      Alert.alert("Preview unavailable", error?.response?.data?.message ?? error?.message ?? "Unable to load attachment.");
+    },
+  });
+
+  const downloadDayAttachmentMutation = useMutation({
+    mutationFn: async ({ attachmentId, fileName }: { attachmentId: string; fileName: string }) => {
+      const dataUrl = await getBusinessDayCloseAttachmentContent(attachmentId);
+      if (!dataUrl) {
+        throw new Error("Attachment file is not available.");
+      }
+
+      const contentType = getContentTypeFromDataUrl(dataUrl);
+      const base64Payload = getBase64Payload(dataUrl);
+      const safeFileName = ensureFileNameWithExtension(fileName, contentType);
+      const targetDirectory = FileSystem.documentDirectory ?? FileSystem.cacheDirectory;
+      if (!targetDirectory) {
+        throw new Error("Storage directory is unavailable on this device.");
+      }
+
+      const targetUri = `${targetDirectory}${Date.now()}-${safeFileName}`;
+      await FileSystem.writeAsStringAsync(targetUri, base64Payload, { encoding: FileSystem.EncodingType.Base64 });
+      return { fileUri: targetUri, fileName: safeFileName, contentType };
+    },
+    onSuccess: async ({ fileUri, fileName, contentType }) => {
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) {
+        Alert.alert("Downloaded", `File saved to:\n${fileUri}`);
+        return;
+      }
+
+      await Sharing.shareAsync(fileUri, {
+        mimeType: contentType,
+        dialogTitle: `Download ${fileName}`,
+      });
+    },
+    onError: (error: any) => {
+      Alert.alert("Download failed", error?.response?.data?.message ?? error?.message ?? "Unable to download attachment.");
+    },
+  });
+
   const daysQuery = useQuery({
     queryKey: ["business-days-for-picker", day?.shopId],
     queryFn: () => listBusinessDays(day?.shopId as string),
@@ -410,6 +542,30 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       return;
     }
     navigation.replace("DayEndClose", { businessDayId: selectedDay.id });
+  };
+
+  const previewDayAttachment = (attachmentId: string, fileName: string) => {
+    setLoadingDayAttachmentId(attachmentId);
+    previewDayAttachmentMutation.mutate(
+      { attachmentId, fileName },
+      {
+        onSettled: () => {
+          setLoadingDayAttachmentId(null);
+        },
+      },
+    );
+  };
+
+  const downloadDayAttachment = (attachmentId: string, fileName: string) => {
+    setDownloadingDayAttachmentId(attachmentId);
+    downloadDayAttachmentMutation.mutate(
+      { attachmentId, fileName },
+      {
+        onSettled: () => {
+          setDownloadingDayAttachmentId(null);
+        },
+      },
+    );
   };
 
   const selectCloseDayAttachments = async () => {
@@ -646,20 +802,87 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             </View>
           </View>
         </View>
- {canClose ? (
-            <PrimaryButton
-              label="Close Day"
-              onPress={() => setIsCloseDayModalVisible(true)}
-              disabled={hasOpenShifts}
-            />
-          ) : null}
-          {canReopen ? (
-            <PrimaryButton
-              label="Reopen Day"
-              tone="neutral"
-              onPress={() => setIsReopenDayModalVisible(true)}
-            />
-          ) : null}
+
+        <View style={[ui.card, styles.sectionCard]}>
+          <Text style={styles.sectionTitle}>Day Close Attachments</Text>
+          {persistedDayAttachments.length === 0 ? (
+            <Text style={styles.meta}>No saved attachments for this day.</Text>
+          ) : (
+            <View style={styles.attachmentList}>
+              {persistedDayAttachments.map((attachment) => {
+                const canPreviewImage = isImageContentType(attachment.contentType);
+                const isLoadingPreview = loadingDayAttachmentId === attachment.id;
+                const isDownloading = downloadingDayAttachmentId === attachment.id;
+                return (
+                  <View key={attachment.id} style={styles.attachmentItem}>
+                    {canPreviewImage ? (
+                      <View style={styles.attachmentImageBadge}>
+                        <Text style={styles.attachmentImageBadgeText}>IMG</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.attachmentFileIcon}>
+                        <Text style={styles.attachmentFileIconText}>FILE</Text>
+                      </View>
+                    )}
+                    <View style={styles.attachmentMeta}>
+                      <Text style={styles.attachmentFileName} numberOfLines={1}>
+                        {attachment.fileName}
+                      </Text>
+                      <Text style={styles.meta}>
+                        {(attachment.contentType ?? "application/octet-stream")}
+                        {attachment.fileSizeBytes ? ` | ${formatFileSize(attachment.fileSizeBytes)}` : ""}
+                      </Text>
+                      <Text style={styles.meta}>
+                        Uploaded {new Date(attachment.uploadedOn).toLocaleString()}
+                      </Text>
+                    </View>
+                    <View style={styles.attachmentActionStack}>
+                      <Pressable
+                        style={styles.attachmentDownloadButton}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Download attachment ${attachment.fileName}`}
+                        onPress={() => downloadDayAttachment(attachment.id, attachment.fileName)}
+                        disabled={isDownloading}
+                      >
+                        <Text style={styles.attachmentDownloadButtonText}>{isDownloading ? "Saving..." : "Download"}</Text>
+                      </Pressable>
+                      {canPreviewImage ? (
+                        <Pressable
+                          style={styles.attachmentViewButton}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Preview attachment ${attachment.fileName}`}
+                          onPress={() => previewDayAttachment(attachment.id, attachment.fileName)}
+                          disabled={isLoadingPreview}
+                        >
+                          <Text style={styles.attachmentViewButtonText}>{isLoadingPreview ? "Loading..." : "Preview"}</Text>
+                        </Pressable>
+                      ) : (
+                        <View style={styles.attachmentNoPreviewBadge}>
+                          <Text style={styles.attachmentNoPreviewBadgeText}>No Preview</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </View>
+
+        {canClose ? (
+          <PrimaryButton
+            label="Close Day"
+            onPress={() => setIsCloseDayModalVisible(true)}
+            disabled={hasOpenShifts}
+          />
+        ) : null}
+        {canReopen ? (
+          <PrimaryButton
+            label="Reopen Day"
+            tone="neutral"
+            onPress={() => setIsReopenDayModalVisible(true)}
+          />
+        ) : null}
         {/* <View style={[ui.card, styles.sectionCard]}>
           <Text style={styles.sectionTitle}>Day Action</Text>
           <Text style={styles.meta}>{dayStatusMessage}</Text>
@@ -678,6 +901,59 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             />
           ) : null}
         </View> */}
+
+        <Modal
+          visible={isAttachmentPreviewModalVisible}
+          transparent={false}
+          animationType="fade"
+          onRequestClose={() => {
+            setIsAttachmentPreviewModalVisible(false);
+            setAttachmentPreviewId(null);
+            setAttachmentPreviewTitle("");
+            setAttachmentPreviewUri(undefined);
+          }}
+        >
+          <View style={styles.attachmentPreviewBackdrop}>
+            <View style={styles.attachmentPreviewHeader}>
+              <Text style={styles.attachmentPreviewTitle} numberOfLines={1}>{attachmentPreviewTitle || "Attachment Preview"}</Text>
+              <View style={styles.attachmentPreviewHeaderActions}>
+                <Pressable
+                  style={styles.attachmentPreviewHeaderButton}
+                  onPress={() => {
+                    if (!attachmentPreviewId || !attachmentPreviewTitle) {
+                      return;
+                    }
+                    downloadDayAttachment(attachmentPreviewId, attachmentPreviewTitle);
+                  }}
+                  disabled={!attachmentPreviewId || !attachmentPreviewTitle || downloadingDayAttachmentId === attachmentPreviewId}
+                >
+                  <Text style={styles.attachmentPreviewHeaderButtonText}>
+                    {downloadingDayAttachmentId === attachmentPreviewId ? "Saving..." : "Download"}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={styles.attachmentPreviewHeaderButton}
+                  onPress={() => {
+                    setIsAttachmentPreviewModalVisible(false);
+                    setAttachmentPreviewId(null);
+                    setAttachmentPreviewTitle("");
+                    setAttachmentPreviewUri(undefined);
+                  }}
+                >
+                  <Text style={styles.attachmentPreviewHeaderButtonText}>Close</Text>
+                </Pressable>
+              </View>
+            </View>
+            {attachmentPreviewUri ? (
+              <Image source={{ uri: attachmentPreviewUri }} style={styles.attachmentPreviewModalImage} resizeMode="contain" />
+            ) : (
+              <View style={styles.attachmentPreviewEmptyState}>
+                <Text style={styles.attachmentPreviewEmptyText}>No preview available.</Text>
+              </View>
+            )}
+          </View>
+        </Modal>
+
         <Modal
           visible={isDayPickerModalVisible}
           transparent
@@ -1605,6 +1881,62 @@ const styles = StyleSheet.create({
     padding: appTheme.spacing.md,
     gap: appTheme.spacing.sm,
   },
+  attachmentPreviewBackdrop: {
+    flex: 1,
+    backgroundColor: "#05090C",
+  },
+  attachmentPreviewHeader: {
+    paddingTop: 18,
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  attachmentPreviewTitle: {
+    flex: 1,
+    color: "#F5FAFF",
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  attachmentPreviewHeaderActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  attachmentPreviewHeaderButton: {
+    borderWidth: 1,
+    borderColor: "#35506A",
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: "#102030",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  attachmentPreviewHeaderButtonText: {
+    color: "#EAF4FC",
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 14,
+  },
+  attachmentPreviewEmptyState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  attachmentPreviewEmptyText: {
+    color: "#D2DCE6",
+    fontFamily: appTheme.fonts.body,
+    fontSize: 14,
+    lineHeight: 18,
+    textAlign: "center",
+  },
+  attachmentPreviewModalImage: {
+    flex: 1,
+    width: "100%",
+    backgroundColor: "#05090C",
+  },
   attachmentList: {
     gap: appTheme.spacing.xs,
   },
@@ -1639,6 +1971,20 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 12,
   },
+  attachmentImageBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: "#DDF5F1",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  attachmentImageBadgeText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 10,
+    lineHeight: 12,
+  },
   attachmentMeta: {
     flex: 1,
     gap: 2,
@@ -1648,6 +1994,24 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 12,
     lineHeight: 16,
+  },
+  attachmentActionStack: {
+    gap: 6,
+    alignItems: "flex-end",
+  },
+  attachmentDownloadButton: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderStrong,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  attachmentDownloadButtonText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 13,
   },
   attachmentRemoveButton: {
     borderWidth: 1,
@@ -1662,6 +2026,34 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 11,
     lineHeight: 13,
+  },
+  attachmentViewButton: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.primary,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: "#E8F5F2",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  attachmentViewButtonText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 13,
+  },
+  attachmentNoPreviewBadge: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  attachmentNoPreviewBadgeText: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 10,
+    lineHeight: 12,
   },
   attachmentActionRow: {
     flexDirection: "row",

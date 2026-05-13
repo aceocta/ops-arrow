@@ -75,4 +75,11 @@ public class ShiftsController : BaseApiController
         var result = await _shiftService.GetActivePacksForShiftCloseAsync(id, cancellationToken);
         return Success(result);
     }
+
+    [HttpGet("attachments/{attachmentId:guid}/content")]
+    public async Task<IActionResult> GetCloseAttachmentContent(Guid attachmentId, CancellationToken cancellationToken)
+    {
+        var result = await _shiftService.GetCloseAttachmentDataUrlAsync(attachmentId, cancellationToken);
+        return Success(result);
+    }
 }

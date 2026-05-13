@@ -170,6 +170,7 @@ public interface IBusinessDayService
     Task<BusinessDayDto> GetAsync(Guid id, CancellationToken cancellationToken = default);
     Task<BusinessDayDto> CloseAsync(Guid id, CloseBusinessDayRequest request, CancellationToken cancellationToken = default);
     Task<BusinessDayDto> ReopenAsync(Guid id, ReopenBusinessDayRequest request, CancellationToken cancellationToken = default);
+    Task<string?> GetCloseAttachmentDataUrlAsync(Guid attachmentId, CancellationToken cancellationToken = default);
 }
 
 public interface IShiftService
@@ -182,6 +183,7 @@ public interface IShiftService
     Task<ShiftDto> ReopenAsync(Guid id, ReopenShiftRequest request, CancellationToken cancellationToken = default);
     Task DeleteAsync(Guid id, DeleteShiftRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<PackDto>> GetActivePacksForShiftCloseAsync(Guid shiftId, CancellationToken cancellationToken = default);
+    Task<string?> GetCloseAttachmentDataUrlAsync(Guid attachmentId, CancellationToken cancellationToken = default);
 }
 
 public interface IShiftSalesService

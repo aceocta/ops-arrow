@@ -218,7 +218,11 @@ internal static class ServiceMappingExtensions
         IsAutoCreated = ShiftMetadata.IsAutoCreated(shift.Notes),
         AutoTemplateId = ShiftMetadata.TryGetAutoTemplateId(shift.Notes, out var templateId) && !string.IsNullOrWhiteSpace(templateId)
             ? templateId
-            : null
+            : null,
+        CloseAttachments = shift.ShiftReconciliation?.Attachments
+            .OrderByDescending(x => x.CreatedOn)
+            .Select(x => x.ToDto())
+            .ToArray() ?? []
     };
 
     public static PrizePayoutDto ToDto(this PrizePayout payout) => new()

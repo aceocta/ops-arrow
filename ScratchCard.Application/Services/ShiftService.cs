@@ -19,6 +19,7 @@ public class ShiftService : IShiftService
     private readonly IRepository<Shift> _shiftRepository;
     private readonly IRepository<BusinessDay> _businessDayRepository;
     private readonly IRepository<ScratchCardPack> _packRepository;
+    private readonly IRepository<ShiftCloseAttachment> _shiftCloseAttachmentRepository;
     private readonly IShopConfigurationService _shopConfigurationService;
     private readonly IShiftSalesService _shiftSalesService;
     private readonly IAuditService _auditService;
@@ -29,6 +30,7 @@ public class ShiftService : IShiftService
         IRepository<Shift> shiftRepository,
         IRepository<BusinessDay> businessDayRepository,
         IRepository<ScratchCardPack> packRepository,
+        IRepository<ShiftCloseAttachment> shiftCloseAttachmentRepository,
         IShopConfigurationService shopConfigurationService,
         IShiftSalesService shiftSalesService,
         IAuditService auditService,
@@ -38,6 +40,7 @@ public class ShiftService : IShiftService
         _shiftRepository = shiftRepository;
         _businessDayRepository = businessDayRepository;
         _packRepository = packRepository;
+        _shiftCloseAttachmentRepository = shiftCloseAttachmentRepository;
         _shopConfigurationService = shopConfigurationService;
         _shiftSalesService = shiftSalesService;
         _auditService = auditService;
@@ -182,6 +185,8 @@ public class ShiftService : IShiftService
     {
         var query = _shiftRepository.Query()
             .AsNoTracking()
+            .Include(x => x.ShiftReconciliation)
+                .ThenInclude(x => x!.Attachments)
             .Where(x => x.ShopId == shopId);
 
         if (businessDayId.HasValue)
@@ -225,10 +230,24 @@ public class ShiftService : IShiftService
 
     public async Task<ShiftDto> GetAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var shift = await _shiftRepository.GetByIdAsync(id, cancellationToken)
+        var shift = await _shiftRepository.Query()
+            .AsNoTracking()
+            .Include(x => x.ShiftReconciliation)
+                .ThenInclude(x => x!.Attachments)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new AppException("shift_not_found", "Shift not found.", 404);
 
         return shift.ToDto();
+    }
+
+    public async Task<string?> GetCloseAttachmentDataUrlAsync(Guid attachmentId, CancellationToken cancellationToken = default)
+    {
+        var attachment = await _shiftCloseAttachmentRepository.Query()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == attachmentId, cancellationToken)
+            ?? throw new AppException("shift_attachment_not_found", "Shift attachment not found.", 404);
+
+        return await ReadAttachmentDataUrlAsync(attachment.StoredPath, attachment.ContentType, cancellationToken);
     }
 
     public Task<ShiftCloseResultDto> CloseAsync(Guid id, FinalizeShiftRequest request, bool isOfflineSync, CancellationToken cancellationToken = default)
@@ -294,6 +313,43 @@ public class ShiftService : IShiftService
                 return dto;
             })
             .ToArray();
+    }
+
+    private static async Task<string?> ReadAttachmentDataUrlAsync(
+        string? storedPath,
+        string? contentType,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(storedPath) || !File.Exists(storedPath))
+        {
+            return null;
+        }
+
+        var bytes = await File.ReadAllBytesAsync(storedPath, cancellationToken);
+        if (bytes.Length == 0)
+        {
+            return null;
+        }
+
+        var mimeType = string.IsNullOrWhiteSpace(contentType)
+            ? ResolveAttachmentContentTypeFromExtension(Path.GetExtension(storedPath))
+            : contentType.Trim();
+
+        return $"data:{mimeType};base64,{Convert.ToBase64String(bytes)}";
+    }
+
+    private static string ResolveAttachmentContentTypeFromExtension(string? extension)
+    {
+        return extension?.ToLowerInvariant() switch
+        {
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            ".webp" => "image/webp",
+            ".gif" => "image/gif",
+            ".pdf" => "application/pdf",
+            ".txt" => "text/plain",
+            _ => "application/octet-stream"
+        };
     }
 
     private static string ResolveShiftName(string? requestedShiftName, ShopShiftSetup setup)
