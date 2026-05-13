@@ -131,6 +131,13 @@ public class ShiftService : IShiftService
             }
         }
 
+        await EnsureNoOtherOpenShiftsForBusinessDayAsync(
+            request.ShopId,
+            request.BusinessDayId,
+            excludeShiftId: null,
+            actionDescription: "opening a new shift",
+            cancellationToken);
+
         var packSetup = await _shopConfigurationService.GetPackSetupAsync(request.ShopId, cancellationToken);
         var activePacks = await _packRepository.Query()
             .Include(x => x.Game)
@@ -207,6 +214,13 @@ public class ShiftService : IShiftService
         {
             throw new AppException("business_day_closed", "Cannot start a shift for a closed business day.", 400);
         }
+
+        await EnsureNoOtherOpenShiftsForBusinessDayAsync(
+            shift.ShopId,
+            shift.BusinessDayId,
+            excludeShiftId: shift.Id,
+            actionDescription: "starting this scheduled shift",
+            cancellationToken);
 
         var packSetup = await _shopConfigurationService.GetPackSetupAsync(shift.ShopId, cancellationToken);
         var activePacks = await _packRepository.Query()
@@ -516,6 +530,41 @@ public class ShiftService : IShiftService
         string ActualOpeningSerialNumber,
         int MissingQuantity,
         int OverageQuantity);
+
+    private async Task EnsureNoOtherOpenShiftsForBusinessDayAsync(
+        Guid shopId,
+        Guid businessDayId,
+        Guid? excludeShiftId,
+        string actionDescription,
+        CancellationToken cancellationToken)
+    {
+        var openShiftQuery = _shiftRepository.Query()
+            .AsNoTracking()
+            .Where(x =>
+                x.ShopId == shopId &&
+                x.BusinessDayId == businessDayId &&
+                (x.Status == ShiftStatus.Open || x.Status == ShiftStatus.Reopened));
+
+        if (excludeShiftId.HasValue)
+        {
+            openShiftQuery = openShiftQuery.Where(x => x.Id != excludeShiftId.Value);
+        }
+
+        var openShiftNames = await openShiftQuery
+            .Select(x => x.ShiftName)
+            .ToListAsync(cancellationToken);
+
+        if (openShiftNames.Count == 0)
+        {
+            return;
+        }
+
+        var openShiftList = string.Join(", ", openShiftNames.Distinct(StringComparer.OrdinalIgnoreCase));
+        throw new AppException(
+            ErrorCodes.BusinessDayHasOpenShifts,
+            $"Close existing open shift(s) first ({openShiftList}) before {actionDescription}.",
+            409);
+    }
 
     private static async Task<string?> ReadAttachmentDataUrlAsync(
         string? storedPath,

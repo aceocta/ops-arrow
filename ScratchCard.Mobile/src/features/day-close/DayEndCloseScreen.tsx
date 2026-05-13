@@ -295,6 +295,11 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
         throw new Error(`Shift '${normalizedShiftName}' already exists for this business day.`);
       }
 
+      const existingOpenShiftNames = getExistingOpenShiftNames();
+      if (existingOpenShiftNames.length > 0) {
+        throw new Error(`Close existing open shift(s) first: ${existingOpenShiftNames.join(", ")}.`);
+      }
+
       const unconfirmedPacks = getUnconfirmedOpeningSerialPacks();
       if (unconfirmedPacks.length > 0) {
         throw new Error("Confirm starting serial numbers for all active packs before opening a shift.");
@@ -430,7 +435,31 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     });
   }
 
+  function getExistingOpenShiftNames() {
+    return (shiftsQuery.data ?? [])
+      .filter((shift) => shift.status === "Open" || shift.status === "Reopened")
+      .map((shift) => shift.shiftName)
+      .filter((name, index, all) => all.findIndex((value) => value.toLowerCase() === name.toLowerCase()) === index);
+  }
+
+  function ensureNoExistingOpenShiftsBeforeSerialConfirmation() {
+    const existingOpenShiftNames = getExistingOpenShiftNames();
+    if (existingOpenShiftNames.length === 0) {
+      return true;
+    }
+
+    Alert.alert(
+      "Close open shifts first",
+      `Close existing open shift(s) first: ${existingOpenShiftNames.join(", ")}.`,
+    );
+    return false;
+  }
+
   function openStartScheduledShiftConfirmation(shiftId: string, shiftName: string) {
+    if (!ensureNoExistingOpenShiftsBeforeSerialConfirmation()) {
+      return;
+    }
+
     setPendingScheduledShiftStart({ id: shiftId, shiftName });
     setIsStartScheduledShiftModalVisible(true);
   }
@@ -445,6 +474,15 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
 
   function startPendingScheduledShift() {
     if (!pendingScheduledShiftStart) {
+      return;
+    }
+
+    const existingOpenShiftNames = getExistingOpenShiftNames();
+    if (existingOpenShiftNames.length > 0) {
+      Alert.alert(
+        "Close open shifts first",
+        `Close existing open shift(s) first: ${existingOpenShiftNames.join(", ")}.`,
+      );
       return;
     }
 
@@ -479,7 +517,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               <Text style={styles.serialProgressText}>{confirmedPackCount}/{totalPacks}</Text>
             </View>
           ) : null}
-            {activePacksForOpening.length > 0 ? (
+        </View>
+        <Text style={[styles.meta, styles.serialConfirmHint]}>{confirmationHint}</Text>
+        {activePacksForOpening.length > 0 ? (
           <View style={styles.serialConfirmActionRow}>
             <Pressable
               style={[
@@ -496,9 +536,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             </Pressable>
           </View>
         ) : null}
-        </View>
-        <Text style={[styles.meta, styles.serialConfirmHint]}></Text>
-      
+
         {packsQuery.isFetching ? <Text style={styles.meta}>Loading active packs...</Text> : null}
         {!packsQuery.isFetching && activePacksForOpening.length === 0 ? (
           <Text style={styles.meta}>No active packs found for this shop.</Text>
@@ -943,6 +981,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 accessibilityLabel="Open new shift"
                 style={[styles.shiftOpenButton, !canManageShifts ? styles.shiftOpenButtonDisabled : null]}
                 onPress={() => {
+                  if (!ensureNoExistingOpenShiftsBeforeSerialConfirmation()) {
+                    return;
+                  }
                   setNewShiftName(shopOperationalSetup.shiftDefaultName.trim() || getDefaultShiftNameForNow());
                   setIsOpenShiftModalVisible(true);
                 }}
@@ -1510,7 +1551,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 placeholderTextColor={appTheme.colors.textSubtle}
               />
               <Text style={styles.fieldLabel}>Attachments (Optional)</Text>
-              <Text style={styles.meta}>Up to 10 files. Images show a preview.</Text>
+              {/* <Text style={styles.meta}>Up to 10 files. Images show a preview.</Text> */}
               {closeDayAttachments.length === 0 ? (
                 <Text style={styles.meta}>No attachments selected.</Text>
               ) : (

@@ -160,6 +160,13 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
     });
   }
 
+  function getExistingOpenShiftNames() {
+    return (shiftsQuery.data ?? [])
+      .filter((shift) => shift.status === "Open" || shift.status === "Reopened")
+      .map((shift) => shift.shiftName)
+      .filter((name, index, all) => all.findIndex((value) => value.toLowerCase() === name.toLowerCase()) === index);
+  }
+
   const openShiftMutation = useMutation({
     mutationFn: async () => {
       if (!shopId) {
@@ -179,6 +186,11 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
         : undefined;
       if (duplicateShift) {
         throw new Error(`Shift '${normalizedShiftName}' already exists for the selected business day.`);
+      }
+
+      const existingOpenShiftNames = getExistingOpenShiftNames();
+      if (existingOpenShiftNames.length > 0) {
+        throw new Error(`Close existing open shift(s) first: ${existingOpenShiftNames.join(", ")}.`);
       }
 
       const unconfirmedPacks = getUnconfirmedOpeningSerialPacks();
@@ -398,6 +410,15 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
                   <Pressable
                     style={styles.smallButton}
                     onPress={() => {
+                      const existingOpenShiftNames = getExistingOpenShiftNames();
+                      if (existingOpenShiftNames.length > 0) {
+                        Alert.alert(
+                          "Close open shifts first",
+                          `Close existing open shift(s) first: ${existingOpenShiftNames.join(", ")}.`,
+                        );
+                        return;
+                      }
+
                       const unconfirmedPacks = getUnconfirmedOpeningSerialPacks();
                       if (unconfirmedPacks.length > 0) {
                         Alert.alert("Confirmation required", "Confirm starting serial numbers for all active packs first.");

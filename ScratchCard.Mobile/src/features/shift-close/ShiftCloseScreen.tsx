@@ -609,15 +609,15 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
             /> */}
             {/* <StatusBadge label={isOnline ? "Online" : "Offline"} tone={isOnline ? "success" : "warning"} /> */}
           </View>
-          <View style={styles.progressRow}>
-            <View style={styles.progressTile}>
+          {/* <View style={styles.progressRow}> */}
+            {/* <View style={styles.progressTile}>
               <Text style={styles.progressLabel}>Active Packs</Text>
               <Text style={styles.progressValue}>{computedRows.length}</Text>
             </View>
             <View style={styles.progressTile}>
               <Text style={styles.progressLabel}>Ready</Text>
               <Text style={styles.progressValue}>{completedRows}</Text>
-            </View>
+            </View> */}
             {/* <View style={styles.progressTile}>
               <Text style={styles.progressLabel}>Pending</Text>
               <Text style={styles.progressValue}>{pendingRows}</Text>
@@ -626,7 +626,7 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
               <Text style={styles.progressLabel}>Issues</Text>
               <Text style={styles.progressValue}>{errorRows}</Text>
             </View> */}
-          </View>
+          {/* </View> */}
           {/* <Text style={styles.meta}>{readinessMessage}</Text> */}
         </View>
 
@@ -673,10 +673,11 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
                 <StatusBadge label={rowStatusLabel} tone={rowStatusTone} />
               </View>
 
-              <Text style={styles.packMeta}>Pack: {row.pack.packNumber}</Text>
+              {/* <Text style={styles.packMeta}>Pack: {row.pack.packNumber}</Text> */}
               <View style={styles.packMetaRow}>
+                <Text style={styles.packMeta}>Pack: {row.pack.packNumber}</Text>
                 <Text style={styles.packMeta}>Opening serial: {row.pack.currentSerialNumber}</Text>
-                <Text style={styles.packMetaRight}>Price {formatCurrency(row.pack.ticketPrice)}</Text>
+                {/* <Text style={styles.packMetaRight}>Price {formatCurrency(row.pack.ticketPrice)}</Text> */}
               </View>
 
               <Text style={styles.fieldLabel}>Closing Serial Number</Text>
@@ -758,6 +759,14 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
 
               <View style={styles.metricsBlock}>
                 <View style={styles.metricsRow}>
+                   {/* <View style={styles.metricTile}>
+                    <Text style={styles.metricLabel}>Sold Qty</Text>
+                    <Text style={styles.metricValue}>{row.soldQuantity}</Text>
+                  </View> */}
+                   <View style={styles.metricTile}>
+                <Text style={styles.metricLabel}>Price</Text>
+                <Text style={styles.metricValue}> {formatCurrency(row.pack.ticketPrice)}</Text>
+              </View>
                   <View style={styles.metricTile}>
                     <Text style={styles.metricLabel}>Sold Qty</Text>
                     <Text style={styles.metricValue}>{row.soldQuantity}</Text>
@@ -776,8 +785,8 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
           <Text style={styles.cardTitle}>Shift Totals</Text>
           <Text style={styles.readonly}>Total sales: {formatCurrency(totals.salesAmount)}</Text>
           <Text style={styles.meta}>{pendingRows > 0 ? `Pending: ${pendingRows}` : ""}</Text>
-          <Text style={styles.fieldLabel}>Attachments (Optional)</Text>
-          <Text style={styles.meta}>Up to 10 files. Images show a preview.</Text>
+          </View><View style={[ui.card, styles.compactCard]}> <Text style={styles.fieldLabel}>Attachments (Optional)</Text>
+          {/* <Text style={styles.meta}>Up to 10 files. Images show a preview.</Text> */}
           {closeAttachments.length === 0 ? (
             <Text style={styles.meta}>No attachments selected.</Text>
           ) : (
@@ -843,17 +852,21 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
               </Pressable>
             ) : null}
           </View>
+         
+        </View>
+        <View style={[ui.card, styles.compactCard]}>
+        <View style={styles.actionGroup}> 
           {!canFinalize ? (
             <Text style={styles.meta}>Enter valid closing serials for all packs before finalising.</Text>
           ) : null}
-          <View style={styles.actionGroup}>
+          
             <PrimaryButton
               label={isSubmitting ? "Finalising..." : "Finalise Shift"}
               onPress={onFinalize}
               disabled={!canFinalize}
             />
           </View>
-        </View>
+          </View>
       </ScrollView>
     </ScreenContainer>
   );
@@ -1008,7 +1021,7 @@ const styles = StyleSheet.create({
   },
   soldOutButton: {
     height: 44,
-    minWidth: 82,
+    // minWidth: 82,
     borderWidth: 0,
     borderRadius: appTheme.radius.sm,
     backgroundColor: "#F2F6FC",
