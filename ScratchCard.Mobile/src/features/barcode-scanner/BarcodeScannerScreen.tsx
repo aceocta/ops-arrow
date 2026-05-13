@@ -45,7 +45,7 @@ function parseScannedPackCode(value: string) {
 export function BarcodeScannerScreen({ navigation, route }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const [isProcessingOcr, setIsProcessingOcr] = useState(false);
-  const [isAutoOcrEnabled, setIsAutoOcrEnabled] = useState(false);
+  const [isAutoOcrEnabled, setIsAutoOcrEnabled] = useState(true);
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [lastScanMessage, setLastScanMessage] = useState<string>("");
   const cameraRef = useRef<CameraView | null>(null);
