@@ -139,10 +139,11 @@ public class ShiftSalesService : IShiftSalesService
             }
         }
 
-        var openingSerialByPackId = await _shiftOpeningSerialRepository.Query()
-            .AsNoTracking()
+        var openingSerialByPackId = (await _shiftOpeningSerialRepository.Query()
             .Where(x => x.ShiftId == shift.Id && packIds.Contains(x.PackId))
-            .ToDictionaryAsync(x => x.PackId, cancellationToken);
+            .ToListAsync(cancellationToken))
+            .ToDictionary(x => x.PackId);
+        var openingSerialRowsToCreate = new List<ShiftOpeningSerial>();
 
         var existingSales = await _salesRepository.Query()
             .Where(x => x.ShiftId == shift.Id)
@@ -161,9 +162,39 @@ public class ShiftSalesService : IShiftSalesService
                 throw new AppException(ErrorCodes.PackNotFound, "Referenced pack was not found.");
             }
 
-            var openingSerial = openingSerialByPackId.TryGetValue(pack.Id, out var openingSnapshot)
-                ? openingSnapshot.ActualOpeningSerialNumber
+            var hasOpeningSnapshot = openingSerialByPackId.TryGetValue(pack.Id, out var openingSnapshot);
+            var openingSerial = hasOpeningSnapshot
+                ? openingSnapshot!.ActualOpeningSerialNumber
                 : pack.CurrentSerialNumber;
+
+            // Keep ShiftOpeningSerial in sync with closed entries. Older shifts may not have
+            // snapshot rows yet, so we create them during close to maintain complete history.
+            if (!hasOpeningSnapshot)
+            {
+                openingSnapshot = new ShiftOpeningSerial
+                {
+                    ShiftId = shift.Id,
+                    BusinessDayId = shift.BusinessDayId,
+                    ShopId = shift.ShopId,
+                    PackId = pack.Id,
+                    ExpectedOpeningSerialNumber = openingSerial,
+                    ActualOpeningSerialNumber = openingSerial,
+                    MissingQuantity = 0,
+                    OverageQuantity = 0,
+                    CreatedOn = DateTimeOffset.UtcNow,
+                    CreatedBy = _currentUserService.UserId
+                };
+
+                openingSerialRowsToCreate.Add(openingSnapshot);
+                openingSerialByPackId[pack.Id] = openingSnapshot;
+            }
+            else
+            {
+                openingSnapshot!.ActualOpeningSerialNumber = openingSerial;
+                openingSnapshot.ModifiedOn = DateTimeOffset.UtcNow;
+                openingSnapshot.ModifiedBy = _currentUserService.UserId;
+                _shiftOpeningSerialRepository.Update(openingSnapshot);
+            }
 
             var calc = _serialCalculationService.Calculate(
                 openingSerial,
@@ -219,6 +250,11 @@ public class ShiftSalesService : IShiftSalesService
             }
 
             _packRepository.Update(pack);
+        }
+
+        if (openingSerialRowsToCreate.Count > 0)
+        {
+            await _shiftOpeningSerialRepository.AddRangeAsync(openingSerialRowsToCreate, cancellationToken);
         }
 
         await _salesRepository.AddRangeAsync(salesEntries, cancellationToken);

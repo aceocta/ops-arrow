@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
@@ -191,6 +191,7 @@ function ensureFileNameWithExtension(fileName: string, contentType: string) {
 
 export function DayEndCloseScreen({ route, navigation }: Props) {
   const { businessDayId } = route.params;
+  const queryClient = useQueryClient();
   const [notes, setNotes] = useState("");
   const [lottoPayoutAmount, setLottoPayoutAmount] = useState("");
   const [scratchCardPayoutAmount, setScratchCardPayoutAmount] = useState("");
@@ -598,21 +599,26 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   }
 
   useEffect(() => {
+    const preserveCurrentEdits = isOpenShiftModalVisible || isStartScheduledShiftModalVisible;
+
     setConfirmedOpeningSerialByPackId((previous) => {
       const next: Record<string, boolean> = {};
       for (const pack of activePacksForOpening) {
-        next[pack.id] = previous[pack.id] ?? false;
+        next[pack.id] = preserveCurrentEdits ? (previous[pack.id] ?? false) : false;
       }
       return next;
     });
+
     setOpeningSerialNumberByPackId((previous) => {
       const next: Record<string, string> = {};
       for (const pack of activePacksForOpening) {
-        next[pack.id] = previous[pack.id] ?? pack.currentSerialNumber;
+        next[pack.id] = preserveCurrentEdits
+          ? (previous[pack.id] ?? pack.currentSerialNumber)
+          : pack.currentSerialNumber;
       }
       return next;
     });
-  }, [activePacksForOpening]);
+  }, [activePacksForOpening, isOpenShiftModalVisible, isStartScheduledShiftModalVisible]);
 
   useEffect(() => {
     if (!isOpenShiftModalVisible) {
@@ -624,11 +630,31 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
 
   useFocusEffect(
     useCallback(() => {
-      void dayQuery.refetch();
-      if (day?.shopId) {
-        void shiftsQuery.refetch();
-      }
-    }, [day?.shopId, dayQuery.refetch, shiftsQuery.refetch]),
+      const shopId = day?.shopId;
+      void (async () => {
+        await Promise.allSettled([
+          queryClient.invalidateQueries({ queryKey: ["business-day", businessDayId] }),
+          queryClient.invalidateQueries({ queryKey: ["day-shift-sales-totals", businessDayId] }),
+          queryClient.invalidateQueries({ queryKey: ["day-summary-closed-shift-sales", businessDayId] }),
+          shopId
+            ? queryClient.invalidateQueries({ queryKey: ["shifts", shopId, businessDayId] })
+            : Promise.resolve(),
+          shopId
+            ? queryClient.invalidateQueries({ queryKey: ["packs", shopId] })
+            : Promise.resolve(),
+        ]);
+
+        await Promise.allSettled([
+          queryClient.refetchQueries({ queryKey: ["business-day", businessDayId], exact: true }),
+          shopId
+            ? queryClient.refetchQueries({ queryKey: ["shifts", shopId, businessDayId], exact: true })
+            : Promise.resolve(),
+          shopId
+            ? queryClient.refetchQueries({ queryKey: ["packs", shopId], exact: true })
+            : Promise.resolve(),
+        ]);
+      })();
+    }, [businessDayId, day?.shopId, queryClient]),
   );
 
   const shifts = shiftsQuery.data ?? [];
@@ -789,9 +815,10 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   });
 
   const daysQuery = useQuery({
-    queryKey: ["business-days-for-picker", day?.shopId],
-    queryFn: () => listBusinessDays(day?.shopId as string),
-    enabled: Boolean(day?.shopId),
+    queryKey: ["business-days-for-picker", day?.shopId, targetBusinessDate],
+    queryFn: () => listBusinessDays(day?.shopId as string, { from: targetBusinessDate, to: targetBusinessDate }),
+    enabled: Boolean(day?.shopId) && isDayPickerModalVisible,
+    staleTime: 5 * 60 * 1000,
   });
 
   const availableDays = (daysQuery.data ?? []).slice(0, 30);
@@ -953,18 +980,14 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             </View>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={daysQuery.isFetching ? "Refreshing available dates" : "Change business date"}
-              style={[styles.dateActionInlineButton, daysQuery.isFetching ? styles.dateActionButtonDisabled : null]}
+              accessibilityLabel="Change business date"
+              style={styles.dateActionInlineButton}
               onPress={() => {
                 setTargetBusinessDate(day?.businessDate ?? formatDateValue(new Date()));
-                void daysQuery.refetch();
                 setIsDayPickerModalVisible(true);
               }}
-              disabled={daysQuery.isFetching}
             >
-              <Text style={styles.dateActionInlineButtonText}>
-                {daysQuery.isFetching ? "Loading..." : "Change Date"}
-              </Text>
+              <Text style={styles.dateActionInlineButtonText}>Change Date</Text>
             </Pressable>
           </View>
         </View>

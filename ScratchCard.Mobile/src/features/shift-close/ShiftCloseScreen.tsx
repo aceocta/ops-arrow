@@ -586,7 +586,7 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
 
       await finalizeShift(shiftId, payload);
       await clearShiftDraft(shiftId);
-      void Promise.allSettled([
+      await Promise.allSettled([
         queryClient.invalidateQueries({ queryKey: ["shift", shiftId] }),
         queryClient.invalidateQueries({ queryKey: ["shift-sales", shiftId] }),
         queryClient.invalidateQueries({ queryKey: ["shift-active-packs", shiftId] }),
@@ -597,6 +597,25 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
         queryClient.invalidateQueries({ queryKey: ["day-shift-sales-totals"] }),
         queryClient.invalidateQueries({ queryKey: ["day-summary-closed-shift-sales"] }),
       ]);
+
+      const relatedBusinessDayId = shiftQuery.data?.businessDayId;
+      const relatedShopId = shiftQuery.data?.shopId ?? shopId;
+
+      await Promise.allSettled([
+        relatedBusinessDayId
+          ? queryClient.refetchQueries({ queryKey: ["business-day", relatedBusinessDayId], type: "all" })
+          : Promise.resolve(),
+        relatedBusinessDayId && relatedShopId
+          ? queryClient.refetchQueries({ queryKey: ["shifts", relatedShopId, relatedBusinessDayId], type: "all" })
+          : Promise.resolve(),
+        relatedShopId
+          ? queryClient.refetchQueries({ queryKey: ["business-days", relatedShopId], type: "all" })
+          : Promise.resolve(),
+        relatedShopId
+          ? queryClient.refetchQueries({ queryKey: ["business-days-for-picker", relatedShopId], type: "all" })
+          : Promise.resolve(),
+      ]);
+
       Alert.alert("Shift finalised", "Shift close submitted successfully.");
       navigation.goBack();
     } catch (error: any) {
