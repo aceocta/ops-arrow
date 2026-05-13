@@ -11,6 +11,7 @@ export const SHOP_CONFIG_KEYS = {
   enforceShiftTimeWindow: "EnforceShiftTimeWindow",
   allowCustomShiftName: "AllowCustomShiftName",
   packSellingOrder: "PackSellingOrder",
+  scratchCardDisplayCount: "ScratchCardDisplayCount",
 } as const;
 
 export type ShiftTemplateSetup = {
@@ -30,6 +31,7 @@ export type ShopOperationalSetup = {
   enforceShiftTimeWindow: boolean;
   allowCustomShiftName: boolean;
   packSellingOrder: SellingOrder;
+  scratchCardDisplayCount: number;
 };
 
 function getValue(items: ConfigurationItem[] | undefined, key: string, fallback: string) {
@@ -52,6 +54,19 @@ function parseBool(value: string, fallback: boolean) {
   }
 
   return fallback;
+}
+
+function parsePositiveInteger(value: string, fallback: number) {
+  if (!value) {
+    return fallback;
+  }
+
+  const parsed = Number(value.trim());
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return fallback;
+  }
+
+  return parsed;
 }
 
 function normalizeTemplateId(value: string, index: number) {
@@ -180,6 +195,10 @@ export function deriveShopOperationalSetup(items: ConfigurationItem[] | undefine
   const enforceShiftTimeWindow = parseBool(getValue(items, SHOP_CONFIG_KEYS.enforceShiftTimeWindow, "false"), false);
   const allowCustomShiftName = parseBool(getValue(items, SHOP_CONFIG_KEYS.allowCustomShiftName, "true"), true);
   const packSellingOrder = parseSellingOrder(getValue(items, SHOP_CONFIG_KEYS.packSellingOrder, "Ascending"));
+  const scratchCardDisplayCount = parsePositiveInteger(
+    getValue(items, SHOP_CONFIG_KEYS.scratchCardDisplayCount, "24"),
+    24
+  );
 
   return {
     timeZone,
@@ -190,5 +209,6 @@ export function deriveShopOperationalSetup(items: ConfigurationItem[] | undefine
     enforceShiftTimeWindow,
     allowCustomShiftName,
     packSellingOrder,
+    scratchCardDisplayCount,
   };
 }

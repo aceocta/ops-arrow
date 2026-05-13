@@ -46,6 +46,10 @@ function isShiftTemplatesConfiguration(configKey: string) {
   return configKey.toLowerCase() === SHOP_CONFIG_KEYS.shiftTemplates.toLowerCase();
 }
 
+function isScratchCardDisplayCountConfiguration(configKey: string) {
+  return configKey.toLowerCase() === SHOP_CONFIG_KEYS.scratchCardDisplayCount.toLowerCase();
+}
+
 function prettifyConfigKey(configKey: string) {
   return configKey
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
@@ -267,6 +271,15 @@ export function AppConfigurationScreen() {
         draftEntries.set(SHOP_CONFIG_KEYS.shiftTemplates, serializeShiftTemplates(templates));
       }
 
+      if (draftEntries.has(SHOP_CONFIG_KEYS.scratchCardDisplayCount)) {
+        const rawDisplayCount = (draftEntries.get(SHOP_CONFIG_KEYS.scratchCardDisplayCount) ?? "").trim();
+        const parsedDisplayCount = Number(rawDisplayCount);
+        if (!Number.isInteger(parsedDisplayCount) || parsedDisplayCount <= 0) {
+          throw new Error("Scratch Card Display Count must be a whole number greater than zero.");
+        }
+        draftEntries.set(SHOP_CONFIG_KEYS.scratchCardDisplayCount, String(parsedDisplayCount));
+      }
+
       const changedItems = [...draftEntries.entries()].map(([configKey, configValue]) => ({ configKey, configValue }));
 
       if (changedItems.length === 0) {
@@ -468,6 +481,7 @@ export function AppConfigurationScreen() {
                         value={currentValue}
                         onChangeText={(value) => setDraftValues((prev) => ({ ...prev, [item.configKey]: value }))}
                         placeholder={item.configValue}
+                        keyboardType={isScratchCardDisplayCountConfiguration(item.configKey) ? "number-pad" : "default"}
                       />
                     )}
                     {item.description ? <Text style={styles.caption}>{item.description}</Text> : null}

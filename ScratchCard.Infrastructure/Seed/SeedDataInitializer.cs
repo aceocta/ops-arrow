@@ -335,6 +335,13 @@ public static class SeedDataInitializer
             // Pack
             Cfg("DefaultSellingOrder", "Ascending", "Pack Settings", "string", null, now),
             Cfg(ConfigurationKeys.PackSellingOrder, "Ascending", "Pack Settings", "string", "Shop-wide pack selling order: Ascending (0 to end) or Descending (end to 0)", now),
+            Cfg(
+                ConfigurationKeys.ScratchCardDisplayCount,
+                "24",
+                "Pack Settings",
+                "int",
+                "Number of scratch-card display positions available in this shop.",
+                now),
             Cfg("DefaultStartSerialNumber", "000", "Pack Settings", "string", null, now),
             Cfg("DefaultEndSerialNumber", "099", "Pack Settings", "string", null, now),
             Cfg("SerialNumberLength", "3", "Pack Settings", "int", null, now),
@@ -429,13 +436,25 @@ public static class SeedDataInitializer
             .Where(x => !existingKeys.Contains(x.ConfigKey, StringComparer.OrdinalIgnoreCase))
             .ToArray();
 
-        if (missing.Length == 0)
+        if (missing.Length > 0)
         {
-            return;
+            await dbContext.AppConfigurations.AddRangeAsync(missing, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        await dbContext.AppConfigurations.AddRangeAsync(missing, cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        var globalScratchCardDisplayCount = await dbContext.AppConfigurations
+            .FirstOrDefaultAsync(
+                x => x.ShopId == null && x.ConfigKey == ConfigurationKeys.ScratchCardDisplayCount,
+                cancellationToken);
+
+        if (globalScratchCardDisplayCount is not null &&
+            string.Equals(globalScratchCardDisplayCount.ConfigValue?.Trim(), "20", StringComparison.Ordinal))
+        {
+            globalScratchCardDisplayCount.ConfigValue = "24";
+            globalScratchCardDisplayCount.ModifiedOn = DateTimeOffset.UtcNow;
+            dbContext.AppConfigurations.Update(globalScratchCardDisplayCount);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
     }
 
     private static async Task SeedSubscriptionPlansAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)

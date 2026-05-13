@@ -64,12 +64,14 @@ public class ShopConfigurationService : IShopConfigurationService
     {
         var values = await GetEffectiveValuesAsync(shopId, new[]
         {
-            ConfigurationKeys.PackSellingOrder
+            ConfigurationKeys.PackSellingOrder,
+            ConfigurationKeys.ScratchCardDisplayCount
         }, cancellationToken);
 
         return new ShopPackSetup
         {
-            SellingOrder = ParseSellingOrder(values, ConfigurationKeys.PackSellingOrder)
+            SellingOrder = ParseSellingOrder(values, ConfigurationKeys.PackSellingOrder),
+            DisplayCount = ParsePositiveInt(values, ConfigurationKeys.ScratchCardDisplayCount, 24)
         };
     }
 
@@ -361,6 +363,18 @@ public class ShopConfigurationService : IShopConfigurationService
         }
 
         return SellingOrder.Ascending;
+    }
+
+    private static int ParsePositiveInt(IReadOnlyDictionary<string, string> values, string key, int fallback)
+    {
+        if (!values.TryGetValue(key, out var raw) || string.IsNullOrWhiteSpace(raw))
+        {
+            return fallback;
+        }
+
+        return int.TryParse(raw.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) && parsed > 0
+            ? parsed
+            : fallback;
     }
 
     private sealed class ShiftTemplatePayload

@@ -75,6 +75,7 @@ public class PackService : IPackService
 
         var packSetup = await _shopConfigurationService.GetPackSetupAsync(request.ShopId, cancellationToken);
         var sellingOrder = packSetup.SellingOrder;
+        var displayNumber = ResolveRequiredDisplayNumber(request.DisplayNumber, packSetup.DisplayCount);
         var openingSerial = GetDefaultOpeningSerial(startSerial, endSerial, sellingOrder);
         ValidateSerialInRange(openingSerial, startSerial, endSerial);
 
@@ -84,7 +85,7 @@ public class PackService : IPackService
             ShopId = request.ShopId,
             GameId = game.MasterGameId,
             PackNumber = normalizedPackNumber,
-            DisplayNumber = request.DisplayNumber,
+            DisplayNumber = displayNumber,
             TicketPrice = request.TicketPrice,
             TotalTickets = request.TotalTickets,
             StartSerialNumber = startSerial,
@@ -343,5 +344,28 @@ public class PackService : IPackService
         }
 
         return BuildCompositePackNumber(normalizedGameCode, packComponent);
+    }
+
+    private static int ResolveRequiredDisplayNumber(int? requestedDisplayNumber, int configuredDisplayCount)
+    {
+        if (!requestedDisplayNumber.HasValue)
+        {
+            throw new AppException("display_number_required", "Display number is required.");
+        }
+
+        var displayNumber = requestedDisplayNumber.Value;
+        if (displayNumber <= 0)
+        {
+            throw new AppException("invalid_display_number", "Display number must be a whole number 1 or greater.");
+        }
+
+        if (configuredDisplayCount > 0 && displayNumber > configuredDisplayCount)
+        {
+            throw new AppException(
+                "invalid_display_number",
+                $"Display number must be between 1 and {configuredDisplayCount}.");
+        }
+
+        return displayNumber;
     }
 }

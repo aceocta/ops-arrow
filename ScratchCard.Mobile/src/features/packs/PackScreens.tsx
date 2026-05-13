@@ -12,10 +12,12 @@ import { SellingOrder } from "../../types/enums";
 import { Game } from "../../types/models";
 import { MainStackParamList } from "../../types/navigation";
 import { createGame, listGames, updateGame } from "../../api/gamesApi";
+import { getConfigurations } from "../../api/configurationsApi";
 import { activatePack, completePack, createManualPack, getPack, listPacks, markIssuePack, pausePack, returnPack, updatePackDetails } from "../../api/packsApi";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 import { subscribeScan } from "../barcode-scanner/scanBus";
+import { deriveShopOperationalSetup } from "../settings/shopConfiguration";
 
 type GameEditorState = {
   gameName: string;
@@ -552,8 +554,18 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
     queryFn: () => listGames(shopId as string),
     enabled: Boolean(shopId),
   });
+  const configurationQuery = useQuery({
+    queryKey: ["configurations", shopId],
+    queryFn: () => getConfigurations(shopId ?? undefined),
+    enabled: Boolean(shopId),
+  });
 
   const activeGames = useMemo(() => (gamesQuery.data ?? []).filter((game) => game.isActive), [gamesQuery.data]);
+  const shopOperationalSetup = useMemo(
+    () => deriveShopOperationalSetup(configurationQuery.data),
+    [configurationQuery.data]
+  );
+  const maxDisplayCount = shopOperationalSetup.scratchCardDisplayCount;
   const selectedGame = activeGames.find((item) => item.id === gameId);
   const selectedGameLabel = selectedGame ? `${selectedGame.gameCode} - ${selectedGame.gameName}` : "";
   const filteredGames = useMemo(() => {
@@ -609,9 +621,15 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
     }
 
     const trimmedDisplayNumber = displayNumber.trim();
-    const parsedDisplayNumber = trimmedDisplayNumber.length > 0 ? Number(trimmedDisplayNumber) : undefined;
-    if (trimmedDisplayNumber.length > 0 && (!Number.isInteger(parsedDisplayNumber) || (parsedDisplayNumber ?? 0) < 0)) {
-      throw new Error("Display number must be a non-negative whole number.");
+    if (!trimmedDisplayNumber) {
+      throw new Error("Display number is required.");
+    }
+    const parsedDisplayNumber = Number(trimmedDisplayNumber);
+    if (!Number.isInteger(parsedDisplayNumber) || parsedDisplayNumber <= 0) {
+      throw new Error("Display number must be a whole number greater than zero.");
+    }
+    if (maxDisplayCount > 0 && parsedDisplayNumber > maxDisplayCount) {
+      throw new Error(`Display number must be between 1 and ${maxDisplayCount}.`);
     }
 
     return {
@@ -874,15 +892,20 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
           {/* <Text style={styles.meta}>From scan: red = game code, green = pack number.</Text> */}
           {scanMessage ? <Text style={styles.meta}>{scanMessage}</Text> : null}
 
-          <Text style={styles.fieldLabel}>Display Number (Optional)</Text>
+          <Text style={styles.fieldLabel}>Display Number</Text>
           <TextInput
             style={styles.input}
             value={displayNumber}
             onChangeText={setDisplayNumber}
             keyboardType="number-pad"
-            placeholder="Display number"
+            placeholder={maxDisplayCount > 0 ? `Display number (1-${maxDisplayCount})` : "Display number"}
             placeholderTextColor={appTheme.colors.textSubtle}
           />
+          {/* <Text style={styles.meta}>
+            {maxDisplayCount > 0
+              ? `Configured displays for this shop: 1 to ${maxDisplayCount}.`
+              : "Configure Scratch Card Display Count in App Configuration to set a display range."}
+          </Text> */}
 
           <Text style={styles.fieldLabel}>Ticket Price</Text>
           <TextInput

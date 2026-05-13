@@ -9,6 +9,39 @@ import { parseTicketText } from "./parseTicketText";
 
 type Props = NativeStackScreenProps<RootStackParamList, "BarcodeScanner">;
 
+function normalizeDashes(value: string) {
+  return value.replace(/[\u2010\u2011\u2012\u2013\u2014\u2212\uFE58\uFE63\uFF0D]/g, "-");
+}
+
+function parseScannedPackCode(value: string) {
+  const normalized = normalizeDashes(value).trim();
+  if (!normalized) {
+    return null;
+  }
+
+  const segments = normalized
+    .split("-")
+    .map((segment) => segment.replace(/[^0-9A-Za-z]/g, "").toUpperCase())
+    .filter((segment) => segment.length > 0);
+
+  if (segments.length >= 2) {
+    return {
+      gameCode: segments[0],
+      packComponent: segments[segments.length - 1],
+    };
+  }
+
+  const digits = normalized.replace(/\D/g, "");
+  if (digits.length >= 11) {
+    return {
+      gameCode: digits.slice(0, 4),
+      packComponent: digits.slice(4, 11),
+    };
+  }
+
+  return null;
+}
+
 export function BarcodeScannerScreen({ navigation, route }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const [isProcessingOcr, setIsProcessingOcr] = useState(false);
@@ -16,14 +49,46 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [lastScanMessage, setLastScanMessage] = useState<string>("");
   const cameraRef = useRef<CameraView | null>(null);
+  const hasHandledPackBarcodeRef = useRef(false);
 
   const canScan = useMemo(() => permission?.granted ?? false, [permission]);
   const mode = route.params.mode ?? "single";
+  const isManualPackScanMode = mode === "single" && !route.params.packId && !route.params.packNumber;
 
   useEffect(() => {
     setIsAutoOcrEnabled(mode === "auto");
     setLastScanMessage("");
-  }, [route.params.packId, mode]);
+    hasHandledPackBarcodeRef.current = false;
+  }, [route.params.packId, route.params.packNumber, mode]);
+
+  const onBarcodeScanned = useCallback((result: { data: string; type?: string }) => {
+    if (!isManualPackScanMode || hasHandledPackBarcodeRef.current) {
+      return;
+    }
+
+    const rawData = `${result.data ?? ""}`.trim();
+    if (!rawData) {
+      return;
+    }
+
+    const parsed = parseScannedPackCode(rawData);
+    if (!parsed) {
+      setLastScanMessage("Detected barcode, but pack number could not be parsed. Try a clearer angle.");
+      return;
+    }
+
+    hasHandledPackBarcodeRef.current = true;
+
+    emitScan({
+      rawBarcode: rawData,
+      parsedPackNumber: `${parsed.gameCode}-${parsed.packComponent}`,
+      parsedSerial: "",
+      barcodeType: result.type,
+    });
+
+    setLastScanMessage(`Scanned game ${parsed.gameCode}, pack ${parsed.packComponent}.`);
+    navigation.goBack();
+  }, [isManualPackScanMode, navigation]);
 
   async function recognizeTextWithMlkit(imageUri: string) {
     if (Constants.appOwnership === "expo" || Constants.executionEnvironment === "storeClient") {
@@ -165,27 +230,36 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
         onCameraReady={() => setIsCameraReady(true)}
+        onBarcodeScanned={isManualPackScanMode ? onBarcodeScanned : undefined}
       />
       <View style={styles.overlay}>
         <Text style={styles.overlayText}>
-          {mode === "auto"
-            ? "Auto OCR Mode: keep ticket text visible and app will capture automatically."
-            : `OCR capture for pack ${route.params.packNumber ?? "-"}`}
+          {isManualPackScanMode
+            ? "Point the camera at a pack barcode. Scanner closes automatically after pack number is captured."
+            : mode === "auto"
+              ? "Auto OCR Mode: keep ticket text visible and app will capture automatically."
+              : `OCR capture for pack ${route.params.packNumber ?? "-"}`}
         </Text>
         {lastScanMessage ? <Text style={styles.subText}>{lastScanMessage}</Text> : null}
-        <Button
-          title={isProcessingOcr ? "Reading Text..." : "Capture Text"}
-          onPress={() => {
-            void runMlkitOcrFallback();
-          }}
-          disabled={isProcessingOcr || !isCameraReady}
-        />
-        <Button
-          title={isAutoOcrEnabled ? "Auto OCR: On" : "Auto OCR: Off"}
-          onPress={() => setIsAutoOcrEnabled((previous) => !previous)}
-          disabled={!isCameraReady}
-        />
-        {mode === "auto" ? <Button title="Done" onPress={() => navigation.goBack()} /> : null}
+        {isManualPackScanMode ? (
+          <Button title="Done" onPress={() => navigation.goBack()} />
+        ) : (
+          <>
+            <Button
+              title={isProcessingOcr ? "Reading Text..." : "Capture Text"}
+              onPress={() => {
+                void runMlkitOcrFallback();
+              }}
+              disabled={isProcessingOcr || !isCameraReady}
+            />
+            <Button
+              title={isAutoOcrEnabled ? "Auto OCR: On" : "Auto OCR: Off"}
+              onPress={() => setIsAutoOcrEnabled((previous) => !previous)}
+              disabled={!isCameraReady}
+            />
+            {mode === "auto" ? <Button title="Done" onPress={() => navigation.goBack()} /> : null}
+          </>
+        )}
       </View>
     </View>
   );

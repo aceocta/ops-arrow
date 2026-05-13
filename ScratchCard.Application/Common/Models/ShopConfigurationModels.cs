@@ -25,4 +25,5 @@ public class ShopShiftSetup
 public class ShopPackSetup
 {
     public SellingOrder SellingOrder { get; set; } = SellingOrder.Ascending;
+    public int DisplayCount { get; set; } = 24;
 }
