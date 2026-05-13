@@ -259,7 +259,12 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const packsRef = useRef<ScratchCardPack[]>([]);
 
-  function openBarcodeScanner(params: { mode: "single" | "auto"; packId?: string; packNumber?: string }) {
+  function openBarcodeScanner(params: {
+    mode: "single" | "auto";
+    packId?: string;
+    packNumber?: string;
+    pendingPacks?: Array<{ packId?: string; packNumber: string; label?: string }>;
+  }) {
     const rootLikeNavigation = navigation.getParent()?.getParent() ?? navigation.getParent() ?? navigation;
     (rootLikeNavigation as any).navigate("BarcodeScanner", params);
   }
@@ -500,6 +505,17 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
   const completedRows = computedRows.filter((row) => Boolean(entries[row.pack.id]?.closingSerialNumber) && !row.hasError).length;
   const errorRows = computedRows.filter((row) => row.hasError).length;
   const pendingRows = computedRows.filter((row) => !entries[row.pack.id]?.closingSerialNumber).length;
+  const pendingPackHints = useMemo(
+    () =>
+      computedRows
+        .filter((row) => !entries[row.pack.id]?.closingSerialNumber)
+        .map((row) => ({
+          packId: row.pack.id,
+          packNumber: row.pack.packNumber,
+          label: `${row.pack.displayNumber != null ? `#${row.pack.displayNumber} - ` : ""}${row.pack.gameName}`,
+        })),
+    [computedRows, entries]
+  );
   const canFinalize = computedRows.length > 0 && pendingRows === 0 && errorRows === 0 && !isSubmitting;
   const isOnline = Boolean(netInfo.isConnected);
   const readinessMessage = errorRows > 0
@@ -636,7 +652,12 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
           <PrimaryButton
             label="Scan Any Pack Barcode"
             tone="neutral"
-            onPress={() => openBarcodeScanner({ mode: "auto" })}
+            onPress={() =>
+              openBarcodeScanner({
+                mode: "auto",
+                pendingPacks: pendingPackHints,
+              })
+            }
             disabled={isSubmitting}
           />
           {scanStatus ? <Text style={styles.scanStatus}>{scanStatus}</Text> : null}

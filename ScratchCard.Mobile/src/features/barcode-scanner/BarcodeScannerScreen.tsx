@@ -8,6 +8,7 @@ import { emitScan } from "./scanBus";
 import { parseTicketText } from "./parseTicketText";
 
 type Props = NativeStackScreenProps<RootStackParamList, "BarcodeScanner">;
+type AutoPendingPack = { packId?: string; packNumber: string; label: string };
 
 function normalizeDashes(value: string) {
   return value.replace(/[\u2010\u2011\u2012\u2013\u2014\u2212\uFE58\uFE63\uFF0D]/g, "-");
@@ -42,14 +43,62 @@ function parseScannedPackCode(value: string) {
   return null;
 }
 
+function normalizePackNumber(value: string) {
+  return value.replace(/[^0-9A-Za-z]/g, "").toUpperCase();
+}
+
+function normalizePackNumberWithoutLeadingZeros(value: string) {
+  const normalized = normalizePackNumber(value).replace(/^0+/, "");
+  return normalized.length > 0 ? normalized : "0";
+}
+
+function getPackNumberSegments(value: string) {
+  return normalizeDashes(value)
+    .split("-")
+    .map((segment) => normalizePackNumber(segment))
+    .filter((segment) => segment.length > 0);
+}
+
+function matchesScannedPackNumber(storedPackNumber: string, scannedPackNumber: string) {
+  const storedNormalized = normalizePackNumber(storedPackNumber);
+  const scannedNormalized = normalizePackNumber(scannedPackNumber);
+
+  if (!storedNormalized || !scannedNormalized) {
+    return false;
+  }
+
+  const storedNoZeros = normalizePackNumberWithoutLeadingZeros(storedPackNumber);
+  const scannedNoZeros = normalizePackNumberWithoutLeadingZeros(scannedPackNumber);
+
+  if (storedNormalized === scannedNormalized || storedNoZeros === scannedNoZeros) {
+    return true;
+  }
+
+  const storedSegments = getPackNumberSegments(storedPackNumber);
+  const scannedSegments = getPackNumberSegments(scannedPackNumber);
+  const storedTail = storedSegments.length > 0 ? storedSegments[storedSegments.length - 1] : "";
+  const scannedTail = scannedSegments.length > 0 ? scannedSegments[scannedSegments.length - 1] : "";
+  const storedTailNoZeros = storedTail.replace(/^0+/, "") || "0";
+  const scannedTailNoZeros = scannedTail.replace(/^0+/, "") || "0";
+
+  if (storedTail.length >= 6 && (storedTail === scannedTail || storedTailNoZeros === scannedTailNoZeros)) {
+    return true;
+  }
+
+  return false;
+}
+
 export function BarcodeScannerScreen({ navigation, route }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const [isProcessingOcr, setIsProcessingOcr] = useState(false);
   const [isAutoOcrEnabled, setIsAutoOcrEnabled] = useState(true);
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [lastScanMessage, setLastScanMessage] = useState<string>("");
+  const [pendingAutoPacks, setPendingAutoPacks] = useState<AutoPendingPack[]>([]);
   const cameraRef = useRef<CameraView | null>(null);
   const hasHandledPackBarcodeRef = useRef(false);
+  const isAutoClosingRef = useRef(false);
+  const initialAutoPendingCountRef = useRef(0);
 
   const canScan = useMemo(() => permission?.granted ?? false, [permission]);
   const mode = route.params.mode ?? "single";
@@ -59,7 +108,82 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
     setIsAutoOcrEnabled(mode === "auto");
     setLastScanMessage("");
     hasHandledPackBarcodeRef.current = false;
-  }, [route.params.packId, route.params.packNumber, mode]);
+    isAutoClosingRef.current = false;
+
+    if (mode === "auto") {
+      const nextPending = (route.params.pendingPacks ?? []).map((pack) => ({
+        packId: pack.packId,
+        packNumber: pack.packNumber,
+        label: pack.label?.trim() ? pack.label.trim() : `Pack ${pack.packNumber}`,
+      }));
+      initialAutoPendingCountRef.current = nextPending.length;
+      setPendingAutoPacks(nextPending);
+      return;
+    }
+
+    initialAutoPendingCountRef.current = 0;
+    setPendingAutoPacks([]);
+  }, [route.params.packId, route.params.packNumber, route.params.pendingPacks, mode]);
+
+  useEffect(() => {
+    if (mode !== "auto") {
+      return;
+    }
+    if (initialAutoPendingCountRef.current === 0) {
+      return;
+    }
+    if (pendingAutoPacks.length > 0 || isAutoClosingRef.current) {
+      return;
+    }
+
+    isAutoClosingRef.current = true;
+    setLastScanMessage("All pending packs scanned. Closing camera...");
+    setIsAutoOcrEnabled(false);
+    const timer = setTimeout(() => {
+      navigation.goBack();
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [mode, navigation, pendingAutoPacks.length]);
+
+  const pendingAutoMessage = useMemo(() => {
+    if (mode !== "auto") {
+      return "";
+    }
+    if (initialAutoPendingCountRef.current === 0) {
+      return "Pending packs list not provided. Scanner will stay open until Done.";
+    }
+    if (pendingAutoPacks.length === 0) {
+      return "Pending packs: none.";
+    }
+
+    const preview = pendingAutoPacks.slice(0, 4).map((pack) => pack.label);
+    const remaining = pendingAutoPacks.length - preview.length;
+    const suffix = remaining > 0 ? ` +${remaining} more` : "";
+    return `Pending packs (${pendingAutoPacks.length}): ${preview.join(" | ")}${suffix}`;
+  }, [mode, pendingAutoPacks]);
+
+  const consumePendingPack = useCallback((scannedPackNumber: string | undefined, rawBarcode: string) => {
+    if (mode !== "auto" || !scannedPackNumber || initialAutoPendingCountRef.current === 0) {
+      return;
+    }
+
+    setPendingAutoPacks((previous) => {
+      const index = previous.findIndex((pack) => matchesScannedPackNumber(pack.packNumber, scannedPackNumber));
+      if (index < 0) {
+        return previous;
+      }
+
+      const removedLabel = previous[index].label;
+      const next = [...previous.slice(0, index), ...previous.slice(index + 1)];
+      setLastScanMessage(
+        next.length === 0
+          ? `OCR captured: ${rawBarcode}. All pending packs scanned.`
+          : `OCR captured: ${rawBarcode}. ${removedLabel} done, ${next.length} pending.`
+      );
+      return next;
+    });
+  }, [mode]);
 
   const onBarcodeScanned = useCallback((result: { data: string; type?: string }) => {
     if (!isManualPackScanMode || hasHandledPackBarcodeRef.current) {
@@ -163,6 +287,8 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
       });
 
       setLastScanMessage(`OCR captured: ${parsedFromText.rawBarcode}`);
+      consumePendingPack(parsedFromText.parsedPackNumber, parsedFromText.rawBarcode);
+
       if (mode === "auto") {
         return true;
       }
@@ -176,7 +302,15 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
     } finally {
       setIsProcessingOcr(false);
     }
-  }, [isProcessingOcr, isCameraReady, mode, navigation, route.params.packId, route.params.packNumber]);
+  }, [
+    isProcessingOcr,
+    isCameraReady,
+    mode,
+    navigation,
+    route.params.packId,
+    route.params.packNumber,
+    consumePendingPack,
+  ]);
 
   useEffect(() => {
     if (!isAutoOcrEnabled || !isCameraReady) {
@@ -240,6 +374,7 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
               ? "Auto OCR Mode: keep ticket text visible and app will capture automatically."
               : `OCR capture for pack ${route.params.packNumber ?? "-"}`}
         </Text>
+        {mode === "auto" ? <Text style={styles.pendingText}>{pendingAutoMessage}</Text> : null}
         {lastScanMessage ? <Text style={styles.subText}>{lastScanMessage}</Text> : null}
         {isManualPackScanMode ? (
           <Button title="Done" onPress={() => navigation.goBack()} />
@@ -279,5 +414,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   overlayText: { color: "white", textAlign: "center", fontWeight: "600" },
+  pendingText: { color: "#F8E9B8", textAlign: "center", marginTop: 8 },
   subText: { color: "#D4FCE9", textAlign: "center", marginTop: 8, marginBottom: 8 },
 });

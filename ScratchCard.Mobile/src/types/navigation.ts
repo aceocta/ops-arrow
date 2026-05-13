@@ -9,7 +9,16 @@ export type RootStackParamList = {
   InvitationAccept: { token?: string } | undefined;
   MainTabs: undefined;
   ShopSelector: undefined;
-  BarcodeScanner: { mode?: "single" | "auto"; packId?: string; packNumber?: string };
+  BarcodeScanner: {
+    mode?: "single" | "auto";
+    packId?: string;
+    packNumber?: string;
+    pendingPacks?: Array<{
+      packId?: string;
+      packNumber: string;
+      label?: string;
+    }>;
+  };
   PendingSync: undefined;
   SyncConflict: undefined;
 };
