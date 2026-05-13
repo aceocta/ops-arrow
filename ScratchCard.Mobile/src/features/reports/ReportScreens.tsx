@@ -401,8 +401,8 @@ export function DailySalesReportScreen() {
             const dayContext = businessDayByDate.get(businessDate);
             const dayMissingCount = Number(dayContext?.missingOpeningTicketCount ?? 0);
             const dayMissingDetails = dayContext?.missingOpeningTicketDetails ?? [];
-            const isDayPositive = dayAggregate.totalDifference > 0.009;
-            const isDayNegative = dayAggregate.totalDifference < -0.009;
+            const isDayPositive = payoutDifference != null && payoutDifference > 0.009;
+            const isDayNegative = payoutDifference != null && payoutDifference < -0.009;
 
             return (
               <View

@@ -448,7 +448,7 @@ export function AppConfigurationScreen() {
                           onPress={() => setDraftValues((prev) => ({ ...prev, [item.configKey]: SellingOrder.Ascending }))}
                         >
                           <Text style={[styles.choiceChipText, currentValue.toLowerCase() === SellingOrder.Ascending.toLowerCase() ? styles.choiceChipTextSelected : null]}>
-                            0 To End
+                            Start From 0
                           </Text>
                         </Pressable>
                         <Pressable

@@ -334,7 +334,7 @@ public static class SeedDataInitializer
 
             // Pack
             Cfg("DefaultSellingOrder", "Ascending", "Pack Settings", "string", null, now),
-            Cfg(ConfigurationKeys.PackSellingOrder, "Ascending", "Pack Settings", "string", "Shop-wide pack selling order: Ascending (0 to end) or Descending (end to 0)", now),
+            Cfg(ConfigurationKeys.PackSellingOrder, "Ascending", "Pack Settings", "string", "", now),
             Cfg(
                 ConfigurationKeys.ScratchCardDisplayCount,
                 "24",

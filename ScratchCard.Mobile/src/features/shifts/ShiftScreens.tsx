@@ -145,6 +145,10 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
     const enteredSerial = getOpeningSerialForPack(pack.id, pack.currentSerialNumber);
     return !confirmedOpeningSerialByPackId[pack.id] || enteredSerial.length === 0;
   });
+  const confirmedOpeningSerialCount = activePacksForOpening.reduce((count, pack) => {
+    const enteredSerial = getOpeningSerialForPack(pack.id, pack.currentSerialNumber);
+    return confirmedOpeningSerialByPackId[pack.id] && enteredSerial.length > 0 ? count + 1 : count;
+  }, 0);
 
   function confirmAllOpeningSerials() {
     setConfirmedOpeningSerialByPackId(() => {
@@ -296,10 +300,19 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
 
             <Text style={styles.sectionTitle}>Scheduled Shifts</Text>
             <View style={styles.item}>
-              <Text style={styles.sectionTitle}>Confirm Starting Serials</Text>
-              <Text style={styles.meta}>
-                Confirm each active pack before opening the shift.
-              </Text>
+              <View style={styles.serialConfirmHeaderRow}>
+                <View style={styles.serialConfirmHeaderTextWrap}>
+                  <Text style={styles.sectionTitle}>Confirm Starting Serials</Text>
+                  {/* <Text style={styles.meta}>Confirm each active pack before opening the shift.</Text> */}
+                </View>
+                {activePacksForOpening.length > 0 ? (
+                  <View style={styles.serialProgressPill}>
+                    <Text style={styles.serialProgressText}>
+                      {confirmedOpeningSerialCount}/{activePacksForOpening.length}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
               {activePacksForOpening.length > 0 ? (
                 <View style={styles.serialConfirmActionRow}>
                   <Pressable
@@ -324,18 +337,18 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
               {activePacksForOpening.map((pack) => {
                 const isConfirmed = Boolean(confirmedOpeningSerialByPackId[pack.id]);
                 const enteredOpeningSerial = openingSerialNumberByPackId[pack.id] ?? pack.currentSerialNumber;
+                const hasSerialValue = enteredOpeningSerial.trim().length > 0;
                 return (
                   <View key={pack.id} style={styles.serialConfirmRow}>
-                    <View style={styles.serialConfirmTextWrap}>
-                      <Text style={styles.itemTitle}>
-                        Display: {pack.displayNumber != null ? `#${pack.displayNumber}` : "-"} | {pack.gameName}
-                      </Text>
-                      <Text style={styles.meta}>Game Code: {resolveGameCodeFromPack(pack)}</Text>
-                      <Text style={styles.meta}>Expected Serial: {pack.currentSerialNumber}</Text>
+                    <Text style={styles.serialPackTitle}>
+                      Display: {pack.displayNumber != null ? `#${pack.displayNumber}` : "-"} | {pack.gameName}
+                    </Text>
+                    <Text style={styles.meta}>Code: {resolveGameCodeFromPack(pack)} | Expected: {pack.currentSerialNumber}</Text>
+                    <View style={styles.serialConfirmInputRow}>
                       <TextInput
-                        style={styles.input}
+                        style={[styles.input, styles.serialConfirmInput]}
                         value={enteredOpeningSerial}
-                        placeholder="Enter actual starting serial"
+                        placeholder="Starting serial"
                         placeholderTextColor={appTheme.colors.textSubtle}
                         keyboardType="numeric"
                         onChangeText={(value) => {
@@ -349,20 +362,25 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
                           }));
                         }}
                       />
+                      <Pressable
+                        style={[
+                          styles.choiceChip,
+                          isConfirmed ? styles.choiceChipSelected : null,
+                          !hasSerialValue ? styles.choiceChipDisabled : null,
+                        ]}
+                        disabled={!hasSerialValue}
+                        onPress={() =>
+                          setConfirmedOpeningSerialByPackId((previous) => ({
+                            ...previous,
+                            [pack.id]: !isConfirmed,
+                          }))
+                        }
+                      >
+                        <Text style={[styles.choiceChipText, isConfirmed ? styles.choiceChipTextSelected : null]}>
+                          {isConfirmed ? "Confirmed" : "Confirm"}
+                        </Text>
+                      </Pressable>
                     </View>
-                    <Pressable
-                      style={[styles.choiceChip, isConfirmed ? styles.choiceChipSelected : null]}
-                      onPress={() =>
-                        setConfirmedOpeningSerialByPackId((previous) => ({
-                          ...previous,
-                          [pack.id]: !isConfirmed,
-                        }))
-                      }
-                    >
-                      <Text style={[styles.choiceChipText, isConfirmed ? styles.choiceChipTextSelected : null]}>
-                        {isConfirmed ? "Confirmed" : "Confirm"}
-                      </Text>
-                    </Pressable>
                   </View>
                 );
               })}
@@ -818,19 +836,55 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 14,
   },
+  serialConfirmHeaderRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.sm,
+  },
+  serialConfirmHeaderTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  serialProgressPill: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.primary,
+    borderRadius: appTheme.radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: "#E9F7F6",
+  },
+  serialProgressText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 14,
+  },
   serialConfirmRow: {
     borderWidth: 1,
     borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surface,
-    padding: 8,
-    gap: 8,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.xs,
+    gap: 4,
   },
-  serialConfirmTextWrap: {
-    gap: 2,
+  serialPackTitle: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 17,
   },
   serialConfirmActionRow: {
     flexDirection: "row",
+  },
+  serialConfirmInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+  },
+  serialConfirmInput: {
+    flex: 1,
   },
   row: {
     flexDirection: "row",

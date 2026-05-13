@@ -464,11 +464,22 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   }
 
   function renderOpeningSerialConfirmationCard(confirmationHint: string) {
+    const totalPacks = activePacksForOpening.length;
+    const confirmedPackCount = activePacksForOpening.reduce((count, pack) => {
+      const enteredSerial = getOpeningSerialForPack(pack.id, pack.currentSerialNumber);
+      return confirmedOpeningSerialByPackId[pack.id] && enteredSerial.length > 0 ? count + 1 : count;
+    }, 0);
+
     return (
       <View style={styles.reviewSnapshotCard}>
-        <Text style={styles.reviewSnapshotTitle}>Confirm Starting Serials</Text>
-        <Text style={styles.meta}>{confirmationHint}</Text>
-        {activePacksForOpening.length > 0 ? (
+        <View style={styles.serialConfirmHeaderRow}>
+          <Text style={styles.reviewSnapshotTitle}>Confirm Starting Serials</Text>
+          {totalPacks > 0 ? (
+            <View style={styles.serialProgressPill}>
+              <Text style={styles.serialProgressText}>{confirmedPackCount}/{totalPacks}</Text>
+            </View>
+          ) : null}
+            {activePacksForOpening.length > 0 ? (
           <View style={styles.serialConfirmActionRow}>
             <Pressable
               style={[
@@ -485,6 +496,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             </Pressable>
           </View>
         ) : null}
+        </View>
+        <Text style={[styles.meta, styles.serialConfirmHint]}></Text>
+      
         {packsQuery.isFetching ? <Text style={styles.meta}>Loading active packs...</Text> : null}
         {!packsQuery.isFetching && activePacksForOpening.length === 0 ? (
           <Text style={styles.meta}>No active packs found for this shop.</Text>
@@ -492,18 +506,20 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
         {activePacksForOpening.map((pack) => {
           const isConfirmed = Boolean(confirmedOpeningSerialByPackId[pack.id]);
           const enteredOpeningSerial = openingSerialNumberByPackId[pack.id] ?? pack.currentSerialNumber;
+          const hasSerialValue = enteredOpeningSerial.trim().length > 0;
           return (
             <View key={pack.id} style={styles.serialConfirmRow}>
-              <View style={styles.serialConfirmTextWrap}>
-                <Text style={styles.reviewSnapshotTitle}>
-                  Display: {pack.displayNumber != null ? `#${pack.displayNumber}` : "-"} | {pack.gameName}
-                </Text>
-                <Text style={styles.meta}>Game Code: {resolveGameCodeFromPack(pack)}</Text>
-                <Text style={styles.meta}>Expected Serial: {pack.currentSerialNumber}</Text>
+              <Text style={styles.serialPackTitle}>
+                Display: {pack.displayNumber != null ? `#${pack.displayNumber}` : "-"} | {pack.gameName}
+              </Text>
+              <Text style={styles.meta}>
+                Code: {resolveGameCodeFromPack(pack)} | Expected: {pack.currentSerialNumber}
+              </Text>
+              <View style={styles.serialConfirmInputRow}>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, styles.serialConfirmInput]}
                   value={enteredOpeningSerial}
-                  placeholder="Enter actual starting serial"
+                  placeholder="Starting serial"
                   placeholderTextColor={appTheme.colors.textSubtle}
                   keyboardType="numeric"
                   onChangeText={(value) => {
@@ -517,20 +533,25 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     }));
                   }}
                 />
+                <Pressable
+                  style={[
+                    styles.serialConfirmButton,
+                    isConfirmed ? styles.serialConfirmButtonSelected : null,
+                    !hasSerialValue ? styles.serialConfirmButtonDisabled : null,
+                  ]}
+                  disabled={!hasSerialValue}
+                  onPress={() =>
+                    setConfirmedOpeningSerialByPackId((previous) => ({
+                      ...previous,
+                      [pack.id]: !isConfirmed,
+                    }))
+                  }
+                >
+                  <Text style={[styles.serialConfirmButtonText, isConfirmed ? styles.serialConfirmButtonTextSelected : null]}>
+                    {isConfirmed ? "Confirmed" : "Confirm"}
+                  </Text>
+                </Pressable>
               </View>
-              <Pressable
-                style={[styles.serialConfirmButton, isConfirmed ? styles.serialConfirmButtonSelected : null]}
-                onPress={() =>
-                  setConfirmedOpeningSerialByPackId((previous) => ({
-                    ...previous,
-                    [pack.id]: !isConfirmed,
-                  }))
-                }
-              >
-                <Text style={[styles.serialConfirmButtonText, isConfirmed ? styles.serialConfirmButtonTextSelected : null]}>
-                  {isConfirmed ? "Confirmed" : "Confirm"}
-                </Text>
-              </Pressable>
             </View>
           );
         })}
@@ -991,17 +1012,15 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           })}
         </View>
 
-        <View style={[ui.card, styles.sectionCard]}>
-          <View style={styles.sectionTitleRow}>
-            <Text style={styles.sectionTitle}>Missing Tickets (Opening Serial)</Text>
-            <StatusBadge
-              label={`${missingOpeningTicketCount}`}
-              tone={missingOpeningTicketCount > 0 ? "danger" : "success"}
-            />
-          </View>
-          {missingOpeningTicketDetails.length === 0 ? (
-            <Text style={styles.meta}>No missing tickets were recorded from opening serial confirmations.</Text>
-          ) : (
+        {missingOpeningTicketDetails.length > 0 ? (
+          <View style={[ui.card, styles.sectionCard]}>
+            <View style={styles.sectionTitleRow}>
+              <Text style={styles.sectionTitle}>Missing Tickets (Opening Serial)</Text>
+              <StatusBadge
+                label={`${missingOpeningTicketCount}`}
+                tone={missingOpeningTicketCount > 0 ? "danger" : "success"}
+              />
+            </View>
             <View style={styles.missingTicketList}>
               {missingOpeningTicketDetails.map((detail, index) => (
                 <View key={`${detail.shiftId}-${detail.packId}-${index}`} style={styles.missingTicketItem}>
@@ -1021,8 +1040,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 </View>
               ))}
             </View>
-          )}
-        </View>
+          </View>
+        ) : null}
 
         <View style={[ui.card, styles.sectionCard]}>
           <View style={styles.sectionTitleRow}>
@@ -1347,10 +1366,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           <View style={styles.modalBackdrop}>
             <View style={styles.modalCard}>
               <Text style={styles.sectionTitle}>Open New Shift</Text>
-              <Text style={styles.meta}>
-                Configured window: {shopOperationalSetup.shiftStartTime} - {shopOperationalSetup.shiftEndTime}
-                {shopOperationalSetup.enforceShiftTimeWindow ? " (enforced)." : " (advisory)."}
-              </Text>
+             
               {shopOperationalSetup.allowCustomShiftName ? (
                 <>
                   <Text style={styles.fieldLabel}>Shift Name</Text>
@@ -1882,7 +1898,7 @@ const styles = StyleSheet.create({
     textAlign: "right",
   },
   reviewSnapshotCard: {
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceMuted,
@@ -1897,7 +1913,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   reviewSummaryCard: {
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceMuted,
@@ -1954,7 +1970,7 @@ const styles = StyleSheet.create({
     gap: appTheme.spacing.xs,
   },
   missingTicketItem: {
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceMuted,
@@ -1968,22 +1984,60 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 17,
   },
+  serialConfirmHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.sm,
+  },
+  serialConfirmHint: {
+    marginTop: -1,
+  },
+  serialProgressPill: {
+    borderWidth: 0,
+    borderColor: appTheme.colors.primary,
+    borderRadius: appTheme.radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: "#E9F7F6",
+    minWidth: 44,
+    alignItems: "center",
+  },
+  serialProgressText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 14,
+  },
   serialConfirmRow: {
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surface,
-    padding: 8,
-    gap: 8,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.xs,
+    gap: 4,
   },
-  serialConfirmTextWrap: {
-    gap: 2,
+  serialPackTitle: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 17,
   },
   serialConfirmActionRow: {
     flexDirection: "row",
+    marginTop: 2,
+  },
+  serialConfirmInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+  },
+  serialConfirmInput: {
+    flex: 1,
   },
   serialConfirmButton: {
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.primary,
     borderRadius: appTheme.radius.pill,
     backgroundColor: "#E9F7F6",
@@ -2067,7 +2121,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   dayPickerCurrentDayCard: {
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
     backgroundColor: "#F2F7FC",
@@ -2108,7 +2162,7 @@ const styles = StyleSheet.create({
     marginTop: 0,
   },
   dayPickerSelectionCard: {
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceMuted,
@@ -2161,7 +2215,7 @@ const styles = StyleSheet.create({
   dayPickerList: {
     maxHeight: 220,
     minHeight: 88,
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surface,
@@ -2171,7 +2225,7 @@ const styles = StyleSheet.create({
     padding: appTheme.spacing.xs,
   },
   dayPickerItem: {
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceMuted,
@@ -2204,7 +2258,7 @@ const styles = StyleSheet.create({
   },
   dayPickerEmptyState: {
     borderRadius: appTheme.radius.sm,
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.border,
     paddingHorizontal: appTheme.spacing.sm,
     paddingVertical: appTheme.spacing.sm,
@@ -2226,7 +2280,7 @@ const styles = StyleSheet.create({
   modalCard: {
     backgroundColor: appTheme.colors.background,
     borderRadius: appTheme.radius.lg,
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.border,
     padding: appTheme.spacing.md,
     gap: appTheme.spacing.sm,
@@ -2256,7 +2310,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   attachmentPreviewHeaderButton: {
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: "#35506A",
     borderRadius: appTheme.radius.sm,
     backgroundColor: "#102030",
@@ -2294,7 +2348,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: appTheme.spacing.xs,
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceMuted,
@@ -2350,7 +2404,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
   },
   attachmentDownloadButton: {
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.borderStrong,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surface,
@@ -2364,7 +2418,7 @@ const styles = StyleSheet.create({
     lineHeight: 13,
   },
   attachmentRemoveButton: {
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.borderStrong,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surface,
@@ -2378,7 +2432,7 @@ const styles = StyleSheet.create({
     lineHeight: 13,
   },
   attachmentViewButton: {
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.primary,
     borderRadius: appTheme.radius.sm,
     backgroundColor: "#E8F5F2",
@@ -2392,7 +2446,7 @@ const styles = StyleSheet.create({
     lineHeight: 13,
   },
   attachmentNoPreviewBadge: {
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surface,
@@ -2438,7 +2492,7 @@ const styles = StyleSheet.create({
   modalActionButton: {
     flex: 1,
     borderRadius: appTheme.radius.md,
-    borderWidth: 1,
+    borderWidth: 0,
     paddingVertical: 12,
     paddingHorizontal: 12,
     alignItems: "center",
