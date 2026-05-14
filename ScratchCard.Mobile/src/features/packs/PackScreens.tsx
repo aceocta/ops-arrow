@@ -514,11 +514,8 @@ export function ScratchCardPacksScreen({ navigation }: PackListProps) {
 
 type ManualPackCreateProps = NativeStackScreenProps<MainStackParamList, "ManualPackCreate">;
 
-type PendingManualPackDraft = {
-  id: string;
+type ManualPackDraft = {
   gameId: string;
-  gameCode: string;
-  gameName: string;
   packNumber: string;
   displayNumber?: number;
   ticketPrice: number;
@@ -542,7 +539,6 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
   const [endSerialNumber, setEndSerialNumber] = useState("");
   const [notes, setNotes] = useState("");
   const [scanMessage, setScanMessage] = useState<string | null>(null);
-  const [pendingPacks, setPendingPacks] = useState<PendingManualPackDraft[]>([]);
   const lastAutoSerialRangeRef = useRef<{ start: string; end: string } | null>(null);
   const awaitingPackScanRef = useRef(false);
   const hasAutoOpenedScannerRef = useRef(false);
@@ -591,7 +587,7 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
     [totalTickets, configuredPackSellingOrder]
   );
 
-  function buildDraftFromForm(): PendingManualPackDraft {
+  function buildDraftFromForm(): ManualPackDraft {
     if (!gameId) {
       throw new Error("Select a game.");
     }
@@ -633,10 +629,7 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
     }
 
     return {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
       gameId,
-      gameCode: selectedGame.gameCode,
-      gameName: selectedGame.gameName,
       packNumber: normalizedPackNumber,
       displayNumber: parsedDisplayNumber,
       ticketPrice: parsedTicketPrice,
@@ -647,31 +640,10 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
     };
   }
 
-  function resetForNextPackEntry() {
+  function clearManualPackEntry() {
     setPackNumber("");
     setDisplayNumber("");
     setNotes("");
-    setScanMessage("Pack added to temporary list. Add another pack or confirm batch create.");
-  }
-
-  function addCurrentPackToQueue() {
-    try {
-      const draft = buildDraftFromForm();
-      const duplicate = pendingPacks.some(
-        (item) =>
-          item.gameId === draft.gameId &&
-          item.packNumber.toUpperCase() === draft.packNumber.toUpperCase()
-      );
-
-      if (duplicate) {
-        throw new Error(`Pack ${draft.packNumber} for ${draft.gameCode} is already in the temporary list.`);
-      }
-
-      setPendingPacks((previous) => [...previous, draft]);
-      resetForNextPackEntry();
-    } catch (error: any) {
-      Alert.alert("Validation", error?.message ?? "Unable to add pack.");
-    }
   }
 
   function openManualPackScanner() {
@@ -726,7 +698,9 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
       if (matchingGame) {
         setGameId(matchingGame.id);
         setGameSearch(`${matchingGame.gameCode} - ${matchingGame.gameName}`);
-        setScanMessage(`Scanned game ${scannedGameCode}, pack ${scannedPackComponent}.`);
+        setScanMessage(
+          `Scanned game ${scannedGameCode}, pack ${scannedPackComponent}. Review details, then tap Create & Activate.`
+        );
         return;
       }
 
@@ -764,50 +738,42 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
     lastAutoSerialRangeRef.current = configuredSerialDefaults;
   }, [configuredSerialDefaults, startSerialNumber, endSerialNumber]);
 
-  const createAndActivateBatchMutation = useMutation({
+  const createAndActivateMutation = useMutation({
     mutationFn: async () => {
       if (!shopId) {
         throw new Error("No shop selected.");
       }
 
-      if (pendingPacks.length === 0) {
-        throw new Error("Temporary list is empty. Add at least one pack first.");
-      }
+      const draft = buildDraftFromForm();
+      const createdPack = await createManualPack({
+        shopId,
+        gameId: draft.gameId,
+        packNumber: draft.packNumber,
+        displayNumber: draft.displayNumber,
+        ticketPrice: draft.ticketPrice,
+        totalTickets: draft.totalTickets,
+        startSerialNumber: draft.startSerialNumber,
+        endSerialNumber: draft.endSerialNumber,
+        notes: draft.notes,
+      });
 
-      const created = [];
-      for (const draft of pendingPacks) {
-        const createdPack = await createManualPack({
-          shopId,
-          gameId: draft.gameId,
-          packNumber: draft.packNumber,
-          displayNumber: draft.displayNumber,
-          ticketPrice: draft.ticketPrice,
-          totalTickets: draft.totalTickets,
-          startSerialNumber: draft.startSerialNumber,
-          endSerialNumber: draft.endSerialNumber,
-          notes: draft.notes,
+      if (createdPack.status !== "Active") {
+        await activatePack(createdPack.id, {
+          openingSerialNumber: createdPack.currentSerialNumber || draft.startSerialNumber,
         });
-
-        if (createdPack.status !== "Active") {
-          await activatePack(createdPack.id, {
-            openingSerialNumber: createdPack.currentSerialNumber || draft.startSerialNumber,
-          });
-        }
-
-        created.push(createdPack);
       }
 
-      return created;
+      return createdPack;
     },
-    onSuccess: (createdPacks) => {
+    onSuccess: (createdPack) => {
       void queryClient.invalidateQueries({ queryKey: ["packs", shopId] });
-      setPendingPacks([]);
-      setScanMessage(null);
-      Alert.alert("Created", `${createdPacks.length} pack(s) created and activated.`);
+      clearManualPackEntry();
+      setScanMessage("Pack created and activated.");
+      Alert.alert("Created", `Pack ${createdPack.packNumber} created and activated.`);
       navigation.goBack();
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to create manual packs.");
+      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to create and activate pack.");
     },
   });
 
@@ -955,50 +921,12 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
           />
 
           <PrimaryButton
-            label="Add To Temporary List"
-            onPress={addCurrentPackToQueue}
-            disabled={createAndActivateBatchMutation.isPending || !shopId}
+            label={createAndActivateMutation.isPending ? "Creating..." : "Create & Activate Pack"}
+            onPress={() => createAndActivateMutation.mutate()}
+            disabled={createAndActivateMutation.isPending || !shopId}
           />
 
-          <View style={styles.summaryQueueCard}>
-            <View style={styles.rowBetween}>
-              <Text style={styles.sectionTitle}>Temporary Pack List</Text>
-              <Text style={styles.meta}>{pendingPacks.length} item(s)</Text>
-            </View>
-            {pendingPacks.length === 0 ? (
-              <Text style={styles.meta}>No packs queued yet.</Text>
-            ) : (
-              pendingPacks.map((item, index) => (
-                <View key={item.id} style={styles.item}>
-                  <View style={styles.rowBetween}>
-                    <Text style={styles.itemTitle}>
-                      {index + 1}. {item.gameCode} - {item.packNumber}
-                    </Text>
-                    <Pressable
-                      style={styles.smallButton}
-                      onPress={() => setPendingPacks((previous) => previous.filter((candidate) => candidate.id !== item.id))}
-                      disabled={createAndActivateBatchMutation.isPending}
-                    >
-                      <Text style={styles.smallButtonText}>Remove</Text>
-                    </Pressable>
-                  </View>
-                  <Text style={styles.meta}>
-                    {item.gameName} | £ {item.ticketPrice.toFixed(2)} | {item.totalTickets} tickets
-                  </Text>
-                  <Text style={styles.meta}>
-                    {item.startSerialNumber} {"->"} {item.endSerialNumber}
-                    {item.displayNumber != null ? ` | Display ${item.displayNumber}` : ""}
-                  </Text>
-                </View>
-              ))
-            )}
-          </View>
 
-          <PrimaryButton
-            label={createAndActivateBatchMutation.isPending ? "Creating..." : `Confirm Create & Activate (${pendingPacks.length})`}
-            onPress={() => createAndActivateBatchMutation.mutate()}
-            disabled={createAndActivateBatchMutation.isPending || pendingPacks.length === 0 || !shopId}
-          />
         </View>
       </ScrollView>
     </ScreenContainer>
@@ -1483,14 +1411,6 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.body,
     fontSize: 13,
     lineHeight: 17,
-  },
-  summaryQueueCard: {
-    borderWidth: 1,
-    borderColor: appTheme.colors.border,
-    borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surfaceMuted,
-    padding: appTheme.spacing.sm,
-    gap: appTheme.spacing.xs,
   },
   smallButton: {
     backgroundColor: appTheme.colors.primary,
