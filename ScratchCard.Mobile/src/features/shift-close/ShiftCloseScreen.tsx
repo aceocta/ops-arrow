@@ -113,6 +113,21 @@ function pushUnique(target: string[], value?: string) {
   }
 }
 
+function normalizeScannedSerial(value?: string) {
+  if (!value) {
+    return "";
+  }
+
+  const digitsOnly = value.replace(/\D/g, "");
+  if (digitsOnly.length > 0) {
+    const compact = digitsOnly.length <= 3 ? digitsOnly : digitsOnly.slice(-3);
+    const withoutLeadingZeros = compact.replace(/^0+/, "");
+    return withoutLeadingZeros.length > 0 ? withoutLeadingZeros : "0";
+  }
+
+  return value.trim();
+}
+
 function getSerialCandidatesForPack(pack: ScratchCardPack, rawBarcode: string, parsedSerial: string) {
   const candidates: string[] = [];
   const compact = normalizeDashes(rawBarcode).replace(/\s+/g, "");
@@ -121,8 +136,8 @@ function getSerialCandidatesForPack(pack: ScratchCardPack, rawBarcode: string, p
     const suffixDigits = compact.slice(lastHyphen + 1).replace(/\D/g, "");
     if (suffixDigits.length >= 3) {
       // Prefer the serial nearest to the explicit ticket suffix first.
-      pushUnique(candidates, suffixDigits.slice(0, 3));
-      pushUnique(candidates, suffixDigits.slice(-3));
+      pushUnique(candidates, normalizeScannedSerial(suffixDigits.slice(0, 3)));
+      pushUnique(candidates, normalizeScannedSerial(suffixDigits.slice(-3)));
     }
   }
 
@@ -135,23 +150,23 @@ function getSerialCandidatesForPack(pack: ScratchCardPack, rawBarcode: string, p
 
     if (trailing.length >= 3) {
       // Strongest signal: serial right after the target pack digits.
-      pushUnique(candidates, trailing.slice(0, 3));
-      pushUnique(candidates, trailing.slice(-3));
+      pushUnique(candidates, normalizeScannedSerial(trailing.slice(0, 3)));
+      pushUnique(candidates, normalizeScannedSerial(trailing.slice(-3)));
     }
 
     if (index >= 3) {
       // Some print formats place serial before pack digits.
-      pushUnique(candidates, digitsOnly.slice(index - 3, index));
+      pushUnique(candidates, normalizeScannedSerial(digitsOnly.slice(index - 3, index)));
     }
   }
 
   if (digitsOnly.length >= 3) {
-    pushUnique(candidates, digitsOnly.slice(-3));
-    pushUnique(candidates, digitsOnly.slice(0, 3));
+    pushUnique(candidates, normalizeScannedSerial(digitsOnly.slice(-3)));
+    pushUnique(candidates, normalizeScannedSerial(digitsOnly.slice(0, 3)));
   }
 
   // Lowest priority: parser-derived serial may be wrong when scanner reads noisy bars.
-  pushUnique(candidates, parsedSerial);
+  pushUnique(candidates, normalizeScannedSerial(parsedSerial));
 
   return candidates.filter((value) => value.length > 0);
 }
@@ -177,18 +192,6 @@ function pickBestSerialForPack(pack: ScratchCardPack, rawBarcode: string, parsed
   const candidates = getSerialCandidatesForPack(pack, rawBarcode, parsedSerial);
   const validCandidate = candidates.find((value) => isValidSerialForPack(pack, value));
   return validCandidate;
-}
-
-function normalizeScannedSerial(value?: string) {
-  if (!value) {
-    return "";
-  }
-
-  const digitsOnly = value.replace(/\D/g, "");
-  if (digitsOnly.length > 0) {
-    return digitsOnly.length <= 3 ? digitsOnly : digitsOnly.slice(-3);
-  }
-  return value.trim();
 }
 
 function getLastSerialForPack(pack: ScratchCardPack) {
@@ -385,6 +388,7 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
 
       if (!matchedPack) {
         const fallbackSerial = normalizeScannedSerial(payload.parsedSerial || payload.rawBarcode);
+        const normalizedParsedSerial = normalizeScannedSerial(payload.parsedSerial);
         if (payload.packId && fallbackSerial) {
           const targetPackId = payload.packId;
           setScanStatus(`Captured ${fallbackSerial}. Pack is loading, verify and finalise.`);
@@ -392,7 +396,7 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
             ...previous,
             [targetPackId]: {
               closingSerialNumber: fallbackSerial,
-              originalScannedSerialNumber: payload.parsedSerial || fallbackSerial,
+              originalScannedSerialNumber: normalizedParsedSerial || fallbackSerial,
               entryMethod: EntryMethod.ScannedEdited,
               manualEntryReason: previous[targetPackId]?.manualEntryReason,
             },
@@ -407,13 +411,14 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
       const resolvedSerial = pickBestSerialForPack(matchedPack, payload.rawBarcode, payload.parsedSerial);
       if (!resolvedSerial) {
         const fallbackSerial = normalizeScannedSerial(payload.parsedSerial || payload.rawBarcode);
+        const normalizedParsedSerial = normalizeScannedSerial(payload.parsedSerial);
         if (fallbackSerial && isValidSerialForPack(matchedPack, fallbackSerial)) {
           setScanStatus(`Captured ${fallbackSerial} for pack ${matchedPack.packNumber}. Please verify before finalising.`);
           setEntries((previous) => ({
             ...previous,
             [matchedPack.id]: {
               closingSerialNumber: fallbackSerial,
-              originalScannedSerialNumber: payload.parsedSerial || fallbackSerial,
+              originalScannedSerialNumber: normalizedParsedSerial || fallbackSerial,
               entryMethod: EntryMethod.ScannedEdited,
               manualEntryReason: previous[matchedPack.id]?.manualEntryReason,
             },
@@ -426,19 +431,20 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
         );
         return;
       }
-      const wasAdjusted = resolvedSerial !== payload.parsedSerial;
+      const normalizedParsedSerial = normalizeScannedSerial(payload.parsedSerial);
+      const wasAdjusted = normalizedParsedSerial.length > 0 && resolvedSerial !== normalizedParsedSerial;
 
       setScanStatus(
         payload.parsedPackNumber
-          ? `Applied ${resolvedSerial} to pack ${matchedPack.packNumber}${wasAdjusted ? ` (from ${payload.parsedSerial})` : ""}${payload.barcodeType ? ` [${payload.barcodeType}]` : ""}.`
-          : `Applied serial ${resolvedSerial}${wasAdjusted ? ` (from ${payload.parsedSerial})` : ""}${payload.barcodeType ? ` [${payload.barcodeType}]` : ""}.`
+          ? `Applied ${resolvedSerial} to pack ${matchedPack.packNumber}${wasAdjusted ? ` (from ${normalizedParsedSerial})` : ""}${payload.barcodeType ? ` [${payload.barcodeType}]` : ""}.`
+          : `Applied serial ${resolvedSerial}${wasAdjusted ? ` (from ${normalizedParsedSerial})` : ""}${payload.barcodeType ? ` [${payload.barcodeType}]` : ""}.`
       );
 
       setEntries((previous) => ({
         ...previous,
         [matchedPack.id]: {
           closingSerialNumber: resolvedSerial,
-          originalScannedSerialNumber: payload.parsedSerial || resolvedSerial,
+          originalScannedSerialNumber: normalizedParsedSerial || resolvedSerial,
           entryMethod: EntryMethod.Scanned,
           manualEntryReason: previous[matchedPack.id]?.manualEntryReason,
         },
