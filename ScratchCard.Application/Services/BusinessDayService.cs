@@ -591,14 +591,7 @@ public class BusinessDayService : IBusinessDayService
         IReadOnlyCollection<ShiftScratchCardSale> entries,
         CancellationToken cancellationToken)
     {
-        var recipients = await _shopUserRepository.Query()
-            .AsNoTracking()
-            .Where(x => x.ShopId == day.ShopId && x.IsActive && x.Role.Name == RoleNames.ShopOwner)
-            .Include(x => x.Role)
-            .Include(x => x.User)
-            .Select(x => x.User.Email)
-            .Distinct()
-            .ToListAsync(cancellationToken);
+        var recipients = await ResolveSummaryRecipientsAsync(day.ShopId, cancellationToken);
 
         if (recipients.Count == 0)
         {
@@ -641,6 +634,43 @@ public class BusinessDayService : IBusinessDayService
                 // Notification failures are logged by notification service and must not block day close.
             }
         }
+    }
+
+    private async Task<List<string>> ResolveSummaryRecipientsAsync(Guid shopId, CancellationToken cancellationToken)
+    {
+        var recipients = await _shopUserRepository.Query()
+            .AsNoTracking()
+            .Where(x =>
+                x.ShopId == shopId &&
+                x.IsActive &&
+                !string.IsNullOrWhiteSpace(x.User.Email) &&
+                (x.Role.Name == RoleNames.ShopOwner || x.Role.Name == RoleNames.Manager))
+            .Select(x => x.User.Email)
+            .ToListAsync(cancellationToken);
+
+        if (recipients.Count == 0 && _currentUserService.UserId is Guid currentUserId)
+        {
+            var fallbackRecipient = await _shopUserRepository.Query()
+                .AsNoTracking()
+                .Where(x =>
+                    x.ShopId == shopId &&
+                    x.IsActive &&
+                    x.UserId == currentUserId &&
+                    !string.IsNullOrWhiteSpace(x.User.Email))
+                .Select(x => x.User.Email)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (!string.IsNullOrWhiteSpace(fallbackRecipient))
+            {
+                recipients.Add(fallbackRecipient);
+            }
+        }
+
+        return recipients
+            .Select(x => x.Trim())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private static string BuildDayCloseSummaryBodyHtml(
@@ -687,102 +717,130 @@ public class BusinessDayService : IBusinessDayService
             .ThenBy(x => x.ShiftName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
+        var differenceClass = tillBasedDifference > 0.009m
+            ? "variance-up"
+            : tillBasedDifference < -0.009m
+                ? "variance-down"
+                : "variance-balanced";
+
+        var shiftRowsHtml = orderedShifts.Length == 0
+            ? "<tr><td colspan=\"4\" class=\"empty\">No shifts found.</td></tr>"
+            : string.Join(
+                string.Empty,
+                orderedShifts.Select(shift =>
+                {
+                    var shiftSales = shiftSalesById.TryGetValue(shift.Id, out var total) ? total : 0m;
+                    return
+                        "<tr>" +
+                        $"<td>{WebUtility.HtmlEncode(shift.ShiftName)}</td>" +
+                        $"<td>{shift.StartTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}</td>" +
+                        $"<td>{(shift.EndTime?.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ?? "-")}</td>" +
+                        $"<td class=\"num\">{shiftSales.ToString("0.00", CultureInfo.InvariantCulture)}</td>" +
+                        "</tr>";
+                }));
+
+        var salesRowsHtml = rows.Length == 0
+            ? "<tr><td colspan=\"5\" class=\"empty\">No shift entries.</td></tr>"
+            : string.Join(
+                string.Empty,
+                rows.Select(row =>
+                {
+                    var display = row.DisplayNumber.HasValue
+                        ? row.DisplayNumber.Value.ToString(CultureInfo.InvariantCulture)
+                        : "-";
+                    return
+                        "<tr>" +
+                        $"<td>{display}</td>" +
+                        $"<td>{WebUtility.HtmlEncode(row.GameName)}</td>" +
+                        $"<td class=\"num\">{row.TicketPrice.ToString("0.00", CultureInfo.InvariantCulture)}</td>" +
+                        $"<td class=\"num\">{row.SoldQuantity.ToString(CultureInfo.InvariantCulture)}</td>" +
+                        $"<td class=\"num\">{row.SalesAmount.ToString("0.00", CultureInfo.InvariantCulture)}</td>" +
+                        "</tr>";
+                }));
+
         var sb = new StringBuilder();
-        sb.Append("<html><body style=\"font-family:Arial,Helvetica,sans-serif;color:#172033;\">");
-        sb.Append("<h3 style=\"margin:0 0 8px 0;\">Day Close Summary</h3>");
-        sb.Append("<div style=\"margin-bottom:12px;\">");
-        sb.Append($"<div><strong>Shop:</strong> {WebUtility.HtmlEncode(shopName)}</div>");
-        sb.Append($"<div><strong>Business Date:</strong> {day.BusinessDate:yyyy-MM-dd}</div>");
-        sb.Append($"<div><strong>Closed Time (UTC):</strong> {(day.ClosedOn?.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ?? "-")}</div>");
-        sb.Append($"<div><strong>Shifts Closed:</strong> {shiftCount}</div>");
+        sb.Append("<html><head><style>");
+        sb.Append("body{font-family:Arial,Helvetica,sans-serif;background:#f3f7fc;color:#152231;margin:0;padding:18px;}");
+        sb.Append(".shell{max-width:1100px;margin:0 auto;background:#ffffff;border:1px solid #d8e2f0;border-radius:14px;overflow:hidden;}");
+        sb.Append(".hero{padding:16px 18px;background:linear-gradient(135deg,#0f5ea7,#0d8aa5);color:#ffffff;}");
+        sb.Append(".hero h2{margin:0;font-size:22px;line-height:28px;}");
+        sb.Append(".hero p{margin:6px 0 0 0;font-size:13px;opacity:.95;}");
+        sb.Append(".content{padding:16px 18px;}");
+        sb.Append(".meta{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:13px;}");
+        sb.Append(".meta td{padding:6px 8px;border:1px solid #d8e2f0;}");
+        sb.Append(".meta td:first-child{background:#eef4fc;font-weight:700;width:190px;color:#1f3a54;}");
+        sb.Append(".cards{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}");
+        sb.Append(".card{flex:1;min-width:180px;background:#f2f7ff;border:1px solid #d8e2f0;border-radius:9px;padding:10px 8px;}");
+        sb.Append(".card-label{font-size:11px;color:#54708c;text-transform:uppercase;letter-spacing:.35px;}");
+        sb.Append(".card-value{margin-top:4px;font-size:19px;font-weight:700;color:#16324a;}");
+        sb.Append(".variance-up .card-value{color:#8a5a05;}");
+        sb.Append(".variance-down .card-value{color:#b4233c;}");
+        sb.Append(".variance-balanced .card-value{color:#06795f;}");
+        sb.Append(".table-title{font-size:15px;font-weight:700;color:#16324a;margin:2px 0 8px 0;}");
+        sb.Append(".report-table{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:13px;}");
+        sb.Append(".report-table th,.report-table td{border:1px solid #d8e2f0;padding:8px;}");
+        sb.Append(".report-table th{background:#e9f2ff;color:#1c3b5a;text-align:left;}");
+        sb.Append(".report-table td{background:#ffffff;color:#1d2f41;}");
+        sb.Append(".report-table tbody tr:nth-child(even) td{background:#f8fbff;}");
+        sb.Append(".report-table td.num{text-align:right;font-variant-numeric:tabular-nums;}");
+        sb.Append(".report-table td.empty{text-align:center;color:#607a93;background:#f8fbff;}");
+        sb.Append(".report-table tfoot td{background:#eef6ff;font-weight:700;color:#10263a;}");
+        sb.Append(".notes{margin-top:4px;padding:10px;border:1px solid #d8e2f0;background:#f8fbff;border-radius:9px;font-size:13px;color:#1d2f41;}");
+        sb.Append("</style></head><body>");
+        sb.Append("<div class=\"shell\">");
+        sb.Append("<div class=\"hero\">");
+        sb.Append("<h2>Scratch Card Day Close Report</h2>");
+        sb.Append("</div>");
+        sb.Append("<div class=\"content\">");
+        sb.Append("<table class=\"meta\"><tbody>");
+        sb.Append($"<tr><td>Shop Name</td><td>{WebUtility.HtmlEncode(shopName)}</td></tr>");
+        sb.Append($"<tr><td>Business Date</td><td>{day.BusinessDate:yyyy-MM-dd}</td></tr>");
+        sb.Append($"<tr><td>Closed Time</td><td>{(day.ClosedOn?.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ?? "-")} UTC</td></tr>");
+        sb.Append($"<tr><td>Shifts Closed</td><td>{shiftCount}</td></tr>");
+        sb.Append("</tbody></table>");
+        sb.Append($"<div class=\"cards {differenceClass}\">");
+        sb.Append($"<div class=\"card\"><div class=\"card-label\">Total Sales</div><div class=\"card-value\">{day.TotalSalesAmount.ToString("0.00", CultureInfo.InvariantCulture)}</div></div>");
+        sb.Append($"<div class=\"card\"><div class=\"card-label\">Total Prize Payout</div><div class=\"card-value\">{day.TotalPrizePayout.ToString("0.00", CultureInfo.InvariantCulture)}</div></div>");
+        // sb.Append($"<div class=\"card\"><div class=\"card-label\">Expected Cash</div><div class=\"card-value\">{day.ExpectedCash.ToString("0.00", CultureInfo.InvariantCulture)}</div></div>");
+        // sb.Append($"<div class=\"card\"><div class=\"card-label\">Difference</div><div class=\"card-value\">{tillBasedDifference.ToString("0.00", CultureInfo.InvariantCulture)}</div></div>");
         sb.Append("</div>");
 
-        sb.Append("<table style=\"border-collapse:collapse;width:100%;font-size:13px;margin-bottom:12px;\">");
-        sb.Append("<thead><tr style=\"background:#EEF3FB;\">");
-        sb.Append("<th style=\"border:1px solid #C7D2E3;padding:6px;text-align:left;\">Metric</th>");
-        sb.Append("<th style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">Amount</th>");
+        // sb.Append("<div class=\"table-title\">Day Close Metrics</div>");
+        // sb.Append("<table class=\"report-table\"><thead><tr>");
+        // sb.Append("<th>Metric</th><th class=\"num\">Amount</th>");
+        // sb.Append("</tr></thead><tbody>");
+        // sb.Append($"<tr><td>Lottery Machine Payout</td><td class=\"num\">{(summary?.LottoPayout ?? 0m).ToString("0.00", CultureInfo.InvariantCulture)}</td></tr>");
+        // sb.Append($"<tr><td>Scratch Card Payout</td><td class=\"num\">{(summary?.ScratchCardPayout ?? 0m).ToString("0.00", CultureInfo.InvariantCulture)}</td></tr>");
+        // sb.Append($"<tr><td>Till Payout</td><td class=\"num\">{tillPayout.ToString("0.00", CultureInfo.InvariantCulture)}</td></tr>");
+        // sb.Append($"<tr><td>Missing Tickets (Opening Serial)</td><td class=\"num\">{missingOpeningTicketCount}</td></tr>");
+        // sb.Append("</tbody></table>");
+
+        sb.Append("<div class=\"table-title\">Shift Breakdown</div>");
+        sb.Append("<table class=\"report-table\"><thead><tr>");
+        sb.Append("<th>Shift</th><th>Start (UTC)</th><th>End (UTC)</th><th class=\"num\">Sales Total</th>");
         sb.Append("</tr></thead><tbody>");
-        sb.Append($"<tr><td style=\"border:1px solid #C7D2E3;padding:6px;\">Total Sales</td><td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{day.TotalSalesAmount.ToString("0.00", CultureInfo.InvariantCulture)}</td></tr>");
-        sb.Append($"<tr><td style=\"border:1px solid #C7D2E3;padding:6px;\">Total Prize Payout</td><td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{day.TotalPrizePayout.ToString("0.00", CultureInfo.InvariantCulture)}</td></tr>");
-        sb.Append($"<tr><td style=\"border:1px solid #C7D2E3;padding:6px;\">Expected Cash</td><td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{day.ExpectedCash.ToString("0.00", CultureInfo.InvariantCulture)}</td></tr>");
-        sb.Append($"<tr><td style=\"border:1px solid #C7D2E3;padding:6px;\">Difference (Till Payout - Expected Cash)</td><td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{tillBasedDifference.ToString("0.00", CultureInfo.InvariantCulture)}</td></tr>");
-        sb.Append($"<tr><td style=\"border:1px solid #C7D2E3;padding:6px;\">Lottery Machine Payout</td><td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{(summary?.LottoPayout ?? 0m).ToString("0.00", CultureInfo.InvariantCulture)}</td></tr>");
-        sb.Append($"<tr><td style=\"border:1px solid #C7D2E3;padding:6px;\">Scratch Card Payout</td><td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{(summary?.ScratchCardPayout ?? 0m).ToString("0.00", CultureInfo.InvariantCulture)}</td></tr>");
-        sb.Append($"<tr><td style=\"border:1px solid #C7D2E3;padding:6px;\">Till Payout</td><td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{tillPayout.ToString("0.00", CultureInfo.InvariantCulture)}</td></tr>");
-        sb.Append($"<tr><td style=\"border:1px solid #C7D2E3;padding:6px;\">Missing Tickets (Opening Serial)</td><td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{missingOpeningTicketCount}</td></tr>");
+        sb.Append(shiftRowsHtml);
         sb.Append("</tbody></table>");
 
-        sb.Append("<h4 style=\"margin:0 0 8px 0;\">Shift Breakdown</h4>");
-        sb.Append("<table style=\"border-collapse:collapse;width:100%;font-size:13px;margin-bottom:12px;\">");
-        sb.Append("<thead><tr style=\"background:#EEF3FB;\">");
-        sb.Append("<th style=\"border:1px solid #C7D2E3;padding:6px;text-align:left;\">Shift</th>");
-        sb.Append("<th style=\"border:1px solid #C7D2E3;padding:6px;text-align:left;\">Start (UTC)</th>");
-        sb.Append("<th style=\"border:1px solid #C7D2E3;padding:6px;text-align:left;\">End (UTC)</th>");
-        sb.Append("<th style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">Sales Total</th>");
+        sb.Append("<div class=\"table-title\">Scratch Card Sales by Display</div>");
+        sb.Append("<table class=\"report-table\"><thead><tr>");
+        sb.Append("<th>Display No</th><th>Game Name</th><th class=\"num\">Price</th><th class=\"num\">Sold Qty</th><th class=\"num\">Sales Total</th>");
         sb.Append("</tr></thead><tbody>");
-        if (orderedShifts.Length == 0)
-        {
-            sb.Append("<tr><td colspan=\"4\" style=\"border:1px solid #C7D2E3;padding:8px;text-align:center;\">No shifts found.</td></tr>");
-        }
-        else
-        {
-            foreach (var shift in orderedShifts)
-            {
-                var shiftSales = shiftSalesById.TryGetValue(shift.Id, out var total) ? total : 0m;
-                sb.Append("<tr>");
-                sb.Append($"<td style=\"border:1px solid #C7D2E3;padding:6px;\">{WebUtility.HtmlEncode(shift.ShiftName)}</td>");
-                sb.Append($"<td style=\"border:1px solid #C7D2E3;padding:6px;\">{shift.StartTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}</td>");
-                sb.Append($"<td style=\"border:1px solid #C7D2E3;padding:6px;\">{(shift.EndTime?.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ?? "-")}</td>");
-                sb.Append($"<td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{shiftSales.ToString("0.00", CultureInfo.InvariantCulture)}</td>");
-                sb.Append("</tr>");
-            }
-        }
-        sb.Append("</tbody></table>");
-
-        sb.Append("<h4 style=\"margin:0 0 8px 0;\">Scratch Card Sales by Display</h4>");
-        sb.Append("<table style=\"border-collapse:collapse;width:100%;font-size:13px;\">");
-        sb.Append("<thead><tr style=\"background:#EEF3FB;\">");
-        sb.Append("<th style=\"border:1px solid #C7D2E3;padding:6px;text-align:left;\">Display No</th>");
-        sb.Append("<th style=\"border:1px solid #C7D2E3;padding:6px;text-align:left;\">Game Name</th>");
-        sb.Append("<th style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">Price</th>");
-        sb.Append("<th style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">Sold Qty</th>");
-        sb.Append("<th style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">Sales Total</th>");
-        sb.Append("</tr></thead><tbody>");
-        if (rows.Length == 0)
-        {
-            sb.Append("<tr><td colspan=\"5\" style=\"border:1px solid #C7D2E3;padding:8px;text-align:center;\">No shift entries.</td></tr>");
-        }
-        else
-        {
-            foreach (var row in rows)
-            {
-                sb.Append("<tr>");
-                sb.Append($"<td style=\"border:1px solid #C7D2E3;padding:6px;\">{(row.DisplayNumber.HasValue ? row.DisplayNumber.Value.ToString(CultureInfo.InvariantCulture) : "-")}</td>");
-                sb.Append($"<td style=\"border:1px solid #C7D2E3;padding:6px;\">{WebUtility.HtmlEncode(row.GameName)}</td>");
-                sb.Append($"<td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{row.TicketPrice.ToString("0.00", CultureInfo.InvariantCulture)}</td>");
-                sb.Append($"<td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{row.SoldQuantity}</td>");
-                sb.Append($"<td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{row.SalesAmount.ToString("0.00", CultureInfo.InvariantCulture)}</td>");
-                sb.Append("</tr>");
-            }
-        }
-
-        sb.Append("<tr style=\"background:#F5F8FD;font-weight:700;\">");
-        sb.Append("<td colspan=\"3\" style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">Total</td>");
-        sb.Append($"<td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{totalSoldQty}</td>");
-        sb.Append($"<td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{totalSales.ToString("0.00", CultureInfo.InvariantCulture)}</td>");
-        sb.Append("</tr>");
-
-        sb.Append("</tbody></table>");
+        sb.Append(salesRowsHtml);
+        sb.Append("</tbody><tfoot><tr>");
+        sb.Append("<td colspan=\"3\" class=\"num\">Total</td>");
+        sb.Append($"<td class=\"num\">{totalSoldQty.ToString(CultureInfo.InvariantCulture)}</td>");
+        sb.Append($"<td class=\"num\">{totalSales.ToString("0.00", CultureInfo.InvariantCulture)}</td>");
+        sb.Append("</tr></tfoot></table>");
 
         if (!string.IsNullOrWhiteSpace(day.Notes))
         {
-            sb.Append("<div style=\"margin-top:12px;\">");
-            sb.Append("<strong>Close Notes:</strong> ");
+            sb.Append("<div class=\"notes\"><strong>Close Notes:</strong> ");
             sb.Append(WebUtility.HtmlEncode(day.Notes));
             sb.Append("</div>");
         }
 
-        sb.Append("</body></html>");
+        sb.Append("</div></div></body></html>");
         return sb.ToString();
     }
 }
