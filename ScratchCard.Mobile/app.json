@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Ops Arrow",
-    "slug": "scratchcard-mobile",
+    "slug": "ops-arrow",
     "scheme": "scratchcard",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -62,8 +62,9 @@
       "devBypassFullName": "Development Shop Owner",
       "devBypassRole": "ShopOwner",
       "eas": {
-        "projectId": "4d91d2b0-0c8a-4bdf-80c8-241402b24026"
+        "projectId": "e3a7b1e5-7d52-49eb-b2c6-5fcdf7ced57e"
       }
-    }
+    },
+    "owner": "sukirtharan"
   }
 }

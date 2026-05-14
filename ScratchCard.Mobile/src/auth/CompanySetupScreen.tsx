@@ -44,7 +44,7 @@ export function CompanySetupScreen() {
       <View style={ui.card}>
         <View style={styles.header}>
           <Text style={styles.title}>Company Setup</Text>
-          <Text style={styles.subtitle}>Set up your company details to continue.</Text>
+          {/* <Text style={styles.subtitle}>Set up your company details to continue.</Text> */}
         </View>
 
         <Text style={styles.fieldLabel}>Company Name</Text>
