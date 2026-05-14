@@ -525,6 +525,11 @@ type ManualPackDraft = {
   notes?: string;
 };
 
+type PendingScannedPack = {
+  gameCode: string;
+  packComponent: string;
+};
+
 export function ManualPackCreateScreen({ navigation, route }: ManualPackCreateProps) {
   const queryClient = useQueryClient();
   const { activeShopId, activeShop } = useAuth();
@@ -543,6 +548,7 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
   const awaitingPackScanRef = useRef(false);
   const hasAutoOpenedScannerRef = useRef(false);
   const activeGamesRef = useRef<Game[]>([]);
+  const pendingScannedPackRef = useRef<PendingScannedPack | null>(null);
 
   const gamesQuery = useQuery({
     queryKey: ["games", shopId],
@@ -653,6 +659,11 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
     (rootLikeNavigation as any).navigate("BarcodeScanner", { mode: "single" });
   }
 
+  function resolveGameByCode(games: Game[], scannedGameCode: string) {
+    const normalizedScannedCode = normalizeGameCodeInput(scannedGameCode);
+    return games.find((game) => normalizeGameCodeInput(game.gameCode) === normalizedScannedCode);
+  }
+
   useEffect(() => {
     activeGamesRef.current = activeGames;
   }, [activeGames]);
@@ -691,11 +702,10 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
 
       setPackNumber(scannedPackComponent);
 
-      const matchingGame = activeGamesRef.current.find(
-        (game) => game.gameCode.toUpperCase() === scannedGameCode
-      );
+      const matchingGame = resolveGameByCode(activeGamesRef.current, scannedGameCode);
 
       if (matchingGame) {
+        pendingScannedPackRef.current = null;
         setGameId(matchingGame.id);
         setGameSearch(`${matchingGame.gameCode} - ${matchingGame.gameName}`);
         setScanMessage(
@@ -704,6 +714,11 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
         return;
       }
 
+      pendingScannedPackRef.current = {
+        gameCode: normalizeGameCodeInput(scannedGameCode),
+        packComponent: scannedPackComponent,
+      };
+
       setScanMessage(
         `Scanned game ${scannedGameCode}, pack ${scannedPackComponent}. Select matching game for this shop.`
       );
@@ -711,6 +726,25 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
 
     return unsubscribe;
   }, [navigation]);
+
+  useEffect(() => {
+    const pending = pendingScannedPackRef.current;
+    if (!pending || activeGames.length === 0) {
+      return;
+    }
+
+    const matchingGame = resolveGameByCode(activeGames, pending.gameCode);
+    if (!matchingGame) {
+      return;
+    }
+
+    pendingScannedPackRef.current = null;
+    setGameId(matchingGame.id);
+    setGameSearch(`${matchingGame.gameCode} - ${matchingGame.gameName}`);
+    setScanMessage(
+      `Scanned game ${pending.gameCode}, pack ${pending.packComponent}. Review details, then tap Create & Activate.`
+    );
+  }, [activeGames]);
 
   useEffect(() => {
     if (!selectedGame) {
