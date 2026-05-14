@@ -56,7 +56,8 @@ public class NotificationService : INotificationService
                         Recipient = message.Recipient,
                         Subject = message.Subject,
                         Body = message.Body,
-                        IsBodyHtml = message.IsBodyHtml
+                        IsBodyHtml = message.IsBodyHtml,
+                        Attachments = message.Attachments
                     }, cancellationToken);
                     break;
                 case NotificationChannel.SMS:

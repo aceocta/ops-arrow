@@ -5,6 +5,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import * as Print from "expo-print";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { listBusinessDays } from "../../api/businessDaysApi";
 import { useAuth } from "../../auth/AuthContext";
@@ -170,36 +171,42 @@ export function DailySalesReportScreen() {
     enabled: Boolean(shopId),
   });
 
+  const buildDailyReportHtml = () =>
+    buildScratchCardDailySalesReportHtml({
+      shopName: activeShop?.shopName ?? "-",
+      from,
+      to,
+      rows: query.data ?? [],
+      businessDays: businessDaysQuery.data ?? [],
+      generatedOn: new Date().toISOString(),
+    });
+
   const emailReportMutation = useMutation({
     mutationFn: async () => {
-      const html = buildScratchCardDailySalesReportHtml({
-        shopName: activeShop?.shopName ?? "-",
-        from,
-        to,
-        rows: query.data ?? [],
-        businessDays: businessDaysQuery.data ?? [],
-        generatedOn: new Date().toISOString(),
+      const html = buildDailyReportHtml();
+      const { uri } = await Print.printToFileAsync({
+        html,
+        width: 792,
+        height: 612,
       });
+      const attachmentBase64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const attachmentFileName = `scratch-card-daily-sales-${from}-to-${to}.pdf`;
 
       await sendReportEmail({
         recipientEmail: profile?.email,
         subject: `Scratch Card Daily Sales Report (${from} to ${to})`,
-        body: html,
-        isBodyHtml: true,
+        body: `Please find attached the Scratch Card Daily Sales Report for ${from} to ${to}.`,
+        attachmentFileName,
+        attachmentBase64,
       });
     },
   });
 
   const printReport = async () => {
     try {
-      const html = buildScratchCardDailySalesReportHtml({
-        shopName: activeShop?.shopName ?? "-",
-        from,
-        to,
-        rows: query.data ?? [],
-        businessDays: businessDaysQuery.data ?? [],
-        generatedOn: new Date().toISOString(),
-      });
+      const html = buildDailyReportHtml();
 
       await Print.printAsync({
         html,
@@ -214,14 +221,7 @@ export function DailySalesReportScreen() {
 
   const shareReport = async () => {
     try {
-      const html = buildScratchCardDailySalesReportHtml({
-        shopName: activeShop?.shopName ?? "-",
-        from,
-        to,
-        rows: query.data ?? [],
-        businessDays: businessDaysQuery.data ?? [],
-        generatedOn: new Date().toISOString(),
-      });
+      const html = buildDailyReportHtml();
 
       const { uri } = await Print.printToFileAsync({
         html,
@@ -306,9 +306,10 @@ export function DailySalesReportScreen() {
         <View style={[ui.card, styles.dailyReportCard]}>
           <View style={styles.dailyReportHeader}>
             <View style={styles.dailyReportHeaderMain}>
-              {/* <Text style={styles.reportTitle}>Scratch Card Daily Sales Report</Text> */}
-              <Text style={styles.reportTitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
-              {/* <Text style={styles.meta}>Generated: {reportDateTime}</Text> */}
+              <Text style={styles.reportEyebrow}>Scratch Card</Text>
+              <Text style={styles.reportTitle}>Daily Sales Report</Text>
+              <Text style={styles.reportShop}>Shop: {activeShop?.shopName ?? "-"}</Text>
+              <Text style={styles.reportMetaText}>Report Date Time: {reportDateTime}</Text>
             </View>
             <StatusBadge label={`${totalDays} days`} tone="neutral" />
           </View>
@@ -341,7 +342,7 @@ export function DailySalesReportScreen() {
             </View>
           </View>
 
-{totalDifference!=0 ?(
+{Math.abs(totalDifference) > 0.009 ? (
           <View
             style={[
               styles.summaryCard,
@@ -351,14 +352,15 @@ export function DailySalesReportScreen() {
           >
             <Text
               style={[
-                styles.meta,
+                styles.summaryText,
                 totalDifference > 0.009 ? styles.varianceTextPositive : null,
                 totalDifference < -0.009 ? styles.varianceTextNegative : null,
               ]}
             >
               Net Difference: {formatCurrency(totalDifference)}
             </Text>
-          </View>):null}
+          </View>
+          ) : null}
 
 
           <View style={styles.dailyActionRow}>
@@ -484,40 +486,53 @@ export function DailySalesReportScreen() {
                     ))
                   )}
                 </View>
-                <View style={styles.shiftListWrap}>
+                <View style={styles.shiftTableWrap}>
+                  <View style={styles.shiftTableHeaderRow}>
+                    <Text style={[styles.shiftTableHeaderCell, styles.shiftColName]}>Shift</Text>
+                    <Text style={[styles.shiftTableHeaderCell, styles.shiftColSales]}>Sales</Text>
+                    <Text style={[styles.shiftTableHeaderCell, styles.shiftColQty]}>Qty</Text>
+                    <Text style={[styles.shiftTableHeaderCell, styles.shiftColDiff]}>Difference</Text>
+                  </View>
                   {(rows ?? []).map((row, index) => (
                     <Pressable
                       key={`${row.businessDate}-${row.shiftName}-${index}`}
                       accessibilityRole="button"
                       accessibilityLabel={`Open shift details for ${row.shiftName} on ${row.businessDate}`}
-                      style={styles.shiftItemPressable}
+                      style={[
+                        styles.shiftTableRow,
+                        isPositiveVariance(row) ? styles.shiftTableRowPositive : null,
+                        isNegativeVariance(row) ? styles.shiftTableRowNegative : null,
+                      ]}
                       onPress={() => openShiftDetailsFromReport(row.businessDate, row.shiftName)}
                     >
-                      <View
-                        style={[
-                          styles.item,
-                          isPositiveVariance(row) ? styles.itemVariancePositive : null,
-                          isNegativeVariance(row) ? styles.itemVarianceNegative : null,
-                        ]}
-                      >
-                        <View style={styles.itemHeader}>
-                          <Text style={styles.itemTitle}>{row.shiftName}</Text>
-                          {isPositiveVariance(row) ? <StatusBadge label="Over" tone="warning" /> : null}
-                          {isNegativeVariance(row) ? <StatusBadge label="Short" tone="danger" /> : null}
-                          {!hasVariance(row) ? <StatusBadge label="Balanced" tone="success" /> : null}
-                        </View>
-                        <Text style={styles.meta}>Total Sales: {formatCurrency(Number(row.salesAmount))}</Text>
-                        <Text style={styles.meta}>Qty: {Number(row.soldQuantity ?? 0)}</Text>
+                      <View style={styles.shiftColName}>
+                        <Text style={styles.shiftTablePrimary}>{row.shiftName}</Text>
                         <Text
                           style={[
-                            styles.meta,
+                            styles.shiftTableSecondary,
                             isPositiveVariance(row) ? styles.varianceTextPositive : null,
                             isNegativeVariance(row) ? styles.varianceTextNegative : null,
                           ]}
                         >
-                          Difference: {formatCurrency(getDifferenceValue(row))}
+                          {isPositiveVariance(row) ? "Over" : isNegativeVariance(row) ? "Short" : "Balanced"}
                         </Text>
                       </View>
+                      <Text style={[styles.shiftTableValue, styles.shiftColSales]}>
+                        {formatCurrency(Number(row.salesAmount))}
+                      </Text>
+                      <Text style={[styles.shiftTableValue, styles.shiftColQty]}>
+                        {Number(row.soldQuantity ?? 0)}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.shiftTableValue,
+                          styles.shiftColDiff,
+                          isPositiveVariance(row) ? styles.varianceTextPositive : null,
+                          isNegativeVariance(row) ? styles.varianceTextNegative : null,
+                        ]}
+                      >
+                        {formatCurrency(getDifferenceValue(row))}
+                      </Text>
                     </Pressable>
                   ))}
                 </View>
@@ -729,11 +744,31 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
+  reportEyebrow: {
+    color: appTheme.colors.primary,
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: appTheme.fonts.bodyMedium,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
   reportTitle: {
     color: appTheme.colors.text,
-    fontSize: 18,
-    lineHeight: 23,
+    fontSize: 22,
+    lineHeight: 27,
+    fontFamily: appTheme.fonts.heading,
+  },
+  reportShop: {
+    color: appTheme.colors.text,
+    fontSize: 14,
+    lineHeight: 18,
     fontFamily: appTheme.fonts.bodyMedium,
+  },
+  reportMetaText: {
+    color: appTheme.colors.textSubtle,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: appTheme.fonts.body,
   },
   metricsRow: {
     flexDirection: "row",
@@ -741,9 +776,10 @@ const styles = StyleSheet.create({
   },
   metricCard: {
     flex: 1,
-    borderWidth: 0,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: "#EEF3FB",
+    backgroundColor: appTheme.colors.surfaceMuted,
     paddingVertical: appTheme.spacing.xs,
     paddingHorizontal: appTheme.spacing.xs,
     alignItems: "center",
@@ -769,16 +805,25 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   summaryCard: {
-    borderWidth: 0,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surface,
     padding: appTheme.spacing.sm,
   },
+  summaryText: {
+    color: appTheme.colors.textMuted,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: appTheme.fonts.bodyMedium,
+  },
   summaryCardPositive: {
     backgroundColor: appTheme.colors.badgeWarningBg,
+    borderColor: appTheme.colors.badgeWarningBorder,
   },
   summaryCardNegative: {
     backgroundColor: appTheme.colors.badgeDangerBg,
+    borderColor: appTheme.colors.badgeDangerBorder,
   },
   dailyActionRow: {
     flexDirection: "row",
@@ -863,6 +908,80 @@ const styles = StyleSheet.create({
   },
   shiftItemPressable: {
     borderRadius: appTheme.radius.sm,
+  },
+  shiftTableWrap: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    overflow: "hidden",
+  },
+  shiftTableHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: appTheme.colors.backgroundAlt,
+    borderBottomWidth: 1,
+    borderBottomColor: appTheme.colors.border,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: 8,
+  },
+  shiftTableHeaderCell: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 10,
+    lineHeight: 12,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  shiftTableRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: appTheme.colors.border,
+  },
+  shiftTableRowPositive: {
+    backgroundColor: appTheme.colors.badgeWarningBg,
+  },
+  shiftTableRowNegative: {
+    backgroundColor: appTheme.colors.badgeDangerBg,
+  },
+  shiftColName: {
+    flex: 2.2,
+    minWidth: 0,
+  },
+  shiftColSales: {
+    flex: 1.1,
+    textAlign: "right",
+  },
+  shiftColQty: {
+    width: 52,
+    textAlign: "right",
+  },
+  shiftColDiff: {
+    width: 92,
+    textAlign: "right",
+  },
+  shiftTablePrimary: {
+    color: appTheme.colors.text,
+    fontSize: 13,
+    lineHeight: 16,
+    fontFamily: appTheme.fonts.bodyMedium,
+  },
+  shiftTableSecondary: {
+    color: appTheme.colors.textSubtle,
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: appTheme.fonts.body,
+  },
+  shiftTableValue: {
+    color: appTheme.colors.text,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: appTheme.fonts.bodyMedium,
   },
   dayReviewCard: {
     borderWidth: 1,

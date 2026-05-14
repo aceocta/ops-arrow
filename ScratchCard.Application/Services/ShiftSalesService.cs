@@ -1,6 +1,5 @@
 using System.Text;
 using System.Globalization;
-using System.Net;
 using Microsoft.EntityFrameworkCore;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
@@ -407,8 +406,21 @@ public class ShiftSalesService : IShiftSalesService
             .Select(x => x.ShopName)
             .FirstOrDefaultAsync(cancellationToken) ?? "Unknown Shop";
 
+        var summaryRows = BuildShiftCloseSummaryRows(entries, packs);
+        var reportGeneratedOnUtc = DateTimeOffset.UtcNow;
         var subject = $"Shift Close Summary - {shopName} - {businessDay.BusinessDate:yyyy-MM-dd} - {shift.ShiftName}";
-        var body = BuildShiftCloseSummaryBodyHtml(shopName, shift, businessDay, entries, packs);
+        var body = BuildShiftCloseSummaryBodyText(shopName, shift, businessDay, summaryRows, reportGeneratedOnUtc);
+        var summaryPdf = BuildShiftCloseSummaryPdf(shopName, shift, businessDay, summaryRows, reportGeneratedOnUtc);
+        var summaryPdfFileName = BuildShiftCloseSummaryPdfFileName(shift, businessDay);
+        var attachments = new EmailAttachment[]
+        {
+            new()
+            {
+                FileName = summaryPdfFileName,
+                ContentType = "application/pdf",
+                Content = summaryPdf
+            }
+        };
 
         foreach (var recipient in recipients)
         {
@@ -422,7 +434,8 @@ public class ShiftSalesService : IShiftSalesService
                     Recipient = recipient,
                     Subject = subject,
                     Body = body,
-                    IsBodyHtml = true,
+                    IsBodyHtml = false,
+                    Attachments = attachments,
                     RelatedEntityName = nameof(Shift),
                     RelatedEntityId = shift.Id
                 }, cancellationToken);
@@ -546,79 +559,353 @@ public class ShiftSalesService : IShiftSalesService
         return sb.ToString();
     }
 
-    private static string BuildShiftCloseSummaryBodyHtml(
-        string shopName,
-        Shift shift,
-        BusinessDay businessDay,
+    private sealed record ShiftCloseSummaryRow(
+        int? DisplayNumber,
+        string GameName,
+        decimal TicketPrice,
+        int SoldQuantity,
+        decimal SalesAmount);
+
+    private static ShiftCloseSummaryRow[] BuildShiftCloseSummaryRows(
         IReadOnlyCollection<ShiftScratchCardSale> entries,
         IReadOnlyDictionary<Guid, ScratchCardPack> packs)
     {
-        var rows = entries
+        return entries
             .Select(entry =>
             {
                 packs.TryGetValue(entry.PackId, out var pack);
-                var displayNumber = pack?.DisplayNumber;
-                var gameName = pack?.Game?.GameName ?? "Unknown";
-                return new
-                {
-                    DisplayNumber = displayNumber,
-                    GameName = gameName,
-                    TicketPrice = entry.TicketPrice,
-                    SoldQuantity = entry.SoldQuantity,
-                    SalesAmount = entry.SalesAmount
-                };
+                return new ShiftCloseSummaryRow(
+                    pack?.DisplayNumber,
+                    pack?.Game?.GameName ?? "Unknown",
+                    entry.TicketPrice,
+                    entry.SoldQuantity,
+                    entry.SalesAmount);
             })
             .OrderBy(x => x.DisplayNumber ?? int.MaxValue)
             .ThenBy(x => x.GameName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
 
-        var totalSoldQty = rows.Sum(x => x.SoldQuantity);
-        var totalSales = rows.Sum(x => x.SalesAmount);
+    private static string BuildShiftCloseSummaryBodyText(
+        string shopName,
+        Shift shift,
+        BusinessDay businessDay,
+        IReadOnlyCollection<ShiftCloseSummaryRow> rows,
+        DateTimeOffset reportGeneratedOnUtc)
+    {
+        var reportDateText = reportGeneratedOnUtc.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+        var shiftDetail = $"{shift.ShiftName} ({businessDay.BusinessDate:yyyy-MM-dd})";
 
         var sb = new StringBuilder();
-        sb.Append("<html><body style=\"font-family:Arial,Helvetica,sans-serif;color:#172033;\">");
-        sb.Append($"<h3 style=\"margin:0 0 8px 0;\">Shift Close Summary</h3>");
-        sb.Append("<div style=\"margin-bottom:12px;\">");
-        sb.Append($"<div><strong>Shop:</strong> {WebUtility.HtmlEncode(shopName)}</div>");
-        sb.Append($"<div><strong>Business Date:</strong> {businessDay.BusinessDate:yyyy-MM-dd}</div>");
-        sb.Append($"<div><strong>Shift:</strong> {WebUtility.HtmlEncode(shift.ShiftName)}</div>");
-        sb.Append($"<div><strong>Closed Time (UTC):</strong> {(shift.EndTime?.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ?? "-")}</div>");
-        sb.Append("</div>");
-        sb.Append("<table style=\"border-collapse:collapse;width:100%;font-size:13px;\">");
-        sb.Append("<thead><tr style=\"background:#EEF3FB;\">");
-        sb.Append("<th style=\"border:1px solid #C7D2E3;padding:6px;text-align:left;\">Display No</th>");
-        sb.Append("<th style=\"border:1px solid #C7D2E3;padding:6px;text-align:left;\">Game Name</th>");
-        sb.Append("<th style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">Price</th>");
-        sb.Append("<th style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">Sold Qty</th>");
-        sb.Append("<th style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">Sales Total</th>");
-        sb.Append("</tr></thead><tbody>");
+        sb.AppendLine("Shift close summary is attached as PDF.");
+        sb.AppendLine($"Shop Name: {shopName}");
+        sb.AppendLine($"Shift Detail: {shiftDetail}");
+        sb.AppendLine($"Report Date: {reportDateText} UTC");
+        sb.AppendLine($"Total Qty: {rows.Sum(x => x.SoldQuantity)}");
+        sb.AppendLine($"Total Sales: {rows.Sum(x => x.SalesAmount).ToString("0.00", CultureInfo.InvariantCulture)}");
+        return sb.ToString();
+    }
 
-        if (rows.Length == 0)
+    private static byte[] BuildShiftCloseSummaryPdf(
+        string shopName,
+        Shift shift,
+        BusinessDay businessDay,
+        IReadOnlyCollection<ShiftCloseSummaryRow> rows,
+        DateTimeOffset reportGeneratedOnUtc)
+    {
+        var totalSoldQty = rows.Sum(x => x.SoldQuantity);
+        var totalSales = rows.Sum(x => x.SalesAmount);
+        var reportDateText = reportGeneratedOnUtc.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+        var shiftDetail = $"{shift.ShiftName} ({businessDay.BusinessDate:yyyy-MM-dd})";
+        var lines = new List<string>
         {
-            sb.Append("<tr><td colspan=\"5\" style=\"border:1px solid #C7D2E3;padding:8px;text-align:center;\">No shift entries.</td></tr>");
+            "SHIFT CLOSE REPORT",
+            $"Shop Name: {shopName}",
+            $"Shift Detail: {shiftDetail}",
+            $"Report Date: {reportDateText} UTC",
+            string.Empty
+        };
+
+        lines.Add(BuildShiftCloseSummaryTableSeparator());
+        lines.Add(BuildShiftCloseSummaryTableRow("Display Number", "Game Name", "Price", "Qty", "Sales"));
+        lines.Add(BuildShiftCloseSummaryTableSeparator());
+
+        if (rows.Count == 0)
+        {
+            lines.Add(BuildShiftCloseSummaryTableRow("-", "No shift entries.", "-", "-", "-"));
         }
         else
         {
             foreach (var row in rows)
             {
-                sb.Append("<tr>");
-                sb.Append($"<td style=\"border:1px solid #C7D2E3;padding:6px;\">{(row.DisplayNumber.HasValue ? row.DisplayNumber.Value.ToString(CultureInfo.InvariantCulture) : "-")}</td>");
-                sb.Append($"<td style=\"border:1px solid #C7D2E3;padding:6px;\">{WebUtility.HtmlEncode(row.GameName)}</td>");
-                sb.Append($"<td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{row.TicketPrice.ToString("0.00", CultureInfo.InvariantCulture)}</td>");
-                sb.Append($"<td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{row.SoldQuantity}</td>");
-                sb.Append($"<td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{row.SalesAmount.ToString("0.00", CultureInfo.InvariantCulture)}</td>");
-                sb.Append("</tr>");
+                var display = row.DisplayNumber?.ToString(CultureInfo.InvariantCulture) ?? "-";
+                lines.Add(
+                    BuildShiftCloseSummaryTableRow(
+                        display,
+                        row.GameName,
+                        row.TicketPrice.ToString("0.00", CultureInfo.InvariantCulture),
+                        row.SoldQuantity.ToString(CultureInfo.InvariantCulture),
+                        row.SalesAmount.ToString("0.00", CultureInfo.InvariantCulture)));
             }
         }
 
-        sb.Append("<tr style=\"background:#F5F8FD;font-weight:700;\">");
-        sb.Append("<td colspan=\"3\" style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">Total</td>");
-        sb.Append($"<td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{totalSoldQty}</td>");
-        sb.Append($"<td style=\"border:1px solid #C7D2E3;padding:6px;text-align:right;\">{totalSales.ToString("0.00", CultureInfo.InvariantCulture)}</td>");
-        sb.Append("</tr>");
+        lines.Add(BuildShiftCloseSummaryTableSeparator());
+        lines.Add(
+            BuildShiftCloseSummaryTableRow(
+                "TOTAL",
+                string.Empty,
+                string.Empty,
+                totalSoldQty.ToString(CultureInfo.InvariantCulture),
+                totalSales.ToString("0.00", CultureInfo.InvariantCulture)));
+        lines.Add(BuildShiftCloseSummaryTableSeparator());
+        return BuildPdfFromTextLines(lines);
+    }
 
-        sb.Append("</tbody></table></body></html>");
+    private static string BuildShiftCloseSummaryPdfFileName(Shift shift, BusinessDay businessDay)
+    {
+        var shiftSegment = SanitizeFileNameSegment(shift.ShiftName);
+        if (string.IsNullOrWhiteSpace(shiftSegment))
+        {
+            shiftSegment = "shift";
+        }
+
+        return $"shift-close-summary-{businessDay.BusinessDate:yyyyMMdd}-{shiftSegment}.pdf";
+    }
+
+    private static byte[] BuildPdfFromTextLines(IEnumerable<string> lines)
+    {
+        const int pageWidth = 595;
+        const int pageHeight = 842;
+        const int marginX = 40;
+        const int startY = 800;
+        const int lineHeight = 14;
+        const int maxLineLength = 90;
+        const int maxLinesPerPage = 52;
+
+        var preparedLines = lines
+            .SelectMany(line => WrapPdfLine(ToAscii(line ?? string.Empty), maxLineLength))
+            .ToList();
+
+        if (preparedLines.Count == 0)
+        {
+            preparedLines.Add(string.Empty);
+        }
+
+        var pages = new List<IReadOnlyList<string>>();
+        for (var i = 0; i < preparedLines.Count; i += maxLinesPerPage)
+        {
+            pages.Add(preparedLines.Skip(i).Take(maxLinesPerPage).ToArray());
+        }
+
+        var objectBodies = new Dictionary<int, string>
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
+            [3] = "<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>"
+        };
+
+        var pageObjectNumbers = new List<int>();
+        var nextObjectNumber = 4;
+        foreach (var pageLines in pages)
+        {
+            var pageObjectNumber = nextObjectNumber++;
+            var contentObjectNumber = nextObjectNumber++;
+            pageObjectNumbers.Add(pageObjectNumber);
+
+            var content = BuildPdfPageContent(pageLines, marginX, startY, lineHeight);
+            var contentLength = Encoding.ASCII.GetByteCount(content);
+
+            objectBodies[contentObjectNumber] = $"<< /Length {contentLength} >>\nstream\n{content}\nendstream";
+            objectBodies[pageObjectNumber] =
+                $"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {pageWidth} {pageHeight}] " +
+                $"/Resources << /Font << /F1 3 0 R >> >> /Contents {contentObjectNumber} 0 R >>";
+        }
+
+        var kids = string.Join(" ", pageObjectNumbers.Select(number => $"{number} 0 R"));
+        objectBodies[2] = $"<< /Type /Pages /Count {pageObjectNumbers.Count} /Kids [ {kids} ] >>";
+
+        var maxObjectNumber = objectBodies.Keys.Max();
+        var offsets = new long[maxObjectNumber + 1];
+
+        using var stream = new MemoryStream();
+        WriteAscii(stream, "%PDF-1.4\n");
+
+        for (var objectNumber = 1; objectNumber <= maxObjectNumber; objectNumber++)
+        {
+            offsets[objectNumber] = stream.Position;
+            WriteAscii(stream, $"{objectNumber} 0 obj\n{objectBodies[objectNumber]}\nendobj\n");
+        }
+
+        var xrefOffset = stream.Position;
+        WriteAscii(stream, $"xref\n0 {maxObjectNumber + 1}\n");
+        WriteAscii(stream, "0000000000 65535 f \n");
+
+        for (var objectNumber = 1; objectNumber <= maxObjectNumber; objectNumber++)
+        {
+            WriteAscii(stream, $"{offsets[objectNumber]:0000000000} 00000 n \n");
+        }
+
+        WriteAscii(stream, $"trailer\n<< /Size {maxObjectNumber + 1} /Root 1 0 R >>\n");
+        WriteAscii(stream, $"startxref\n{xrefOffset}\n%%EOF");
+        return stream.ToArray();
+    }
+
+    private static string BuildPdfPageContent(IEnumerable<string> lines, int marginX, int startY, int lineHeight)
+    {
+        var sb = new StringBuilder();
+        sb.Append("BT\n/F1 10 Tf\n");
+        sb.AppendFormat(CultureInfo.InvariantCulture, "1 0 0 1 {0} {1} Tm\n", marginX, startY);
+
+        foreach (var line in lines)
+        {
+            sb.Append('(');
+            sb.Append(EscapePdfText(line));
+            sb.Append(") Tj\n");
+            sb.AppendFormat(CultureInfo.InvariantCulture, "0 -{0} Td\n", lineHeight);
+        }
+
+        sb.Append("ET");
         return sb.ToString();
+    }
+
+    private static IEnumerable<string> WrapPdfLine(string input, int maxLength)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            yield return string.Empty;
+            yield break;
+        }
+
+        var remaining = input.TrimEnd();
+        while (remaining.Length > maxLength)
+        {
+            var splitIndex = remaining.LastIndexOf(' ', maxLength);
+            if (splitIndex <= 0)
+            {
+                splitIndex = maxLength;
+            }
+
+            yield return remaining[..splitIndex];
+            remaining = remaining[splitIndex..].TrimStart();
+        }
+
+        yield return remaining;
+    }
+
+    private static string BuildShiftCloseSummaryTableSeparator()
+    {
+        const int displayWidth = 14;
+        const int gameWidth = 34;
+        const int priceWidth = 10;
+        const int soldQtyWidth = 8;
+        const int salesWidth = 12;
+
+        return
+            $"+-{new string('-', displayWidth)}-+-{new string('-', gameWidth)}-+-{new string('-', priceWidth)}-+-{new string('-', soldQtyWidth)}-+-{new string('-', salesWidth)}-+";
+    }
+
+    private static string BuildShiftCloseSummaryTableRow(
+        string display,
+        string gameName,
+        string price,
+        string soldQty,
+        string salesTotal)
+    {
+        const int displayWidth = 14;
+        const int gameWidth = 34;
+        const int priceWidth = 10;
+        const int soldQtyWidth = 8;
+        const int salesWidth = 12;
+
+        return
+            $"| {FitTableCell(display, displayWidth)} | {FitTableCell(gameName, gameWidth)} | {FitTableCell(price, priceWidth, alignRight: true)} | {FitTableCell(soldQty, soldQtyWidth, alignRight: true)} | {FitTableCell(salesTotal, salesWidth, alignRight: true)} |";
+    }
+
+    private static string FitTableCell(string? value, int width, bool alignRight = false)
+    {
+        var safeValue = ToAscii((value ?? string.Empty).Trim());
+        if (safeValue.Length > width)
+        {
+            if (width <= 3)
+            {
+                safeValue = safeValue[..width];
+            }
+            else
+            {
+                safeValue = safeValue[..(width - 3)] + "...";
+            }
+        }
+
+        return alignRight ? safeValue.PadLeft(width) : safeValue.PadRight(width);
+    }
+
+    private static string EscapePdfText(string value)
+        => value
+            .Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("(", "\\(", StringComparison.Ordinal)
+            .Replace(")", "\\)", StringComparison.Ordinal);
+
+    private static string ToAscii(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        var sb = new StringBuilder(value.Length);
+        foreach (var character in value)
+        {
+            if (character >= 32 && character <= 126)
+            {
+                sb.Append(character);
+            }
+            else
+            {
+                sb.Append('?');
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    private static string SanitizeFileNameSegment(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var invalidCharacters = Path.GetInvalidFileNameChars();
+        var sb = new StringBuilder(value.Length);
+        var lastWasSeparator = false;
+
+        foreach (var character in value.Trim())
+        {
+            if (invalidCharacters.Contains(character) || char.IsControl(character))
+            {
+                continue;
+            }
+
+            if (char.IsLetterOrDigit(character))
+            {
+                sb.Append(character);
+                lastWasSeparator = false;
+                continue;
+            }
+
+            if (!lastWasSeparator)
+            {
+                sb.Append('-');
+                lastWasSeparator = true;
+            }
+        }
+
+        return sb.ToString().Trim('-');
+    }
+
+    private static void WriteAscii(Stream stream, string value)
+    {
+        var bytes = Encoding.ASCII.GetBytes(value);
+        stream.Write(bytes, 0, bytes.Length);
     }
 }
 
