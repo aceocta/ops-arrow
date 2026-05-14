@@ -197,8 +197,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   brandLogo: {
-    width: 44,
-    height: 44,
+    width: 60,
+    height: 60,
   },
   brandText: {
     color: appTheme.colors.text,
