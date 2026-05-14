@@ -6,9 +6,15 @@ import { appTheme } from "../ui/theme";
 type ScreenContainerProps = PropsWithChildren<{
   centerContent?: boolean;
   footer?: React.ReactNode;
+  keyboardScrollOffset?: number;
 }>;
 
-export function ScreenContainer({ children, centerContent = false, footer }: ScreenContainerProps) {
+export function ScreenContainer({
+  children,
+  centerContent = false,
+  footer,
+  keyboardScrollOffset = 100,
+}: ScreenContainerProps) {
   const entrance = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
   const [keyboardInset, setKeyboardInset] = useState(0);
@@ -40,8 +46,8 @@ export function ScreenContainer({ children, centerContent = false, footer }: Scr
       return;
     }
 
-    scrollViewRef.current.scrollResponderScrollNativeHandleToKeyboard(focusedInput, 24, true);
-  }, []);
+    scrollViewRef.current.scrollResponderScrollNativeHandleToKeyboard(focusedInput, keyboardScrollOffset, true);
+  }, [keyboardScrollOffset]);
 
   useEffect(() => {
     const keyboardShowEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
