@@ -27,6 +27,8 @@ public interface IAuthService
     Task<AuthTokenResponseDto> SignUpWithPasswordAsync(PasswordSignupRequest request, CancellationToken cancellationToken = default);
     Task<AuthTokenResponseDto> SignInWithPasswordAsync(PasswordLoginRequest request, CancellationToken cancellationToken = default);
     Task<AuthTokenResponseDto> SignInDevAsync(DevLoginRequest request, CancellationToken cancellationToken = default);
+    Task RequestPasswordResetAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default);
+    Task ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default);
     Task<AuthTokenResponseDto> RefreshTokenAsync(CancellationToken cancellationToken = default);
     Task<CurrentUserProfileDto> GetCurrentUserProfileAsync(CancellationToken cancellationToken = default);
 }

@@ -59,6 +59,23 @@ public class DevLoginRequestValidator : AbstractValidator<DevLoginRequest>
     }
 }
 
+public class ForgotPasswordRequestValidator : AbstractValidator<ForgotPasswordRequest>
+{
+    public ForgotPasswordRequestValidator()
+    {
+        RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(320);
+    }
+}
+
+public class ResetPasswordRequestValidator : AbstractValidator<ResetPasswordRequest>
+{
+    public ResetPasswordRequestValidator()
+    {
+        RuleFor(x => x.Token).NotEmpty();
+        RuleFor(x => x.NewPassword).NotEmpty().MinimumLength(8);
+    }
+}
+
 public class AcceptInvitationRequestValidator : AbstractValidator<AcceptInvitationRequest>
 {
     public AcceptInvitationRequestValidator()

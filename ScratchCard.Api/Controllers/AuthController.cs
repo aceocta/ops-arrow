@@ -74,6 +74,22 @@ public class AuthController : BaseApiController
         return Success(token);
     }
 
+    [HttpPost("forgot-password")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request, CancellationToken cancellationToken)
+    {
+        await _authService.RequestPasswordResetAsync(request, cancellationToken);
+        return Success(new { }, "If the account exists, a password reset email has been sent.");
+    }
+
+    [HttpPost("reset-password")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request, CancellationToken cancellationToken)
+    {
+        await _authService.ResetPasswordAsync(request, cancellationToken);
+        return Success(new { }, "Password has been reset successfully.");
+    }
+
     [HttpGet("me")]
     [Authorize]
     public async Task<IActionResult> Me(CancellationToken cancellationToken)

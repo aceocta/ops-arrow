@@ -6,6 +6,8 @@ import { CompanySignupScreen } from "../auth/CompanySignupScreen";
 import { CompanySetupScreen } from "../auth/CompanySetupScreen";
 import { SplashLoadingScreen } from "../auth/SplashLoadingScreen";
 import { LoginScreen } from "../auth/LoginScreen";
+import { ForgotPasswordScreen } from "../auth/ForgotPasswordScreen";
+import { ResetPasswordScreen } from "../auth/ResetPasswordScreen";
 import { ShopSetupScreen } from "../auth/ShopSetupScreen";
 import { getSubscriptionSummary } from "../api/subscriptionApi";
 import { InvitationAcceptanceScreen } from "../features/invitations/InvitationAcceptanceScreen";
@@ -98,6 +100,8 @@ export function RootNavigator() {
           <Stack.Screen name="SyncConflict" component={SyncConflictScreen} options={{ title: "Sync Conflict" }} />
         </>
       )}
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ title: "Forgot Password" }} />
+      <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} options={{ title: "Reset Password" }} />
     </Stack.Navigator>
   );
 }

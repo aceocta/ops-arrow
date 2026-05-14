@@ -1,12 +1,14 @@
 import React from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { DefaultTheme, NavigationContainer } from "@react-navigation/native";
+import { DefaultTheme, NavigationContainer, type LinkingOptions } from "@react-navigation/native";
+import * as Linking from "expo-linking";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "./src/auth/AuthContext";
 import { AppAlertHost, installAppAlertPatch } from "./src/components/AppAlert";
 import { RootNavigator } from "./src/navigation/RootNavigator";
 import { useAutoSyncBootstrap } from "./src/offline/useAutoSyncBootstrap";
+import type { RootStackParamList } from "./src/types/navigation";
 import { appTheme } from "./src/ui/theme";
 
 const queryClient = new QueryClient();
@@ -24,6 +26,19 @@ const navigationTheme = {
   },
 };
 
+const linking: LinkingOptions<RootStackParamList> = {
+  prefixes: [Linking.createURL("/"), "scratchcard://"],
+  config: {
+    screens: {
+      Login: "login",
+      CompanySignup: "signup",
+      InvitationAccept: "invitation/accept",
+      ForgotPassword: "forgot-password",
+      ResetPassword: "reset-password",
+    },
+  },
+};
+
 function AppShell() {
   useAutoSyncBootstrap();
 
@@ -32,7 +47,7 @@ function AppShell() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            <NavigationContainer theme={navigationTheme}>
+            <NavigationContainer theme={navigationTheme} linking={linking}>
               <RootNavigator />
               <AppAlertHost />
             </NavigationContainer>

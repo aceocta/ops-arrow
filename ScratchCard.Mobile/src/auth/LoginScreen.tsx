@@ -139,6 +139,12 @@ export function LoginScreen() {
           disabled={busy}
         />
         <PrimaryButton
+          label="Forgot password?"
+          onPress={() => navigation.navigate("ForgotPassword")}
+          tone="neutral"
+          disabled={busy}
+        />
+        <PrimaryButton
           label="Create an account"
           onPress={() => navigation.navigate("CompanySignup")}
           tone="neutral"

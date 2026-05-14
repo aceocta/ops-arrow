@@ -18,6 +18,8 @@ public class AuthService : IAuthService
     private readonly ICurrentUserService _currentUserService;
     private readonly IPasswordHashService _passwordHashService;
     private readonly IJwtTokenService _jwtTokenService;
+    private readonly IInvitationTokenService _tokenService;
+    private readonly IEmailSender _emailSender;
     private readonly IAuditService _auditService;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -30,6 +32,8 @@ public class AuthService : IAuthService
         ICurrentUserService currentUserService,
         IPasswordHashService passwordHashService,
         IJwtTokenService jwtTokenService,
+        IInvitationTokenService tokenService,
+        IEmailSender emailSender,
         IAuditService auditService,
         IUnitOfWork unitOfWork)
     {
@@ -41,6 +45,8 @@ public class AuthService : IAuthService
         _currentUserService = currentUserService;
         _passwordHashService = passwordHashService;
         _jwtTokenService = jwtTokenService;
+        _tokenService = tokenService;
+        _emailSender = emailSender;
         _auditService = auditService;
         _unitOfWork = unitOfWork;
     }
@@ -290,6 +296,110 @@ public class AuthService : IAuthService
             cancellationToken: cancellationToken);
 
         return token;
+    }
+
+    public async Task RequestPasswordResetAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            throw new AppException("validation_failed", "Email is required.", 400);
+        }
+
+        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+
+        var user = await _userRepository.Query()
+            .FirstOrDefaultAsync(x => x.Email == normalizedEmail, cancellationToken);
+
+        if (user is null || !user.IsActive || string.IsNullOrWhiteSpace(user.PasswordHash))
+        {
+            await _auditService.LogAsync(
+                nameof(User),
+                user?.Id,
+                "PasswordResetRequested",
+                newValue: normalizedEmail,
+                reason: "No eligible account found",
+                cancellationToken: cancellationToken);
+            return;
+        }
+
+        var (token, tokenHash) = _tokenService.GenerateInvitationToken();
+        var expiresOn = DateTimeOffset.UtcNow.AddHours(2);
+
+        user.PasswordResetTokenHash = tokenHash;
+        user.PasswordResetTokenExpiresOn = expiresOn;
+        user.ModifiedOn = DateTimeOffset.UtcNow;
+        user.ModifiedBy = user.Id;
+
+        _userRepository.Update(user);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var escapedToken = Uri.EscapeDataString(token);
+        var resetLink = $"scratchcard://reset-password?token={escapedToken}";
+        var body =
+            "We received a request to reset your Ops Arrow password.\n\n" +
+            $"Reset link: {resetLink}\n\n" +
+            $"If the app does not open, enter this token manually in the reset screen:\n{token}\n\n" +
+            $"This token expires at {expiresOn:yyyy-MM-dd HH:mm} UTC.\n" +
+            "If you did not request this, you can ignore this email.";
+
+        await _emailSender.SendAsync(
+            normalizedEmail,
+            "Ops Arrow Password Reset",
+            body,
+            cancellationToken);
+
+        await _auditService.LogAsync(
+            nameof(User),
+            user.Id,
+            "PasswordResetRequested",
+            newValue: normalizedEmail,
+            cancellationToken: cancellationToken);
+    }
+
+    public async Task ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Token))
+        {
+            throw new AppException("validation_failed", "Reset token is required.", 400);
+        }
+
+        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8)
+        {
+            throw new AppException("validation_failed", "Password must be at least 8 characters.", 400);
+        }
+
+        var tokenHash = _tokenService.ComputeHash(request.Token.Trim());
+        var user = await _userRepository.Query()
+            .FirstOrDefaultAsync(x => x.PasswordResetTokenHash == tokenHash, cancellationToken)
+            ?? throw new AppException("invalid_reset_token", "Reset token is invalid or expired.", 400);
+
+        var now = DateTimeOffset.UtcNow;
+        if (!user.PasswordResetTokenExpiresOn.HasValue || user.PasswordResetTokenExpiresOn.Value <= now)
+        {
+            user.PasswordResetTokenHash = null;
+            user.PasswordResetTokenExpiresOn = null;
+            user.ModifiedOn = now;
+            user.ModifiedBy = user.Id;
+            _userRepository.Update(user);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            throw new AppException("invalid_reset_token", "Reset token is invalid or expired.", 400);
+        }
+
+        user.PasswordHash = _passwordHashService.HashPassword(request.NewPassword);
+        user.PasswordResetTokenHash = null;
+        user.PasswordResetTokenExpiresOn = null;
+        user.ModifiedOn = now;
+        user.ModifiedBy = user.Id;
+
+        _userRepository.Update(user);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _auditService.LogAsync(
+            nameof(User),
+            user.Id,
+            "PasswordResetCompleted",
+            cancellationToken: cancellationToken);
     }
 
     public async Task<AuthTokenResponseDto> RefreshTokenAsync(CancellationToken cancellationToken = default)

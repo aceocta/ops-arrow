@@ -96,3 +96,13 @@ export async function signInWithDevBypass(payload: {
   const response = await apiClient.post("/auth/dev-login", payload);
   return parseAuthTokenResult(response.data);
 }
+
+export async function requestPasswordReset(payload: { email: string }) {
+  const response = await apiClient.post("/auth/forgot-password", payload);
+  return response.data;
+}
+
+export async function resetPassword(payload: { token: string; newPassword: string }) {
+  const response = await apiClient.post("/auth/reset-password", payload);
+  return response.data;
+}

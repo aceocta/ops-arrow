@@ -1,5 +1,7 @@
 export type RootStackParamList = {
   Login: undefined;
+  ForgotPassword: undefined;
+  ResetPassword: { token?: string } | undefined;
   CompanySignup: undefined;
   CompanySetup: undefined;
   ShopSetup: undefined;

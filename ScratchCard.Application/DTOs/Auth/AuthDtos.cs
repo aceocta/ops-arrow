@@ -46,6 +46,17 @@ public class DevLoginRequest
     public Guid? ShopId { get; set; }
 }
 
+public class ForgotPasswordRequest
+{
+    public string Email { get; set; } = string.Empty;
+}
+
+public class ResetPasswordRequest
+{
+    public string Token { get; set; } = string.Empty;
+    public string NewPassword { get; set; } = string.Empty;
+}
+
 public class AuthTokenResponseDto
 {
     public string AccessToken { get; set; } = string.Empty;

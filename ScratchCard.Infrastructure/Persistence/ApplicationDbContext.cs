@@ -64,11 +64,13 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<User>(entity =>
         {
             entity.HasIndex(x => x.Email).IsUnique();
+            entity.HasIndex(x => x.PasswordResetTokenHash);
             entity.Property(x => x.Email).HasMaxLength(320).IsRequired();
             entity.Property(x => x.FirstName).HasMaxLength(100).IsRequired();
             entity.Property(x => x.LastName).HasMaxLength(100).IsRequired();
             entity.Property(x => x.ExternalProvider).HasMaxLength(100);
             entity.Property(x => x.ExternalProviderUserId).HasMaxLength(200);
+            entity.Property(x => x.PasswordResetTokenHash).HasMaxLength(200);
         });
 
         modelBuilder.Entity<Role>(entity =>
