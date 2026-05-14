@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -82,19 +82,15 @@ export function LoginScreen() {
 
   return (
     <ScreenContainer centerContent>
-      <View style={[styles.hero, styles.contentBlock]}>
-        <View style={styles.heroBadgeRow}>
-          <View style={styles.logoBox}>
-            <Ionicons name="navigate" size={16} color="#fff" />
-          </View>
-          <Text style={styles.logoText}>{appInfo.name.toUpperCase()}</Text>
+      <View style={[styles.brandSection, styles.contentBlock]}>
+        <View style={styles.brandRow}>
+          <Image source={require("../../assets/ops-arrow-logo.png")} style={styles.brandLogo} resizeMode="contain" />
+          <Text style={styles.brandText}>{appInfo.name}</Text>
         </View>
-        <Text style={styles.heroTitle}>{appInfo.loginTitle}</Text>
-        <Text style={styles.heroSubtitle}>Secure operational access for your business team.</Text>
       </View>
       <View style={[ui.card, styles.contentBlock]}>
         <Text style={styles.title}>Sign In</Text>
-        <Text style={styles.subtitle}>Use your email and password to continue.</Text>
+        <Text style={styles.subtitle}>Sign in to continue with {appInfo.name}.</Text>
         <Text style={styles.fieldLabel}>Email Address</Text>
         <TextInput
           style={ui.input}
@@ -189,43 +185,25 @@ const styles = StyleSheet.create({
     maxWidth: 460,
     alignSelf: "center",
   },
-  hero: {
-    backgroundColor: "#111827",
-    borderRadius: appTheme.radius.lg,
-    borderWidth: 0,
-    padding: appTheme.spacing.lg,
-    gap: 10,
+  brandSection: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: appTheme.spacing.md,
   },
-  heroBadgeRow: {
+  brandRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-  },
-  logoBox: {
-    backgroundColor: appTheme.colors.accent,
-    width: 28,
-    height: 28,
-    borderRadius: 8,
     justifyContent: "center",
-    alignItems: "center",
+    gap: 10,
   },
-  logoText: {
-    color: "#E7ECF3",
-    fontSize: 13,
+  brandLogo: {
+    width: 44,
+    height: 44,
+  },
+  brandText: {
+    color: appTheme.colors.text,
+    fontSize: 27,
     fontFamily: appTheme.fonts.bodyMedium,
-    letterSpacing: 1.4,
-  },
-  heroTitle: {
-    color: "#FFFFFF",
-    fontSize: 26,
-    lineHeight: 31,
-    fontFamily: appTheme.fonts.heading,
-  },
-  heroSubtitle: {
-    color: "#CDD7E4",
-    fontSize: 13,
-    lineHeight: 18,
-    fontFamily: appTheme.fonts.body,
   },
   title: {
     fontSize: 20,
