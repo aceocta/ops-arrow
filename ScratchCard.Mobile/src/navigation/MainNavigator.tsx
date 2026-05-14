@@ -117,6 +117,19 @@ const bottomDockItems: Array<{
   { icon: "settings-outline", label: "Settings", screen: "Settings" },
 ];
 
+function resolveOperationForBottomDockScreen(screen: keyof MainStackParamList): EntryOperation | null {
+  if (screen === "Dashboard") {
+    return "scratchCard";
+  }
+  if (screen === "TemperatureLogs") {
+    return "temperature";
+  }
+  if (screen === "RefusalRegister") {
+    return "refusals";
+  }
+  return null;
+}
+
 function getOperationLabel(operation: EntryOperation | null) {
   if (operation === "temperature") return "Temperature";
   if (operation === "scratchCard") return "Scratch Card";
@@ -311,6 +324,7 @@ function MainStackScreens() {
 
 function MainBottomDock() {
   const navigation = useNavigation<any>();
+  const { setSelectedOperation } = useBestEntry();
   const insets = useSafeAreaInsets();
   const navigationState = useNavigationState((state) => state);
   const currentRouteName = getDeepestRouteName(navigationState);
@@ -331,7 +345,13 @@ function MainBottomDock() {
             <Pressable
               key={item.screen}
               style={[styles.bottomDockItem, isActive ? styles.bottomDockItemActive : null]}
-              onPress={() => navigation.navigate("MainTabs", { screen: "MainStack", params: { screen: item.screen } })}
+              onPress={() => {
+                const operation = resolveOperationForBottomDockScreen(item.screen);
+                if (operation) {
+                  setSelectedOperation(operation);
+                }
+                navigation.navigate("MainTabs", { screen: "MainStack", params: { screen: item.screen } });
+              }}
               accessibilityRole="button"
               accessibilityLabel={`Open ${item.label}`}
             >
