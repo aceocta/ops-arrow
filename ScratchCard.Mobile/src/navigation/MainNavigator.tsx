@@ -93,7 +93,7 @@ const managementItems: MenuItem[] = [
   // { label: "Company Management", screen: "CompanyManagement", icon: "business-outline", shopOwnerOnly: true },
   { label: "Shop Management", screen: "ShopManagement", icon: "storefront-outline", shopOwnerOnly: true },
   { label: "User Management", screen: "UserManagement", icon: "people-outline", shopOwnerOnly: true },
-  { label: "App Configuration", screen: "AppConfiguration", icon: "construct-outline", shopOwnerOnly: true },
+  { label: "App Configuration", screen: "AppConfiguration", icon: "construct-outline" },
 ];
 
 const reportItems: MenuItem[] = [

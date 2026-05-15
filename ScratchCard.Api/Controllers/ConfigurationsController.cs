@@ -25,7 +25,6 @@ public class ConfigurationsController : BaseApiController
     }
 
     [HttpPut]
-    [Authorize(Roles = RoleNames.ShopOwner)]
     public async Task<IActionResult> Update([FromBody] UpdateConfigurationRequest request, CancellationToken cancellationToken)
     {
         await _configurationService.UpdateAsync(request, cancellationToken);
