@@ -41,6 +41,7 @@ type CloseAttachmentState = {
 
 const MAX_CLOSE_ATTACHMENTS = 10;
 const MAX_CLOSE_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const DEFAULT_CLOSE_DAY_PAYOUT = "0";
 
 function getStatusTone(status?: string): "neutral" | "warning" | "danger" | "success" {
   if (!status) return "neutral";
@@ -200,9 +201,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   const { businessDayId } = route.params;
   const queryClient = useQueryClient();
   const [notes, setNotes] = useState("");
-  const [lottoPayoutAmount, setLottoPayoutAmount] = useState("");
-  const [scratchCardPayoutAmount, setScratchCardPayoutAmount] = useState("");
-  const [tillPayoutAmount, setTillPayoutAmount] = useState("");
+  const [lottoPayoutAmount, setLottoPayoutAmount] = useState(DEFAULT_CLOSE_DAY_PAYOUT);
+  const [scratchCardPayoutAmount, setScratchCardPayoutAmount] = useState(DEFAULT_CLOSE_DAY_PAYOUT);
+  const [tillPayoutAmount, setTillPayoutAmount] = useState(DEFAULT_CLOSE_DAY_PAYOUT);
   const [reopenReason, setReopenReason] = useState("");
   const [targetBusinessDate, setTargetBusinessDate] = useState(formatDateValue(new Date()));
   const [isDayPickerModalVisible, setIsDayPickerModalVisible] = useState(false);
@@ -230,9 +231,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   useEffect(() => {
     const dayCloseSummary = dayQuery.data?.scratchCardDayCloseSummary;
     if (!dayCloseSummary) {
-      setLottoPayoutAmount("");
-      setScratchCardPayoutAmount("");
-      setTillPayoutAmount("");
+      setLottoPayoutAmount(DEFAULT_CLOSE_DAY_PAYOUT);
+      setScratchCardPayoutAmount(DEFAULT_CLOSE_DAY_PAYOUT);
+      setTillPayoutAmount(DEFAULT_CLOSE_DAY_PAYOUT);
       return;
     }
 
@@ -245,11 +246,22 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     dayQuery.data?.scratchCardDayCloseSummary?.tillPayout,
   ]);
 
+  const normalizePayoutInput = useCallback((raw: string) => {
+    const trimmed = raw.trim();
+    return trimmed.length > 0 ? trimmed : DEFAULT_CLOSE_DAY_PAYOUT;
+  }, []);
+
+  const normalizeAllPayoutInputs = useCallback(() => {
+    setLottoPayoutAmount((previous) => normalizePayoutInput(previous));
+    setScratchCardPayoutAmount((previous) => normalizePayoutInput(previous));
+    setTillPayoutAmount((previous) => normalizePayoutInput(previous));
+  }, [normalizePayoutInput]);
+
   const closeMutation = useMutation({
     mutationFn: async () => closeBusinessDay(businessDayId, {
-      lottoPayout: Number(lottoPayoutAmount),
-      scratchCardPayout: Number(scratchCardPayoutAmount),
-      tillPayout: Number(tillPayoutAmount),
+      lottoPayout: Number(normalizePayoutInput(lottoPayoutAmount)),
+      scratchCardPayout: Number(normalizePayoutInput(scratchCardPayoutAmount)),
+      tillPayout: Number(normalizePayoutInput(tillPayoutAmount)),
       notes: notes.trim() || undefined,
       attachments: closeDayAttachments.map((attachment) => ({
         fileName: attachment.fileName,
@@ -259,9 +271,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     }),
     onSuccess: () => {
       setIsCloseDayModalVisible(false);
-      setLottoPayoutAmount("");
-      setScratchCardPayoutAmount("");
-      setTillPayoutAmount("");
+      setLottoPayoutAmount(DEFAULT_CLOSE_DAY_PAYOUT);
+      setScratchCardPayoutAmount(DEFAULT_CLOSE_DAY_PAYOUT);
+      setTillPayoutAmount(DEFAULT_CLOSE_DAY_PAYOUT);
       setNotes("");
       setCloseDayAttachments([]);
       Alert.alert("Closed", "Business day closed successfully.");
@@ -967,12 +979,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     ];
 
     for (const value of values) {
-      if (!value.raw.trim().length) {
-        Alert.alert("Validation", `${value.label} is required.`);
-        return false;
-      }
-
-      if (!Number.isFinite(Number(value.raw))) {
+      const normalizedValue = normalizePayoutInput(value.raw);
+      if (!Number.isFinite(Number(normalizedValue))) {
         Alert.alert("Validation", `${value.label} must be a valid number.`);
         return false;
       }
@@ -1604,6 +1612,16 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 style={styles.input}
                 value={lottoPayoutAmount}
                 onChangeText={setLottoPayoutAmount}
+                onFocus={() => {
+                  if (lottoPayoutAmount.trim() === DEFAULT_CLOSE_DAY_PAYOUT) {
+                    setLottoPayoutAmount("");
+                  }
+                }}
+                onBlur={() => {
+                  if (!lottoPayoutAmount.trim().length) {
+                    setLottoPayoutAmount(DEFAULT_CLOSE_DAY_PAYOUT);
+                  }
+                }}
                 placeholder="Lotto payout"
                 placeholderTextColor={appTheme.colors.textSubtle}
                 keyboardType="decimal-pad"
@@ -1613,6 +1631,16 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 style={styles.input}
                 value={scratchCardPayoutAmount}
                 onChangeText={setScratchCardPayoutAmount}
+                onFocus={() => {
+                  if (scratchCardPayoutAmount.trim() === DEFAULT_CLOSE_DAY_PAYOUT) {
+                    setScratchCardPayoutAmount("");
+                  }
+                }}
+                onBlur={() => {
+                  if (!scratchCardPayoutAmount.trim().length) {
+                    setScratchCardPayoutAmount(DEFAULT_CLOSE_DAY_PAYOUT);
+                  }
+                }}
                 placeholder="Scratch card payout"
                 placeholderTextColor={appTheme.colors.textSubtle}
                 keyboardType="decimal-pad"
@@ -1622,6 +1650,16 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 style={styles.input}
                 value={tillPayoutAmount}
                 onChangeText={setTillPayoutAmount}
+                onFocus={() => {
+                  if (tillPayoutAmount.trim() === DEFAULT_CLOSE_DAY_PAYOUT) {
+                    setTillPayoutAmount("");
+                  }
+                }}
+                onBlur={() => {
+                  if (!tillPayoutAmount.trim().length) {
+                    setTillPayoutAmount(DEFAULT_CLOSE_DAY_PAYOUT);
+                  }
+                }}
                 placeholder="Till payout"
                 placeholderTextColor={appTheme.colors.textSubtle}
                 keyboardType="decimal-pad"
@@ -1712,6 +1750,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     (closeMutation.isPending || !canClose) ? styles.modalActionDisabled : null,
                   ]}
                   onPress={() => {
+                    normalizeAllPayoutInputs();
                     if (!validateCloseDayInputs()) {
                       return;
                     }

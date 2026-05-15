@@ -749,7 +749,7 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
 
   function openManualPackScanner() {
     awaitingPackScanRef.current = true;
-    setScanMessage("Scan pack barcode and keep the label text in view.");
+    // setScanMessage("Scan pack barcode and keep the label text in view.");
     const rootLikeNavigation = navigation.getParent()?.getParent() ?? navigation.getParent() ?? navigation;
     (rootLikeNavigation as any).navigate("BarcodeScanner", { mode: "single" });
   }
