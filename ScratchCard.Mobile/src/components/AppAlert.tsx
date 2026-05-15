@@ -8,6 +8,7 @@ type AlertRequest = {
   message?: string;
   buttons?: AlertButton[];
   options?: AlertOptions;
+  hasExplicitButtons?: boolean;
 };
 
 type AlertTone = "info" | "success" | "warning" | "danger";
@@ -40,11 +41,28 @@ const SUCCESS_KEYWORDS = [
   "sync complete",
 ];
 
+const VALIDATION_KEYWORDS = [
+  "validation",
+  "required",
+  "missing",
+  "mismatch",
+  "not match",
+];
+
+const PERMISSION_KEYWORDS = [
+  "permission",
+  "not allowed",
+  "denied",
+];
+
+const CONFIRMATION_KEYWORDS = [
+  "confirm",
+  "confirmation",
+  "are you sure",
+];
+
 const WARNING_KEYWORDS = [
   "warning",
-  "validation",
-  "permission",
-  "required",
   "missing",
   "cannot remove",
 ];
@@ -78,6 +96,55 @@ function normalizeButtons(buttons?: AlertButton[]) {
   return [{ text: "OK" }];
 }
 
+function normalizeTitle(title: string | undefined, message: string | undefined, tone: AlertTone) {
+  const rawTitle = (title ?? "").trim();
+  const normalizedTitle = rawTitle.toLowerCase();
+  const normalizedMessage = (message ?? "").trim().toLowerCase();
+  const combined = toSearchText([rawTitle, message]);
+
+  if (includesAny(combined, PERMISSION_KEYWORDS)) {
+    return "Permission Required";
+  }
+
+  if (includesAny(combined, VALIDATION_KEYWORDS)) {
+    return "Validation";
+  }
+
+  if (includesAny(combined, CONFIRMATION_KEYWORDS)) {
+    return "Confirmation";
+  }
+
+  if (tone === "danger") {
+    return "Error";
+  }
+
+  if (tone === "success") {
+    return "Success";
+  }
+
+  if (tone === "warning") {
+    return "Notice";
+  }
+
+  if (!rawTitle.length) {
+    return "Notice";
+  }
+
+  if (normalizedTitle === "failed" || normalizedTitle === "fail") {
+    return "Error";
+  }
+
+  if (normalizedTitle === "saved" || normalizedTitle === "created" || normalizedTitle === "updated") {
+    return "Success";
+  }
+
+  if (!normalizedMessage.length) {
+    return rawTitle;
+  }
+
+  return rawTitle;
+}
+
 function resolveTone(title: string, message?: string): AlertTone {
   const normalized = toSearchText([title, message]);
 
@@ -97,25 +164,40 @@ function resolveTone(title: string, message?: string): AlertTone {
 }
 
 function resolveAutoCloseMs(request: AlertRequest, tone: AlertTone): number {
-  if ((request.buttons?.length ?? 0) > 0) {
+  if (request.hasExplicitButtons) {
     return 0;
   }
 
-  return tone === "success" ? 2200 : 0;
+  if (tone === "danger") {
+    return 3600;
+  }
+  if (tone === "warning") {
+    return 3200;
+  }
+  if (tone === "success") {
+    return 2400;
+  }
+  return 2800;
 }
 
 export function showAppAlert(title: string, message?: string, buttons?: AlertButton[], options?: AlertOptions) {
+  const tone = resolveTone(title, message);
+  const normalizedTitle = normalizeTitle(title, message, tone);
+  const hasExplicitButtons = Boolean(buttons && buttons.length > 0);
+  const normalizedButtons = normalizeButtons(buttons);
+
   if (presenter) {
     presenter({
-      title,
+      title: normalizedTitle,
       message,
       buttons,
       options,
+      hasExplicitButtons,
     });
     return;
   }
 
-  nativeAlert(title, message, buttons, options);
+  nativeAlert(normalizedTitle, message, normalizedButtons, options);
 }
 
 export function installAppAlertPatch() {
@@ -140,10 +222,12 @@ export function AppAlertHost() {
   useEffect(() => {
     presenter = (request) => {
       const requestTone = resolveTone(request.title, request.message);
+      const normalizedTitle = normalizeTitle(request.title, request.message, requestTone);
       setQueue((prev) => [
         ...prev,
         {
           ...request,
+          title: normalizedTitle,
           id: nextId++,
           buttons: normalizeButtons(request.buttons),
           autoCloseMs: resolveAutoCloseMs(request, requestTone),
@@ -215,7 +299,7 @@ export function AppAlertHost() {
           }
         }}
       >
-        <View style={styles.overlay}>
+        <View style={[styles.overlay, { paddingBottom: toastBottomOffset }]}>
           <Pressable
             style={StyleSheet.absoluteFill}
             onPress={() => {
@@ -321,7 +405,7 @@ const styles = StyleSheet.create({
   },
   overlay: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: "flex-end",
     alignItems: "center",
     paddingHorizontal: 18,
     backgroundColor: "rgba(10, 20, 30, 0.45)",

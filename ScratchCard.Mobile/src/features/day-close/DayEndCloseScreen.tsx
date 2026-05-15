@@ -280,19 +280,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       void dayQuery.refetch();
     },
     onError: (error: any) => {
-      const code = error?.response?.data?.code;
       const message = error?.response?.data?.message ?? "Unable to close business day.";
-      if (code === "checklist_required_tasks_pending") {
-        Alert.alert("Checklist Required", message, [
-          {
-            text: "Open Checklist",
-            onPress: () => navigation.navigate("ShopChecklist"),
-          },
-          { text: "OK" },
-        ]);
-        return;
-      }
-
       Alert.alert("Failed", message);
     },
   });

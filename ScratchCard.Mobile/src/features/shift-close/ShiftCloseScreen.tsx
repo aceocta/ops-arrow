@@ -490,7 +490,7 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
 
       const existingEntry = entriesRef.current[matchedPack.id];
       if (existingEntry?.closingSerialNumber?.trim()) {
-        setScanStatus(`Closing serial already set for pack ${matchedPack.packNumber}. Clear it first to scan again.`);
+        // setScanStatus(`Closing serial already set for pack ${matchedPack.packNumber}. Clear it first to scan again.`);
         return;
       }
 

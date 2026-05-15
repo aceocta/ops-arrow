@@ -25,7 +25,6 @@ public class BusinessDayService : IBusinessDayService
     private readonly IRepository<ShopUser> _shopUserRepository;
     private readonly IRepository<Shop> _shopRepository;
     private readonly IShopConfigurationService _shopConfigurationService;
-    private readonly IShopChecklistService _shopChecklistService;
     private readonly INotificationService _notificationService;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
@@ -42,7 +41,6 @@ public class BusinessDayService : IBusinessDayService
         IRepository<ShopUser> shopUserRepository,
         IRepository<Shop> shopRepository,
         IShopConfigurationService shopConfigurationService,
-        IShopChecklistService shopChecklistService,
         INotificationService notificationService,
         IAuditService auditService,
         ICurrentUserService currentUserService,
@@ -58,7 +56,6 @@ public class BusinessDayService : IBusinessDayService
         _shopUserRepository = shopUserRepository;
         _shopRepository = shopRepository;
         _shopConfigurationService = shopConfigurationService;
-        _shopChecklistService = shopChecklistService;
         _notificationService = notificationService;
         _auditService = auditService;
         _currentUserService = currentUserService;
@@ -176,27 +173,6 @@ public class BusinessDayService : IBusinessDayService
         if (shifts.Any(x => x.SyncStatus is SyncStatus.PendingSync or SyncStatus.Syncing or SyncStatus.Conflict or SyncStatus.SyncFailed))
         {
             throw new AppException(ErrorCodes.BusinessDayHasPendingSyncShifts, "Pending sync shifts must be resolved before day close.");
-        }
-
-        var pendingRequiredChecklistTasks = await _shopChecklistService.GetPendingRequiredDayCloseTasksAsync(
-            day.ShopId,
-            day.BusinessDate,
-            cancellationToken);
-        if (pendingRequiredChecklistTasks.Count > 0)
-        {
-            var topPending = pendingRequiredChecklistTasks
-                .Take(5)
-                .Select(x => $"{x.GroupName}: {x.TaskName}")
-                .ToArray();
-            var pendingDetails = string.Join(", ", topPending);
-            if (pendingRequiredChecklistTasks.Count > topPending.Length)
-            {
-                pendingDetails = $"{pendingDetails}, and {pendingRequiredChecklistTasks.Count - topPending.Length} more";
-            }
-
-            throw new AppException(
-                ErrorCodes.ChecklistRequiredTasksPending,
-                $"Complete required closing checklist tasks before day close. Pending: {pendingDetails}");
         }
 
         var shiftIds = shifts.Select(x => x.Id).ToArray();
