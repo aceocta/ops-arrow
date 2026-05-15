@@ -3,7 +3,7 @@
     "name": "Ops Arrow",
     "slug": "ops-arrow",
     "scheme": "scratchcard",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "icon": "./assets/icon.png",
@@ -16,7 +16,7 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.example.scratchcard",
+      "bundleIdentifier": "com.aceocta.opsarrow",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -26,7 +26,8 @@
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#0F3D3E"
       },
-      "package": "com.example.scratchcard",
+      "package": "com.aceocta.opsarrow",
+      "versionCode": 2,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
@@ -57,7 +58,7 @@
     "extra": {
       "apiBaseUrl": "http://localhost:5268/api",
       "appDisplayName": "Ops Arrow",
-      "enableDevAuthBypass": true,
+      "enableDevAuthBypass": false,
       "devBypassEmail": "dev.shopowner@scratchcard.local",
       "devBypassFullName": "Development Shop Owner",
       "devBypassRole": "ShopOwner",
