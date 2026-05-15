@@ -1009,7 +1009,6 @@ export function SettingsScreen() {
   const isShopOwner = profile?.roles?.some((role) => role === "ShopOwner") ?? false;
   const appVersion = Constants.expoConfig?.version ?? "1.0.0";
 
-  type OperationsMenuScreen = "Deliveries" | "TemperatureLogs" | "RefusalRegister" | "ScratchCardPacks" | "ScratchCardGames" | "BusinessDay" | "OpenShift" | "CloseShift";
   type SettingsAction = {
     key: string;
     title: string;
@@ -1033,6 +1032,13 @@ export function SettingsScreen() {
       description: "Invite team members and manage invitation requests.",
       icon: "mail-outline",
       onPress: () => navigation.navigate("UserInvitations"),
+    },
+    {
+      key: "app-configuration",
+      title: "App Configuration",
+      description: "Control operational times and runtime settings.",
+      icon: "construct-outline",
+      onPress: () => navigation.navigate("AppConfiguration"),
     },
   ];
 
@@ -1059,99 +1065,8 @@ export function SettingsScreen() {
         icon: "people-outline",
         onPress: () => navigation.navigate("UserManagement"),
       },
-      {
-        key: "app-configuration",
-        title: "App Configuration",
-        description: "Control operational times and runtime settings.",
-        icon: "construct-outline",
-        onPress: () => navigation.navigate("AppConfiguration"),
-      },
     );
   }
-
-  const operationActions: Array<SettingsAction & { screen: OperationsMenuScreen }> = [
-    {
-      key: "deliveries",
-      title: "Deliveries",
-      description: "Receive deliveries and update pack rows.",
-      icon: "cube-outline",
-      screen: "Deliveries",
-      onPress: () => navigation.navigate("Deliveries"),
-    },
-    {
-      key: "temperature-logs",
-      title: "Temperature Logs",
-      description: "Record checks and verify compliance readings.",
-      icon: "thermometer-outline",
-      screen: "TemperatureLogs",
-      onPress: () => navigation.navigate("TemperatureLogs"),
-    },
-    {
-      key: "no-sale",
-      title: "No ID / No Sale",
-      description: "Review refusals and follow-up actions.",
-      icon: "shield-checkmark-outline",
-      screen: "RefusalRegister",
-      onPress: () => navigation.navigate("RefusalRegister"),
-    },
-    {
-      key: "card-packs",
-      title: "Card Packs",
-      description: "Manage activated packs and stock movement.",
-      icon: "albums-outline",
-      screen: "ScratchCardPacks",
-      onPress: () => navigation.navigate("ScratchCardPacks"),
-    },
-    {
-      key: "card-games",
-      title: "Card Games",
-      description: "Create and edit scratch card game metadata.",
-      icon: "game-controller-outline",
-      screen: "ScratchCardGames",
-      onPress: () => navigation.navigate("ScratchCardGames"),
-    },
-    {
-      key: "business-day",
-      title: "Business Day",
-      description: "Inspect business-day lifecycle and shift status.",
-      icon: "calendar-outline",
-      screen: "BusinessDay",
-      onPress: () => navigation.navigate("BusinessDay"),
-    },
-    {
-      key: "open-shift",
-      title: "Open Shift",
-      description: "Create a new shift for the active business day.",
-      icon: "play-circle-outline",
-      screen: "OpenShift",
-      onPress: () => navigation.navigate("OpenShift"),
-    },
-    {
-      key: "close-shift",
-      title: "Close Shift",
-      description: "Complete payouts and final shift reconciliation.",
-      icon: "checkmark-done-circle-outline",
-      screen: "CloseShift",
-      onPress: () => navigation.navigate("CloseShift"),
-    },
-  ];
-
-  const reportActions: SettingsAction[] = [
-    {
-      key: "daily-sales",
-      title: "Daily Sales Report",
-      description: "View per-day sales totals and close summaries.",
-      icon: "stats-chart-outline",
-      onPress: () => navigation.navigate("DailySalesReport"),
-    },
-    {
-      key: "stock-report",
-      title: "Stock Report",
-      description: "Track pack stock balance and movement by game.",
-      icon: "archive-outline",
-      onPress: () => navigation.navigate("StockReport"),
-    },
-  ];
 
   async function onSignOut() {
     try {
@@ -1201,38 +1116,6 @@ export function SettingsScreen() {
               description={action.description}
               onPress={action.onPress}
               tone={action.tone}
-            />
-          ))}
-        </View>
-      </View>
-
-      <View style={ui.card}>
-        <Text style={styles.sectionTitle}>Operations</Text>
-        <Text style={styles.settingsSectionMeta}>Fast shortcuts to daily workflows and records.</Text>
-        <View style={styles.settingsSectionRows}>
-        {operationActions.map((action) => (
-          <SettingsNavRow
-            key={action.key}
-            icon={action.icon}
-            title={action.title}
-            description={action.description}
-            onPress={action.onPress}
-          />
-        ))}
-        </View>
-      </View>
-
-      <View style={ui.card}>
-        <Text style={styles.sectionTitle}>Reports</Text>
-        <Text style={styles.settingsSectionMeta}>Visibility into sales performance and stock position.</Text>
-        <View style={styles.settingsSectionRows}>
-          {reportActions.map((action) => (
-            <SettingsNavRow
-              key={action.key}
-              icon={action.icon}
-              title={action.title}
-              description={action.description}
-              onPress={action.onPress}
             />
           ))}
         </View>

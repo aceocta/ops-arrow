@@ -37,9 +37,13 @@ export function UserInvitationsScreen() {
     enabled: Boolean(shopId),
   });
 
+  const inviteRoleOptions = useMemo(() => {
+    return (rolesQuery.data ?? []).filter((role) => role.name.replace(/\s+/g, "").toLowerCase() !== "platformadmin");
+  }, [rolesQuery.data]);
+
   const selectedRoleName = useMemo(() => {
-    return rolesQuery.data?.find((x) => x.id === selectedRoleId)?.name ?? "";
-  }, [rolesQuery.data, selectedRoleId]);
+    return inviteRoleOptions.find((x) => x.id === selectedRoleId)?.name ?? "";
+  }, [inviteRoleOptions, selectedRoleId]);
 
   const sendInvitationMutation = useMutation({
     mutationFn: async () => {
@@ -118,7 +122,7 @@ export function UserInvitationsScreen() {
 
           <Text style={styles.fieldLabel}>Role</Text>
           <View style={styles.roleWrap}>
-            {(rolesQuery.data ?? []).map((role) => {
+            {inviteRoleOptions.map((role) => {
               const selected = selectedRoleId === role.id;
               return (
                 <Pressable
