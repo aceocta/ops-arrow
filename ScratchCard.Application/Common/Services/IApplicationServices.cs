@@ -3,6 +3,7 @@ using ScratchCard.Application.DTOs.BusinessDays;
 using ScratchCard.Application.DTOs.Companies;
 using ScratchCard.Application.Common.Models;
 using ScratchCard.Application.DTOs.Configurations;
+using ScratchCard.Application.DTOs.Checklists;
 using ScratchCard.Application.DTOs.Deliveries;
 using ScratchCard.Application.DTOs.Games;
 using ScratchCard.Application.DTOs.Invitations;
@@ -252,4 +253,20 @@ public interface IRefusalRegisterService
     Task<IReadOnlyCollection<RefusalRegisterEntryDto>> ReviewEntriesAsync(ReviewRefusalRegisterEntriesRequest request, CancellationToken cancellationToken = default);
     Task<RefusalRegisterDailySignoffDto> SignOffDailyAsync(SignOffRefusalRegisterDailyRequest request, CancellationToken cancellationToken = default);
     Task ReopenDailyAsync(ReopenRefusalRegisterDailyRequest request, CancellationToken cancellationToken = default);
+}
+
+public interface IShopChecklistService
+{
+    Task<IReadOnlyCollection<ShopChecklistGroupDto>> ListConfigurationAsync(Guid shopId, CancellationToken cancellationToken = default);
+    Task<ShopChecklistGroupDto> CreateGroupAsync(CreateShopChecklistGroupRequest request, CancellationToken cancellationToken = default);
+    Task<ShopChecklistGroupDto> UpdateGroupAsync(Guid id, UpdateShopChecklistGroupRequest request, CancellationToken cancellationToken = default);
+    Task ReorderGroupsAsync(ReorderChecklistGroupsRequest request, CancellationToken cancellationToken = default);
+    Task<ShopChecklistTaskDto> CreateTaskAsync(CreateShopChecklistTaskRequest request, CancellationToken cancellationToken = default);
+    Task<ShopChecklistTaskDto> UpdateTaskAsync(Guid id, UpdateShopChecklistTaskRequest request, CancellationToken cancellationToken = default);
+    Task ReorderTasksAsync(ReorderChecklistTasksRequest request, CancellationToken cancellationToken = default);
+    Task<ChecklistDailyLogDto> GetDailyChecklistAsync(Guid shopId, DateOnly businessDate, Guid? shiftId = null, CancellationToken cancellationToken = default);
+    Task<ChecklistTaskCompletionDto> UpsertTaskCompletionAsync(UpsertChecklistTaskCompletionRequest request, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<ChecklistTaskCompletionDto>> SyncOfflineCompletionsAsync(SyncOfflineChecklistCompletionsRequest request, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<ChecklistCompletionHistoryRowDto>> GetCompletionHistoryAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<ChecklistPendingRequiredTaskDto>> GetPendingRequiredDayCloseTasksAsync(Guid shopId, DateOnly businessDate, CancellationToken cancellationToken = default);
 }

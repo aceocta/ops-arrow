@@ -21,6 +21,7 @@ public class Shift : AuditableEntity
     public ICollection<ShiftOpeningSerial> OpeningSerials { get; set; } = new List<ShiftOpeningSerial>();
     public ICollection<ShiftScratchCardSale> ShiftSales { get; set; } = new List<ShiftScratchCardSale>();
     public ICollection<PrizePayout> PrizePayouts { get; set; } = new List<PrizePayout>();
+    public ICollection<ShopChecklistTaskCompletion> ChecklistTaskCompletions { get; set; } = new List<ShopChecklistTaskCompletion>();
     public ShiftReconciliation? ShiftReconciliation { get; set; }
 }
 

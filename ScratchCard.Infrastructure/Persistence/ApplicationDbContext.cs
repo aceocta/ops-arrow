@@ -47,6 +47,9 @@ public class ApplicationDbContext : DbContext
     public DbSet<TemperatureMonitoringUnit> TemperatureMonitoringUnits => Set<TemperatureMonitoringUnit>();
     public DbSet<TemperatureReading> TemperatureReadings => Set<TemperatureReading>();
     public DbSet<TemperatureDailySignoff> TemperatureDailySignoffs => Set<TemperatureDailySignoff>();
+    public DbSet<ShopChecklistGroup> ShopChecklistGroups => Set<ShopChecklistGroup>();
+    public DbSet<ShopChecklistTask> ShopChecklistTasks => Set<ShopChecklistTask>();
+    public DbSet<ShopChecklistTaskCompletion> ShopChecklistTaskCompletions => Set<ShopChecklistTaskCompletion>();
     public DbSet<RefusalRegisterEntry> RefusalRegisterEntries => Set<RefusalRegisterEntry>();
     public DbSet<RefusalRegisterDailySignoff> RefusalRegisterDailySignoffs => Set<RefusalRegisterDailySignoff>();
     public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
@@ -426,6 +429,58 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.SignedByName).HasMaxLength(200).IsRequired();
             entity.Property(x => x.Notes).HasMaxLength(1000);
             entity.HasOne(x => x.Shop).WithMany(x => x.TemperatureDailySignoffs).HasForeignKey(x => x.ShopId);
+        });
+
+        modelBuilder.Entity<ShopChecklistGroup>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.IsDeleted });
+            entity.HasIndex(x => new { x.ShopId, x.DisplayOrder });
+            entity.HasIndex(x => new { x.ShopId, x.GroupName, x.IsDeleted }).IsUnique();
+            entity.Property(x => x.GroupName).HasMaxLength(120).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(500);
+            entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.Property(x => x.IsSystemDefault).HasDefaultValue(false);
+            entity.HasOne(x => x.Shop).WithMany(x => x.ChecklistGroups).HasForeignKey(x => x.ShopId);
+        });
+
+        modelBuilder.Entity<ShopChecklistTask>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.IsDeleted });
+            entity.HasIndex(x => new { x.ChecklistGroupId, x.DisplayOrder });
+            entity.HasIndex(x => new { x.ChecklistGroupId, x.TaskName, x.IsDeleted }).IsUnique();
+            entity.Property(x => x.TaskName).HasMaxLength(180).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(800);
+            entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.Property(x => x.IsRequired).HasDefaultValue(true);
+            entity.Property(x => x.NotesRequiredOnComplete).HasDefaultValue(false);
+            entity.Property(x => x.RequiredForShopOpen).HasDefaultValue(false);
+            entity.Property(x => x.RequiredForShiftClose).HasDefaultValue(false);
+            entity.Property(x => x.RequiredForDayClose).HasDefaultValue(false);
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.Property(x => x.IsSystemDefault).HasDefaultValue(false);
+            entity.HasOne(x => x.Shop).WithMany(x => x.ChecklistTasks).HasForeignKey(x => x.ShopId);
+            entity.HasOne(x => x.ChecklistGroup).WithMany(x => x.Tasks).HasForeignKey(x => x.ChecklistGroupId);
+        });
+
+        modelBuilder.Entity<ShopChecklistTaskCompletion>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.BusinessDate });
+            entity.HasIndex(x => new { x.ShopId, x.BusinessDate, x.ChecklistTaskId })
+                .IsUnique()
+                .HasFilter("[ShiftId] IS NULL");
+            entity.HasIndex(x => new { x.ShopId, x.BusinessDate, x.ShiftId, x.ChecklistTaskId })
+                .IsUnique()
+                .HasFilter("[ShiftId] IS NOT NULL");
+            entity.HasIndex(x => new { x.ChecklistGroupId, x.ChecklistTaskId });
+            entity.Property(x => x.CompletedByName).HasMaxLength(200);
+            entity.Property(x => x.Notes).HasMaxLength(1000);
+            entity.Property(x => x.IsCompleted).HasDefaultValue(false);
+            entity.HasOne(x => x.Shop).WithMany(x => x.ChecklistTaskCompletions).HasForeignKey(x => x.ShopId);
+            entity.HasOne(x => x.ChecklistGroup).WithMany().HasForeignKey(x => x.ChecklistGroupId);
+            entity.HasOne(x => x.ChecklistTask).WithMany().HasForeignKey(x => x.ChecklistTaskId);
+            entity.HasOne(x => x.Shift).WithMany(x => x.ChecklistTaskCompletions).HasForeignKey(x => x.ShiftId);
+            entity.HasOne<Company>().WithMany().HasForeignKey(x => x.CompanyId);
         });
 
         modelBuilder.Entity<RefusalRegisterEntry>(entity =>

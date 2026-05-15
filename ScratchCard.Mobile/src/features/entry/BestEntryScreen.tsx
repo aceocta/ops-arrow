@@ -10,15 +10,25 @@ import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
 type OperationOption = {
-  key: "scratchCard" | "temperature" | "refusals";
+  key: "scratchCard" | "temperature" | "refusals" | "checklist";
   title: string;
   route: keyof MainStackParamList;
   icon: keyof typeof Ionicons.glyphMap;
   iconColor: string;
   iconBg: string;
+  operation?: "scratchCard" | "temperature" | "refusals" | "checklist";
 };
 
 const operationOptions: OperationOption[] = [
+  {
+    key: "checklist",
+    title: "Shop Checklist",
+    route: "ShopChecklist",
+    icon: "checkmark-done-outline",
+    iconColor: "#0B7A75",
+    iconBg: "#E2F8F5",
+    operation: "checklist",
+  },
   {
     key: "scratchCard",
     title: "Scratch Card",
@@ -26,6 +36,7 @@ const operationOptions: OperationOption[] = [
     icon: "albums-outline",
     iconColor: "#0E7A8A",
     iconBg: "#E5F7FA",
+    operation: "scratchCard",
   },
   {
     key: "temperature",
@@ -34,6 +45,7 @@ const operationOptions: OperationOption[] = [
     icon: "thermometer-outline",
     iconColor: "#2367D1",
     iconBg: "#EAF1FF",
+    operation: "temperature",
   },
   {
     key: "refusals",
@@ -42,6 +54,7 @@ const operationOptions: OperationOption[] = [
     icon: "shield-checkmark-outline",
     iconColor: "#A56A16",
     iconBg: "#FFF3E2",
+    operation: "refusals",
   },
 ];
 
@@ -53,13 +66,15 @@ export function BestEntryScreen() {
     <ScreenContainer>
       <View style={styles.featureGrid}>
         {operationOptions.map((option) => {
-          const selected = selectedOperation === option.key;
+          const selected = option.operation ? selectedOperation === option.operation : false;
           return (
             <Pressable
               key={option.key}
               style={[ui.card, styles.featureTile, selected ? styles.featureTileSelected : null]}
               onPress={() => {
-                setSelectedOperation(option.key);
+                if (option.operation) {
+                  setSelectedOperation(option.operation);
+                }
                 navigation.navigate(option.route as never);
               }}
             >

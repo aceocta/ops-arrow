@@ -21,6 +21,7 @@ import { RefusalReportScreen } from "../features/refusals/RefusalReportScreen";
 import { RefusalManagerReviewScreen } from "../features/refusals/RefusalManagerReviewScreen";
 import { RefusalEntryDetailsScreen } from "../features/refusals/RefusalEntryDetailsScreen";
 import { RefusalEntryEditScreen } from "../features/refusals/RefusalEntryEditScreen";
+import { ChecklistConfigurationScreen, ChecklistHistoryScreen, ShopChecklistScreen } from "../features/checklists/ChecklistScreens";
 import {
   ScratchCardGamesScreen,
   ScratchCardGameCreateScreen,
@@ -61,6 +62,7 @@ type MenuItem = {
   screen: keyof MainStackParamList;
   icon: MenuIcon;
   shopOwnerOnly?: boolean;
+  allowedRoles?: string[];
   mode?: EntryOperation;
 };
 
@@ -71,6 +73,21 @@ const Stack = createNativeStackNavigator<MainStackParamList>();
 
 const operationsItems: MenuItem[] = [
   { label: "Home", screen: "BestEntry", icon: "home-outline" },
+  { label: "Shop Checklist", screen: "ShopChecklist", icon: "checkmark-done-outline" },
+  {
+    label: "Checklist Setup",
+    screen: "ChecklistConfiguration",
+    icon: "construct-outline",
+    mode: "checklist",
+    allowedRoles: ["PlatformAdmin", "ShopOwner", "Manager"],
+  },
+  {
+    label: "Checklist History",
+    screen: "ChecklistHistory",
+    icon: "document-text-outline",
+    mode: "checklist",
+    allowedRoles: ["PlatformAdmin", "ShopOwner", "Manager"],
+  },
   { label: "Day Management", screen: "Dashboard", icon: "calendar-outline", mode: "scratchCard" },
   { label: "Deliveries", screen: "Deliveries", icon: "cube-outline", mode: "scratchCard" },
   { label: "Temperature Logs", screen: "TemperatureLogs", icon: "thermometer-outline", mode: "temperature" },
@@ -132,6 +149,7 @@ function resolveOperationForBottomDockScreen(screen: keyof MainStackParamList): 
 }
 
 function getOperationLabel(operation: EntryOperation | null) {
+  if (operation === "checklist") return "Checklist";
   if (operation === "temperature") return "Temperature";
   if (operation === "scratchCard") return "Scratch Card";
   if (operation === "refusals") return "No ID / No Sale";
@@ -159,6 +177,7 @@ function resolveActiveBottomDockScreen(routeName: string | undefined): keyof Mai
 
   if (
     routeName === "Dashboard" ||
+    routeName === "ShopChecklist" ||
     routeName === "BusinessDay" ||
     routeName === "OpenShift" ||
     routeName === "CloseShift" ||
@@ -207,6 +226,8 @@ function resolveActiveBottomDockScreen(routeName: string | undefined): keyof Mai
 
   if (
     routeName === "Settings" ||
+    routeName === "ChecklistConfiguration" ||
+    routeName === "ChecklistHistory" ||
     routeName === "UserInvitations" ||
     routeName === "UserManagement" ||
     routeName === "AppConfiguration" ||
@@ -266,6 +287,13 @@ function MainStackScreens() {
       })}
     >
       <Stack.Screen name="BestEntry" component={BestEntryScreen} options={{ headerTitle: () => <HomeHeaderTitle /> }} />
+      <Stack.Screen name="ShopChecklist" component={ShopChecklistScreen} options={{ title: "Shop Checklist" }} />
+      <Stack.Screen
+        name="ChecklistConfiguration"
+        component={ChecklistConfigurationScreen}
+        options={{ title: "Checklist Setup" }}
+      />
+      <Stack.Screen name="ChecklistHistory" component={ChecklistHistoryScreen} options={{ title: "Checklist History" }} />
       <Stack.Screen name="Dashboard" component={DashboardScreen} options={{ title: "Day Management" }} />
       <Stack.Screen name="UserInvitations" component={UserInvitationsScreen} options={{ title: "User Invitations" }} />
       <Stack.Screen name="UserManagement" component={UserManagementScreen} options={{ title: "User Management" }} />
@@ -382,6 +410,7 @@ function DrawerSection({
   title,
   items,
   isShopOwner,
+  userRoles,
   onPress,
   selectedOperation,
   expanded,
@@ -392,6 +421,7 @@ function DrawerSection({
   title: string;
   items: MenuItem[];
   isShopOwner: boolean;
+  userRoles: string[];
   onPress: (item: MenuItem) => void;
   selectedOperation: EntryOperation | null;
   expanded: boolean;
@@ -401,6 +431,7 @@ function DrawerSection({
   const visibleItems = items.filter(
     (item) =>
       (!item.shopOwnerOnly || isShopOwner) &&
+      (!item.allowedRoles || item.allowedRoles.some((role) => userRoles.includes(role))) &&
       (!selectedOperation || !item.mode || item.mode === selectedOperation)
   );
 
@@ -466,7 +497,11 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
   const { selectedOperation, setSelectedOperation } = useBestEntry();
   const insets = useSafeAreaInsets();
   const { profile, activeShop } = useAuth();
-  const isShopOwner = profile?.roles?.some((role) => role === "ShopOwner") ?? false;
+  const userRoles = profile?.roles ?? [];
+  const isShopOwner = userRoles.some((role) => role === "ShopOwner");
+  const isPlatformAdmin = userRoles.some((role) => role === "PlatformAdmin");
+  const isManager = userRoles.some((role) => role === "Manager");
+  const roleLabel = isPlatformAdmin ? "Admin" : isShopOwner ? "Shop Owner" : isManager ? "Manager" : "Staff";
   const activeRouteName = getDeepestRouteName(props.state);
   const activeScreen = activeRouteName as keyof MainStackParamList | undefined;
   const operationLabel = getOperationLabel(selectedOperation);
@@ -478,7 +513,9 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
   });
 
   const goTo = (item: MenuItem) => {
-    if (item.mode) {
+    if (item.screen === "ShopChecklist") {
+      setSelectedOperation("checklist");
+    } else if (item.mode) {
       setSelectedOperation(item.mode);
     }
 
@@ -506,7 +543,7 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
             <Text style={styles.drawerModePillText}>{operationLabel}</Text>
           </View>
           <View style={styles.drawerRolePill}>
-            <Text style={styles.drawerRolePillText}>{isShopOwner ? "Shop Owner" : "Staff"}</Text>
+            <Text style={styles.drawerRolePillText}>{roleLabel}</Text>
           </View>
         </View>
       </View>
@@ -516,6 +553,7 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
         title="Operations"
         items={operationsItems}
         isShopOwner={isShopOwner}
+        userRoles={userRoles}
         onPress={goTo}
         selectedOperation={selectedOperation}
         expanded={expandedSections.operations}
@@ -523,11 +561,12 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
         activeScreen={activeScreen}
       />
 
-            <DrawerSection
+      <DrawerSection
         sectionKey="reports"
         title="Reports"
         items={reportItems}
         isShopOwner={isShopOwner}
+        userRoles={userRoles}
         onPress={goTo}
         selectedOperation={selectedOperation}
         expanded={expandedSections.reports}
@@ -539,13 +578,13 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
         title="Management"
         items={managementItems}
         isShopOwner={isShopOwner}
+        userRoles={userRoles}
         onPress={goTo}
         selectedOperation={selectedOperation}
         expanded={expandedSections.management}
         onToggle={toggleSection}
         activeScreen={activeScreen}
       />
-
     </DrawerContentScrollView>
   );
 }

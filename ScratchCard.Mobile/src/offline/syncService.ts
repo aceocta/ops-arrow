@@ -1,6 +1,12 @@
 import NetInfo from "@react-native-community/netinfo";
+import { upsertChecklistTaskCompletion } from "../api/checklistsApi";
 import { syncOfflineShiftClose } from "../api/shiftsApi";
 import { SyncStatus } from "../types/enums";
+import {
+  deleteChecklistQueueItem,
+  listOfflineChecklistQueue,
+  setChecklistQueueItemStatus,
+} from "./checklistQueueRepository";
 import {
   deleteQueueItem,
   listOfflineQueue,
@@ -31,6 +37,26 @@ export async function syncPendingShiftCloseQueue() {
       } catch (error) {
         const status = isConflict(error) ? SyncStatus.Conflict : SyncStatus.SyncFailed;
         await setQueueItemStatus(item.id, status, errorMessage(error));
+      }
+    }
+
+    const checklistQueue = await listOfflineChecklistQueue();
+    for (const item of checklistQueue) {
+      try {
+        await setChecklistQueueItemStatus(item.id, SyncStatus.Syncing);
+        const payload = JSON.parse(item.payloadJson) as {
+          shopId: string;
+          businessDate: string;
+          shiftId?: string;
+          checklistTaskId: string;
+          isCompleted: boolean;
+          notes?: string;
+        };
+        await upsertChecklistTaskCompletion(payload);
+        await deleteChecklistQueueItem(item.id);
+      } catch (error) {
+        const status = isConflict(error) ? SyncStatus.Conflict : SyncStatus.SyncFailed;
+        await setChecklistQueueItemStatus(item.id, status, errorMessage(error));
       }
     }
   } finally {

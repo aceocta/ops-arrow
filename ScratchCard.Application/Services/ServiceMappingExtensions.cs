@@ -1,4 +1,5 @@
 using ScratchCard.Application.DTOs.BusinessDays;
+using ScratchCard.Application.DTOs.Checklists;
 using ScratchCard.Application.DTOs.Common;
 using ScratchCard.Application.DTOs.Companies;
 using ScratchCard.Application.DTOs.Configurations;
@@ -348,5 +349,55 @@ internal static class ServiceMappingExtensions
         SignedByName = signoff.SignedByName,
         Notes = signoff.Notes,
         SignatureImagePath = signoff.SignatureImagePath
+    };
+
+    public static ShopChecklistGroupDto ToDto(this ShopChecklistGroup group) => new()
+    {
+        Id = group.Id,
+        ShopId = group.ShopId,
+        GroupName = group.GroupName,
+        Description = group.Description,
+        DisplayOrder = group.DisplayOrder,
+        IsActive = group.IsActive,
+        IsSystemDefault = group.IsSystemDefault,
+        Tasks = group.Tasks
+            .Where(x => !x.IsDeleted)
+            .OrderBy(x => x.DisplayOrder)
+            .ThenBy(x => x.TaskName)
+            .Select(x => x.ToDto())
+            .ToArray()
+    };
+
+    public static ShopChecklistTaskDto ToDto(this ShopChecklistTask task) => new()
+    {
+        Id = task.Id,
+        ShopId = task.ShopId,
+        ChecklistGroupId = task.ChecklistGroupId,
+        TaskName = task.TaskName,
+        Description = task.Description,
+        DisplayOrder = task.DisplayOrder,
+        IsRequired = task.IsRequired,
+        IsActive = task.IsActive,
+        NotesRequiredOnComplete = task.NotesRequiredOnComplete,
+        RequiredForShopOpen = task.RequiredForShopOpen,
+        RequiredForShiftClose = task.RequiredForShiftClose,
+        RequiredForDayClose = task.RequiredForDayClose,
+        IsSystemDefault = task.IsSystemDefault
+    };
+
+    public static ChecklistTaskCompletionDto ToDto(this ShopChecklistTaskCompletion completion) => new()
+    {
+        Id = completion.Id,
+        ShopId = completion.ShopId,
+        CompanyId = completion.CompanyId,
+        BusinessDate = completion.BusinessDate,
+        ShiftId = completion.ShiftId,
+        ChecklistGroupId = completion.ChecklistGroupId,
+        ChecklistTaskId = completion.ChecklistTaskId,
+        IsCompleted = completion.IsCompleted,
+        CompletedByUserId = completion.CompletedByUserId,
+        CompletedByName = completion.CompletedByName,
+        CompletedOn = completion.CompletedOn,
+        Notes = completion.Notes
     };
 }

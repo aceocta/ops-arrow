@@ -25,4 +25,5 @@ public static class ErrorCodes
     public const string DeliveryNoteParseFailed = "delivery_note_parse_failed";
     public const string GameNotInCatalog = "game_not_in_catalog";
     public const string TemperatureActionRequired = "temperature_action_required";
+    public const string ChecklistRequiredTasksPending = "checklist_required_tasks_pending";
 }

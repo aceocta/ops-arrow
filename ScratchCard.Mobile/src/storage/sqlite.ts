@@ -21,6 +21,19 @@ async function init(db: SQLite.SQLiteDatabase) {
       created_on TEXT NOT NULL,
       updated_on TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS offline_checklist_queue (
+      id TEXT PRIMARY KEY NOT NULL,
+      shop_id TEXT NOT NULL,
+      business_date TEXT NOT NULL,
+      shift_id TEXT,
+      checklist_task_id TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      sync_status TEXT NOT NULL,
+      error TEXT,
+      created_on TEXT NOT NULL,
+      updated_on TEXT NOT NULL
+    );
   `);
 }
 

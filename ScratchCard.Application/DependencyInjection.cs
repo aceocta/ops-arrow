@@ -38,6 +38,7 @@ public static class DependencyInjection
         services.AddScoped<ILookupService, LookupService>();
         services.AddScoped<ITemperatureLogService, TemperatureLogService>();
         services.AddScoped<IRefusalRegisterService, RefusalRegisterService>();
+        services.AddScoped<IShopChecklistService, ShopChecklistService>();
 
         return services;
     }

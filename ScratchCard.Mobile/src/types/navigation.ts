@@ -27,6 +27,9 @@ export type RootStackParamList = {
 
 export type MainStackParamList = {
   BestEntry: undefined;
+  ShopChecklist: undefined;
+  ChecklistConfiguration: undefined;
+  ChecklistHistory: undefined;
   Dashboard: undefined;
   UserInvitations: undefined;
   UserManagement: undefined;

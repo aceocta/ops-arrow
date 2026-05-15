@@ -34,6 +34,9 @@ public class Shop : AuditableEntity
     public ICollection<TemperatureMonitoringUnit> TemperatureMonitoringUnits { get; set; } = new List<TemperatureMonitoringUnit>();
     public ICollection<TemperatureReading> TemperatureReadings { get; set; } = new List<TemperatureReading>();
     public ICollection<TemperatureDailySignoff> TemperatureDailySignoffs { get; set; } = new List<TemperatureDailySignoff>();
+    public ICollection<ShopChecklistGroup> ChecklistGroups { get; set; } = new List<ShopChecklistGroup>();
+    public ICollection<ShopChecklistTask> ChecklistTasks { get; set; } = new List<ShopChecklistTask>();
+    public ICollection<ShopChecklistTaskCompletion> ChecklistTaskCompletions { get; set; } = new List<ShopChecklistTaskCompletion>();
     public ICollection<RefusalRegisterEntry> RefusalRegisterEntries { get; set; } = new List<RefusalRegisterEntry>();
     public ICollection<RefusalRegisterDailySignoff> RefusalRegisterDailySignoffs { get; set; } = new List<RefusalRegisterDailySignoff>();
 }

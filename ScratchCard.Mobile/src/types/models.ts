@@ -372,6 +372,99 @@ export type OfflineShiftQueueItem = {
   error?: string;
 };
 
+export type OfflineChecklistQueueItem = {
+  id: string;
+  shopId: string;
+  businessDate: string;
+  shiftId?: string;
+  checklistTaskId: string;
+  payloadJson: string;
+  syncStatus: SyncStatus;
+  createdOn: string;
+  updatedOn: string;
+  error?: string;
+};
+
+export type ShopChecklistTask = {
+  id: string;
+  shopId: string;
+  checklistGroupId: string;
+  taskName: string;
+  description?: string;
+  displayOrder: number;
+  isRequired: boolean;
+  isActive: boolean;
+  notesRequiredOnComplete: boolean;
+  requiredForShopOpen: boolean;
+  requiredForShiftClose: boolean;
+  requiredForDayClose: boolean;
+  isSystemDefault: boolean;
+};
+
+export type ShopChecklistGroup = {
+  id: string;
+  shopId: string;
+  groupName: string;
+  description?: string;
+  displayOrder: number;
+  isActive: boolean;
+  isSystemDefault: boolean;
+  tasks: ShopChecklistTask[];
+};
+
+export type ChecklistTaskCompletion = {
+  id: string;
+  shopId: string;
+  companyId?: string;
+  businessDate: string;
+  shiftId?: string;
+  checklistGroupId: string;
+  checklistTaskId: string;
+  isCompleted: boolean;
+  completedByUserId?: string;
+  completedByName?: string;
+  completedOn?: string;
+  notes?: string;
+};
+
+export type ChecklistDailyTask = {
+  task: ShopChecklistTask;
+  completion?: ChecklistTaskCompletion;
+};
+
+export type ChecklistDailyGroup = {
+  group: ShopChecklistGroup;
+  completedCount: number;
+  totalCount: number;
+  tasks: ChecklistDailyTask[];
+};
+
+export type ChecklistDailyLog = {
+  shopId: string;
+  businessDate: string;
+  shiftId?: string;
+  completedCount: number;
+  totalCount: number;
+  groups: ChecklistDailyGroup[];
+};
+
+export type ChecklistCompletionHistoryRow = {
+  completionId: string;
+  shopId: string;
+  companyId?: string;
+  businessDate: string;
+  shiftId?: string;
+  checklistGroupId: string;
+  checklistGroupName: string;
+  checklistTaskId: string;
+  checklistTaskName: string;
+  isCompleted: boolean;
+  completedByUserId?: string;
+  completedByName?: string;
+  completedOn?: string;
+  notes?: string;
+};
+
 export type TemperatureMonitoringUnit = {
   id: string;
   shopId: string;
