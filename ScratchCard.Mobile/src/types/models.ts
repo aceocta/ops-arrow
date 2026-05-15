@@ -211,6 +211,19 @@ export type Shift = {
   }>;
 };
 
+export type ShiftCloseCandidate = {
+  id: string;
+  shopId: string;
+  businessDayId: string;
+  businessDate: string;
+  businessDayStatus: string;
+  shiftName: string;
+  status: ShiftStatus;
+  syncStatus?: SyncStatus;
+  startTime: string;
+  endTime?: string;
+};
+
 export type PrizePayout = {
   id: string;
   shiftId: string;

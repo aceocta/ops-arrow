@@ -49,6 +49,9 @@ public static class DependencyInjection
         services.AddScoped<IInvitationTokenService, InvitationTokenService>();
         services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<INotificationService, NotificationService>();
+        services.AddSingleton<ShiftCloseNotificationBackgroundQueue>();
+        services.AddSingleton<IShiftCloseNotificationDispatcher>(provider => provider.GetRequiredService<ShiftCloseNotificationBackgroundQueue>());
+        services.AddHostedService<ShiftCloseNotificationBackgroundService>();
         services.AddScoped<IPaymentProviderService, ManualPaymentProviderService>();
         services.AddScoped<IDeliveryNoteAiParser, OpenAiDeliveryNoteParser>();
         services.AddScoped<SmtpEmailSender>();

@@ -39,6 +39,13 @@ public class ShiftsController : BaseApiController
         return Success(result);
     }
 
+    [HttpGet("close-candidates")]
+    public async Task<IActionResult> ListCloseCandidates([FromQuery] Guid shopId, CancellationToken cancellationToken)
+    {
+        var result = await _shiftService.ListCloseCandidatesAsync(shopId, cancellationToken);
+        return Success(result);
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken cancellationToken)
     {

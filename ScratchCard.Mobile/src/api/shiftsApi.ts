@@ -1,6 +1,6 @@
 import { apiClient } from "./client";
 import { ApiResponse } from "./types";
-import { ScratchCardPack, Shift, ShiftCloseResult, ShiftSalesEntry } from "../types/models";
+import { ScratchCardPack, Shift, ShiftCloseCandidate, ShiftCloseResult, ShiftSalesEntry } from "../types/models";
 import { parsePackStatus, parseSellingOrder } from "../utils/enumParsers";
 
 function mapPack(pack: ScratchCardPack): ScratchCardPack {
@@ -40,6 +40,13 @@ export async function startScheduledShift(
 
 export async function getShift(shiftId: string) {
   const response = await apiClient.get<ApiResponse<Shift>>(`/shifts/${shiftId}`);
+  return response.data.data;
+}
+
+export async function listShiftCloseCandidates(shopId: string) {
+  const response = await apiClient.get<ApiResponse<ShiftCloseCandidate[]>>("/shifts/close-candidates", {
+    params: { shopId },
+  });
   return response.data.data;
 }
 

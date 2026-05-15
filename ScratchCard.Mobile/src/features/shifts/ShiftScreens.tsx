@@ -6,11 +6,12 @@ import { useAuth } from "../../auth/AuthContext";
 import { listBusinessDays } from "../../api/businessDaysApi";
 import { getConfigurations } from "../../api/configurationsApi";
 import { listPacks } from "../../api/packsApi";
-import { deleteShift, getShift, getShiftSales, listShifts, openShift, startScheduledShift } from "../../api/shiftsApi";
+import { deleteShift, getShift, getShiftSales, listShiftCloseCandidates, listShifts, openShift, startScheduledShift } from "../../api/shiftsApi";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { deriveShopOperationalSetup } from "../settings/shopConfiguration";
 import { PackStatus, ShiftStatus } from "../../types/enums";
+import { ShiftCloseCandidate } from "../../types/models";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -571,19 +572,6 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
   );
 }
 
-type ClosableShiftItem = {
-  id: string;
-  shopId: string;
-  businessDayId: string;
-  businessDate: string;
-  businessDayStatus: string;
-  shiftName: string;
-  status: string;
-  syncStatus?: string;
-  startTime: string;
-  endTime?: string;
-};
-
 export function CloseShiftScreen({ navigation }: CloseShiftProps) {
   const { activeShopId, activeShop } = useAuth();
   const shopId = activeShopId;
@@ -593,37 +581,10 @@ export function CloseShiftScreen({ navigation }: CloseShiftProps) {
     queryKey: ["close-shift-candidates", shopId],
     queryFn: async () => {
       if (!shopId) {
-        return [] as ClosableShiftItem[];
+        return [] as ShiftCloseCandidate[];
       }
 
-      const businessDays = await listBusinessDays(shopId);
-      const selectableDays = businessDays
-        .filter((day) => day.status === "Open" || day.status === "Reopened" || day.status === "ReadyToClose")
-        .sort((a, b) => new Date(b.businessDate).getTime() - new Date(a.businessDate).getTime());
-
-      const groupedShifts = await Promise.all(
-        selectableDays.map(async (day) => {
-          const shifts = await listShifts(shopId, day.id);
-          return shifts
-            .filter((shift) => shift.status === "Open" || shift.status === "Reopened")
-            .map((shift) => ({
-              id: shift.id,
-              shopId: shift.shopId,
-              businessDayId: shift.businessDayId,
-              businessDate: day.businessDate,
-              businessDayStatus: day.status,
-              shiftName: shift.shiftName,
-              status: shift.status,
-              syncStatus: shift.syncStatus,
-              startTime: shift.startTime,
-              endTime: shift.endTime,
-            }));
-        }),
-      );
-
-      return groupedShifts
-        .flat()
-        .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+      return listShiftCloseCandidates(shopId);
     },
     enabled: Boolean(shopId),
   });

@@ -180,6 +180,7 @@ public interface IShiftService
     Task<ShiftDto> OpenAsync(OpenShiftRequest request, CancellationToken cancellationToken = default);
     Task<ShiftDto> StartScheduledAsync(Guid id, StartScheduledShiftRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<ShiftDto>> ListAsync(Guid shopId, Guid? businessDayId = null, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<ShiftCloseCandidateDto>> ListCloseCandidatesAsync(Guid shopId, CancellationToken cancellationToken = default);
     Task<ShiftDto> GetAsync(Guid id, CancellationToken cancellationToken = default);
     Task<ShiftCloseResultDto> CloseAsync(Guid id, FinalizeShiftRequest request, bool isOfflineSync, CancellationToken cancellationToken = default);
     Task<ShiftDto> ReopenAsync(Guid id, ReopenShiftRequest request, CancellationToken cancellationToken = default);
@@ -193,6 +194,7 @@ public interface IShiftSalesService
     Task<ShiftCloseResultDto> SubmitShiftCloseSalesAsync(Guid shiftId, FinalizeShiftRequest request, CancellationToken cancellationToken = default);
     Task<ShiftCloseResultDto> SyncOfflineShiftCloseAsync(OfflineSyncShiftCloseRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<ShiftSalesEntryDto>> GetShiftSalesAsync(Guid shiftId, CancellationToken cancellationToken = default);
+    Task SendShiftCloseNotificationsAsync(Guid shiftId, bool includeManualEntryNotifications, CancellationToken cancellationToken = default);
 }
 
 public interface IPrizePayoutService

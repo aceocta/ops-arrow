@@ -14,6 +14,7 @@ TestResults/
 **/node_modules/
 **/.expo/
 **/.expo-shared/
+ScratchCard.Mobile/android/
 **/dist/
 **/.turbo/
 npm-debug.log*

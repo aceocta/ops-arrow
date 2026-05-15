@@ -45,3 +45,17 @@ public class ShiftDto
     public string? AutoTemplateId { get; set; }
     public IReadOnlyCollection<CloseAttachmentDto> CloseAttachments { get; set; } = [];
 }
+
+public class ShiftCloseCandidateDto
+{
+    public Guid Id { get; set; }
+    public Guid ShopId { get; set; }
+    public Guid BusinessDayId { get; set; }
+    public DateOnly BusinessDate { get; set; }
+    public string BusinessDayStatus { get; set; } = string.Empty;
+    public string ShiftName { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string SyncStatus { get; set; } = string.Empty;
+    public DateTimeOffset StartTime { get; set; }
+    public DateTimeOffset? EndTime { get; set; }
+}

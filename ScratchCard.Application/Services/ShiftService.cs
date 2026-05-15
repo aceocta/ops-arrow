@@ -3,6 +3,7 @@ using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Models;
 using ScratchCard.Application.Common.Services;
+using ScratchCard.Application.DTOs.Common;
 using ScratchCard.Application.DTOs.Packs;
 using ScratchCard.Application.DTOs.Shifts;
 using ScratchCard.Application.DTOs.ShiftSales;
@@ -279,8 +280,6 @@ public class ShiftService : IShiftService
     {
         var query = _shiftRepository.Query()
             .AsNoTracking()
-            .Include(x => x.ShiftReconciliation)
-                .ThenInclude(x => x!.Attachments)
             .Where(x => x.ShopId == shopId);
 
         if (businessDayId.HasValue)
@@ -288,11 +287,75 @@ public class ShiftService : IShiftService
             query = query.Where(x => x.BusinessDayId == businessDayId.Value);
         }
 
-        var shifts = await query
+        var shiftRows = await query
             .OrderByDescending(x => x.StartTime)
+            .Select(x => new ShiftQueryRow(
+                x.Id,
+                x.BusinessDayId,
+                x.ShopId,
+                x.ShiftName,
+                x.StartTime,
+                x.EndTime,
+                x.Status,
+                x.SyncStatus,
+                x.Notes))
             .ToListAsync(cancellationToken);
 
-        return shifts.Select(x => x.ToDto()).ToArray();
+        if (shiftRows.Count == 0)
+        {
+            return [];
+        }
+
+        var attachmentsByShiftId = await GetCloseAttachmentsByShiftIdAsync(
+            shiftRows.Select(x => x.Id).ToArray(),
+            cancellationToken);
+
+        return shiftRows
+            .Select(row => ToShiftDto(row, attachmentsByShiftId.GetValueOrDefault(row.Id, [])))
+            .ToArray();
+    }
+
+    public async Task<IReadOnlyCollection<ShiftCloseCandidateDto>> ListCloseCandidatesAsync(
+        Guid shopId,
+        CancellationToken cancellationToken = default)
+    {
+        var rows = await _shiftRepository.Query()
+            .AsNoTracking()
+            .Where(x =>
+                x.ShopId == shopId &&
+                (x.Status == ShiftStatus.Open || x.Status == ShiftStatus.Reopened) &&
+                (x.BusinessDay.Status == BusinessDayStatus.Open ||
+                 x.BusinessDay.Status == BusinessDayStatus.Reopened ||
+                 x.BusinessDay.Status == BusinessDayStatus.ReadyToClose))
+            .OrderByDescending(x => x.StartTime)
+            .Select(x => new ShiftCloseCandidateQueryRow(
+                x.Id,
+                x.ShopId,
+                x.BusinessDayId,
+                x.BusinessDay.BusinessDate,
+                x.BusinessDay.Status,
+                x.ShiftName,
+                x.Status,
+                x.SyncStatus,
+                x.StartTime,
+                x.EndTime))
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .Select(x => new ShiftCloseCandidateDto
+            {
+                Id = x.Id,
+                ShopId = x.ShopId,
+                BusinessDayId = x.BusinessDayId,
+                BusinessDate = x.BusinessDate,
+                BusinessDayStatus = x.BusinessDayStatus.ToString(),
+                ShiftName = x.ShiftName,
+                Status = x.ShiftStatus.ToString(),
+                SyncStatus = x.SyncStatus.ToString(),
+                StartTime = x.StartTime,
+                EndTime = x.EndTime
+            })
+            .ToArray();
     }
 
     public async Task DeleteAsync(Guid id, DeleteShiftRequest request, CancellationToken cancellationToken = default)
@@ -324,14 +387,24 @@ public class ShiftService : IShiftService
 
     public async Task<ShiftDto> GetAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var shift = await _shiftRepository.Query()
+        var shiftRow = await _shiftRepository.Query()
             .AsNoTracking()
-            .Include(x => x.ShiftReconciliation)
-                .ThenInclude(x => x!.Attachments)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            .Where(x => x.Id == id)
+            .Select(x => new ShiftQueryRow(
+                x.Id,
+                x.BusinessDayId,
+                x.ShopId,
+                x.ShiftName,
+                x.StartTime,
+                x.EndTime,
+                x.Status,
+                x.SyncStatus,
+                x.Notes))
+            .FirstOrDefaultAsync(cancellationToken)
             ?? throw new AppException("shift_not_found", "Shift not found.", 404);
 
-        return shift.ToDto();
+        var attachmentsByShiftId = await GetCloseAttachmentsByShiftIdAsync([shiftRow.Id], cancellationToken);
+        return ToShiftDto(shiftRow, attachmentsByShiftId.GetValueOrDefault(shiftRow.Id, []));
     }
 
     public async Task<string?> GetCloseAttachmentDataUrlAsync(Guid attachmentId, CancellationToken cancellationToken = default)
@@ -408,6 +481,67 @@ public class ShiftService : IShiftService
             })
             .ToArray();
     }
+
+    private async Task<Dictionary<Guid, IReadOnlyCollection<CloseAttachmentDto>>> GetCloseAttachmentsByShiftIdAsync(
+        IReadOnlyCollection<Guid> shiftIds,
+        CancellationToken cancellationToken)
+    {
+        if (shiftIds.Count == 0)
+        {
+            return new Dictionary<Guid, IReadOnlyCollection<CloseAttachmentDto>>();
+        }
+
+        var shiftIdValues = shiftIds.Distinct().ToArray();
+        var rows = new List<ShiftAttachmentProjection>();
+
+        foreach (var chunk in shiftIdValues.Chunk(1000))
+        {
+            var chunkRows = await _shiftCloseAttachmentRepository.Query()
+                .AsNoTracking()
+                .Where(x => chunk.Contains(x.ShiftReconciliation.ShiftId))
+                .Select(x => new ShiftAttachmentProjection
+                {
+                    ShiftId = x.ShiftReconciliation.ShiftId,
+                    Attachment = new CloseAttachmentDto
+                    {
+                        Id = x.Id,
+                        FileName = x.OriginalFileName,
+                        ContentType = x.ContentType,
+                        FileSizeBytes = x.FileSizeBytes,
+                        UploadedOn = x.CreatedOn
+                    }
+                })
+                .ToListAsync(cancellationToken);
+
+            rows.AddRange(chunkRows);
+        }
+
+        return rows
+            .GroupBy(x => x.ShiftId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyCollection<CloseAttachmentDto>)group
+                    .Select(x => x.Attachment)
+                    .OrderByDescending(x => x.UploadedOn)
+                    .ToArray());
+    }
+
+    private static ShiftDto ToShiftDto(ShiftQueryRow row, IReadOnlyCollection<CloseAttachmentDto> attachments) => new()
+    {
+        Id = row.Id,
+        BusinessDayId = row.BusinessDayId,
+        ShopId = row.ShopId,
+        ShiftName = row.ShiftName,
+        StartTime = row.StartTime,
+        EndTime = row.EndTime,
+        Status = row.Status.ToString(),
+        SyncStatus = row.SyncStatus.ToString(),
+        IsAutoCreated = ShiftMetadata.IsAutoCreated(row.Notes),
+        AutoTemplateId = ShiftMetadata.TryGetAutoTemplateId(row.Notes, out var templateId) && !string.IsNullOrWhiteSpace(templateId)
+            ? templateId
+            : null,
+        CloseAttachments = attachments
+    };
 
     private static IReadOnlyCollection<ResolvedOpeningSerialEntry> ResolveOpeningSerialEntries(
         IReadOnlyCollection<OpenShiftPackSerialConfirmationRequest>? confirmations,
@@ -530,6 +664,35 @@ public class ShiftService : IShiftService
         string ActualOpeningSerialNumber,
         int MissingQuantity,
         int OverageQuantity);
+
+    private sealed record ShiftQueryRow(
+        Guid Id,
+        Guid BusinessDayId,
+        Guid ShopId,
+        string ShiftName,
+        DateTimeOffset StartTime,
+        DateTimeOffset? EndTime,
+        ShiftStatus Status,
+        SyncStatus SyncStatus,
+        string? Notes);
+
+    private sealed record ShiftCloseCandidateQueryRow(
+        Guid Id,
+        Guid ShopId,
+        Guid BusinessDayId,
+        DateOnly BusinessDate,
+        BusinessDayStatus BusinessDayStatus,
+        string ShiftName,
+        ShiftStatus ShiftStatus,
+        SyncStatus SyncStatus,
+        DateTimeOffset StartTime,
+        DateTimeOffset? EndTime);
+
+    private sealed class ShiftAttachmentProjection
+    {
+        public Guid ShiftId { get; set; }
+        public CloseAttachmentDto Attachment { get; set; } = new();
+    }
 
     private async Task EnsureNoOtherOpenShiftsForBusinessDayAsync(
         Guid shopId,

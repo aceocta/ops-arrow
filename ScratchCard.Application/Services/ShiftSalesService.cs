@@ -2,6 +2,7 @@ using System.Text;
 using System.Globalization;
 using System.Net;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Models;
@@ -28,9 +29,11 @@ public class ShiftSalesService : IShiftSalesService
     private readonly IShopConfigurationService _shopConfigurationService;
     private readonly ISerialCalculationService _serialCalculationService;
     private readonly INotificationService _notificationService;
+    private readonly IShiftCloseNotificationDispatcher _shiftCloseNotificationDispatcher;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ILogger<ShiftSalesService> _logger;
 
     public ShiftSalesService(
         IRepository<Shift> shiftRepository,
@@ -46,9 +49,11 @@ public class ShiftSalesService : IShiftSalesService
         IShopConfigurationService shopConfigurationService,
         ISerialCalculationService serialCalculationService,
         INotificationService notificationService,
+        IShiftCloseNotificationDispatcher shiftCloseNotificationDispatcher,
         IAuditService auditService,
         ICurrentUserService currentUserService,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        ILogger<ShiftSalesService> logger)
     {
         _shiftRepository = shiftRepository;
         _businessDayRepository = businessDayRepository;
@@ -63,9 +68,11 @@ public class ShiftSalesService : IShiftSalesService
         _shopConfigurationService = shopConfigurationService;
         _serialCalculationService = serialCalculationService;
         _notificationService = notificationService;
+        _shiftCloseNotificationDispatcher = shiftCloseNotificationDispatcher;
         _auditService = auditService;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
+        _logger = logger;
     }
 
     public Task<ShiftCloseResultDto> SubmitShiftCloseSalesAsync(Guid shiftId, FinalizeShiftRequest request, CancellationToken cancellationToken = default)
@@ -88,10 +95,66 @@ public class ShiftSalesService : IShiftSalesService
         var entries = await _salesRepository.Query()
             .AsNoTracking()
             .Where(x => x.ShiftId == shiftId)
-            .Include(x => x.Pack)
+            .Select(x => new ShiftSalesEntryDto
+            {
+                Id = x.Id,
+                PackId = x.PackId,
+                PackNumber = x.Pack.PackNumber,
+                OpeningSerialNumber = x.OpeningSerialNumber,
+                ClosingSerialNumber = x.ClosingSerialNumber,
+                OriginalScannedSerialNumber = x.OriginalScannedSerialNumber,
+                EntryMethod = x.EntryMethod,
+                SoldQuantity = x.SoldQuantity,
+                TicketPrice = x.TicketPrice,
+                SalesAmount = x.SalesAmount,
+                RemainingTickets = x.RemainingTickets,
+                IsFlaggedForReview = x.IsFlaggedForReview,
+                NotificationSent = x.NotificationSent
+            })
             .ToListAsync(cancellationToken);
 
-        return entries.Select(x => x.ToDto()).ToArray();
+        return entries;
+    }
+
+    public async Task SendShiftCloseNotificationsAsync(
+        Guid shiftId,
+        bool includeManualEntryNotifications,
+        CancellationToken cancellationToken = default)
+    {
+        var shift = await _shiftRepository.Query()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == shiftId, cancellationToken);
+        if (shift is null)
+        {
+            return;
+        }
+
+        var businessDay = await _businessDayRepository.Query()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == shift.BusinessDayId, cancellationToken);
+        if (businessDay is null)
+        {
+            return;
+        }
+
+        var entries = await _salesRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShiftId == shift.Id)
+            .Include(x => x.Pack)
+                .ThenInclude(x => x.Game)
+            .ToListAsync(cancellationToken);
+
+        var packs = entries
+            .Where(x => x.Pack is not null)
+            .GroupBy(x => x.PackId)
+            .ToDictionary(group => group.Key, group => group.First().Pack!);
+
+        if (includeManualEntryNotifications)
+        {
+            await SendManualEntryNotificationsAsync(shift, businessDay, entries, cancellationToken);
+        }
+
+        await SendShiftCloseSummaryToOwnersAsync(shift, businessDay, entries, packs, cancellationToken);
     }
 
     private async Task<ShiftCloseResultDto> FinalizeInternalAsync(Guid shiftId, FinalizeShiftRequest request, bool isOfflineSync, CancellationToken cancellationToken)
@@ -355,12 +418,20 @@ public class ShiftSalesService : IShiftSalesService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var hasFlags = salesEntries.Any(x => x.NotificationRequired);
-        if (hasFlags)
+        try
         {
-            await SendManualEntryNotificationsAsync(shift, businessDay, salesEntries, cancellationToken);
+            await _shiftCloseNotificationDispatcher.EnqueueAsync(
+                new ShiftCloseNotificationWorkItem
+                {
+                    ShiftId = shift.Id,
+                    IncludeManualEntryNotifications = hasFlags
+                },
+                CancellationToken.None);
         }
-
-        await SendShiftCloseSummaryToOwnersAsync(shift, businessDay, salesEntries, packs, cancellationToken);
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to enqueue shift close notifications for shift {ShiftId}", shift.Id);
+        }
 
         await _auditService.LogAsync(
             nameof(Shift),
@@ -543,15 +614,20 @@ public class ShiftSalesService : IShiftSalesService
 
         try
         {
-            var notificationSentOn = DateTimeOffset.UtcNow;
-            foreach (var entry in flaggedEntries)
+            var flaggedEntryIds = flaggedEntries.Select(x => x.Id).Distinct().ToArray();
+            if (flaggedEntryIds.Length == 0)
             {
-                entry.NotificationSent = true;
-                entry.NotificationSentOn = notificationSentOn;
-                _salesRepository.Update(entry);
+                return;
             }
 
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            var notificationSentOn = DateTimeOffset.UtcNow;
+            await _salesRepository.Query()
+                .Where(x => flaggedEntryIds.Contains(x.Id))
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(x => x.NotificationSent, true)
+                        .SetProperty(x => x.NotificationSentOn, notificationSentOn),
+                    cancellationToken);
         }
         catch
         {
@@ -1219,4 +1295,3 @@ sb.Append("</html>");       return sb.ToString();
         stream.Write(bytes, 0, bytes.Length);
     }
 }
-
