@@ -795,12 +795,11 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
       const scannedGameCode = parsed.gameCode;
       const scannedPackComponent = parsed.packComponent;
 
-      setPackNumber(scannedPackComponent);
-
       const matchingGame = resolveGameByCode(activeGamesRef.current, scannedGameCode);
 
       if (matchingGame) {
         pendingScannedPackRef.current = null;
+        setPackNumber(scannedPackComponent);
         setGameId(matchingGame.id);
         setGameSearch(`${matchingGame.gameCode} - ${matchingGame.gameName}`);
         setScanMessage(
@@ -834,6 +833,7 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
     }
 
     pendingScannedPackRef.current = null;
+    setPackNumber(pending.packComponent);
     setGameId(matchingGame.id);
     setGameSearch(`${matchingGame.gameCode} - ${matchingGame.gameName}`);
     setScanMessage(

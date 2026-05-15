@@ -147,6 +147,20 @@ function normalizeScannedSerial(value?: string) {
   return value.trim();
 }
 
+function normalizeClosingSerialInput(value?: string) {
+  if (!value) {
+    return "";
+  }
+
+  const digitsOnly = value.replace(/\D/g, "");
+  if (!digitsOnly) {
+    return "";
+  }
+
+  const withoutLeadingZeros = digitsOnly.replace(/^0+/, "");
+  return withoutLeadingZeros.length > 0 ? withoutLeadingZeros : "0";
+}
+
 function getSerialCandidatesForPack(pack: ScratchCardPack, rawBarcode: string, parsedSerial: string) {
   const candidates: string[] = [];
   const compact = normalizeDashes(rawBarcode).replace(/\s+/g, "");
@@ -840,11 +854,12 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
                       if (!isManualClosingSerialEnabled) {
                         return;
                       }
+                      const normalizedValue = normalizeClosingSerialInput(value);
 
                       setEntries((previous) => ({
                         ...previous,
                         [row.pack.id]: {
-                          closingSerialNumber: value,
+                          closingSerialNumber: normalizedValue,
                           originalScannedSerialNumber: previous[row.pack.id]?.originalScannedSerialNumber,
                           entryMethod: previous[row.pack.id]?.originalScannedSerialNumber
                             ? EntryMethod.ScannedEdited
@@ -866,7 +881,7 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
                     accessibilityLabel={`Mark pack ${row.pack.packNumber} as sold out`}
                     disabled={!isManualClosingSerialEnabled || isSubmitting}
                     onPress={() => {
-                      const soldOutSerial = getLastSerialForPack(row.pack);
+                      const soldOutSerial = normalizeClosingSerialInput(getLastSerialForPack(row.pack));
                       setEntries((previous) => ({
                         ...previous,
                         [row.pack.id]: {

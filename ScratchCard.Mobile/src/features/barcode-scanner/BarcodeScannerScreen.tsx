@@ -99,8 +99,6 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
   const hasHandledPackBarcodeRef = useRef(false);
   const isAutoClosingRef = useRef(false);
   const initialAutoPendingCountRef = useRef(0);
-  const lastAutoBarcodeRef = useRef<string>("");
-  const lastAutoBarcodeTimeRef = useRef(0);
 
   const canScan = useMemo(() => permission?.granted ?? false, [permission]);
   const mode = route.params.mode ?? "single";
@@ -112,8 +110,6 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
     setLastScanMessage("");
     hasHandledPackBarcodeRef.current = false;
     isAutoClosingRef.current = false;
-    lastAutoBarcodeRef.current = "";
-    lastAutoBarcodeTimeRef.current = 0;
 
     if (mode === "auto") {
       const nextPending = (route.params.pendingPacks ?? []).map((pack) => ({
@@ -191,6 +187,10 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
   }, [mode]);
 
   const onBarcodeScanned = useCallback((result: { data: string; type?: string }) => {
+    if (!isManualPackScanMode || hasHandledPackBarcodeRef.current) {
+      return;
+    }
+
     if ((result.type ?? "").toLowerCase().includes("qr")) {
       setLastScanMessage("QR codes are ignored here. Scan the pack barcode instead.");
       return;
@@ -198,35 +198,6 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
 
     const rawData = `${result.data ?? ""}`.trim();
     if (!rawData) {
-      return;
-    }
-
-    if (mode === "auto") {
-      const now = Date.now();
-      if (lastAutoBarcodeRef.current === rawData && now - lastAutoBarcodeTimeRef.current < 900) {
-        return;
-      }
-      lastAutoBarcodeRef.current = rawData;
-      lastAutoBarcodeTimeRef.current = now;
-
-      const parsedFromBarcode = parseTicketText(rawData);
-      if (!parsedFromBarcode) {
-        setLastScanMessage("Barcode detected, but ticket code could not be parsed. OCR will continue.");
-        return;
-      }
-
-      emitScan({
-        parsedPackNumber: parsedFromBarcode.parsedPackNumber,
-        rawBarcode: parsedFromBarcode.rawBarcode,
-        parsedSerial: parsedFromBarcode.parsedSerial,
-        barcodeType: result.type ?? "camera-barcode",
-      });
-      consumePendingPack(parsedFromBarcode.parsedPackNumber, parsedFromBarcode.rawBarcode);
-      setLastScanMessage(`Barcode captured: ${parsedFromBarcode.rawBarcode}`);
-      return;
-    }
-
-    if (!isManualPackScanMode || hasHandledPackBarcodeRef.current) {
       return;
     }
 
@@ -247,7 +218,7 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
 
     setLastScanMessage(`Scanned game ${parsed.gameCode}, pack ${parsed.packComponent}.`);
     navigation.goBack();
-  }, [consumePendingPack, isManualPackScanMode, mode, navigation]);
+  }, [isManualPackScanMode, navigation]);
 
   async function recognizeTextWithMlkit(imageUri: string) {
     if (Constants.appOwnership === "expo" || Constants.executionEnvironment === "storeClient") {
@@ -399,7 +370,7 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
         onCameraReady={() => setIsCameraReady(true)}
-        onBarcodeScanned={isManualPackScanMode || mode === "auto" ? onBarcodeScanned : undefined}
+        onBarcodeScanned={isManualPackScanMode ? onBarcodeScanned : undefined}
       />
       <View style={styles.overlay}>
         <Text style={styles.overlayText}>
