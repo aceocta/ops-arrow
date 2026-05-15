@@ -34,6 +34,7 @@ public class CreateManualPackRequest
     public string EndSerialNumber { get; set; } = string.Empty;
     public SellingOrder SellingOrder { get; set; }
     public string? Notes { get; set; }
+    public bool ActivateOnCreate { get; set; }
 }
 
 public class ActivatePackRequest

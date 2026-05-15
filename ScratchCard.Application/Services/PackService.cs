@@ -78,6 +78,7 @@ public class PackService : IPackService
         var displayNumber = ResolveRequiredDisplayNumber(request.DisplayNumber, packSetup.DisplayCount);
         var openingSerial = GetDefaultOpeningSerial(startSerial, endSerial, sellingOrder);
         ValidateSerialInRange(openingSerial, startSerial, endSerial);
+        var activateOnCreate = request.ActivateOnCreate;
 
         var now = DateTimeOffset.UtcNow;
         var pack = new ScratchCardPack
@@ -92,11 +93,11 @@ public class PackService : IPackService
             EndSerialNumber = endSerial,
             SellingOrder = sellingOrder,
             CurrentSerialNumber = openingSerial,
-            Status = PackStatus.Active,
+            Status = activateOnCreate ? PackStatus.Active : PackStatus.InStock,
             IsManuallyAdded = true,
             ReceivedDate = now,
-            ActivatedDate = now,
-            ActivatedByUserId = _currentUserService.UserId,
+            ActivatedDate = activateOnCreate ? now : null,
+            ActivatedByUserId = activateOnCreate ? _currentUserService.UserId : null,
             Notes = request.Notes,
             CreatedOn = now,
             CreatedBy = _currentUserService.UserId

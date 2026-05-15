@@ -32,6 +32,7 @@ export async function createManualPack(payload: {
   startSerialNumber: string;
   endSerialNumber: string;
   notes?: string;
+  activateOnCreate?: boolean;
 }) {
   const response = await apiClient.post<ApiResponse<ScratchCardPack>>("/packs/manual", payload);
   return mapPack(response.data.data);

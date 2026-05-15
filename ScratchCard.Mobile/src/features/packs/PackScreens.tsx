@@ -629,6 +629,7 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
   const [startSerialNumber, setStartSerialNumber] = useState("");
   const [endSerialNumber, setEndSerialNumber] = useState("");
   const [notes, setNotes] = useState("");
+  const [activateOnCreate, setActivateOnCreate] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
   const lastAutoSerialRangeRef = useRef<{ start: string; end: string } | null>(null);
   const awaitingPackScanRef = useRef(false);
@@ -674,6 +675,13 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
     activeGames.length > 0 &&
     !isSearchMatchingSelectedGame &&
     (gameSearch.trim().length > 0 || !gameId);
+  const formattedTicketPrice = useMemo(() => {
+    const parsed = Number(ticketPrice);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return "";
+    }
+    return `£ ${parsed.toFixed(2)}`;
+  }, [ticketPrice]);
   const configuredSerialDefaults = useMemo(
     () => getSerialBoundsByOrder(totalTickets, configuredPackSellingOrder),
     [totalTickets, configuredPackSellingOrder]
@@ -736,6 +744,7 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
     setPackNumber("");
     setDisplayNumber("");
     setNotes("");
+    setActivateOnCreate(false);
   }
 
   function openManualPackScanner() {
@@ -795,7 +804,7 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
         setGameId(matchingGame.id);
         setGameSearch(`${matchingGame.gameCode} - ${matchingGame.gameName}`);
         setScanMessage(
-          `Scanned game ${scannedGameCode}, pack ${scannedPackComponent}. Review details, then tap Create & Activate.`
+          `Scanned game ${scannedGameCode}, pack ${scannedPackComponent}. Review details, then tap Create Pack.`
         );
         return;
       }
@@ -828,7 +837,7 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
     setGameId(matchingGame.id);
     setGameSearch(`${matchingGame.gameCode} - ${matchingGame.gameName}`);
     setScanMessage(
-      `Scanned game ${pending.gameCode}, pack ${pending.packComponent}. Review details, then tap Create & Activate.`
+      `Scanned game ${pending.gameCode}, pack ${pending.packComponent}. Review details, then tap Create Pack.`
     );
   }, [activeGames]);
 
@@ -858,7 +867,7 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
     lastAutoSerialRangeRef.current = configuredSerialDefaults;
   }, [configuredSerialDefaults, startSerialNumber, endSerialNumber]);
 
-  const createAndActivateMutation = useMutation({
+  const createPackMutation = useMutation({
     mutationFn: async () => {
       if (!shopId) {
         throw new Error("No shop selected.");
@@ -875,25 +884,34 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
         startSerialNumber: draft.startSerialNumber,
         endSerialNumber: draft.endSerialNumber,
         notes: draft.notes,
+        activateOnCreate,
       });
 
-      if (createdPack.status !== "Active") {
-        await activatePack(createdPack.id, {
-          openingSerialNumber: createdPack.currentSerialNumber || draft.startSerialNumber,
-        });
+      if (!activateOnCreate || createdPack.status === "Active") {
+        return createdPack;
       }
 
-      return createdPack;
+      const activatedPack = await activatePack(createdPack.id, {
+        openingSerialNumber: createdPack.currentSerialNumber || draft.startSerialNumber,
+      });
+
+      return activatedPack;
     },
-    onSuccess: (createdPack) => {
+    onSuccess: (pack) => {
       void queryClient.invalidateQueries({ queryKey: ["packs", shopId] });
       clearManualPackEntry();
-      setScanMessage("Pack created and activated.");
-      Alert.alert("Created", `Pack ${createdPack.packNumber} created and activated.`);
+      if (activateOnCreate) {
+        setScanMessage("Pack created and activated.");
+        Alert.alert("Created", `Pack ${pack.packNumber} created and activated.`);
+      } else {
+        setScanMessage("Pack created and kept inactive.");
+        Alert.alert("Created", `Pack ${pack.packNumber} created as inactive.`);
+      }
       navigation.goBack();
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to create and activate pack.");
+      const fallbackMessage = activateOnCreate ? "Unable to create and activate pack." : "Unable to create pack.";
+      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? fallbackMessage);
     },
   });
 
@@ -902,7 +920,7 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
       <ScrollView contentContainerStyle={styles.screenContent}>
         {/* <View style={styles.heroCard}>
           <Text style={styles.heroSubtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
-          <Text style={styles.heroNote}>Manual packs are created as Active by default.</Text>
+          <Text style={styles.heroNote}>Manual packs can be created inactive, then activated later.</Text>
         </View> */}
 
         <View style={ui.card}>
@@ -937,6 +955,8 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
             </View>
           ) : null}
           {!selectedGame ? <Text style={styles.meta}>Choose a game to auto-fill defaults.</Text> : null}
+        
+          {/* <Text style={styles.meta}>Ticket price is set from the selected game and cannot be changed here.</Text> */}
 
           <Text style={styles.fieldLabel}>Pack Number</Text>
           <View style={styles.scanInputRow}>
@@ -975,61 +995,87 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
           {/* <Text style={styles.meta}>From scan: red = game code, green = pack number.</Text> */}
           {scanMessage ? <Text style={styles.meta}>{scanMessage}</Text> : null}
 
-          <Text style={styles.fieldLabel}>Display Number</Text>
+
+  <Text style={styles.fieldLabel}>Ticket Price (From Selected Game)</Text>
           <TextInput
-            style={styles.input}
-            value={displayNumber}
-            onChangeText={setDisplayNumber}
-            keyboardType="number-pad"
-            placeholder={maxDisplayCount > 0 ? `Display number (1-${maxDisplayCount})` : "Display number"}
+            style={[styles.input, styles.inputReadOnly]}
+            value={formattedTicketPrice}
+            placeholder="Select game to view ticket price"
             placeholderTextColor={appTheme.colors.textSubtle}
+            editable={false}
           />
+          <View style={styles.splitFieldRow}>
+            <View style={styles.splitFieldCell}>
+              <Text style={styles.fieldLabel}>Display Number</Text>
+              <TextInput
+                style={styles.input}
+                value={displayNumber}
+                onChangeText={setDisplayNumber}
+                keyboardType="number-pad"
+                placeholder={maxDisplayCount > 0 ? `Display number (1-${maxDisplayCount})` : "Display number"}
+                placeholderTextColor={appTheme.colors.textSubtle}
+              />
+            </View>
+            <View style={styles.splitFieldCell}>
+              <Text style={styles.fieldLabel}>Total Tickets</Text>
+              <TextInput
+                style={styles.input}
+                value={totalTickets}
+                onChangeText={setTotalTickets}
+                keyboardType="number-pad"
+                placeholder="Total tickets"
+                placeholderTextColor={appTheme.colors.textSubtle}
+              />
+            </View>
+          </View>
           {/* <Text style={styles.meta}>
             {maxDisplayCount > 0
               ? `Configured displays for this shop: 1 to ${maxDisplayCount}.`
               : "Configure Scratch Card Display Count in App Configuration to set a display range."}
           </Text> */}
 
-          <Text style={styles.fieldLabel}>Ticket Price</Text>
-          <TextInput
-            style={styles.input}
-            value={ticketPrice}
-            onChangeText={setTicketPrice}
-            keyboardType="decimal-pad"
-            placeholder="Ticket price"
-            placeholderTextColor={appTheme.colors.textSubtle}
-          />
-
-          <Text style={styles.fieldLabel}>Total Tickets</Text>
-          <TextInput
-            style={styles.input}
-            value={totalTickets}
-            onChangeText={setTotalTickets}
-            keyboardType="number-pad"
-            placeholder="Total tickets"
-            placeholderTextColor={appTheme.colors.textSubtle}
-          />
-
-          <Text style={styles.fieldLabel}>Start Serial Number</Text>
-          <TextInput
-            style={styles.input}
-            value={startSerialNumber}
-            onChangeText={setStartSerialNumber}
-            placeholder="Start serial number"
-            placeholderTextColor={appTheme.colors.textSubtle}
-          />
-
-          <Text style={styles.fieldLabel}>End Serial Number</Text>
-          <TextInput
-            style={styles.input}
-            value={endSerialNumber}
-            onChangeText={setEndSerialNumber}
-            placeholder="End serial number"
-            placeholderTextColor={appTheme.colors.textSubtle}
-          />
+          <View style={styles.splitFieldRow}>
+            <View style={styles.splitFieldCell}>
+              <Text style={styles.fieldLabel}>Start Serial Number</Text>
+              <TextInput
+                style={styles.input}
+                value={startSerialNumber}
+                onChangeText={setStartSerialNumber}
+                placeholder="Start serial number"
+                placeholderTextColor={appTheme.colors.textSubtle}
+              />
+            </View>
+            <View style={styles.splitFieldCell}>
+              <Text style={styles.fieldLabel}>End Serial Number</Text>
+              <TextInput
+                style={styles.input}
+                value={endSerialNumber}
+                onChangeText={setEndSerialNumber}
+                placeholder="End serial number"
+                placeholderTextColor={appTheme.colors.textSubtle}
+              />
+            </View>
+          </View>
           <Text style={styles.meta}>
             Selling Order: {configuredSerialDefaults.start} {"->"} {configuredSerialDefaults.end}
           </Text>
+
+          <Text style={styles.fieldLabel}>Initial Status</Text>
+          <View style={styles.row}>
+            <Pressable
+              style={[styles.choice, activateOnCreate && styles.choiceSelected]}
+              onPress={() => setActivateOnCreate(true)}
+            >
+              <Text style={[styles.choiceText, activateOnCreate && styles.choiceTextSelected]}>Active</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.choice, !activateOnCreate && styles.choiceSelected]}
+              onPress={() => setActivateOnCreate(false)}
+            >
+              <Text style={[styles.choiceText, !activateOnCreate && styles.choiceTextSelected]}>Inactive</Text>
+            </Pressable>
+          </View>
+          {/* <Text style={styles.meta}>Default is Inactive. You can activate later from pack details.</Text> */}
 
           <Text style={styles.fieldLabel}>Notes (Optional)</Text>
           <TextInput
@@ -1041,9 +1087,9 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
           />
 
           <PrimaryButton
-            label={createAndActivateMutation.isPending ? "Creating..." : "Create & Activate Pack"}
-            onPress={() => createAndActivateMutation.mutate()}
-            disabled={createAndActivateMutation.isPending || !shopId}
+            label={createPackMutation.isPending ? "Creating..." : (activateOnCreate ? "Create & Activate Pack" : "Create Pack")}
+            onPress={() => createPackMutation.mutate()}
+            disabled={createPackMutation.isPending || !shopId}
           />
 
 
@@ -1566,6 +1612,14 @@ const styles = StyleSheet.create({
     opacity: 0.65,
   },
   row: { flexDirection: "row", gap: appTheme.spacing.xs },
+  splitFieldRow: {
+    flexDirection: "row",
+    gap: appTheme.spacing.xs,
+  },
+  splitFieldCell: {
+    flex: 1,
+    minWidth: 0,
+  },
   rowBetween: {
     flexDirection: "row",
     justifyContent: "space-between",
