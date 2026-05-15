@@ -510,6 +510,18 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
         onToggle={toggleSection}
         activeScreen={activeScreen}
       />
+
+            <DrawerSection
+        sectionKey="reports"
+        title="Reports"
+        items={reportItems}
+        isShopOwner={isShopOwner}
+        onPress={goTo}
+        selectedOperation={selectedOperation}
+        expanded={expandedSections.reports}
+        onToggle={toggleSection}
+        activeScreen={activeScreen}
+      />
       <DrawerSection
         sectionKey="management"
         title="Management"
@@ -521,17 +533,7 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
         onToggle={toggleSection}
         activeScreen={activeScreen}
       />
-      <DrawerSection
-        sectionKey="reports"
-        title="Reports"
-        items={reportItems}
-        isShopOwner={isShopOwner}
-        onPress={goTo}
-        selectedOperation={selectedOperation}
-        expanded={expandedSections.reports}
-        onToggle={toggleSection}
-        activeScreen={activeScreen}
-      />
+
     </DrawerContentScrollView>
   );
 }

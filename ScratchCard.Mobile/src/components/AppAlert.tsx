@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Alert, AlertButton, AlertOptions, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { appTheme } from "../ui/theme";
 
 type AlertRequest = {
@@ -130,9 +131,11 @@ export function installAppAlertPatch() {
 
 export function AppAlertHost() {
   const [queue, setQueue] = useState<QueueItem[]>([]);
+  const insets = useSafeAreaInsets();
   const current = queue[0];
   const tone = useMemo(() => resolveTone(current?.title ?? "", current?.message), [current?.title, current?.message]);
   const isAutoClose = Boolean(current?.autoCloseMs);
+  const toastBottomOffset = Math.max(22, insets.bottom + appTheme.spacing.md);
 
   useEffect(() => {
     presenter = (request) => {
@@ -183,7 +186,7 @@ export function AppAlertHost() {
   return (
     <>
       {current && isAutoClose ? (
-        <View pointerEvents="none" style={styles.toastRoot}>
+        <View pointerEvents="none" style={[styles.toastRoot, { bottom: toastBottomOffset }]}>
           <View style={styles.toastCard}>
             <View
               style={[
@@ -272,7 +275,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
-    bottom: 22,
     zIndex: 9999,
     paddingHorizontal: 16,
     alignItems: "center",
