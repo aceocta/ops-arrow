@@ -280,6 +280,7 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
   const [closeAttachments, setCloseAttachments] = useState<CloseAttachmentState[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const packsRef = useRef<ScratchCardPack[]>([]);
+  const entriesRef = useRef<Record<string, EntryState>>({});
 
   function openBarcodeScanner(params: {
     mode: "single" | "auto";
@@ -292,6 +293,10 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
         "Scanner disabled",
         "Camera barcode scanning is disabled for this shop. Enter closing serials in the textbox."
       );
+      return;
+    }
+    if (params.mode === "auto" && (params.pendingPacks?.length ?? 0) === 0) {
+      setScanStatus("All packs are already scanned.");
       return;
     }
 
@@ -403,6 +408,10 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
   }, [packsQuery.data]);
 
   useEffect(() => {
+    entriesRef.current = entries;
+  }, [entries]);
+
+  useEffect(() => {
     void (async () => {
       const draft = await getShiftDraft<{ entries: Record<string, EntryState> }>(shiftId);
       if (draft) {
@@ -442,6 +451,12 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
         const normalizedParsedSerial = normalizeScannedSerial(payload.parsedSerial);
         if (payload.packId && fallbackSerial) {
           const targetPackId = payload.packId;
+          const existingEntry = entriesRef.current[targetPackId];
+          if (existingEntry?.closingSerialNumber?.trim()) {
+            setScanStatus("Closing serial is already set. Clear the textbox first if you need to rescan.");
+            return;
+          }
+
           setScanStatus(`Captured ${fallbackSerial}. Pack is loading, verify and finalise.`);
           setEntries((previous) => ({
             ...previous,
@@ -456,6 +471,12 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
         }
 
         setScanStatus(`No active pack matched scanned code: ${payload.rawBarcode}`);
+        return;
+      }
+
+      const existingEntry = entriesRef.current[matchedPack.id];
+      if (existingEntry?.closingSerialNumber?.trim()) {
+        setScanStatus(`Closing serial already set for pack ${matchedPack.packNumber}. Clear it first to scan again.`);
         return;
       }
 
