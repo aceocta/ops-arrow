@@ -280,6 +280,7 @@ public class BusinessDayService : IBusinessDayService
                 .ToArrayAsync(cancellationToken);
 
         await SendDayCloseSummaryToOwnersAsync(day, shifts, daySalesEntries, cancellationToken);
+        await SendManualEntrySummaryByShiftOnDayCloseAsync(day, shifts, daySalesEntries, cancellationToken);
 
         var closedDay = await _businessDayRepository.Query()
             .AsNoTracking()
@@ -636,6 +637,87 @@ public class BusinessDayService : IBusinessDayService
         }
     }
 
+    private async Task SendManualEntrySummaryByShiftOnDayCloseAsync(
+        BusinessDay day,
+        IReadOnlyCollection<Shift> shifts,
+        IReadOnlyCollection<ShiftScratchCardSale> entries,
+        CancellationToken cancellationToken)
+    {
+        var manualEntries = entries
+            .Where(x => x.IsManualEntry && !x.NotificationSent)
+            .ToArray();
+        if (manualEntries.Length == 0)
+        {
+            return;
+        }
+
+        var recipients = await ResolveSummaryRecipientsAsync(day.ShopId, cancellationToken);
+        if (recipients.Count == 0)
+        {
+            return;
+        }
+
+        var shopName = await _shopRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.Id == day.ShopId)
+            .Select(x => x.ShopName)
+            .FirstOrDefaultAsync(cancellationToken) ?? "Unknown Shop";
+
+        var subject = $"Manual Entry Summary by Shift - {shopName} - {day.BusinessDate:yyyy-MM-dd}";
+        var body = BuildDayCloseManualEntryByShiftBody(shopName, day, shifts, manualEntries);
+
+        var anySent = false;
+        foreach (var recipient in recipients)
+        {
+            try
+            {
+                await _notificationService.SendAsync(new NotificationMessage
+                {
+                    ShopId = day.ShopId,
+                    NotificationType = NotificationType.ManualClosingSerialEntry,
+                    Channel = NotificationChannel.Email,
+                    Recipient = recipient,
+                    Subject = subject,
+                    Body = body,
+                    RelatedEntityName = nameof(BusinessDay),
+                    RelatedEntityId = day.Id
+                }, cancellationToken);
+                anySent = true;
+            }
+            catch
+            {
+                // Notification failures are logged by notification service and must not block day close.
+            }
+        }
+
+        if (!anySent)
+        {
+            return;
+        }
+
+        try
+        {
+            var manualEntryIds = manualEntries.Select(x => x.Id).Distinct().ToArray();
+            if (manualEntryIds.Length == 0)
+            {
+                return;
+            }
+
+            var notificationSentOn = DateTimeOffset.UtcNow;
+            await _salesRepository.Query()
+                .Where(x => manualEntryIds.Contains(x.Id))
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(x => x.NotificationSent, true)
+                        .SetProperty(x => x.NotificationSentOn, notificationSentOn),
+                    cancellationToken);
+        }
+        catch
+        {
+            // Persisting notification metadata must not block day close.
+        }
+    }
+
     private async Task<List<string>> ResolveSummaryRecipientsAsync(Guid shopId, CancellationToken cancellationToken)
     {
         var recipients = await _shopUserRepository.Query()
@@ -841,6 +923,55 @@ public class BusinessDayService : IBusinessDayService
         }
 
         sb.Append("</div></div></body></html>");
+        return sb.ToString();
+    }
+
+    private static string BuildDayCloseManualEntryByShiftBody(
+        string shopName,
+        BusinessDay day,
+        IReadOnlyCollection<Shift> shifts,
+        IReadOnlyCollection<ShiftScratchCardSale> manualEntries)
+    {
+        var shiftLookup = shifts.ToDictionary(x => x.Id, x => x);
+
+        var rows = manualEntries
+            .Select(entry =>
+            {
+                shiftLookup.TryGetValue(entry.ShiftId, out var shift);
+                return new
+                {
+                    ShiftName = shift?.ShiftName ?? "Unknown Shift",
+                    ShiftStart = shift?.StartTime ?? DateTimeOffset.MinValue,
+                    DisplayNumber = entry.Pack?.DisplayNumber,
+                    GameName = entry.Pack?.Game?.GameName ?? "Unknown",
+                    ManualEntryValue = entry.ClosingSerialNumber
+                };
+            })
+            .OrderBy(x => x.ShiftStart)
+            .ThenBy(x => x.ShiftName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(x => x.DisplayNumber ?? int.MaxValue)
+            .ThenBy(x => x.GameName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"Shop: {shopName}");
+        sb.AppendLine($"Business Date: {day.BusinessDate:yyyy-MM-dd}");
+        sb.AppendLine($"Report Generated On (UTC): {DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm:ss}");
+        sb.AppendLine();
+
+        foreach (var shiftGroup in rows.GroupBy(x => x.ShiftName))
+        {
+            sb.AppendLine($"Shift: {shiftGroup.Key}");
+            sb.AppendLine("Display Number | Game | Manual Entry Value");
+            foreach (var row in shiftGroup)
+            {
+                var display = row.DisplayNumber?.ToString(CultureInfo.InvariantCulture) ?? "-";
+                sb.AppendLine($"{display} | {row.GameName} | {row.ManualEntryValue}");
+            }
+
+            sb.AppendLine();
+        }
+
         return sb.ToString();
     }
 }

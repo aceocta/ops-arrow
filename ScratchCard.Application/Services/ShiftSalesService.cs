@@ -424,7 +424,7 @@ public class ShiftSalesService : IShiftSalesService
                 new ShiftCloseNotificationWorkItem
                 {
                     ShiftId = shift.Id,
-                    IncludeManualEntryNotifications = hasFlags
+                    IncludeManualEntryNotifications = false
                 },
                 CancellationToken.None);
         }
