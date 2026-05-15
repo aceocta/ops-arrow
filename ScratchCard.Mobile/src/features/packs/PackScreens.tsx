@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -445,42 +445,116 @@ export function ScratchCardPacksScreen({ navigation }: PackListProps) {
     enabled: Boolean(shopId),
   });
 
+  const packs = packsQuery.data ?? [];
+
+  const sortedPacks = useMemo(() => {
+    const statusOrder: Record<string, number> = {
+      Active: 0,
+      InStock: 1,
+      Paused: 2,
+      Completed: 3,
+      Issue: 4,
+      Returned: 5,
+    };
+
+    return [...packs].sort((a, b) => {
+      const statusDelta = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99);
+      if (statusDelta !== 0) {
+        return statusDelta;
+      }
+      if (a.displayNumber != null && b.displayNumber != null && a.displayNumber !== b.displayNumber) {
+        return a.displayNumber - b.displayNumber;
+      }
+      if (a.displayNumber != null && b.displayNumber == null) return -1;
+      if (a.displayNumber == null && b.displayNumber != null) return 1;
+      return a.packNumber.localeCompare(b.packNumber);
+    });
+  }, [packs]);
+
+  const summary = useMemo(() => {
+    return packs.reduce(
+      (acc, pack) => {
+        acc.total += 1;
+        if (pack.status === "Active") acc.active += 1;
+        if (pack.status === "InStock") acc.inStock += 1;
+        if (pack.status === "Paused" || pack.status === "Issue" || pack.status === "Returned") acc.attention += 1;
+        return acc;
+      },
+      { total: 0, active: 0, inStock: 0, attention: 0 }
+    );
+  }, [packs]);
+
   return (
     <ScreenContainer>
       <ScrollView contentContainerStyle={styles.screenContent}>
-        {/* <View style={styles.heroCard}>
-          <Text style={styles.heroSubtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
-          <Text style={styles.heroNote}>Track stock state, activation progress, and serial position.</Text>
-        </View> */}
-        <View style={styles.headerActionsRow}>
-          <View style={styles.headerActionItem}>
-            <PrimaryButton
-              label="Add Manual Pack"
-              onPress={() => navigation.navigate("ManualPackCreate")}
-              disabled={!shopId}
-            />
+        {/* <View style={styles.packHeroCard}>
+          <Text style={styles.packHeroEyebrow}>Inventory Overview</Text>
+          <Text style={styles.packHeroTitle}>Card Packs</Text>
+          <Text style={styles.packHeroMeta}>Shop: {activeShop?.shopName ?? "No shop selected"}</Text>
+          <Text style={styles.packHeroNote}>Monitor status, serial progress, and activation readiness.</Text>
+        </View>
+
+        <View style={styles.packSummaryGrid}>
+          <View style={styles.packSummaryTile}>
+            <Text style={styles.packSummaryLabel}>Total Packs</Text>
+            <Text style={styles.packSummaryValue}>{summary.total}</Text>
           </View>
-          <View style={styles.headerActionItem}>
-            <PrimaryButton
-              label="Pack Scanner"
-              tone="neutral"
-              onPress={() => navigation.navigate("ManualPackCreate", { autoOpenScanner: true })}
-              disabled={!shopId}
-            />
+          <View style={styles.packSummaryTile}>
+            <Text style={styles.packSummaryLabel}>Active</Text>
+            <Text style={styles.packSummaryValue}>{summary.active}</Text>
+          </View>
+          <View style={styles.packSummaryTile}>
+            <Text style={styles.packSummaryLabel}>In Stock</Text>
+            <Text style={styles.packSummaryValue}>{summary.inStock}</Text>
+          </View>
+          <View style={styles.packSummaryTile}>
+            <Text style={styles.packSummaryLabel}>Need Attention</Text>
+            <Text style={styles.packSummaryValue}>{summary.attention}</Text>
+          </View>
+        </View> */}
+
+        <View style={ui.card}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <Text style={styles.meta}>Create a manual pack or scan a barcode to start a guided activation flow.</Text>
+          <View style={styles.headerActionsRow}>
+            <View style={styles.headerActionItem}>
+              <PrimaryButton
+                label="Add Manual Pack"
+                onPress={() => navigation.navigate("ManualPackCreate")}
+                disabled={!shopId}
+              />
+            </View>
+            <View style={styles.headerActionItem}>
+              <PrimaryButton
+                label="Pack Scanner"
+                tone="neutral"
+                onPress={() => navigation.navigate("ManualPackCreate", { autoOpenScanner: true })}
+                disabled={!shopId}
+              />
+            </View>
           </View>
         </View>
 
         <View style={ui.card}>
-          <Text style={styles.sectionTitle}>Pack Inventory</Text>
+          <View style={styles.packInventoryHeader}>
+            <Text style={styles.sectionTitle}>Pack Inventory</Text>
+            {shopId && !packsQuery.isLoading && !packsQuery.isError ? (
+              <Text style={styles.packInventoryCount}>{sortedPacks.length} pack{sortedPacks.length === 1 ? "" : "s"}</Text>
+            ) : null}
+          </View>
           {!shopId ? <Text style={styles.meta}>Select a shop to see packs.</Text> : null}
           {shopId && packsQuery.isLoading ? <Text style={styles.meta}>Loading packs...</Text> : null}
-          {shopId && !packsQuery.isLoading && (packsQuery.data ?? []).length === 0 ? (
+          {shopId && packsQuery.isError ? <Text style={styles.meta}>Unable to load packs. Please try again.</Text> : null}
+          {shopId && !packsQuery.isLoading && !packsQuery.isError && sortedPacks.length === 0 ? (
             <Text style={styles.meta}>No packs found for this shop.</Text>
           ) : null}
-          {(packsQuery.data ?? []).map((pack) => (
-            <View key={pack.id} style={styles.item}>
-              <View style={styles.rowBetween}>
-                <Text style={styles.itemTitle}>Pack {pack.packNumber} - {pack.gameName}</Text>
+          {sortedPacks.map((pack) => (
+            <View key={pack.id} style={styles.packListItem}>
+              <View style={styles.packListHeader}>
+                <View style={styles.packTitleWrap}>
+                  <Text style={styles.packListTitle}>Pack {pack.packNumber}</Text>
+                  <Text style={styles.packListSubtitle}>{pack.gameName}</Text>
+                </View>
                 <StatusBadge label={pack.status} tone={packStatusTone(pack.status)} />
               </View>
               <View style={styles.metricRow}>
@@ -494,14 +568,26 @@ export function ScratchCardPacksScreen({ navigation }: PackListProps) {
                   <View style={styles.metricChip}><Text style={styles.metricText}>Manual</Text></View>
                 ) : null}
               </View>
-              <View style={styles.rowWrap}>
-                <Pressable style={styles.smallButton} onPress={() => navigation.navigate("PackDetails", { packId: pack.id })}>
-                  <Text style={styles.smallButtonText}>Details</Text>
-                </Pressable>
+              <Text style={styles.packSerialMeta}>
+                Serial range: {pack.startSerialNumber} {"->"} {pack.endSerialNumber}
+              </Text>
+              <View style={styles.packActionRow}>
+                <View style={styles.packActionItem}>
+                  <PrimaryButton
+                    label="Details"
+                    tone="neutral"
+                    size="sm"
+                    onPress={() => navigation.navigate("PackDetails", { packId: pack.id })}
+                  />
+                </View>
                 {(pack.status === "InStock" || pack.status === "Paused") ? (
-                  <Pressable style={styles.smallButton} onPress={() => navigation.navigate("ActivatePack", { packId: pack.id })}>
-                    <Text style={styles.smallButtonText}>Activate</Text>
-                  </Pressable>
+                  <View style={styles.packActionItem}>
+                    <PrimaryButton
+                      label="Activate"
+                      size="sm"
+                      onPress={() => navigation.navigate("ActivatePack", { packId: pack.id })}
+                    />
+                  </View>
                 ) : null}
               </View>
             </View>
@@ -1227,6 +1313,128 @@ const styles = StyleSheet.create({
     gap: appTheme.spacing.xs,
   },
   headerActionItem: {
+    flex: 1,
+  },
+  packHeroCard: {
+    backgroundColor: "#E7EFFA",
+    borderRadius: appTheme.radius.lg,
+    borderWidth: 1,
+    borderColor: "#D6E2F3",
+    padding: appTheme.spacing.lg,
+    gap: 4,
+  },
+  packHeroEyebrow: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 14,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  packHeroTitle: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.heading,
+    fontSize: 24,
+    lineHeight: 30,
+  },
+  packHeroMeta: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
+    marginTop: 2,
+  },
+  packHeroNote: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 2,
+  },
+  packSummaryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: appTheme.spacing.xs,
+  },
+  packSummaryTile: {
+    flexBasis: "48%",
+    flexGrow: 1,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: 10,
+    gap: 2,
+  },
+  packSummaryLabel: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 15,
+    textTransform: "uppercase",
+  },
+  packSummaryValue: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 22,
+    lineHeight: 26,
+  },
+  packInventoryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.xs,
+  },
+  packInventoryCount: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 15,
+    textTransform: "uppercase",
+  },
+  packListItem: {
+    borderWidth: 1,
+    borderColor: "#D5DEED",
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: "#F5F8FD",
+    padding: appTheme.spacing.sm,
+    gap: appTheme.spacing.xs,
+  },
+  packListHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.xs,
+  },
+  packTitleWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  packListTitle: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 15,
+    lineHeight: 19,
+  },
+  packListSubtitle: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 13,
+    lineHeight: 17,
+  },
+  packSerialMeta: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  packActionRow: {
+    flexDirection: "row",
+    gap: appTheme.spacing.xs,
+    marginTop: 2,
+  },
+  packActionItem: {
     flex: 1,
   },
   heroCard: {
