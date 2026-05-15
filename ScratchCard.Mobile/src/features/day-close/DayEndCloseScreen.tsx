@@ -1175,11 +1175,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           </View>
         </View>
 
-        <View style={[ui.card, styles.sectionCard]}>
-          <Text style={styles.sectionTitle}>Attachments</Text>
-          {persistedDayAttachments.length === 0 ? (
-            <Text style={styles.meta}>No saved attachments for this day.</Text>
-          ) : (
+        {persistedDayAttachments.length > 0 ? (
+          <View style={[ui.card, styles.sectionCard]}>
+            <Text style={styles.sectionTitle}>Attachments</Text>
             <View style={styles.attachmentList}>
               {persistedDayAttachments.map((attachment) => {
                 const canPreviewImage = isImageContentType(attachment.contentType);
@@ -1238,8 +1236,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 );
               })}
             </View>
-          )}
-        </View>
+          </View>
+        ) : null}
 
         {canClose ? (
           <PrimaryButton
@@ -1336,7 +1334,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             <View style={[styles.modalCard, styles.dayPickerModalCard]}>
               <View style={styles.dayPickerHeaderRow}>
                 <View style={styles.dayPickerHeaderTextWrap}>
-                  <Text style={styles.dayPickerEyebrow}>Business Day</Text>
+                  {/* <Text style={styles.dayPickerEyebrow}>Business Day</Text> */}
                   <Text style={styles.dayPickerTitle}>Change Date</Text>
                 </View>
                 <Pressable

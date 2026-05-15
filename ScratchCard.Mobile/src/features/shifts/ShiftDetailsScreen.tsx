@@ -323,7 +323,59 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
           {salesQuery.isFetching ? <Text style={styles.meta}>Loading...</Text> : null}
         </View>
 
+     
+
         <View style={[ui.card, styles.summaryCard]}>
+          <Text style={styles.sectionTitle}>Sales Entries</Text>
+          {!salesQuery.isFetching && entries.length === 0 ? (
+            <Text style={styles.meta}>No entries for this shift.</Text>
+          ) : null}
+          {entries.map((entry) => (
+            <View key={entry.id} style={[styles.entryCard, entry.isFlaggedForReview ? styles.entryCardFlagged : null]}>
+              <View style={styles.entryHeader}>
+                <Text style={styles.entryTitle}>Pack {entry.packNumber}</Text>
+                <StatusBadge label={entry.entryMethod} tone={entry.isFlaggedForReview ? "warning" : "neutral"} />
+              </View>
+              <View style={styles.entryStatsGrid}>
+                <View style={styles.entryPairRow}>
+                  <View style={styles.entryStatTile}>
+                    <Text style={styles.entryPairLabel}>Opening</Text>
+                    <Text style={styles.entryPairValue}>{entry.openingSerialNumber}</Text>
+                  </View>
+                  <View style={styles.entryStatTile}>
+                    <Text style={styles.entryPairLabel}>Closing</Text>
+                    <Text style={styles.entryPairValue}>{entry.closingSerialNumber}</Text>
+                  </View>
+                </View>
+                <View style={styles.entryPairRow}>
+                  <View style={styles.entryStatTile}>
+                    <Text style={styles.entryPairLabel}>Sold Qty</Text>
+                    <Text style={styles.entryPairValue}>{entry.soldQuantity}</Text>
+                  </View>
+                  <View style={styles.entryStatTile}>
+                    <Text style={styles.entryPairLabel}>Sales</Text>
+                    <Text style={styles.entryPairValue}>{formatCurrency(Number(entry.salesAmount))}</Text>
+                  </View>
+                </View>
+                <View style={styles.entryPairRow}>
+                  <View style={styles.entryStatTile}>
+                    <Text style={styles.entryPairLabel}>Ticket Price</Text>
+                    <Text style={styles.entryPairValue}>{formatCurrency(Number(entry.ticketPrice))}</Text>
+                  </View>
+                  <View style={styles.entryStatTile}>
+                    <Text style={styles.entryPairLabel}>Remaining</Text>
+                    <Text style={styles.entryPairValue}>{entry.remainingTickets}</Text>
+                  </View>
+                </View>
+              </View>
+              {entry.originalScannedSerialNumber ? (
+                <Text style={styles.meta}>Scanned: {entry.originalScannedSerialNumber}</Text>
+              ) : null}
+            </View>
+          ))}
+        </View>
+
+           <View style={[ui.card, styles.summaryCard]}>
           <Text style={styles.sectionTitle}>Attachments</Text>
           {closeAttachments.length === 0 ? (
             <Text style={styles.meta}>No attachments saved for this shift.</Text>
@@ -385,56 +437,6 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
               })}
             </View>
           )}
-        </View>
-
-        <View style={[ui.card, styles.summaryCard]}>
-          <Text style={styles.sectionTitle}>Sales Entries</Text>
-          {!salesQuery.isFetching && entries.length === 0 ? (
-            <Text style={styles.meta}>No entries for this shift.</Text>
-          ) : null}
-          {entries.map((entry) => (
-            <View key={entry.id} style={[styles.entryCard, entry.isFlaggedForReview ? styles.entryCardFlagged : null]}>
-              <View style={styles.entryHeader}>
-                <Text style={styles.entryTitle}>Pack {entry.packNumber}</Text>
-                <StatusBadge label={entry.entryMethod} tone={entry.isFlaggedForReview ? "warning" : "neutral"} />
-              </View>
-              <View style={styles.entryStatsGrid}>
-                <View style={styles.entryPairRow}>
-                  <View style={styles.entryStatTile}>
-                    <Text style={styles.entryPairLabel}>Opening</Text>
-                    <Text style={styles.entryPairValue}>{entry.openingSerialNumber}</Text>
-                  </View>
-                  <View style={styles.entryStatTile}>
-                    <Text style={styles.entryPairLabel}>Closing</Text>
-                    <Text style={styles.entryPairValue}>{entry.closingSerialNumber}</Text>
-                  </View>
-                </View>
-                <View style={styles.entryPairRow}>
-                  <View style={styles.entryStatTile}>
-                    <Text style={styles.entryPairLabel}>Sold Qty</Text>
-                    <Text style={styles.entryPairValue}>{entry.soldQuantity}</Text>
-                  </View>
-                  <View style={styles.entryStatTile}>
-                    <Text style={styles.entryPairLabel}>Sales</Text>
-                    <Text style={styles.entryPairValue}>{formatCurrency(Number(entry.salesAmount))}</Text>
-                  </View>
-                </View>
-                <View style={styles.entryPairRow}>
-                  <View style={styles.entryStatTile}>
-                    <Text style={styles.entryPairLabel}>Ticket Price</Text>
-                    <Text style={styles.entryPairValue}>{formatCurrency(Number(entry.ticketPrice))}</Text>
-                  </View>
-                  <View style={styles.entryStatTile}>
-                    <Text style={styles.entryPairLabel}>Remaining</Text>
-                    <Text style={styles.entryPairValue}>{entry.remainingTickets}</Text>
-                  </View>
-                </View>
-              </View>
-              {entry.originalScannedSerialNumber ? (
-                <Text style={styles.meta}>Scanned: {entry.originalScannedSerialNumber}</Text>
-              ) : null}
-            </View>
-          ))}
         </View>
 
         <Modal

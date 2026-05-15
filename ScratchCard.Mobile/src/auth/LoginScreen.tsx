@@ -90,7 +90,7 @@ export function LoginScreen() {
       </View>
       <View style={[ui.card, styles.contentBlock]}>
         <Text style={styles.title}>Sign In</Text>
-        <Text style={styles.subtitle}>Sign in to continue with {appInfo.name}.</Text>
+        {/* <Text style={styles.subtitle}>Sign in to continue with {appInfo.name}.</Text> */}
         <Text style={styles.fieldLabel}>Email Address</Text>
         <TextInput
           style={ui.input}
