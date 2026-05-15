@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { DrawerActions, NavigatorScreenParams, useNavigation, useNavigationState } from "@react-navigation/native";
 import { createDrawerNavigator, DrawerContentScrollView, type DrawerContentComponentProps } from "@react-navigation/drawer";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -48,6 +48,7 @@ import { UserManagementScreen, AppConfigurationScreen, CompanyManagementScreen, 
 import { BestEntryProvider, EntryOperation, useBestEntry } from "./BestEntryContext";
 import { MainStackParamList } from "../types/navigation";
 import { appTheme } from "../ui/theme";
+import { appInfo } from "../config/appInfo";
 
 type MainDrawerParamList = {
   MainStack: NavigatorScreenParams<MainStackParamList> | undefined;
@@ -226,6 +227,17 @@ function HamburgerButton({ onPress }: { onPress: () => void }) {
   );
 }
 
+function HomeHeaderTitle() {
+  return (
+    <View style={styles.homeHeaderTitle}>
+      <Image source={require("../../assets/ops-arrow-logo.png")} style={styles.homeHeaderLogo} resizeMode="contain" />
+      <Text style={styles.homeHeaderText} numberOfLines={1}>
+        {appInfo.name}
+      </Text>
+    </View>
+  );
+}
+
 function MainStackScreens() {
   return (
     <Stack.Navigator
@@ -253,7 +265,7 @@ function MainStackScreens() {
         ),
       })}
     >
-      <Stack.Screen name="BestEntry" component={BestEntryScreen} options={{ title: "Home" }} />
+      <Stack.Screen name="BestEntry" component={BestEntryScreen} options={{ headerTitle: () => <HomeHeaderTitle /> }} />
       <Stack.Screen name="Dashboard" component={DashboardScreen} options={{ title: "Day Management" }} />
       <Stack.Screen name="UserInvitations" component={UserInvitationsScreen} options={{ title: "User Invitations" }} />
       <Stack.Screen name="UserManagement" component={UserManagementScreen} options={{ title: "User Management" }} />
@@ -576,6 +588,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: appTheme.colors.border,
     backgroundColor: appTheme.colors.surface,
+  },
+  homeHeaderTitle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+  },
+  homeHeaderLogo: {
+    width: 28,
+    height: 28,
+  },
+  homeHeaderText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 18,
+    lineHeight: 22,
   },
   drawerScrollContent: {
     paddingTop: 0,
