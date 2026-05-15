@@ -5,6 +5,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import * as Print from "expo-print";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { sendReportEmail } from "../../api/reportsApi";
 import {
@@ -102,11 +103,22 @@ export function RefusalReportScreen() {
   const emailReportMutation = useMutation({
     mutationFn: async () => {
       const html = await buildReportHtml();
+      const { uri } = await Print.printToFileAsync({
+        html,
+        width: 792,
+        height: 612,
+      });
+      const attachmentBase64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const attachmentFileName = `refusal-report-${fromDate}-to-${toDate}.pdf`;
+
       await sendReportEmail({
         recipientEmail: profile?.email,
         subject: `No ID / No Sale Refusal Report (${fromDate} to ${toDate})`,
-        body: html,
-        isBodyHtml: true,
+        body: `Please find attached the No ID / No Sale Refusal Report for ${fromDate} to ${toDate}.`,
+        attachmentFileName,
+        attachmentBase64,
       });
     },
   });
