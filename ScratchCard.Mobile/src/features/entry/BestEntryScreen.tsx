@@ -20,15 +20,7 @@ type OperationOption = {
 };
 
 const operationOptions: OperationOption[] = [
-  {
-    key: "checklist",
-    title: "Shop Checklist",
-    route: "ShopChecklist",
-    icon: "checkmark-done-outline",
-    iconColor: "#0B7A75",
-    iconBg: "#E2F8F5",
-    operation: "checklist",
-  },
+  
   {
     key: "scratchCard",
     title: "Scratch Card",
@@ -55,7 +47,15 @@ const operationOptions: OperationOption[] = [
     iconColor: "#A56A16",
     iconBg: "#FFF3E2",
     operation: "refusals",
-  },
+  },{
+    key: "checklist",
+    title: "Shop Checklist",
+    route: "ShopChecklist",
+    icon: "checkmark-done-outline",
+    iconColor: "#0B7A75",
+    iconBg: "#E2F8F5",
+    operation: "checklist",
+  }
 ];
 
 export function BestEntryScreen() {

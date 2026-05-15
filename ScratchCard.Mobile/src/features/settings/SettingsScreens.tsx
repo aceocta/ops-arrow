@@ -178,6 +178,14 @@ function getConfigurationGroupSummary(groupName: string): ConfigurationGroupSumm
     };
   }
 
+  if (groupName === "Barcode Settings") {
+    return {
+      title: "Barcode",
+      description: "Camera scanning and manual-entry fallback controls.",
+      icon: "barcode-outline",
+    };
+  }
+
   return {
     title: groupName.replace(/ Settings$/i, ""),
     description: "Shop configuration controls.",
@@ -287,6 +295,7 @@ export function AppConfigurationScreen() {
       "General Settings",
       "Pack Settings",
       "Shift Settings",
+      "Barcode Settings",
     ]);
     const output = new Map<string, ConfigurationItem[]>();
     for (const item of configurationsQuery.data ?? []) {

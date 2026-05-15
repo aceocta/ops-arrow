@@ -5,6 +5,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker";
 import { getBusinessDay } from "../../api/businessDaysApi";
+import { getConfigurations } from "../../api/configurationsApi";
 import { getActivePacksForShift, finalizeShift, getShift } from "../../api/shiftsApi";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -40,6 +41,24 @@ type CloseAttachmentState = {
 
 const MAX_CLOSE_ATTACHMENTS = 10;
 const MAX_CLOSE_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const ENABLE_MOBILE_CAMERA_BARCODE_SCANNING_KEY = "EnableMobileCameraBarcodeScanning";
+const ALLOW_MANUAL_ENTRY_IF_SCAN_FAILS_KEY = "AllowManualEntryIfScanFails";
+
+function parseBooleanConfigValue(value: string | undefined, fallback: boolean) {
+  if (!value) {
+    return fallback;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true" || normalized === "1" || normalized === "yes") {
+    return true;
+  }
+  if (normalized === "false" || normalized === "0" || normalized === "no") {
+    return false;
+  }
+
+  return fallback;
+}
 
 function normalizePackNumber(value: string) {
   return value.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
@@ -268,6 +287,14 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
     packNumber?: string;
     pendingPacks?: Array<{ packId?: string; packNumber: string; label?: string }>;
   }) {
+    if (!isCameraScanningEnabled) {
+      Alert.alert(
+        "Scanner disabled",
+        "Camera barcode scanning is disabled for this shop. Enter closing serials in the textbox."
+      );
+      return;
+    }
+
     const rootLikeNavigation = navigation.getParent()?.getParent() ?? navigation.getParent() ?? navigation;
     (rootLikeNavigation as any).navigate("BarcodeScanner", params);
   }
@@ -346,6 +373,30 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
     queryFn: () => getBusinessDay(shiftQuery.data?.businessDayId as string),
     enabled: Boolean(shiftQuery.data?.businessDayId),
   });
+
+  const configurationsQuery = useQuery({
+    queryKey: ["configurations", shopId],
+    queryFn: () => getConfigurations(shopId ?? undefined),
+    enabled: Boolean(shopId),
+  });
+
+  const isCameraScanningEnabled = useMemo(() => {
+    const configuredValue = configurationsQuery.data?.find(
+      (item) => item.configKey.toLowerCase() === ENABLE_MOBILE_CAMERA_BARCODE_SCANNING_KEY.toLowerCase()
+    )?.configValue;
+    return parseBooleanConfigValue(configuredValue, true);
+  }, [configurationsQuery.data]);
+
+  const allowManualEntryIfScanFails = useMemo(() => {
+    const configuredValue = configurationsQuery.data?.find(
+      (item) => item.configKey.toLowerCase() === ALLOW_MANUAL_ENTRY_IF_SCAN_FAILS_KEY.toLowerCase()
+    )?.configValue;
+    return parseBooleanConfigValue(configuredValue, true);
+  }, [configurationsQuery.data]);
+
+  const isManualClosingSerialEnabled = isCameraScanningEnabled
+    ? allowManualEntryIfScanFails
+    : true;
 
   useEffect(() => {
     packsRef.current = [...(packsQuery.data ?? [])].sort(comparePacksByDisplayOrder);
@@ -427,7 +478,7 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
         }
 
         setScanStatus(
-          `Scanned value could not be validated for pack ${matchedPack.packNumber}. Please rescan or enter manually.`
+          `Scanned value could not be validated for pack ${matchedPack.packNumber}.${isManualClosingSerialEnabled ? " Please rescan or enter manually." : " Please rescan."}`
         );
         return;
       }
@@ -452,7 +503,7 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
     });
 
     return unsubscribe;
-  }, []);
+  }, [isManualClosingSerialEnabled]);
 
   const computedRows = useMemo(() => {
     const packs = [...(packsQuery.data ?? [])].sort(comparePacksByDisplayOrder);
@@ -527,7 +578,9 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
   const readinessMessage = errorRows > 0
     ? "Resolve serial errors before finalising the shift."
     : pendingRows > 0
-      ? "Enter closing serial numbers for all active packs."
+      ? isManualClosingSerialEnabled
+        ? "Enter closing serial numbers for all active packs."
+        : "Scan each pack to capture closing serial numbers for all active packs."
       : "All active packs are ready. You can finalise this shift.";
 
   async function onFinalize() {
@@ -544,6 +597,14 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
     for (const row of computedRows) {
       if (!entries[row.pack.id]?.closingSerialNumber || row.hasError) {
         Alert.alert("Validation", `Fix closing serial for pack ${row.pack.packNumber}.`);
+        return;
+      }
+    }
+
+    if (!isManualClosingSerialEnabled) {
+      const manualEntryPack = computedRows.find((row) => entries[row.pack.id]?.entryMethod === EntryMethod.Manual);
+      if (manualEntryPack) {
+        Alert.alert("Validation", `Manual entry is disabled. Scan pack ${manualEntryPack.pack.packNumber} instead.`);
         return;
       }
     }
@@ -674,17 +735,25 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
         {/* <View style={[ui.card, styles.quickScanCard]}> */}
           {/* <Text style={styles.cardTitle}>Quick Scan</Text>
           <Text style={styles.meta}>Scan continuously and auto-apply closing serials by pack.</Text> */}
-          <PrimaryButton
-            label="Scan Any Pack Barcode"
-            tone="neutral"
-            onPress={() =>
-              openBarcodeScanner({
-                mode: "auto",
-                pendingPacks: pendingPackHints,
-              })
-            }
-            disabled={isSubmitting}
-          />
+          {isCameraScanningEnabled ? (
+            <PrimaryButton
+              label="Scan Any Pack"
+              tone="neutral"
+              onPress={() =>
+                openBarcodeScanner({
+                  mode: "auto",
+                  pendingPacks: pendingPackHints,
+                })
+              }
+              disabled={isSubmitting}
+            />
+          ) : (
+            <Text style={styles.meta}>Camera scanning is disabled for this shop. Use the closing serial textbox.</Text>
+          )}
+          {!isManualClosingSerialEnabled && isCameraScanningEnabled ? (
+            <Text style={styles.meta}>Manual closing serial entry is disabled. Use scan for each pack.</Text>
+          ) : null}
+          <Text style={styles.meta}>{readinessMessage}</Text>
           {scanStatus ? <Text style={styles.scanStatus}>{scanStatus}</Text> : null}
         {/* </View> */}
 
@@ -740,12 +809,17 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
               <View style={styles.scanInputRow}>
                 <View style={styles.scanInputCell}>
                   <TextInput
-                    style={[styles.input, styles.inlineSerialInput]}
+                    style={[styles.input, styles.inlineSerialInput, !isManualClosingSerialEnabled ? styles.inputDisabled : null]}
                     value={entry?.closingSerialNumber ?? ""}
-                    placeholder="Serial no"
+                    placeholder={isManualClosingSerialEnabled ? "Serial no" : "Scan required"}
                     placeholderTextColor={appTheme.colors.textSubtle}
                     keyboardType="numeric"
+                    editable={isManualClosingSerialEnabled}
                     onChangeText={(value) => {
+                      if (!isManualClosingSerialEnabled) {
+                        return;
+                      }
+
                       setEntries((previous) => ({
                         ...previous,
                         [row.pack.id]: {
@@ -763,9 +837,13 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
 
                 <View style={styles.scanInputCell}>
                   <Pressable
-                    style={styles.soldOutButton}
+                    style={[
+                      styles.soldOutButton,
+                      (!isManualClosingSerialEnabled || isSubmitting) ? styles.actionButtonDisabled : null,
+                    ]}
                     accessibilityRole="button"
                     accessibilityLabel={`Mark pack ${row.pack.packNumber} as sold out`}
+                    disabled={!isManualClosingSerialEnabled || isSubmitting}
                     onPress={() => {
                       const soldOutSerial = getLastSerialForPack(row.pack);
                       setEntries((previous) => ({
@@ -787,9 +865,13 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
 
                 <View style={styles.scanInputCell}>
                   <Pressable
-                    style={styles.inlineScanButton}
+                    style={[
+                      styles.inlineScanButton,
+                      (!isCameraScanningEnabled || isSubmitting) ? styles.actionButtonDisabled : null,
+                    ]}
                     accessibilityRole="button"
                     accessibilityLabel={`Scan barcode for pack ${row.pack.packNumber}`}
+                    disabled={!isCameraScanningEnabled || isSubmitting}
                     onPress={() => openBarcodeScanner({ mode: "single", packId: row.pack.id, packNumber: row.pack.packNumber })}
                   >
                     <View style={styles.scanIconWrap}>
@@ -922,7 +1004,11 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
         <View style={[ui.card, styles.compactCard]}>
           <View style={styles.actionGroup}>
             {!canFinalize ? (
-              <Text style={styles.meta}>Enter valid closing serials for all packs before finalising.</Text>
+              <Text style={styles.meta}>
+                {isManualClosingSerialEnabled
+                  ? "Enter valid closing serials for all packs before finalising."
+                  : "Scan all packs and resolve serial errors before finalising."}
+              </Text>
             ) : null}
 
             <PrimaryButton
@@ -1080,6 +1166,9 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.body,
     fontSize: 14,
   },
+  inputDisabled: {
+    opacity: 0.6,
+  },
   scanInputRow: {
     flexDirection: "row",
     alignItems: "stretch",
@@ -1114,6 +1203,9 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 12,
     lineHeight: 14,
+  },
+  actionButtonDisabled: {
+    opacity: 0.55,
   },
   scanIconWrap: {
     width: 22,

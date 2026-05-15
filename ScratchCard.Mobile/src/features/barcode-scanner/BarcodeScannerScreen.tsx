@@ -190,6 +190,11 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
       return;
     }
 
+    if ((result.type ?? "").toLowerCase().includes("qr")) {
+      setLastScanMessage("QR codes are ignored here. Scan the pack barcode instead.");
+      return;
+    }
+
     const rawData = `${result.data ?? ""}`.trim();
     if (!rawData) {
       return;
