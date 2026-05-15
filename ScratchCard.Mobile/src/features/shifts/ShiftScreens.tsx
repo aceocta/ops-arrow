@@ -318,14 +318,6 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
                   {/* <Text style={styles.meta}>Confirm each active pack before opening the shift.</Text> */}
                 </View>
                 {activePacksForOpening.length > 0 ? (
-                  <View style={styles.serialProgressPill}>
-                    <Text style={styles.serialProgressText}>
-                      {confirmedOpeningSerialCount}/{activePacksForOpening.length}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-              {activePacksForOpening.length > 0 ? (
                 <View style={styles.serialConfirmActionRow}>
                   <Pressable
                     style={[
@@ -342,6 +334,8 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
                   </Pressable>
                 </View>
               ) : null}
+              </View>
+             
               {packsQuery.isFetching ? <Text style={styles.meta}>Loading active packs...</Text> : null}
               {!packsQuery.isFetching && activePacksForOpening.length === 0 ? (
                 <Text style={styles.meta}>No active packs found for this shop.</Text>
