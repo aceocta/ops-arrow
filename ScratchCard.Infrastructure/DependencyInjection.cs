@@ -26,9 +26,11 @@ public static class DependencyInjection
         services.Configure<GoogleAuthOptions>(configuration.GetSection("GoogleAuth"));
         services.Configure<AppJwtOptions>(configuration.GetSection("Jwt"));
         services.Configure<OpenAiOptions>(configuration.GetSection("OpenAI"));
+        services.Configure<AttachmentStorageOptions>(configuration.GetSection("AttachmentStorage"));
 
         services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
         services.AddScoped<IPasswordHashService, PasswordHashService>();
+        services.AddScoped<IAttachmentStorageService, AttachmentStorageService>();
 
         services.AddHttpContextAccessor();
         services.AddHttpClient("OpenAI", (provider, client) =>

@@ -1,4 +1,5 @@
 using ScratchCard.Application.Common.Exceptions;
+using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.DTOs.Common;
 
 namespace ScratchCard.Application.Services;
@@ -41,6 +42,7 @@ internal static class CloseAttachmentStorage
 
     public static async Task<IReadOnlyCollection<SavedAttachment>> SaveShiftAttachmentsAsync(
         IReadOnlyCollection<AttachmentInput> inputs,
+        IAttachmentStorageService attachmentStorageService,
         Guid shopId,
         DateOnly businessDate,
         string shiftName,
@@ -51,7 +53,6 @@ internal static class CloseAttachmentStorage
             return [];
         }
 
-        var sectionFolder = "ShiftCloseAttachments";
         var safeShiftName = SanitizeToken(shiftName, fallback: "shift", maxLength: 80);
         var saved = new List<SavedAttachment>(inputs.Count);
 
@@ -65,13 +66,8 @@ internal static class CloseAttachmentStorage
             var parsed = ParseAttachment(input.FileName, input.Base64, input.ContentType);
             var fileGuid = Guid.NewGuid().ToString("N");
             var storedFileName = $"{fileGuid}_{businessDate:yyyyMMdd}_{safeShiftName}{parsed.Extension}";
-            var storedPath = await SaveBytesAsync(
-                parsed.Bytes,
-                storedFileName,
-                sectionFolder,
-                shopId,
-                businessDate,
-                cancellationToken);
+            var relativePath = BuildShiftAttachmentPath(shopId, businessDate, storedFileName);
+            var storedPath = await attachmentStorageService.SaveAsync(parsed.Bytes, relativePath, cancellationToken);
 
             saved.Add(new SavedAttachment(
                 parsed.OriginalFileName,
@@ -86,6 +82,7 @@ internal static class CloseAttachmentStorage
 
     public static async Task<IReadOnlyCollection<SavedAttachment>> SaveDayAttachmentsAsync(
         IReadOnlyCollection<AttachmentInput> inputs,
+        IAttachmentStorageService attachmentStorageService,
         Guid shopId,
         DateOnly businessDate,
         CancellationToken cancellationToken)
@@ -95,7 +92,6 @@ internal static class CloseAttachmentStorage
             return [];
         }
 
-        const string sectionFolder = "DayCloseAttachments";
         var saved = new List<SavedAttachment>(inputs.Count);
 
         foreach (var input in inputs)
@@ -108,13 +104,8 @@ internal static class CloseAttachmentStorage
             var parsed = ParseAttachment(input.FileName, input.Base64, input.ContentType);
             var fileGuid = Guid.NewGuid().ToString("N");
             var storedFileName = $"{fileGuid}_{businessDate:yyyyMMdd}{parsed.Extension}";
-            var storedPath = await SaveBytesAsync(
-                parsed.Bytes,
-                storedFileName,
-                sectionFolder,
-                shopId,
-                businessDate,
-                cancellationToken);
+            var relativePath = BuildDayAttachmentPath(shopId, businessDate, storedFileName);
+            var storedPath = await attachmentStorageService.SaveAsync(parsed.Bytes, relativePath, cancellationToken);
 
             saved.Add(new SavedAttachment(
                 parsed.OriginalFileName,
@@ -127,47 +118,22 @@ internal static class CloseAttachmentStorage
         return saved;
     }
 
-    public static void TryDelete(string? storedPath)
+    private static string BuildShiftAttachmentPath(Guid shopId, DateOnly businessDate, string storedFileName)
     {
-        if (string.IsNullOrWhiteSpace(storedPath))
-        {
-            return;
-        }
-
-        try
-        {
-            if (File.Exists(storedPath))
-            {
-                File.Delete(storedPath);
-            }
-        }
-        catch
-        {
-            // Attachment cleanup failures must not block business operations.
-        }
+        return string.Join('/',
+            shopId.ToString("N"),
+            "shift-close",
+            businessDate.ToString("yyyyMMdd"),
+            storedFileName);
     }
 
-    private static async Task<string> SaveBytesAsync(
-        byte[] bytes,
-        string storedFileName,
-        string sectionFolder,
-        Guid shopId,
-        DateOnly businessDate,
-        CancellationToken cancellationToken)
+    private static string BuildDayAttachmentPath(Guid shopId, DateOnly businessDate, string storedFileName)
     {
-        var rootPath = ResolveProjectRootPath();
-        var folderPath = Path.Combine(
-            rootPath,
-            "SignatureUploads",
-            sectionFolder,
+        return string.Join('/',
             shopId.ToString("N"),
-            businessDate.ToString("yyyyMMdd"));
-
-        Directory.CreateDirectory(folderPath);
-
-        var fullPath = Path.Combine(folderPath, storedFileName);
-        await File.WriteAllBytesAsync(fullPath, bytes, cancellationToken);
-        return fullPath;
+            "day-close",
+            businessDate.ToString("yyyyMMdd"),
+            storedFileName);
     }
 
     private sealed record ParsedAttachment(
@@ -294,20 +260,4 @@ internal static class CloseAttachmentStorage
         return filtered[..maxLength].TrimEnd('_');
     }
 
-    private static string ResolveProjectRootPath()
-    {
-        var current = new DirectoryInfo(Directory.GetCurrentDirectory());
-        while (current is not null)
-        {
-            var solutionPath = Path.Combine(current.FullName, "ScratchCard.slnx");
-            if (File.Exists(solutionPath))
-            {
-                return current.FullName;
-            }
-
-            current = current.Parent;
-        }
-
-        return Directory.GetCurrentDirectory();
-    }
 }

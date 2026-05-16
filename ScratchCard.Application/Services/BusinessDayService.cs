@@ -28,6 +28,7 @@ public class BusinessDayService : IBusinessDayService
     private readonly INotificationService _notificationService;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IAttachmentStorageService _attachmentStorageService;
     private readonly IUnitOfWork _unitOfWork;
 
     public BusinessDayService(
@@ -44,6 +45,7 @@ public class BusinessDayService : IBusinessDayService
         INotificationService notificationService,
         IAuditService auditService,
         ICurrentUserService currentUserService,
+        IAttachmentStorageService attachmentStorageService,
         IUnitOfWork unitOfWork)
     {
         _businessDayRepository = businessDayRepository;
@@ -59,6 +61,7 @@ public class BusinessDayService : IBusinessDayService
         _notificationService = notificationService;
         _auditService = auditService;
         _currentUserService = currentUserService;
+        _attachmentStorageService = attachmentStorageService;
         _unitOfWork = unitOfWork;
     }
 
@@ -153,7 +156,11 @@ public class BusinessDayService : IBusinessDayService
             .FirstOrDefaultAsync(x => x.Id == attachmentId, cancellationToken)
             ?? throw new AppException("business_day_attachment_not_found", "Business day attachment not found.", 404);
 
-        return await ReadAttachmentDataUrlAsync(attachment.StoredPath, attachment.ContentType, cancellationToken);
+        return await ReadAttachmentDataUrlAsync(
+            _attachmentStorageService,
+            attachment.StoredPath,
+            attachment.ContentType,
+            cancellationToken);
     }
 
     public async Task<BusinessDayDto> CloseAsync(Guid id, CloseBusinessDayRequest request, CancellationToken cancellationToken = default)
@@ -196,7 +203,7 @@ public class BusinessDayService : IBusinessDayService
 
         foreach (var existingAttachment in existingAttachments)
         {
-            CloseAttachmentStorage.TryDelete(existingAttachment.StoredPath);
+            await _attachmentStorageService.DeleteIfExistsAsync(existingAttachment.StoredPath, cancellationToken);
             _dayCloseAttachmentRepository.Remove(existingAttachment);
         }
 
@@ -209,6 +216,7 @@ public class BusinessDayService : IBusinessDayService
         {
             var savedAttachments = await CloseAttachmentStorage.SaveDayAttachmentsAsync(
                 attachmentInputs,
+                _attachmentStorageService,
                 day.ShopId,
                 day.BusinessDate,
                 cancellationToken);
@@ -484,17 +492,18 @@ public class BusinessDayService : IBusinessDayService
     }
 
     private static async Task<string?> ReadAttachmentDataUrlAsync(
+        IAttachmentStorageService attachmentStorageService,
         string? storedPath,
         string? contentType,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(storedPath) || !File.Exists(storedPath))
+        if (string.IsNullOrWhiteSpace(storedPath))
         {
             return null;
         }
 
-        var bytes = await File.ReadAllBytesAsync(storedPath, cancellationToken);
-        if (bytes.Length == 0)
+        var bytes = await attachmentStorageService.ReadAsync(storedPath, cancellationToken);
+        if (bytes is null || bytes.Length == 0)
         {
             return null;
         }

@@ -32,6 +32,7 @@ public class ShiftSalesService : IShiftSalesService
     private readonly IShiftCloseNotificationDispatcher _shiftCloseNotificationDispatcher;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IAttachmentStorageService _attachmentStorageService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<ShiftSalesService> _logger;
 
@@ -52,6 +53,7 @@ public class ShiftSalesService : IShiftSalesService
         IShiftCloseNotificationDispatcher shiftCloseNotificationDispatcher,
         IAuditService auditService,
         ICurrentUserService currentUserService,
+        IAttachmentStorageService attachmentStorageService,
         IUnitOfWork unitOfWork,
         ILogger<ShiftSalesService> logger)
     {
@@ -71,6 +73,7 @@ public class ShiftSalesService : IShiftSalesService
         _shiftCloseNotificationDispatcher = shiftCloseNotificationDispatcher;
         _auditService = auditService;
         _currentUserService = currentUserService;
+        _attachmentStorageService = attachmentStorageService;
         _unitOfWork = unitOfWork;
         _logger = logger;
     }
@@ -372,7 +375,7 @@ public class ShiftSalesService : IShiftSalesService
 
         foreach (var existingAttachment in existingAttachments)
         {
-            CloseAttachmentStorage.TryDelete(existingAttachment.StoredPath);
+            await _attachmentStorageService.DeleteIfExistsAsync(existingAttachment.StoredPath, cancellationToken);
             _shiftCloseAttachmentRepository.Remove(existingAttachment);
         }
 
@@ -384,6 +387,7 @@ public class ShiftSalesService : IShiftSalesService
         {
             var savedAttachments = await CloseAttachmentStorage.SaveShiftAttachmentsAsync(
                 attachmentInputs,
+                _attachmentStorageService,
                 shift.ShopId,
                 businessDay.BusinessDate,
                 shift.ShiftName,

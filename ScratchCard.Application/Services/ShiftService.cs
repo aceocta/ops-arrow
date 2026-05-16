@@ -26,6 +26,7 @@ public class ShiftService : IShiftService
     private readonly IShiftSalesService _shiftSalesService;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IAttachmentStorageService _attachmentStorageService;
     private readonly IUnitOfWork _unitOfWork;
 
     public ShiftService(
@@ -38,6 +39,7 @@ public class ShiftService : IShiftService
         IShiftSalesService shiftSalesService,
         IAuditService auditService,
         ICurrentUserService currentUserService,
+        IAttachmentStorageService attachmentStorageService,
         IUnitOfWork unitOfWork)
     {
         _shiftRepository = shiftRepository;
@@ -49,6 +51,7 @@ public class ShiftService : IShiftService
         _shiftSalesService = shiftSalesService;
         _auditService = auditService;
         _currentUserService = currentUserService;
+        _attachmentStorageService = attachmentStorageService;
         _unitOfWork = unitOfWork;
     }
 
@@ -414,7 +417,11 @@ public class ShiftService : IShiftService
             .FirstOrDefaultAsync(x => x.Id == attachmentId, cancellationToken)
             ?? throw new AppException("shift_attachment_not_found", "Shift attachment not found.", 404);
 
-        return await ReadAttachmentDataUrlAsync(attachment.StoredPath, attachment.ContentType, cancellationToken);
+        return await ReadAttachmentDataUrlAsync(
+            _attachmentStorageService,
+            attachment.StoredPath,
+            attachment.ContentType,
+            cancellationToken);
     }
 
     public Task<ShiftCloseResultDto> CloseAsync(Guid id, FinalizeShiftRequest request, bool isOfflineSync, CancellationToken cancellationToken = default)
@@ -730,17 +737,18 @@ public class ShiftService : IShiftService
     }
 
     private static async Task<string?> ReadAttachmentDataUrlAsync(
+        IAttachmentStorageService attachmentStorageService,
         string? storedPath,
         string? contentType,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(storedPath) || !File.Exists(storedPath))
+        if (string.IsNullOrWhiteSpace(storedPath))
         {
             return null;
         }
 
-        var bytes = await File.ReadAllBytesAsync(storedPath, cancellationToken);
-        if (bytes.Length == 0)
+        var bytes = await attachmentStorageService.ReadAsync(storedPath, cancellationToken);
+        if (bytes is null || bytes.Length == 0)
         {
             return null;
         }
