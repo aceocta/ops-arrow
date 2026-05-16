@@ -49,6 +49,69 @@ function normalizeDashes(value: string) {
   return value.replace(/[\u2010\u2011\u2012\u2013\u2014\u2212\uFE58\uFE63\uFF0D]/g, "-");
 }
 
+function normalizePackComponentByLeadingZeroRule(rawValue: string, allowLeadingZeros: boolean) {
+  const normalized = rawValue.trim().toUpperCase();
+  if (allowLeadingZeros) {
+    return normalized;
+  }
+
+  const withoutLeadingZeros = normalized.replace(/^0+/, "");
+  return withoutLeadingZeros.length > 0 ? withoutLeadingZeros : "0";
+}
+
+function splitCompositePackNumber(rawValue: string) {
+  const normalized = normalizeDashes(rawValue).trim();
+  const segments = normalized
+    .split("-")
+    .map((segment) => segment.replace(/[^0-9A-Za-z]/g, "").toUpperCase())
+    .filter((segment) => segment.length > 0);
+
+  if (segments.length >= 2) {
+    return {
+      gameCode: segments[0],
+      packComponent: segments[segments.length - 1],
+    };
+  }
+
+  return {
+    gameCode: "",
+    packComponent: normalized.replace(/[^0-9A-Za-z]/g, "").toUpperCase(),
+  };
+}
+
+function buildCompositePackNumber(gameCode: string, packComponent: string) {
+  const normalizedGameCode = normalizeGameCodeInput(gameCode);
+  const normalizedPackComponent = packComponent.replace(/[^0-9A-Za-z]/g, "").toUpperCase();
+  return `${normalizedGameCode}-${normalizedPackComponent}`;
+}
+
+function areCompositePackNumbersEquivalent(
+  leftRaw: string,
+  rightRaw: string,
+  allowLeadingZeros: boolean,
+) {
+  const left = splitCompositePackNumber(leftRaw);
+  const right = splitCompositePackNumber(rightRaw);
+
+  if (!left.gameCode || !right.gameCode || left.gameCode !== right.gameCode) {
+    return false;
+  }
+
+  const leftComponent = normalizePackComponentByLeadingZeroRule(left.packComponent, allowLeadingZeros);
+  const rightComponent = normalizePackComponentByLeadingZeroRule(right.packComponent, allowLeadingZeros);
+  return leftComponent === rightComponent;
+}
+
+function normalizeCompositePackNumberByLeadingZeroRule(rawValue: string, allowLeadingZeros: boolean) {
+  const split = splitCompositePackNumber(rawValue);
+  if (!split.gameCode) {
+    return normalizePackComponentByLeadingZeroRule(rawValue, allowLeadingZeros);
+  }
+
+  const normalizedComponent = normalizePackComponentByLeadingZeroRule(split.packComponent, allowLeadingZeros);
+  return buildCompositePackNumber(split.gameCode, normalizedComponent);
+}
+
 function parseScannedPackCode(value: string) {
   const normalized = normalizeDashes(value).trim();
   if (!normalized) {
@@ -642,6 +705,11 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
     queryFn: () => listGames(shopId as string),
     enabled: Boolean(shopId),
   });
+  const packsQuery = useQuery({
+    queryKey: ["packs", shopId],
+    queryFn: () => listPacks(shopId as string),
+    enabled: Boolean(shopId),
+  });
   const configurationQuery = useQuery({
     queryKey: ["configurations", shopId],
     queryFn: () => getConfigurations(shopId ?? undefined),
@@ -655,8 +723,22 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
   );
   const maxDisplayCount = shopOperationalSetup.scratchCardDisplayCount;
   const configuredPackSellingOrder = shopOperationalSetup.packSellingOrder;
+  const allowLeadingZeros = shopOperationalSetup.allowLeadingZeros;
+  const preventDuplicatePackNumbers = shopOperationalSetup.preventDuplicatePackNumbers;
+  const allowMultipleActivePacksForSameGame = shopOperationalSetup.allowMultipleActivePacksForSameGame;
   const selectedGame = activeGames.find((item) => item.id === gameId);
+  const existingPacks = packsQuery.data ?? [];
   const selectedGameLabel = selectedGame ? `${selectedGame.gameCode} - ${selectedGame.gameName}` : "";
+  const hasActivePackForSelectedGame = useMemo(() => {
+    if (!selectedGame) {
+      return false;
+    }
+
+    return existingPacks.some(
+      (pack) => pack.gameId === selectedGame.id && pack.status === "Active",
+    );
+  }, [existingPacks, selectedGame?.id]);
+  const canCreateAsActive = allowMultipleActivePacksForSameGame || !hasActivePackForSelectedGame;
   const filteredGames = useMemo(() => {
     const games = activeGames;
     const normalized = gameSearch.trim().toLowerCase();
@@ -695,9 +777,22 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
       throw new Error("Selected game is not available.");
     }
 
-    const normalizedPackNumber = packNumber.trim().toUpperCase();
+    const normalizedPackNumber = normalizePackComponentByLeadingZeroRule(packNumber, allowLeadingZeros);
     if (!normalizedPackNumber) {
       throw new Error("Pack number is required.");
+    }
+    const candidateCompositePackNumber = buildCompositePackNumber(selectedGame.gameCode, normalizedPackNumber);
+
+    if (
+      preventDuplicatePackNumbers &&
+      existingPacks.some((pack) =>
+        areCompositePackNumbersEquivalent(pack.packNumber, candidateCompositePackNumber, allowLeadingZeros))
+    ) {
+      throw new Error("Pack number already exists for this shop.");
+    }
+
+    if (!allowMultipleActivePacksForSameGame && activateOnCreate && hasActivePackForSelectedGame) {
+      throw new Error("An active pack already exists for this game. Create this pack as inactive.");
     }
 
     const parsedTicketPrice = Number(ticketPrice);
@@ -799,7 +894,7 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
 
       if (matchingGame) {
         pendingScannedPackRef.current = null;
-        setPackNumber(scannedPackComponent);
+        setPackNumber(normalizePackComponentByLeadingZeroRule(scannedPackComponent, allowLeadingZeros));
         setGameId(matchingGame.id);
         setGameSearch(`${matchingGame.gameCode} - ${matchingGame.gameName}`);
         setScanMessage(
@@ -819,7 +914,7 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
     });
 
     return unsubscribe;
-  }, [navigation]);
+  }, [navigation, allowLeadingZeros]);
 
   useEffect(() => {
     const pending = pendingScannedPackRef.current;
@@ -833,13 +928,13 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
     }
 
     pendingScannedPackRef.current = null;
-    setPackNumber(pending.packComponent);
+    setPackNumber(normalizePackComponentByLeadingZeroRule(pending.packComponent, allowLeadingZeros));
     setGameId(matchingGame.id);
     setGameSearch(`${matchingGame.gameCode} - ${matchingGame.gameName}`);
     setScanMessage(
       `Scanned game ${pending.gameCode}, pack ${pending.packComponent}. Review details, then tap Create Pack.`
     );
-  }, [activeGames]);
+  }, [activeGames, allowLeadingZeros]);
 
   useEffect(() => {
     if (!selectedGame) {
@@ -849,6 +944,12 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
     setTicketPrice(String(selectedGame.defaultTicketPrice));
     setTotalTickets(String(selectedGame.defaultTicketsPerPack));
   }, [selectedGame?.id]);
+
+  useEffect(() => {
+    if (activateOnCreate && !canCreateAsActive) {
+      setActivateOnCreate(false);
+    }
+  }, [activateOnCreate, canCreateAsActive]);
 
   useEffect(() => {
     const previousAuto = lastAutoSerialRangeRef.current;
@@ -963,7 +1064,8 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
             <TextInput
               style={[styles.input, styles.inlinePackInput]}
               value={packNumber}
-              onChangeText={setPackNumber}
+              onChangeText={(value) => setPackNumber(value.toUpperCase())}
+              onEndEditing={() => setPackNumber((current) => normalizePackComponentByLeadingZeroRule(current, allowLeadingZeros))}
               placeholder="Pack number (ex: 0009477)"
               placeholderTextColor={appTheme.colors.textSubtle}
               autoCapitalize="characters"
@@ -1063,8 +1165,18 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
           <Text style={styles.fieldLabel}>Initial Status</Text>
           <View style={styles.row}>
             <Pressable
-              style={[styles.choice, activateOnCreate && styles.choiceSelected]}
-              onPress={() => setActivateOnCreate(true)}
+              style={[
+                styles.choice,
+                activateOnCreate && styles.choiceSelected,
+                !canCreateAsActive ? styles.choiceDisabled : null,
+              ]}
+              onPress={() => {
+                if (!canCreateAsActive) {
+                  Alert.alert("Not allowed", "An active pack already exists for this game. Keep this pack inactive.");
+                  return;
+                }
+                setActivateOnCreate(true);
+              }}
             >
               <Text style={[styles.choiceText, activateOnCreate && styles.choiceTextSelected]}>Active</Text>
             </Pressable>
@@ -1075,6 +1187,11 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
               <Text style={[styles.choiceText, !activateOnCreate && styles.choiceTextSelected]}>Inactive</Text>
             </Pressable>
           </View>
+          {!canCreateAsActive ? (
+            <Text style={styles.meta}>
+              Shop setting allows only one active pack per game. Create as inactive, then activate later after closing current active pack.
+            </Text>
+          ) : null}
           {/* <Text style={styles.meta}>Default is Inactive. You can activate later from pack details.</Text> */}
 
           <Text style={styles.fieldLabel}>Notes (Optional)</Text>
@@ -1117,9 +1234,33 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
   const [editTotalTickets, setEditTotalTickets] = useState("");
   const [editStartSerial, setEditStartSerial] = useState("");
   const [editEndSerial, setEditEndSerial] = useState("");
+  const pack = packQuery.data;
+
+  const configurationQuery = useQuery({
+    queryKey: ["configurations", pack?.shopId],
+    queryFn: () => getConfigurations(pack?.shopId ?? undefined),
+    enabled: Boolean(pack?.shopId),
+  });
+  const shopOperationalSetup = useMemo(
+    () => deriveShopOperationalSetup(configurationQuery.data),
+    [configurationQuery.data],
+  );
+  const allowLeadingZeros = shopOperationalSetup.allowLeadingZeros;
+  const allowPackPause = shopOperationalSetup.allowPackPause;
+  const allowPackReturn = shopOperationalSetup.allowPackReturn;
+  const allowIssueMarking = shopOperationalSetup.allowIssueMarking;
 
   const actionMutation = useMutation({
     mutationFn: async (action: "pause" | "return" | "issue" | "complete") => {
+      if (action === "pause" && !allowPackPause) {
+        throw new Error("Pack pause is disabled in Shop Configuration.");
+      }
+      if (action === "return" && !allowPackReturn) {
+        throw new Error("Pack return is disabled in Shop Configuration.");
+      }
+      if (action === "issue" && !allowIssueMarking) {
+        throw new Error("Issue marking is disabled in Shop Configuration.");
+      }
       if (action === "pause") return pausePack(packId, notes);
       if (action === "return") return returnPack(packId, notes);
       if (action === "issue") return markIssuePack(packId, notes);
@@ -1132,11 +1273,10 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
       Alert.alert("Updated", "Pack status updated.");
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? "Unable to update pack.");
+      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to update pack.");
     },
   });
 
-  const pack = packQuery.data;
   const canActivate = pack?.status === "InStock" || pack?.status === "Paused";
   const canEditDetails = canActivate;
 
@@ -1166,8 +1306,12 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
       if (trimmedDisplayNumber.length > 0 && (!Number.isInteger(parsedDisplayNumber) || (parsedDisplayNumber ?? 0) < 0)) {
         throw new Error("Display number must be a whole number 0 or greater.");
       }
+      const normalizedPackNumber = normalizeCompositePackNumberByLeadingZeroRule(editPackNumber, allowLeadingZeros);
+      if (!normalizedPackNumber) {
+        throw new Error("Pack number is required.");
+      }
       return updatePackDetails(pack.id, {
-        packNumber: editPackNumber.trim().toUpperCase(),
+        packNumber: normalizedPackNumber,
         displayNumber: parsedDisplayNumber,
         ticketPrice: Number(editTicketPrice),
         totalTickets: Number(editTotalTickets),
@@ -1276,11 +1420,20 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
               <TextInput style={styles.input} value={notes} onChangeText={setNotes} placeholder="Notes for status change" placeholderTextColor={appTheme.colors.textSubtle} />
 
               <View style={styles.rowWrap}>
-                <Pressable style={styles.smallButton} onPress={() => actionMutation.mutate("pause")}><Text style={styles.smallButtonText}>Pause</Text></Pressable>
-                <Pressable style={styles.smallButton} onPress={() => actionMutation.mutate("return")}><Text style={styles.smallButtonText}>Return</Text></Pressable>
-                <Pressable style={styles.smallButton} onPress={() => actionMutation.mutate("issue")}><Text style={styles.smallButtonText}>Mark Issue</Text></Pressable>
+                {allowPackPause ? (
+                  <Pressable style={styles.smallButton} onPress={() => actionMutation.mutate("pause")}><Text style={styles.smallButtonText}>Pause</Text></Pressable>
+                ) : null}
+                {allowPackReturn ? (
+                  <Pressable style={styles.smallButton} onPress={() => actionMutation.mutate("return")}><Text style={styles.smallButtonText}>Return</Text></Pressable>
+                ) : null}
+                {allowIssueMarking ? (
+                  <Pressable style={styles.smallButton} onPress={() => actionMutation.mutate("issue")}><Text style={styles.smallButtonText}>Mark Issue</Text></Pressable>
+                ) : null}
                 <Pressable style={styles.smallButton} onPress={() => actionMutation.mutate("complete")}><Text style={styles.smallButtonText}>Complete</Text></Pressable>
               </View>
+              {!allowPackPause || !allowPackReturn || !allowIssueMarking ? (
+                <Text style={styles.meta}>Some status actions are hidden based on Shop Configuration.</Text>
+              ) : null}
             </>
           ) : (
             <Text style={styles.meta}>Status actions are hidden while editing pack details.</Text>
@@ -1638,6 +1791,9 @@ const styles = StyleSheet.create({
   choiceSelected: {
     backgroundColor: appTheme.colors.primary,
     borderColor: appTheme.colors.primary,
+  },
+  choiceDisabled: {
+    opacity: 0.45,
   },
   choiceText: {
     color: appTheme.colors.textMuted,

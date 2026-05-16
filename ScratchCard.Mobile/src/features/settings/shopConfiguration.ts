@@ -12,6 +12,14 @@ export const SHOP_CONFIG_KEYS = {
   allowCustomShiftName: "AllowCustomShiftName",
   packSellingOrder: "PackSellingOrder",
   scratchCardDisplayCount: "ScratchCardDisplayCount",
+  allowLeadingZeros: "AllowLeadingZeros",
+  preventDuplicatePackNumbers: "PreventDuplicatePackNumbers",
+  requirePackActivationBeforeSale: "RequirePackActivationBeforeSale",
+  allowMultipleActivePacksForSameGame: "AllowMultipleActivePacksForSameGame",
+  autoCompletePackWhenFinalSerialReached: "AutoCompletePackWhenFinalSerialReached",
+  allowPackPause: "AllowPackPause",
+  allowPackReturn: "AllowPackReturn",
+  allowIssueMarking: "AllowIssueMarking",
 } as const;
 
 export type ShiftTemplateSetup = {
@@ -32,6 +40,14 @@ export type ShopOperationalSetup = {
   allowCustomShiftName: boolean;
   packSellingOrder: SellingOrder;
   scratchCardDisplayCount: number;
+  allowLeadingZeros: boolean;
+  preventDuplicatePackNumbers: boolean;
+  requirePackActivationBeforeSale: boolean;
+  allowMultipleActivePacksForSameGame: boolean;
+  autoCompletePackWhenFinalSerialReached: boolean;
+  allowPackPause: boolean;
+  allowPackReturn: boolean;
+  allowIssueMarking: boolean;
 };
 
 function getValue(items: ConfigurationItem[] | undefined, key: string, fallback: string) {
@@ -199,6 +215,14 @@ export function deriveShopOperationalSetup(items: ConfigurationItem[] | undefine
     getValue(items, SHOP_CONFIG_KEYS.scratchCardDisplayCount, "24"),
     24
   );
+  const allowLeadingZeros = parseBool(getValue(items, SHOP_CONFIG_KEYS.allowLeadingZeros, "true"), true);
+  const preventDuplicatePackNumbers = parseBool(getValue(items, SHOP_CONFIG_KEYS.preventDuplicatePackNumbers, "true"), true);
+  const requirePackActivationBeforeSale = parseBool(getValue(items, SHOP_CONFIG_KEYS.requirePackActivationBeforeSale, "true"), true);
+  const allowMultipleActivePacksForSameGame = parseBool(getValue(items, SHOP_CONFIG_KEYS.allowMultipleActivePacksForSameGame, "true"), true);
+  const autoCompletePackWhenFinalSerialReached = parseBool(getValue(items, SHOP_CONFIG_KEYS.autoCompletePackWhenFinalSerialReached, "true"), true);
+  const allowPackPause = parseBool(getValue(items, SHOP_CONFIG_KEYS.allowPackPause, "true"), true);
+  const allowPackReturn = parseBool(getValue(items, SHOP_CONFIG_KEYS.allowPackReturn, "true"), true);
+  const allowIssueMarking = parseBool(getValue(items, SHOP_CONFIG_KEYS.allowIssueMarking, "true"), true);
 
   return {
     timeZone,
@@ -210,5 +234,13 @@ export function deriveShopOperationalSetup(items: ConfigurationItem[] | undefine
     allowCustomShiftName,
     packSellingOrder,
     scratchCardDisplayCount,
+    allowLeadingZeros,
+    preventDuplicatePackNumbers,
+    requirePackActivationBeforeSale,
+    allowMultipleActivePacksForSameGame,
+    autoCompletePackWhenFinalSerialReached,
+    allowPackPause,
+    allowPackReturn,
+    allowIssueMarking,
   };
 }
