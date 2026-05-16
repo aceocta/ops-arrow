@@ -424,13 +424,14 @@ public class ShiftSalesService : IShiftSalesService
         var hasFlags = salesEntries.Any(x => x.NotificationRequired);
         try
         {
+            using var enqueueTimeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(250));
             await _shiftCloseNotificationDispatcher.EnqueueAsync(
                 new ShiftCloseNotificationWorkItem
                 {
                     ShiftId = shift.Id,
                     IncludeManualEntryNotifications = false
                 },
-                CancellationToken.None);
+                enqueueTimeout.Token);
         }
         catch (Exception ex)
         {

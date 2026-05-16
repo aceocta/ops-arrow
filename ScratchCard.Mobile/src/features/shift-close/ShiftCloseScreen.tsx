@@ -688,7 +688,7 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
 
       await finalizeShift(shiftId, payload);
       await clearShiftDraft(shiftId);
-      await Promise.allSettled([
+      void Promise.allSettled([
         queryClient.invalidateQueries({ queryKey: ["shift", shiftId] }),
         queryClient.invalidateQueries({ queryKey: ["shift-sales", shiftId] }),
         queryClient.invalidateQueries({ queryKey: ["shift-active-packs", shiftId] }),
@@ -703,7 +703,7 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
       const relatedBusinessDayId = shiftQuery.data?.businessDayId;
       const relatedShopId = shiftQuery.data?.shopId ?? shopId;
 
-      await Promise.allSettled([
+      void Promise.allSettled([
         relatedBusinessDayId
           ? queryClient.refetchQueries({ queryKey: ["business-day", relatedBusinessDayId], type: "all" })
           : Promise.resolve(),
