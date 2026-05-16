@@ -33,6 +33,7 @@ export type MainStackParamList = {
   Dashboard: undefined;
   UserInvitations: undefined;
   UserManagement: undefined;
+  ShopConfiguration: undefined;
   AppConfiguration: undefined;
   CompanyManagement: undefined;
   ShopManagement: undefined;

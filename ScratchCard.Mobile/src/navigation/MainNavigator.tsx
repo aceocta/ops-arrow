@@ -45,7 +45,7 @@ import {
   AuditLogScreen,
   NotificationLogScreen,
 } from "../features/reports/ReportScreens";
-import { UserManagementScreen, AppConfigurationScreen, CompanyManagementScreen, ShopManagementScreen, SettingsScreen } from "../features/settings/SettingsScreens";
+import { UserManagementScreen, ShopConfigurationScreen, AppConfigurationScreen, CompanyManagementScreen, ShopManagementScreen, SettingsScreen } from "../features/settings/SettingsScreens";
 import { BestEntryProvider, EntryOperation, useBestEntry } from "./BestEntryContext";
 import { MainStackParamList } from "../types/navigation";
 import { appTheme } from "../ui/theme";
@@ -111,6 +111,7 @@ const managementItems: MenuItem[] = [
   // { label: "Company Management", screen: "CompanyManagement", icon: "business-outline", shopOwnerOnly: true },
   { label: "Shop Management", screen: "ShopManagement", icon: "storefront-outline", shopOwnerOnly: true },
   { label: "User Management", screen: "UserManagement", icon: "people-outline", shopOwnerOnly: true },
+  { label: "Shop Configuration", screen: "ShopConfiguration", icon: "storefront-outline" },
   { label: "App Configuration", screen: "AppConfiguration", icon: "construct-outline" },
 ];
 
@@ -230,6 +231,7 @@ function resolveActiveBottomDockScreen(routeName: string | undefined): keyof Mai
     routeName === "ChecklistHistory" ||
     routeName === "UserInvitations" ||
     routeName === "UserManagement" ||
+    routeName === "ShopConfiguration" ||
     routeName === "AppConfiguration" ||
     routeName === "CompanyManagement" ||
     routeName === "ShopManagement"
@@ -297,6 +299,7 @@ function MainStackScreens() {
       <Stack.Screen name="Dashboard" component={DashboardScreen} options={{ title: "Day Management" }} />
       <Stack.Screen name="UserInvitations" component={UserInvitationsScreen} options={{ title: "User Invitations" }} />
       <Stack.Screen name="UserManagement" component={UserManagementScreen} options={{ title: "User Management" }} />
+      <Stack.Screen name="ShopConfiguration" component={ShopConfigurationScreen} options={{ title: "Shop Configuration" }} />
       <Stack.Screen name="AppConfiguration" component={AppConfigurationScreen} options={{ title: "App Configuration" }} />
       <Stack.Screen name="CompanyManagement" component={CompanyManagementScreen} options={{ title: "Company Management" }} />
       <Stack.Screen name="ShopManagement" component={ShopManagementScreen} options={{ title: "Shop Management" }} />

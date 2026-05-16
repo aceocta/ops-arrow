@@ -153,6 +153,63 @@ type ConfigurationGroupSummary = {
   icon: React.ComponentProps<typeof Ionicons>["name"];
 };
 
+type ConfigurationScope = "shop" | "app";
+
+const SHOP_CONFIGURATION_GROUPS = new Set([
+  "General Settings",
+  "Pack Settings",
+  "Shift Settings",
+]);
+
+const APP_CONFIGURATION_GROUPS = new Set([
+  "Day Close Settings",
+  "Notification Settings",
+  "Barcode Settings",
+  "Offline Settings",
+]);
+
+const APP_CONFIGURATION_HIDDEN_GROUPS = new Set([
+  "Sales Settings",
+  "Prize Payout Settings",
+  "Subscription Settings",
+]);
+
+const APP_CONFIGURATION_HIDDEN_KEYS = new Set([
+  "NotificationChannels",
+  "BarcodeContains",
+  "EnableMobileCameraBarcodeScanning",
+  "PackNumberLength",
+  "PackNumberStartPosition",
+  "SerialNumberStartPosition",
+  "SerialNumberLength",
+  "BarcodeSerialNumberLength",
+  "RemovePrefix",
+  "RemoveSuffix",
+  "RequireNoteWhenDayDifferenceExists",
+]);
+
+type ConfigurationScopeMeta = {
+  title: string;
+  subtitle: string;
+  groups: Set<string>;
+};
+
+function getConfigurationScopeMeta(scope: ConfigurationScope): ConfigurationScopeMeta {
+  if (scope === "shop") {
+    return {
+      title: "Shop Configuration",
+      subtitle: "Update shop-level setup for general behavior, pack controls, and shift templates.",
+      groups: SHOP_CONFIGURATION_GROUPS,
+    };
+  }
+
+  return {
+    title: "App Configuration",
+    subtitle: "Update app behavior for sales, day close, payouts, barcode, offline sync, and notifications.",
+    groups: APP_CONFIGURATION_GROUPS,
+  };
+}
+
 function getConfigurationGroupSummary(groupName: string): ConfigurationGroupSummary {
   if (groupName === "General Settings") {
     return {
@@ -186,9 +243,57 @@ function getConfigurationGroupSummary(groupName: string): ConfigurationGroupSumm
     };
   }
 
+  if (groupName === "Sales Settings") {
+    return {
+      title: "Sales",
+      description: "Sales backdate and correction controls.",
+      icon: "cash-outline",
+    };
+  }
+
+  if (groupName === "Day Close Settings") {
+    return {
+      title: "Day Close",
+      description: "Rules for day close validation and reopen policy.",
+      icon: "calendar-clear-outline",
+    };
+  }
+
+  if (groupName === "Prize Payout Settings") {
+    return {
+      title: "Prize Payout",
+      description: "Payout limits, approval, and payout method settings.",
+      icon: "cash-outline",
+    };
+  }
+
+  if (groupName === "Notification Settings") {
+    return {
+      title: "Notification",
+      description: "Recipients and channels for operational alerts.",
+      icon: "notifications-outline",
+    };
+  }
+
+  if (groupName === "Offline Settings") {
+    return {
+      title: "Offline",
+      description: "Offline behavior and auto-sync controls.",
+      icon: "cloud-offline-outline",
+    };
+  }
+
+  if (groupName === "Subscription Settings") {
+    return {
+      title: "Subscription",
+      description: "Trial, reminder, and payment grace defaults.",
+      icon: "card-outline",
+    };
+  }
+
   return {
     title: groupName.replace(/ Settings$/i, ""),
-    description: "Shop configuration controls.",
+    description: "Configuration controls.",
     icon: "options-outline",
   };
 }
@@ -267,10 +372,11 @@ export function UserManagementScreen() {
   );
 }
 
-export function AppConfigurationScreen() {
+function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
   const { activeShopId, activeShop } = useAuth();
   const queryClient = useQueryClient();
   const shopId = activeShopId;
+  const scopeMeta = getConfigurationScopeMeta(scope);
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
   const shiftTemplatesDraftKey = buildConfigDraftKey("Shift Settings", SHOP_CONFIG_KEYS.shiftTemplates);
   const shiftStartTimeDraftKey = buildConfigDraftKey("Shift Settings", SHOP_CONFIG_KEYS.shiftStartTime);
@@ -292,10 +398,7 @@ export function AppConfigurationScreen() {
       SHOP_CONFIG_KEYS.shiftDefaultName,
     ]);
     const visibleGroups = new Set([
-      "General Settings",
-      "Pack Settings",
-      "Shift Settings",
-      "Barcode Settings",
+      ...scopeMeta.groups,
     ]);
     const output = new Map<string, ConfigurationItem[]>();
     for (const item of configurationsQuery.data ?? []) {
@@ -303,6 +406,12 @@ export function AppConfigurationScreen() {
         continue;
       }
       if (!visibleGroups.has(item.groupName)) {
+        continue;
+      }
+      if (
+        scope === "app" &&
+        (APP_CONFIGURATION_HIDDEN_GROUPS.has(item.groupName) || APP_CONFIGURATION_HIDDEN_KEYS.has(item.configKey))
+      ) {
         continue;
       }
       const arr = output.get(item.groupName) ?? [];
@@ -316,7 +425,7 @@ export function AppConfigurationScreen() {
         items.slice().sort((a, b) => a.configKey.localeCompare(b.configKey)),
       ] as const))
       .sort(([groupA], [groupB]) => groupA.localeCompare(groupB));
-  }, [configurationsQuery.data]);
+  }, [configurationsQuery.data, scopeMeta.groups]);
   const draftChangeCount = Object.keys(draftValues).length;
   const hasDraftChanges = draftChangeCount > 0;
   const totalVisibleConfigurationCount = grouped.reduce((total, [, items]) => total + items.length, 0);
@@ -389,7 +498,7 @@ export function AppConfigurationScreen() {
     },
     onSuccess: () => {
       setDraftValues({});
-      Alert.alert("Saved", "Configuration updated.");
+      Alert.alert("Saved", `${scopeMeta.title} updated.`);
       void queryClient.invalidateQueries({ queryKey: ["configurations", shopId] });
     },
     onError: (error: any) => {
@@ -403,16 +512,14 @@ export function AppConfigurationScreen() {
         <View style={[ui.card, styles.configHeroCard]}>
           <View style={styles.configHeroHeaderRow}>
             <View style={styles.configHeroHeaderTextWrap}>
-              <Text style={styles.configHeroTitle}>App Configuration</Text>
+              <Text style={styles.configHeroTitle}>{scopeMeta.title}</Text>
               <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
             </View>
             <View style={styles.configCountPill}>
               <Text style={styles.configCountPillText}>{totalVisibleConfigurationCount} fields</Text>
             </View>
           </View>
-          <Text style={styles.configHeroSubtitle}>
-            Update operational behavior for general shop setup, scratch-card pack flow, and shifts.
-          </Text>
+          <Text style={styles.configHeroSubtitle}>{scopeMeta.subtitle}</Text>
           <View style={styles.configHeroStatusRow}>
             <View style={[styles.configStatusChip, hasDraftChanges ? styles.configStatusChipWarning : styles.configStatusChipSuccess]}>
               <Ionicons
@@ -430,7 +537,7 @@ export function AppConfigurationScreen() {
         {configurationsQuery.isLoading ? (
           <View style={[ui.card, styles.configStateCard]}>
             <Text style={styles.itemTitle}>Loading settings...</Text>
-            <Text style={styles.meta}>Fetching configuration values for this shop.</Text>
+            <Text style={styles.meta}>Fetching {scopeMeta.title.toLowerCase()} values for this shop.</Text>
           </View>
         ) : null}
 
@@ -702,6 +809,14 @@ export function AppConfigurationScreen() {
       </ScrollView>
     </ScreenContainer>
   );
+}
+
+export function ShopConfigurationScreen() {
+  return <ConfigurationScreen scope="shop" />;
+}
+
+export function AppConfigurationScreen() {
+  return <ConfigurationScreen scope="app" />;
 }
 
 export function CompanyManagementScreen() {
@@ -1045,9 +1160,16 @@ export function SettingsScreen() {
     {
       key: "app-configuration",
       title: "App Configuration",
-      description: "Control operational times and runtime settings.",
+      description: "Control app runtime behavior and advanced rules.",
       icon: "construct-outline",
       onPress: () => navigation.navigate("AppConfiguration"),
+    },
+    {
+      key: "shop-configuration",
+      title: "Shop Configuration",
+      description: "Manage shop-specific general, pack, and shift setup.",
+      icon: "storefront-outline",
+      onPress: () => navigation.navigate("ShopConfiguration"),
     },
   ];
 
