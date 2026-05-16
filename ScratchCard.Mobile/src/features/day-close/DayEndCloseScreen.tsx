@@ -24,7 +24,7 @@ import { PrimaryButton } from "../../components/PrimaryButton";
 import { deriveShopOperationalSetup } from "../settings/shopConfiguration";
 import { PackStatus, ShiftStatus } from "../../types/enums";
 import { MainStackParamList } from "../../types/navigation";
-import { BusinessDay } from "../../types/models";
+import { BusinessDay, ConfigurationItem, Shift } from "../../types/models";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -108,6 +108,32 @@ function getDateValueOffset(baseDateValue: string, dayOffset: number) {
   const shifted = new Date(parsed);
   shifted.setDate(shifted.getDate() + dayOffset);
   return formatDateValue(shifted);
+}
+
+function getConfigurationValue(items: ConfigurationItem[] | undefined, key: string, fallback: string) {
+  const matched = items?.find((item) => item.configKey.toLowerCase() === key.toLowerCase());
+  const value = matched?.configValue?.trim();
+  return value && value.length > 0 ? value : fallback;
+}
+
+function parseTimeToMinutes(value: string, fallbackMinutes: number) {
+  const trimmed = value.trim();
+  const match = /^(\d{2}):(\d{2})$/.exec(trimmed);
+  if (!match) {
+    return fallbackMinutes;
+  }
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) {
+    return fallbackMinutes;
+  }
+
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return fallbackMinutes;
+  }
+
+  return (hours * 60) + minutes;
 }
 
 function DetailLine({ label, value }: { label: string; value: string }) {
@@ -422,6 +448,29 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     () => deriveShopOperationalSetup(configurationQuery.data),
     [configurationQuery.data],
   );
+  const businessDayTiming = useMemo(() => {
+    const startRaw = getConfigurationValue(
+      configurationQuery.data,
+      "BusinessStartTime",
+      shopOperationalSetup.shiftStartTime,
+    );
+    const endRaw = getConfigurationValue(
+      configurationQuery.data,
+      "BusinessEndTime",
+      shopOperationalSetup.shiftEndTime,
+    );
+
+    const defaultStartMinutes = parseTimeToMinutes(shopOperationalSetup.shiftStartTime, 6 * 60);
+    const defaultEndMinutes = parseTimeToMinutes(shopOperationalSetup.shiftEndTime, (21 * 60) + 59);
+    const startMinutes = parseTimeToMinutes(startRaw, defaultStartMinutes);
+    const endMinutes = parseTimeToMinutes(endRaw, defaultEndMinutes);
+
+    return {
+      startMinutes,
+      endMinutes,
+      isOvernight: startMinutes > endMinutes,
+    };
+  }, [configurationQuery.data, shopOperationalSetup.shiftStartTime, shopOperationalSetup.shiftEndTime]);
   const activePacksForOpening = useMemo(
     () =>
       (packsQuery.data ?? [])
@@ -679,7 +728,58 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     }, [businessDayId, day?.shopId, queryClient]),
   );
 
-  const shifts = shiftsQuery.data ?? [];
+  const shiftDisplayWindowById = useMemo(() => {
+    const result: Record<string, { start: Date; end?: Date }> = {};
+    const businessDateValue = day?.businessDate ?? "";
+    const nextBusinessDateValue = businessDateValue
+      ? getDateValueOffset(businessDateValue, 1)
+      : "";
+    const overnightWindowEndMinutes = businessDayTiming.endMinutes;
+
+    for (const shift of shiftsQuery.data ?? []) {
+      let displayStart = new Date(shift.startTime);
+      let displayEnd = shift.endTime ? new Date(shift.endTime) : undefined;
+
+      if (
+        businessDayTiming.isOvernight &&
+        shift.status === ShiftStatus.Scheduled &&
+        shift.isAutoCreated &&
+        businessDateValue &&
+        displayEnd
+      ) {
+        const startDateValue = formatDateValue(displayStart);
+        const endDateValue = formatDateValue(displayEnd);
+        const startMinutes = (displayStart.getHours() * 60) + displayStart.getMinutes();
+        const endMinutes = (displayEnd.getHours() * 60) + displayEnd.getMinutes();
+
+        const isLegacyOvernightPlacement =
+          startDateValue === businessDateValue &&
+          endDateValue === nextBusinessDateValue &&
+          startMinutes > overnightWindowEndMinutes &&
+          endMinutes <= overnightWindowEndMinutes;
+
+        if (isLegacyOvernightPlacement) {
+          displayStart = new Date(displayStart.getTime() - (24 * 60 * 60 * 1000));
+          displayEnd = new Date(displayEnd.getTime() - (24 * 60 * 60 * 1000));
+        }
+      }
+
+      result[shift.id] = { start: displayStart, end: displayEnd };
+    }
+
+    return result;
+  }, [businessDayTiming.endMinutes, businessDayTiming.isOvernight, day?.businessDate, shiftsQuery.data]);
+
+  const shifts = useMemo(
+    () =>
+      [...(shiftsQuery.data ?? [])].sort((a, b) => {
+        const aStart = shiftDisplayWindowById[a.id]?.start ?? new Date(a.startTime);
+        const bStart = shiftDisplayWindowById[b.id]?.start ?? new Date(b.startTime);
+        return aStart.getTime() - bStart.getTime();
+      }),
+    [shiftDisplayWindowById, shiftsQuery.data],
+  );
+  const firstShiftIdForBusinessDay = shifts[0]?.id;
   const closedSummaryStatuses = new Set<ShiftStatus>([ShiftStatus.Closed, ShiftStatus.Approved]);
   const closedShiftIds = useMemo(
     () => shifts.filter((shift) => closedSummaryStatuses.has(shift.status)).map((shift) => shift.id),
@@ -1082,6 +1182,10 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             const canCloseShift = closableStatuses.has(shift.status);
             const canStartScheduledShift = shift.status === ShiftStatus.Scheduled;
             const shiftSalesTotal = shiftSalesTotalsQuery.data?.[shift.id];
+            const isFirstShiftForBusinessDay = shift.id === firstShiftIdForBusinessDay;
+            const displayWindow = shiftDisplayWindowById[shift.id];
+            const displayStart = displayWindow?.start ?? new Date(shift.startTime);
+            const displayEnd = displayWindow?.end;
             return (
               <View key={shift.id} style={styles.shiftItem}>
                 <Pressable
@@ -1094,8 +1198,13 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     <Text style={styles.shiftName}>{shift.shiftName}</Text>
                     <StatusBadge label={shift.status} tone={getShiftTone(shift.status)} />
                   </View>
-                  <DetailLine label="Start" value={new Date(shift.startTime).toLocaleString()} />
-                  {shift.endTime ? <DetailLine label="End" value={new Date(shift.endTime).toLocaleString()} /> : null}
+                  {isFirstShiftForBusinessDay ? (
+                    <Text style={styles.meta}>
+                      First shift for business day {day?.businessDate ?? "-"}
+                    </Text>
+                  ) : null}
+                  <DetailLine label="Start" value={displayStart.toLocaleString()} />
+                  {displayEnd ? <DetailLine label="End" value={displayEnd.toLocaleString()} /> : null}
                   <DetailLine
                     label="Sales Total"
                     value={shiftSalesTotal != null ? formatCurrency(shiftSalesTotal) : "Loading..."}

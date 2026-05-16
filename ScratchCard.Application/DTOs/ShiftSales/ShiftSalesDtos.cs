@@ -38,6 +38,8 @@ public class ShiftCloseResultDto
     public decimal ExpectedCash { get; set; }
     public decimal Difference { get; set; }
     public bool HasManualOrEditedEntries { get; set; }
+    public bool MoveDayManagementToNextBusinessDate { get; set; }
+    public DateOnly? NextBusinessDate { get; set; }
 }
 
 public class ShiftSalesEntryDto

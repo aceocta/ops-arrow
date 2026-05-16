@@ -135,6 +135,8 @@ public class ApplicationDbContext : DbContext
             entity.ToTable("CfgGeneralSettings");
             entity.Property(x => x.Currency).HasMaxLength(20);
             entity.Property(x => x.TimeZone).HasMaxLength(100);
+            entity.Property(x => x.BusinessStartTime).HasMaxLength(20);
+            entity.Property(x => x.BusinessEndTime).HasMaxLength(20);
             entity.Property(x => x.BusinessDateCutOffTime).HasMaxLength(20);
             entity.HasOne(x => x.Shop).WithMany(x => x.GeneralSettings).HasForeignKey(x => x.ShopId);
         });

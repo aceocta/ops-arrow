@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ScratchCard.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using ScratchCard.Infrastructure.Persistence;
 namespace ScratchCard.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260516130544_AddBusinessHoursToGeneralSettings")]
+    partial class AddBusinessHoursToGeneralSettings
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1686,9 +1689,6 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Property<Guid?>("ClosedByUserId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTimeOffset?>("ClosedOn")
-                        .HasColumnType("datetimeoffset");
-
                     b.Property<Guid?>("CreatedBy")
                         .HasColumnType("uniqueidentifier");
 
@@ -1710,9 +1710,6 @@ namespace ScratchCard.Infrastructure.Migrations
 
                     b.Property<Guid>("OpenedByUserId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset?>("OpenedOn")
-                        .HasColumnType("datetimeoffset");
 
                     b.Property<string>("ShiftName")
                         .IsRequired()

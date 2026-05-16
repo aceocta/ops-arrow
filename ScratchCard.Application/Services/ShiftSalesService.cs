@@ -184,6 +184,9 @@ public class ShiftSalesService : IShiftSalesService
             throw new AppException("business_day_closed", "Business day is already closed.");
         }
 
+        var closeActionOn = DateTimeOffset.UtcNow;
+        var businessDaySetup = await _shopConfigurationService.GetBusinessDaySetupAsync(shift.ShopId, cancellationToken);
+
         var packIds = request.Entries.Select(x => x.PackId).Distinct().ToArray();
         var packs = await _packRepository.Query()
             .Where(x => packIds.Contains(x.Id) && x.ShopId == shift.ShopId && !x.IsDeleted)
@@ -413,11 +416,25 @@ public class ShiftSalesService : IShiftSalesService
 
         shift.Status = ShiftStatus.Closed;
         shift.SyncStatus = SyncStatus.Synced;
-        shift.EndTime = DateTimeOffset.UtcNow;
+        if (!shift.EndTime.HasValue)
+        {
+            shift.EndTime = closeActionOn;
+        }
+
+        shift.ClosedOn = closeActionOn;
         shift.ClosedByUserId = _currentUserService.UserId;
-        shift.ModifiedOn = DateTimeOffset.UtcNow;
+        shift.ModifiedOn = closeActionOn;
         shift.ModifiedBy = _currentUserService.UserId;
         _shiftRepository.Update(shift);
+
+        var effectiveShiftEnd = shift.EndTime ?? closeActionOn;
+        var shouldMoveDayManagementToNextBusinessDate = ShouldMoveDayManagementToNextBusinessDate(
+            effectiveShiftEnd,
+            businessDaySetup.TimeZoneId,
+            businessDaySetup.BusinessEndTime);
+        var nextBusinessDate = shouldMoveDayManagementToNextBusinessDate
+            ? businessDay.BusinessDate.AddDays(1)
+            : (DateOnly?)null;
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -452,8 +469,66 @@ public class ShiftSalesService : IShiftSalesService
             TotalPrizePayout = totalPrizePayout,
             ExpectedCash = expectedCash,
             Difference = difference,
-            HasManualOrEditedEntries = hasFlags
+            HasManualOrEditedEntries = hasFlags,
+            MoveDayManagementToNextBusinessDate = shouldMoveDayManagementToNextBusinessDate,
+            NextBusinessDate = nextBusinessDate
         };
+    }
+
+    private static bool ShouldMoveDayManagementToNextBusinessDate(
+        DateTimeOffset shiftEndTimeUtc,
+        string? timeZoneId,
+        TimeSpan configuredBusinessEndTime)
+    {
+        var shiftLocalTime = ConvertToShopTime(shiftEndTimeUtc, timeZoneId);
+        var endTime = shiftLocalTime.TimeOfDay;
+        return endTime.Hours == configuredBusinessEndTime.Hours &&
+               endTime.Minutes == configuredBusinessEndTime.Minutes;
+    }
+
+    private static DateTimeOffset ConvertToShopTime(DateTimeOffset utcNow, string? timeZoneId)
+    {
+        var timeZone = ResolveTimeZone(timeZoneId);
+        return timeZone is null ? utcNow : TimeZoneInfo.ConvertTime(utcNow, timeZone);
+    }
+
+    private static TimeZoneInfo? ResolveTimeZone(string? timeZoneId)
+    {
+        if (string.IsNullOrWhiteSpace(timeZoneId))
+        {
+            return null;
+        }
+
+        static TimeZoneInfo? TryResolve(string id)
+        {
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById(id);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        var normalized = timeZoneId.Trim();
+        var resolved = TryResolve(normalized);
+        if (resolved is not null)
+        {
+            return resolved;
+        }
+
+        if (string.Equals(normalized, "Europe/London", StringComparison.OrdinalIgnoreCase))
+        {
+            return TryResolve("GMT Standard Time");
+        }
+
+        if (string.Equals(normalized, "GMT Standard Time", StringComparison.OrdinalIgnoreCase))
+        {
+            return TryResolve("Europe/London");
+        }
+
+        return null;
     }
 
     private async Task SendShiftCloseSummaryToOwnersAsync(
@@ -650,7 +725,7 @@ public class ShiftSalesService : IShiftSalesService
         sb.AppendLine($"Shop: {shopName}");
         sb.AppendLine($"Business Date: {businessDay.BusinessDate:yyyy-MM-dd}");
         sb.AppendLine($"Shift: {shift.ShiftName}");
-        sb.AppendLine($"Closed Time: {shift.EndTime:O}");
+        sb.AppendLine($"Closed Time: {(shift.ClosedOn ?? shift.EndTime):O}");
         sb.AppendLine();
 
         foreach (var entry in entries.Where(x => x.NotificationRequired))

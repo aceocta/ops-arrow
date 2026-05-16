@@ -202,6 +202,8 @@ internal static class ServiceMappingExtensions
         ShiftName = shift.ShiftName,
         StartTime = shift.StartTime,
         EndTime = shift.EndTime,
+        OpenedOn = shift.OpenedOn,
+        ClosedOn = shift.ClosedOn,
         Status = shift.Status.ToString(),
         SyncStatus = shift.SyncStatus.ToString(),
         IsAutoCreated = ShiftMetadata.IsAutoCreated(shift.Notes),

@@ -10,6 +10,8 @@ public class Shift : AuditableEntity
     public string ShiftName { get; set; } = string.Empty;
     public DateTimeOffset StartTime { get; set; }
     public DateTimeOffset? EndTime { get; set; }
+    public DateTimeOffset? OpenedOn { get; set; }
+    public DateTimeOffset? ClosedOn { get; set; }
     public Guid OpenedByUserId { get; set; }
     public Guid? ClosedByUserId { get; set; }
     public ShiftStatus Status { get; set; } = ShiftStatus.Open;

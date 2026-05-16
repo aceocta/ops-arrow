@@ -70,23 +70,19 @@ public class BusinessDayService : IBusinessDayService
 
     public async Task<BusinessDayDto> OpenAsync(OpenBusinessDayRequest request, CancellationToken cancellationToken = default)
     {
-        var existing = await _businessDayRepository.Query()
-            .FirstOrDefaultAsync(x => x.ShopId == request.ShopId && x.BusinessDate == request.BusinessDate, cancellationToken);
-
-        if (existing is not null && existing.Status != BusinessDayStatus.Closed)
-        {
-            throw new AppException("business_day_already_open", "Business day is already open for this date.");
-        }
-
-        if (existing is not null && existing.Status == BusinessDayStatus.Closed)
-        {
-            throw new AppException("business_day_already_closed", "Business day already exists and is closed.");
-        }
+        var effectiveBusinessDate = await ResolveEffectiveBusinessDateAsync(
+            request.ShopId,
+            request.BusinessDate,
+            cancellationToken);
+        effectiveBusinessDate = await ResolveNextCreatableBusinessDateAsync(
+            request.ShopId,
+            effectiveBusinessDate,
+            cancellationToken);
 
         var day = new BusinessDay
         {
             ShopId = request.ShopId,
-            BusinessDate = request.BusinessDate,
+            BusinessDate = effectiveBusinessDate,
             Status = BusinessDayStatus.Open,
             OpenedByUserId = _currentUserService.UserId ?? Guid.Empty,
             OpenedOn = DateTimeOffset.UtcNow,
@@ -103,6 +99,42 @@ public class BusinessDayService : IBusinessDayService
         openedDayDto.MissingOpeningTicketCount = 0;
         openedDayDto.MissingOpeningTicketDetails = [];
         return openedDayDto;
+    }
+
+    private async Task<DateOnly> ResolveNextCreatableBusinessDateAsync(
+        Guid shopId,
+        DateOnly candidateDate,
+        CancellationToken cancellationToken)
+    {
+        var rows = await _businessDayRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId && x.BusinessDate >= candidateDate)
+            .Select(x => new { x.BusinessDate, x.Status })
+            .OrderBy(x => x.BusinessDate)
+            .ToListAsync(cancellationToken);
+
+        var nextDate = candidateDate;
+        foreach (var row in rows)
+        {
+            if (row.BusinessDate < nextDate)
+            {
+                continue;
+            }
+
+            if (row.BusinessDate > nextDate)
+            {
+                break;
+            }
+
+            if (row.Status != BusinessDayStatus.Closed)
+            {
+                throw new AppException("business_day_already_open", "Business day is already open for this date.");
+            }
+
+            nextDate = nextDate.AddDays(1);
+        }
+
+        return nextDate;
     }
 
     public async Task<IReadOnlyCollection<BusinessDayDto>> ListAsync(Guid shopId, DateOnly? from = null, DateOnly? to = null, CancellationToken cancellationToken = default)
@@ -372,6 +404,7 @@ public class BusinessDayService : IBusinessDayService
     private async Task AutoCreateScheduledShiftsAsync(BusinessDay day, CancellationToken cancellationToken)
     {
         var setup = await _shopConfigurationService.GetShiftSetupAsync(day.ShopId, cancellationToken);
+        var businessDaySetup = await _shopConfigurationService.GetBusinessDaySetupAsync(day.ShopId, cancellationToken);
         var activeTemplates = setup.ShiftTemplates
             .Where(x => x.IsActive)
             .ToArray();
@@ -399,10 +432,14 @@ public class BusinessDayService : IBusinessDayService
                 continue;
             }
 
-            var scheduledStart = ToUtcDateTime(day.BusinessDate, template.StartTime, setup.TimeZoneId);
-            var endDate = template.EndTime <= template.StartTime
-                ? day.BusinessDate.AddDays(1)
-                : day.BusinessDate;
+            var (startDate, endDate) = ResolveScheduledShiftDates(
+                day.BusinessDate,
+                template.StartTime,
+                template.EndTime,
+                businessDaySetup.BusinessStartTime,
+                businessDaySetup.BusinessEndTime);
+
+            var scheduledStart = ToUtcDateTime(startDate, template.StartTime, setup.TimeZoneId);
             var scheduledEnd = ToUtcDateTime(endDate, template.EndTime, setup.TimeZoneId);
 
             newShifts.Add(new Shift
@@ -439,6 +476,40 @@ public class BusinessDayService : IBusinessDayService
                 reason: shift.ShiftName,
                 cancellationToken: cancellationToken);
         }
+    }
+
+    private static (DateOnly StartDate, DateOnly EndDate) ResolveScheduledShiftDates(
+        DateOnly businessDate,
+        TimeSpan shiftStartTime,
+        TimeSpan shiftEndTime,
+        TimeSpan businessStartTime,
+        TimeSpan businessEndTime)
+    {
+        // Overnight business day (for example 22:00 -> 09:59): businessDate is the close date.
+        if (businessStartTime > businessEndTime)
+        {
+            var startDate = shiftStartTime > businessEndTime
+                ? businessDate.AddDays(-1)
+                : businessDate;
+
+            var endDate = shiftEndTime > businessEndTime
+                ? businessDate.AddDays(-1)
+                : businessDate;
+
+            if (endDate < startDate || (endDate == startDate && shiftEndTime <= shiftStartTime))
+            {
+                endDate = endDate.AddDays(1);
+            }
+
+            return (startDate, endDate);
+        }
+
+        // Same-day business window: keep same date unless template itself crosses midnight.
+        var defaultStartDate = businessDate;
+        var defaultEndDate = shiftEndTime <= shiftStartTime
+            ? businessDate.AddDays(1)
+            : businessDate;
+        return (defaultStartDate, defaultEndDate);
     }
 
     private static string BuildUniqueShiftName(string requestedName, ISet<string> usedNames)
@@ -488,6 +559,38 @@ public class BusinessDayService : IBusinessDayService
         return localOffsetTime.ToUniversalTime();
     }
 
+    private async Task<DateOnly> ResolveEffectiveBusinessDateAsync(
+        Guid shopId,
+        DateOnly requestedBusinessDate,
+        CancellationToken cancellationToken)
+    {
+        var setup = await _shopConfigurationService.GetBusinessDaySetupAsync(shopId, cancellationToken);
+        var shopNow = ConvertToShopTime(DateTimeOffset.UtcNow, setup.TimeZoneId);
+        var shopToday = DateOnly.FromDateTime(shopNow.DateTime);
+        if (requestedBusinessDate != shopToday)
+        {
+            return requestedBusinessDate;
+        }
+
+        return ResolveOperationalBusinessDate(shopToday, shopNow.TimeOfDay, setup.BusinessStartTime, setup.BusinessEndTime);
+    }
+
+    private static DateOnly ResolveOperationalBusinessDate(
+        DateOnly localDate,
+        TimeSpan localTime,
+        TimeSpan businessStartTime,
+        TimeSpan businessEndTime)
+    {
+        if (businessStartTime <= businessEndTime)
+        {
+            return localDate;
+        }
+
+        return localTime >= businessStartTime
+            ? localDate.AddDays(1)
+            : localDate;
+    }
+
     private static TimeZoneInfo? ResolveTimeZone(string? timeZoneId)
     {
         if (string.IsNullOrWhiteSpace(timeZoneId))
@@ -525,6 +628,12 @@ public class BusinessDayService : IBusinessDayService
         }
 
         return null;
+    }
+
+    private static DateTimeOffset ConvertToShopTime(DateTimeOffset utcNow, string? timeZoneId)
+    {
+        var zone = ResolveTimeZone(timeZoneId);
+        return zone is null ? utcNow : TimeZoneInfo.ConvertTime(utcNow, zone);
     }
 
     private static async Task<string?> ReadAttachmentDataUrlAsync(

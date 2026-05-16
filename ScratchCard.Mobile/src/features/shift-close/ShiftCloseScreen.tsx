@@ -4,7 +4,7 @@ import NetInfo, { useNetInfo } from "@react-native-community/netinfo";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker";
-import { getBusinessDay } from "../../api/businessDaysApi";
+import { getBusinessDay, listBusinessDays } from "../../api/businessDaysApi";
 import { getConfigurations } from "../../api/configurationsApi";
 import { getActivePacksForShift, finalizeShift, getShift } from "../../api/shiftsApi";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -686,7 +686,7 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
         return;
       }
 
-      await finalizeShift(shiftId, payload);
+      const closeResult = await finalizeShift(shiftId, payload);
       await clearShiftDraft(shiftId);
       void Promise.allSettled([
         queryClient.invalidateQueries({ queryKey: ["shift", shiftId] }),
@@ -717,6 +717,24 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
           ? queryClient.refetchQueries({ queryKey: ["business-days-for-picker", relatedShopId], type: "all" })
           : Promise.resolve(),
       ]);
+
+      if (closeResult.moveDayManagementToNextBusinessDate && closeResult.nextBusinessDate && relatedShopId) {
+        try {
+          const allDays = await listBusinessDays(relatedShopId);
+          const nextDay = allDays.find((day) => day.businessDate === closeResult.nextBusinessDate);
+
+          if (nextDay) {
+            Alert.alert(
+              "Shift finalised",
+              `Shift close submitted. Day management moved to ${nextDay.businessDate}.`
+            );
+            navigation.replace("DayEndClose", { businessDayId: nextDay.id });
+            return;
+          }
+        } catch {
+          // Shift close is already persisted; if the day lookup fails we still keep success flow.
+        }
+      }
 
       Alert.alert("Shift finalised", "Shift close submitted successfully.");
       navigation.goBack();

@@ -81,10 +81,18 @@ public class ConfigurationService : IConfigurationService
         var (globalOffline, shopOffline) = await LoadRowsAsync(_offlineRepository, shopId, cancellationToken);
         var (globalSubscription, shopSubscription) = await LoadRowsAsync(_subscriptionRepository, shopId, cancellationToken);
 
+        var fallbackBusinessStartTime = Resolve(shopShift?.ShiftStartTime, globalShift?.ShiftStartTime, "06:00");
+        var fallbackBusinessEndTime = Resolve(
+            shopGeneral?.BusinessDateCutOffTime,
+            globalGeneral?.BusinessDateCutOffTime,
+            Resolve(shopShift?.ShiftEndTime, globalShift?.ShiftEndTime, "21:59"));
+
         var items = new List<ConfigurationItemDto>();
 
         AddItem(items, shopId, GeneralGroup, "Currency", Resolve(shopGeneral?.Currency, globalGeneral?.Currency, "GBP"), "string", "Default currency");
         AddItem(items, shopId, GeneralGroup, ConfigurationKeys.TimeZone, Resolve(shopGeneral?.TimeZone, globalGeneral?.TimeZone, "Europe/London"), "string", "Default timezone");
+        AddItem(items, shopId, GeneralGroup, ConfigurationKeys.BusinessStartTime, Resolve(shopGeneral?.BusinessStartTime, globalGeneral?.BusinessStartTime, fallbackBusinessStartTime), "string", "Business day start time (HH:mm).");
+        AddItem(items, shopId, GeneralGroup, ConfigurationKeys.BusinessEndTime, Resolve(shopGeneral?.BusinessEndTime, globalGeneral?.BusinessEndTime, fallbackBusinessEndTime), "string", "Business day end time (HH:mm). Overnight windows are supported.");
         AddItem(items, shopId, GeneralGroup, "BusinessDateCutOffTime", Resolve(shopGeneral?.BusinessDateCutOffTime, globalGeneral?.BusinessDateCutOffTime, "23:59"), "string", "Business date cutoff");
         AddItem(items, shopId, GeneralGroup, "EnableAuditLog", ToConfigString(Resolve(shopGeneral?.EnableAuditLog, globalGeneral?.EnableAuditLog, true)), "bool", "Audit logs enabled");
 
@@ -291,6 +299,12 @@ public class ConfigurationService : IConfigurationService
                 break;
             case ConfigurationKeys.TimeZone:
                 target.TimeZone = value;
+                break;
+            case ConfigurationKeys.BusinessStartTime:
+                target.BusinessStartTime = value;
+                break;
+            case ConfigurationKeys.BusinessEndTime:
+                target.BusinessEndTime = value;
                 break;
             case "BusinessDateCutOffTime":
                 target.BusinessDateCutOffTime = value;
@@ -597,6 +611,8 @@ public class ConfigurationService : IConfigurationService
         {
             "Currency" => GeneralGroup,
             ConfigurationKeys.TimeZone => GeneralGroup,
+            ConfigurationKeys.BusinessStartTime => GeneralGroup,
+            ConfigurationKeys.BusinessEndTime => GeneralGroup,
             "BusinessDateCutOffTime" => GeneralGroup,
             "EnableAuditLog" => GeneralGroup,
 

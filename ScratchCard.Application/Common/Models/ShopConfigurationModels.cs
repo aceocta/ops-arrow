@@ -22,6 +22,13 @@ public class ShopShiftSetup
     public IReadOnlyCollection<ShopShiftTemplate> ShiftTemplates { get; set; } = Array.Empty<ShopShiftTemplate>();
 }
 
+public class ShopBusinessDaySetup
+{
+    public string TimeZoneId { get; set; } = "UTC";
+    public TimeSpan BusinessStartTime { get; set; } = new(6, 0, 0);
+    public TimeSpan BusinessEndTime { get; set; } = new(21, 59, 0);
+}
+
 public class ShopPackSetup
 {
     public SellingOrder SellingOrder { get; set; } = SellingOrder.Ascending;

@@ -134,6 +134,7 @@ public interface IConfigurationService
 public interface IShopConfigurationService
 {
     Task<ShopShiftSetup> GetShiftSetupAsync(Guid shopId, CancellationToken cancellationToken = default);
+    Task<ShopBusinessDaySetup> GetBusinessDaySetupAsync(Guid shopId, CancellationToken cancellationToken = default);
     Task<ShopPackSetup> GetPackSetupAsync(Guid shopId, CancellationToken cancellationToken = default);
 }
 

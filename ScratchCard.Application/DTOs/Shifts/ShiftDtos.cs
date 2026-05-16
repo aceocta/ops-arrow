@@ -39,6 +39,8 @@ public class ShiftDto
     public string ShiftName { get; set; } = string.Empty;
     public DateTimeOffset StartTime { get; set; }
     public DateTimeOffset? EndTime { get; set; }
+    public DateTimeOffset? OpenedOn { get; set; }
+    public DateTimeOffset? ClosedOn { get; set; }
     public string Status { get; set; } = string.Empty;
     public string SyncStatus { get; set; } = string.Empty;
     public bool IsAutoCreated { get; set; }

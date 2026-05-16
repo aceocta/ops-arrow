@@ -159,6 +159,7 @@ public class ShiftService : IShiftService
             ShopId = request.ShopId,
             ShiftName = shiftName,
             StartTime = utcNow,
+            OpenedOn = utcNow,
             OpenedByUserId = _currentUserService.UserId ?? Guid.Empty,
             Status = ShiftStatus.Open,
             SyncStatus = SyncStatus.Synced,
@@ -238,8 +239,8 @@ public class ShiftService : IShiftService
 
         var utcNow = DateTimeOffset.UtcNow;
         shift.Status = ShiftStatus.Open;
-        shift.StartTime = utcNow;
-        shift.EndTime = null;
+        shift.OpenedOn = utcNow;
+        shift.ClosedOn = null;
         shift.OpenedByUserId = _currentUserService.UserId ?? Guid.Empty;
         shift.SyncStatus = SyncStatus.Synced;
         shift.ModifiedOn = utcNow;
@@ -281,6 +282,11 @@ public class ShiftService : IShiftService
 
     public async Task<IReadOnlyCollection<ShiftDto>> ListAsync(Guid shopId, Guid? businessDayId = null, CancellationToken cancellationToken = default)
     {
+        if (businessDayId.HasValue)
+        {
+            await NormalizeLegacyScheduledShiftWindowsAsync(shopId, businessDayId.Value, cancellationToken);
+        }
+
         var query = _shiftRepository.Query()
             .AsNoTracking()
             .Where(x => x.ShopId == shopId);
@@ -299,6 +305,8 @@ public class ShiftService : IShiftService
                 x.ShiftName,
                 x.StartTime,
                 x.EndTime,
+                x.OpenedOn,
+                x.ClosedOn,
                 x.Status,
                 x.SyncStatus,
                 x.Notes))
@@ -400,6 +408,8 @@ public class ShiftService : IShiftService
                 x.ShiftName,
                 x.StartTime,
                 x.EndTime,
+                x.OpenedOn,
+                x.ClosedOn,
                 x.Status,
                 x.SyncStatus,
                 x.Notes))
@@ -455,7 +465,11 @@ public class ShiftService : IShiftService
 
         shift.Status = ShiftStatus.Reopened;
         shift.SyncStatus = SyncStatus.Synced;
-        shift.EndTime = null;
+        if (!ShiftMetadata.IsAutoCreated(shift.Notes))
+        {
+            shift.EndTime = null;
+        }
+        shift.ClosedOn = null;
         shift.ClosedByUserId = null;
         shift.ModifiedOn = DateTimeOffset.UtcNow;
         shift.ModifiedBy = _currentUserService.UserId;
@@ -541,6 +555,8 @@ public class ShiftService : IShiftService
         ShiftName = row.ShiftName,
         StartTime = row.StartTime,
         EndTime = row.EndTime,
+        OpenedOn = row.OpenedOn,
+        ClosedOn = row.ClosedOn,
         Status = row.Status.ToString(),
         SyncStatus = row.SyncStatus.ToString(),
         IsAutoCreated = ShiftMetadata.IsAutoCreated(row.Notes),
@@ -679,6 +695,8 @@ public class ShiftService : IShiftService
         string ShiftName,
         DateTimeOffset StartTime,
         DateTimeOffset? EndTime,
+        DateTimeOffset? OpenedOn,
+        DateTimeOffset? ClosedOn,
         ShiftStatus Status,
         SyncStatus SyncStatus,
         string? Notes);
@@ -853,5 +871,181 @@ public class ShiftService : IShiftService
         }
 
         return resolved is null ? utcNow : TimeZoneInfo.ConvertTime(utcNow, resolved);
+    }
+
+    private async Task NormalizeLegacyScheduledShiftWindowsAsync(
+        Guid shopId,
+        Guid businessDayId,
+        CancellationToken cancellationToken)
+    {
+        var businessDay = await _businessDayRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.Id == businessDayId && x.ShopId == shopId)
+            .Select(x => new { x.Id, x.BusinessDate })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (businessDay is null)
+        {
+            return;
+        }
+
+        var businessSetup = await _shopConfigurationService.GetBusinessDaySetupAsync(shopId, cancellationToken);
+        if (businessSetup.BusinessStartTime <= businessSetup.BusinessEndTime)
+        {
+            return;
+        }
+
+        var shiftSetup = await _shopConfigurationService.GetShiftSetupAsync(shopId, cancellationToken);
+        var scheduledShifts = await _shiftRepository.Query()
+            .Where(x =>
+                x.ShopId == shopId &&
+                x.BusinessDayId == businessDayId &&
+                x.Status == ShiftStatus.Scheduled &&
+                x.EndTime.HasValue)
+            .ToListAsync(cancellationToken);
+
+        if (scheduledShifts.Count == 0)
+        {
+            return;
+        }
+
+        var hasChanges = false;
+        foreach (var shift in scheduledShifts)
+        {
+            if (!ShiftMetadata.IsAutoCreated(shift.Notes))
+            {
+                continue;
+            }
+
+            if (!ShiftMetadata.TryGetAutoWindow(shift.Notes, out var templateStartTime, out var templateEndTime))
+            {
+                continue;
+            }
+
+            if (templateStartTime <= templateEndTime)
+            {
+                continue;
+            }
+
+            var currentLocalStart = ConvertToShopTime(shift.StartTime, shiftSetup.TimeZoneId);
+            var currentLocalEnd = ConvertToShopTime(shift.EndTime!.Value, shiftSetup.TimeZoneId);
+            var isLegacyWindowPlacement =
+                DateOnly.FromDateTime(currentLocalStart.DateTime) == businessDay.BusinessDate &&
+                DateOnly.FromDateTime(currentLocalEnd.DateTime) == businessDay.BusinessDate.AddDays(1) &&
+                currentLocalStart.Hour == templateStartTime.Hours &&
+                currentLocalStart.Minute == templateStartTime.Minutes &&
+                currentLocalEnd.Hour == templateEndTime.Hours &&
+                currentLocalEnd.Minute == templateEndTime.Minutes;
+
+            if (!isLegacyWindowPlacement)
+            {
+                continue;
+            }
+
+            var (expectedStartDate, expectedEndDate) = ResolveScheduledShiftDates(
+                businessDay.BusinessDate,
+                templateStartTime,
+                templateEndTime,
+                businessSetup.BusinessStartTime,
+                businessSetup.BusinessEndTime);
+            var expectedStartUtc = ToUtcDateTime(expectedStartDate, templateStartTime, shiftSetup.TimeZoneId);
+            var expectedEndUtc = ToUtcDateTime(expectedEndDate, templateEndTime, shiftSetup.TimeZoneId);
+
+            if (shift.StartTime == expectedStartUtc && shift.EndTime == expectedEndUtc)
+            {
+                continue;
+            }
+
+            shift.StartTime = expectedStartUtc;
+            shift.EndTime = expectedEndUtc;
+            shift.ModifiedOn = DateTimeOffset.UtcNow;
+            shift.ModifiedBy = _currentUserService.UserId;
+            _shiftRepository.Update(shift);
+            hasChanges = true;
+
+            await _auditService.LogAsync(
+                nameof(Shift),
+                shift.Id,
+                "LegacyScheduledShiftWindowCorrected",
+                shift.ShopId,
+                reason: $"Business day {businessDay.BusinessDate:yyyy-MM-dd}: adjusted from legacy overnight date placement.",
+                cancellationToken: cancellationToken);
+        }
+
+        if (hasChanges)
+        {
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    private static (DateOnly StartDate, DateOnly EndDate) ResolveScheduledShiftDates(
+        DateOnly businessDate,
+        TimeSpan shiftStartTime,
+        TimeSpan shiftEndTime,
+        TimeSpan businessStartTime,
+        TimeSpan businessEndTime)
+    {
+        if (businessStartTime > businessEndTime)
+        {
+            var startDate = shiftStartTime > businessEndTime
+                ? businessDate.AddDays(-1)
+                : businessDate;
+
+            var endDate = shiftEndTime > businessEndTime
+                ? businessDate.AddDays(-1)
+                : businessDate;
+
+            if (endDate < startDate || (endDate == startDate && shiftEndTime <= shiftStartTime))
+            {
+                endDate = endDate.AddDays(1);
+            }
+
+            return (startDate, endDate);
+        }
+
+        var defaultStartDate = businessDate;
+        var defaultEndDate = shiftEndTime <= shiftStartTime
+            ? businessDate.AddDays(1)
+            : businessDate;
+        return (defaultStartDate, defaultEndDate);
+    }
+
+    private static DateTimeOffset ToUtcDateTime(DateOnly businessDate, TimeSpan timeOfDay, string? timeZoneId)
+    {
+        var localDateTime = businessDate.ToDateTime(TimeOnly.FromTimeSpan(timeOfDay), DateTimeKind.Unspecified);
+
+        static TimeZoneInfo? TryResolveTimeZone(string id)
+        {
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById(id);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        var resolved = string.IsNullOrWhiteSpace(timeZoneId)
+            ? null
+            : TryResolveTimeZone(timeZoneId.Trim());
+
+        if (resolved is null && string.Equals(timeZoneId?.Trim(), "Europe/London", StringComparison.OrdinalIgnoreCase))
+        {
+            resolved = TryResolveTimeZone("GMT Standard Time");
+        }
+        else if (resolved is null && string.Equals(timeZoneId?.Trim(), "GMT Standard Time", StringComparison.OrdinalIgnoreCase))
+        {
+            resolved = TryResolveTimeZone("Europe/London");
+        }
+
+        if (resolved is null)
+        {
+            return new DateTimeOffset(localDateTime, TimeSpan.Zero);
+        }
+
+        var offset = resolved.GetUtcOffset(localDateTime);
+        var localOffsetTime = new DateTimeOffset(localDateTime, offset);
+        return localOffsetTime.ToUniversalTime();
     }
 }

@@ -198,6 +198,8 @@ export type Shift = {
   shiftName: string;
   startTime: string;
   endTime?: string;
+  openedOn?: string;
+  closedOn?: string;
   status: ShiftStatus;
   syncStatus?: SyncStatus;
   isAutoCreated?: boolean;
@@ -343,6 +345,8 @@ export type ShiftCloseResult = {
   expectedCash: number;
   difference: number;
   hasManualOrEditedEntries: boolean;
+  moveDayManagementToNextBusinessDate?: boolean;
+  nextBusinessDate?: string;
 };
 
 export type ShiftSalesEntry = {

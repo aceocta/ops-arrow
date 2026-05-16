@@ -58,6 +58,29 @@ public class ShopConfigurationService : IShopConfigurationService
         };
     }
 
+    public async Task<ShopBusinessDaySetup> GetBusinessDaySetupAsync(Guid shopId, CancellationToken cancellationToken = default)
+    {
+        var (globalGeneral, shopGeneral) = await LoadRowsAsync(_generalRepository, shopId, cancellationToken);
+        var (globalShift, shopShift) = await LoadRowsAsync(_shiftRepository, shopId, cancellationToken);
+
+        var fallbackStart = Resolve(shopShift?.ShiftStartTime, globalShift?.ShiftStartTime, "06:00");
+        var fallbackEnd = Resolve(
+            shopGeneral?.BusinessDateCutOffTime,
+            globalGeneral?.BusinessDateCutOffTime,
+            Resolve(shopShift?.ShiftEndTime, globalShift?.ShiftEndTime, "21:59"));
+
+        return new ShopBusinessDaySetup
+        {
+            TimeZoneId = Resolve(shopGeneral?.TimeZone, globalGeneral?.TimeZone, "UTC"),
+            BusinessStartTime = ParseTime(
+                Resolve(shopGeneral?.BusinessStartTime, globalGeneral?.BusinessStartTime, fallbackStart),
+                new TimeSpan(6, 0, 0)),
+            BusinessEndTime = ParseTime(
+                Resolve(shopGeneral?.BusinessEndTime, globalGeneral?.BusinessEndTime, fallbackEnd),
+                new TimeSpan(21, 59, 0))
+        };
+    }
+
     public async Task<ShopPackSetup> GetPackSetupAsync(Guid shopId, CancellationToken cancellationToken = default)
     {
         var (globalPack, shopPack) = await LoadRowsAsync(_packRepository, shopId, cancellationToken);
