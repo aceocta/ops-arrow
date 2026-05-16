@@ -1172,26 +1172,22 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           {/* <Text style={styles.meta}>{dayStatusMessage}</Text> */}
           <View style={styles.summaryMetaGrid}>
             <View style={styles.summaryMetaItem}>
-              <Text style={styles.summaryMetaLabel}>Open Shifts</Text>
-              <Text style={styles.summaryMetaValue}>{openShiftCount}</Text>
+              <Text style={styles.summaryMetaText}>Open Shifts - {openShiftCount}</Text>
             </View>
             <View style={styles.summaryMetaItem}>
-              <Text style={styles.summaryMetaLabel}>Closed Shifts</Text>
-              <Text style={styles.summaryMetaValue}>{closedShiftCount}</Text>
+              <Text style={styles.summaryMetaText}>Closed Shifts - {closedShiftCount}</Text>
             </View>
             <View style={styles.summaryMetaItem}>
-              <Text style={styles.summaryMetaLabel}>Scheduled</Text>
-              <Text style={styles.summaryMetaValue}>{scheduledShiftCount}</Text>
+              <Text style={styles.summaryMetaText}>Scheduled - {scheduledShiftCount}</Text>
             </View>
             <View style={styles.summaryMetaItem}>
-              <Text style={styles.summaryMetaLabel}>Missing Tickets</Text>
               <Text
                 style={[
-                  styles.summaryMetaValue,
-                  missingOpeningTicketCount > 0 ? styles.summaryMetaValueDanger : null,
+                  styles.summaryMetaText,
+                  missingOpeningTicketCount > 0 ? styles.summaryMetaTextDanger : null,
                 ]}
               >
-                {missingOpeningTicketCount}
+                Missing Tickets - {missingOpeningTicketCount}
               </Text>
             </View>
             <Pressable
@@ -2090,19 +2086,13 @@ const styles = StyleSheet.create({
     paddingVertical: appTheme.spacing.xs,
     gap: 2,
   },
-  summaryMetaLabel: {
-    color: appTheme.colors.textSubtle,
-    fontSize: 11,
-    lineHeight: 14,
+  summaryMetaText: {
+    color: appTheme.colors.text,
+    fontSize: 14,
+    lineHeight: 18,
     fontFamily: appTheme.fonts.bodyMedium,
   },
-  summaryMetaValue: {
-    color: appTheme.colors.text,
-    fontSize: 18,
-    lineHeight: 22,
-    fontFamily: appTheme.fonts.heading,
-  },
-  summaryMetaValueDanger: {
+  summaryMetaTextDanger: {
     color: appTheme.colors.danger,
   },
   dateActionInlineButton: {
