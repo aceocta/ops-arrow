@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using System.Net;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
+using ScratchCard.Application.Common.Models;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Invitations;
 using ScratchCard.Domain.Constants;
@@ -11,6 +13,7 @@ namespace ScratchCard.Application.Services;
 
 public class InvitationService : IInvitationService
 {
+    private const string InvitationAcceptBaseUrl = "https://gaming-lent-startup.ngrok-free.dev";
     private readonly IRepository<UserInvitation> _invitationRepository;
     private readonly IRepository<Role> _roleRepository;
     private readonly IRepository<User> _userRepository;
@@ -80,11 +83,16 @@ public class InvitationService : IInvitationService
         await _invitationRepository.AddAsync(invitation, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        var invitationLink = $"https://gaming-lent-startup.ngrok-free.dev/api/invitations/accept?token={token}";
+        var invitationLink = BuildInvitationAcceptLink(token);
         await _emailSender.SendAsync(
-            invitation.Email,
-            "Scratch Card Invitation",
-            $"You were invited to join a shop. Use this link to accept: {invitationLink}",
+            BuildInvitationEmailMessage(
+                recipient: invitation.Email,
+                subject: "Ops Arrow Invitation",
+                heading: "You are invited to Ops Arrow",
+                intro: "You have been invited to join a shop on Ops Arrow.",
+                buttonLabel: "Accept Invitation",
+                invitationLink: invitationLink,
+                expiryHours: request.ExpiryHours),
             cancellationToken);
 
         await _auditService.LogAsync(
@@ -255,11 +263,16 @@ public class InvitationService : IInvitationService
         _invitationRepository.Update(invitation);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        var invitationLink = $"https://scratchcard.app/invitations/accept?token={token}";
+        var invitationLink = BuildInvitationAcceptLink(token);
         await _emailSender.SendAsync(
-            invitation.Email,
-            "Scratch Card Invitation (Resent)",
-            $"Use this new invitation link: {invitationLink}",
+            BuildInvitationEmailMessage(
+                recipient: invitation.Email,
+                subject: "Ops Arrow Invitation (Resent)",
+                heading: "Your invitation was resent",
+                intro: "Use the button below to complete your account setup in Ops Arrow.",
+                buttonLabel: "Accept Invitation",
+                invitationLink: invitationLink,
+                expiryHours: 72),
             cancellationToken);
 
         await _auditService.LogAsync(
@@ -309,5 +322,85 @@ public class InvitationService : IInvitationService
             .ToListAsync(cancellationToken);
 
         return invitations.Select(x => x.ToDto(x.Role.Name)).ToArray();
+    }
+
+    private static string BuildInvitationAcceptLink(string token)
+    {
+        var escapedToken = Uri.EscapeDataString(token);
+        return $"{InvitationAcceptBaseUrl.TrimEnd('/')}/api/invitations/accept?token={escapedToken}";
+    }
+
+    private static EmailMessage BuildInvitationEmailMessage(
+        string recipient,
+        string subject,
+        string heading,
+        string intro,
+        string buttonLabel,
+        string invitationLink,
+        int expiryHours)
+    {
+        var safeHeading = WebUtility.HtmlEncode(heading);
+        var safeIntro = WebUtility.HtmlEncode(intro);
+        var safeButtonLabel = WebUtility.HtmlEncode(buttonLabel);
+        var safeLink = WebUtility.HtmlEncode(invitationLink);
+        var safeRecipient = WebUtility.HtmlEncode(recipient);
+        var safeExpiry = WebUtility.HtmlEncode(expiryHours.ToString());
+
+        var html = """
+            <!doctype html>
+            <html lang="en">
+            <head>
+              <meta charset="utf-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1" />
+              <title>Ops Arrow Invitation</title>
+            </head>
+            <body style="margin:0;padding:0;background:#f2f6fb;font-family:Arial,'Segoe UI',sans-serif;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2f6fb;padding:28px 12px;">
+                <tr>
+                  <td align="center">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:620px;background:#ffffff;border:1px solid #d9e1ec;border-radius:14px;overflow:hidden;">
+                      <tr>
+                        <td style="background:linear-gradient(135deg,#0f3d3e,#1f6f7a);padding:26px 24px;color:#ffffff;">
+                          <div style="font-size:12px;letter-spacing:0.8px;text-transform:uppercase;opacity:0.9;">Ops Arrow</div>
+                          <div style="font-size:24px;line-height:30px;font-weight:700;margin-top:8px;">__HEADING__</div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:24px;">
+                          <p style="margin:0 0 12px;color:#2b3f4a;font-size:15px;line-height:22px;">Hello <strong>__RECIPIENT__</strong>,</p>
+                          <p style="margin:0 0 18px;color:#4a5f6b;font-size:15px;line-height:22px;">__INTRO__</p>
+                          <p style="margin:0 0 20px;color:#4a5f6b;font-size:14px;line-height:21px;">This link expires in <strong>__EXPIRY_HOURS__ hours</strong>.</p>
+                          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 18px;">
+                            <tr>
+                              <td align="center" bgcolor="#0f3d3e" style="border-radius:10px;">
+                                <a href="__INVITATION_LINK__" style="display:inline-block;padding:12px 22px;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;">__BUTTON_LABEL__</a>
+                              </td>
+                            </tr>
+                          </table>
+                          <p style="margin:0 0 8px;color:#617785;font-size:13px;line-height:20px;">If the button does not work, copy and paste this link into your browser:</p>
+                          <p style="margin:0;word-break:break-all;color:#0f3d3e;font-size:13px;line-height:20px;">__INVITATION_LINK__</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
+            """
+            .Replace("__HEADING__", safeHeading, StringComparison.Ordinal)
+            .Replace("__RECIPIENT__", safeRecipient, StringComparison.Ordinal)
+            .Replace("__INTRO__", safeIntro, StringComparison.Ordinal)
+            .Replace("__EXPIRY_HOURS__", safeExpiry, StringComparison.Ordinal)
+            .Replace("__BUTTON_LABEL__", safeButtonLabel, StringComparison.Ordinal)
+            .Replace("__INVITATION_LINK__", safeLink, StringComparison.Ordinal);
+
+        return new EmailMessage
+        {
+            Recipient = recipient,
+            Subject = subject,
+            Body = html,
+            IsBodyHtml = true
+        };
     }
 }

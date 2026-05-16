@@ -32,7 +32,12 @@ const linking: LinkingOptions<RootStackParamList> = {
     screens: {
       Login: "login",
       CompanySignup: "signup",
-      InvitationAccept: "invitation/accept",
+      InvitationAccept: {
+        path: "invitation/accept",
+        parse: {
+          token: (value: string) => value,
+        },
+      },
       ForgotPassword: "forgot-password",
       ResetPassword: "reset-password",
     },

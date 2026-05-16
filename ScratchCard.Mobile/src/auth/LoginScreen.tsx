@@ -146,6 +146,12 @@ export function LoginScreen() {
           tone="neutral"
           disabled={busy}
         />
+        <PrimaryButton
+          label="Accept Invitation"
+          onPress={() => navigation.navigate("InvitationAccept")}
+          tone="neutral"
+          disabled={busy}
+        />
         {/* {appConfig.enableDevAuthBypass ? (
           <>
             <Text style={styles.devHint}>Dev bypass enabled via app config.</Text>

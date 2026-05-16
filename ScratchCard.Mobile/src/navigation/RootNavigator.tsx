@@ -67,7 +67,6 @@ export function RootNavigator() {
         <>
           <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
           <Stack.Screen name="CompanySignup" component={CompanySignupScreen} options={{ title: "" }} />
-          <Stack.Screen name="InvitationAccept" component={InvitationAcceptanceScreen} options={{ title: "Accept Invitation" }} />
         </>
       ) : needsCompanySetup ? (
         <>
@@ -100,6 +99,7 @@ export function RootNavigator() {
           <Stack.Screen name="SyncConflict" component={SyncConflictScreen} options={{ title: "Sync Conflict" }} />
         </>
       )}
+      <Stack.Screen name="InvitationAccept" component={InvitationAcceptanceScreen} options={{ title: "Accept Invitation" }} />
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ title: "" }} />
       <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} options={{ title: "" }} />
     </Stack.Navigator>

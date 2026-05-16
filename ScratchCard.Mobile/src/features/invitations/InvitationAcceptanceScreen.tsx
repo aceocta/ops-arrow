@@ -18,6 +18,13 @@ export function InvitationAcceptanceScreen({ route }: Props) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isBusy, setIsBusy] = useState(false);
 
+  React.useEffect(() => {
+    const incomingToken = route.params?.token?.trim();
+    if (incomingToken && incomingToken.length > 0) {
+      setToken(incomingToken);
+    }
+  }, [route.params?.token]);
+
   async function onAccept() {
     if (!token.trim()) {
       Alert.alert("Validation", "Invitation token is required.");
