@@ -861,7 +861,7 @@ const styles = StyleSheet.create({
     minHeight: 42,
     borderWidth: 0,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: "#F2F6FC",
+    backgroundColor: appTheme.colors.surfaceTintSoft,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
@@ -1059,4 +1059,5 @@ const styles = StyleSheet.create({
   varianceTextPositive: { color: appTheme.colors.warning, fontFamily: appTheme.fonts.bodyMedium },
   varianceTextNegative: { color: appTheme.colors.danger, fontFamily: appTheme.fonts.bodyMedium },
 });
+
 

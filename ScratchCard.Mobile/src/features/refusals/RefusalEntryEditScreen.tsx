@@ -349,7 +349,7 @@ const styles = StyleSheet.create({
   },
   chipSelected: {
     borderColor: appTheme.colors.primary,
-    backgroundColor: "#E9F7F6",
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
   },
   chipText: {
     color: appTheme.colors.textMuted,
@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 28, 0.45)",
+    backgroundColor: appTheme.colors.overlay,
     justifyContent: "center",
     paddingHorizontal: appTheme.spacing.md,
   },
@@ -463,3 +463,4 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
+

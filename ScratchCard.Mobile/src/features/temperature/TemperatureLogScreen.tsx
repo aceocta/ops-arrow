@@ -550,7 +550,7 @@ const styles = StyleSheet.create({
   summaryTile: {
     flex: 1,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: "#F4F8FF",
+    backgroundColor: appTheme.colors.surfaceTint,
     paddingHorizontal: appTheme.spacing.sm,
     paddingVertical: appTheme.spacing.xs,
     gap: 2,
@@ -748,14 +748,14 @@ const styles = StyleSheet.create({
   unitRow: {
     borderWidth: 0,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: "#EEF3FB",
+    backgroundColor: appTheme.colors.surfaceTintAlt,
     paddingHorizontal: appTheme.spacing.sm,
     paddingVertical: appTheme.spacing.xs,
     gap: 6,
   },
   unitRowSelected: {
     borderColor: appTheme.colors.primary,
-    backgroundColor: "#E9F7F6",
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
   },
   unitRowTop: {
     flexDirection: "row",
@@ -943,7 +943,7 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 28, 0.45)",
+    backgroundColor: appTheme.colors.overlay,
     justifyContent: "center",
     paddingHorizontal: appTheme.spacing.md,
   },
@@ -979,7 +979,7 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.primary,
   },
   modalActionSecondary: {
-    backgroundColor: "#F2F6FC",
+    backgroundColor: appTheme.colors.surfaceTintSoft,
   },
   modalActionPrimaryText: {
     color: appTheme.colors.onPrimary,
@@ -994,3 +994,4 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
+

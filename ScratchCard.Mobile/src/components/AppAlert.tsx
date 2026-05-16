@@ -408,7 +408,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     alignItems: "center",
     paddingHorizontal: 18,
-    backgroundColor: "rgba(10, 20, 30, 0.45)",
+    backgroundColor: appTheme.colors.overlayStrong,
   },
   card: {
     width: "100%",
@@ -465,7 +465,7 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.surfaceMuted,
   },
   actionButtonDanger: {
-    borderColor: "#A9382F",
+    borderColor: appTheme.colors.dangerPressed,
     backgroundColor: appTheme.colors.danger,
   },
   actionText: {

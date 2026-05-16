@@ -2199,7 +2199,7 @@ const styles = StyleSheet.create({
     width: "48.8%",
     borderWidth: 0,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: "#F4F8FF",
+    backgroundColor: appTheme.colors.surfaceTint,
     paddingHorizontal: appTheme.spacing.sm,
     paddingVertical: appTheme.spacing.sm,
     gap: 4,
@@ -2227,7 +2227,7 @@ const styles = StyleSheet.create({
     borderRadius: appTheme.radius.sm,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#E8F2FA",
+    backgroundColor: appTheme.colors.surfaceInfoSoft,
   },
   iconButtonDisabled: {
     opacity: 0.5,
@@ -2331,7 +2331,7 @@ const styles = StyleSheet.create({
   shiftItem: {
     borderWidth: 0,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: "#EEF3FB",
+    backgroundColor: appTheme.colors.surfaceTintAlt,
     padding: appTheme.spacing.sm,
     gap: appTheme.spacing.xs,
   },
@@ -2393,7 +2393,7 @@ const styles = StyleSheet.create({
     borderRadius: appTheme.radius.pill,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    backgroundColor: "#E9F7F6",
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
     minWidth: 44,
     alignItems: "center",
   },
@@ -2434,7 +2434,7 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     borderColor: appTheme.colors.primary,
     borderRadius: appTheme.radius.pill,
-    backgroundColor: "#E9F7F6",
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
     paddingHorizontal: 12,
     paddingVertical: 6,
     alignSelf: "flex-start",
@@ -2466,7 +2466,7 @@ const styles = StyleSheet.create({
   },
   dayPickerBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 28, 0.45)",
+    backgroundColor: appTheme.colors.overlay,
     justifyContent: "flex-end",
   },
   dayPickerBodyScroll: {
@@ -2710,7 +2710,7 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 28, 0.45)",
+    backgroundColor: appTheme.colors.overlay,
     justifyContent: "center",
     paddingHorizontal: appTheme.spacing.md,
   },
@@ -2802,7 +2802,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: "#EEF3FB",
+    backgroundColor: appTheme.colors.surfaceTintAlt,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -2904,7 +2904,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 38,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: "#F2F6FC",
+    backgroundColor: appTheme.colors.surfaceTintSoft,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: appTheme.spacing.sm,
@@ -2965,5 +2965,6 @@ const styles = StyleSheet.create({
     opacity: 0.55,
   },
 });
+
 
 

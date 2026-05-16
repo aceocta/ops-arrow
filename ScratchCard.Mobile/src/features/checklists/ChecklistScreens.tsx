@@ -1116,7 +1116,7 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 28, 0.45)",
+    backgroundColor: appTheme.colors.overlay,
     justifyContent: "center",
     paddingHorizontal: appTheme.spacing.md,
   },
@@ -1164,3 +1164,4 @@ const styles = StyleSheet.create({
     opacity: 0.94,
   },
 });
+

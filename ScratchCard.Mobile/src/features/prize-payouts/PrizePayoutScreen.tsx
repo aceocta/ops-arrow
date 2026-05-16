@@ -9,6 +9,8 @@ import { getShift } from "../../api/shiftsApi";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { MainStackParamList } from "../../types/navigation";
+import { ui } from "../../ui/primitives";
+import { appTheme } from "../../ui/theme";
 
 type Props = NativeStackScreenProps<MainStackParamList, "PrizePayout">;
 
@@ -84,8 +86,8 @@ export function PrizePayoutScreen({ route }: Props) {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={{ gap: 12 }}>
-        <View style={styles.card}>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={[ui.card, styles.card]}>
           <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
           <Text style={styles.meta}>Shift ID: {shiftId}</Text>
 
@@ -106,13 +108,38 @@ export function PrizePayoutScreen({ route }: Props) {
           </ScrollView>
 
           <Text style={styles.fieldLabel}>Ticket Number</Text>
-          <TextInput style={styles.input} value={ticketNumber} onChangeText={setTicketNumber} placeholder="Ticket number" />
+          <TextInput
+            style={[ui.input, styles.input]}
+            value={ticketNumber}
+            onChangeText={setTicketNumber}
+            placeholder="Ticket number"
+            placeholderTextColor={appTheme.colors.textSubtle}
+          />
           <Text style={styles.fieldLabel}>Prize Amount</Text>
-          <TextInput style={styles.input} value={prizeAmount} onChangeText={setPrizeAmount} keyboardType="decimal-pad" placeholder="Prize amount" />
+          <TextInput
+            style={[ui.input, styles.input]}
+            value={prizeAmount}
+            onChangeText={setPrizeAmount}
+            keyboardType="decimal-pad"
+            placeholder="Prize amount"
+            placeholderTextColor={appTheme.colors.textSubtle}
+          />
           <Text style={styles.fieldLabel}>Payment Method</Text>
-          <TextInput style={styles.input} value={paymentMethod} onChangeText={setPaymentMethod} placeholder="Payment method (Cash/Card/Transfer)" />
+          <TextInput
+            style={[ui.input, styles.input]}
+            value={paymentMethod}
+            onChangeText={setPaymentMethod}
+            placeholder="Payment method (Cash/Card/Transfer)"
+            placeholderTextColor={appTheme.colors.textSubtle}
+          />
           <Text style={styles.fieldLabel}>Notes</Text>
-          <TextInput style={styles.input} value={notes} onChangeText={setNotes} placeholder="Notes (optional)" />
+          <TextInput
+            style={[ui.input, styles.input]}
+            value={notes}
+            onChangeText={setNotes}
+            placeholder="Notes (optional)"
+            placeholderTextColor={appTheme.colors.textSubtle}
+          />
 
           <PrimaryButton
             label={createMutation.isPending ? "Saving..." : "Create Payout"}
@@ -121,11 +148,11 @@ export function PrizePayoutScreen({ route }: Props) {
           />
         </View>
 
-        <View style={styles.card}>
+        <View style={[ui.card, styles.card]}>
           <Text style={styles.sectionTitle}>Shift Payouts</Text>
           {(payoutsQuery.data ?? []).map((payout) => (
-            <View style={styles.item} key={payout.id}>
-              <Text style={styles.itemTitle}>£ {Number(payout.prizeAmount).toFixed(2)} ({payout.approvalStatus})</Text>
+            <View style={[ui.listItem, styles.item]} key={payout.id}>
+              <Text style={styles.itemTitle}>{`\u00A3 ${Number(payout.prizeAmount).toFixed(2)} (${payout.approvalStatus})`}</Text>
               <Text style={styles.meta}>Ticket: {payout.ticketNumber ?? "-"}</Text>
               <Text style={styles.meta}>Paid On: {new Date(payout.paidOn).toLocaleString()}</Text>
               {payout.approvalStatus !== "Approved" ? (
@@ -142,52 +169,82 @@ export function PrizePayoutScreen({ route }: Props) {
 }
 
 const styles = StyleSheet.create({
+  content: {
+    gap: appTheme.spacing.sm,
+    paddingBottom: appTheme.spacing.sm,
+  },
   card: {
-    backgroundColor: "white",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#D9E1E4",
-    padding: 14,
-    gap: 10,
+    gap: appTheme.spacing.sm,
   },
-  title: { fontSize: 22, fontWeight: "700", color: "#0B1E24" },
-  sectionTitle: { fontSize: 16, fontWeight: "700", color: "#0B1E24" },
-  fieldLabel: { color: "#1E3540", fontSize: 12, lineHeight: 16, fontWeight: "600" },
-  meta: { color: "#4D626A" },
+  sectionTitle: {
+    color: appTheme.colors.text,
+    fontSize: 17,
+    lineHeight: 22,
+    fontFamily: appTheme.fonts.bodyMedium,
+  },
+  fieldLabel: {
+    color: appTheme.colors.text,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: appTheme.fonts.bodyMedium,
+  },
+  meta: {
+    color: appTheme.colors.textMuted,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: appTheme.fonts.body,
+  },
   input: {
-    borderWidth: 1,
-    borderColor: "#C4D2D7",
-    borderRadius: 8,
-    backgroundColor: "#FAFCFD",
-    paddingHorizontal: 10,
-    paddingVertical: 9,
+    borderRadius: appTheme.radius.sm,
+    paddingVertical: 10,
   },
-  packChoices: { gap: 8 },
+  packChoices: {
+    gap: appTheme.spacing.xs,
+  },
   choice: {
     borderWidth: 1,
-    borderColor: "#0F3D3E",
-    borderRadius: 12,
+    borderColor: appTheme.colors.primary,
+    borderRadius: appTheme.radius.pill,
     paddingHorizontal: 10,
     paddingVertical: 6,
+    backgroundColor: appTheme.colors.surface,
   },
-  choiceSelected: { backgroundColor: "#0F3D3E" },
-  choiceText: { color: "#0F3D3E", fontWeight: "700" },
-  choiceTextSelected: { color: "#FFF" },
+  choiceSelected: {
+    backgroundColor: appTheme.colors.primary,
+  },
+  choiceText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 14,
+  },
+  choiceTextSelected: {
+    color: appTheme.colors.onPrimary,
+  },
   item: {
-    borderWidth: 1,
-    borderColor: "#E2E9EC",
-    borderRadius: 10,
-    padding: 10,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surfaceTintSoft,
     gap: 4,
   },
-  itemTitle: { fontWeight: "700", color: "#102A35" },
+  itemTitle: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
+  },
   approveButton: {
     alignSelf: "flex-start",
-    backgroundColor: "#0F3D3E",
-    borderRadius: 8,
+    backgroundColor: appTheme.colors.primary,
+    borderRadius: appTheme.radius.sm,
     paddingHorizontal: 10,
     paddingVertical: 6,
     marginTop: 4,
   },
-  approveText: { color: "#FFF", fontWeight: "700", fontSize: 12 },
+  approveText: {
+    color: appTheme.colors.onPrimary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 14,
+  },
 });
+

@@ -656,7 +656,7 @@ const styles = StyleSheet.create({
     paddingVertical: appTheme.spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: appTheme.colors.border,
-    backgroundColor: "#EEF3FB",
+    backgroundColor: appTheme.colors.surfaceTintAlt,
     gap: 4,
   },
   drawerEyebrow: {
@@ -698,7 +698,7 @@ const styles = StyleSheet.create({
     borderRadius: appTheme.radius.pill,
     borderWidth: 1,
     borderColor: "#BBDDE2",
-    backgroundColor: "#E9F8FA",
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
@@ -758,7 +758,7 @@ const styles = StyleSheet.create({
   },
   drawerItemActive: {
     borderColor: "#C6E6EA",
-    backgroundColor: "#EAF7F9",
+    backgroundColor: appTheme.colors.surfaceBrandMuted,
   },
   drawerItemMain: {
     flexDirection: "row",
@@ -814,7 +814,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   bottomDockItemActive: {
-    backgroundColor: "#E9F7F8",
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
   },
   bottomDockItemLabel: {
     color: "#8E99AF",

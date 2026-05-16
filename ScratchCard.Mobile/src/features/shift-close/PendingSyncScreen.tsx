@@ -6,6 +6,8 @@ import { PrimaryButton } from "../../components/PrimaryButton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { listOfflineQueue } from "../../offline/queueRepository";
 import { syncPendingShiftCloseQueue } from "../../offline/syncService";
+import { ui } from "../../ui/primitives";
+import { appTheme } from "../../ui/theme";
 
 export function PendingSyncScreen() {
   const queueQuery = useQuery({
@@ -29,12 +31,13 @@ export function PendingSyncScreen() {
 
       <FlatList
         data={queueQuery.data ?? []}
+        contentContainerStyle={styles.listContent}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <View style={styles.card}>
+          <View style={[ui.card, styles.card]}>
             <Text style={styles.bold}>Shift: {item.shiftId}</Text>
-            <Text>Status: {item.syncStatus}</Text>
-            <Text>Created: {item.createdOn}</Text>
+            <Text style={styles.meta}>Status: {item.syncStatus}</Text>
+            <Text style={styles.meta}>Created: {item.createdOn}</Text>
             {item.error ? <Text style={styles.error}>Error: {item.error}</Text> : null}
           </View>
         )}
@@ -45,16 +48,30 @@ export function PendingSyncScreen() {
 
 const styles = StyleSheet.create({
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  title: { fontSize: 24, fontWeight: "700", color: "#0B1E24" },
+  listContent: {
+    paddingTop: appTheme.spacing.sm,
+    paddingBottom: appTheme.spacing.sm,
+    gap: appTheme.spacing.sm,
+  },
   card: {
-    backgroundColor: "white",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#D9E1E4",
-    padding: 12,
-    marginBottom: 8,
     gap: 4,
   },
-  bold: { fontWeight: "700" },
-  error: { color: "#BA2D2D" },
+  bold: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  meta: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  error: {
+    color: appTheme.colors.danger,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 16,
+  },
 });

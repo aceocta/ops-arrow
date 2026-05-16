@@ -47,13 +47,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   buttonNeutral: {
-    backgroundColor: appTheme.colors.surface,
+    backgroundColor: appTheme.colors.surfaceTintSoft,
   },
   buttonDanger: {
     backgroundColor: appTheme.colors.danger,
   },
   pressed: { opacity: 0.92, transform: [{ scale: 0.995 }] },
-  disabled: { backgroundColor: "#BFC7D8" },
+  disabled: { backgroundColor: appTheme.colors.borderStrong },
   text: {
     color: appTheme.colors.onPrimary,
     fontFamily: appTheme.fonts.bodyMedium,

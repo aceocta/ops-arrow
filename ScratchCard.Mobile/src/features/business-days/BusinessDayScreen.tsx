@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: appTheme.colors.primary,
     borderRadius: appTheme.radius.pill,
-    backgroundColor: "#E9F7F6",
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
@@ -153,3 +153,4 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
   },
 });
+

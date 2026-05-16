@@ -573,7 +573,7 @@ const styles = StyleSheet.create({
     width: "48.8%",
     borderWidth: 0,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: "#F4F8FF",
+    backgroundColor: appTheme.colors.surfaceTint,
     paddingHorizontal: appTheme.spacing.sm,
     paddingVertical: appTheme.spacing.xs,
     gap: 2,
@@ -618,7 +618,7 @@ const styles = StyleSheet.create({
     width: "48.8%",
     borderWidth: 0,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: "#EEF3FB",
+    backgroundColor: appTheme.colors.surfaceTintAlt,
     paddingHorizontal: appTheme.spacing.sm,
     paddingVertical: appTheme.spacing.sm,
     gap: 3,
@@ -654,7 +654,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: "#EEF3FB",
+    backgroundColor: appTheme.colors.surfaceTintAlt,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -787,7 +787,7 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 28, 0.45)",
+    backgroundColor: appTheme.colors.overlay,
     justifyContent: "center",
     paddingHorizontal: appTheme.spacing.md,
   },
@@ -858,7 +858,7 @@ const styles = StyleSheet.create({
     borderRadius: appTheme.radius.sm,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#E8F2FA",
+    backgroundColor: appTheme.colors.surfaceInfoSoft,
   },
   iconButtonDisabled: {
     opacity: 0.55,
@@ -877,7 +877,7 @@ const styles = StyleSheet.create({
     gap: appTheme.spacing.xs,
   },
   entryCardFlagged: {
-    backgroundColor: "#FFF4E9",
+    backgroundColor: appTheme.colors.surfaceWarningSoft,
   },
   entryHeader: {
     flexDirection: "row",
@@ -921,3 +921,4 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
 });
+

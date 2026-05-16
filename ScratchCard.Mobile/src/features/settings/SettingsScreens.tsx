@@ -1288,7 +1288,7 @@ const styles = StyleSheet.create({
   },
   configHeroCard: {
     gap: appTheme.spacing.sm,
-    backgroundColor: "#F4F8FF",
+    backgroundColor: appTheme.colors.surfaceTint,
     borderWidth: 1,
     borderColor: "#D8E5F9",
   },
@@ -1534,7 +1534,7 @@ const styles = StyleSheet.create({
     borderRadius: appTheme.radius.pill,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#EAF6F8",
+    backgroundColor: appTheme.colors.surfaceBrandMuted,
     borderWidth: 1,
     borderColor: "#BFE2E7",
   },
@@ -1658,7 +1658,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: appTheme.colors.primary,
     borderRadius: appTheme.radius.pill,
-    backgroundColor: "#E9F7F6",
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
@@ -1694,7 +1694,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   smallButtonSecondary: {
-    backgroundColor: "#EAF6F8",
+    backgroundColor: appTheme.colors.surfaceBrandMuted,
     borderWidth: 1,
     borderColor: "#A9D5DC",
   },
@@ -1736,3 +1736,4 @@ const styles = StyleSheet.create({
   },
   logoutButtonText: { color: "#FFF", fontFamily: appTheme.fonts.bodyMedium, fontSize: 16, lineHeight: 18 },
 });
+

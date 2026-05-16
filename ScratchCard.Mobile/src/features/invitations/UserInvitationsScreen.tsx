@@ -6,6 +6,8 @@ import { listInvitations, sendInvitation, cancelInvitation } from "../../api/inv
 import { getRoleOptions } from "../../api/lookupsApi";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
+import { ui } from "../../ui/primitives";
+import { appTheme } from "../../ui/theme";
 
 type InvitationItem = {
   id: string;
@@ -103,8 +105,8 @@ export function UserInvitationsScreen() {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={{ gap: 12 }}>
-        <View style={styles.card}>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={[ui.card, styles.card]}>
           <Text style={styles.caption}>Shop: {activeShop?.shopName ?? "-"}</Text>
           <Text style={styles.subtitle}>Invite managers or cashiers to this shop.</Text>
           {!canSendInvitations ? (
@@ -113,9 +115,10 @@ export function UserInvitationsScreen() {
 
           <Text style={styles.fieldLabel}>Invitee Email</Text>
           <TextInput
-            style={styles.input}
+            style={[ui.input, styles.input]}
             value={email}
             placeholder="Invitee email"
+            placeholderTextColor={appTheme.colors.textSubtle}
             autoCapitalize="none"
             keyboardType="email-address"
             onChangeText={setEmail}
@@ -124,9 +127,10 @@ export function UserInvitationsScreen() {
 
           <Text style={styles.fieldLabel}>Expiry Hours</Text>
           <TextInput
-            style={styles.input}
+            style={[ui.input, styles.input]}
             value={expiryHours}
             placeholder="Expiry hours (e.g. 72)"
+            placeholderTextColor={appTheme.colors.textSubtle}
             keyboardType="number-pad"
             onChangeText={setExpiryHours}
             editable={canSendInvitations}
@@ -157,12 +161,12 @@ export function UserInvitationsScreen() {
           />
         </View>
 
-        <View style={styles.card}>
+        <View style={[ui.card, styles.card]}>
           <Text style={styles.sectionTitle}>Existing Invitations</Text>
           {!canSendInvitations ? <Text style={styles.empty}>You do not have access to invitation management.</Text> : null}
           {invitations.length === 0 ? <Text style={styles.empty}>No invitations yet.</Text> : null}
           {invitations.map((item) => (
-            <View key={item.id} style={styles.listItem}>
+            <View key={item.id} style={[ui.listItem, styles.listItem]}>
               <Text style={styles.email}>{item.email}</Text>
               <Text style={styles.meta}>
                 Role: {item.roleName} | Status: {item.status}
@@ -186,55 +190,101 @@ export function UserInvitationsScreen() {
 }
 
 const styles = StyleSheet.create({
+  content: {
+    gap: appTheme.spacing.sm,
+    paddingBottom: appTheme.spacing.sm,
+  },
   card: {
-    backgroundColor: "white",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#D9E1E4",
-    padding: 14,
-    gap: 10,
+    gap: appTheme.spacing.sm,
   },
-  title: { fontSize: 22, fontWeight: "700", color: "#0B1E24" },
-  subtitle: { color: "#4F636B" },
-  fieldLabel: { color: "#1E3540", fontSize: 12, lineHeight: 16, fontWeight: "600" },
+  subtitle: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  fieldLabel: {
+    color: appTheme.colors.text,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: appTheme.fonts.bodyMedium,
+  },
   input: {
-    borderWidth: 1,
-    borderColor: "#C4D2D7",
-    borderRadius: 8,
-    backgroundColor: "#FAFCFD",
-    paddingHorizontal: 10,
-    paddingVertical: 9,
+    borderRadius: appTheme.radius.sm,
+    paddingVertical: 10,
   },
-  roleWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  roleWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: appTheme.spacing.xs,
+  },
   roleChip: {
     borderWidth: 1,
-    borderColor: "#0F3D3E",
-    borderRadius: 14,
+    borderColor: appTheme.colors.primary,
+    borderRadius: appTheme.radius.pill,
     paddingHorizontal: 12,
     paddingVertical: 6,
+    backgroundColor: appTheme.colors.surface,
   },
-  roleChipSelected: { backgroundColor: "#0F3D3E" },
-  roleChipText: { color: "#0F3D3E", fontWeight: "600" },
-  roleChipTextSelected: { color: "#FFF" },
-  caption: { color: "#3E5962", fontSize: 12 },
-  sectionTitle: { fontSize: 16, fontWeight: "700", color: "#0B1E24" },
-  empty: { color: "#5F737A" },
+  roleChipSelected: {
+    backgroundColor: appTheme.colors.primary,
+  },
+  roleChipText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 14,
+  },
+  roleChipTextSelected: {
+    color: appTheme.colors.onPrimary,
+  },
+  caption: {
+    color: appTheme.colors.textMuted,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: appTheme.fonts.body,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    lineHeight: 22,
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+  },
+  empty: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+  },
   listItem: {
-    borderWidth: 1,
-    borderColor: "#E2E9EC",
-    borderRadius: 10,
-    padding: 10,
+    backgroundColor: appTheme.colors.surfaceTintSoft,
+    borderColor: appTheme.colors.border,
     gap: 4,
   },
-  email: { fontWeight: "700", color: "#102A35" },
-  meta: { color: "#4D626A" },
+  email: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  meta: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
+  },
   cancelButton: {
     alignSelf: "flex-start",
-    backgroundColor: "#9A2C2C",
-    borderRadius: 8,
+    backgroundColor: appTheme.colors.danger,
+    borderRadius: appTheme.radius.sm,
     paddingHorizontal: 10,
     paddingVertical: 6,
     marginTop: 4,
   },
-  cancelText: { color: "#FFF", fontWeight: "700" },
+  cancelText: {
+    color: appTheme.colors.onPrimary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 14,
+  },
 });
