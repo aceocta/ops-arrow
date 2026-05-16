@@ -668,7 +668,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: "#DDF5F1",
+    backgroundColor: appTheme.colors.surfaceSuccessMuted,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -710,7 +710,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: appTheme.colors.primary,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: "#E8F5F2",
+    backgroundColor: appTheme.colors.surfaceSuccessAlt,
     paddingHorizontal: 10,
     paddingVertical: 7,
   },
@@ -736,7 +736,7 @@ const styles = StyleSheet.create({
   },
   attachmentPreviewBackdrop: {
     flex: 1,
-    backgroundColor: "#05090C",
+    backgroundColor: appTheme.colors.previewBackdrop,
   },
   attachmentPreviewHeader: {
     paddingTop: 18,
@@ -749,7 +749,7 @@ const styles = StyleSheet.create({
   },
   attachmentPreviewTitle: {
     flex: 1,
-    color: "#F5FAFF",
+    color: appTheme.colors.previewText,
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 14,
     lineHeight: 18,
@@ -760,14 +760,14 @@ const styles = StyleSheet.create({
   },
   attachmentPreviewHeaderButton: {
     borderWidth: 1,
-    borderColor: "#35506A",
+    borderColor: appTheme.colors.previewBorder,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: "#102030",
+    backgroundColor: appTheme.colors.previewSurface,
     paddingHorizontal: 12,
     paddingVertical: 7,
   },
   attachmentPreviewHeaderButtonText: {
-    color: "#EAF4FC",
+    color: appTheme.colors.previewText,
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 12,
     lineHeight: 14,
@@ -779,7 +779,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   attachmentPreviewEmptyText: {
-    color: "#D2DCE6",
+    color: appTheme.colors.previewTextMuted,
     fontFamily: appTheme.fonts.body,
     fontSize: 14,
     lineHeight: 18,
@@ -805,7 +805,7 @@ const styles = StyleSheet.create({
   attachmentPreviewModalImage: {
     flex: 1,
     width: "100%",
-    backgroundColor: "#05090C",
+    backgroundColor: appTheme.colors.previewBackdrop,
   },
   actionRow: {
     flexDirection: "row",
@@ -872,7 +872,7 @@ const styles = StyleSheet.create({
   entryCard: {
     borderWidth: 0,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: "#F6F9FF",
+    backgroundColor: appTheme.colors.surfaceNeutralMuted,
     padding: appTheme.spacing.sm,
     gap: appTheme.spacing.xs,
   },
@@ -921,4 +921,6 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
 });
+
+
 

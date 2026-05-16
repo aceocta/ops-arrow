@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   heroNote: {
-    color: "#DCEAF4",
+    color: appTheme.colors.textOnDark,
     fontFamily: appTheme.fonts.body,
     fontSize: 13,
     lineHeight: 17,
@@ -247,3 +247,4 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
+

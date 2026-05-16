@@ -398,7 +398,7 @@ function MainBottomDock() {
               accessibilityRole="button"
               accessibilityLabel={`Open ${item.label}`}
             >
-              <Ionicons name={item.icon} size={18} color={isActive ? appTheme.colors.primary : "#8E99AF"} />
+              <Ionicons name={item.icon} size={18} color={isActive ? appTheme.colors.primary : appTheme.colors.textSubtle} />
               <Text style={[styles.bottomDockItemLabel, isActive ? styles.bottomDockItemLabelActive : null]}>{item.label}</Text>
             </Pressable>
           );
@@ -600,7 +600,7 @@ export function MainNavigator() {
           screenOptions={{
             headerShown: false,
             drawerType: "slide",
-            overlayColor: "rgba(15, 23, 28, 0.34)",
+            overlayColor: appTheme.colors.overlaySoft,
             drawerStyle: {
               width: 332,
               backgroundColor: appTheme.colors.surface,
@@ -697,7 +697,7 @@ const styles = StyleSheet.create({
     gap: 6,
     borderRadius: appTheme.radius.pill,
     borderWidth: 1,
-    borderColor: "#BBDDE2",
+    borderColor: appTheme.colors.borderBrandSoft,
     backgroundColor: appTheme.colors.surfaceBrandSoft,
     paddingHorizontal: 10,
     paddingVertical: 5,
@@ -757,7 +757,7 @@ const styles = StyleSheet.create({
     gap: appTheme.spacing.xs,
   },
   drawerItemActive: {
-    borderColor: "#C6E6EA",
+    borderColor: appTheme.colors.borderBrandSoft,
     backgroundColor: appTheme.colors.surfaceBrandMuted,
   },
   drawerItemMain: {
@@ -784,7 +784,7 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
   },
   drawerItemTextActive: {
-    color: "#0E5560",
+    color: appTheme.colors.textBrandStrong,
   },
   bottomDockWrap: {
     position: "absolute",
@@ -817,7 +817,7 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.surfaceBrandSoft,
   },
   bottomDockItemLabel: {
-    color: "#8E99AF",
+    color: appTheme.colors.textSubtle,
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 11,
     lineHeight: 13,
@@ -826,3 +826,4 @@ const styles = StyleSheet.create({
     color: appTheme.colors.primary,
   },
 });
+

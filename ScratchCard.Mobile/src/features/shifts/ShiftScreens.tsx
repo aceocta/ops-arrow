@@ -744,7 +744,7 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   modeChipTextSelected: {
-    color: "#F4FFFE",
+    color: appTheme.colors.textOnDark,
   },
   choiceChip: {
     borderWidth: 1,
@@ -768,7 +768,7 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   choiceChipTextSelected: {
-    color: "#F4FFFE",
+    color: appTheme.colors.textOnDark,
   },
   meta: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, lineHeight: 18, fontSize: 13 },
   hint: { color: appTheme.colors.textSubtle, fontSize: 12, lineHeight: 16, fontFamily: appTheme.fonts.body },
@@ -783,7 +783,7 @@ const styles = StyleSheet.create({
   },
   dayRowSelected: {
     borderColor: appTheme.colors.primary,
-    backgroundColor: "#E4F3F1",
+    backgroundColor: appTheme.colors.surfaceSuccessMuted,
   },
   dayTitle: {
     color: appTheme.colors.text,
@@ -875,7 +875,8 @@ const styles = StyleSheet.create({
   smallButtonDanger: {
     backgroundColor: appTheme.colors.danger,
   },
-  smallButtonText: { color: "#FFF", fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 14 },
+  smallButtonText: { color: appTheme.colors.onPrimary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 14 },
 });
+
 
 

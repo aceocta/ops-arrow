@@ -525,7 +525,7 @@ function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
               <Ionicons
                 name={hasDraftChanges ? "create-outline" : "checkmark-circle-outline"}
                 size={14}
-                color={hasDraftChanges ? "#7A4B00" : "#0D5F2D"}
+                color={hasDraftChanges ? appTheme.colors.textWarningStrong : appTheme.colors.textSuccessStrong}
               />
               <Text style={[styles.configStatusChipText, hasDraftChanges ? styles.configStatusChipTextWarning : styles.configStatusChipTextSuccess]}>
                 {hasDraftChanges ? `${draftChangeCount} unsaved change${draftChangeCount > 1 ? "s" : ""}` : "All changes saved"}
@@ -1290,7 +1290,7 @@ const styles = StyleSheet.create({
     gap: appTheme.spacing.sm,
     backgroundColor: appTheme.colors.surfaceTint,
     borderWidth: 1,
-    borderColor: "#D8E5F9",
+    borderColor: appTheme.colors.borderInfoSoft,
   },
   configHeroHeaderRow: {
     flexDirection: "row",
@@ -1312,12 +1312,12 @@ const styles = StyleSheet.create({
     borderRadius: appTheme.radius.pill,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    backgroundColor: "#E2ECFB",
+    backgroundColor: appTheme.colors.surfaceInfoAlt,
     borderWidth: 1,
-    borderColor: "#C4D7F7",
+    borderColor: appTheme.colors.borderInfoSoft,
   },
   configCountPillText: {
-    color: "#2B4E83",
+    color: appTheme.colors.textInfoStrong,
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 12,
     lineHeight: 15,
@@ -1342,12 +1342,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   configStatusChipWarning: {
-    backgroundColor: "#FFF4DF",
-    borderColor: "#E9C789",
+    backgroundColor: appTheme.colors.surfaceWarningSoft,
+    borderColor: appTheme.colors.borderWarningSoft,
   },
   configStatusChipSuccess: {
-    backgroundColor: "#E8F9ED",
-    borderColor: "#A9D9B8",
+    backgroundColor: appTheme.colors.surfaceSuccessSoft,
+    borderColor: appTheme.colors.borderSuccessSoft,
   },
   configStatusChipText: {
     fontFamily: appTheme.fonts.bodyMedium,
@@ -1355,17 +1355,17 @@ const styles = StyleSheet.create({
     lineHeight: 15,
   },
   configStatusChipTextWarning: {
-    color: "#7A4B00",
+    color: appTheme.colors.textWarningStrong,
   },
   configStatusChipTextSuccess: {
-    color: "#0D5F2D",
+    color: appTheme.colors.textSuccessStrong,
   },
   configStateCard: {
     gap: appTheme.spacing.xs,
   },
   settingsHeroCard: {
     gap: appTheme.spacing.md,
-    backgroundColor: "#F2F6FD",
+    backgroundColor: appTheme.colors.surfaceTintSoft,
   },
   settingsHeroHeader: {
     flexDirection: "row",
@@ -1414,8 +1414,8 @@ const styles = StyleSheet.create({
     gap: 5,
     borderRadius: appTheme.radius.pill,
     borderWidth: 1,
-    borderColor: "#BFE2E7",
-    backgroundColor: "#E8F8FB",
+    borderColor: appTheme.colors.borderBrandSoft,
+    backgroundColor: appTheme.colors.surfaceBrandMuted,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
@@ -1460,8 +1460,8 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   settingsNavRowDanger: {
-    backgroundColor: "#FFF0F3",
-    borderColor: "#EEC5CF",
+    backgroundColor: appTheme.colors.surfaceDangerSoft,
+    borderColor: appTheme.colors.borderDangerSoft,
   },
   settingsNavIconWrap: {
     width: 30,
@@ -1469,10 +1469,10 @@ const styles = StyleSheet.create({
     borderRadius: appTheme.radius.pill,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#E8F8FB",
+    backgroundColor: appTheme.colors.surfaceBrandMuted,
   },
   settingsNavIconWrapDanger: {
-    backgroundColor: "#FFE2E8",
+    backgroundColor: appTheme.colors.surfaceDangerMuted,
   },
   settingsNavTextWrap: {
     flex: 1,
@@ -1497,7 +1497,7 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.primary,
     borderRadius: appTheme.radius.sm,
     borderWidth: 1,
-    borderColor: "#0A3B3D",
+    borderColor: appTheme.colors.primaryPressed,
     paddingVertical: 11,
     paddingHorizontal: 12,
     alignItems: "center",
@@ -1507,12 +1507,12 @@ const styles = StyleSheet.create({
   dateActionButtonDisabled: {
     opacity: 0.6,
   },
-  actionButtonText: { color: "#ECFEFC", fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 18 },
+  actionButtonText: { color: appTheme.colors.textOnDark, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 18 },
   groupCard: {
     borderWidth: 1,
-    borderColor: "#D9E2EE",
+    borderColor: appTheme.colors.borderSoft,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: "#F8FBFF",
+    backgroundColor: appTheme.colors.surfaceNeutralPale,
     padding: 12,
     gap: 10,
   },
@@ -1536,7 +1536,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: appTheme.colors.surfaceBrandMuted,
     borderWidth: 1,
-    borderColor: "#BFE2E7",
+    borderColor: appTheme.colors.borderBrandSoft,
   },
   groupHeaderTextWrap: {
     flex: 1,
@@ -1559,11 +1559,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: "#C8D8EA",
-    backgroundColor: "#EEF4FC",
+    borderColor: appTheme.colors.borderInfoSoft,
+    backgroundColor: appTheme.colors.surfaceTintAlt,
   },
   groupCountPillText: {
-    color: "#375C8D",
+    color: appTheme.colors.textInfoStrong,
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 12,
     lineHeight: 15,
@@ -1580,8 +1580,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   configFieldCardEdited: {
-    borderColor: "#58A0A7",
-    backgroundColor: "#F4FBFB",
+    borderColor: appTheme.colors.borderBrandSoft,
+    backgroundColor: appTheme.colors.surfaceBrandMuted,
   },
   configFieldHeaderRow: {
     flexDirection: "row",
@@ -1600,12 +1600,12 @@ const styles = StyleSheet.create({
     borderRadius: appTheme.radius.pill,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    backgroundColor: "#DBF3F5",
+    backgroundColor: appTheme.colors.surfaceBrandPale,
     borderWidth: 1,
-    borderColor: "#91CDD4",
+    borderColor: appTheme.colors.borderBrandSoft,
   },
   configEditedBadgeText: {
-    color: "#0F666B",
+    color: appTheme.colors.textSuccessStrong,
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 11,
     lineHeight: 13,
@@ -1672,7 +1672,7 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   choiceChipTextSelected: {
-    color: "#F4FFFE",
+    color: appTheme.colors.textOnDark,
   },
   input: {
     borderWidth: 1,
@@ -1696,13 +1696,13 @@ const styles = StyleSheet.create({
   smallButtonSecondary: {
     backgroundColor: appTheme.colors.surfaceBrandMuted,
     borderWidth: 1,
-    borderColor: "#A9D5DC",
+    borderColor: appTheme.colors.borderBrandSoft,
   },
   smallButtonDanger: { backgroundColor: appTheme.colors.danger },
   smallButtonSuccess: { backgroundColor: appTheme.colors.success },
-  smallButtonText: { color: "#FFF", fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 14 },
+  smallButtonText: { color: appTheme.colors.onPrimary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 14 },
   smallButtonTextSecondary: {
-    color: "#1A646A",
+    color: appTheme.colors.textBrandStrong,
   },
   configFooterCard: {
     gap: appTheme.spacing.xs,
@@ -1734,6 +1734,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: "center",
   },
-  logoutButtonText: { color: "#FFF", fontFamily: appTheme.fonts.bodyMedium, fontSize: 16, lineHeight: 18 },
+  logoutButtonText: { color: appTheme.colors.onPrimary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 16, lineHeight: 18 },
 });
+
+
 

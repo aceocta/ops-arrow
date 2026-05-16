@@ -1,4 +1,4 @@
-ï»¿import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -342,7 +342,7 @@ export function ScratchCardGamesScreen() {
                 <StatusBadge label={game.isActive ? "Active" : "Inactive"} tone={game.isActive ? "success" : "warning"} />
               ) : null}
               <View style={styles.metricRow}>
-                <View style={styles.metricChip}><Text style={styles.metricText}>Â£ {Number(game.defaultTicketPrice).toFixed(2)}</Text></View>
+                <View style={styles.metricChip}><Text style={styles.metricText}>£ {Number(game.defaultTicketPrice).toFixed(2)}</Text></View>
                 <View style={styles.metricChip}><Text style={styles.metricText}>{game.defaultTicketsPerPack} Tickets</Text></View>
                 {/* <View style={styles.metricChip}><Text style={styles.metricText}>{game.defaultSellingOrder}</Text></View> */}
               </View>
@@ -625,7 +625,7 @@ export function ScratchCardPacksScreen({ navigation }: PackListProps) {
                   <View style={styles.metricChip}><Text style={styles.metricText}>Display {pack.displayNumber}</Text></View>
                 ) : null}
                 <View style={styles.metricChip}><Text style={styles.metricText}>Current: {pack.currentSerialNumber}</Text></View>
-                <View style={styles.metricChip}><Text style={styles.metricText}>Â£ {Number(pack.ticketPrice).toFixed(2)}</Text></View>
+                <View style={styles.metricChip}><Text style={styles.metricText}>£ {Number(pack.ticketPrice).toFixed(2)}</Text></View>
                 <View style={styles.metricChip}><Text style={styles.metricText}>{pack.totalTickets} Tickets</Text></View>
                 {pack.isManuallyAdded ? (
                   <View style={styles.metricChip}><Text style={styles.metricText}>Manual</Text></View>
@@ -762,7 +762,7 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
     if (!Number.isFinite(parsed) || parsed <= 0) {
       return "";
     }
-    return `Â£ ${parsed.toFixed(2)}`;
+    return `£ ${parsed.toFixed(2)}`;
   }, [ticketPrice]);
   const configuredSerialDefaults = useMemo(
     () => getSerialBoundsByOrder(totalTickets, configuredPackSellingOrder),
@@ -1367,7 +1367,7 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
               <Text style={styles.metricText}>Current: {pack?.currentSerialNumber ?? "-"}</Text>
             </View>
             <View style={styles.metricChip}>
-              <Text style={styles.metricText}>Â£ {isEditingDetails ? Number(editTicketPrice || 0).toFixed(2) : Number(pack?.ticketPrice ?? 0).toFixed(2)}</Text>
+              <Text style={styles.metricText}>£ {isEditingDetails ? Number(editTicketPrice || 0).toFixed(2) : Number(pack?.ticketPrice ?? 0).toFixed(2)}</Text>
             </View>
           </View>
           <Text style={styles.meta}>Serial: {isEditingDetails ? editStartSerial : (pack?.startSerialNumber ?? "-")} {"->"} {isEditingDetails ? editEndSerial : (pack?.endSerialNumber ?? "-")}</Text>
@@ -1515,10 +1515,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   packHeroCard: {
-    backgroundColor: "#E7EFFA",
+    backgroundColor: appTheme.colors.surfaceTintAlt,
     borderRadius: appTheme.radius.lg,
     borderWidth: 1,
-    borderColor: "#D6E2F3",
+    borderColor: appTheme.colors.borderInfoSoft,
     padding: appTheme.spacing.lg,
     gap: 4,
   },
@@ -1594,9 +1594,9 @@ const styles = StyleSheet.create({
   },
   packListItem: {
     borderWidth: 1,
-    borderColor: "#D5DEED",
+    borderColor: appTheme.colors.borderSoft,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: "#F5F8FD",
+    backgroundColor: appTheme.colors.surfaceNeutralPale,
     padding: appTheme.spacing.sm,
     gap: appTheme.spacing.xs,
   },
@@ -1651,7 +1651,7 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
   },
   heroNote: {
-    color: "#DCEAF4",
+    color: appTheme.colors.textOnDark,
     fontSize: 13,
     lineHeight: 18,
     fontFamily: appTheme.fonts.body,
@@ -1879,3 +1879,4 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
 });
+

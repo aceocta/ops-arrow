@@ -708,11 +708,11 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   newGameRowCard: {
-    borderColor: "#F4C152",
-    backgroundColor: "#FFF9EC",
+    borderColor: appTheme.colors.borderWarningSoft,
+    backgroundColor: appTheme.colors.surfaceWarningMuted,
   },
   newGameWarning: {
-    color: "#7A5200",
+    color: appTheme.colors.textWarningStrong,
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 12,
     lineHeight: 16,
@@ -725,29 +725,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 7,
   },
-  actionButtonText: { color: "#FFF", fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 14 },
+  actionButtonText: { color: appTheme.colors.onPrimary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 14 },
   secondaryActionButton: {
-    backgroundColor: "#ECF7F6",
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
     borderWidth: 1,
     borderColor: appTheme.colors.primary,
   },
   secondaryActionText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 14 },
   warningBox: {
     borderWidth: 1,
-    borderColor: "#F4C152",
-    backgroundColor: "#FFF7E6",
+    borderColor: appTheme.colors.borderWarningSoft,
+    backgroundColor: appTheme.colors.surfaceWarningAlt,
     borderRadius: appTheme.radius.sm,
     padding: 10,
     gap: 4,
   },
   warningTitle: {
-    color: "#6B4A00",
+    color: appTheme.colors.textWarningStrong,
     fontSize: 13,
     lineHeight: 17,
     fontFamily: appTheme.fonts.bodyMedium,
   },
   warningText: {
-    color: "#7A5200",
+    color: appTheme.colors.textWarningStrong,
     fontSize: 12,
     lineHeight: 16,
     fontFamily: appTheme.fonts.body,
@@ -781,13 +781,13 @@ const styles = StyleSheet.create({
   disabledButton: {
     opacity: 0.45,
   },
-  removeText: { color: "#FFF", fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 14 },
+  removeText: { color: appTheme.colors.onPrimary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 14 },
   error: { color: appTheme.colors.danger, fontFamily: appTheme.fonts.bodyMedium },
   meta: { color: appTheme.colors.textMuted, fontSize: 13, lineHeight: 18, fontFamily: appTheme.fonts.body },
   modalBackdrop: {
     flex: 1,
     justifyContent: "flex-end",
-    backgroundColor: "rgba(7, 15, 20, 0.55)",
+    backgroundColor: appTheme.colors.overlayStrong,
   },
   modalSheet: {
     maxHeight: "92%",
@@ -823,3 +823,4 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
 });
+

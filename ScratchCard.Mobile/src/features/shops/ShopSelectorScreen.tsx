@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
   },
   shopRowSelected: {
     borderColor: appTheme.colors.primary,
-    backgroundColor: "#E4F3F1",
+    backgroundColor: appTheme.colors.surfaceSuccessMuted,
   },
   shopName: {
     color: appTheme.colors.text,
@@ -154,7 +154,8 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   badgeSelected: {
-    color: "#F5FFFE",
+    color: appTheme.colors.textOnDark,
     backgroundColor: appTheme.colors.primary,
   },
 });
+

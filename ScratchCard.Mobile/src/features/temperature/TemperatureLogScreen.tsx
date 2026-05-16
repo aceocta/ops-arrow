@@ -586,7 +586,7 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
   },
   heroNote: {
-    color: "#DCEAF4",
+    color: appTheme.colors.textOnDark,
     fontSize: 13,
     lineHeight: 18,
     fontFamily: appTheme.fonts.body,
@@ -854,7 +854,7 @@ const styles = StyleSheet.create({
     borderRadius: appTheme.radius.sm,
     padding: appTheme.spacing.sm,
     gap: appTheme.spacing.xs,
-    backgroundColor: "#F6F9FF",
+    backgroundColor: appTheme.colors.surfaceNeutralMuted,
   },
   unitSheetHeader: {
     flexDirection: "row",
@@ -994,4 +994,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
+
+
 

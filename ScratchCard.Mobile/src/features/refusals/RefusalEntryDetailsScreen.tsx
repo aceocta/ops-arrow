@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.md,
-    backgroundColor: "#F1F6FC",
+    backgroundColor: appTheme.colors.surfaceNeutralSoft,
     paddingHorizontal: appTheme.spacing.md,
     paddingVertical: appTheme.spacing.md,
     gap: 2,
@@ -350,4 +350,5 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
+
 

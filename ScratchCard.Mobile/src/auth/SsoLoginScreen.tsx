@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.heading,
   },
   heroSubtitle: {
-    color: "#DCEAF4",
+    color: appTheme.colors.textOnDark,
     fontSize: 13,
     lineHeight: 18,
     fontFamily: appTheme.fonts.body,
@@ -226,3 +226,4 @@ const styles = StyleSheet.create({
   subtitle: { color: appTheme.colors.textMuted, lineHeight: 20, fontFamily: appTheme.fonts.body },
   devHint: { color: appTheme.colors.warning, lineHeight: 18, fontSize: 12, fontFamily: appTheme.fonts.body },
 });
+

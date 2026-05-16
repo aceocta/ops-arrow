@@ -26,8 +26,8 @@ const operationOptions: OperationOption[] = [
     title: "Scratch Card",
     route: "Dashboard",
     icon: "albums-outline",
-    iconColor: "#0E7A8A",
-    iconBg: "#E5F7FA",
+    iconColor: appTheme.colors.primary,
+    iconBg: appTheme.colors.surfaceBrandMuted,
     operation: "scratchCard",
   },
   {
@@ -35,8 +35,8 @@ const operationOptions: OperationOption[] = [
     title: "Temperature Log",
     route: "TemperatureLogs",
     icon: "thermometer-outline",
-    iconColor: "#2367D1",
-    iconBg: "#EAF1FF",
+    iconColor: appTheme.colors.info,
+    iconBg: appTheme.colors.surfaceInfoMuted,
     operation: "temperature",
   },
   {
@@ -44,16 +44,16 @@ const operationOptions: OperationOption[] = [
     title: "No ID / No Sale",
     route: "RefusalRegister",
     icon: "shield-checkmark-outline",
-    iconColor: "#A56A16",
-    iconBg: "#FFF3E2",
+    iconColor: appTheme.colors.warning,
+    iconBg: appTheme.colors.surfaceWarningSoft,
     operation: "refusals",
   },{
     key: "checklist",
     title: "Shop Checklist",
     route: "ShopChecklist",
     icon: "checkmark-done-outline",
-    iconColor: "#0B7A75",
-    iconBg: "#E2F8F5",
+    iconColor: appTheme.colors.primary,
+    iconBg: appTheme.colors.surfaceSuccessSoft,
     operation: "checklist",
   }
 ];
@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   featureTileSelected: {
-    backgroundColor: "#F0FAFC",
+    backgroundColor: appTheme.colors.surfaceBrandMuted,
   },
   featureIcon: {
     width: 62,
@@ -122,3 +122,5 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
+
+

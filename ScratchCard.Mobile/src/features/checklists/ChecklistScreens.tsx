@@ -924,7 +924,7 @@ const styles = StyleSheet.create({
   },
   pageHeaderCard: {
     borderRadius: appTheme.radius.md,
-    backgroundColor: "#EEF5FC",
+    backgroundColor: appTheme.colors.surfaceTintAlt,
     paddingHorizontal: appTheme.spacing.md,
     paddingVertical: appTheme.spacing.md,
     gap: appTheme.spacing.sm,
@@ -1006,7 +1006,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 6,
-    backgroundColor: "#E2E8F0",
+    backgroundColor: appTheme.colors.surfaceTintAlt,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1014,7 +1014,7 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.success,
   },
   checkBoxText: {
-    color: "#FFFFFF",
+    color: appTheme.colors.onPrimary,
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 14,
     lineHeight: 16,
@@ -1032,12 +1032,12 @@ const styles = StyleSheet.create({
   },
   tagChip: {
     borderRadius: appTheme.radius.pill,
-    backgroundColor: "#E8F2FF",
+    backgroundColor: appTheme.colors.surfaceInfoMuted,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
   tagText: {
-    color: "#294A7A",
+    color: appTheme.colors.textInfoStrong,
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 11,
     lineHeight: 13,
@@ -1062,7 +1062,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: "#EAF3FF",
+    backgroundColor: appTheme.colors.surfaceInfoMuted,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1070,20 +1070,20 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: "#EAF3FF",
+    backgroundColor: appTheme.colors.surfaceInfoMuted,
     alignItems: "center",
     justifyContent: "center",
   },
   secondaryButton: {
     borderRadius: appTheme.radius.sm,
-    backgroundColor: "#F0F5FB",
+    backgroundColor: appTheme.colors.surfaceTintSoft,
     paddingHorizontal: 11,
     paddingVertical: 7,
     alignSelf: "flex-start",
   },
   dragHandleButton: {
     borderRadius: appTheme.radius.sm,
-    backgroundColor: "#E3ECF8",
+    backgroundColor: appTheme.colors.surfaceTintAlt,
     paddingHorizontal: 10,
     paddingVertical: 7,
     alignSelf: "flex-start",
@@ -1164,4 +1164,5 @@ const styles = StyleSheet.create({
     opacity: 0.94,
   },
 });
+
 

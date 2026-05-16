@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   modeChipTextSelected: {
-    color: "#F4FFFE",
+    color: appTheme.colors.textOnDark,
   },
   dayRow: {
     borderWidth: 1,
@@ -153,4 +153,5 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
   },
 });
+
 

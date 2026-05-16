@@ -63,6 +63,11 @@ const lightColors = {
   overlay: "rgba(15, 23, 28, 0.45)",
   overlayStrong: "rgba(10, 20, 30, 0.45)",
   overlaySoft: "rgba(15, 23, 28, 0.34)",
+  previewBackdrop: "#05090C",
+  previewSurface: "#102030",
+  previewBorder: "#35506A",
+  previewText: "#F5FAFF",
+  previewTextMuted: "#D2DCE6",
   backdropOrbA: "#DDE5F4",
   backdropOrbB: "#E8EFFB",
 };
@@ -130,6 +135,11 @@ const darkColors: AppColors = {
   overlay: "rgba(0, 0, 0, 0.58)",
   overlayStrong: "rgba(0, 0, 0, 0.66)",
   overlaySoft: "rgba(0, 0, 0, 0.52)",
+  previewBackdrop: "#02050A",
+  previewSurface: "#0D1A28",
+  previewBorder: "#4B6B86",
+  previewText: "#EDF5FF",
+  previewTextMuted: "#B8C7DA",
   backdropOrbA: "#1B2C40",
   backdropOrbB: "#22334A",
 };
@@ -155,7 +165,7 @@ function resolveColorScheme(mode: ThemeMode) {
 }
 
 export const configuredThemeMode = normalizeThemeMode(process.env.EXPO_PUBLIC_THEME_MODE);
-export const resolvedColorScheme = "dark";
+export const resolvedColorScheme =  normalizeThemeMode(configuredThemeMode);
 
 export const appTheme = {
   colors: resolvedColorScheme === "dark" ? darkColors : lightColors,

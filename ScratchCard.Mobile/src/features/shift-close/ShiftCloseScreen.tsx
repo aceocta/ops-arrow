@@ -1153,12 +1153,12 @@ const styles = StyleSheet.create({
   packCardPending: {
     backgroundColor: appTheme.colors.surface,
     borderWidth: 0.8,
-    borderColor: "#F2D9A6",
+    borderColor: appTheme.colors.borderWarningSoft,
   },
   packCardReady: {
     backgroundColor: appTheme.colors.surface,
     borderWidth: 0.8,
-    borderColor: "#B7E2C3",
+    borderColor: appTheme.colors.borderSuccessSoft,
   },
   cardTitle: {
     fontSize: 18,
@@ -1467,4 +1467,5 @@ const styles = StyleSheet.create({
     color: appTheme.colors.onPrimary,
   },
 });
+
 

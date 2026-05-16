@@ -628,7 +628,7 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     borderColor: "transparent",
     borderRadius: appTheme.radius.md,
-    backgroundColor: "#F1F6FC",
+    backgroundColor: appTheme.colors.surfaceNeutralSoft,
     paddingHorizontal: appTheme.spacing.md,
     paddingVertical: appTheme.spacing.md,
     gap: appTheme.spacing.sm,
@@ -922,4 +922,5 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
+
 
