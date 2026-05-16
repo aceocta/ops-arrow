@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using System.Net;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
@@ -13,7 +14,7 @@ namespace ScratchCard.Application.Services;
 
 public class InvitationService : IInvitationService
 {
-    private const string InvitationAcceptBaseUrl = "https://gaming-lent-startup.ngrok-free.dev";
+    private const string DefaultInvitationAcceptBaseUrl = "https://wa-ops-arrow-uat-dvdrbjf9fraydwdd.canadacentral-01.azurewebsites.net";
     private readonly IRepository<UserInvitation> _invitationRepository;
     private readonly IRepository<Role> _roleRepository;
     private readonly IRepository<User> _userRepository;
@@ -24,6 +25,7 @@ public class InvitationService : IInvitationService
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly string _invitationAcceptBaseUrl;
 
     public InvitationService(
         IRepository<UserInvitation> invitationRepository,
@@ -35,7 +37,8 @@ public class InvitationService : IInvitationService
         IEmailSender emailSender,
         IAuditService auditService,
         ICurrentUserService currentUserService,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IConfiguration configuration)
     {
         _invitationRepository = invitationRepository;
         _roleRepository = roleRepository;
@@ -47,6 +50,10 @@ public class InvitationService : IInvitationService
         _auditService = auditService;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
+        _invitationAcceptBaseUrl =
+            configuration["Invitation:InvitationAcceptBaseUrl"]?.Trim()
+            ?? configuration["InvitationAcceptBaseUrl"]?.Trim()
+            ?? DefaultInvitationAcceptBaseUrl;
     }
 
     public async Task<InvitationDto> SendInvitationAsync(CreateInvitationRequest request, CancellationToken cancellationToken = default)
@@ -324,10 +331,10 @@ public class InvitationService : IInvitationService
         return invitations.Select(x => x.ToDto(x.Role.Name)).ToArray();
     }
 
-    private static string BuildInvitationAcceptLink(string token)
+    private string BuildInvitationAcceptLink(string token)
     {
         var escapedToken = Uri.EscapeDataString(token);
-        return $"{InvitationAcceptBaseUrl.TrimEnd('/')}/api/invitations/accept?token={escapedToken}";
+        return $"{_invitationAcceptBaseUrl.TrimEnd('/')}/api/invitations/accept?token={escapedToken}";
     }
 
     private static EmailMessage BuildInvitationEmailMessage(
