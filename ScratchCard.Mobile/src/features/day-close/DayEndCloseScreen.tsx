@@ -67,6 +67,11 @@ function getBusinessDayStatusHint(status?: string) {
   return "Review this day before switching.";
 }
 
+function isActiveBusinessDayStatus(status?: string) {
+  const normalized = (status ?? "").trim().toLowerCase();
+  return normalized === "open" || normalized === "reopened" || normalized === "readytoclose";
+}
+
 function getDefaultShiftNameForNow(reference = new Date()) {
   const hour = reference.getHours();
   if (hour < 12) return "Morning";
@@ -295,13 +300,47 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
         contentType: attachment.contentType,
       })),
     }),
-    onSuccess: () => {
+    onSuccess: async (closedDay) => {
       setIsCloseDayModalVisible(false);
       setLottoPayoutAmount(DEFAULT_CLOSE_DAY_PAYOUT);
       setScratchCardPayoutAmount(DEFAULT_CLOSE_DAY_PAYOUT);
       setTillPayoutAmount(DEFAULT_CLOSE_DAY_PAYOUT);
       setNotes("");
       setCloseDayAttachments([]);
+
+      const shopId = closedDay?.shopId ?? day?.shopId;
+      if (!shopId || !closedDay?.businessDate) {
+        Alert.alert("Closed", "Business day closed successfully.");
+        void dayQuery.refetch();
+        return;
+      }
+
+      const nextDate = getDateValueOffset(closedDay.businessDate, 1);
+      try {
+        const openedDay = await openBusinessDay({ shopId, businessDate: nextDate });
+        Alert.alert("Closed", `Business day closed. Opened ${openedDay.businessDate}.`);
+        navigation.replace("DayEndClose", { businessDayId: openedDay.id });
+        return;
+      } catch {
+        try {
+          const nearbyDays = await listBusinessDays(shopId, {
+            from: nextDate,
+            to: getDateValueOffset(nextDate, 14),
+          });
+          const fallbackDay =
+            nearbyDays.find((item) => isActiveBusinessDayStatus(item.status)) ??
+            nearbyDays.find((item) => item.businessDate === nextDate);
+
+          if (fallbackDay) {
+            Alert.alert("Closed", `Business day closed. Opened ${fallbackDay.businessDate}.`);
+            navigation.replace("DayEndClose", { businessDayId: fallbackDay.id });
+            return;
+          }
+        } catch {
+          // Keep close success and fall through if next-day lookup fails.
+        }
+      }
+
       Alert.alert("Closed", "Business day closed successfully.");
       void dayQuery.refetch();
     },
@@ -952,6 +991,35 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     staleTime: 5 * 60 * 1000,
   });
 
+  const dayNavigationFromDate = useMemo(
+    () => getDateValueOffset(day?.businessDate ?? formatDateValue(new Date()), -30),
+    [day?.businessDate],
+  );
+  const dayNavigationToDate = useMemo(
+    () => getDateValueOffset(day?.businessDate ?? formatDateValue(new Date()), 30),
+    [day?.businessDate],
+  );
+  const dayNavigationQuery = useQuery({
+    queryKey: ["business-days-nav", day?.shopId, dayNavigationFromDate, dayNavigationToDate],
+    queryFn: () => listBusinessDays(day?.shopId as string, { from: dayNavigationFromDate, to: dayNavigationToDate }),
+    enabled: Boolean(day?.shopId),
+    staleTime: 5 * 60 * 1000,
+  });
+  const orderedDayNavigationItems = useMemo(
+    () => [...(dayNavigationQuery.data ?? [])].sort((a, b) => a.businessDate.localeCompare(b.businessDate)),
+    [dayNavigationQuery.data],
+  );
+  const currentDayNavigationIndex = useMemo(
+    () => orderedDayNavigationItems.findIndex((item) => item.id === businessDayId),
+    [businessDayId, orderedDayNavigationItems],
+  );
+  const previousBusinessDay = currentDayNavigationIndex > 0
+    ? orderedDayNavigationItems[currentDayNavigationIndex - 1]
+    : undefined;
+  const nextBusinessDay = currentDayNavigationIndex >= 0 && currentDayNavigationIndex < orderedDayNavigationItems.length - 1
+    ? orderedDayNavigationItems[currentDayNavigationIndex + 1]
+    : undefined;
+
   const availableDays = useMemo(
     () => (daysQuery.data ?? []).slice(0, 30),
     [daysQuery.data],
@@ -1137,6 +1205,42 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             >
               <Text style={styles.dateActionInlineButtonText}>Change Date</Text>
             </Pressable>
+            <View style={styles.dateNavigationRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={previousBusinessDay ? `Go to previous day ${previousBusinessDay.businessDate}` : "No previous day available"}
+                style={[
+                  styles.dateNavigationButton,
+                  !previousBusinessDay ? styles.dateActionButtonDisabled : null,
+                ]}
+                onPress={() => {
+                  if (!previousBusinessDay) {
+                    return;
+                  }
+                  navigation.replace("DayEndClose", { businessDayId: previousBusinessDay.id });
+                }}
+                disabled={!previousBusinessDay}
+              >
+                <Text style={styles.dateNavigationButtonText}>Previous Day</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={nextBusinessDay ? `Go to next day ${nextBusinessDay.businessDate}` : "No next day available"}
+                style={[
+                  styles.dateNavigationButton,
+                  !nextBusinessDay ? styles.dateActionButtonDisabled : null,
+                ]}
+                onPress={() => {
+                  if (!nextBusinessDay) {
+                    return;
+                  }
+                  navigation.replace("DayEndClose", { businessDayId: nextBusinessDay.id });
+                }}
+                disabled={!nextBusinessDay}
+              >
+                <Text style={styles.dateNavigationButtonText}>Next Day</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
 
@@ -2019,6 +2123,26 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 13,
     lineHeight: 16,
+  },
+  dateNavigationRow: {
+    width: "100%",
+    flexDirection: "row",
+    gap: appTheme.spacing.xs,
+  },
+  dateNavigationButton: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: "#DDF5F1",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: appTheme.spacing.sm,
+  },
+  dateNavigationButtonText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 15,
   },
   summaryDivider: {
     marginTop: 2,
