@@ -17,7 +17,7 @@ public class InvitationsController : BaseApiController
     }
 
     [HttpPost]
-    [Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager}")]
+    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.ShopOwner},{RoleNames.Manager}")]
     public async Task<IActionResult> Send([FromBody] CreateInvitationRequest request, CancellationToken cancellationToken)
     {
         var invitation = await _invitationService.SendInvitationAsync(request, cancellationToken);
@@ -57,7 +57,7 @@ public class InvitationsController : BaseApiController
     }
 
     [HttpGet]
-    [Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager}")]
+    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.ShopOwner},{RoleNames.Manager}")]
     public async Task<IActionResult> List([FromQuery] Guid shopId, CancellationToken cancellationToken)
     {
         var invitations = await _invitationService.ListInvitationsAsync(shopId, cancellationToken);

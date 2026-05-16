@@ -107,7 +107,7 @@ const operationsItems: MenuItem[] = [
 
 const managementItems: MenuItem[] = [
   { label: "Settings", screen: "Settings", icon: "settings-outline" },
-  { label: "User Invitations", screen: "UserInvitations", icon: "mail-outline" },
+  { label: "User Invitations", screen: "UserInvitations", icon: "mail-outline", allowedRoles: ["PlatformAdmin", "ShopOwner", "Manager"] },
   // { label: "Company Management", screen: "CompanyManagement", icon: "business-outline", shopOwnerOnly: true },
   { label: "Shop Management", screen: "ShopManagement", icon: "storefront-outline", shopOwnerOnly: true },
   { label: "User Management", screen: "UserManagement", icon: "people-outline", shopOwnerOnly: true },

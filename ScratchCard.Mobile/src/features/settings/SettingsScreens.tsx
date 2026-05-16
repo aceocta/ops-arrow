@@ -1131,6 +1131,8 @@ export function SettingsScreen() {
   const shopCount = profile?.shops?.length ?? 0;
   const primaryRole = profile?.roles?.[0] ?? "-";
   const isShopOwner = profile?.roles?.some((role) => role === "ShopOwner") ?? false;
+  const canManageInvitations =
+    profile?.roles?.some((role) => role === "PlatformAdmin" || role === "ShopOwner" || role === "Manager") ?? false;
   const appVersion = Constants.expoConfig?.version ?? "1.0.0";
 
   type SettingsAction = {
@@ -1151,13 +1153,6 @@ export function SettingsScreen() {
       onPress: () => (navigation.getParent() as any)?.navigate("ShopSelector"),
     },
     {
-      key: "user-invitations",
-      title: "User Invitations",
-      description: "Invite team members and manage invitation requests.",
-      icon: "mail-outline",
-      onPress: () => navigation.navigate("UserInvitations"),
-    },
-    {
       key: "app-configuration",
       title: "App Configuration",
       description: "Control app runtime behavior and advanced rules.",
@@ -1172,6 +1167,16 @@ export function SettingsScreen() {
       onPress: () => navigation.navigate("ShopConfiguration"),
     },
   ];
+
+  if (canManageInvitations) {
+    managementActions.splice(1, 0, {
+      key: "user-invitations",
+      title: "User Invitations",
+      description: "Invite team members and manage invitation requests.",
+      icon: "mail-outline",
+      onPress: () => navigation.navigate("UserInvitations"),
+    });
+  }
 
   if (isShopOwner) {
     managementActions.push(

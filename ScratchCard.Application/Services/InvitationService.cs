@@ -49,6 +49,14 @@ public class InvitationService : IInvitationService
     public async Task<InvitationDto> SendInvitationAsync(CreateInvitationRequest request, CancellationToken cancellationToken = default)
     {
         var inviterId = _currentUserService.UserId ?? throw new AppException("unauthorized", "User context missing.", 401);
+        var canSendInvitation =
+            _currentUserService.IsInRole(RoleNames.PlatformAdmin) ||
+            _currentUserService.IsInRole(RoleNames.ShopOwner) ||
+            _currentUserService.IsInRole(RoleNames.Manager);
+        if (!canSendInvitation)
+        {
+            throw new AppException("forbidden", "Only PlatformAdmin, ShopOwner, or Manager can send invitations.", 403);
+        }
 
         var role = await _roleRepository.Query()
             .AsNoTracking()

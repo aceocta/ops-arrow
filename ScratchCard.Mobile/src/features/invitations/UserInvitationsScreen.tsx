@@ -19,8 +19,12 @@ type InvitationItem = {
 
 export function UserInvitationsScreen() {
   const queryClient = useQueryClient();
-  const { activeShopId, activeShop } = useAuth();
+  const { activeShopId, activeShop, profile } = useAuth();
   const shopId = activeShopId;
+  const canSendInvitations =
+    profile?.roles?.some((role) => role === "PlatformAdmin" || role === "ShopOwner" || role === "Manager") ?? false;
+  const canCancelInvitations =
+    profile?.roles?.some((role) => role === "ShopOwner") ?? false;
   const [email, setEmail] = useState("");
   const [expiryHours, setExpiryHours] = useState("72");
   const [selectedRoleId, setSelectedRoleId] = useState<string>("");
@@ -28,13 +32,13 @@ export function UserInvitationsScreen() {
   const rolesQuery = useQuery({
     queryKey: ["roles"],
     queryFn: getRoleOptions,
-    enabled: Boolean(shopId),
+    enabled: Boolean(shopId) && canSendInvitations,
   });
 
   const invitationsQuery = useQuery({
     queryKey: ["invitations", shopId],
     queryFn: () => listInvitations(shopId as string),
-    enabled: Boolean(shopId),
+    enabled: Boolean(shopId) && canSendInvitations,
   });
 
   const inviteRoleOptions = useMemo(() => {
@@ -49,6 +53,9 @@ export function UserInvitationsScreen() {
     mutationFn: async () => {
       if (!shopId) {
         throw new Error("No shop selected.");
+      }
+      if (!canSendInvitations) {
+        throw new Error("Only PlatformAdmin, ShopOwner, or Manager can send invitations.");
       }
 
       if (!email.trim()) {
@@ -92,7 +99,7 @@ export function UserInvitationsScreen() {
     },
   });
 
-  const invitations = (invitationsQuery.data ?? []) as InvitationItem[];
+  const invitations = canSendInvitations ? (invitationsQuery.data ?? []) as InvitationItem[] : [];
 
   return (
     <ScreenContainer>
@@ -100,6 +107,9 @@ export function UserInvitationsScreen() {
         <View style={styles.card}>
           <Text style={styles.caption}>Shop: {activeShop?.shopName ?? "-"}</Text>
           <Text style={styles.subtitle}>Invite managers or cashiers to this shop.</Text>
+          {!canSendInvitations ? (
+            <Text style={styles.caption}>Only PlatformAdmin, ShopOwner, or Manager can send invitations.</Text>
+          ) : null}
 
           <Text style={styles.fieldLabel}>Invitee Email</Text>
           <TextInput
@@ -109,6 +119,7 @@ export function UserInvitationsScreen() {
             autoCapitalize="none"
             keyboardType="email-address"
             onChangeText={setEmail}
+            editable={canSendInvitations}
           />
 
           <Text style={styles.fieldLabel}>Expiry Hours</Text>
@@ -118,6 +129,7 @@ export function UserInvitationsScreen() {
             placeholder="Expiry hours (e.g. 72)"
             keyboardType="number-pad"
             onChangeText={setExpiryHours}
+            editable={canSendInvitations}
           />
 
           <Text style={styles.fieldLabel}>Role</Text>
@@ -128,7 +140,7 @@ export function UserInvitationsScreen() {
                 <Pressable
                   key={role.id}
                   style={[styles.roleChip, selected && styles.roleChipSelected]}
-                  onPress={() => setSelectedRoleId(role.id)}
+                  onPress={() => canSendInvitations && setSelectedRoleId(role.id)}
                 >
                   <Text style={[styles.roleChipText, selected && styles.roleChipTextSelected]}>{role.name}</Text>
                 </Pressable>
@@ -141,12 +153,13 @@ export function UserInvitationsScreen() {
           <PrimaryButton
             label={sendInvitationMutation.isPending ? "Sending..." : "Send Invitation"}
             onPress={() => sendInvitationMutation.mutate()}
-            disabled={sendInvitationMutation.isPending || !shopId}
+            disabled={sendInvitationMutation.isPending || !shopId || !canSendInvitations}
           />
         </View>
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Existing Invitations</Text>
+          {!canSendInvitations ? <Text style={styles.empty}>You do not have access to invitation management.</Text> : null}
           {invitations.length === 0 ? <Text style={styles.empty}>No invitations yet.</Text> : null}
           {invitations.map((item) => (
             <View key={item.id} style={styles.listItem}>
@@ -155,7 +168,7 @@ export function UserInvitationsScreen() {
                 Role: {item.roleName} | Status: {item.status}
               </Text>
               <Text style={styles.meta}>Expires: {new Date(item.expiresOn).toLocaleString()}</Text>
-              {item.status === "Pending" ? (
+              {item.status === "Pending" && canCancelInvitations ? (
                 <Pressable
                   style={styles.cancelButton}
                   onPress={() => cancelInvitationMutation.mutate(item.id)}
