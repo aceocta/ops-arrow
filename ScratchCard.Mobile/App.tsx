@@ -1,7 +1,7 @@
 import React from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { DefaultTheme, NavigationContainer, type LinkingOptions } from "@react-navigation/native";
+import { DarkTheme, DefaultTheme, NavigationContainer, type LinkingOptions } from "@react-navigation/native";
 import * as Linking from "expo-linking";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "./src/auth/AuthContext";
@@ -9,15 +9,16 @@ import { AppAlertHost, installAppAlertPatch } from "./src/components/AppAlert";
 import { RootNavigator } from "./src/navigation/RootNavigator";
 import { useAutoSyncBootstrap } from "./src/offline/useAutoSyncBootstrap";
 import type { RootStackParamList } from "./src/types/navigation";
-import { appTheme } from "./src/ui/theme";
+import { appTheme, resolvedColorScheme } from "./src/ui/theme";
 
 const queryClient = new QueryClient();
 installAppAlertPatch();
 
+const baseNavigationTheme = resolvedColorScheme === "dark" ? DarkTheme : DefaultTheme;
 const navigationTheme = {
-  ...DefaultTheme,
+  ...baseNavigationTheme,
   colors: {
-    ...DefaultTheme.colors,
+    ...baseNavigationTheme.colors,
     background: appTheme.colors.background,
     card: appTheme.colors.surface,
     text: appTheme.colors.text,
