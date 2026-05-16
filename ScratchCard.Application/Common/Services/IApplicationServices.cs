@@ -174,6 +174,7 @@ public interface IBusinessDayService
     Task<BusinessDayDto> CloseAsync(Guid id, CloseBusinessDayRequest request, CancellationToken cancellationToken = default);
     Task<BusinessDayDto> ReopenAsync(Guid id, ReopenBusinessDayRequest request, CancellationToken cancellationToken = default);
     Task<string?> GetCloseAttachmentDataUrlAsync(Guid attachmentId, CancellationToken cancellationToken = default);
+    Task SendDayCloseNotificationsAsync(Guid businessDayId, CancellationToken cancellationToken = default);
 }
 
 public interface IShiftService

@@ -54,6 +54,9 @@ public static class DependencyInjection
         services.AddSingleton<ShiftCloseNotificationBackgroundQueue>();
         services.AddSingleton<IShiftCloseNotificationDispatcher>(provider => provider.GetRequiredService<ShiftCloseNotificationBackgroundQueue>());
         services.AddHostedService<ShiftCloseNotificationBackgroundService>();
+        services.AddSingleton<DayCloseNotificationBackgroundQueue>();
+        services.AddSingleton<IDayCloseNotificationDispatcher>(provider => provider.GetRequiredService<DayCloseNotificationBackgroundQueue>());
+        services.AddHostedService<DayCloseNotificationBackgroundService>();
         services.AddScoped<IPaymentProviderService, ManualPaymentProviderService>();
         services.AddScoped<IDeliveryNoteAiParser, OpenAiDeliveryNoteParser>();
         services.AddScoped<SmtpEmailSender>();

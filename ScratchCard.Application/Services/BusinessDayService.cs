@@ -28,6 +28,7 @@ public class BusinessDayService : IBusinessDayService
     private readonly INotificationService _notificationService;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IDayCloseNotificationDispatcher _dayCloseNotificationDispatcher;
     private readonly IAttachmentStorageService _attachmentStorageService;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -45,6 +46,7 @@ public class BusinessDayService : IBusinessDayService
         INotificationService notificationService,
         IAuditService auditService,
         ICurrentUserService currentUserService,
+        IDayCloseNotificationDispatcher dayCloseNotificationDispatcher,
         IAttachmentStorageService attachmentStorageService,
         IUnitOfWork unitOfWork)
     {
@@ -61,6 +63,7 @@ public class BusinessDayService : IBusinessDayService
         _notificationService = notificationService;
         _auditService = auditService;
         _currentUserService = currentUserService;
+        _dayCloseNotificationDispatcher = dayCloseNotificationDispatcher;
         _attachmentStorageService = attachmentStorageService;
         _unitOfWork = unitOfWork;
     }
@@ -278,17 +281,19 @@ public class BusinessDayService : IBusinessDayService
 
         await _auditService.LogAsync(nameof(BusinessDay), day.Id, "DayClosed", day.ShopId, cancellationToken: cancellationToken);
 
-        var daySalesEntries = shiftIds.Length == 0
-            ? []
-            : await _salesRepository.Query()
-                .AsNoTracking()
-                .Where(x => shiftIds.Contains(x.ShiftId))
-                .Include(x => x.Pack)
-                    .ThenInclude(x => x.Game)
-                .ToArrayAsync(cancellationToken);
-
-        await SendDayCloseSummaryToOwnersAsync(day, shifts, daySalesEntries, cancellationToken);
-        await SendManualEntrySummaryByShiftOnDayCloseAsync(day, shifts, daySalesEntries, cancellationToken);
+        try
+        {
+            await _dayCloseNotificationDispatcher.EnqueueAsync(
+                new DayCloseNotificationWorkItem
+                {
+                    BusinessDayId = day.Id
+                },
+                CancellationToken.None);
+        }
+        catch
+        {
+            // Notification dispatch queue failures must not block day close.
+        }
 
         var closedDay = await _businessDayRepository.Query()
             .AsNoTracking()
@@ -302,6 +307,37 @@ public class BusinessDayService : IBusinessDayService
         closedDayDto.MissingOpeningTicketCount = missingByDayId.GetValueOrDefault(closedDay.Id);
         closedDayDto.MissingOpeningTicketDetails = missingDetailsByDayId.GetValueOrDefault(closedDay.Id, []);
         return closedDayDto;
+    }
+
+    public async Task SendDayCloseNotificationsAsync(Guid businessDayId, CancellationToken cancellationToken = default)
+    {
+        var day = await _businessDayRepository.Query()
+            .AsNoTracking()
+            .Include(x => x.ScratchCardDayCloseSummary)
+            .FirstOrDefaultAsync(x => x.Id == businessDayId, cancellationToken);
+
+        if (day is null)
+        {
+            return;
+        }
+
+        var shifts = await _shiftRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.BusinessDayId == day.Id)
+            .ToListAsync(cancellationToken);
+
+        var shiftIds = shifts.Select(x => x.Id).ToArray();
+        var daySalesEntries = shiftIds.Length == 0
+            ? []
+            : await _salesRepository.Query()
+                .AsNoTracking()
+                .Where(x => shiftIds.Contains(x.ShiftId))
+                .Include(x => x.Pack)
+                    .ThenInclude(x => x.Game)
+                .ToArrayAsync(cancellationToken);
+
+        await SendDayCloseSummaryToOwnersAsync(day, shifts, daySalesEntries, cancellationToken);
+        await SendManualEntrySummaryByShiftOnDayCloseAsync(day, shifts, daySalesEntries, cancellationToken);
     }
 
     public async Task<BusinessDayDto> ReopenAsync(Guid id, ReopenBusinessDayRequest request, CancellationToken cancellationToken = default)

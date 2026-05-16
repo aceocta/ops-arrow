@@ -18,6 +18,9 @@ public sealed class AttachmentStorageService : IAttachmentStorageService
     private const string BlobPathPrefix = "blob://";
     private readonly AttachmentStorageOptions _options;
     private readonly string? _blobConnectionString;
+    private readonly SemaphoreSlim _blobContainerInitLock = new(1, 1);
+    private BlobContainerClient? _blobContainerClient;
+    private bool _blobContainerInitialized;
 
     public AttachmentStorageService(IConfiguration configuration, IOptions<AttachmentStorageOptions> options)
     {
@@ -41,15 +44,14 @@ public sealed class AttachmentStorageService : IAttachmentStorageService
 
         if (ShouldUseBlobStorage())
         {
-            var containerName = NormalizeContainerName(_options.ContainerName);
             var blobName = normalizedRelativePath;
-            var containerClient = await GetContainerClientAsync(containerName, cancellationToken);
+            var containerClient = await GetContainerClientAsync(cancellationToken);
             var blobClient = containerClient.GetBlobClient(blobName);
 
             using var stream = new MemoryStream(content, writable: false);
             await blobClient.UploadAsync(stream, overwrite: true, cancellationToken);
 
-            return BuildBlobStoredPath(containerName, blobName);
+            return BuildBlobStoredPath(containerClient.Name, blobName);
         }
 
         var fullPath = ResolveLocalPath(normalizedRelativePath);
@@ -144,16 +146,39 @@ public sealed class AttachmentStorageService : IAttachmentStorageService
         return _options.UseBlobStorage;
     }
 
-    private async Task<BlobContainerClient> GetContainerClientAsync(string containerName, CancellationToken cancellationToken)
+    private async Task<BlobContainerClient> GetContainerClientAsync(CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(_blobConnectionString))
         {
             throw new InvalidOperationException("Attachment blob storage connection string is missing.");
         }
 
-        var containerClient = new BlobContainerClient(_blobConnectionString, containerName);
-        await containerClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
-        return containerClient;
+        if (_blobContainerClient is not null && _blobContainerInitialized)
+        {
+            return _blobContainerClient;
+        }
+
+        await _blobContainerInitLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_blobContainerClient is null)
+            {
+                var containerName = NormalizeContainerName(_options.ContainerName);
+                _blobContainerClient = new BlobContainerClient(_blobConnectionString, containerName);
+            }
+
+            if (!_blobContainerInitialized)
+            {
+                await _blobContainerClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+                _blobContainerInitialized = true;
+            }
+
+            return _blobContainerClient;
+        }
+        finally
+        {
+            _blobContainerInitLock.Release();
+        }
     }
 
     private string ResolveLocalStoredPath(string storedPath)
