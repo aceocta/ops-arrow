@@ -78,6 +78,19 @@ function getDifferenceValue(row: { difference?: number }) {
   return Number(row.difference ?? 0);
 }
 
+function getPayoutBasedDifference(row: {
+  difference?: number;
+  lottoPayout?: number | null;
+  scratchCardPayout?: number | null;
+  tillPayout?: number | null;
+}) {
+  if (row.lottoPayout != null && row.scratchCardPayout != null && row.tillPayout != null) {
+    return Number(row.lottoPayout) + Number(row.scratchCardPayout) - Number(row.tillPayout);
+  }
+
+  return getDifferenceValue(row);
+}
+
 function hasVariance(row: { difference?: number }) {
   return Math.abs(getDifferenceValue(row)) > 0.009;
 }
@@ -142,7 +155,16 @@ export function DailySalesReportScreen() {
     [query.data]
   );
   const totalDifference = useMemo(
-    () => (query.data ?? []).reduce((sum, row) => sum + getDifferenceValue(row), 0),
+    () => {
+      const differenceByDate = new Map<string, number>();
+      for (const row of query.data ?? []) {
+        if (!differenceByDate.has(row.businessDate)) {
+          differenceByDate.set(row.businessDate, getPayoutBasedDifference(row));
+        }
+      }
+
+      return [...differenceByDate.values()].reduce((sum, value) => sum + value, 0);
+    },
     [query.data]
   );
 
@@ -493,15 +515,19 @@ export function DailySalesReportScreen() {
                     <Text style={[styles.shiftTableHeaderCell, styles.shiftColQty]}>Qty</Text>
                     <Text style={[styles.shiftTableHeaderCell, styles.shiftColDiff]}>Difference</Text>
                   </View>
-                  {(rows ?? []).map((row, index) => (
+                  {(rows ?? []).map((row, index) => {
+                    const rowDifference = getPayoutBasedDifference(row);
+                    const isRowPositive = rowDifference > 0.009;
+                    const isRowNegative = rowDifference < -0.009;
+                    return (
                     <Pressable
                       key={`${row.businessDate}-${row.shiftName}-${index}`}
                       accessibilityRole="button"
                       accessibilityLabel={`Open shift details for ${row.shiftName} on ${row.businessDate}`}
                       style={[
                         styles.shiftTableRow,
-                        isPositiveVariance(row) ? styles.shiftTableRowPositive : null,
-                        isNegativeVariance(row) ? styles.shiftTableRowNegative : null,
+                        isRowPositive ? styles.shiftTableRowPositive : null,
+                        isRowNegative ? styles.shiftTableRowNegative : null,
                       ]}
                       onPress={() => openShiftDetailsFromReport(row.businessDate, row.shiftName)}
                     >
@@ -510,11 +536,11 @@ export function DailySalesReportScreen() {
                         <Text
                           style={[
                             styles.shiftTableSecondary,
-                            isPositiveVariance(row) ? styles.varianceTextPositive : null,
-                            isNegativeVariance(row) ? styles.varianceTextNegative : null,
+                            isRowPositive ? styles.varianceTextPositive : null,
+                            isRowNegative ? styles.varianceTextNegative : null,
                           ]}
                         >
-                          {isPositiveVariance(row) ? "Over" : isNegativeVariance(row) ? "Short" : "Balanced"}
+                          {isRowPositive ? "Over" : isRowNegative ? "Short" : "Balanced"}
                         </Text>
                       </View>
                       <Text style={[styles.shiftTableValue, styles.shiftColSales]}>
@@ -527,14 +553,15 @@ export function DailySalesReportScreen() {
                         style={[
                           styles.shiftTableValue,
                           styles.shiftColDiff,
-                          isPositiveVariance(row) ? styles.varianceTextPositive : null,
-                          isNegativeVariance(row) ? styles.varianceTextNegative : null,
+                          isRowPositive ? styles.varianceTextPositive : null,
+                          isRowNegative ? styles.varianceTextNegative : null,
                         ]}
                       >
-                        {formatCurrency(getDifferenceValue(row))}
+                        {formatCurrency(rowDifference)}
                       </Text>
                     </Pressable>
-                  ))}
+                    );
+                  })}
                 </View>
               </View>
             );

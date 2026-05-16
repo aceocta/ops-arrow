@@ -54,6 +54,33 @@ function getVarianceLabel(value: number) {
   return "Balanced";
 }
 
+function getPayoutBasedDifference(row: {
+  difference?: number;
+  lottoPayout?: number | null;
+  scratchCardPayout?: number | null;
+  tillPayout?: number | null;
+}) {
+  if (row.lottoPayout != null && row.scratchCardPayout != null && row.tillPayout != null) {
+    return Number(row.lottoPayout) + Number(row.scratchCardPayout) - Number(row.tillPayout);
+  }
+
+  return Number(row.difference ?? 0);
+}
+
+function getDayPayoutDifference(rows: DailySalesReportRow[]) {
+  const snapshot = rows.find((row) =>
+    row.lottoPayout != null ||
+    row.scratchCardPayout != null ||
+    row.tillPayout != null
+  );
+
+  if (snapshot) {
+    return getPayoutBasedDifference(snapshot);
+  }
+
+  return rows.reduce((sum, row) => sum + Number(row.difference ?? 0), 0);
+}
+
 function buildGroups(rows: DailySalesReportRow[]): ScratchCardDailyGroup[] {
   const groups = new Map<string, DailySalesReportRow[]>();
 
@@ -92,7 +119,7 @@ export function buildScratchCardDailySalesReportHtml(input: {
 
   const totalSales = input.rows.reduce((sum, row) => sum + Number(row.salesAmount ?? 0), 0);
   const totalSoldQuantity = input.rows.reduce((sum, row) => sum + Number(row.soldQuantity ?? 0), 0);
-  const totalDifference = input.rows.reduce((sum, row) => sum + Number(row.difference ?? 0), 0);
+  const totalDifference = groups.reduce((sum, group) => sum + getDayPayoutDifference(group.rows), 0);
   const totalMissingTickets = (input.businessDays ?? []).reduce(
     (sum, day) => sum + Number(day.missingOpeningTicketCount ?? 0),
     0,
@@ -105,12 +132,12 @@ export function buildScratchCardDailySalesReportHtml(input: {
       const dayMissingTickets = Number(dayMeta?.missingOpeningTicketCount ?? 0);
       const daySales = group.rows.reduce((sum, row) => sum + Number(row.salesAmount ?? 0), 0);
       const daySoldQuantity = group.rows.reduce((sum, row) => sum + Number(row.soldQuantity ?? 0), 0);
-      const dayDifference = group.rows.reduce((sum, row) => sum + Number(row.difference ?? 0), 0);
+      const dayDifference = getDayPayoutDifference(group.rows);
       const dayVarianceClass = getVarianceClass(dayDifference);
 
       const rowsHtml = group.rows
         .map((row) => {
-          const rowDifference = Number(row.difference ?? 0);
+          const rowDifference = getPayoutBasedDifference(row);
           const rowVarianceClass = getVarianceClass(rowDifference);
           const rowVarianceLabel = getVarianceLabel(rowDifference);
           return `
