@@ -12,8 +12,8 @@ using ScratchCard.Infrastructure.Persistence;
 namespace ScratchCard.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260516130544_AddBusinessHoursToGeneralSettings")]
-    partial class AddBusinessHoursToGeneralSettings
+    [Migration("20260516180035_init")]
+    partial class init
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -1689,6 +1689,9 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Property<Guid?>("ClosedByUserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTimeOffset?>("ClosedOn")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<Guid?>("CreatedBy")
                         .HasColumnType("uniqueidentifier");
 
@@ -1710,6 +1713,9 @@ namespace ScratchCard.Infrastructure.Migrations
 
                     b.Property<Guid>("OpenedByUserId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("OpenedOn")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<string>("ShiftName")
                         .IsRequired()

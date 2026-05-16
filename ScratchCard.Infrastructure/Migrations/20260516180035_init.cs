@@ -99,6 +99,8 @@ namespace ScratchCard.Infrastructure.Migrations
                     ExternalProvider = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     ExternalProviderUserId = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
                     PasswordHash = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    PasswordResetTokenHash = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    PasswordResetTokenExpiresOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     LastLoginOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
                     CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
@@ -411,6 +413,8 @@ namespace ScratchCard.Infrastructure.Migrations
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     Currency = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
                     TimeZone = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    BusinessStartTime = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
+                    BusinessEndTime = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
                     BusinessDateCutOffTime = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
                     EnableAuditLog = table.Column<bool>(type: "bit", nullable: true),
                     CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
@@ -492,9 +496,6 @@ namespace ScratchCard.Infrastructure.Migrations
                     DefaultSellingOrder = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: true),
                     PackSellingOrder = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: true),
                     ScratchCardDisplayCount = table.Column<int>(type: "int", nullable: true),
-                    DefaultStartSerialNumber = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: true),
-                    DefaultEndSerialNumber = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: true),
-                    SerialNumberLength = table.Column<int>(type: "int", nullable: true),
                     AllowLeadingZeros = table.Column<bool>(type: "bit", nullable: true),
                     PreventDuplicatePackNumbers = table.Column<bool>(type: "bit", nullable: true),
                     RequirePackActivationBeforeSale = table.Column<bool>(type: "bit", nullable: true),
@@ -795,6 +796,33 @@ namespace ScratchCard.Infrastructure.Migrations
                         principalColumn: "Id");
                     table.ForeignKey(
                         name: "FK_ScratchCardPacks_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ShopChecklistGroups",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    GroupName = table.Column<string>(type: "nvarchar(120)", maxLength: 120, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    IsSystemDefault = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ShopChecklistGroups", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ShopChecklistGroups_Shops_ShopId",
                         column: x => x.ShopId,
                         principalTable: "Shops",
                         principalColumn: "Id");
@@ -1124,6 +1152,8 @@ namespace ScratchCard.Infrastructure.Migrations
                     ShiftName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     StartTime = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
                     EndTime = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    OpenedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ClosedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
                     OpenedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     ClosedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     Status = table.Column<int>(type: "int", nullable: false),
@@ -1169,6 +1199,44 @@ namespace ScratchCard.Infrastructure.Migrations
                         name: "FK_DeliveryPacks_ScratchCardPacks_ScratchCardPackId",
                         column: x => x.ScratchCardPackId,
                         principalTable: "ScratchCardPacks",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ShopChecklistTasks",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ChecklistGroupId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    TaskName = table.Column<string>(type: "nvarchar(180)", maxLength: 180, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(800)", maxLength: 800, nullable: true),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    IsRequired = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    NotesRequiredOnComplete = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    RequiredForShopOpen = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    RequiredForShiftClose = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    RequiredForDayClose = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    IsSystemDefault = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ShopChecklistTasks", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ShopChecklistTasks_ShopChecklistGroups_ChecklistGroupId",
+                        column: x => x.ChecklistGroupId,
+                        principalTable: "ShopChecklistGroups",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_ShopChecklistTasks_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
                         principalColumn: "Id");
                 });
 
@@ -1372,6 +1440,57 @@ namespace ScratchCard.Infrastructure.Migrations
                         principalColumn: "Id");
                     table.ForeignKey(
                         name: "FK_ShiftScratchCardSales_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ShopChecklistTaskCompletions",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CompanyId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    BusinessDate = table.Column<DateOnly>(type: "date", nullable: false),
+                    ShiftId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ChecklistGroupId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ChecklistTaskId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    IsCompleted = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    CompletedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    CompletedByName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    CompletedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    Notes = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ShopChecklistTaskCompletions", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ShopChecklistTaskCompletions_Companies_CompanyId",
+                        column: x => x.CompanyId,
+                        principalTable: "Companies",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_ShopChecklistTaskCompletions_Shifts_ShiftId",
+                        column: x => x.ShiftId,
+                        principalTable: "Shifts",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_ShopChecklistTaskCompletions_ShopChecklistGroups_ChecklistGroupId",
+                        column: x => x.ChecklistGroupId,
+                        principalTable: "ShopChecklistGroups",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_ShopChecklistTaskCompletions_ShopChecklistTasks_ChecklistTaskId",
+                        column: x => x.ChecklistTaskId,
+                        principalTable: "ShopChecklistTasks",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_ShopChecklistTaskCompletions_Shops_ShopId",
                         column: x => x.ShopId,
                         principalTable: "Shops",
                         principalColumn: "Id");
@@ -1707,6 +1826,77 @@ namespace ScratchCard.Infrastructure.Migrations
                 column: "ShopId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_ShopChecklistGroups_ShopId_DisplayOrder",
+                table: "ShopChecklistGroups",
+                columns: new[] { "ShopId", "DisplayOrder" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ShopChecklistGroups_ShopId_GroupName_IsDeleted",
+                table: "ShopChecklistGroups",
+                columns: new[] { "ShopId", "GroupName", "IsDeleted" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ShopChecklistGroups_ShopId_IsDeleted",
+                table: "ShopChecklistGroups",
+                columns: new[] { "ShopId", "IsDeleted" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ShopChecklistTaskCompletions_ChecklistGroupId_ChecklistTaskId",
+                table: "ShopChecklistTaskCompletions",
+                columns: new[] { "ChecklistGroupId", "ChecklistTaskId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ShopChecklistTaskCompletions_ChecklistTaskId",
+                table: "ShopChecklistTaskCompletions",
+                column: "ChecklistTaskId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ShopChecklistTaskCompletions_CompanyId",
+                table: "ShopChecklistTaskCompletions",
+                column: "CompanyId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ShopChecklistTaskCompletions_ShiftId",
+                table: "ShopChecklistTaskCompletions",
+                column: "ShiftId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ShopChecklistTaskCompletions_ShopId_BusinessDate",
+                table: "ShopChecklistTaskCompletions",
+                columns: new[] { "ShopId", "BusinessDate" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ShopChecklistTaskCompletions_ShopId_BusinessDate_ChecklistTaskId",
+                table: "ShopChecklistTaskCompletions",
+                columns: new[] { "ShopId", "BusinessDate", "ChecklistTaskId" },
+                unique: true,
+                filter: "[ShiftId] IS NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ShopChecklistTaskCompletions_ShopId_BusinessDate_ShiftId_ChecklistTaskId",
+                table: "ShopChecklistTaskCompletions",
+                columns: new[] { "ShopId", "BusinessDate", "ShiftId", "ChecklistTaskId" },
+                unique: true,
+                filter: "[ShiftId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ShopChecklistTasks_ChecklistGroupId_DisplayOrder",
+                table: "ShopChecklistTasks",
+                columns: new[] { "ChecklistGroupId", "DisplayOrder" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ShopChecklistTasks_ChecklistGroupId_TaskName_IsDeleted",
+                table: "ShopChecklistTasks",
+                columns: new[] { "ChecklistGroupId", "TaskName", "IsDeleted" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ShopChecklistTasks_ShopId_IsDeleted",
+                table: "ShopChecklistTasks",
+                columns: new[] { "ShopId", "IsDeleted" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Shops_CompanyId_ShopName",
                 table: "Shops",
                 columns: new[] { "CompanyId", "ShopName" });
@@ -1813,6 +2003,11 @@ namespace ScratchCard.Infrastructure.Migrations
                 table: "Users",
                 column: "Email",
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Users_PasswordResetTokenHash",
+                table: "Users",
+                column: "PasswordResetTokenHash");
         }
 
         /// <inheritdoc />
@@ -1891,6 +2086,9 @@ namespace ScratchCard.Infrastructure.Migrations
                 name: "ShiftScratchCardSales");
 
             migrationBuilder.DropTable(
+                name: "ShopChecklistTaskCompletions");
+
+            migrationBuilder.DropTable(
                 name: "ShopScratchCardGames");
 
             migrationBuilder.DropTable(
@@ -1921,6 +2119,9 @@ namespace ScratchCard.Infrastructure.Migrations
                 name: "ScratchCardPacks");
 
             migrationBuilder.DropTable(
+                name: "ShopChecklistTasks");
+
+            migrationBuilder.DropTable(
                 name: "SubscriptionInvoices");
 
             migrationBuilder.DropTable(
@@ -1934,6 +2135,9 @@ namespace ScratchCard.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "MasterScratchCardGames");
+
+            migrationBuilder.DropTable(
+                name: "ShopChecklistGroups");
 
             migrationBuilder.DropTable(
                 name: "CompanySubscriptions");
