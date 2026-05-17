@@ -85,7 +85,53 @@ function matchesScannedPackNumber(storedPackNumber: string, scannedPackNumber: s
     return true;
   }
 
+  if (scannedTail.length >= 6) {
+    const tailCandidates = [scannedTail, scannedTailNoZeros].filter((candidate) => candidate.length >= 6);
+    if (tailCandidates.some((candidate) => storedNormalized.endsWith(candidate) || storedNoZeros.endsWith(candidate))) {
+      return true;
+    }
+  }
+
+  if (storedTail.length >= 6) {
+    const tailCandidates = [storedTail, storedTailNoZeros].filter((candidate) => candidate.length >= 6);
+    if (tailCandidates.some((candidate) => scannedNormalized.endsWith(candidate) || scannedNoZeros.endsWith(candidate))) {
+      return true;
+    }
+  }
+
   return false;
+}
+
+function findPendingPackMatch(
+  pendingPacks: AutoPendingPack[],
+  scannedPackNumber: string | undefined,
+  rawBarcode: string
+) {
+  if (pendingPacks.length === 0) {
+    return null;
+  }
+
+  const candidatePackNumbers: string[] = [];
+  if (scannedPackNumber?.trim()) {
+    candidatePackNumbers.push(scannedPackNumber.trim());
+  }
+
+  const parsedFromRaw = parseScannedPackCode(rawBarcode);
+  if (parsedFromRaw) {
+    candidatePackNumbers.push(`${parsedFromRaw.gameCode}-${parsedFromRaw.packComponent}`);
+  }
+
+  for (const candidate of candidatePackNumbers) {
+    const index = pendingPacks.findIndex((pack) => matchesScannedPackNumber(pack.packNumber, candidate));
+    if (index >= 0) {
+      return {
+        index,
+        pack: pendingPacks[index],
+      };
+    }
+  }
+
+  return null;
 }
 
 export function BarcodeScannerScreen({ navigation, route }: Props) {
@@ -99,6 +145,7 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
   const hasHandledPackBarcodeRef = useRef(false);
   const isAutoClosingRef = useRef(false);
   const initialAutoPendingCountRef = useRef(0);
+  const pendingAutoPacksRef = useRef<AutoPendingPack[]>([]);
 
   const canScan = useMemo(() => permission?.granted ?? false, [permission]);
   const mode = route.params.mode ?? "single";
@@ -118,11 +165,13 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
         label: pack.label?.trim() ? pack.label.trim() : `Pack ${pack.packNumber}`,
       }));
       initialAutoPendingCountRef.current = nextPending.length;
+      pendingAutoPacksRef.current = nextPending;
       setPendingAutoPacks(nextPending);
       return;
     }
 
     initialAutoPendingCountRef.current = 0;
+    pendingAutoPacksRef.current = [];
     setPendingAutoPacks([]);
   }, [isManualPackScanMode, route.params.packId, route.params.packNumber, route.params.pendingPacks, mode]);
 
@@ -147,6 +196,10 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
     return () => clearTimeout(timer);
   }, [mode, navigation, pendingAutoPacks.length]);
 
+  useEffect(() => {
+    pendingAutoPacksRef.current = pendingAutoPacks;
+  }, [pendingAutoPacks]);
+
   const pendingAutoMessage = useMemo(() => {
     if (mode !== "auto") {
       return "";
@@ -164,18 +217,28 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
     return `Pending packs (${pendingAutoPacks.length}): ${preview.join(" | ")}${suffix}`;
   }, [mode, pendingAutoPacks]);
 
-  const consumePendingPack = useCallback((scannedPackNumber: string | undefined, rawBarcode: string) => {
-    if (mode !== "auto" || !scannedPackNumber || initialAutoPendingCountRef.current === 0) {
+  const consumePendingPack = useCallback((
+    scannedPackNumber: string | undefined,
+    rawBarcode: string,
+    preferredPackId?: string
+  ) => {
+    if (mode !== "auto" || initialAutoPendingCountRef.current === 0) {
       return;
     }
 
     setPendingAutoPacks((previous) => {
-      const index = previous.findIndex((pack) => matchesScannedPackNumber(pack.packNumber, scannedPackNumber));
+      const preferredIndex = preferredPackId
+        ? previous.findIndex((pack) => pack.packId === preferredPackId)
+        : -1;
+      const matched = preferredIndex >= 0
+        ? { index: preferredIndex, pack: previous[preferredIndex] }
+        : findPendingPackMatch(previous, scannedPackNumber, rawBarcode);
+      const index = matched?.index ?? -1;
       if (index < 0) {
         return previous;
       }
 
-      const removedLabel = previous[index].label;
+      const removedLabel = matched?.pack.label ?? previous[index].label;
       const next = [...previous.slice(0, index), ...previous.slice(index + 1)];
       setLastScanMessage(
         next.length === 0
@@ -284,8 +347,16 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
         return false;
       }
 
+      const pendingMatch = mode === "auto"
+        ? findPendingPackMatch(
+          pendingAutoPacksRef.current,
+          parsedFromText.parsedPackNumber,
+          parsedFromText.rawBarcode
+        )
+        : null;
+
       emitScan({
-        packId: route.params.packId,
+        packId: pendingMatch?.pack.packId ?? route.params.packId,
         parsedPackNumber: parsedFromText.parsedPackNumber,
         rawBarcode: parsedFromText.rawBarcode,
         parsedSerial: parsedFromText.parsedSerial,
@@ -293,7 +364,11 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
       });
 
       setLastScanMessage(`OCR captured: ${parsedFromText.rawBarcode}`);
-      consumePendingPack(parsedFromText.parsedPackNumber, parsedFromText.rawBarcode);
+      consumePendingPack(
+        parsedFromText.parsedPackNumber,
+        parsedFromText.rawBarcode,
+        pendingMatch?.pack.packId
+      );
 
       if (mode === "auto") {
         return true;

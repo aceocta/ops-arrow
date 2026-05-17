@@ -342,7 +342,7 @@ export function ScratchCardGamesScreen() {
                 <StatusBadge label={game.isActive ? "Active" : "Inactive"} tone={game.isActive ? "success" : "warning"} />
               ) : null}
               <View style={styles.metricRow}>
-                <View style={styles.metricChip}><Text style={styles.metricText}>£ {Number(game.defaultTicketPrice).toFixed(2)}</Text></View>
+                <View style={styles.metricChip}><Text style={styles.metricText}>\u00A3 {Number(game.defaultTicketPrice).toFixed(2)}</Text></View>
                 <View style={styles.metricChip}><Text style={styles.metricText}>{game.defaultTicketsPerPack} Tickets</Text></View>
                 {/* <View style={styles.metricChip}><Text style={styles.metricText}>{game.defaultSellingOrder}</Text></View> */}
               </View>
@@ -625,7 +625,7 @@ export function ScratchCardPacksScreen({ navigation }: PackListProps) {
                   <View style={styles.metricChip}><Text style={styles.metricText}>Display {pack.displayNumber}</Text></View>
                 ) : null}
                 <View style={styles.metricChip}><Text style={styles.metricText}>Current: {pack.currentSerialNumber}</Text></View>
-                <View style={styles.metricChip}><Text style={styles.metricText}>£ {Number(pack.ticketPrice).toFixed(2)}</Text></View>
+                <View style={styles.metricChip}><Text style={styles.metricText}>\u00A3 {Number(pack.ticketPrice).toFixed(2)}</Text></View>
                 <View style={styles.metricChip}><Text style={styles.metricText}>{pack.totalTickets} Tickets</Text></View>
                 {pack.isManuallyAdded ? (
                   <View style={styles.metricChip}><Text style={styles.metricText}>Manual</Text></View>
@@ -762,7 +762,7 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
     if (!Number.isFinite(parsed) || parsed <= 0) {
       return "";
     }
-    return `£ ${parsed.toFixed(2)}`;
+    return `\u00A3 ${parsed.toFixed(2)}`;
   }, [ticketPrice]);
   const configuredSerialDefaults = useMemo(
     () => getSerialBoundsByOrder(totalTickets, configuredPackSellingOrder),
@@ -953,20 +953,21 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
 
   useEffect(() => {
     const previousAuto = lastAutoSerialRangeRef.current;
-    const shouldApplyStart =
-      !startSerialNumber.trim() || (previousAuto ? startSerialNumber === previousAuto.start : false);
-    const shouldApplyEnd =
-      !endSerialNumber.trim() || (previousAuto ? endSerialNumber === previousAuto.end : false);
 
-    if (shouldApplyStart && startSerialNumber !== configuredSerialDefaults.start) {
-      setStartSerialNumber(configuredSerialDefaults.start);
-    }
-    if (shouldApplyEnd && endSerialNumber !== configuredSerialDefaults.end) {
-      setEndSerialNumber(configuredSerialDefaults.end);
-    }
+    setStartSerialNumber((current) => {
+      const shouldApply =
+        !current.trim() || (previousAuto ? current === previousAuto.start : false);
+      return shouldApply ? configuredSerialDefaults.start : current;
+    });
+
+    setEndSerialNumber((current) => {
+      const shouldApply =
+        !current.trim() || (previousAuto ? current === previousAuto.end : false);
+      return shouldApply ? configuredSerialDefaults.end : current;
+    });
 
     lastAutoSerialRangeRef.current = configuredSerialDefaults;
-  }, [configuredSerialDefaults, startSerialNumber, endSerialNumber]);
+  }, [configuredSerialDefaults]);
 
   const createPackMutation = useMutation({
     mutationFn: async () => {
@@ -1367,7 +1368,7 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
               <Text style={styles.metricText}>Current: {pack?.currentSerialNumber ?? "-"}</Text>
             </View>
             <View style={styles.metricChip}>
-              <Text style={styles.metricText}>£ {isEditingDetails ? Number(editTicketPrice || 0).toFixed(2) : Number(pack?.ticketPrice ?? 0).toFixed(2)}</Text>
+              <Text style={styles.metricText}>\u00A3 {isEditingDetails ? Number(editTicketPrice || 0).toFixed(2) : Number(pack?.ticketPrice ?? 0).toFixed(2)}</Text>
             </View>
           </View>
           <Text style={styles.meta}>Serial: {isEditingDetails ? editStartSerial : (pack?.startSerialNumber ?? "-")} {"->"} {isEditingDetails ? editEndSerial : (pack?.endSerialNumber ?? "-")}</Text>
