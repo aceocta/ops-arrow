@@ -22,9 +22,11 @@ import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 import { buildShiftTemplateId, SHOP_CONFIG_KEYS, serializeShiftTemplates, ShiftTemplateSetup } from "./shopConfiguration";
 
-const timeValuePattern = /^\d{2}:\d{2}$/;
+const timeValuePattern = /^(\d{2}):(\d{2})(?::\d{2})?$/;
 const time24HourPattern = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const configDraftSeparator = "||";
+const booleanTrueValues = new Set(["true", "1", "yes", "enabled", "on", "y"]);
+const booleanFalseValues = new Set(["false", "0", "no", "disabled", "off", "n"]);
 
 function buildConfigDraftKey(groupName: string, configKey: string) {
   return `${groupName}${configDraftSeparator}${configKey}`;
@@ -45,17 +47,48 @@ function parseConfigDraftKey(draftKey: string) {
   };
 }
 
-function isTimeConfiguration(configKey: string, value: string) {
-  return /time/i.test(configKey) && timeValuePattern.test(value);
+function normalizeTimeValue(value: string): string | null {
+  const trimmed = value.trim();
+  const match = timeValuePattern.exec(trimmed);
+  if (!match) {
+    return null;
+  }
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes) || hours > 23 || minutes > 59) {
+    return null;
+  }
+
+  return `${match[1]}:${match[2]}`;
+}
+
+function isTimeConfiguration(item: ConfigurationItem, value: string) {
+  const normalizedKey = item.configKey.trim().toLowerCase();
+  if (normalizedKey === SHOP_CONFIG_KEYS.timeZone.toLowerCase()) {
+    return false;
+  }
+
+  const keyMatches = /time/i.test(normalizedKey);
+  if (!keyMatches) {
+    return false;
+  }
+
+  return value.trim().length === 0 || normalizeTimeValue(value) !== null;
 }
 
 function isBooleanConfiguration(item: ConfigurationItem, currentValue: string) {
-  if (item.dataType?.toLowerCase() === "bool") {
+  const normalizedType = item.dataType?.trim().toLowerCase() ?? "";
+  if (normalizedType === "bool" || normalizedType === "boolean") {
     return true;
   }
 
-  const normalized = currentValue.trim().toLowerCase();
-  return normalized === "true" || normalized === "false" || normalized === "1" || normalized === "0";
+  // If backend already declares a concrete non-boolean type (int/string/decimal/json), do not infer boolean from value.
+  if (normalizedType) {
+    return false;
+  }
+
+  return parseBooleanValue(currentValue) !== null;
 }
 
 function isSellingOrderConfiguration(configKey: string) {
@@ -77,11 +110,11 @@ function prettifyConfigKey(configKey: string) {
     .trim();
 }
 
-function parseBooleanValue(value: string) {
+function parseBooleanValue(value: string): boolean | null {
   const normalized = value.trim().toLowerCase();
-  if (normalized === "true" || normalized === "1" || normalized === "yes") return true;
-  if (normalized === "false" || normalized === "0" || normalized === "no") return false;
-  return false;
+  if (booleanTrueValues.has(normalized)) return true;
+  if (booleanFalseValues.has(normalized)) return false;
+  return null;
 }
 
 function isValid24HourTime(value: string) {
@@ -128,7 +161,7 @@ function parseShiftTemplatesEditor(value: string): ShiftTemplateSetup[] {
       return fallback;
     }
 
-    return templates.sort((a, b) => a.startTime.localeCompare(b.startTime));
+    return templates;
   } catch {
     return fallback;
   }
@@ -583,6 +616,9 @@ function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
                   const draft = draftValues[itemDraftKey];
                   const currentValue = draft ?? item.configValue;
                   const currentBoolValue = parseBooleanValue(currentValue);
+                  const isBooleanTrue = currentBoolValue === true;
+                  const isBooleanFalse = currentBoolValue === false;
+                  const normalizedTimeValue = normalizeTimeValue(currentValue);
                   const isEdited = typeof draft === "string" && draft !== item.configValue;
 
                   return (
@@ -720,10 +756,10 @@ function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
                             Use 24-hour format (HH:mm). Overnight shift is supported; e.g. 22:00 to 06:00 belongs to the starting business day.
                           </Text>
                         </View>
-                      ) : isTimeConfiguration(item.configKey, currentValue) ? (
+                      ) : isTimeConfiguration(item, currentValue) ? (
                         <DateTimeField
                           mode="time"
-                          value={currentValue}
+                          value={normalizedTimeValue ?? ""}
                           onChange={(value) => setDraftValues((prev) => ({ ...prev, [itemDraftKey]: value }))}
                           placeholder="Select time"
                         />
@@ -749,16 +785,16 @@ function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
                       ) : isBooleanConfiguration(item, currentValue) ? (
                         <View style={styles.row}>
                           <Pressable
-                            style={[styles.choiceChip, currentBoolValue ? styles.choiceChipSelected : null]}
+                            style={[styles.choiceChip, isBooleanTrue ? styles.choiceChipSelected : null]}
                             onPress={() => setDraftValues((prev) => ({ ...prev, [itemDraftKey]: "true" }))}
                           >
-                            <Text style={[styles.choiceChipText, currentBoolValue ? styles.choiceChipTextSelected : null]}>Enabled</Text>
+                            <Text style={[styles.choiceChipText, isBooleanTrue ? styles.choiceChipTextSelected : null]}>Enabled</Text>
                           </Pressable>
                           <Pressable
-                            style={[styles.choiceChip, !currentBoolValue ? styles.choiceChipSelected : null]}
+                            style={[styles.choiceChip, isBooleanFalse ? styles.choiceChipSelected : null]}
                             onPress={() => setDraftValues((prev) => ({ ...prev, [itemDraftKey]: "false" }))}
                           >
-                            <Text style={[styles.choiceChipText, !currentBoolValue ? styles.choiceChipTextSelected : null]}>Disabled</Text>
+                            <Text style={[styles.choiceChipText, isBooleanFalse ? styles.choiceChipTextSelected : null]}>Disabled</Text>
                           </Pressable>
                         </View>
                       ) : (

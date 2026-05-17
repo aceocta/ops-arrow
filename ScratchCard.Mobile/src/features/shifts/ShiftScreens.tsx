@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
@@ -259,7 +259,7 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={{ gap: 12 }}>
+      <View style={styles.screenContent}>
         <View style={ui.card}>
           <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
           <View style={styles.modeRow}>
@@ -567,7 +567,7 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
             </View>
           </>
         ) : null}
-      </ScrollView>
+      </View>
     </ScreenContainer>
   );
 }
@@ -607,7 +607,7 @@ export function CloseShiftScreen({ navigation }: CloseShiftProps) {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={{ gap: 12 }}>
+      <View style={styles.screenContent}>
         <View style={ui.card}>
           <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
           <Text style={styles.hint}>
@@ -663,7 +663,7 @@ export function CloseShiftScreen({ navigation }: CloseShiftProps) {
           <Text style={styles.sectionTitle}>Need to open a shift first?</Text>
           <PrimaryButton label="Go To Shift Operations" tone="neutral" onPress={() => navigation.navigate("OpenShift")} />
         </View>
-      </ScrollView>
+      </View>
     </ScreenContainer>
   );
 }
@@ -690,7 +690,7 @@ export function ShiftReconciliationScreen({ route }: ReconciliationProps) {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={{ gap: 12 }}>
+      <View style={styles.screenContent}>
         <View style={ui.card}>
           <Text style={styles.meta}>Shift: {shiftQuery.data?.shiftName ?? shiftId}</Text>
           <Text style={styles.meta}>Status: {shiftQuery.data?.status ?? "-"}</Text>
@@ -699,12 +699,15 @@ export function ShiftReconciliationScreen({ route }: ReconciliationProps) {
             Reconciliation is calculated here for review. Final server reconciliation is captured during shift close submission.
           </Text>
         </View>
-      </ScrollView>
+      </View>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
+  screenContent: {
+    gap: 12,
+  },
   title: { fontSize: 24, lineHeight: 28, fontFamily: appTheme.fonts.heading, color: appTheme.colors.text },
   sectionTitle: { fontSize: 17, lineHeight: 22, fontFamily: appTheme.fonts.bodyMedium, color: appTheme.colors.text },
   fieldLabel: {

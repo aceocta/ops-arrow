@@ -610,7 +610,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     });
   }
 
-  function renderOpeningSerialConfirmationCard(confirmationHint: string) {
+  function renderOpeningSerialConfirmationCard(confirmationHint: string, expanded = false) {
     const totalPacks = activePacksForOpening.length;
     const confirmedPackCount = activePacksForOpening.reduce((count, pack) => {
       const enteredSerial = getOpeningSerialForPack(pack.id, pack.currentSerialNumber);
@@ -618,7 +618,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     }, 0);
 
     return (
-      <View style={styles.reviewSnapshotCard}>
+      <View style={[styles.reviewSnapshotCard, expanded ? styles.reviewSnapshotCardExpanded : null]}>
         <View style={styles.serialConfirmHeaderRow}>
           <Text style={styles.reviewSnapshotTitle}>Confirm Starting Serials</Text>
           {/* {totalPacks > 0 ? (
@@ -652,58 +652,66 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
         {!packsQuery.isFetching && activePacksForOpening.length === 0 ? (
           <Text style={styles.meta}>No active packs found for this shop.</Text>
         ) : null}
-        {activePacksForOpening.map((pack) => {
-          const isConfirmed = Boolean(confirmedOpeningSerialByPackId[pack.id]);
-          const enteredOpeningSerial = openingSerialNumberByPackId[pack.id] ?? pack.currentSerialNumber;
-          const hasSerialValue = enteredOpeningSerial.trim().length > 0;
-          return (
-            <View key={pack.id} style={styles.serialConfirmRow}>
-              <Text style={styles.serialPackTitle}>
-                Display: {pack.displayNumber != null ? `#${pack.displayNumber}` : "-"} | {pack.gameName}
-              </Text>
-              <Text style={styles.meta}>
-                Code: {resolveGameCodeFromPack(pack)} | Expected: {pack.currentSerialNumber}
-              </Text>
-              <View style={styles.serialConfirmInputRow}>
-                <TextInput
-                  style={[styles.input, styles.serialConfirmInput]}
-                  value={enteredOpeningSerial}
-                  placeholder="Starting serial"
-                  placeholderTextColor={appTheme.colors.textSubtle}
-                  keyboardType="numeric"
-                  onChangeText={(value) => {
-                    setOpeningSerialNumberByPackId((previous) => ({
-                      ...previous,
-                      [pack.id]: value,
-                    }));
-                    setConfirmedOpeningSerialByPackId((previous) => ({
-                      ...previous,
-                      [pack.id]: false,
-                    }));
-                  }}
-                />
-                <Pressable
-                  style={[
-                    styles.serialConfirmButton,
-                    isConfirmed ? styles.serialConfirmButtonSelected : null,
-                    !hasSerialValue ? styles.serialConfirmButtonDisabled : null,
-                  ]}
-                  disabled={!hasSerialValue}
-                  onPress={() =>
-                    setConfirmedOpeningSerialByPackId((previous) => ({
-                      ...previous,
-                      [pack.id]: !isConfirmed,
-                    }))
-                  }
-                >
-                  <Text style={[styles.serialConfirmButtonText, isConfirmed ? styles.serialConfirmButtonTextSelected : null]}>
-                    {isConfirmed ? "Confirmed" : "Confirm"}
-                  </Text>
-                </Pressable>
+        <ScrollView
+          style={[styles.serialConfirmList, expanded ? styles.serialConfirmListExpanded : null]}
+          contentContainerStyle={styles.serialConfirmListContent}
+          nestedScrollEnabled
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator
+        >
+          {activePacksForOpening.map((pack) => {
+            const isConfirmed = Boolean(confirmedOpeningSerialByPackId[pack.id]);
+            const enteredOpeningSerial = openingSerialNumberByPackId[pack.id] ?? pack.currentSerialNumber;
+            const hasSerialValue = enteredOpeningSerial.trim().length > 0;
+            return (
+              <View key={pack.id} style={styles.serialConfirmRow}>
+                <Text style={styles.serialPackTitle}>
+                  Display: {pack.displayNumber != null ? `#${pack.displayNumber}` : "-"} | {pack.gameName}
+                </Text>
+                <Text style={styles.meta}>
+                  Code: {resolveGameCodeFromPack(pack)} | Expected: {pack.currentSerialNumber}
+                </Text>
+                <View style={styles.serialConfirmInputRow}>
+                  <TextInput
+                    style={[styles.input, styles.serialConfirmInput]}
+                    value={enteredOpeningSerial}
+                    placeholder="Starting serial"
+                    placeholderTextColor={appTheme.colors.textSubtle}
+                    keyboardType="numeric"
+                    onChangeText={(value) => {
+                      setOpeningSerialNumberByPackId((previous) => ({
+                        ...previous,
+                        [pack.id]: value,
+                      }));
+                      setConfirmedOpeningSerialByPackId((previous) => ({
+                        ...previous,
+                        [pack.id]: false,
+                      }));
+                    }}
+                  />
+                  <Pressable
+                    style={[
+                      styles.serialConfirmButton,
+                      isConfirmed ? styles.serialConfirmButtonSelected : null,
+                      !hasSerialValue ? styles.serialConfirmButtonDisabled : null,
+                    ]}
+                    disabled={!hasSerialValue}
+                    onPress={() =>
+                      setConfirmedOpeningSerialByPackId((previous) => ({
+                        ...previous,
+                        [pack.id]: !isConfirmed,
+                      }))
+                    }
+                  >
+                    <Text style={[styles.serialConfirmButtonText, isConfirmed ? styles.serialConfirmButtonTextSelected : null]}>
+                      {isConfirmed ? "Confirmed" : "Confirm"}
+                    </Text>
+                  </Pressable>
+                </View>
               </View>
-            </View>
-          );
-        })}
+            );
+          })}
+        </ScrollView>
       </View>
     );
   }
@@ -1707,27 +1715,29 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           onRequestClose={() => setIsOpenShiftModalVisible(false)}
         >
           <View style={styles.modalBackdrop}>
-            <View style={styles.modalCard}>
+            <View style={[styles.modalCard, styles.shiftStartModalCard]}>
               <Text style={styles.sectionTitle}>Open New Shift</Text>
-             
-              {shopOperationalSetup.allowCustomShiftName ? (
-                <>
-                  <Text style={styles.fieldLabel}>Shift Name</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={newShiftName}
-                    onChangeText={setNewShiftName}
-                    placeholder="Shift name"
-                    placeholderTextColor={appTheme.colors.textSubtle}
-                  />
-                </>
-              ) : (
-                <View style={styles.reviewSnapshotCard}>
-                  <Text style={styles.reviewSnapshotTitle}>Shift Name</Text>
-                  <Text style={styles.meta}>{shopOperationalSetup.shiftDefaultName}</Text>
-                </View>
-              )}
-              {renderOpeningSerialConfirmationCard("Confirm each active pack before opening the shift.")}
+
+              <View style={styles.shiftStartModalBody}>
+                {shopOperationalSetup.allowCustomShiftName ? (
+                  <>
+                    <Text style={styles.fieldLabel}>Shift Name</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={newShiftName}
+                      onChangeText={setNewShiftName}
+                      placeholder="Shift name"
+                      placeholderTextColor={appTheme.colors.textSubtle}
+                    />
+                  </>
+                ) : (
+                  <View style={styles.reviewSnapshotCard}>
+                    <Text style={styles.reviewSnapshotTitle}>Shift Name</Text>
+                    <Text style={styles.meta}>{shopOperationalSetup.shiftDefaultName}</Text>
+                  </View>
+                )}
+                {renderOpeningSerialConfirmationCard("Confirm each active pack before opening the shift.", true)}
+              </View>
               <View style={styles.modalActionRow}>
                 <Pressable
                   style={[
@@ -1765,14 +1775,16 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           onRequestClose={closeStartScheduledShiftConfirmation}
         >
           <View style={styles.modalBackdrop}>
-            <View style={styles.modalCard}>
+            <View style={[styles.modalCard, styles.shiftStartModalCard]}>
               <Text style={styles.sectionTitle}>Start - {pendingScheduledShiftStart?.shiftName}</Text>
               {/* <Text style={styles.meta}>
                 {pendingScheduledShiftStart
                   ? `Shift: ${pendingScheduledShiftStart.shiftName}. Confirm each active pack before starting the shift.`
                   : "Confirm each active pack before starting the shift."}
               </Text> */}
-              {renderOpeningSerialConfirmationCard("Update any serial that is not correct, then confirm it before start.")}
+              <View style={styles.shiftStartModalBody}>
+                {renderOpeningSerialConfirmationCard("Update any serial that is not correct, then confirm it before start.", true)}
+              </View>
               <View style={styles.modalActionRow}>
                 <Pressable
                   style={[
@@ -2300,6 +2312,10 @@ const styles = StyleSheet.create({
     paddingVertical: appTheme.spacing.xs,
     gap: 3,
   },
+  reviewSnapshotCardExpanded: {
+    flex: 1,
+    minHeight: 0,
+  },
   reviewSnapshotTitle: {
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
@@ -2386,6 +2402,18 @@ const styles = StyleSheet.create({
   },
   serialConfirmHint: {
     marginTop: -1,
+  },
+  serialConfirmList: {
+    minHeight: 0,
+    flexShrink: 1,
+  },
+  serialConfirmListExpanded: {
+    flex: 1,
+  },
+  serialConfirmListContent: {
+    gap: appTheme.spacing.xs,
+    paddingTop: appTheme.spacing.xs,
+    paddingBottom: appTheme.spacing.xs,
   },
   serialProgressPill: {
     borderWidth: 0,
@@ -2720,6 +2748,17 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     borderColor: appTheme.colors.border,
     padding: appTheme.spacing.md,
+    gap: appTheme.spacing.sm,
+    overflow: "hidden",
+  },
+  shiftStartModalCard: {
+    width: "100%",
+    height: "92%",
+    maxHeight: "92%",
+  },
+  shiftStartModalBody: {
+    flex: 1,
+    minHeight: 0,
     gap: appTheme.spacing.sm,
   },
   attachmentPreviewBackdrop: {
