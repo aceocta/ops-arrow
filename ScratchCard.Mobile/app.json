@@ -3,7 +3,7 @@
     "name": "Ops Arrow",
     "slug": "ops-arrow",
     "scheme": "scratchcard",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "icon": "./assets/icon.png",
