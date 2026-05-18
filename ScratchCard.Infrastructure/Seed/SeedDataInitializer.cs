@@ -337,42 +337,107 @@ public static class SeedDataInitializer
 
         foreach (var shopId in shopIds)
         {
+            var hasGroupChanges = false;
+            var existingGroups = await dbContext.ComplianceCheckGroups
+                .Where(x => x.ShopId == shopId && !x.IsDeleted)
+                .ToListAsync(cancellationToken);
+
+            var existingGroupKeys = existingGroups
+                .Select(x => BuildGroupTemplateKey(x.Frequency, x.GroupName))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var nextGroupOrderByFrequency = existingGroups
+                .GroupBy(x => x.Frequency)
+                .ToDictionary(x => x.Key, x => x.Max(g => g.DisplayOrder) + 1);
+
+            foreach (var template in templateItems)
+            {
+                var groupKey = BuildGroupTemplateKey(template.Frequency, template.GroupName);
+                if (existingGroupKeys.Contains(groupKey))
+                {
+                    continue;
+                }
+
+                var nextGroupOrder = nextGroupOrderByFrequency.TryGetValue(template.Frequency, out var groupOrder)
+                    ? groupOrder
+                    : 1;
+                nextGroupOrderByFrequency[template.Frequency] = nextGroupOrder + 1;
+
+                var newGroup = new ComplianceCheckGroup
+                {
+                    ShopId = shopId,
+                    Frequency = template.Frequency,
+                    GroupName = template.GroupName,
+                    DisplayOrder = nextGroupOrder,
+                    IsActive = true,
+                    IsSystemDefault = true,
+                    IsDeleted = false,
+                    CreatedOn = now
+                };
+
+                await dbContext.ComplianceCheckGroups.AddAsync(newGroup, cancellationToken);
+                existingGroups.Add(newGroup);
+                existingGroupKeys.Add(groupKey);
+                hasGroupChanges = true;
+                hasChanges = true;
+            }
+
+            if (hasGroupChanges)
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+
+            var groupLookupByKey = existingGroups
+                .GroupBy(x => BuildGroupTemplateKey(x.Frequency, x.GroupName))
+                .ToDictionary(x => x.Key, x => x.First(), StringComparer.OrdinalIgnoreCase);
+
             var existingItems = await dbContext.ComplianceCheckItems
                 .Where(x => x.ShopId == shopId && !x.IsDeleted)
                 .ToListAsync(cancellationToken);
 
+            var groupById = existingGroups.ToDictionary(x => x.Id, x => x);
             var existingKeys = existingItems
-                .Select(x => BuildTemplateKey(x.Frequency, x.ItemName))
+                .Select(
+                    x =>
+                    {
+                        if (!groupById.TryGetValue(x.ComplianceCheckGroupId, out var group))
+                        {
+                            return string.Empty;
+                        }
+
+                        return BuildTemplateKey(group.Frequency, group.GroupName, x.ItemName);
+                    })
+                .Where(x => x.Length > 0)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            var nextDisplayOrderByFrequency = existingItems
-                .GroupBy(x => x.Frequency)
+            var nextDisplayOrderByGroup = existingItems
+                .GroupBy(x => x.ComplianceCheckGroupId)
                 .ToDictionary(x => x.Key, x => x.Max(i => i.DisplayOrder) + 1);
-
-            if (existingItems.Count == 0)
-            {
-                nextDisplayOrderByFrequency[ComplianceCheckFrequency.Daily] = 1;
-                nextDisplayOrderByFrequency[ComplianceCheckFrequency.Weekly] = 1;
-                nextDisplayOrderByFrequency[ComplianceCheckFrequency.Monthly] = 1;
-            }
 
             foreach (var template in templateItems)
             {
-                var key = BuildTemplateKey(template.Frequency, template.ItemName);
+                var key = BuildTemplateKey(template.Frequency, template.GroupName, template.ItemName);
                 if (existingKeys.Contains(key))
                 {
                     continue;
                 }
 
-                var nextDisplayOrder = nextDisplayOrderByFrequency.TryGetValue(template.Frequency, out var value)
+                var groupKey = BuildGroupTemplateKey(template.Frequency, template.GroupName);
+                if (!groupLookupByKey.TryGetValue(groupKey, out var group))
+                {
+                    continue;
+                }
+
+                var nextDisplayOrder = nextDisplayOrderByGroup.TryGetValue(group.Id, out var value)
                     ? value
                     : 1;
-                nextDisplayOrderByFrequency[template.Frequency] = nextDisplayOrder + 1;
+                nextDisplayOrderByGroup[group.Id] = nextDisplayOrder + 1;
 
                 await dbContext.ComplianceCheckItems.AddAsync(
                     new ComplianceCheckItem
                     {
                         ShopId = shopId,
+                        ComplianceCheckGroupId = group.Id,
                         Frequency = template.Frequency,
                         ItemName = template.ItemName,
                         Description = template.Description,
@@ -395,9 +460,14 @@ public static class SeedDataInitializer
         }
     }
 
-    private static string BuildTemplateKey(ComplianceCheckFrequency frequency, string itemName)
+    private static string BuildGroupTemplateKey(ComplianceCheckFrequency frequency, string groupName)
     {
-        return $"{frequency}:{itemName.Trim()}";
+        return $"{frequency}:{groupName.Trim()}";
+    }
+
+    private static string BuildTemplateKey(ComplianceCheckFrequency frequency, string groupName, string itemName)
+    {
+        return $"{frequency}:{groupName.Trim()}:{itemName.Trim()}";
     }
 
     private static async Task SeedDefaultConfigurationsAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)
