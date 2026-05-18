@@ -40,6 +40,7 @@ const defaultGameEditorState: GameEditorState = {
   sellingOrder: SellingOrder.Ascending,
   isActive: true,
 };
+const PACK_LIST_BATCH_SIZE = 50;
 
 function normalizeGameCodeInput(value: string) {
   return value.replace(/[^0-9A-Za-z]/g, "").trim().toUpperCase();
@@ -509,6 +510,7 @@ export function ScratchCardPacksScreen({ navigation }: PackListProps) {
   });
 
   const packs = packsQuery.data ?? [];
+  const [visiblePackCount, setVisiblePackCount] = useState(PACK_LIST_BATCH_SIZE);
 
   const sortedPacks = useMemo(() => {
     const statusOrder: Record<string, number> = {
@@ -546,6 +548,16 @@ export function ScratchCardPacksScreen({ navigation }: PackListProps) {
       { total: 0, active: 0, inStock: 0, attention: 0 }
     );
   }, [packs]);
+
+  useEffect(() => {
+    setVisiblePackCount(PACK_LIST_BATCH_SIZE);
+  }, [shopId, sortedPacks.length]);
+
+  const visiblePacks = useMemo(
+    () => sortedPacks.slice(0, visiblePackCount),
+    [sortedPacks, visiblePackCount],
+  );
+  const hasMorePacks = visiblePackCount < sortedPacks.length;
 
   return (
     <ScreenContainer>
@@ -611,7 +623,12 @@ export function ScratchCardPacksScreen({ navigation }: PackListProps) {
           {shopId && !packsQuery.isLoading && !packsQuery.isError && sortedPacks.length === 0 ? (
             <Text style={styles.meta}>No packs found for this shop.</Text>
           ) : null}
-          {sortedPacks.map((pack) => (
+          {sortedPacks.length > 0 ? (
+            <Text style={styles.meta}>
+              Showing {visiblePacks.length} of {sortedPacks.length} packs
+            </Text>
+          ) : null}
+          {visiblePacks.map((pack) => (
             <View key={pack.id} style={styles.packListItem}>
               <View style={styles.packListHeader}>
                 <View style={styles.packTitleWrap}>
@@ -655,6 +672,18 @@ export function ScratchCardPacksScreen({ navigation }: PackListProps) {
               </View>
             </View>
           ))}
+          {hasMorePacks ? (
+            <Pressable
+              style={styles.loadMoreButton}
+              onPress={() =>
+                setVisiblePackCount((previous) => Math.min(previous + PACK_LIST_BATCH_SIZE, sortedPacks.length))
+              }
+            >
+              <Text style={styles.loadMoreButtonText}>
+                Load More ({sortedPacks.length - visiblePacks.length} remaining)
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
       </ScrollView>
     </ScreenContainer>
@@ -1636,6 +1665,22 @@ const styles = StyleSheet.create({
   },
   packActionItem: {
     flex: 1,
+  },
+  loadMoreButton: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.primary,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  loadMoreButtonText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 17,
   },
   heroCard: {
     backgroundColor: appTheme.colors.primary,
