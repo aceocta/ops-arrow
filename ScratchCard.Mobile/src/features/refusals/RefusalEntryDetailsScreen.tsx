@@ -4,6 +4,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRefusalEntry, getRefusalEntryReviewSignature, getRefusalEntrySignature, reviewRefusalEntry } from "../../api/refusalRegisterApi";
 import { useAuth } from "../../auth/AuthContext";
+import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -161,6 +162,7 @@ export function RefusalEntryDetailsScreen({ route, navigation }: Props) {
         onRequestClose={() => setIsReviewModalVisible(false)}
       >
         <View style={styles.modalBackdrop}>
+          <ModalBackdropBlur />
           <View style={styles.modalCard}>
             <Text style={styles.title}>Manager Review</Text>
             <Text style={styles.meta}>Add optional notes and save review.</Text>

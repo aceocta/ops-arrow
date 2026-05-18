@@ -6,6 +6,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
+import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { TemperatureEquipmentType } from "../../types/enums";
 import { TemperatureMonitoringUnit } from "../../types/models";
 import { ui } from "../../ui/primitives";
@@ -192,6 +193,7 @@ export function TemperatureUnitsScreen() {
         onRequestClose={() => setIsCreateModalVisible(false)}
       >
         <View style={styles.modalBackdrop}>
+          <ModalBackdropBlur />
           <View style={styles.modalCard}>
             <Text style={styles.sectionTitle}>Add New Unit</Text>
             <TextInput
@@ -268,6 +270,7 @@ export function TemperatureUnitsScreen() {
         onRequestClose={closeEditModal}
       >
         <View style={styles.modalBackdrop}>
+          <ModalBackdropBlur />
           <View style={styles.modalCard}>
             <Text style={styles.sectionTitle}>Edit Unit</Text>
             <TextInput

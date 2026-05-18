@@ -8,6 +8,7 @@ import {
 } from "../../api/temperatureLogsApi";
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, formatTimeValue } from "../../components/DateTimeField";
+import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -400,6 +401,7 @@ export function TemperatureLogScreen() {
           onRequestClose={closeLogEntryModal}
         >
           <View style={styles.modalBackdrop}>
+            <ModalBackdropBlur />
             <View style={styles.modalCard}>
               <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalScrollContent}>
               <Text style={styles.sectionTitle}>{selectedUnit?.unitName ?? "Unit"}</Text>
@@ -494,6 +496,7 @@ export function TemperatureLogScreen() {
           onRequestClose={closeTextEditor}
         >
           <View style={styles.modalBackdrop}>
+            <ModalBackdropBlur />
             <View style={styles.modalCard}>
               <Text style={styles.sectionTitle}>
                 {textEditorField === "notes" ? "Edit Notes" : "Edit Action Taken"}

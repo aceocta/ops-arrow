@@ -17,6 +17,7 @@ import {
 import { getConfigurations } from "../../api/configurationsApi";
 import { listPacks } from "../../api/packsApi";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
+import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { getShiftSales, listShifts, openShift, reopenShift, startScheduledShift } from "../../api/shiftsApi";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -1557,6 +1558,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           onRequestClose={() => setIsDayPickerModalVisible(false)}
         >
           <View style={styles.dayPickerBackdrop}>
+            <ModalBackdropBlur />
             <View style={[styles.modalCard, styles.dayPickerModalCard]}>
               <View style={styles.dayPickerHeaderRow}>
                 <View style={styles.dayPickerHeaderTextWrap}>
@@ -1715,6 +1717,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           onRequestClose={() => setIsOpenShiftModalVisible(false)}
         >
           <View style={styles.modalBackdrop}>
+            <ModalBackdropBlur />
             <View style={[styles.modalCard, styles.shiftStartModalCard]}>
               <Text style={styles.sectionTitle}>Open New Shift</Text>
 
@@ -1775,6 +1778,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           onRequestClose={closeStartScheduledShiftConfirmation}
         >
           <View style={styles.modalBackdrop}>
+            <ModalBackdropBlur />
             <View style={[styles.modalCard, styles.shiftStartModalCard]}>
               <Text style={styles.sectionTitle}>Start - {pendingScheduledShiftStart?.shiftName}</Text>
               {/* <Text style={styles.meta}>
@@ -1826,6 +1830,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           onRequestClose={() => setIsCloseDayModalVisible(false)}
         >
           <View style={styles.modalBackdrop}>
+            <ModalBackdropBlur />
             <View style={styles.modalCard}>
               <Text style={styles.sectionTitle}>Close Day</Text>
               <Text style={styles.meta}>Enter payouts, then close this business day.</Text>
@@ -2006,6 +2011,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           onRequestClose={() => setIsReopenDayModalVisible(false)}
         >
           <View style={styles.modalBackdrop}>
+            <ModalBackdropBlur />
             <View style={styles.modalCard}>
               <Text style={styles.sectionTitle}>Reopen Day</Text>
               <Text style={styles.meta}>Provide a reason and reopen this day.</Text>

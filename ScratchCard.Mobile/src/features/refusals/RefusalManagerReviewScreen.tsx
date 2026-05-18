@@ -5,6 +5,7 @@ import SignatureScreen, { SignatureViewRef } from "react-native-signature-canvas
 import { listRefusalEntriesByRange, reviewRefusalEntries } from "../../api/refusalRegisterApi";
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
+import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -233,6 +234,7 @@ export function RefusalManagerReviewScreen() {
         onRequestClose={() => setIsReviewModalVisible(false)}
       >
         <View style={styles.modalBackdrop}>
+          <ModalBackdropBlur />
           <View style={styles.modalCard}>
             <Text style={styles.sectionTitle}>Apply Manager Review</Text>
             <Text style={styles.meta}>Selected entries: {selectedEntryIds.length}</Text>
@@ -291,6 +293,7 @@ export function RefusalManagerReviewScreen() {
         onRequestClose={() => setIsSignatureModalVisible(false)}
       >
         <View style={styles.modalBackdrop}>
+          <ModalBackdropBlur />
           <View style={styles.signatureModalCard}>
             <Text style={styles.sectionTitle}>Capture Signature</Text>
             <Text style={styles.meta}>Sign in the box, then press Save.</Text>

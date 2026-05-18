@@ -9,6 +9,7 @@ import SignatureScreen, { SignatureViewRef } from "react-native-signature-canvas
 import { getRefusalDailyLog, getRefusalEntryReviewSignature, getRefusalEntrySignature, recordRefusalEntry } from "../../api/refusalRegisterApi";
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, formatTimeValue } from "../../components/DateTimeField";
+import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -576,6 +577,7 @@ export function RefusalRegisterScreen() {
         onRequestClose={closeSignatureModal}
       >
         <View style={styles.modalBackdrop}>
+          <ModalBackdropBlur />
           <View style={styles.signatureModalCard}>
             <Text style={styles.sectionTitle}>Capture Signature</Text>
             <Text style={styles.meta}>Sign in the box, then press Save.</Text>

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Alert, AlertButton, AlertOptions, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ModalBackdropBlur } from "./ModalBackdropBlur";
 import { appTheme } from "../ui/theme";
 
 type AlertRequest = {
@@ -300,6 +301,7 @@ export function AppAlertHost() {
         }}
       >
         <View style={[styles.overlay, { paddingBottom: toastBottomOffset }]}>
+          <ModalBackdropBlur />
           <Pressable
             style={StyleSheet.absoluteFill}
             onPress={() => {

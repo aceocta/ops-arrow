@@ -20,6 +20,7 @@ import {
 } from "../../api/checklistsApi";
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
+import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -390,6 +391,7 @@ export function ShopChecklistScreen() {
 
       <Modal visible={Boolean(noteEditor)} transparent animationType="fade" onRequestClose={() => setNoteEditor(null)}>
         <View style={styles.modalBackdrop}>
+          <ModalBackdropBlur />
           <View style={styles.modalCard}>
             <Text style={styles.groupTitle}>Note</Text>
             {noteEditor ? <Text style={styles.meta}>{noteEditor.taskName}</Text> : null}
@@ -768,6 +770,7 @@ export function ChecklistConfigurationScreen() {
 
       <Modal visible={groupModalVisible} transparent animationType="fade" onRequestClose={() => setGroupModalVisible(false)}>
         <View style={styles.modalBackdrop}>
+          <ModalBackdropBlur />
           <View style={styles.modalCard}>
             <Text style={styles.groupTitle}>{groupForm.id ? "Edit Group" : "New Group"}</Text>
             <TextInput
@@ -806,6 +809,7 @@ export function ChecklistConfigurationScreen() {
 
       <Modal visible={taskModalVisible} transparent animationType="fade" onRequestClose={() => setTaskModalVisible(false)}>
         <View style={styles.modalBackdrop}>
+          <ModalBackdropBlur />
           <View style={styles.modalCard}>
             <ScrollView contentContainerStyle={{ gap: appTheme.spacing.xs }}>
               <Text style={styles.groupTitle}>{taskForm.id ? "Edit Task" : "New Task"}</Text>

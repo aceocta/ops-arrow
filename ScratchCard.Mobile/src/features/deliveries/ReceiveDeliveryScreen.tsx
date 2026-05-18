@@ -18,6 +18,7 @@ import { createDelivery, parseDeliveryNote } from "../../api/deliveriesApi";
 import { getConfigurations } from "../../api/configurationsApi";
 import { listGames } from "../../api/gamesApi";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
+import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { SellingOrder } from "../../types/enums";
@@ -553,6 +554,7 @@ export function ReceiveDeliveryScreen() {
           style={styles.modalBackdrop}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
+          <ModalBackdropBlur />
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Pack Row Editor</Text>
