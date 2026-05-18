@@ -1,6 +1,7 @@
 import { Appearance, Platform } from "react-native";
 
 export type ThemeMode = "light" | "dark" | "system";
+const THEME_MODE_GLOBAL_KEY = "__opsArrowThemeMode";
 
 const lightColors = {
   background: "#EEF1F7",
@@ -152,6 +153,20 @@ function normalizeThemeMode(value: string | undefined): ThemeMode {
   return "system";
 }
 
+function getRuntimeThemeModeOverride(): ThemeMode | null {
+  const runtimeValue = (globalThis as any)?.[THEME_MODE_GLOBAL_KEY];
+  if (typeof runtimeValue !== "string") {
+    return null;
+  }
+
+  const normalized = runtimeValue.trim().toLowerCase();
+  if (normalized === "light" || normalized === "dark" || normalized === "system") {
+    return normalized;
+  }
+
+  return null;
+}
+
 function resolveColorScheme(mode: ThemeMode) {
   if (mode === "dark") {
     return "dark" as const;
@@ -164,8 +179,8 @@ function resolveColorScheme(mode: ThemeMode) {
   return Appearance.getColorScheme() === "dark" ? ("dark" as const) : ("light" as const);
 }
 
-export const configuredThemeMode = normalizeThemeMode(process.env.EXPO_PUBLIC_THEME_MODE);
-export const resolvedColorScheme =  normalizeThemeMode(configuredThemeMode);
+export const configuredThemeMode = getRuntimeThemeModeOverride() ?? normalizeThemeMode(process.env.EXPO_PUBLIC_THEME_MODE);
+export const resolvedColorScheme = resolveColorScheme(configuredThemeMode);
 
 export const appTheme = {
   colors: resolvedColorScheme === "dark" ? darkColors : lightColors,

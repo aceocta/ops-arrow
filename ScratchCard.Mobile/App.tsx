@@ -1,31 +1,16 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { DarkTheme, DefaultTheme, NavigationContainer, type LinkingOptions } from "@react-navigation/native";
 import * as Linking from "expo-linking";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "./src/auth/AuthContext";
-import { AppAlertHost, installAppAlertPatch } from "./src/components/AppAlert";
-import { RootNavigator } from "./src/navigation/RootNavigator";
 import { useAutoSyncBootstrap } from "./src/offline/useAutoSyncBootstrap";
 import type { RootStackParamList } from "./src/types/navigation";
-import { appTheme, resolvedColorScheme } from "./src/ui/theme";
+import { bootstrapThemeModePreference } from "./src/ui/themePreference";
 
 const queryClient = new QueryClient();
-installAppAlertPatch();
-
-const baseNavigationTheme = resolvedColorScheme === "dark" ? DarkTheme : DefaultTheme;
-const navigationTheme = {
-  ...baseNavigationTheme,
-  colors: {
-    ...baseNavigationTheme.colors,
-    background: appTheme.colors.background,
-    card: appTheme.colors.surface,
-    text: appTheme.colors.text,
-    primary: appTheme.colors.primary,
-    border: appTheme.colors.border,
-  },
-};
 
 const linking: LinkingOptions<RootStackParamList> = {
   prefixes: [Linking.createURL("/"), "scratchcard://"],
@@ -47,6 +32,71 @@ const linking: LinkingOptions<RootStackParamList> = {
 
 function AppShell() {
   useAutoSyncBootstrap();
+  const [isThemeReady, setIsThemeReady] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      await bootstrapThemeModePreference();
+      setIsThemeReady(true);
+    })();
+  }, []);
+
+  const runtimeModules = useMemo(() => {
+    if (!isThemeReady) {
+      return null;
+    }
+
+    const themeModule = require("./src/ui/theme") as typeof import("./src/ui/theme");
+    const appAlertModule = require("./src/components/AppAlert") as typeof import("./src/components/AppAlert");
+    const rootNavigatorModule = require("./src/navigation/RootNavigator") as typeof import("./src/navigation/RootNavigator");
+
+    return {
+      appTheme: themeModule.appTheme,
+      resolvedColorScheme: themeModule.resolvedColorScheme,
+      AppAlertHost: appAlertModule.AppAlertHost,
+      installAppAlertPatch: appAlertModule.installAppAlertPatch,
+      RootNavigator: rootNavigatorModule.RootNavigator,
+    };
+  }, [isThemeReady]);
+
+  useEffect(() => {
+    if (!runtimeModules) {
+      return;
+    }
+
+    runtimeModules.installAppAlertPatch();
+  }, [runtimeModules]);
+
+  const navigationTheme = useMemo(() => {
+    if (!runtimeModules) {
+      return DefaultTheme;
+    }
+
+    const baseNavigationTheme = runtimeModules.resolvedColorScheme === "dark" ? DarkTheme : DefaultTheme;
+    return {
+      ...baseNavigationTheme,
+      colors: {
+        ...baseNavigationTheme.colors,
+        background: runtimeModules.appTheme.colors.background,
+        card: runtimeModules.appTheme.colors.surface,
+        text: runtimeModules.appTheme.colors.text,
+        primary: runtimeModules.appTheme.colors.primary,
+        border: runtimeModules.appTheme.colors.border,
+      },
+    };
+  }, [runtimeModules]);
+
+  if (!runtimeModules) {
+    return (
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: DefaultTheme.colors.background }}>
+            <ActivityIndicator size="large" />
+          </View>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    );
+  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -54,8 +104,8 @@ function AppShell() {
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <NavigationContainer theme={navigationTheme} linking={linking}>
-              <RootNavigator />
-              <AppAlertHost />
+              <runtimeModules.RootNavigator />
+              <runtimeModules.AppAlertHost />
             </NavigationContainer>
           </AuthProvider>
         </QueryClientProvider>

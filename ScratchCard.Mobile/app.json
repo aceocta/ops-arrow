@@ -5,7 +5,7 @@
     "scheme": "scratchcard",
     "version": "1.0.2",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "icon": "./assets/icon.png",
     "splash": {
       "resizeMode": "contain",
@@ -16,12 +16,14 @@
     ],
     "ios": {
       "supportsTablet": true,
+      "userInterfaceStyle": "automatic",
       "bundleIdentifier": "com.aceocta.opsarrow",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
+      "userInterfaceStyle": "automatic",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#0F3D3E"
@@ -51,6 +53,7 @@
           "photosPermission": "Allow Ops Arrow to access photos to import delivery notes."
         }
       ],
+      "expo-system-ui",
       "expo-font",
       "expo-web-browser",
       "expo-sharing"

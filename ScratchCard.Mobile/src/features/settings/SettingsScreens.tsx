@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { Alert, DevSettings, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Constants from "expo-constants";
+import { reloadAppAsync } from "expo";
 import { Ionicons } from "@expo/vector-icons";
 import { createCompany, listMyCompanies, updateCompany } from "../../api/companiesApi";
 import { getConfigurations, updateConfigurations } from "../../api/configurationsApi";
@@ -19,8 +20,25 @@ import { SellingOrder } from "../../types/enums";
 import { Company, ConfigurationItem, Shop } from "../../types/models";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
-import { appTheme } from "../../ui/theme";
+import { appTheme, type ThemeMode } from "../../ui/theme";
+import { getStoredThemeModePreference, setStoredThemeModePreference } from "../../ui/themePreference";
 import { buildShiftTemplateId, SHOP_CONFIG_KEYS, serializeShiftTemplates, ShiftTemplateSetup } from "./shopConfiguration";
+
+async function reloadThemeImmediately() {
+  try {
+    await reloadAppAsync("Theme mode changed by user");
+    return true;
+  } catch {
+    // Fallback for environments where Expo reload API is unavailable.
+  }
+
+  try {
+    DevSettings.reload("Theme mode changed by user");
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const timeValuePattern = /^(\d{2}):(\d{2})(?::\d{2})?$/;
 const time24HourPattern = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -1170,6 +1188,15 @@ export function SettingsScreen() {
   const canManageInvitations =
     profile?.roles?.some((role) => role === "PlatformAdmin" || role === "ShopOwner" || role === "Manager") ?? false;
   const appVersion = Constants.expoConfig?.version ?? "1.0.0";
+  const [themeMode, setThemeMode] = useState<ThemeMode>("system");
+  const [isApplyingThemeMode, setIsApplyingThemeMode] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      const storedThemeMode = await getStoredThemeModePreference();
+      setThemeMode(storedThemeMode);
+    })();
+  }, []);
 
   type SettingsAction = {
     key: string;
@@ -1248,6 +1275,26 @@ export function SettingsScreen() {
     }
   }
 
+  async function onChangeThemeMode(nextMode: ThemeMode) {
+    if (nextMode === themeMode || isApplyingThemeMode) {
+      return;
+    }
+
+    setIsApplyingThemeMode(true);
+    try {
+      const appliedMode = await setStoredThemeModePreference(nextMode);
+      setThemeMode(appliedMode);
+      const didReload = await reloadThemeImmediately();
+      if (!didReload) {
+        Alert.alert("Theme updated", "Theme preference saved. Reopen the app once to apply all screens.");
+      }
+    } catch {
+      Alert.alert("Theme updated", "Theme preference saved. Restart the app to apply it everywhere.");
+    } finally {
+      setIsApplyingThemeMode(false);
+    }
+  }
+
   return (
     <ScreenContainer>
       <View style={[ui.card, styles.settingsHeroCard]}>
@@ -1291,6 +1338,35 @@ export function SettingsScreen() {
             />
           ))}
         </View>
+      </View>
+
+      <View style={ui.card}>
+        <Text style={styles.sectionTitle}>Appearance</Text>
+        <Text style={styles.settingsSectionMeta}>Choose app theme for this device.</Text>
+        <View style={styles.themeModeRow}>
+          <Pressable
+            style={[styles.choiceChip, themeMode === "light" ? styles.choiceChipSelected : null]}
+            onPress={() => void onChangeThemeMode("light")}
+            disabled={isApplyingThemeMode}
+          >
+            <Text style={[styles.choiceChipText, themeMode === "light" ? styles.choiceChipTextSelected : null]}>Light</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.choiceChip, themeMode === "dark" ? styles.choiceChipSelected : null]}
+            onPress={() => void onChangeThemeMode("dark")}
+            disabled={isApplyingThemeMode}
+          >
+            <Text style={[styles.choiceChipText, themeMode === "dark" ? styles.choiceChipTextSelected : null]}>Dark</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.choiceChip, themeMode === "system" ? styles.choiceChipSelected : null]}
+            onPress={() => void onChangeThemeMode("system")}
+            disabled={isApplyingThemeMode}
+          >
+            <Text style={[styles.choiceChipText, themeMode === "system" ? styles.choiceChipTextSelected : null]}>System</Text>
+          </Pressable>
+        </View>
+        {isApplyingThemeMode ? <Text style={styles.meta}>Applying theme...</Text> : null}
       </View>
 
       {/* <View style={ui.card}>
@@ -1480,6 +1556,12 @@ const styles = StyleSheet.create({
   settingsSectionRows: {
     gap: appTheme.spacing.xs,
     marginTop: 2,
+  },
+  themeModeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: appTheme.spacing.xs,
+    marginTop: appTheme.spacing.xs,
   },
   settingsNavRow: {
     borderWidth: 1,
