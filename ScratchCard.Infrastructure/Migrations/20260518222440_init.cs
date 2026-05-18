@@ -636,6 +636,34 @@ namespace ScratchCard.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "ComplianceCheckGroups",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Frequency = table.Column<int>(type: "int", nullable: false),
+                    GroupName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    IsSystemDefault = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ComplianceCheckGroups", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ComplianceCheckGroups_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Deliveries",
                 columns: table => new
                 {
@@ -1180,6 +1208,41 @@ namespace ScratchCard.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "ComplianceCheckItems",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ComplianceCheckGroupId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Frequency = table.Column<int>(type: "int", nullable: false),
+                    ItemName = table.Column<string>(type: "nvarchar(260)", maxLength: 260, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    IsRequired = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    IsSystemDefault = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ComplianceCheckItems", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ComplianceCheckItems_ComplianceCheckGroups_ComplianceCheckGroupId",
+                        column: x => x.ComplianceCheckGroupId,
+                        principalTable: "ComplianceCheckGroups",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_ComplianceCheckItems_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
                 name: "DeliveryPacks",
                 columns: table => new
                 {
@@ -1446,6 +1509,52 @@ namespace ScratchCard.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "ComplianceCheckEntries",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CompanyId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ComplianceCheckItemId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Frequency = table.Column<int>(type: "int", nullable: false),
+                    PeriodDate = table.Column<DateOnly>(type: "date", nullable: false),
+                    Result = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
+                    Notes = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    ActionRequired = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    CheckedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    CheckedByName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    CheckedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    IsActionClosedOut = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    ClosedOutNotes = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    ClosedOutByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ClosedOutByName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    ClosedOutOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ComplianceCheckEntries", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ComplianceCheckEntries_Companies_CompanyId",
+                        column: x => x.CompanyId,
+                        principalTable: "Companies",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_ComplianceCheckEntries_ComplianceCheckItems_ComplianceCheckItemId",
+                        column: x => x.ComplianceCheckItemId,
+                        principalTable: "ComplianceCheckItems",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_ComplianceCheckEntries_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
                 name: "ShopChecklistTaskCompletions",
                 columns: table => new
                 {
@@ -1644,6 +1753,49 @@ namespace ScratchCard.Infrastructure.Migrations
                 name: "IX_CompanySubscriptions_SubscriptionPlanId",
                 table: "CompanySubscriptions",
                 column: "SubscriptionPlanId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ComplianceCheckEntries_CompanyId",
+                table: "ComplianceCheckEntries",
+                column: "CompanyId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ComplianceCheckEntries_ComplianceCheckItemId",
+                table: "ComplianceCheckEntries",
+                column: "ComplianceCheckItemId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ComplianceCheckEntries_ShopId_Frequency_PeriodDate",
+                table: "ComplianceCheckEntries",
+                columns: new[] { "ShopId", "Frequency", "PeriodDate" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ComplianceCheckEntries_ShopId_Frequency_PeriodDate_ComplianceCheckItemId",
+                table: "ComplianceCheckEntries",
+                columns: new[] { "ShopId", "Frequency", "PeriodDate", "ComplianceCheckItemId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ComplianceCheckGroups_ShopId_Frequency_DisplayOrder",
+                table: "ComplianceCheckGroups",
+                columns: new[] { "ShopId", "Frequency", "DisplayOrder" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ComplianceCheckGroups_ShopId_Frequency_GroupName_IsDeleted",
+                table: "ComplianceCheckGroups",
+                columns: new[] { "ShopId", "Frequency", "GroupName", "IsDeleted" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ComplianceCheckItems_ComplianceCheckGroupId_ItemName_IsDeleted",
+                table: "ComplianceCheckItems",
+                columns: new[] { "ComplianceCheckGroupId", "ItemName", "IsDeleted" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ComplianceCheckItems_ShopId_ComplianceCheckGroupId_DisplayOrder",
+                table: "ComplianceCheckItems",
+                columns: new[] { "ShopId", "ComplianceCheckGroupId", "DisplayOrder" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_Deliveries_ShopId",
@@ -2053,6 +2205,9 @@ namespace ScratchCard.Infrastructure.Migrations
                 name: "CfgSubscriptionSettings");
 
             migrationBuilder.DropTable(
+                name: "ComplianceCheckEntries");
+
+            migrationBuilder.DropTable(
                 name: "DeliveryPacks");
 
             migrationBuilder.DropTable(
@@ -2110,6 +2265,9 @@ namespace ScratchCard.Infrastructure.Migrations
                 name: "UserInvitations");
 
             migrationBuilder.DropTable(
+                name: "ComplianceCheckItems");
+
+            migrationBuilder.DropTable(
                 name: "Deliveries");
 
             migrationBuilder.DropTable(
@@ -2129,6 +2287,9 @@ namespace ScratchCard.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "Roles");
+
+            migrationBuilder.DropTable(
+                name: "ComplianceCheckGroups");
 
             migrationBuilder.DropTable(
                 name: "Shifts");

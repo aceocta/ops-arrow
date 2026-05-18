@@ -22,6 +22,7 @@ import { RefusalManagerReviewScreen } from "../features/refusals/RefusalManagerR
 import { RefusalEntryDetailsScreen } from "../features/refusals/RefusalEntryDetailsScreen";
 import { RefusalEntryEditScreen } from "../features/refusals/RefusalEntryEditScreen";
 import { ChecklistConfigurationScreen, ChecklistHistoryScreen, ShopChecklistScreen } from "../features/checklists/ChecklistScreens";
+import { ComplianceActionsScreen, ComplianceChecksConfigScreen, ComplianceChecksScreen } from "../features/compliance/ComplianceCheckScreens";
 import {
   ScratchCardGamesScreen,
   ScratchCardGameCreateScreen,
@@ -74,6 +75,21 @@ const Stack = createNativeStackNavigator<MainStackParamList>();
 const operationsItems: MenuItem[] = [
   { label: "Home", screen: "BestEntry", icon: "home-outline" },
   { label: "Shop Checklist", screen: "ShopChecklist", icon: "checkmark-done-outline" },
+  { label: "Compliance Checks", screen: "ComplianceChecks", icon: "clipboard-outline", mode: "compliance" },
+  {
+    label: "Compliance Setup",
+    screen: "ComplianceConfig",
+    icon: "build-outline",
+    mode: "compliance",
+    allowedRoles: ["PlatformAdmin", "ShopOwner", "Manager"],
+  },
+  {
+    label: "Compliance Action Report",
+    screen: "ComplianceActions",
+    icon: "warning-outline",
+    mode: "compliance",
+    allowedRoles: ["PlatformAdmin", "ShopOwner", "Manager"],
+  },
   {
     label: "Checklist Setup",
     screen: "ChecklistConfiguration",
@@ -151,6 +167,7 @@ function resolveOperationForBottomDockScreen(screen: keyof MainStackParamList): 
 
 function getOperationLabel(operation: EntryOperation | null) {
   if (operation === "checklist") return "Checklist";
+  if (operation === "compliance") return "Compliance";
   if (operation === "temperature") return "Temperature";
   if (operation === "scratchCard") return "Scratch Card";
   if (operation === "refusals") return "No ID / No Sale";
@@ -179,6 +196,9 @@ function resolveActiveBottomDockScreen(routeName: string | undefined): keyof Mai
   if (
     routeName === "Dashboard" ||
     routeName === "ShopChecklist" ||
+    routeName === "ComplianceChecks" ||
+    routeName === "ComplianceConfig" ||
+    routeName === "ComplianceActions" ||
     routeName === "BusinessDay" ||
     routeName === "OpenShift" ||
     routeName === "CloseShift" ||
@@ -290,6 +310,9 @@ function MainStackScreens() {
     >
       <Stack.Screen name="BestEntry" component={BestEntryScreen} options={{ headerTitle: () => <HomeHeaderTitle /> }} />
       <Stack.Screen name="ShopChecklist" component={ShopChecklistScreen} options={{ title: "Shop Checklist" }} />
+      <Stack.Screen name="ComplianceChecks" component={ComplianceChecksScreen} options={{ title: "Compliance Checks" }} />
+      <Stack.Screen name="ComplianceConfig" component={ComplianceChecksConfigScreen} options={{ title: "Compliance Setup" }} />
+      <Stack.Screen name="ComplianceActions" component={ComplianceActionsScreen} options={{ title: "Compliance Action Report" }} />
       <Stack.Screen
         name="ChecklistConfiguration"
         component={ChecklistConfigurationScreen}
@@ -518,6 +541,8 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
   const goTo = (item: MenuItem) => {
     if (item.screen === "ShopChecklist") {
       setSelectedOperation("checklist");
+    } else if (item.screen === "ComplianceChecks" || item.screen === "ComplianceConfig" || item.screen === "ComplianceActions") {
+      setSelectedOperation("compliance");
     } else if (item.mode) {
       setSelectedOperation(item.mode);
     }

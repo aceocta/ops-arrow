@@ -2,6 +2,7 @@ using ScratchCard.Application.DTOs.Auth;
 using ScratchCard.Application.DTOs.BusinessDays;
 using ScratchCard.Application.DTOs.Companies;
 using ScratchCard.Application.Common.Models;
+using ScratchCard.Application.DTOs.ComplianceChecks;
 using ScratchCard.Application.DTOs.Configurations;
 using ScratchCard.Application.DTOs.Checklists;
 using ScratchCard.Application.DTOs.Deliveries;
@@ -271,4 +272,20 @@ public interface IShopChecklistService
     Task<IReadOnlyCollection<ChecklistTaskCompletionDto>> SyncOfflineCompletionsAsync(SyncOfflineChecklistCompletionsRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<ChecklistCompletionHistoryRowDto>> GetCompletionHistoryAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<ChecklistPendingRequiredTaskDto>> GetPendingRequiredDayCloseTasksAsync(Guid shopId, DateOnly businessDate, CancellationToken cancellationToken = default);
+}
+
+public interface IComplianceCheckService
+{
+    Task<IReadOnlyCollection<ComplianceCheckGroupDto>> ListConfigurationAsync(Guid shopId, ComplianceCheckFrequency? frequency = null, CancellationToken cancellationToken = default);
+    Task<ComplianceCheckGroupDto> CreateGroupAsync(CreateComplianceCheckGroupRequest request, CancellationToken cancellationToken = default);
+    Task<ComplianceCheckGroupDto> UpdateGroupAsync(Guid id, UpdateComplianceCheckGroupRequest request, CancellationToken cancellationToken = default);
+    Task ReorderGroupsAsync(ReorderComplianceCheckGroupsRequest request, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<ComplianceCheckItemDto>> ListItemsAsync(Guid shopId, ComplianceCheckFrequency? frequency = null, CancellationToken cancellationToken = default);
+    Task<ComplianceCheckItemDto> CreateItemAsync(CreateComplianceCheckItemRequest request, CancellationToken cancellationToken = default);
+    Task<ComplianceCheckItemDto> UpdateItemAsync(Guid id, UpdateComplianceCheckItemRequest request, CancellationToken cancellationToken = default);
+    Task ReorderItemsAsync(ReorderComplianceCheckItemsRequest request, CancellationToken cancellationToken = default);
+    Task<ComplianceCheckPeriodLogDto> GetPeriodLogAsync(Guid shopId, ComplianceCheckFrequency frequency, DateOnly date, CancellationToken cancellationToken = default);
+    Task<ComplianceCheckEntryDto> UpsertEntryAsync(UpsertComplianceCheckEntryRequest request, CancellationToken cancellationToken = default);
+    Task<ComplianceCheckEntryDto> CloseActionAsync(CloseOutComplianceActionRequest request, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<ComplianceActionReportRowDto>> GetActionReportAsync(Guid shopId, DateOnly from, DateOnly to, bool openOnly, CancellationToken cancellationToken = default);
 }

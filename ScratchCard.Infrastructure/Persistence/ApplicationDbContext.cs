@@ -50,6 +50,9 @@ public class ApplicationDbContext : DbContext
     public DbSet<ShopChecklistGroup> ShopChecklistGroups => Set<ShopChecklistGroup>();
     public DbSet<ShopChecklistTask> ShopChecklistTasks => Set<ShopChecklistTask>();
     public DbSet<ShopChecklistTaskCompletion> ShopChecklistTaskCompletions => Set<ShopChecklistTaskCompletion>();
+    public DbSet<ComplianceCheckGroup> ComplianceCheckGroups => Set<ComplianceCheckGroup>();
+    public DbSet<ComplianceCheckItem> ComplianceCheckItems => Set<ComplianceCheckItem>();
+    public DbSet<ComplianceCheckEntry> ComplianceCheckEntries => Set<ComplianceCheckEntry>();
     public DbSet<RefusalRegisterEntry> RefusalRegisterEntries => Set<RefusalRegisterEntry>();
     public DbSet<RefusalRegisterDailySignoff> RefusalRegisterDailySignoffs => Set<RefusalRegisterDailySignoff>();
     public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
@@ -482,6 +485,48 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(x => x.ChecklistGroup).WithMany().HasForeignKey(x => x.ChecklistGroupId);
             entity.HasOne(x => x.ChecklistTask).WithMany().HasForeignKey(x => x.ChecklistTaskId);
             entity.HasOne(x => x.Shift).WithMany(x => x.ChecklistTaskCompletions).HasForeignKey(x => x.ShiftId);
+            entity.HasOne<Company>().WithMany().HasForeignKey(x => x.CompanyId);
+        });
+
+        modelBuilder.Entity<ComplianceCheckGroup>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.Frequency, x.DisplayOrder });
+            entity.HasIndex(x => new { x.ShopId, x.Frequency, x.GroupName, x.IsDeleted }).IsUnique();
+            entity.Property(x => x.GroupName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(1000);
+            entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.Property(x => x.IsSystemDefault).HasDefaultValue(false);
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.HasOne(x => x.Shop).WithMany(x => x.ComplianceCheckGroups).HasForeignKey(x => x.ShopId);
+        });
+
+        modelBuilder.Entity<ComplianceCheckItem>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.ComplianceCheckGroupId, x.DisplayOrder });
+            entity.HasIndex(x => new { x.ComplianceCheckGroupId, x.ItemName, x.IsDeleted }).IsUnique();
+            entity.Property(x => x.ItemName).HasMaxLength(260).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(1000);
+            entity.Property(x => x.IsRequired).HasDefaultValue(true);
+            entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.Property(x => x.IsSystemDefault).HasDefaultValue(false);
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.HasOne(x => x.Shop).WithMany(x => x.ComplianceCheckItems).HasForeignKey(x => x.ShopId);
+            entity.HasOne(x => x.ComplianceCheckGroup).WithMany(x => x.Items).HasForeignKey(x => x.ComplianceCheckGroupId);
+        });
+
+        modelBuilder.Entity<ComplianceCheckEntry>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.Frequency, x.PeriodDate });
+            entity.HasIndex(x => new { x.ShopId, x.Frequency, x.PeriodDate, x.ComplianceCheckItemId }).IsUnique();
+            entity.Property(x => x.Notes).HasMaxLength(1000);
+            entity.Property(x => x.ActionRequired).HasMaxLength(1000);
+            entity.Property(x => x.CheckedByName).HasMaxLength(200);
+            entity.Property(x => x.ClosedOutNotes).HasMaxLength(1000);
+            entity.Property(x => x.ClosedOutByName).HasMaxLength(200);
+            entity.Property(x => x.IsActionClosedOut).HasDefaultValue(false);
+            entity.Property(x => x.Result).HasDefaultValue(ComplianceCheckResult.Pending);
+            entity.HasOne(x => x.Shop).WithMany(x => x.ComplianceCheckEntries).HasForeignKey(x => x.ShopId);
+            entity.HasOne(x => x.ComplianceCheckItem).WithMany(x => x.Entries).HasForeignKey(x => x.ComplianceCheckItemId);
             entity.HasOne<Company>().WithMany().HasForeignKey(x => x.CompanyId);
         });
 

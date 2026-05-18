@@ -39,6 +39,7 @@ public static class DependencyInjection
         services.AddScoped<ITemperatureLogService, TemperatureLogService>();
         services.AddScoped<IRefusalRegisterService, RefusalRegisterService>();
         services.AddScoped<IShopChecklistService, ShopChecklistService>();
+        services.AddScoped<IComplianceCheckService, ComplianceCheckService>();
 
         return services;
     }

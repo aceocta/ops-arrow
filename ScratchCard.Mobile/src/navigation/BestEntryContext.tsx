@@ -1,6 +1,6 @@
 import React, { createContext, PropsWithChildren, useContext, useMemo, useState } from "react";
 
-export type EntryOperation = "scratchCard" | "temperature" | "refusals" | "checklist";
+export type EntryOperation = "scratchCard" | "temperature" | "refusals" | "checklist" | "compliance";
 
 type BestEntryContextValue = {
   selectedOperation: EntryOperation | null;

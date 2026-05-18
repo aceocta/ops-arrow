@@ -12,7 +12,7 @@ using ScratchCard.Infrastructure.Persistence;
 namespace ScratchCard.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260516180035_init")]
+    [Migration("20260518222440_init")]
     partial class init
     {
         /// <inheritdoc />
@@ -995,6 +995,225 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.HasIndex("CompanyId", "Status");
 
                     b.ToTable("CompanySubscriptions");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.ComplianceCheckEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ActionRequired")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("CheckedByName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("CheckedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("CheckedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ClosedOutByName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("ClosedOutByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ClosedOutNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTimeOffset?>("ClosedOutOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ComplianceCheckItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("Frequency")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActionClosedOut")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateOnly>("PeriodDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("Result")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("ComplianceCheckItemId");
+
+                    b.HasIndex("ShopId", "Frequency", "PeriodDate");
+
+                    b.HasIndex("ShopId", "Frequency", "PeriodDate", "ComplianceCheckItemId")
+                        .IsUnique();
+
+                    b.ToTable("ComplianceCheckEntries");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.ComplianceCheckGroup", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Frequency")
+                        .HasColumnType("int");
+
+                    b.Property<string>("GroupName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("IsSystemDefault")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShopId", "Frequency", "DisplayOrder");
+
+                    b.HasIndex("ShopId", "Frequency", "GroupName", "IsDeleted")
+                        .IsUnique();
+
+                    b.ToTable("ComplianceCheckGroups");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.ComplianceCheckItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ComplianceCheckGroupId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Frequency")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("IsRequired")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("IsSystemDefault")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("ItemName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ComplianceCheckGroupId", "ItemName", "IsDeleted")
+                        .IsUnique();
+
+                    b.HasIndex("ShopId", "ComplianceCheckGroupId", "DisplayOrder");
+
+                    b.ToTable("ComplianceCheckItems");
                 });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.Delivery", b =>
@@ -3112,6 +3331,60 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Navigation("SubscriptionPlan");
                 });
 
+            modelBuilder.Entity("ScratchCard.Domain.Entities.ComplianceCheckEntry", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("ScratchCard.Domain.Entities.ComplianceCheckItem", "ComplianceCheckItem")
+                        .WithMany("Entries")
+                        .HasForeignKey("ComplianceCheckItemId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
+                        .WithMany("ComplianceCheckEntries")
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("ComplianceCheckItem");
+
+                    b.Navigation("Shop");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.ComplianceCheckGroup", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
+                        .WithMany("ComplianceCheckGroups")
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Shop");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.ComplianceCheckItem", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.ComplianceCheckGroup", "ComplianceCheckGroup")
+                        .WithMany("Items")
+                        .HasForeignKey("ComplianceCheckGroupId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
+                        .WithMany("ComplianceCheckItems")
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("ComplianceCheckGroup");
+
+                    b.Navigation("Shop");
+                });
+
             modelBuilder.Entity("ScratchCard.Domain.Entities.Delivery", b =>
                 {
                     b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
@@ -3662,6 +3935,16 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Navigation("PaymentTransactions");
                 });
 
+            modelBuilder.Entity("ScratchCard.Domain.Entities.ComplianceCheckGroup", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.ComplianceCheckItem", b =>
+                {
+                    b.Navigation("Entries");
+                });
+
             modelBuilder.Entity("ScratchCard.Domain.Entities.Delivery", b =>
                 {
                     b.Navigation("DeliveryPacks");
@@ -3719,6 +4002,12 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Navigation("ChecklistTaskCompletions");
 
                     b.Navigation("ChecklistTasks");
+
+                    b.Navigation("ComplianceCheckEntries");
+
+                    b.Navigation("ComplianceCheckGroups");
+
+                    b.Navigation("ComplianceCheckItems");
 
                     b.Navigation("DayCloseSettings");
 

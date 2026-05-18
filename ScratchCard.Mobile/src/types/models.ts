@@ -469,6 +469,97 @@ export type ChecklistCompletionHistoryRow = {
   notes?: string;
 };
 
+export type ComplianceCheckFrequency = "Daily" | "Weekly" | "Monthly";
+export type ComplianceCheckResult = "Pending" | "Compliant" | "NonCompliant" | "NotApplicable";
+
+export type ComplianceCheckItem = {
+  id: string;
+  shopId: string;
+  complianceCheckGroupId: string;
+  groupName: string;
+  frequency: ComplianceCheckFrequency;
+  itemName: string;
+  description?: string;
+  displayOrder: number;
+  isRequired: boolean;
+  isActive: boolean;
+  isSystemDefault: boolean;
+};
+
+export type ComplianceCheckEntry = {
+  id: string;
+  shopId: string;
+  companyId?: string;
+  complianceCheckItemId: string;
+  frequency: ComplianceCheckFrequency;
+  periodDate: string;
+  result: ComplianceCheckResult;
+  notes?: string;
+  actionRequired?: string;
+  checkedByUserId?: string;
+  checkedByName?: string;
+  checkedOn?: string;
+  isActionClosedOut: boolean;
+  closedOutNotes?: string;
+  closedOutByUserId?: string;
+  closedOutByName?: string;
+  closedOutOn?: string;
+};
+
+export type ComplianceCheckPeriodRow = {
+  item: ComplianceCheckItem;
+  entry?: ComplianceCheckEntry;
+};
+
+export type ComplianceCheckGroup = {
+  id: string;
+  shopId: string;
+  frequency: ComplianceCheckFrequency;
+  groupName: string;
+  description?: string;
+  displayOrder: number;
+  isActive: boolean;
+  isSystemDefault: boolean;
+  items: ComplianceCheckItem[];
+};
+
+export type ComplianceCheckPeriodGroup = {
+  group: ComplianceCheckGroup;
+  completedCount: number;
+  totalCount: number;
+  nonCompliantCount: number;
+  rows: ComplianceCheckPeriodRow[];
+};
+
+export type ComplianceCheckPeriodLog = {
+  shopId: string;
+  frequency: ComplianceCheckFrequency;
+  periodDate: string;
+  completedCount: number;
+  totalCount: number;
+  nonCompliantCount: number;
+  groups: ComplianceCheckPeriodGroup[];
+};
+
+export type ComplianceActionReportRow = {
+  entryId: string;
+  shopId: string;
+  complianceCheckItemId: string;
+  complianceCheckGroupId: string;
+  groupName: string;
+  frequency: ComplianceCheckFrequency;
+  periodDate: string;
+  itemName: string;
+  notes?: string;
+  actionRequired?: string;
+  isActionClosedOut: boolean;
+  closedOutNotes?: string;
+  checkedByName?: string;
+  checkedOn?: string;
+  closedOutByName?: string;
+  closedOutOn?: string;
+};
+
 export type TemperatureMonitoringUnit = {
   id: string;
   shopId: string;

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using ScratchCard.Domain.Constants;
 using ScratchCard.Domain.Entities;
 using ScratchCard.Domain.Enums;
+using ScratchCard.Domain.Seed;
 using ScratchCard.Infrastructure.Persistence;
 
 namespace ScratchCard.Infrastructure.Seed;
@@ -23,6 +24,7 @@ public static class SeedDataInitializer
         await SeedRolesAsync(dbContext, cancellationToken);
         await SeedDemoCompanyAsync(dbContext, cancellationToken);
         await SeedDemoShopAsync(dbContext, cancellationToken);
+        await SeedComplianceCheckTemplatesAsync(dbContext, cancellationToken);
         await SeedPlatformUserAsync(dbContext, cancellationToken);
         await SeedSubscriptionPlansAsync(dbContext, cancellationToken);
         await SeedSubscriptionDiscountRulesAsync(dbContext, cancellationToken);
@@ -319,6 +321,83 @@ public static class SeedDataInitializer
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task SeedComplianceCheckTemplatesAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var shopIds = new[] { DemoShopId, DemoShopNorthId };
+        var templateItems = ComplianceCheckSeedDefaults.Definitions.ToArray();
+        if (templateItems.Length == 0)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var hasChanges = false;
+
+        foreach (var shopId in shopIds)
+        {
+            var existingItems = await dbContext.ComplianceCheckItems
+                .Where(x => x.ShopId == shopId && !x.IsDeleted)
+                .ToListAsync(cancellationToken);
+
+            var existingKeys = existingItems
+                .Select(x => BuildTemplateKey(x.Frequency, x.ItemName))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var nextDisplayOrderByFrequency = existingItems
+                .GroupBy(x => x.Frequency)
+                .ToDictionary(x => x.Key, x => x.Max(i => i.DisplayOrder) + 1);
+
+            if (existingItems.Count == 0)
+            {
+                nextDisplayOrderByFrequency[ComplianceCheckFrequency.Daily] = 1;
+                nextDisplayOrderByFrequency[ComplianceCheckFrequency.Weekly] = 1;
+                nextDisplayOrderByFrequency[ComplianceCheckFrequency.Monthly] = 1;
+            }
+
+            foreach (var template in templateItems)
+            {
+                var key = BuildTemplateKey(template.Frequency, template.ItemName);
+                if (existingKeys.Contains(key))
+                {
+                    continue;
+                }
+
+                var nextDisplayOrder = nextDisplayOrderByFrequency.TryGetValue(template.Frequency, out var value)
+                    ? value
+                    : 1;
+                nextDisplayOrderByFrequency[template.Frequency] = nextDisplayOrder + 1;
+
+                await dbContext.ComplianceCheckItems.AddAsync(
+                    new ComplianceCheckItem
+                    {
+                        ShopId = shopId,
+                        Frequency = template.Frequency,
+                        ItemName = template.ItemName,
+                        Description = template.Description,
+                        DisplayOrder = nextDisplayOrder,
+                        IsRequired = template.IsRequired,
+                        IsActive = true,
+                        IsSystemDefault = true,
+                        IsDeleted = false,
+                        CreatedOn = now
+                    },
+                    cancellationToken);
+
+                hasChanges = true;
+            }
+        }
+
+        if (hasChanges)
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    private static string BuildTemplateKey(ComplianceCheckFrequency frequency, string itemName)
+    {
+        return $"{frequency}:{itemName.Trim()}";
     }
 
     private static async Task SeedDefaultConfigurationsAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)

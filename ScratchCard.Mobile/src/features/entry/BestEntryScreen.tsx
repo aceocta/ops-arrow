@@ -10,13 +10,13 @@ import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
 type OperationOption = {
-  key: "scratchCard" | "temperature" | "refusals" | "checklist";
+  key: "scratchCard" | "temperature" | "refusals" | "checklist" | "compliance";
   title: string;
   route: keyof MainStackParamList;
   icon: keyof typeof Ionicons.glyphMap;
   iconColor: string;
   iconBg: string;
-  operation?: "scratchCard" | "temperature" | "refusals" | "checklist";
+  operation?: "scratchCard" | "temperature" | "refusals" | "checklist" | "compliance";
 };
 
 const operationOptions: OperationOption[] = [
@@ -55,6 +55,15 @@ const operationOptions: OperationOption[] = [
     iconColor: appTheme.colors.primary,
     iconBg: appTheme.colors.surfaceSuccessSoft,
     operation: "checklist",
+  },
+  {
+    key: "compliance",
+    title: "Compliance Checks",
+    route: "ComplianceChecks",
+    icon: "clipboard-outline",
+    iconColor: appTheme.colors.warning,
+    iconBg: appTheme.colors.surfaceWarningSoft,
+    operation: "compliance",
   }
 ];
 
