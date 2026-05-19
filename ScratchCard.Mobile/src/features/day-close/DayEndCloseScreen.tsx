@@ -1199,17 +1199,6 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 Missing Tickets - {missingOpeningTicketCount}
               </Text>
             </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Change business date"
-              style={styles.dateActionInlineButton}
-              onPress={() => {
-                setTargetBusinessDate(day?.businessDate ?? formatDateValue(new Date()));
-                setIsDayPickerModalVisible(true);
-              }}
-            >
-              <Text style={styles.dateActionInlineButtonText}>Change Date</Text>
-            </Pressable>
             <View style={styles.dateNavigationRow}>
               <Pressable
                 accessibilityRole="button"
@@ -1227,6 +1216,17 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 disabled={!previousBusinessDay}
               >
                 <Text style={styles.dateNavigationButtonText}>Previous Day</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Change business date"
+                style={styles.dateActionInlineButton}
+                onPress={() => {
+                  setTargetBusinessDate(day?.businessDate ?? formatDateValue(new Date()));
+                  setIsDayPickerModalVisible(true);
+                }}
+              >
+                <Text style={styles.dateActionInlineButtonText}>Change Date</Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
@@ -2115,14 +2115,13 @@ const styles = StyleSheet.create({
     color: appTheme.colors.danger,
   },
   dateActionInlineButton: {
-    borderWidth: 0,
+    flex: 1,
+    minHeight: 40,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.primary,
-    minHeight: 48,
-    width: "48.8%",
-    paddingHorizontal: appTheme.spacing.sm,
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: appTheme.spacing.sm,
   },
   dateActionButtonDisabled: {
     opacity: 0.55,
@@ -2136,6 +2135,7 @@ const styles = StyleSheet.create({
   dateNavigationRow: {
     width: "100%",
     flexDirection: "row",
+    alignItems: "stretch",
     gap: appTheme.spacing.xs,
   },
   dateNavigationButton: {
