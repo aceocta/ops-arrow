@@ -145,10 +145,9 @@ const bottomDockItems: Array<{
   label: string;
   screen: keyof MainStackParamList;
 }> = [
-  // { icon: "calendar-outline", label: "Day", screen: "Dashboard" },
-  { icon: "albums-outline", label: "Scratch Cards", screen: "Dashboard" },
+  { icon: "home-outline", label: "Home", screen: "BestEntry" },
+  { icon: "albums-outline", label: "Scratch Card", screen: "Dashboard" },
   { icon: "thermometer-outline", label: "Temp", screen: "TemperatureLogs" },
-  { icon: "shield-checkmark-outline", label: "No ID/No Sale", screen: "RefusalRegister" },
   { icon: "settings-outline", label: "Settings", screen: "Settings" },
 ];
 
@@ -158,9 +157,6 @@ function resolveOperationForBottomDockScreen(screen: keyof MainStackParamList): 
   }
   if (screen === "TemperatureLogs") {
     return "temperature";
-  }
-  if (screen === "RefusalRegister") {
-    return "refusals";
   }
   return null;
 }
@@ -222,7 +218,7 @@ function resolveActiveBottomDockScreen(routeName: string | undefined): keyof Mai
     routeName === "Deliveries" ||
     routeName === "ReceiveDelivery"
   ) {
-    return "ScratchCardPacks";
+    return "Dashboard";
   }
 
   if (
