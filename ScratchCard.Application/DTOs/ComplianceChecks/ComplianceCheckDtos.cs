@@ -1,3 +1,4 @@
+using ScratchCard.Application.DTOs.Common;
 using ScratchCard.Domain.Enums;
 
 namespace ScratchCard.Application.DTOs.ComplianceChecks;
@@ -110,6 +111,7 @@ public class ComplianceCheckEntryDto
     public Guid? ClosedOutByUserId { get; set; }
     public string? ClosedOutByName { get; set; }
     public DateTimeOffset? ClosedOutOn { get; set; }
+    public IReadOnlyCollection<CloseAttachmentDto> CloseAttachments { get; set; } = [];
 }
 
 public class UpsertComplianceCheckEntryRequest
@@ -120,6 +122,7 @@ public class UpsertComplianceCheckEntryRequest
     public ComplianceCheckResult Result { get; set; }
     public string? Notes { get; set; }
     public string? ActionRequired { get; set; }
+    public IReadOnlyCollection<CloseAttachmentUploadRequest>? Attachments { get; set; }
 }
 
 public class CloseOutComplianceActionRequest

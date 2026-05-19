@@ -35,6 +35,20 @@ function mapResult(value: unknown): ComplianceCheckResult {
   return "Pending";
 }
 
+function mapCloseAttachments(raw: any) {
+  if (!Array.isArray(raw)) {
+    return undefined;
+  }
+
+  return raw.map((attachment) => ({
+    id: String(attachment.id),
+    fileName: String(attachment.fileName ?? ""),
+    contentType: typeof attachment.contentType === "string" ? attachment.contentType : undefined,
+    fileSizeBytes: Number(attachment.fileSizeBytes ?? 0),
+    uploadedOn: typeof attachment.uploadedOn === "string" ? attachment.uploadedOn : "",
+  }));
+}
+
 function mapItem(raw: any): ComplianceCheckItem {
   return {
     id: String(raw.id),
@@ -100,6 +114,7 @@ function mapEntry(raw: any): ComplianceCheckEntry {
     closedOutByUserId: raw.closedOutByUserId ? String(raw.closedOutByUserId) : undefined,
     closedOutByName: typeof raw.closedOutByName === "string" ? raw.closedOutByName : undefined,
     closedOutOn: typeof raw.closedOutOn === "string" ? raw.closedOutOn : undefined,
+    closeAttachments: mapCloseAttachments(raw.closeAttachments),
   };
 }
 
@@ -269,6 +284,11 @@ export async function upsertComplianceCheckEntry(payload: {
   result: ComplianceCheckResult;
   notes?: string;
   actionRequired?: string;
+  attachments?: Array<{
+    fileName: string;
+    base64: string;
+    contentType?: string;
+  }>;
 }) {
   const response = await apiClient.post<ApiResponse<ComplianceCheckEntry>>("/compliance-checks/entries", payload);
   return mapEntry(response.data.data);
@@ -281,6 +301,11 @@ export async function closeComplianceCheckAction(payload: {
 }) {
   const response = await apiClient.post<ApiResponse<ComplianceCheckEntry>>("/compliance-checks/entries/close-action", payload);
   return mapEntry(response.data.data);
+}
+
+export async function getComplianceCheckAttachmentContent(attachmentId: string) {
+  const response = await apiClient.get<ApiResponse<string | null>>(`/compliance-checks/attachments/${attachmentId}/content`);
+  return response.data.data ?? undefined;
 }
 
 export async function getComplianceActionReport(

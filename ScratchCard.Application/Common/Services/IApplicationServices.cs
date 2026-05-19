@@ -288,4 +288,5 @@ public interface IComplianceCheckService
     Task<ComplianceCheckEntryDto> UpsertEntryAsync(UpsertComplianceCheckEntryRequest request, CancellationToken cancellationToken = default);
     Task<ComplianceCheckEntryDto> CloseActionAsync(CloseOutComplianceActionRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<ComplianceActionReportRowDto>> GetActionReportAsync(Guid shopId, DateOnly from, DateOnly to, bool openOnly, CancellationToken cancellationToken = default);
+    Task<string?> GetAttachmentDataUrlAsync(Guid attachmentId, CancellationToken cancellationToken = default);
 }

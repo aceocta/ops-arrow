@@ -112,6 +112,13 @@ public class ComplianceChecksController : BaseApiController
         return Success(result);
     }
 
+    [HttpGet("attachments/{attachmentId:guid}/content")]
+    public async Task<IActionResult> GetAttachmentContent(Guid attachmentId, CancellationToken cancellationToken)
+    {
+        var result = await _complianceCheckService.GetAttachmentDataUrlAsync(attachmentId, cancellationToken);
+        return Success(result);
+    }
+
     [HttpGet("actions")]
     [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.ShopOwner},{RoleNames.Manager}")]
     public async Task<IActionResult> ActionReport(

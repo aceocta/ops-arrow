@@ -274,6 +274,15 @@ internal static class ServiceMappingExtensions
         UploadedOn = attachment.CreatedOn
     };
 
+    public static CloseAttachmentDto ToDto(this ComplianceCheckAttachment attachment) => new()
+    {
+        Id = attachment.Id,
+        FileName = attachment.OriginalFileName,
+        ContentType = attachment.ContentType,
+        FileSizeBytes = attachment.FileSizeBytes,
+        UploadedOn = attachment.CreatedOn
+    };
+
     public static TemperatureMonitoringUnitDto ToDto(this TemperatureMonitoringUnit unit) => new()
     {
         Id = unit.Id,

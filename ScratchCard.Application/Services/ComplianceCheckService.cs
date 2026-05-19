@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Services;
+using ScratchCard.Application.DTOs.Common;
 using ScratchCard.Application.DTOs.ComplianceChecks;
 using ScratchCard.Domain.Constants;
 using ScratchCard.Domain.Entities;
@@ -16,7 +17,9 @@ public class ComplianceCheckService : IComplianceCheckService
     private readonly IRepository<ComplianceCheckGroup> _groupRepository;
     private readonly IRepository<ComplianceCheckItem> _itemRepository;
     private readonly IRepository<ComplianceCheckEntry> _entryRepository;
+    private readonly IRepository<ComplianceCheckAttachment> _attachmentRepository;
     private readonly IRepository<Shop> _shopRepository;
+    private readonly IAttachmentStorageService _attachmentStorageService;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
@@ -25,7 +28,9 @@ public class ComplianceCheckService : IComplianceCheckService
         IRepository<ComplianceCheckGroup> groupRepository,
         IRepository<ComplianceCheckItem> itemRepository,
         IRepository<ComplianceCheckEntry> entryRepository,
+        IRepository<ComplianceCheckAttachment> attachmentRepository,
         IRepository<Shop> shopRepository,
+        IAttachmentStorageService attachmentStorageService,
         IAuditService auditService,
         ICurrentUserService currentUserService,
         IUnitOfWork unitOfWork)
@@ -33,7 +38,9 @@ public class ComplianceCheckService : IComplianceCheckService
         _groupRepository = groupRepository;
         _itemRepository = itemRepository;
         _entryRepository = entryRepository;
+        _attachmentRepository = attachmentRepository;
         _shopRepository = shopRepository;
+        _attachmentStorageService = attachmentStorageService;
         _auditService = auditService;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
@@ -536,6 +543,10 @@ public class ComplianceCheckService : IComplianceCheckService
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 
+        var attachmentsByEntryId = await GetAttachmentsByEntryIdAsync(
+            entries.Select(x => x.Id).ToArray(),
+            cancellationToken);
+
         var entryLookup = entries.ToDictionary(x => x.ComplianceCheckItemId, x => x);
         var itemsByGroup = items
             .GroupBy(x => x.ComplianceCheckGroupId)
@@ -549,7 +560,9 @@ public class ComplianceCheckService : IComplianceCheckService
                 .Select(item => new ComplianceCheckPeriodRowDto
                 {
                     Item = MapItem(item, group.GroupName),
-                    Entry = entryLookup.TryGetValue(item.Id, out var entry) ? MapEntry(entry) : null
+                    Entry = entryLookup.TryGetValue(item.Id, out var entry)
+                        ? MapEntry(entry, attachmentsByEntryId.GetValueOrDefault(entry.Id, []))
+                        : null
                 })
                 .ToArray();
 
@@ -658,6 +671,44 @@ public class ComplianceCheckService : IComplianceCheckService
             entry.ClosedOutOn = null;
         }
 
+        var attachmentInputs = CloseAttachmentStorage.BuildInputs(
+            request.Attachments,
+            legacyAttachmentFileName: null,
+            legacyAttachmentBase64: null);
+
+        IReadOnlyCollection<ComplianceCheckAttachment> createdAttachments = [];
+        if (attachmentInputs.Count > 0)
+        {
+            var savedAttachments = await CloseAttachmentStorage.SaveComplianceAttachmentsAsync(
+                attachmentInputs,
+                _attachmentStorageService,
+                entry.ShopId,
+                period.StartDate,
+                item.Frequency.ToString(),
+                item.ItemName,
+                cancellationToken);
+
+            if (savedAttachments.Count > 0)
+            {
+                var closeAttachments = savedAttachments.Select(saved => new ComplianceCheckAttachment
+                {
+                    ComplianceCheckEntryId = entry.Id,
+                    Frequency = entry.Frequency,
+                    ShopId = entry.ShopId,
+                    OriginalFileName = saved.OriginalFileName,
+                    StoredFileName = saved.StoredFileName,
+                    StoredPath = saved.StoredPath,
+                    ContentType = saved.ContentType,
+                    FileSizeBytes = saved.FileSizeBytes,
+                    CreatedOn = now,
+                    CreatedBy = _currentUserService.UserId
+                }).ToArray();
+
+                await _attachmentRepository.AddRangeAsync(closeAttachments, cancellationToken);
+                createdAttachments = closeAttachments;
+            }
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await _auditService.LogAsync(
@@ -668,7 +719,12 @@ public class ComplianceCheckService : IComplianceCheckService
             reason: item.ItemName,
             cancellationToken: cancellationToken);
 
-        return MapEntry(entry);
+        var existingAttachments = await GetAttachmentsForEntryAsync(entry.Id, entry.Frequency, cancellationToken);
+        var mappedAttachments = existingAttachments.Count == 0
+            ? createdAttachments.Select(x => x.ToDto()).ToArray()
+            : existingAttachments.Select(x => x.ToDto()).ToArray();
+
+        return MapEntry(entry, mappedAttachments);
     }
 
     public async Task<ComplianceCheckEntryDto> CloseActionAsync(
@@ -712,7 +768,25 @@ public class ComplianceCheckService : IComplianceCheckService
             reason: entry.ComplianceCheckItem.ItemName,
             cancellationToken: cancellationToken);
 
-        return MapEntry(entry);
+        var attachments = (await GetAttachmentsForEntryAsync(entry.Id, entry.Frequency, cancellationToken))
+            .Select(x => x.ToDto())
+            .ToArray();
+
+        return MapEntry(entry, attachments);
+    }
+
+    public async Task<string?> GetAttachmentDataUrlAsync(Guid attachmentId, CancellationToken cancellationToken = default)
+    {
+        var attachment = await _attachmentRepository.Query()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == attachmentId, cancellationToken)
+            ?? throw new AppException("compliance_attachment_not_found", "Compliance attachment not found.", 404);
+
+        return await ReadAttachmentDataUrlAsync(
+            _attachmentStorageService,
+            attachment.StoredPath,
+            attachment.ContentType,
+            cancellationToken);
     }
 
     public async Task<IReadOnlyCollection<ComplianceActionReportRowDto>> GetActionReportAsync(
@@ -1208,6 +1282,78 @@ public class ComplianceCheckService : IComplianceCheckService
         return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
 
+    private async Task<Dictionary<Guid, IReadOnlyCollection<CloseAttachmentDto>>> GetAttachmentsByEntryIdAsync(
+        IReadOnlyCollection<Guid> entryIds,
+        CancellationToken cancellationToken)
+    {
+        if (entryIds.Count == 0)
+        {
+            return new Dictionary<Guid, IReadOnlyCollection<CloseAttachmentDto>>();
+        }
+
+        var attachments = await _attachmentRepository.Query()
+            .AsNoTracking()
+            .Where(x => entryIds.Contains(x.ComplianceCheckEntryId))
+            .OrderByDescending(x => x.CreatedOn)
+            .ToListAsync(cancellationToken);
+
+        return attachments
+            .GroupBy(x => x.ComplianceCheckEntryId)
+            .ToDictionary(
+                x => x.Key,
+                x => (IReadOnlyCollection<CloseAttachmentDto>)x.Select(attachment => attachment.ToDto()).ToArray());
+    }
+
+    private async Task<IReadOnlyCollection<ComplianceCheckAttachment>> GetAttachmentsForEntryAsync(
+        Guid entryId,
+        ComplianceCheckFrequency frequency,
+        CancellationToken cancellationToken)
+    {
+        return await _attachmentRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ComplianceCheckEntryId == entryId && x.Frequency == frequency)
+            .OrderByDescending(x => x.CreatedOn)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    private static async Task<string?> ReadAttachmentDataUrlAsync(
+        IAttachmentStorageService attachmentStorageService,
+        string? storedPath,
+        string? contentType,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(storedPath))
+        {
+            return null;
+        }
+
+        var bytes = await attachmentStorageService.ReadAsync(storedPath, cancellationToken);
+        if (bytes is null || bytes.Length == 0)
+        {
+            return null;
+        }
+
+        var mimeType = string.IsNullOrWhiteSpace(contentType)
+            ? ResolveAttachmentContentTypeFromExtension(Path.GetExtension(storedPath))
+            : contentType.Trim();
+
+        return $"data:{mimeType};base64,{Convert.ToBase64String(bytes)}";
+    }
+
+    private static string ResolveAttachmentContentTypeFromExtension(string? extension)
+    {
+        return extension?.ToLowerInvariant() switch
+        {
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            ".webp" => "image/webp",
+            ".gif" => "image/gif",
+            ".pdf" => "application/pdf",
+            ".txt" => "text/plain",
+            _ => "application/octet-stream"
+        };
+    }
+
     private static ComplianceCheckGroupDto MapGroup(ComplianceCheckGroup group, IReadOnlyCollection<ComplianceCheckItemDto> items) => new()
     {
         Id = group.Id,
@@ -1236,7 +1382,9 @@ public class ComplianceCheckService : IComplianceCheckService
         IsSystemDefault = item.IsSystemDefault
     };
 
-    private static ComplianceCheckEntryDto MapEntry(ComplianceCheckEntry entry)
+    private static ComplianceCheckEntryDto MapEntry(
+        ComplianceCheckEntry entry,
+        IReadOnlyCollection<CloseAttachmentDto>? attachments = null)
     {
         var dto = new ComplianceCheckEntryDto
         {
@@ -1262,7 +1410,8 @@ public class ComplianceCheckService : IComplianceCheckService
             ClosedOutNotes = entry.ClosedOutNotes,
             ClosedOutByUserId = entry.ClosedOutByUserId,
             ClosedOutByName = entry.ClosedOutByName,
-            ClosedOutOn = entry.ClosedOutOn
+            ClosedOutOn = entry.ClosedOutOn,
+            CloseAttachments = attachments ?? []
         };
 
         switch (entry)

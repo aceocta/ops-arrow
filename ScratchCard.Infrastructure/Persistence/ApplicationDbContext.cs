@@ -56,6 +56,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<DailyComplianceCheckEntry> DailyComplianceCheckEntries => Set<DailyComplianceCheckEntry>();
     public DbSet<WeeklyComplianceCheckEntry> WeeklyComplianceCheckEntries => Set<WeeklyComplianceCheckEntry>();
     public DbSet<MonthlyComplianceCheckEntry> MonthlyComplianceCheckEntries => Set<MonthlyComplianceCheckEntry>();
+    public DbSet<ComplianceCheckAttachment> ComplianceCheckAttachments => Set<ComplianceCheckAttachment>();
     public DbSet<RefusalRegisterEntry> RefusalRegisterEntries => Set<RefusalRegisterEntry>();
     public DbSet<RefusalRegisterDailySignoff> RefusalRegisterDailySignoffs => Set<RefusalRegisterDailySignoff>();
     public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
@@ -581,6 +582,22 @@ public class ApplicationDbContext : DbContext
                         "CK_MonthlyComplianceCheckEntries_MonthNumber",
                         "[MonthNumber] >= 1 AND [MonthNumber] <= 12"));
             });
+
+        modelBuilder.Entity<ComplianceCheckAttachment>(entity =>
+        {
+            entity.HasIndex(x => new { x.ComplianceCheckEntryId, x.Frequency });
+            entity.HasIndex(x => x.ShopId);
+            entity.Property(x => x.OriginalFileName).HasMaxLength(260).IsRequired();
+            entity.Property(x => x.StoredFileName).HasMaxLength(320).IsRequired();
+            entity.Property(x => x.StoredPath).HasMaxLength(1000).IsRequired();
+            entity.Property(x => x.ContentType).HasMaxLength(120);
+            entity.ToTable(
+                "ComplianceCheckAttachments",
+                table => table.HasCheckConstraint(
+                    "CK_ComplianceCheckAttachments_Frequency",
+                    $"[Frequency] >= {(int)ComplianceCheckFrequency.Daily} AND [Frequency] <= {(int)ComplianceCheckFrequency.Monthly}"));
+            entity.HasOne(x => x.Shop).WithMany(x => x.ComplianceCheckAttachments).HasForeignKey(x => x.ShopId);
+        });
 
         modelBuilder.Entity<RefusalRegisterEntry>(entity =>
         {

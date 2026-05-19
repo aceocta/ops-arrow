@@ -515,6 +515,13 @@ export type ComplianceCheckEntry = {
   closedOutByUserId?: string;
   closedOutByName?: string;
   closedOutOn?: string;
+  closeAttachments?: Array<{
+    id: string;
+    fileName: string;
+    contentType?: string;
+    fileSizeBytes: number;
+    uploadedOn: string;
+  }>;
 };
 
 export type ComplianceCheckPeriodRow = {

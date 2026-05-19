@@ -1,5 +1,6 @@
 using FluentValidation;
 using ScratchCard.Application.DTOs.BusinessDays;
+using ScratchCard.Application.DTOs.ComplianceChecks;
 using ScratchCard.Application.DTOs.Common;
 using ScratchCard.Application.DTOs.Companies;
 using ScratchCard.Application.DTOs.Deliveries;
@@ -306,6 +307,21 @@ public class FinalizeShiftRequestValidator : AbstractValidator<FinalizeShiftRequ
         RuleForEach(x => x.Attachments!).SetValidator(new CloseAttachmentUploadRequestValidator());
         RuleFor(x => x.Entries).NotEmpty();
         RuleForEach(x => x.Entries).SetValidator(new ShiftClosePackEntryRequestValidator());
+    }
+}
+
+public class UpsertComplianceCheckEntryRequestValidator : AbstractValidator<UpsertComplianceCheckEntryRequest>
+{
+    public UpsertComplianceCheckEntryRequestValidator()
+    {
+        RuleFor(x => x.ShopId).NotEmpty();
+        RuleFor(x => x.ComplianceCheckItemId).NotEmpty();
+        RuleFor(x => x.Date).NotEqual(default(DateOnly));
+        RuleFor(x => x.Result).IsInEnum();
+        RuleFor(x => x.Notes).MaximumLength(1000);
+        RuleFor(x => x.ActionRequired).MaximumLength(1000);
+        RuleFor(x => x.Attachments).Must(x => x is null || x.Count <= 10).WithMessage("A maximum of 10 attachments is allowed.");
+        RuleForEach(x => x.Attachments!).SetValidator(new CloseAttachmentUploadRequestValidator());
     }
 }
 

@@ -118,6 +118,48 @@ internal static class CloseAttachmentStorage
         return saved;
     }
 
+    public static async Task<IReadOnlyCollection<SavedAttachment>> SaveComplianceAttachmentsAsync(
+        IReadOnlyCollection<AttachmentInput> inputs,
+        IAttachmentStorageService attachmentStorageService,
+        Guid shopId,
+        DateOnly periodDate,
+        string frequency,
+        string itemName,
+        CancellationToken cancellationToken)
+    {
+        if (inputs.Count == 0)
+        {
+            return [];
+        }
+
+        var safeFrequency = SanitizeToken(frequency, fallback: "daily", maxLength: 20).ToLowerInvariant();
+        var safeItemName = SanitizeToken(itemName, fallback: "item", maxLength: 80);
+        var saved = new List<SavedAttachment>(inputs.Count);
+
+        foreach (var input in inputs)
+        {
+            if (string.IsNullOrWhiteSpace(input.Base64))
+            {
+                continue;
+            }
+
+            var parsed = ParseAttachment(input.FileName, input.Base64, input.ContentType);
+            var fileGuid = Guid.NewGuid().ToString("N");
+            var storedFileName = $"{fileGuid}_{periodDate:yyyyMMdd}_{safeItemName}{parsed.Extension}";
+            var relativePath = BuildComplianceAttachmentPath(shopId, safeFrequency, periodDate, storedFileName);
+            var storedPath = await attachmentStorageService.SaveAsync(parsed.Bytes, relativePath, cancellationToken);
+
+            saved.Add(new SavedAttachment(
+                parsed.OriginalFileName,
+                storedFileName,
+                storedPath,
+                parsed.ContentType,
+                parsed.Bytes.Length));
+        }
+
+        return saved;
+    }
+
     private static string BuildShiftAttachmentPath(Guid shopId, DateOnly businessDate, string storedFileName)
     {
         return string.Join('/',
@@ -133,6 +175,16 @@ internal static class CloseAttachmentStorage
             shopId.ToString("N"),
             "day-close",
             businessDate.ToString("yyyyMMdd"),
+            storedFileName);
+    }
+
+    private static string BuildComplianceAttachmentPath(Guid shopId, string frequency, DateOnly periodDate, string storedFileName)
+    {
+        return string.Join('/',
+            shopId.ToString("N"),
+            "compliance-checks",
+            frequency,
+            periodDate.ToString("yyyyMMdd"),
             storedFileName);
     }
 

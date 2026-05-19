@@ -40,6 +40,7 @@ public class Shop : AuditableEntity
     public ICollection<ComplianceCheckGroup> ComplianceCheckGroups { get; set; } = new List<ComplianceCheckGroup>();
     public ICollection<ComplianceCheckItem> ComplianceCheckItems { get; set; } = new List<ComplianceCheckItem>();
     public ICollection<ComplianceCheckEntry> ComplianceCheckEntries { get; set; } = new List<ComplianceCheckEntry>();
+    public ICollection<ComplianceCheckAttachment> ComplianceCheckAttachments { get; set; } = new List<ComplianceCheckAttachment>();
     public ICollection<RefusalRegisterEntry> RefusalRegisterEntries { get; set; } = new List<RefusalRegisterEntry>();
     public ICollection<RefusalRegisterDailySignoff> RefusalRegisterDailySignoffs { get; set; } = new List<RefusalRegisterDailySignoff>();
 }

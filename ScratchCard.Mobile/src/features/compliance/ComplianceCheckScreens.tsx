@@ -1,14 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import { NestableDraggableFlatList, NestableScrollContainer } from "react-native-draggable-flatlist";
 import {
   closeComplianceCheckAction,
   createComplianceCheckGroup,
   createComplianceCheckItem,
+  getComplianceCheckAttachmentContent,
   getComplianceActionReport,
   getComplianceCheckPeriodLog,
   listComplianceCheckConfig,
@@ -49,6 +53,17 @@ type NoteEditorState = {
   title: string;
 } | null;
 
+type ComplianceAttachmentState = {
+  id: string;
+  fileName: string;
+  base64: string;
+  contentType?: string;
+  uri?: string;
+  size?: number;
+};
+
+type UploadedComplianceAttachment = NonNullable<ComplianceCheckEntry["closeAttachments"]>[number];
+
 type GroupFormState = {
   id?: string;
   frequency: ComplianceCheckFrequency;
@@ -72,6 +87,9 @@ type CloseActionState = {
 } | null;
 
 const frequencyOptions: ComplianceCheckFrequency[] = ["Daily", "Weekly", "Monthly"];
+const resultOptions: ComplianceCheckResult[] = ["Compliant", "NonCompliant", "NotApplicable", "Pending"];
+const MAX_COMPLIANCE_ATTACHMENTS = 10;
+const MAX_COMPLIANCE_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
 const initialGroupForm: GroupFormState = {
   frequency: "Daily",
@@ -101,10 +119,106 @@ function formatDateTime(value?: string) {
   return `${parsed.toLocaleDateString()} ${parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 }
 
+function formatFileSize(size?: number) {
+  if (!size || size <= 0) {
+    return "";
+  }
+
+  const units = ["B", "KB", "MB", "GB"];
+  let value = size;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex++;
+  }
+
+  const fixed = unitIndex === 0 ? value.toFixed(0) : value.toFixed(1);
+  return `${fixed} ${units[unitIndex]}`;
+}
+
+function isImageContentType(contentType?: string) {
+  return (contentType ?? "").toLowerCase().startsWith("image/");
+}
+
+function getContentTypeFromDataUrl(dataUrl: string) {
+  const prefix = "data:";
+  const suffix = ";base64,";
+  if (!dataUrl.startsWith(prefix)) {
+    return "application/octet-stream";
+  }
+
+  const endIndex = dataUrl.indexOf(suffix);
+  if (endIndex <= prefix.length) {
+    return "application/octet-stream";
+  }
+
+  return dataUrl.slice(prefix.length, endIndex).trim() || "application/octet-stream";
+}
+
+function getBase64Payload(dataUrl: string) {
+  const marker = "base64,";
+  const markerIndex = dataUrl.indexOf(marker);
+  return markerIndex >= 0 ? dataUrl.slice(markerIndex + marker.length).trim() : dataUrl.trim();
+}
+
+function getFileExtensionFromContentType(contentType: string) {
+  switch (contentType.toLowerCase()) {
+    case "image/jpeg":
+      return ".jpg";
+    case "image/png":
+      return ".png";
+    case "image/webp":
+      return ".webp";
+    case "image/gif":
+      return ".gif";
+    case "application/pdf":
+      return ".pdf";
+    case "text/plain":
+      return ".txt";
+    default:
+      return "";
+  }
+}
+
+function ensureFileNameWithExtension(fileName: string, contentType: string) {
+  const trimmed = fileName.trim();
+  if (trimmed.length === 0) {
+    const extension = getFileExtensionFromContentType(contentType);
+    return `attachment${extension || ".bin"}`;
+  }
+
+  const hasExtension = /\.[A-Za-z0-9]{1,10}$/.test(trimmed);
+  if (hasExtension) {
+    return trimmed;
+  }
+
+  const extension = getFileExtensionFromContentType(contentType);
+  return `${trimmed}${extension || ""}`;
+}
+
 function resolveResultTone(result: ComplianceCheckResult): "success" | "danger" | "warning" {
   if (result === "Compliant") return "success";
   if (result === "NonCompliant") return "danger";
   return "warning";
+}
+
+function formatResultLabel(result: ComplianceCheckResult) {
+  return result === "NotApplicable" ? "N/A" : result;
+}
+
+function getResultChoiceChipSelectedStyle(result: ComplianceCheckResult) {
+  if (result === "Compliant") return styles.resultChoiceChipCompliantSelected;
+  if (result === "NonCompliant") return styles.resultChoiceChipNonCompliantSelected;
+  if (result === "NotApplicable") return styles.resultChoiceChipNotApplicableSelected;
+  return styles.resultChoiceChipPendingSelected;
+}
+
+function getResultChoiceChipTextSelectedStyle(result: ComplianceCheckResult) {
+  if (result === "Compliant") return styles.resultChoiceChipTextCompliantSelected;
+  if (result === "NonCompliant") return styles.resultChoiceChipTextNonCompliantSelected;
+  if (result === "NotApplicable") return styles.resultChoiceChipTextNotApplicableSelected;
+  return styles.resultChoiceChipTextPendingSelected;
 }
 
 function normalizeGroups(groups: ComplianceCheckGroup[]) {
@@ -138,6 +252,14 @@ export function ComplianceChecksScreen() {
   const [drafts, setDrafts] = useState<Record<string, EntryDraft>>({});
   const [editorState, setEditorState] = useState<NoteEditorState>(null);
   const [editorValue, setEditorValue] = useState("");
+  const [attachmentsByItemId, setAttachmentsByItemId] = useState<Record<string, ComplianceAttachmentState[]>>({});
+  const [expandedAttachmentItemId, setExpandedAttachmentItemId] = useState<string | null>(null);
+  const [isAttachmentPreviewModalVisible, setIsAttachmentPreviewModalVisible] = useState(false);
+  const [attachmentPreviewId, setAttachmentPreviewId] = useState<string | null>(null);
+  const [attachmentPreviewTitle, setAttachmentPreviewTitle] = useState("");
+  const [attachmentPreviewUri, setAttachmentPreviewUri] = useState<string>();
+  const [loadingAttachmentId, setLoadingAttachmentId] = useState<string | null>(null);
+  const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<string | null>(null);
 
   const logQuery = useQuery({
     queryKey: ["compliance-period-log", shopId, frequency, selectedDate],
@@ -168,8 +290,10 @@ export function ComplianceChecksScreen() {
   }, [allRows]);
 
   const saveMutation = useMutation({
-    mutationFn: async (input: { item: ComplianceCheckItem; draft: EntryDraft }) => {
+    mutationFn: async (input: { item: ComplianceCheckItem; draft: EntryDraft; attachments?: ComplianceAttachmentState[] }) => {
       if (!shopId) throw new Error("No shop selected.");
+      const pendingAttachments = input.attachments ?? attachmentsByItemId[input.item.id] ?? [];
+
       return upsertComplianceCheckEntry({
         shopId,
         complianceCheckItemId: input.item.id,
@@ -177,13 +301,85 @@ export function ComplianceChecksScreen() {
         result: input.draft.result,
         notes: input.draft.notes.trim() || undefined,
         actionRequired: input.draft.actionRequired.trim() || undefined,
+        attachments: pendingAttachments.length > 0
+          ? pendingAttachments.map((attachment) => ({
+            fileName: attachment.fileName,
+            base64: attachment.base64,
+            contentType: attachment.contentType,
+          }))
+          : undefined,
       });
     },
-    onSuccess: async () => {
+    onSuccess: async (_result, variables) => {
+      setAttachmentsByItemId((previous) => {
+        if (!previous[variables.item.id]) {
+          return previous;
+        }
+
+        const next = { ...previous };
+        delete next[variables.item.id];
+        return next;
+      });
       await queryClient.invalidateQueries({ queryKey: ["compliance-period-log", shopId, frequency, selectedDate] });
     },
     onError: (error: any) => {
       Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to save compliance check.");
+    },
+  });
+
+  const previewAttachmentMutation = useMutation({
+    mutationFn: async ({ attachmentId, fileName }: { attachmentId: string; fileName: string }) => {
+      const dataUrl = await getComplianceCheckAttachmentContent(attachmentId);
+      if (!dataUrl) {
+        throw new Error("Attachment file is not available.");
+      }
+
+      return { attachmentId, dataUrl, fileName };
+    },
+    onSuccess: ({ attachmentId, dataUrl, fileName }) => {
+      setAttachmentPreviewId(attachmentId);
+      setAttachmentPreviewTitle(fileName);
+      setAttachmentPreviewUri(dataUrl);
+      setIsAttachmentPreviewModalVisible(true);
+    },
+    onError: (error: any) => {
+      Alert.alert("Preview unavailable", error?.response?.data?.message ?? error?.message ?? "Unable to load attachment.");
+    },
+  });
+
+  const downloadAttachmentMutation = useMutation({
+    mutationFn: async ({ attachmentId, fileName }: { attachmentId: string; fileName: string }) => {
+      const dataUrl = await getComplianceCheckAttachmentContent(attachmentId);
+      if (!dataUrl) {
+        throw new Error("Attachment file is not available.");
+      }
+
+      const contentType = getContentTypeFromDataUrl(dataUrl);
+      const base64Payload = getBase64Payload(dataUrl);
+      const safeFileName = ensureFileNameWithExtension(fileName, contentType);
+      const targetDirectory = FileSystem.documentDirectory ?? FileSystem.cacheDirectory;
+      if (!targetDirectory) {
+        throw new Error("Storage directory is unavailable on this device.");
+      }
+
+      const targetUri = `${targetDirectory}${Date.now()}-${safeFileName}`;
+      await FileSystem.writeAsStringAsync(targetUri, base64Payload, { encoding: FileSystem.EncodingType.Base64 });
+      return { fileUri: targetUri, fileName: safeFileName, contentType };
+    },
+    onSuccess: async ({ fileUri, fileName, contentType }) => {
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) {
+        Alert.alert("Downloaded", `File saved to:\n${fileUri}`);
+        return;
+      }
+
+      await Sharing.shareAsync(fileUri, {
+        mimeType: contentType,
+        dialogTitle: `Download ${fileName}`,
+      });
+    },
+    onError: (error: any) => {
+      Alert.alert("Download failed", error?.response?.data?.message ?? error?.message ?? "Unable to download attachment.");
     },
   });
 
@@ -211,6 +407,113 @@ export function ComplianceChecksScreen() {
     setEditorValue(field === "notes" ? draft.notes : draft.actionRequired);
   }
 
+  function getAttachments(itemId: string) {
+    return attachmentsByItemId[itemId] ?? [];
+  }
+
+  function getUploadedAttachments(itemId: string): UploadedComplianceAttachment[] {
+    return rowByItemId[itemId]?.entry?.closeAttachments ?? [];
+  }
+
+  function getAttachmentCount(itemId: string) {
+    return getUploadedAttachments(itemId).length + getAttachments(itemId).length;
+  }
+
+  function toggleAttachmentPanel(itemId: string) {
+    setExpandedAttachmentItemId((previous) => (previous === itemId ? null : itemId));
+  }
+
+  function removeAttachment(itemId: string, attachmentId: string) {
+    setAttachmentsByItemId((previous) => {
+      const current = previous[itemId] ?? [];
+      const next = current.filter((attachment) => attachment.id !== attachmentId);
+      if (next.length === 0) {
+        const copy = { ...previous };
+        delete copy[itemId];
+        return copy;
+      }
+
+      return {
+        ...previous,
+        [itemId]: next,
+      };
+    });
+  }
+
+  function clearAttachments(itemId: string) {
+    setAttachmentsByItemId((previous) => {
+      const copy = { ...previous };
+      delete copy[itemId];
+      return copy;
+    });
+  }
+
+  async function selectAttachmentsForItem(item: ComplianceCheckItem, draft: EntryDraft) {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permission required", "Photo access is required to add attachments.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: "images",
+      quality: 0.85,
+      allowsEditing: false,
+      allowsMultipleSelection: true,
+      selectionLimit: MAX_COMPLIANCE_ATTACHMENTS,
+      base64: true,
+    });
+
+    if (result.canceled || result.assets.length === 0) {
+      return;
+    }
+
+    let oversizedCount = 0;
+    const selected = result.assets
+      .filter((asset) => Boolean(asset.base64))
+      .flatMap((asset) => {
+        if (typeof asset.fileSize === "number" && asset.fileSize > MAX_COMPLIANCE_ATTACHMENT_BYTES) {
+          oversizedCount++;
+          return [];
+        }
+
+        return [{
+          id: `${Date.now()}-${Math.random()}`,
+          fileName: asset.fileName ?? `compliance-${Date.now()}.jpg`,
+          base64: asset.base64 as string,
+          contentType: asset.mimeType ?? "image/jpeg",
+          uri: asset.uri,
+          size: asset.fileSize,
+        }];
+      });
+
+    if (oversizedCount > 0) {
+      Alert.alert("File too large", `${oversizedCount} attachment(s) exceeded 10 MB and were skipped.`);
+    }
+
+    if (selected.length === 0) {
+      Alert.alert("Attachment failed", "Unable to read selected attachment(s).");
+      return;
+    }
+
+    const current = getAttachments(item.id);
+    const combined = [...current, ...selected];
+    const nextAttachments = combined.length <= MAX_COMPLIANCE_ATTACHMENTS
+      ? combined
+      : combined.slice(0, MAX_COMPLIANCE_ATTACHMENTS);
+
+    if (combined.length > MAX_COMPLIANCE_ATTACHMENTS) {
+      Alert.alert("Attachment limit", "A maximum of 10 attachments can be added.");
+    }
+
+    setAttachmentsByItemId((previous) => ({
+      ...previous,
+      [item.id]: nextAttachments,
+    }));
+
+    saveDraftForItem(item, draft, false, nextAttachments);
+  }
+
   function applyEditor() {
     if (!editorState) return;
     const currentDraft = getDraft(editorState.itemId);
@@ -225,17 +528,24 @@ export function ComplianceChecksScreen() {
       updateDraft(editorState.itemId, { actionRequired: nextDraft.actionRequired });
     }
 
-    if (editorState.field === "actionRequired" && nextDraft.result === "NonCompliant") {
-      const row = rowByItemId[editorState.itemId];
-      if (row) {
-        saveMutation.mutate({ item: row.item, draft: nextDraft });
-      }
+    const row = rowByItemId[editorState.itemId];
+    const canAutoSave =
+      editorState.field === "actionRequired"
+      || nextDraft.result !== "NonCompliant"
+      || Boolean(nextDraft.actionRequired.trim());
+    if (row && canAutoSave) {
+      saveDraftForItem(row.item, nextDraft);
     }
     setEditorState(null);
     setEditorValue("");
   }
 
-  function saveDraftForItem(item: ComplianceCheckItem, draft: EntryDraft, openActionEditorOnMissing = false) {
+  function saveDraftForItem(
+    item: ComplianceCheckItem,
+    draft: EntryDraft,
+    openActionEditorOnMissing = false,
+    attachmentsOverride?: ComplianceAttachmentState[],
+  ) {
     if (draft.result === "NonCompliant" && !draft.actionRequired.trim()) {
       Alert.alert("Action Required", "Please provide action required for non-compliant check.");
       if (openActionEditorOnMissing) {
@@ -244,13 +554,44 @@ export function ComplianceChecksScreen() {
       return;
     }
 
-    saveMutation.mutate({ item, draft });
+    saveMutation.mutate({ item, draft, attachments: attachmentsOverride });
   }
 
   function onSelectResult(row: ComplianceCheckPeriodRow, result: ComplianceCheckResult) {
     const nextDraft: EntryDraft = { ...getDraft(row.item.id), result };
     updateDraft(row.item.id, { result });
     saveDraftForItem(row.item, nextDraft, result === "NonCompliant");
+  }
+
+  function closeAttachmentPreviewModal() {
+    setIsAttachmentPreviewModalVisible(false);
+    setAttachmentPreviewId(null);
+    setAttachmentPreviewTitle("");
+    setAttachmentPreviewUri(undefined);
+  }
+
+  function previewUploadedAttachment(attachmentId: string, fileName: string) {
+    setLoadingAttachmentId(attachmentId);
+    previewAttachmentMutation.mutate(
+      { attachmentId, fileName },
+      {
+        onSettled: () => {
+          setLoadingAttachmentId(null);
+        },
+      },
+    );
+  }
+
+  function downloadUploadedAttachment(attachmentId: string, fileName: string) {
+    setDownloadingAttachmentId(attachmentId);
+    downloadAttachmentMutation.mutate(
+      { attachmentId, fileName },
+      {
+        onSettled: () => {
+          setDownloadingAttachmentId(null);
+        },
+      },
+    );
   }
 
   const summary = useMemo(() => {
@@ -301,15 +642,18 @@ export function ComplianceChecksScreen() {
               <Text style={styles.summaryLabel}>Non-Compliant</Text>
             </View>
           </View>
-          <View style={styles.row}>
-            <Pressable style={styles.secondaryButton} onPress={() => navigation.navigate("ComplianceActions")}>
-              <Text style={styles.secondaryButtonText}>Action Report</Text>
-            </Pressable>
-            {canManage ? (
-              <Pressable style={styles.secondaryButton} onPress={() => navigation.navigate("ComplianceConfig")}>
-                <Text style={styles.secondaryButtonText}>Setup</Text>
+          <View style={styles.heroActionsWrap}>
+            <Text style={styles.actionsLabel}>Actions</Text>
+            <View style={styles.row}>
+              <Pressable style={styles.secondaryButton} onPress={() => navigation.navigate("ComplianceActions")}>
+                <Text style={styles.secondaryButtonText}>Action Report</Text>
               </Pressable>
-            ) : null}
+              {canManage ? (
+                <Pressable style={styles.secondaryButton} onPress={() => navigation.navigate("ComplianceConfig")}>
+                  <Text style={styles.secondaryButtonText}>Setup</Text>
+                </Pressable>
+              ) : null}
+            </View>
           </View>
         </View>
 
@@ -336,7 +680,7 @@ export function ComplianceChecksScreen() {
         {logQuery.isLoading ? <Text style={styles.meta}>Loading checks...</Text> : null}
         {periodGroups.map((periodGroup) => (
           <View key={periodGroup.group.id} style={ui.card}>
-            <View style={styles.rowBetween}>
+            <View style={[styles.rowBetween, styles.groupHeaderRow]}>
               <Text style={styles.groupTitle}>{periodGroup.group.groupName}</Text>
               <StatusBadge label={`${periodGroup.completedCount}/${periodGroup.totalCount}`} tone="neutral" />
             </View>
@@ -344,25 +688,38 @@ export function ComplianceChecksScreen() {
             <View style={styles.groupRows}>
               {periodGroup.rows.map((row) => {
                 const draft = getDraft(row.item.id);
+                const uploadedAttachments = getUploadedAttachments(row.item.id);
+                const pendingAttachments = getAttachments(row.item.id);
+                const attachmentCount = uploadedAttachments.length + pendingAttachments.length;
+                const isAttachmentPanelOpen = expandedAttachmentItemId === row.item.id;
+                const isActionRequiredMissing = draft.result === "NonCompliant" && !draft.actionRequired.trim();
                 return (
                   <View key={row.item.id} style={styles.itemCard}>
-                    <View style={styles.rowBetween}>
+                    <View style={[styles.rowBetween, styles.itemHeaderRow]}>
                       <Text style={styles.itemTitle}>{row.item.itemName}</Text>
-                      <StatusBadge label={draft.result} tone={resolveResultTone(draft.result)} />
+                      {/* <StatusBadge label={formatResultLabel(draft.result)} tone={resolveResultTone(draft.result)} /> */}
                     </View>
-                    {row.item.description ? <Text style={styles.meta}>{row.item.description}</Text> : null}
 
                     <View style={styles.chipRow}>
-                      {(["Compliant", "NonCompliant", "NotApplicable", "Pending"] as ComplianceCheckResult[]).map((resultOption) => {
+                      {resultOptions.map((resultOption) => {
                         const selected = draft.result === resultOption;
                         return (
                           <Pressable
                             key={resultOption}
-                            style={[styles.choiceChip, selected ? styles.choiceChipSelected : null]}
+                            style={[
+                              styles.choiceChip,
+                              styles.resultChoiceChip,
+                              selected ? getResultChoiceChipSelectedStyle(resultOption) : null,
+                            ]}
                             onPress={() => onSelectResult(row, resultOption)}
                           >
-                            <Text style={[styles.choiceChipText, selected ? styles.choiceChipTextSelected : null]}>
-                              {resultOption === "NotApplicable" ? "N/A" : resultOption}
+                            <Text
+                              style={[
+                                styles.choiceChipText,
+                                selected ? getResultChoiceChipTextSelectedStyle(resultOption) : null,
+                              ]}
+                            >
+                              {formatResultLabel(resultOption)}
                             </Text>
                           </Pressable>
                         );
@@ -372,27 +729,159 @@ export function ComplianceChecksScreen() {
                     <View style={styles.row}>
                       <Pressable style={styles.noteButton} onPress={() => openEditor(row.item.id, "notes", row.item.itemName)}>
                         <Ionicons name="create-outline" size={14} color={appTheme.colors.primary} />
-                        <Text style={styles.noteButtonText}>{draft.notes.trim() ? "Edit Notes" : "Add Notes"}</Text>
+                        <Text style={styles.noteButtonText}>Notes</Text>
                       </Pressable>
                       <Pressable
-                        style={styles.noteButton}
+                        style={[
+                          styles.noteButton,
+                          draft.result === "NonCompliant" ? styles.noteButtonWarning : null,
+                          isActionRequiredMissing ? styles.noteButtonDanger : null,
+                        ]}
                         onPress={() => openEditor(row.item.id, "actionRequired", row.item.itemName)}
                       >
-                        <Ionicons name="warning-outline" size={14} color={appTheme.colors.warning} />
-                        <Text style={styles.noteButtonText}>{draft.actionRequired.trim() ? "Edit Action" : "Add Action"}</Text>
+                        <Ionicons
+                          name="warning-outline"
+                          size={14}
+                          color={isActionRequiredMissing ? appTheme.colors.danger : appTheme.colors.warning}
+                        />
+                        <Text style={styles.noteButtonText}>
+                          {draft.result === "NonCompliant" && !draft.actionRequired.trim() ? "Action *" : "Action"}
+                        </Text>
                       </Pressable>
-                      <Pressable
-                        style={styles.iconSaveButton}
-                        onPress={() => saveDraftForItem(row.item, draft, true)}
-                      >
-                        <Ionicons name="save-outline" size={16} color={appTheme.colors.primary} />
+                      <Pressable style={styles.noteButton} onPress={() => toggleAttachmentPanel(row.item.id)}>
+                        <Ionicons name="attach-outline" size={14} color={appTheme.colors.info} />
+                        <Text style={styles.noteButtonText}>{attachmentCount > 0 ? `Upload (${attachmentCount})` : "Upload"}</Text>
                       </Pressable>
                     </View>
 
-                    {row.entry ? (
-                      <Text style={styles.meta}>
-                        Last saved by {row.entry.checkedByName ?? "-"} at {formatDateTime(row.entry.checkedOn)}
-                      </Text>
+                    {isAttachmentPanelOpen ? (
+                      <View style={styles.inlineAttachmentPanel}>
+                        <Text style={styles.fieldLabel}>Attachments (Optional)</Text>
+                        {attachmentCount === 0 ? (
+                          <Text style={styles.meta}>No attachments selected.</Text>
+                        ) : (
+                          <Text style={styles.meta}>{attachmentCount} attachment(s) selected.</Text>
+                        )}
+                        {uploadedAttachments.length > 0 ? (
+                          <Text style={styles.meta}>Uploaded: {uploadedAttachments.length}</Text>
+                        ) : null}
+                        {pendingAttachments.length > 0 ? (
+                          <Text style={styles.meta}>Pending upload: {pendingAttachments.length}</Text>
+                        ) : null}
+
+                        {uploadedAttachments.length > 0 || pendingAttachments.length > 0 ? (
+                          <View style={styles.complianceAttachmentList}>
+                            {uploadedAttachments.map((attachment) => {
+                              const canPreviewImage = isImageContentType(attachment.contentType);
+                              const isLoadingPreview = loadingAttachmentId === attachment.id;
+                              const isDownloading = downloadingAttachmentId === attachment.id;
+                              return (
+                                <View key={attachment.id} style={styles.complianceAttachmentItem}>
+                                  {canPreviewImage ? (
+                                    <View style={styles.complianceAttachmentImageBadge}>
+                                      <Text style={styles.complianceAttachmentImageBadgeText}>IMG</Text>
+                                    </View>
+                                  ) : (
+                                    <View style={styles.complianceAttachmentFileIcon}>
+                                      <Text style={styles.complianceAttachmentFileIconText}>FILE</Text>
+                                    </View>
+                                  )}
+                                  <View style={styles.complianceAttachmentMeta}>
+                                    <Text style={styles.complianceAttachmentFileName} numberOfLines={1}>
+                                      {attachment.fileName}
+                                    </Text>
+                                    <Text style={styles.meta}>
+                                      {(attachment.contentType ?? "application/octet-stream")}
+                                      {attachment.fileSizeBytes > 0 ? ` | ${formatFileSize(attachment.fileSizeBytes)}` : ""}
+                                    </Text>
+                                    <Text style={styles.meta}>Uploaded {new Date(attachment.uploadedOn).toLocaleString()}</Text>
+                                  </View>
+                                  <View style={styles.complianceAttachmentActionStack}>
+                                    <Pressable
+                                      style={styles.complianceAttachmentDownloadButton}
+                                      onPress={() => downloadUploadedAttachment(attachment.id, attachment.fileName)}
+                                      disabled={isDownloading}
+                                    >
+                                      <Text style={styles.complianceAttachmentDownloadButtonText}>
+                                        {isDownloading ? "Saving..." : "Download"}
+                                      </Text>
+                                    </Pressable>
+                                    {canPreviewImage ? (
+                                      <Pressable
+                                        style={styles.complianceAttachmentViewButton}
+                                        onPress={() => previewUploadedAttachment(attachment.id, attachment.fileName)}
+                                        disabled={isLoadingPreview}
+                                      >
+                                        <Text style={styles.complianceAttachmentViewButtonText}>
+                                          {isLoadingPreview ? "Loading..." : "Preview"}
+                                        </Text>
+                                      </Pressable>
+                                    ) : (
+                                      <View style={styles.complianceAttachmentNoPreviewBadge}>
+                                        <Text style={styles.complianceAttachmentNoPreviewBadgeText}>No Preview</Text>
+                                      </View>
+                                    )}
+                                  </View>
+                                </View>
+                              );
+                            })}
+                            {pendingAttachments.map((attachment) => {
+                              const canPreviewImage = Boolean(attachment.uri) && (attachment.contentType?.startsWith("image/") ?? false);
+                              return (
+                                <View key={attachment.id} style={styles.complianceAttachmentItem}>
+                                  {canPreviewImage ? (
+                                    <Image source={{ uri: attachment.uri }} style={styles.complianceAttachmentPreviewImage} resizeMode="cover" />
+                                  ) : (
+                                    <View style={styles.complianceAttachmentFileIcon}>
+                                      <Text style={styles.complianceAttachmentFileIconText}>FILE</Text>
+                                    </View>
+                                  )}
+                                  <View style={styles.complianceAttachmentMeta}>
+                                    <Text style={styles.complianceAttachmentFileName} numberOfLines={1}>
+                                      {attachment.fileName}
+                                    </Text>
+                                    <Text style={styles.meta}>
+                                      {(attachment.contentType ?? "application/octet-stream")}
+                                      {attachment.size ? ` | ${formatFileSize(attachment.size)}` : ""}
+                                    </Text>
+                                  </View>
+                                  <Pressable
+                                    style={styles.complianceAttachmentRemoveButton}
+                                    onPress={() => removeAttachment(row.item.id, attachment.id)}
+                                  >
+                                    <Text style={styles.complianceAttachmentRemoveButtonText}>Remove</Text>
+                                  </Pressable>
+                                </View>
+                              );
+                            })}
+                          </View>
+                        ) : null}
+
+                        <View style={styles.complianceAttachmentActionRow}>
+                          <Pressable
+                            style={styles.complianceAttachmentActionButton}
+                            onPress={() => void selectAttachmentsForItem(row.item, draft)}
+                          >
+                            <Text style={styles.complianceAttachmentActionButtonText}>
+                              {attachmentCount > 0 ? "Add More Attachments" : "Add Attachments"}
+                            </Text>
+                          </Pressable>
+                          {pendingAttachments.length > 0 ? (
+                            <Pressable
+                              style={[styles.complianceAttachmentActionButton, styles.complianceAttachmentActionButtonDanger]}
+                              onPress={() => clearAttachments(row.item.id)}
+                            >
+                              <Text style={[styles.complianceAttachmentActionButtonText, styles.complianceAttachmentActionButtonTextDanger]}>
+                                Clear All
+                              </Text>
+                            </Pressable>
+                          ) : null}
+                        </View>
+                      </View>
+                    ) : null}
+
+                    {isActionRequiredMissing ? (
+                      <Text style={styles.inlineWarningText}>Action required must be added for non-compliant checks.</Text>
                     ) : null}
                   </View>
                 );
@@ -407,6 +896,46 @@ export function ComplianceChecksScreen() {
           </View>
         ) : null}
       </ScrollView>
+
+      <Modal
+        visible={isAttachmentPreviewModalVisible}
+        transparent={false}
+        animationType="fade"
+        onRequestClose={closeAttachmentPreviewModal}
+      >
+        <View style={styles.attachmentPreviewBackdrop}>
+          <View style={styles.attachmentPreviewHeader}>
+            <Text style={styles.attachmentPreviewTitle} numberOfLines={1}>{attachmentPreviewTitle || "Attachment Preview"}</Text>
+            <View style={styles.attachmentPreviewHeaderActions}>
+              <Pressable
+                style={styles.attachmentPreviewHeaderButton}
+                onPress={() => {
+                  if (!attachmentPreviewId || !attachmentPreviewTitle) {
+                    return;
+                  }
+
+                  downloadUploadedAttachment(attachmentPreviewId, attachmentPreviewTitle);
+                }}
+                disabled={!attachmentPreviewId || !attachmentPreviewTitle || downloadingAttachmentId === attachmentPreviewId}
+              >
+                <Text style={styles.attachmentPreviewHeaderButtonText}>
+                  {downloadingAttachmentId === attachmentPreviewId ? "Saving..." : "Download"}
+                </Text>
+              </Pressable>
+              <Pressable style={styles.attachmentPreviewHeaderButton} onPress={closeAttachmentPreviewModal}>
+                <Text style={styles.attachmentPreviewHeaderButtonText}>Close</Text>
+              </Pressable>
+            </View>
+          </View>
+          {attachmentPreviewUri ? (
+            <Image source={{ uri: attachmentPreviewUri }} style={styles.attachmentPreviewModalImage} resizeMode="contain" />
+          ) : (
+            <View style={styles.attachmentPreviewEmptyState}>
+              <Text style={styles.attachmentPreviewEmptyText}>No preview available.</Text>
+            </View>
+          )}
+        </View>
+      </Modal>
 
       <Modal visible={Boolean(editorState)} transparent animationType="fade" onRequestClose={() => setEditorState(null)}>
         <View style={styles.modalBackdrop}>
@@ -689,7 +1218,7 @@ export function ComplianceChecksConfigScreen() {
           <View style={ui.card}>
             <View style={styles.rowBetween}>
               <Text style={styles.groupTitle}>Items: {activeGroup.groupName}</Text>
-              <StatusBadge label={`${activeGroup.items.length}`} tone="neutral" />
+              {/* <StatusBadge label={`${activeGroup.items.length}`} tone="neutral" /> */}
             </View>
             <NestableDraggableFlatList
               data={activeGroup.items}
@@ -702,7 +1231,7 @@ export function ComplianceChecksConfigScreen() {
                 <View style={[styles.itemCard, isActive ? styles.dragActiveCard : null]}>
                   <View style={styles.rowBetween}>
                     <Text style={styles.itemTitle}>{item.itemName}</Text>
-                    <StatusBadge label={item.isActive ? "Active" : "Inactive"} tone={item.isActive ? "success" : "warning"} />
+                    {/* <StatusBadge label={item.isActive ? "Active" : "Inactive"} tone={item.isActive ? "success" : "warning"} /> */}
                   </View>
                   {item.description ? <Text style={styles.meta}>{item.description}</Text> : null}
                   <View style={styles.row}>
@@ -910,7 +1439,7 @@ export function ComplianceActionsScreen() {
           <View key={row.entryId} style={ui.card}>
             <View style={styles.rowBetween}>
               <Text style={styles.itemTitle}>{row.itemName}</Text>
-              <StatusBadge label={row.isActionClosedOut ? "Closed" : "Open"} tone={row.isActionClosedOut ? "success" : "warning"} />
+              {/* <StatusBadge label={row.isActionClosedOut ? "Closed" : "Open"} tone={row.isActionClosedOut ? "success" : "warning"} /> */}
             </View>
             <Text style={styles.meta}>Group: {row.groupName}</Text>
             <Text style={styles.meta}>Frequency: {row.frequency}</Text>
@@ -1003,6 +1532,20 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: appTheme.spacing.sm,
   },
+  heroActionsWrap: {
+    borderTopWidth: 1,
+    borderTopColor: appTheme.colors.borderSoft,
+    paddingTop: appTheme.spacing.xs,
+    gap: 6,
+  },
+  actionsLabel: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 14,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
   summaryRow: {
     flexDirection: "row",
     gap: appTheme.spacing.xs,
@@ -1046,8 +1589,9 @@ const styles = StyleSheet.create({
   itemCard: {
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceMuted,
-    padding: appTheme.spacing.sm,
-    gap: appTheme.spacing.xs,
+    paddingHorizontal: appTheme.spacing.xs,
+    paddingVertical: 10,
+    gap: 6,
   },
   row: {
     flexDirection: "row",
@@ -1060,6 +1604,17 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: appTheme.spacing.xs,
   },
+  groupHeaderRow: {
+    borderBottomWidth: 1,
+    borderBottomColor: appTheme.colors.borderSoft,
+    paddingBottom: 6,
+    marginBottom: 2,
+  },
+  itemHeaderRow: {
+    borderBottomWidth: 1,
+    borderBottomColor: appTheme.colors.borderSoft,
+    paddingBottom: 6,
+  },
   itemTitle: {
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
@@ -1070,48 +1625,80 @@ const styles = StyleSheet.create({
   chipRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 6,
+    gap: 4,
   },
   choiceChip: {
     borderRadius: appTheme.radius.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     backgroundColor: appTheme.colors.surfaceMuted,
+  },
+  resultChoiceChip: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderSoft,
   },
   choiceChipSelected: {
     backgroundColor: appTheme.colors.primary,
   },
+  resultChoiceChipCompliantSelected: {
+    backgroundColor: appTheme.colors.surfaceSuccessMuted,
+    borderColor: appTheme.colors.borderSuccessSoft,
+  },
+  resultChoiceChipNonCompliantSelected: {
+    backgroundColor: appTheme.colors.surfaceDangerMuted,
+    borderColor: appTheme.colors.borderDangerSoft,
+  },
+  resultChoiceChipNotApplicableSelected: {
+    backgroundColor: appTheme.colors.surfaceWarningMuted,
+    borderColor: appTheme.colors.borderWarningSoft,
+  },
+  resultChoiceChipPendingSelected: {
+    backgroundColor: appTheme.colors.surfaceNeutralMuted,
+    borderColor: appTheme.colors.borderStrong,
+  },
   choiceChipText: {
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 12,
-    lineHeight: 15,
+    fontSize: 11,
+    lineHeight: 14,
   },
   choiceChipTextSelected: {
     color: appTheme.colors.onPrimary,
   },
+  resultChoiceChipTextCompliantSelected: {
+    color: appTheme.colors.textSuccessStrong,
+  },
+  resultChoiceChipTextNonCompliantSelected: {
+    color: appTheme.colors.danger,
+  },
+  resultChoiceChipTextNotApplicableSelected: {
+    color: appTheme.colors.textWarningStrong,
+  },
+  resultChoiceChipTextPendingSelected: {
+    color: appTheme.colors.textMuted,
+  },
   noteButton: {
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceInfoMuted,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
   },
+  noteButtonWarning: {
+    backgroundColor: appTheme.colors.surfaceWarningMuted,
+  },
+  noteButtonDanger: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderDangerSoft,
+    backgroundColor: appTheme.colors.surfaceDangerSoft,
+  },
   noteButtonText: {
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 12,
-    lineHeight: 15,
-  },
-  iconSaveButton: {
-    width: 34,
-    height: 34,
-    borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surfaceInfoMuted,
-    alignItems: "center",
-    justifyContent: "center",
+    fontSize: 11,
+    lineHeight: 14,
   },
   secondaryButton: {
     borderRadius: appTheme.radius.sm,
@@ -1178,6 +1765,220 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.body,
     fontSize: 12,
     lineHeight: 16,
+  },
+  inlineWarningText: {
+    color: appTheme.colors.textWarningStrong,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  inlineAttachmentPanel: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderSoft,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceTint,
+    paddingHorizontal: appTheme.spacing.xs,
+    paddingVertical: appTheme.spacing.xs,
+    gap: appTheme.spacing.xs,
+  },
+  complianceAttachmentList: {
+    gap: appTheme.spacing.xs,
+  },
+  complianceAttachmentItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    paddingHorizontal: appTheme.spacing.xs,
+    paddingVertical: appTheme.spacing.xs,
+  },
+  complianceAttachmentPreviewImage: {
+    width: 44,
+    height: 44,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+  },
+  complianceAttachmentFileIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceTintAlt,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  complianceAttachmentFileIconText: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 10,
+    lineHeight: 12,
+  },
+  complianceAttachmentImageBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceSuccessMuted,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  complianceAttachmentImageBadgeText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 10,
+    lineHeight: 12,
+  },
+  complianceAttachmentMeta: {
+    flex: 1,
+    gap: 2,
+  },
+  complianceAttachmentFileName: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  complianceAttachmentActionStack: {
+    gap: 6,
+    alignItems: "flex-end",
+  },
+  complianceAttachmentDownloadButton: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderStrong,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  complianceAttachmentDownloadButtonText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 13,
+  },
+  complianceAttachmentViewButton: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.primary,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceSuccessAlt,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  complianceAttachmentViewButtonText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 13,
+  },
+  complianceAttachmentNoPreviewBadge: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  complianceAttachmentNoPreviewBadgeText: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 10,
+    lineHeight: 12,
+  },
+  complianceAttachmentRemoveButton: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderStrong,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  complianceAttachmentRemoveButtonText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 13,
+  },
+  complianceAttachmentActionRow: {
+    flexDirection: "row",
+    gap: appTheme.spacing.xs,
+  },
+  complianceAttachmentActionButton: {
+    flex: 1,
+    minHeight: 38,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceTintSoft,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: appTheme.spacing.sm,
+  },
+  complianceAttachmentActionButtonDanger: {
+    backgroundColor: appTheme.colors.danger,
+  },
+  complianceAttachmentActionButtonText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 15,
+  },
+  complianceAttachmentActionButtonTextDanger: {
+    color: appTheme.colors.onPrimary,
+  },
+  attachmentPreviewBackdrop: {
+    flex: 1,
+    backgroundColor: appTheme.colors.previewBackdrop,
+  },
+  attachmentPreviewHeader: {
+    paddingTop: 18,
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  attachmentPreviewTitle: {
+    flex: 1,
+    color: appTheme.colors.previewText,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  attachmentPreviewHeaderActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  attachmentPreviewHeaderButton: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.previewBorder,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.previewSurface,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  attachmentPreviewHeaderButtonText: {
+    color: appTheme.colors.previewText,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 14,
+  },
+  attachmentPreviewEmptyState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  attachmentPreviewEmptyText: {
+    color: appTheme.colors.previewTextMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 14,
+    lineHeight: 18,
+    textAlign: "center",
+  },
+  attachmentPreviewModalImage: {
+    flex: 1,
+    width: "100%",
+    backgroundColor: appTheme.colors.previewBackdrop,
   },
   modalBackdrop: {
     flex: 1,
