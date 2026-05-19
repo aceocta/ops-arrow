@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
+import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import { NestableDraggableFlatList, NestableScrollContainer } from "react-native-draggable-flatlist";
 import {
@@ -22,6 +23,7 @@ import {
   updateComplianceCheckGroup,
   updateComplianceCheckItem,
 } from "../../api/complianceChecksApi";
+import { sendReportEmail } from "../../api/reportsApi";
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
@@ -86,6 +88,30 @@ type CloseActionState = {
   entryId: string;
   itemName: string;
 } | null;
+
+type ComplianceReportAction = "print" | "share" | "email";
+
+type ComplianceMatrixReportColumn = {
+  key: string;
+  label: string;
+  date: string;
+};
+
+type ComplianceMatrixGroupedItems = {
+  groupName: string;
+  items: Array<{
+    itemId: string;
+    itemName: string;
+  }>;
+};
+
+type ComplianceMatrixReportScope = {
+  title: string;
+  subtitle: string;
+  periodLabel: string;
+  filePeriodLabel: string;
+  columns: ComplianceMatrixReportColumn[];
+};
 
 const frequencyOptions: ComplianceCheckFrequency[] = ["Daily", "Weekly", "Monthly"];
 const resultOptions: ComplianceCheckResult[] = ["Compliant", "NonCompliant", "NotApplicable", "Pending"];
@@ -304,10 +330,391 @@ function resolveDefaultCheckedByName(profile?: {
   return prefix || email;
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function getResultCode(result?: ComplianceCheckResult) {
+  if (result === "Compliant") return "C";
+  if (result === "NonCompliant") return "NC";
+  if (result === "NotApplicable") return "N/A";
+  if (result === "Pending") return "P";
+  return "";
+}
+
+function getResultCellClass(result?: ComplianceCheckResult) {
+  if (result === "Compliant") return "result-compliant";
+  if (result === "NonCompliant") return "result-non-compliant";
+  if (result === "NotApplicable") return "result-not-applicable";
+  if (result === "Pending") return "result-pending";
+  return "";
+}
+
+function toInitials(value?: string) {
+  const parts = (value ?? "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (parts.length === 0) {
+    return "";
+  }
+
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+
+  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+}
+
+function getIsoWeekYear(date: Date) {
+  const working = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = working.getUTCDay() || 7;
+  working.setUTCDate(working.getUTCDate() + 4 - day);
+  return working.getUTCFullYear();
+}
+
+function getIsoWeekNumber(date: Date) {
+  const working = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = working.getUTCDay() || 7;
+  working.setUTCDate(working.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(working.getUTCFullYear(), 0, 1));
+  const diffDays = Math.floor((working.getTime() - yearStart.getTime()) / 86400000) + 1;
+  return Math.ceil(diffDays / 7);
+}
+
+function getIsoWeekStartDateValue(isoYear: number, isoWeek: number) {
+  const jan4 = new Date(Date.UTC(isoYear, 0, 4));
+  const jan4Day = jan4.getUTCDay() || 7;
+  const weekOneMonday = new Date(jan4);
+  weekOneMonday.setUTCDate(jan4.getUTCDate() - jan4Day + 1);
+  const targetMonday = new Date(weekOneMonday);
+  targetMonday.setUTCDate(weekOneMonday.getUTCDate() + (isoWeek - 1) * 7);
+
+  return formatDateValue(
+    new Date(targetMonday.getUTCFullYear(), targetMonday.getUTCMonth(), targetMonday.getUTCDate()),
+  );
+}
+
+function buildComplianceMatrixReportScope(input: {
+  frequency: ComplianceCheckFrequency;
+  selectedDate: string;
+  weeklyRangeStartDate: string;
+  selectedMonthYear: number;
+}) {
+  if (input.frequency === "Daily") {
+    const anchor = parseDateValue(input.selectedDate) ?? new Date();
+    const year = anchor.getFullYear();
+    const monthIndex = anchor.getMonth();
+    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+    const columns: ComplianceMatrixReportColumn[] = [];
+
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const date = formatDateValue(new Date(year, monthIndex, day));
+      columns.push({
+        key: date,
+        label: String(day),
+        date,
+      });
+    }
+
+    const monthLabel = `${monthOptions[monthIndex]} ${year}`;
+    return {
+      title: "Daily Compliance Checks",
+      subtitle: "Daily matrix by day of month",
+      periodLabel: monthLabel,
+      filePeriodLabel: `${year}-${String(monthIndex + 1).padStart(2, "0")}`,
+      columns,
+    } satisfies ComplianceMatrixReportScope;
+  }
+
+  if (input.frequency === "Weekly") {
+    const selectedWeekAnchor = parseDateValue(input.weeklyRangeStartDate) ?? new Date();
+    const isoYear = getIsoWeekYear(selectedWeekAnchor);
+    const selectedWeekNumber = getIsoWeekNumber(selectedWeekAnchor);
+    const startWeek = selectedWeekNumber <= 26 ? 1 : 27;
+    const endWeek = selectedWeekNumber <= 26 ? 26 : 52;
+    const columns: ComplianceMatrixReportColumn[] = [];
+
+    for (let week = startWeek; week <= endWeek; week += 1) {
+      const startDate = getIsoWeekStartDateValue(isoYear, week);
+      columns.push({
+        key: `${isoYear}-W${String(week).padStart(2, "0")}`,
+        label: `W${String(week).padStart(2, "0")}`,
+        date: startDate,
+      });
+    }
+
+    return {
+      title: "Weekly Compliance Checks",
+      subtitle: "Weekly matrix by week number",
+      periodLabel: `${isoYear} Weeks ${startWeek}-${endWeek}`,
+      filePeriodLabel: `${isoYear}-w${String(startWeek).padStart(2, "0")}-w${String(endWeek).padStart(2, "0")}`,
+      columns,
+    } satisfies ComplianceMatrixReportScope;
+  }
+
+  const year = input.selectedMonthYear;
+  const columns = monthOptions.map((monthLabel, monthIndex) => ({
+    key: `${year}-${String(monthIndex + 1).padStart(2, "0")}`,
+    label: monthLabel,
+    date: formatDateValue(new Date(year, monthIndex, 1)),
+  }));
+
+  return {
+    title: "Monthly Compliance Checks",
+    subtitle: "Monthly matrix by calendar month",
+    periodLabel: String(year),
+    filePeriodLabel: String(year),
+    columns,
+  } satisfies ComplianceMatrixReportScope;
+}
+
+function buildComplianceMatrixReportHtml(input: {
+  shopName: string;
+  frequency: ComplianceCheckFrequency;
+  scope: ComplianceMatrixReportScope;
+  groups: ComplianceMatrixGroupedItems[];
+  entryByCell: Map<string, ComplianceCheckEntry>;
+  checkedByInitialsByColumn: Map<string, string>;
+  checkedByLegend: Array<{ initials: string; names: string[] }>;
+  unavailableColumns: string[];
+  generatedOn: string;
+}) {
+  const generatedOn = new Date(input.generatedOn);
+  const generatedOnText = Number.isNaN(generatedOn.getTime())
+    ? input.generatedOn
+    : `${generatedOn.toLocaleDateString()} ${generatedOn.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+
+  const headerRowHtml = input.scope.columns
+    .map((column) => `<th class="period-col">${escapeHtml(column.label)}</th>`)
+    .join("");
+
+  const groupRowsHtml = input.groups
+    .map((group) => {
+      const itemRowsHtml = group.items
+        .map((item) => {
+          const cellsHtml = input.scope.columns
+            .map((column) => {
+              const entry = input.entryByCell.get(`${item.itemId}|${column.key}`);
+              const code = getResultCode(entry?.result);
+              const cellClass = getResultCellClass(entry?.result);
+              const title = entry?.checkedByName
+                ? `${formatResultLabel(entry.result)} (${entry.checkedByName})`
+                : entry?.result
+                  ? formatResultLabel(entry.result)
+                  : "Not checked";
+              return `<td class="result-cell ${cellClass}" title="${escapeHtml(title)}">${escapeHtml(code)}</td>`;
+            })
+            .join("");
+
+          return `
+            <tr>
+              <td class="item-col">${escapeHtml(item.itemName)}</td>
+              ${cellsHtml}
+            </tr>
+          `;
+        })
+        .join("");
+
+      return itemRowsHtml;
+    })
+    .join("");
+
+  const checkedByRowHtml = input.scope.columns
+    .map((column) => `<td class="checked-by-cell">${escapeHtml(input.checkedByInitialsByColumn.get(column.key) ?? "-")}</td>`)
+    .join("");
+
+  const failedColumnsHtml = input.unavailableColumns.length > 0
+    ? `<div class="warning">Unavailable columns: ${escapeHtml(input.unavailableColumns.join(", "))}</div>`
+    : "";
+  const checkedByLegendHtml = input.checkedByLegend.length > 0
+    ? `
+      <section class="checked-by-key">
+        <strong>Checked by key:</strong> ${input.checkedByLegend
+          .map((entry) => `${escapeHtml(entry.initials)} = ${escapeHtml(entry.names.join(" / "))}`)
+          .join("; ")}
+      </section>
+    `
+    : "";
+
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          @page { size: landscape; margin: 8mm; }
+          body {
+            margin: 0;
+            padding: 14px;
+            font-family: "Segoe UI", Arial, sans-serif;
+            color: #0f172a;
+            background: #f8fafc;
+            font-size: 10px;
+          }
+          .report-shell {
+            background: #ffffff;
+            border: 1px solid #d6dde8;
+            border-radius: 10px;
+            overflow: hidden;
+          }
+          .hero {
+            padding: 12px 14px;
+            background: #0b2b4a;
+            color: #f8fafc;
+          }
+          .title {
+            font-size: 18px;
+            line-height: 22px;
+            font-weight: 700;
+            margin: 0;
+          }
+          .subtitle {
+            margin: 4px 0 0;
+            opacity: 0.9;
+            font-size: 11px;
+          }
+          .meta {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 7px;
+            font-size: 10px;
+          }
+          .warning {
+            margin: 10px 14px 0;
+            padding: 8px 10px;
+            border-radius: 8px;
+            background: #fff3cd;
+            color: #664d03;
+            border: 1px solid #ffe69c;
+            font-size: 10px;
+          }
+          .legend {
+            margin: 10px 14px 0;
+            font-size: 10px;
+            color: #334155;
+          }
+          .table-wrap {
+            padding: 10px 12px 12px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            font-size: 9px;
+          }
+          th, td {
+            border: 1px solid #cbd5e1;
+            padding: 5px 3px;
+            text-align: center;
+            vertical-align: middle;
+          }
+          th {
+            background: #e2e8f0;
+            color: #0f172a;
+            font-weight: 700;
+          }
+          .item-col {
+            text-align: left;
+            font-weight: 500;
+            width: 280px;
+            background: #f8fafc;
+          }
+          .period-col {
+            width: 2.8%;
+            min-width: 22px;
+          }
+          .result-cell {
+            font-weight: 700;
+            font-size: 9px;
+          }
+          .result-compliant {
+            background: #dcfce7;
+            color: #14532d;
+          }
+          .result-non-compliant {
+            background: #fee2e2;
+            color: #7f1d1d;
+          }
+          .result-not-applicable {
+            background: #fef3c7;
+            color: #854d0e;
+          }
+          .result-pending {
+            background: #f1f5f9;
+            color: #334155;
+          }
+          .checked-by-row td {
+            background: #e8eef7;
+            font-weight: 600;
+          }
+          .checked-by-title {
+            text-align: left;
+            font-size: 9px;
+          }
+          .checked-by-key {
+            margin: 0 12px 12px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            border: 1px solid #d8e2ef;
+            background: #f7fbff;
+            color: #1e293b;
+            font-size: 10px;
+            line-height: 15px;
+          }
+        </style>
+      </head>
+      <body>
+        <section class="report-shell">
+          <section class="hero">
+            <h1 class="title">${escapeHtml(input.scope.title)}</h1>
+            <p class="subtitle">${escapeHtml(input.scope.subtitle)}</p>
+            <div class="meta">
+              <span><strong>Shop:</strong> ${escapeHtml(input.shopName || "-")}</span>
+              <span><strong>Frequency:</strong> ${escapeHtml(input.frequency)}</span>
+              <span><strong>Period:</strong> ${escapeHtml(input.scope.periodLabel)}</span>
+              <span><strong>Generated:</strong> ${escapeHtml(generatedOnText)}</span>
+            </div>
+          </section>
+          ${failedColumnsHtml}
+          <section class="legend">
+            <strong>Legend:</strong> C = Compliant, NC = Non-Compliant, N/A = Not Applicable, P = Pending
+          </section>
+          <section class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="item-col">Checks to be carried out</th>
+                  ${headerRowHtml}
+                </tr>
+              </thead>
+              <tbody>
+                ${groupRowsHtml}
+                <tr class="checked-by-row">
+                  <td class="checked-by-title">Checked by initials</td>
+                  ${checkedByRowHtml}
+                </tr>
+              </tbody>
+            </table>
+          </section>
+          ${checkedByLegendHtml}
+        </section>
+      </body>
+    </html>
+  `;
+}
+
 export function ComplianceChecksScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const queryClient = useQueryClient();
-  const { activeShopId, profile } = useAuth();
+  const { activeShopId, activeShop, profile } = useAuth();
   const shopId = activeShopId;
   const userRoles = profile?.roles ?? [];
   const canManage = isManagerLike(userRoles);
@@ -465,6 +872,173 @@ export function ComplianceChecksScreen() {
     },
     onError: (error: any) => {
       Alert.alert("Download failed", error?.response?.data?.message ?? error?.message ?? "Unable to download attachment.");
+    },
+  });
+
+  const complianceMatrixReportMutation = useMutation({
+    mutationFn: async (action: ComplianceReportAction) => {
+      if (!shopId) {
+        throw new Error("No shop selected.");
+      }
+
+      const scope = buildComplianceMatrixReportScope({
+        frequency,
+        selectedDate,
+        weeklyRangeStartDate: weeklyRange.startDate,
+        selectedMonthYear,
+      });
+
+      if (scope.columns.length === 0) {
+        throw new Error("No report columns available for selected period.");
+      }
+
+      const config = normalizeGroups(await listComplianceCheckConfig(shopId, frequency));
+      const groups: ComplianceMatrixGroupedItems[] = config
+        .filter((group) => group.isActive)
+        .map((group) => ({
+          groupName: group.groupName,
+          items: group.items
+            .filter((item) => item.isActive)
+            .map((item) => ({
+              itemId: item.id,
+              itemName: item.itemName,
+            })),
+        }))
+        .filter((group) => group.items.length > 0);
+
+      if (groups.length === 0) {
+        throw new Error("No active compliance items configured for the selected frequency.");
+      }
+
+      const periodLogResults = await Promise.allSettled(
+        scope.columns.map((column) => getComplianceCheckPeriodLog(shopId, frequency, column.date)),
+      );
+
+      const entryByCell = new Map<string, ComplianceCheckEntry>();
+      const checkedByInitialsSetByColumn = new Map<string, Set<string>>();
+      const checkedByNamesByInitials = new Map<string, Set<string>>();
+      const unavailableColumns: string[] = [];
+
+      periodLogResults.forEach((result, index) => {
+        const column = scope.columns[index];
+        if (!column) {
+          return;
+        }
+
+        if (result.status !== "fulfilled") {
+          unavailableColumns.push(column.label);
+          return;
+        }
+
+        for (const periodGroup of result.value.groups) {
+          for (const row of periodGroup.rows) {
+            if (!row.entry) {
+              continue;
+            }
+
+            entryByCell.set(`${row.item.id}|${column.key}`, row.entry);
+
+            const initials = toInitials(row.entry.checkedByName);
+            if (!initials) {
+              continue;
+            }
+
+            const current = checkedByInitialsSetByColumn.get(column.key) ?? new Set<string>();
+            current.add(initials);
+            checkedByInitialsSetByColumn.set(column.key, current);
+
+            const checkedByName = (row.entry.checkedByName ?? "").trim();
+            if (checkedByName.length > 0) {
+              const names = checkedByNamesByInitials.get(initials) ?? new Set<string>();
+              names.add(checkedByName);
+              checkedByNamesByInitials.set(initials, names);
+            }
+          }
+        }
+      });
+
+      if (unavailableColumns.length === scope.columns.length) {
+        throw new Error("Unable to load report data for the selected period.");
+      }
+
+      const checkedByInitialsByColumn = new Map<string, string>();
+      scope.columns.forEach((column) => {
+        const initialsSet = checkedByInitialsSetByColumn.get(column.key);
+        if (!initialsSet || initialsSet.size === 0) {
+          return;
+        }
+
+        const initials = [...initialsSet].slice(0, 3);
+        const suffix = initialsSet.size > 3 ? "+" : "";
+        checkedByInitialsByColumn.set(column.key, `${initials.join(",")}${suffix}`);
+      });
+      const checkedByLegend = [...checkedByNamesByInitials.entries()]
+        .map(([initials, names]) => ({
+          initials,
+          names: [...names].sort((left, right) => left.localeCompare(right)),
+        }))
+        .sort((left, right) => left.initials.localeCompare(right.initials));
+
+      const html = buildComplianceMatrixReportHtml({
+        shopName: activeShop?.shopName ?? "",
+        frequency,
+        scope,
+        groups,
+        entryByCell,
+        checkedByInitialsByColumn,
+        checkedByLegend,
+        unavailableColumns,
+        generatedOn: new Date().toISOString(),
+      });
+
+      const fileName = `compliance-${frequency.toLowerCase()}-${scope.filePeriodLabel}.pdf`;
+      if (action === "print") {
+        await Print.printAsync({
+          html,
+          width: 1123,
+          height: 794,
+          orientation: Print.Orientation.landscape,
+        });
+        return;
+      }
+
+      const { uri } = await Print.printToFileAsync({
+        html,
+        width: 1123,
+        height: 794,
+      });
+
+      if (action === "share") {
+        const canShare = await Sharing.isAvailableAsync();
+        if (!canShare) {
+          throw new Error("Sharing is not available on this device.");
+        }
+
+        await Sharing.shareAsync(uri, {
+          mimeType: "application/pdf",
+          dialogTitle: "Share Compliance Report",
+        });
+        return;
+      }
+
+      const attachmentBase64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      await sendReportEmail({
+        recipientEmail: profile?.email,
+        subject: `${scope.title} (${scope.periodLabel})`,
+        body: `Please find attached the ${scope.title} report for ${scope.periodLabel}.`,
+        attachmentFileName: fileName,
+        attachmentBase64,
+      });
+    },
+    onSuccess: (_value, action) => {
+      if (action === "email") {
+        Alert.alert("Report emailed", "Compliance report has been emailed successfully.");
+      }
+    },
+    onError: (error: any) => {
+      Alert.alert("Report failed", error?.response?.data?.message ?? error?.message ?? "Unable to generate compliance report.");
     },
   });
 
@@ -672,6 +1246,10 @@ export function ComplianceChecksScreen() {
     setSelectedDate(formatDateValue(new Date(selectedMonthYear + delta, selectedMonthIndex, 1)));
   }
 
+  function runComplianceReport(action: ComplianceReportAction) {
+    complianceMatrixReportMutation.mutate(action);
+  }
+
   function closeAttachmentPreviewModal() {
     setIsAttachmentPreviewModalVisible(false);
     setAttachmentPreviewId(null);
@@ -714,6 +1292,9 @@ export function ComplianceChecksScreen() {
     }
     return { total, completed, nonCompliant, pending: Math.max(total - completed, 0) };
   }, [allRows, drafts]);
+  const reportActionInProgress = complianceMatrixReportMutation.isPending
+    ? complianceMatrixReportMutation.variables
+    : undefined;
 
   if (!shopId) {
     return (
@@ -827,6 +1408,52 @@ export function ComplianceChecksScreen() {
               <Text style={styles.meta}>Selected month: {monthOptions[selectedMonthIndex]} {selectedMonthYear}</Text>
             </View>
           ) : null}
+
+          <View style={styles.reportSection}>
+            <Text style={styles.metaLabel}>Entry Report</Text>
+            <View style={styles.reportButtonRow}>
+              <Pressable
+                style={styles.reportActionButton}
+                onPress={() => runComplianceReport("print")}
+                disabled={complianceMatrixReportMutation.isPending}
+              >
+                <Ionicons name="print-outline" size={14} color={appTheme.colors.text} />
+                <Text style={styles.reportActionButtonText}>
+                  {reportActionInProgress === "print" ? "Preparing..." : "Print"}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={styles.reportActionButton}
+                onPress={() => runComplianceReport("share")}
+                disabled={complianceMatrixReportMutation.isPending}
+              >
+                <Ionicons name="share-social-outline" size={14} color={appTheme.colors.text} />
+                <Text style={styles.reportActionButtonText}>
+                  {reportActionInProgress === "share" ? "Preparing..." : "Share"}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={styles.reportActionButton}
+                onPress={() => runComplianceReport("email")}
+                disabled={complianceMatrixReportMutation.isPending}
+              >
+                <Ionicons name="mail-outline" size={14} color={appTheme.colors.text} />
+                <Text style={styles.reportActionButtonText}>
+                  {reportActionInProgress === "email" ? "Sending..." : "Email"}
+                </Text>
+              </Pressable>
+            </View>
+            <View style={styles.row}>
+              <Pressable style={styles.secondaryButton} onPress={() => navigation.navigate("ComplianceActions")}>
+                <Text style={styles.secondaryButtonText}>Action Report</Text>
+              </Pressable>
+              {canManage ? (
+                <Pressable style={styles.secondaryButton} onPress={() => navigation.navigate("ComplianceConfig")}>
+                  <Text style={styles.secondaryButtonText}>Setup</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
         </View>
 
         {logQuery.isLoading ? <Text style={styles.meta}>Loading checks...</Text> : null}
@@ -914,8 +1541,7 @@ export function ComplianceChecksScreen() {
                     </View>
 
                     <View style={styles.checkedByInlineRow}>
-                      <Ionicons name="person-outline" size={13} color={appTheme.colors.textSubtle} />
-                      <Text style={[styles.meta, styles.checkedByInlineMeta]} numberOfLines={1}>
+                      <Text style={[styles.meta, styles.checkedByInlineMetaText]} numberOfLines={1}>
                         Checked by: {checkedByDisplayName || "-"}
                         {row.entry?.checkedOn ? ` | ${formatDateTime(row.entry.checkedOn)}` : ""}
                       </Text>
@@ -1801,23 +2427,24 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    marginTop: 2,
   },
-  checkedByInlineMeta: {
+  checkedByInlineMetaText: {
     flex: 1,
-  },
-  checkedByInlineEditButton: {
-    borderWidth: 1,
-    borderColor: appTheme.colors.borderSoft,
-    borderRadius: appTheme.radius.pill,
-    backgroundColor: appTheme.colors.surface,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  checkedByInlineEditButtonText: {
-    color: appTheme.colors.textMuted,
-    fontFamily: appTheme.fonts.bodyMedium,
+    color: appTheme.colors.textSubtle,
     fontSize: 11,
     lineHeight: 13,
+  },
+  checkedByInlineEditButton: {
+    paddingHorizontal: 2,
+    paddingVertical: 2,
+  },
+  checkedByInlineEditButtonText: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 10,
+    lineHeight: 12,
+    textDecorationLine: "underline",
   },
   chipRow: {
     flexDirection: "row",
@@ -2016,6 +2643,34 @@ const styles = StyleSheet.create({
   },
   periodPickerSection: {
     gap: appTheme.spacing.xs,
+  },
+  reportSection: {
+    marginTop: appTheme.spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: appTheme.colors.borderSoft,
+    paddingTop: appTheme.spacing.xs,
+    gap: appTheme.spacing.xs,
+  },
+  reportButtonRow: {
+    flexDirection: "row",
+    gap: appTheme.spacing.xs,
+  },
+  reportActionButton: {
+    flex: 1,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceTintSoft,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+  },
+  reportActionButtonText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 15,
   },
   monthYearPickerRow: {
     flexDirection: "row",
