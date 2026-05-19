@@ -32,6 +32,8 @@ public class CompanyService : ICompanyService
 
     public async Task<CompanyDto> CreateAsync(CreateCompanyRequest request, CancellationToken cancellationToken = default)
     {
+        EnsureCompanyWriteAccess();
+
         if (string.IsNullOrWhiteSpace(request.CompanyName))
         {
             throw new AppException("validation_failed", "Company name is required.", 400);
@@ -91,6 +93,7 @@ public class CompanyService : ICompanyService
 
     public async Task<CompanyDto> UpdateAsync(Guid id, UpdateCompanyRequest request, CancellationToken cancellationToken = default)
     {
+        EnsureCompanyWriteAccess();
         await EnsureCompanyAccessAsync(id, cancellationToken);
 
         var company = await _companyRepository.GetByIdAsync(id, cancellationToken)
@@ -163,6 +166,16 @@ public class CompanyService : ICompanyService
     }
 
     private static string NormalizeEmail(string? value) => value?.Trim().ToLowerInvariant() ?? string.Empty;
+
+    private void EnsureCompanyWriteAccess()
+    {
+        if (_currentUserService.IsInRole(RoleNames.PlatformAdmin) || _currentUserService.IsInRole(RoleNames.ShopOwner))
+        {
+            return;
+        }
+
+        throw new AppException(ErrorCodes.UnauthorizedRole, "Only platform admin or shop owner can edit company details.", 403);
+    }
 
     private async Task EnsureCompanyAccessAsync(Guid companyId, CancellationToken cancellationToken)
     {

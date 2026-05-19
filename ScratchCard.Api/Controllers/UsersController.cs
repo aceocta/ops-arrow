@@ -7,7 +7,7 @@ using ScratchCard.Domain.Constants;
 namespace ScratchCard.Api.Controllers;
 
 [Route("api/users")]
-[Authorize(Roles = RoleNames.ShopOwner)]
+[Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.ShopOwner},{RoleNames.Manager}")]
 public class UsersController : BaseApiController
 {
     private readonly IUserService _userService;

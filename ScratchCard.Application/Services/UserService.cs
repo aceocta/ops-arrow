@@ -3,6 +3,7 @@ using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Users;
+using ScratchCard.Domain.Constants;
 using ScratchCard.Domain.Entities;
 
 namespace ScratchCard.Application.Services;
@@ -31,6 +32,8 @@ public class UserService : IUserService
 
     public async Task<IReadOnlyCollection<UserDto>> ListUsersAsync(Guid shopId, CancellationToken cancellationToken = default)
     {
+        await EnsureCanManageShopUsersAsync(shopId, cancellationToken);
+
         return await _shopUserRepository.Query()
             .AsNoTracking()
             .Where(x => x.ShopId == shopId)
@@ -51,6 +54,8 @@ public class UserService : IUserService
 
     public async Task UpdateRoleAsync(Guid userId, UpdateUserRoleRequest request, CancellationToken cancellationToken = default)
     {
+        await EnsureCanManageShopUsersAsync(request.ShopId, cancellationToken);
+
         var link = await _shopUserRepository.Query()
             .FirstOrDefaultAsync(x => x.UserId == userId && x.ShopId == request.ShopId, cancellationToken)
             ?? throw new AppException("shop_user_not_found", "Shop user assignment not found.", 404);
@@ -75,6 +80,8 @@ public class UserService : IUserService
 
     public async Task SetActiveAsync(Guid userId, Guid shopId, bool isActive, CancellationToken cancellationToken = default)
     {
+        await EnsureCanManageShopUsersAsync(shopId, cancellationToken);
+
         var link = await _shopUserRepository.Query()
             .FirstOrDefaultAsync(x => x.UserId == userId && x.ShopId == shopId, cancellationToken)
             ?? throw new AppException("shop_user_not_found", "Shop user assignment not found.", 404);
@@ -100,5 +107,33 @@ public class UserService : IUserService
             isActive ? "UserReactivated" : "UserDeactivated",
             shopId,
             cancellationToken: cancellationToken);
+    }
+
+    private async Task EnsureCanManageShopUsersAsync(Guid shopId, CancellationToken cancellationToken)
+    {
+        if (!_currentUserService.UserId.HasValue)
+        {
+            throw new AppException("unauthorized", "User context is missing.", 401);
+        }
+
+        if (_currentUserService.IsInRole(RoleNames.PlatformAdmin))
+        {
+            return;
+        }
+
+        var actorId = _currentUserService.UserId.Value;
+        var hasManagementRoleForShop = await _shopUserRepository.Query()
+            .AsNoTracking()
+            .AnyAsync(
+                x => x.ShopId == shopId
+                     && x.UserId == actorId
+                     && x.IsActive
+                     && (x.Role.Name == RoleNames.ShopOwner || x.Role.Name == RoleNames.Manager),
+                cancellationToken);
+
+        if (!hasManagementRoleForShop)
+        {
+            throw new AppException("unauthorized_role", "Only shop owner or manager can manage users for this shop.", 403);
+        }
     }
 }

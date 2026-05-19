@@ -7,7 +7,7 @@ using ScratchCard.Domain.Constants;
 namespace ScratchCard.Api.Controllers;
 
 [Route("api/shop-checklists")]
-[Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.ShopOwner},{RoleNames.Manager},{RoleNames.Cashier}")]
+[Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.ShopOwner},{RoleNames.Manager},{RoleNames.Cashier},{RoleNames.SalesAssistant}")]
 public class ShopChecklistsController : BaseApiController
 {
     private readonly IShopChecklistService _shopChecklistService;
@@ -109,4 +109,3 @@ public class ShopChecklistsController : BaseApiController
         return Success(result);
     }
 }
-

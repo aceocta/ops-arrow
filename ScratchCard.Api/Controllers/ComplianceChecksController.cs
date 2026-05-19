@@ -8,7 +8,7 @@ using ScratchCard.Domain.Enums;
 namespace ScratchCard.Api.Controllers;
 
 [Route("api/compliance-checks")]
-[Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.ShopOwner},{RoleNames.Manager},{RoleNames.Cashier}")]
+[Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.ShopOwner},{RoleNames.Manager},{RoleNames.Cashier},{RoleNames.SalesAssistant}")]
 public class ComplianceChecksController : BaseApiController
 {
     private readonly IComplianceCheckService _complianceCheckService;

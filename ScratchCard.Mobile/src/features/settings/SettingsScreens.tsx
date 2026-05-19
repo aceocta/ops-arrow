@@ -958,7 +958,9 @@ export function CompanyManagementScreen() {
 
 export function ShopManagementScreen() {
   const queryClient = useQueryClient();
-  const { activeShop, refreshProfile } = useAuth();
+  const { activeShop, profile, refreshProfile } = useAuth();
+  const userRoles = profile?.roles ?? [];
+  const canCreateShop = userRoles.some((role) => role === "PlatformAdmin" || role === "ShopOwner");
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(activeShop?.companyId ?? "");
   const [editingShopId, setEditingShopId] = useState<string | null>(null);
   const [editingIsActive, setEditingIsActive] = useState(true);
@@ -993,6 +995,9 @@ export function ShopManagementScreen() {
     mutationFn: async () => {
       if (!resolvedCompanyId) {
         throw new Error("Select a company first.");
+      }
+      if (!editingShopId && !canCreateShop) {
+        throw new Error("Managers can only edit assigned shops. Creating new shops is not allowed.");
       }
       if (!shopName.trim() || !addressLine1.trim() || !city.trim() || !postCode.trim() || !country.trim()) {
         throw new Error("Shop name, address, city, postcode, and country are required.");
@@ -1075,6 +1080,9 @@ export function ShopManagementScreen() {
               );
             })}
           </ScrollView>
+          {!canCreateShop && !editingShopId ? (
+            <Text style={styles.meta}>Managers can edit assigned shops only. Creating new shops is owner-only.</Text>
+          ) : null}
 
           <Text style={styles.fieldLabel}>Shop Name</Text>
           <TextInput style={styles.input} value={shopName} onChangeText={setShopName} placeholder="Shop name" />
@@ -1106,11 +1114,18 @@ export function ShopManagementScreen() {
             </View>
           ) : null}
 
-          <Pressable style={styles.actionButton} onPress={() => saveShopMutation.mutate()}>
+          <Pressable
+            style={[
+              styles.actionButton,
+              (!editingShopId && !canCreateShop) ? styles.dateActionButtonDisabled : null,
+            ]}
+            onPress={() => saveShopMutation.mutate()}
+            disabled={!editingShopId && !canCreateShop}
+          >
             <Text style={styles.actionButtonText}>
               {saveShopMutation.isPending
                 ? (editingShopId ? "Updating..." : "Creating...")
-                : (editingShopId ? "Update Shop" : "Create Shop")}
+                : (editingShopId ? "Update Shop" : (canCreateShop ? "Create Shop" : "Create Shop (Owner only)"))}
             </Text>
           </Pressable>
           {editingShopId ? (
@@ -1185,6 +1200,9 @@ export function SettingsScreen() {
   const shopCount = profile?.shops?.length ?? 0;
   const primaryRole = profile?.roles?.[0] ?? "-";
   const isShopOwner = profile?.roles?.some((role) => role === "ShopOwner") ?? false;
+  const isManager = profile?.roles?.some((role) => role === "Manager") ?? false;
+  const isPlatformAdmin = profile?.roles?.some((role) => role === "PlatformAdmin") ?? false;
+  const canManageUsersAndShops = isPlatformAdmin || isShopOwner || isManager;
   const canManageInvitations =
     profile?.roles?.some((role) => role === "PlatformAdmin" || role === "ShopOwner" || role === "Manager") ?? false;
   const appVersion = Constants.expoConfig?.version ?? "1.0.0";
@@ -1242,18 +1260,21 @@ export function SettingsScreen() {
   }
 
   if (isShopOwner) {
+    managementActions.push({
+      key: "company-management",
+      title: "Company Management",
+      description: "Update company records and activation status.",
+      icon: "business-outline",
+      onPress: () => navigation.navigate("CompanyManagement"),
+    });
+  }
+
+  if (canManageUsersAndShops) {
     managementActions.push(
-      {
-        key: "company-management",
-        title: "Company Management",
-        description: "Update company records and activation status.",
-        icon: "business-outline",
-        onPress: () => navigation.navigate("CompanyManagement"),
-      },
       {
         key: "shop-management",
         title: "Shop Management",
-        description: "Create or edit shops and maintain store details.",
+        description: isManager ? "Edit assigned shop details." : "Create or edit shops and maintain store details.",
         icon: "storefront-outline",
         onPress: () => navigation.navigate("ShopManagement"),
       },

@@ -58,7 +58,8 @@ public static class SeedDataInitializer
             new Role { Name = RoleNames.PlatformAdmin, Description = "Platform-wide billing/configuration administration", IsActive = true },
             new Role { Name = RoleNames.ShopOwner, Description = "Full shop access", IsActive = true },
             new Role { Name = RoleNames.Manager, Description = "Operational manager access", IsActive = true },
-            new Role { Name = RoleNames.Cashier, Description = "Cashier access", IsActive = true }
+            new Role { Name = RoleNames.Cashier, Description = "Cashier access", IsActive = true },
+            new Role { Name = RoleNames.SalesAssistant, Description = "Sales assistant access", IsActive = true }
         };
 
         var existingRoleNames = await dbContext.Roles

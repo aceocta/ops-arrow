@@ -113,7 +113,7 @@ public class InvitationsController : BaseApiController
     }
 
     [HttpPost("{invitationId:guid}/resend")]
-    [Authorize(Roles = RoleNames.ShopOwner)]
+    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.ShopOwner},{RoleNames.Manager}")]
     public async Task<IActionResult> Resend(Guid invitationId, CancellationToken cancellationToken)
     {
         var invitation = await _invitationService.ResendInvitationAsync(invitationId, cancellationToken);
@@ -121,7 +121,7 @@ public class InvitationsController : BaseApiController
     }
 
     [HttpDelete("{invitationId:guid}")]
-    [Authorize(Roles = RoleNames.ShopOwner)]
+    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.ShopOwner},{RoleNames.Manager}")]
     public async Task<IActionResult> Cancel(Guid invitationId, CancellationToken cancellationToken)
     {
         await _invitationService.CancelInvitationAsync(invitationId, cancellationToken);

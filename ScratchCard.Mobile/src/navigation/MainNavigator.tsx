@@ -125,8 +125,8 @@ const managementItems: MenuItem[] = [
   { label: "Settings", screen: "Settings", icon: "settings-outline" },
   { label: "User Invitations", screen: "UserInvitations", icon: "mail-outline", allowedRoles: ["PlatformAdmin", "ShopOwner", "Manager"] },
   // { label: "Company Management", screen: "CompanyManagement", icon: "business-outline", shopOwnerOnly: true },
-  { label: "Shop Management", screen: "ShopManagement", icon: "storefront-outline", shopOwnerOnly: true },
-  { label: "User Management", screen: "UserManagement", icon: "people-outline", shopOwnerOnly: true },
+  { label: "Shop Management", screen: "ShopManagement", icon: "storefront-outline", allowedRoles: ["PlatformAdmin", "ShopOwner", "Manager"] },
+  { label: "User Management", screen: "UserManagement", icon: "people-outline", allowedRoles: ["PlatformAdmin", "ShopOwner", "Manager"] },
   { label: "Shop Configuration", screen: "ShopConfiguration", icon: "storefront-outline" },
   { label: "App Configuration", screen: "AppConfiguration", icon: "construct-outline" },
 ];

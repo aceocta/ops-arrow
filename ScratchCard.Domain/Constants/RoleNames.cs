@@ -6,6 +6,7 @@ public static class RoleNames
     public const string ShopOwner = "ShopOwner";
     public const string Manager = "Manager";
     public const string Cashier = "Cashier";
+    public const string SalesAssistant = "SalesAssistant";
 
-    public static readonly string[] All = [PlatformAdmin, ShopOwner, Manager, Cashier];
+    public static readonly string[] All = [PlatformAdmin, ShopOwner, Manager, Cashier, SalesAssistant];
 }

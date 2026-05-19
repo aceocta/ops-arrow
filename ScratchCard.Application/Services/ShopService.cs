@@ -56,6 +56,7 @@ public class ShopService : IShopService
 
     public async Task<ShopDto> CreateAsync(CreateShopRequest request, CancellationToken cancellationToken = default)
     {
+        EnsureCreateShopAccess();
         var resolvedCompany = await ResolveCompanyAsync(request, cancellationToken);
         var shopName = request.ShopName.Trim();
 
@@ -200,15 +201,24 @@ public class ShopService : IShopService
             .Select(x => x.CompanyId!.Value)
             .Distinct()
             .ToArray();
+        var canUseCompanyScope = CanUseCompanyScope();
 
         var query = _shopRepository.Query()
             .AsNoTracking()
             .Include(x => x.Company)
-            .Where(x =>
-                accessibleShopIds.Contains(x.Id) ||
-                (x.CompanyId.HasValue && accessibleCompanyIds.Contains(x.CompanyId.Value)))
             .Where(x => !x.IsDeleted)
             .AsQueryable();
+
+        if (canUseCompanyScope)
+        {
+            query = query.Where(x =>
+                accessibleShopIds.Contains(x.Id) ||
+                (x.CompanyId.HasValue && accessibleCompanyIds.Contains(x.CompanyId.Value)));
+        }
+        else
+        {
+            query = query.Where(x => accessibleShopIds.Contains(x.Id));
+        }
 
         if (companyId.HasValue)
         {
@@ -394,6 +404,11 @@ public class ShopService : IShopService
             throw new AppException(ErrorCodes.UnauthorizedRole, "You do not have access to this shop.", 403);
         }
 
+        if (!CanUseCompanyScope())
+        {
+            throw new AppException(ErrorCodes.UnauthorizedRole, "You do not have access to this shop.", 403);
+        }
+
         var companyAccess = await _shopUserRepository.Query()
             .AsNoTracking()
             .AnyAsync(
@@ -407,6 +422,19 @@ public class ShopService : IShopService
             throw new AppException(ErrorCodes.UnauthorizedRole, "You do not have access to this shop.", 403);
         }
     }
+
+    private void EnsureCreateShopAccess()
+    {
+        if (CanUseCompanyScope())
+        {
+            return;
+        }
+
+        throw new AppException(ErrorCodes.UnauthorizedRole, "Only platform admin or shop owner can add shops.", 403);
+    }
+
+    private bool CanUseCompanyScope()
+        => _currentUserService.IsInRole(RoleNames.PlatformAdmin) || _currentUserService.IsInRole(RoleNames.ShopOwner);
 
     private async Task EnsureCreatorOwnershipAsync(Shop shop, CancellationToken cancellationToken)
     {
