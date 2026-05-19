@@ -320,6 +320,7 @@ public class UpsertComplianceCheckEntryRequestValidator : AbstractValidator<Upse
         RuleFor(x => x.Result).IsInEnum();
         RuleFor(x => x.Notes).MaximumLength(1000);
         RuleFor(x => x.ActionRequired).MaximumLength(1000);
+        RuleFor(x => x.CheckedByName).MaximumLength(120);
         RuleFor(x => x.Attachments).Must(x => x is null || x.Count <= 10).WithMessage("A maximum of 10 attachments is allowed.");
         RuleForEach(x => x.Attachments!).SetValidator(new CloseAttachmentUploadRequestValidator());
     }

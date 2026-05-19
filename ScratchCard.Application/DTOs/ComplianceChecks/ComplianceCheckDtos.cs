@@ -122,6 +122,7 @@ public class UpsertComplianceCheckEntryRequest
     public ComplianceCheckResult Result { get; set; }
     public string? Notes { get; set; }
     public string? ActionRequired { get; set; }
+    public string? CheckedByName { get; set; }
     public IReadOnlyCollection<CloseAttachmentUploadRequest>? Attachments { get; set; }
 }
 

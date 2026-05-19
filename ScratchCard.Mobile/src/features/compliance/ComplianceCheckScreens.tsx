@@ -23,7 +23,7 @@ import {
   updateComplianceCheckItem,
 } from "../../api/complianceChecksApi";
 import { useAuth } from "../../auth/AuthContext";
-import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
+import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -45,11 +45,12 @@ type EntryDraft = {
   result: ComplianceCheckResult;
   notes: string;
   actionRequired: string;
+  checkedByName: string;
 };
 
 type NoteEditorState = {
   itemId: string;
-  field: "notes" | "actionRequired";
+  field: "notes" | "actionRequired" | "checkedByName";
   title: string;
 } | null;
 
@@ -90,6 +91,7 @@ const frequencyOptions: ComplianceCheckFrequency[] = ["Daily", "Weekly", "Monthl
 const resultOptions: ComplianceCheckResult[] = ["Compliant", "NonCompliant", "NotApplicable", "Pending"];
 const MAX_COMPLIANCE_ATTACHMENTS = 10;
 const MAX_COMPLIANCE_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const monthOptions = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const initialGroupForm: GroupFormState = {
   frequency: "Daily",
@@ -207,11 +209,32 @@ function formatResultLabel(result: ComplianceCheckResult) {
   return result === "NotApplicable" ? "N/A" : result;
 }
 
+function formatResultButtonLabel(result: ComplianceCheckResult) {
+  if (result === "Compliant") return "Compliant";
+  if (result === "NonCompliant") return "Non-Comp";
+  if (result === "NotApplicable") return "N/A";
+  return "Pending";
+}
+
+function getResultChoiceChipBaseStyle(result: ComplianceCheckResult) {
+  if (result === "Compliant") return styles.resultChoiceChipCompliant;
+  if (result === "NonCompliant") return styles.resultChoiceChipNonCompliant;
+  if (result === "NotApplicable") return styles.resultChoiceChipNotApplicable;
+  return styles.resultChoiceChipPending;
+}
+
 function getResultChoiceChipSelectedStyle(result: ComplianceCheckResult) {
   if (result === "Compliant") return styles.resultChoiceChipCompliantSelected;
   if (result === "NonCompliant") return styles.resultChoiceChipNonCompliantSelected;
   if (result === "NotApplicable") return styles.resultChoiceChipNotApplicableSelected;
   return styles.resultChoiceChipPendingSelected;
+}
+
+function getResultChoiceChipTextBaseStyle(result: ComplianceCheckResult) {
+  if (result === "Compliant") return styles.resultChoiceChipTextCompliant;
+  if (result === "NonCompliant") return styles.resultChoiceChipTextNonCompliant;
+  if (result === "NotApplicable") return styles.resultChoiceChipTextNotApplicable;
+  return styles.resultChoiceChipTextPending;
 }
 
 function getResultChoiceChipTextSelectedStyle(result: ComplianceCheckResult) {
@@ -239,6 +262,48 @@ function flattenRows(groups: { rows: ComplianceCheckPeriodRow[] }[]) {
   return groups.flatMap((group) => group.rows);
 }
 
+function getWeekRangeFromDateValue(value: string) {
+  const parsed = parseDateValue(value) ?? new Date();
+  const dayOfWeek = parsed.getDay();
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const weekStart = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate() + mondayOffset);
+  const weekEnd = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 6);
+  return {
+    startDate: formatDateValue(weekStart),
+    endDate: formatDateValue(weekEnd),
+  };
+}
+
+function getMonthAnchorDate(value: string) {
+  const parsed = parseDateValue(value) ?? new Date();
+  return formatDateValue(new Date(parsed.getFullYear(), parsed.getMonth(), 1));
+}
+
+function resolveDefaultCheckedByName(profile?: {
+  firstName?: string;
+  lastName?: string;
+  displayName?: string;
+  email?: string;
+}) {
+  const displayName = (profile?.displayName ?? "").trim();
+  if (displayName.length > 0) {
+    return displayName;
+  }
+
+  const name = `${profile?.firstName ?? ""} ${profile?.lastName ?? ""}`.trim();
+  if (name.length > 0) {
+    return name;
+  }
+
+  const email = (profile?.email ?? "").trim();
+  if (email.length === 0) {
+    return "";
+  }
+
+  const prefix = email.split("@")[0] ?? "";
+  return prefix || email;
+}
+
 export function ComplianceChecksScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const queryClient = useQueryClient();
@@ -246,6 +311,10 @@ export function ComplianceChecksScreen() {
   const shopId = activeShopId;
   const userRoles = profile?.roles ?? [];
   const canManage = isManagerLike(userRoles);
+  const defaultCheckedByName = useMemo(
+    () => resolveDefaultCheckedByName(profile ?? undefined),
+    [profile?.displayName, profile?.email, profile?.firstName, profile?.lastName],
+  );
 
   const [frequency, setFrequency] = useState<ComplianceCheckFrequency>("Daily");
   const [selectedDate, setSelectedDate] = useState(formatDateValue(new Date()));
@@ -260,10 +329,24 @@ export function ComplianceChecksScreen() {
   const [attachmentPreviewUri, setAttachmentPreviewUri] = useState<string>();
   const [loadingAttachmentId, setLoadingAttachmentId] = useState<string | null>(null);
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<string | null>(null);
+  const weeklyRange = useMemo(() => getWeekRangeFromDateValue(selectedDate), [selectedDate]);
+  const monthAnchorDate = useMemo(() => getMonthAnchorDate(selectedDate), [selectedDate]);
+  const monthAnchor = useMemo(() => parseDateValue(monthAnchorDate) ?? new Date(), [monthAnchorDate]);
+  const selectedMonthIndex = monthAnchor.getMonth();
+  const selectedMonthYear = monthAnchor.getFullYear();
+  const effectivePeriodDate = useMemo(() => {
+    if (frequency === "Weekly") {
+      return weeklyRange.startDate;
+    }
+    if (frequency === "Monthly") {
+      return monthAnchorDate;
+    }
+    return selectedDate;
+  }, [frequency, monthAnchorDate, selectedDate, weeklyRange.startDate]);
 
   const logQuery = useQuery({
-    queryKey: ["compliance-period-log", shopId, frequency, selectedDate],
-    queryFn: () => getComplianceCheckPeriodLog(shopId as string, frequency, selectedDate),
+    queryKey: ["compliance-period-log", shopId, frequency, effectivePeriodDate],
+    queryFn: () => getComplianceCheckPeriodLog(shopId as string, frequency, effectivePeriodDate),
     enabled: Boolean(shopId),
   });
 
@@ -284,10 +367,11 @@ export function ComplianceChecksScreen() {
         result: row.entry?.result ?? "Pending",
         notes: row.entry?.notes ?? "",
         actionRequired: row.entry?.actionRequired ?? "",
+        checkedByName: row.entry?.checkedByName ?? defaultCheckedByName,
       };
     }
     setDrafts(nextDrafts);
-  }, [allRows]);
+  }, [allRows, defaultCheckedByName]);
 
   const saveMutation = useMutation({
     mutationFn: async (input: { item: ComplianceCheckItem; draft: EntryDraft; attachments?: ComplianceAttachmentState[] }) => {
@@ -297,10 +381,11 @@ export function ComplianceChecksScreen() {
       return upsertComplianceCheckEntry({
         shopId,
         complianceCheckItemId: input.item.id,
-        date: selectedDate,
+        date: effectivePeriodDate,
         result: input.draft.result,
         notes: input.draft.notes.trim() || undefined,
         actionRequired: input.draft.actionRequired.trim() || undefined,
+        checkedByName: input.draft.checkedByName.trim() || undefined,
         attachments: pendingAttachments.length > 0
           ? pendingAttachments.map((attachment) => ({
             fileName: attachment.fileName,
@@ -320,7 +405,7 @@ export function ComplianceChecksScreen() {
         delete next[variables.item.id];
         return next;
       });
-      await queryClient.invalidateQueries({ queryKey: ["compliance-period-log", shopId, frequency, selectedDate] });
+      await queryClient.invalidateQueries({ queryKey: ["compliance-period-log", shopId, frequency, effectivePeriodDate] });
     },
     onError: (error: any) => {
       Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to save compliance check.");
@@ -384,27 +469,28 @@ export function ComplianceChecksScreen() {
   });
 
   function getDraft(itemId: string): EntryDraft {
-    return drafts[itemId] ?? { result: "Pending", notes: "", actionRequired: "" };
+    return drafts[itemId] ?? { result: "Pending", notes: "", actionRequired: "", checkedByName: defaultCheckedByName };
   }
 
   function updateDraft(itemId: string, patch: Partial<EntryDraft>) {
     setDrafts((previous) => ({
       ...previous,
       [itemId]: {
-        ...(previous[itemId] ?? { result: "Pending", notes: "", actionRequired: "" }),
+        ...(previous[itemId] ?? { result: "Pending", notes: "", actionRequired: "", checkedByName: defaultCheckedByName }),
         ...patch,
       },
     }));
   }
 
-  function openEditor(itemId: string, field: "notes" | "actionRequired", itemName: string) {
+  function openEditor(itemId: string, field: "notes" | "actionRequired" | "checkedByName", itemName: string) {
     const draft = getDraft(itemId);
+    const fieldLabel = field === "notes" ? "Notes" : field === "actionRequired" ? "Action Required" : "Checked By";
     setEditorState({
       itemId,
       field,
-      title: `${field === "notes" ? "Notes" : "Action Required"} - ${itemName}`,
+      title: `${fieldLabel} - ${itemName}`,
     });
-    setEditorValue(field === "notes" ? draft.notes : draft.actionRequired);
+    setEditorValue(field === "notes" ? draft.notes : field === "actionRequired" ? draft.actionRequired : draft.checkedByName);
   }
 
   function getAttachments(itemId: string) {
@@ -517,15 +603,22 @@ export function ComplianceChecksScreen() {
   function applyEditor() {
     if (!editorState) return;
     const currentDraft = getDraft(editorState.itemId);
-    const nextDraft: EntryDraft =
-      editorState.field === "notes"
-        ? { ...currentDraft, notes: editorValue }
-        : { ...currentDraft, actionRequired: editorValue };
+    const nextDraft: EntryDraft = (() => {
+      if (editorState.field === "notes") {
+        return { ...currentDraft, notes: editorValue };
+      }
+      if (editorState.field === "actionRequired") {
+        return { ...currentDraft, actionRequired: editorValue };
+      }
+      return { ...currentDraft, checkedByName: editorValue };
+    })();
 
     if (editorState.field === "notes") {
       updateDraft(editorState.itemId, { notes: nextDraft.notes });
-    } else {
+    } else if (editorState.field === "actionRequired") {
       updateDraft(editorState.itemId, { actionRequired: nextDraft.actionRequired });
+    } else {
+      updateDraft(editorState.itemId, { checkedByName: nextDraft.checkedByName });
     }
 
     const row = rowByItemId[editorState.itemId];
@@ -561,6 +654,22 @@ export function ComplianceChecksScreen() {
     const nextDraft: EntryDraft = { ...getDraft(row.item.id), result };
     updateDraft(row.item.id, { result });
     saveDraftForItem(row.item, nextDraft, result === "NonCompliant");
+  }
+
+  function onChangeWeeklyStartDate(value: string) {
+    setSelectedDate(value);
+  }
+
+  function onChangeWeeklyEndDate(value: string) {
+    setSelectedDate(value);
+  }
+
+  function onSelectMonthlyMonth(monthIndex: number) {
+    setSelectedDate(formatDateValue(new Date(selectedMonthYear, monthIndex, 1)));
+  }
+
+  function shiftMonthlyYear(delta: number) {
+    setSelectedDate(formatDateValue(new Date(selectedMonthYear + delta, selectedMonthIndex, 1)));
   }
 
   function closeAttachmentPreviewModal() {
@@ -620,7 +729,7 @@ export function ComplianceChecksScreen() {
   return (
     <ScreenContainer>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.heroCard}>
+        {/* <View style={styles.heroCard}>
           <View style={styles.heroHead}>
             <View style={{ flex: 1 }}>
               <Text style={styles.pageTitle}>Compliance Checks</Text>
@@ -655,7 +764,7 @@ export function ComplianceChecksScreen() {
               ) : null}
             </View>
           </View>
-        </View>
+        </View> */}
 
         <View style={ui.card}>
           <Text style={styles.fieldLabel}>Frequency</Text>
@@ -673,8 +782,51 @@ export function ComplianceChecksScreen() {
               );
             })}
           </View>
-          <DateTimeField mode="date" value={selectedDate} onChange={setSelectedDate} />
-          <Text style={styles.meta}>Selected date: {formatDay(selectedDate)}</Text>
+          {frequency === "Daily" ? (
+            <>
+              <DateTimeField mode="date" value={selectedDate} onChange={setSelectedDate} />
+              <Text style={styles.meta}>Selected date: {formatDay(selectedDate)}</Text>
+            </>
+          ) : null}
+          {frequency === "Weekly" ? (
+            <View style={styles.periodPickerSection}>
+              <Text style={styles.metaLabel}>Week Start Date</Text>
+              <DateTimeField mode="date" value={weeklyRange.startDate} onChange={onChangeWeeklyStartDate} />
+              <Text style={styles.metaLabel}>Week End Date</Text>
+              <DateTimeField mode="date" value={weeklyRange.endDate} onChange={onChangeWeeklyEndDate} />
+              <Text style={styles.meta}>Selected week: {formatDay(weeklyRange.startDate)} to {formatDay(weeklyRange.endDate)}</Text>
+            </View>
+          ) : null}
+          {frequency === "Monthly" ? (
+            <View style={styles.periodPickerSection}>
+              <Text style={styles.metaLabel}>Year</Text>
+              <View style={styles.monthYearPickerRow}>
+                <Pressable style={styles.secondaryButton} onPress={() => shiftMonthlyYear(-1)}>
+                  <Text style={styles.secondaryButtonText}>- Year</Text>
+                </Pressable>
+                <Text style={styles.monthYearValue}>{selectedMonthYear}</Text>
+                <Pressable style={styles.secondaryButton} onPress={() => shiftMonthlyYear(1)}>
+                  <Text style={styles.secondaryButtonText}>+ Year</Text>
+                </Pressable>
+              </View>
+              <Text style={styles.metaLabel}>Month</Text>
+              <View style={styles.chipRow}>
+                {monthOptions.map((monthLabel, index) => {
+                  const selected = selectedMonthIndex === index;
+                  return (
+                    <Pressable
+                      key={monthLabel}
+                      style={[styles.choiceChip, styles.monthChoiceChip, selected ? styles.choiceChipSelected : null]}
+                      onPress={() => onSelectMonthlyMonth(index)}
+                    >
+                      <Text style={[styles.choiceChipText, selected ? styles.choiceChipTextSelected : null]}>{monthLabel}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text style={styles.meta}>Selected month: {monthOptions[selectedMonthIndex]} {selectedMonthYear}</Text>
+            </View>
+          ) : null}
         </View>
 
         {logQuery.isLoading ? <Text style={styles.meta}>Loading checks...</Text> : null}
@@ -693,6 +845,7 @@ export function ComplianceChecksScreen() {
                 const attachmentCount = uploadedAttachments.length + pendingAttachments.length;
                 const isAttachmentPanelOpen = expandedAttachmentItemId === row.item.id;
                 const isActionRequiredMissing = draft.result === "NonCompliant" && !draft.actionRequired.trim();
+                const checkedByDisplayName = draft.checkedByName.trim() || defaultCheckedByName;
                 return (
                   <View key={row.item.id} style={styles.itemCard}>
                     <View style={[styles.rowBetween, styles.itemHeaderRow]}>
@@ -700,7 +853,7 @@ export function ComplianceChecksScreen() {
                       {/* <StatusBadge label={formatResultLabel(draft.result)} tone={resolveResultTone(draft.result)} /> */}
                     </View>
 
-                    <View style={styles.chipRow}>
+                    <View style={styles.resultChoiceRow}>
                       {resultOptions.map((resultOption) => {
                         const selected = draft.result === resultOption;
                         return (
@@ -709,6 +862,7 @@ export function ComplianceChecksScreen() {
                             style={[
                               styles.choiceChip,
                               styles.resultChoiceChip,
+                              getResultChoiceChipBaseStyle(resultOption),
                               selected ? getResultChoiceChipSelectedStyle(resultOption) : null,
                             ]}
                             onPress={() => onSelectResult(row, resultOption)}
@@ -716,10 +870,15 @@ export function ComplianceChecksScreen() {
                             <Text
                               style={[
                                 styles.choiceChipText,
+                                styles.resultChoiceChipText,
+                                getResultChoiceChipTextBaseStyle(resultOption),
                                 selected ? getResultChoiceChipTextSelectedStyle(resultOption) : null,
                               ]}
+                              numberOfLines={1}
+                              adjustsFontSizeToFit
+                              minimumFontScale={0.75}
                             >
-                              {formatResultLabel(resultOption)}
+                              {formatResultButtonLabel(resultOption)}
                             </Text>
                           </Pressable>
                         );
@@ -751,6 +910,20 @@ export function ComplianceChecksScreen() {
                       <Pressable style={styles.noteButton} onPress={() => toggleAttachmentPanel(row.item.id)}>
                         <Ionicons name="attach-outline" size={14} color={appTheme.colors.info} />
                         <Text style={styles.noteButtonText}>{attachmentCount > 0 ? `Upload (${attachmentCount})` : "Upload"}</Text>
+                      </Pressable>
+                    </View>
+
+                    <View style={styles.checkedByInlineRow}>
+                      <Ionicons name="person-outline" size={13} color={appTheme.colors.textSubtle} />
+                      <Text style={[styles.meta, styles.checkedByInlineMeta]} numberOfLines={1}>
+                        Checked by: {checkedByDisplayName || "-"}
+                        {row.entry?.checkedOn ? ` | ${formatDateTime(row.entry.checkedOn)}` : ""}
+                      </Text>
+                      <Pressable
+                        style={styles.checkedByInlineEditButton}
+                        onPress={() => openEditor(row.item.id, "checkedByName", row.item.itemName)}
+                      >
+                        <Text style={styles.checkedByInlineEditButtonText}>Edit</Text>
                       </Pressable>
                     </View>
 
@@ -943,12 +1116,14 @@ export function ComplianceChecksScreen() {
           <View style={styles.modalCard}>
             <Text style={styles.itemTitle}>{editorState?.title ?? "Edit"}</Text>
             <TextInput
-              style={[styles.input, styles.textArea]}
+              style={[styles.input, editorState?.field === "checkedByName" ? null : styles.textArea]}
               value={editorValue}
               onChangeText={setEditorValue}
-              placeholder="Enter details..."
+              placeholder={editorState?.field === "checkedByName" ? "Enter person name..." : "Enter details..."}
               placeholderTextColor={appTheme.colors.textSubtle}
-              multiline
+              multiline={editorState?.field !== "checkedByName"}
+              autoCapitalize="words"
+              maxLength={editorState?.field === "checkedByName" ? 120 : 1000}
             />
             <View style={styles.row}>
               <Pressable style={styles.secondaryButton} onPress={() => setEditorState(null)}>
@@ -1622,10 +1797,39 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     flex: 1,
   },
+  checkedByInlineRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  checkedByInlineMeta: {
+    flex: 1,
+  },
+  checkedByInlineEditButton: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderSoft,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surface,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  checkedByInlineEditButtonText: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 13,
+  },
   chipRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 4,
+  },
+  resultChoiceRow: {
+    flexDirection: "row",
+    flexWrap: "nowrap",
+    alignItems: "stretch",
+    justifyContent: "space-between",
+    width: "100%",
   },
   choiceChip: {
     borderRadius: appTheme.radius.pill,
@@ -1633,28 +1837,60 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     backgroundColor: appTheme.colors.surfaceMuted,
   },
+  monthChoiceChip: {
+    minWidth: 58,
+    alignItems: "center",
+  },
   resultChoiceChip: {
-    borderWidth: 1,
-    borderColor: appTheme.colors.borderSoft,
+    width: "24%",
+    flexGrow: 0,
+    flexShrink: 1,
+    flexBasis: "24%",
+    minWidth: 0,
+    minHeight: 34,
+    borderRadius: appTheme.radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: appTheme.colors.borderStrong,
+    paddingHorizontal: 4,
+    paddingVertical: 5,
+    overflow: "hidden",
+  },
+  resultChoiceChipCompliant: {
+    backgroundColor: appTheme.colors.surfaceSuccessSoft,
+    borderColor: appTheme.colors.borderSuccessSoft,
+  },
+  resultChoiceChipNonCompliant: {
+    backgroundColor: appTheme.colors.surfaceDangerSoft,
+    borderColor: appTheme.colors.borderDangerSoft,
+  },
+  resultChoiceChipNotApplicable: {
+    backgroundColor: appTheme.colors.surfaceWarningSoft,
+    borderColor: appTheme.colors.borderWarningSoft,
+  },
+  resultChoiceChipPending: {
+    backgroundColor: appTheme.colors.surfaceNeutralSoft,
+    borderColor: appTheme.colors.borderStrong,
   },
   choiceChipSelected: {
     backgroundColor: appTheme.colors.primary,
   },
   resultChoiceChipCompliantSelected: {
-    backgroundColor: appTheme.colors.surfaceSuccessMuted,
-    borderColor: appTheme.colors.borderSuccessSoft,
+    backgroundColor: appTheme.colors.success,
+    borderColor: appTheme.colors.success,
   },
   resultChoiceChipNonCompliantSelected: {
-    backgroundColor: appTheme.colors.surfaceDangerMuted,
-    borderColor: appTheme.colors.borderDangerSoft,
+    backgroundColor: appTheme.colors.danger,
+    borderColor: appTheme.colors.danger,
   },
   resultChoiceChipNotApplicableSelected: {
-    backgroundColor: appTheme.colors.surfaceWarningMuted,
-    borderColor: appTheme.colors.borderWarningSoft,
+    backgroundColor: appTheme.colors.warning,
+    borderColor: appTheme.colors.warning,
   },
   resultChoiceChipPendingSelected: {
-    backgroundColor: appTheme.colors.surfaceNeutralMuted,
-    borderColor: appTheme.colors.borderStrong,
+    backgroundColor: appTheme.colors.primary,
+    borderColor: appTheme.colors.primary,
   },
   choiceChipText: {
     color: appTheme.colors.text,
@@ -1662,20 +1898,38 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 14,
   },
+  resultChoiceChipText: {
+    fontSize: 10,
+    lineHeight: 12,
+    letterSpacing: 0.2,
+    textAlign: "center",
+  },
   choiceChipTextSelected: {
     color: appTheme.colors.onPrimary,
   },
-  resultChoiceChipTextCompliantSelected: {
+  resultChoiceChipTextCompliant: {
     color: appTheme.colors.textSuccessStrong,
   },
-  resultChoiceChipTextNonCompliantSelected: {
+  resultChoiceChipTextNonCompliant: {
     color: appTheme.colors.danger,
   },
-  resultChoiceChipTextNotApplicableSelected: {
+  resultChoiceChipTextNotApplicable: {
     color: appTheme.colors.textWarningStrong,
   },
-  resultChoiceChipTextPendingSelected: {
+  resultChoiceChipTextPending: {
     color: appTheme.colors.textMuted,
+  },
+  resultChoiceChipTextCompliantSelected: {
+    color: appTheme.colors.textOnDark,
+  },
+  resultChoiceChipTextNonCompliantSelected: {
+    color: appTheme.colors.textOnDark,
+  },
+  resultChoiceChipTextNotApplicableSelected: {
+    color: appTheme.colors.textOnDark,
+  },
+  resultChoiceChipTextPendingSelected: {
+    color: appTheme.colors.onPrimary,
   },
   noteButton: {
     borderRadius: appTheme.radius.sm,
@@ -1759,6 +2013,31 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 120,
     textAlignVertical: "top",
+  },
+  periodPickerSection: {
+    gap: appTheme.spacing.xs,
+  },
+  monthYearPickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.xs,
+  },
+  monthYearValue: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 16,
+    lineHeight: 20,
+    minWidth: 56,
+    textAlign: "center",
+  },
+  metaLabel: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 14,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
   },
   meta: {
     color: appTheme.colors.textMuted,

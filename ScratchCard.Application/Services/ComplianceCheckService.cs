@@ -659,7 +659,8 @@ public class ComplianceCheckService : IComplianceCheckService
         entry.Notes = notes;
         entry.ActionRequired = result == ComplianceCheckResult.NonCompliant ? actionRequired : null;
         entry.CheckedByUserId = _currentUserService.UserId;
-        entry.CheckedByName = _currentUserService.FullName;
+        var checkedByName = NormalizeOptionalText(request.CheckedByName);
+        entry.CheckedByName = checkedByName ?? _currentUserService.FullName;
         entry.CheckedOn = now;
 
         if (result != ComplianceCheckResult.NonCompliant)

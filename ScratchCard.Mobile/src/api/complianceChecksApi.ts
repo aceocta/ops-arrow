@@ -284,6 +284,7 @@ export async function upsertComplianceCheckEntry(payload: {
   result: ComplianceCheckResult;
   notes?: string;
   actionRequired?: string;
+  checkedByName?: string;
   attachments?: Array<{
     fileName: string;
     base64: string;
