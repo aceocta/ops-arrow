@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, StyleSheet, Text, View } from "react-native";
-import { CameraView, useCameraPermissions } from "expo-camera";
+import { BarcodeType, CameraView, useCameraPermissions } from "expo-camera";
 import Constants from "expo-constants";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../types/navigation";
@@ -9,6 +9,7 @@ import { parseTicketText } from "./parseTicketText";
 
 type Props = NativeStackScreenProps<RootStackParamList, "BarcodeScanner">;
 type AutoPendingPack = { packId?: string; packNumber: string; label: string };
+const PACK_BARCODE_TYPES: BarcodeType[] = ["code128", "code39", "code93", "ean13", "ean8", "upc_a", "upc_e", "itf14", "codabar"];
 
 function normalizeDashes(value: string) {
   return value.replace(/[\u2010\u2011\u2012\u2013\u2014\u2212\uFE58\uFE63\uFF0D]/g, "-");
@@ -462,7 +463,9 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
       <CameraView
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
+        barcodeScannerSettings={isManualPackScanMode ? { barcodeTypes: PACK_BARCODE_TYPES } : undefined}
         onCameraReady={() => setIsCameraReady(true)}
+        onMountError={(error) => setLastScanMessage(error.message || "Camera failed to start.")}
         onBarcodeScanned={isManualPackScanMode ? onBarcodeScanned : undefined}
       />
       <View style={styles.overlay}>

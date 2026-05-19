@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -872,10 +872,13 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
   }
 
   function openManualPackScanner() {
+    Keyboard.dismiss();
     awaitingPackScanRef.current = true;
     // setScanMessage("Scan pack barcode and keep the label text in view.");
     const rootLikeNavigation = navigation.getParent()?.getParent() ?? navigation.getParent() ?? navigation;
-    (rootLikeNavigation as any).navigate("BarcodeScanner", { mode: "single" });
+    setTimeout(() => {
+      (rootLikeNavigation as any).navigate("BarcodeScanner", { mode: "single" });
+    }, 60);
   }
 
   function resolveGameByCode(games: Game[], scannedGameCode: string) {
@@ -1048,7 +1051,11 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.screenContent}>
+      <ScrollView
+        contentContainerStyle={styles.screenContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+      >
         {/* <View style={styles.heroCard}>
           <Text style={styles.heroSubtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
           <Text style={styles.heroNote}>Manual packs can be created inactive, then activated later.</Text>
