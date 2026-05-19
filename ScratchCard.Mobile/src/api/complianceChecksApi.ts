@@ -17,6 +17,11 @@ function normalizeDateOnly(value: unknown) {
   return raw.length >= 10 ? raw.slice(0, 10) : raw;
 }
 
+function normalizeOptionalDateOnly(value: unknown) {
+  const normalized = normalizeDateOnly(value);
+  return normalized.length > 0 ? normalized : undefined;
+}
+
 function mapFrequency(value: unknown): ComplianceCheckFrequency {
   if (value === "Weekly") return "Weekly";
   if (value === "Monthly") return "Monthly";
@@ -61,13 +66,29 @@ function mapGroup(raw: any): ComplianceCheckGroup {
 }
 
 function mapEntry(raw: any): ComplianceCheckEntry {
+  const periodDate = normalizeDateOnly(raw.periodDate);
+  const periodStartDate = normalizeDateOnly(raw.periodStartDate) || periodDate;
+  const periodEndDate = normalizeDateOnly(raw.periodEndDate) || periodStartDate;
+  const periodLabelRaw = typeof raw.periodLabel === "string" ? raw.periodLabel.trim() : "";
+
   return {
     id: String(raw.id),
     shopId: String(raw.shopId),
     companyId: raw.companyId ? String(raw.companyId) : undefined,
     complianceCheckItemId: String(raw.complianceCheckItemId),
     frequency: mapFrequency(raw.frequency),
-    periodDate: normalizeDateOnly(raw.periodDate),
+    periodDate,
+    periodStartDate,
+    periodEndDate,
+    periodLabel: periodLabelRaw || (periodStartDate === periodEndDate ? periodStartDate : `${periodStartDate} to ${periodEndDate}`),
+    checkDate: normalizeOptionalDateOnly(raw.checkDate),
+    weekStartDate: normalizeOptionalDateOnly(raw.weekStartDate),
+    weekEndDate: normalizeOptionalDateOnly(raw.weekEndDate),
+    monthStartDate: normalizeOptionalDateOnly(raw.monthStartDate),
+    monthEndDate: normalizeOptionalDateOnly(raw.monthEndDate),
+    monthName: typeof raw.monthName === "string" ? raw.monthName : undefined,
+    monthNumber: typeof raw.monthNumber === "number" ? raw.monthNumber : undefined,
+    monthYear: typeof raw.monthYear === "number" ? raw.monthYear : undefined,
     result: mapResult(raw.result),
     notes: typeof raw.notes === "string" ? raw.notes : undefined,
     actionRequired: typeof raw.actionRequired === "string" ? raw.actionRequired : undefined,
@@ -100,10 +121,21 @@ function mapPeriodGroup(raw: any): ComplianceCheckPeriodGroup {
 }
 
 function mapPeriodLog(raw: any): ComplianceCheckPeriodLog {
+  const periodDate = normalizeDateOnly(raw.periodDate);
+  const periodStartDate = normalizeDateOnly(raw.periodStartDate) || periodDate;
+  const periodEndDate = normalizeDateOnly(raw.periodEndDate) || periodStartDate;
+  const periodLabelRaw = typeof raw.periodLabel === "string" ? raw.periodLabel.trim() : "";
+
   return {
     shopId: String(raw.shopId),
     frequency: mapFrequency(raw.frequency),
-    periodDate: normalizeDateOnly(raw.periodDate),
+    periodDate,
+    periodStartDate,
+    periodEndDate,
+    periodLabel: periodLabelRaw || (periodStartDate === periodEndDate ? periodStartDate : `${periodStartDate} to ${periodEndDate}`),
+    monthName: typeof raw.monthName === "string" ? raw.monthName : undefined,
+    monthNumber: typeof raw.monthNumber === "number" ? raw.monthNumber : undefined,
+    monthYear: typeof raw.monthYear === "number" ? raw.monthYear : undefined,
     completedCount: Number(raw.completedCount ?? 0),
     totalCount: Number(raw.totalCount ?? 0),
     nonCompliantCount: Number(raw.nonCompliantCount ?? 0),
@@ -112,6 +144,11 @@ function mapPeriodLog(raw: any): ComplianceCheckPeriodLog {
 }
 
 function mapActionRow(raw: any): ComplianceActionReportRow {
+  const periodDate = normalizeDateOnly(raw.periodDate);
+  const periodStartDate = normalizeDateOnly(raw.periodStartDate) || periodDate;
+  const periodEndDate = normalizeDateOnly(raw.periodEndDate) || periodStartDate;
+  const periodLabelRaw = typeof raw.periodLabel === "string" ? raw.periodLabel.trim() : "";
+
   return {
     entryId: String(raw.entryId),
     shopId: String(raw.shopId),
@@ -119,7 +156,13 @@ function mapActionRow(raw: any): ComplianceActionReportRow {
     complianceCheckGroupId: String(raw.complianceCheckGroupId),
     groupName: String(raw.groupName ?? ""),
     frequency: mapFrequency(raw.frequency),
-    periodDate: normalizeDateOnly(raw.periodDate),
+    periodDate,
+    periodStartDate,
+    periodEndDate,
+    periodLabel: periodLabelRaw || (periodStartDate === periodEndDate ? periodStartDate : `${periodStartDate} to ${periodEndDate}`),
+    monthName: typeof raw.monthName === "string" ? raw.monthName : undefined,
+    monthNumber: typeof raw.monthNumber === "number" ? raw.monthNumber : undefined,
+    monthYear: typeof raw.monthYear === "number" ? raw.monthYear : undefined,
     itemName: String(raw.itemName ?? ""),
     notes: typeof raw.notes === "string" ? raw.notes : undefined,
     actionRequired: typeof raw.actionRequired === "string" ? raw.actionRequired : undefined,

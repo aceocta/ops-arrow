@@ -88,6 +88,17 @@ public class ComplianceCheckEntryDto
     public Guid ComplianceCheckItemId { get; set; }
     public ComplianceCheckFrequency Frequency { get; set; }
     public DateOnly PeriodDate { get; set; }
+    public DateOnly PeriodStartDate { get; set; }
+    public DateOnly PeriodEndDate { get; set; }
+    public string PeriodLabel { get; set; } = string.Empty;
+    public DateOnly? CheckDate { get; set; }
+    public DateOnly? WeekStartDate { get; set; }
+    public DateOnly? WeekEndDate { get; set; }
+    public DateOnly? MonthStartDate { get; set; }
+    public DateOnly? MonthEndDate { get; set; }
+    public string? MonthName { get; set; }
+    public int? MonthNumber { get; set; }
+    public int? MonthYear { get; set; }
     public ComplianceCheckResult Result { get; set; }
     public string? Notes { get; set; }
     public string? ActionRequired { get; set; }
@@ -138,6 +149,12 @@ public class ComplianceCheckPeriodLogDto
     public Guid ShopId { get; set; }
     public ComplianceCheckFrequency Frequency { get; set; } = ComplianceCheckFrequency.Daily;
     public DateOnly PeriodDate { get; set; }
+    public DateOnly PeriodStartDate { get; set; }
+    public DateOnly PeriodEndDate { get; set; }
+    public string PeriodLabel { get; set; } = string.Empty;
+    public string? MonthName { get; set; }
+    public int? MonthNumber { get; set; }
+    public int? MonthYear { get; set; }
     public int CompletedCount { get; set; }
     public int TotalCount { get; set; }
     public int NonCompliantCount { get; set; }
@@ -153,6 +170,12 @@ public class ComplianceActionReportRowDto
     public string GroupName { get; set; } = string.Empty;
     public ComplianceCheckFrequency Frequency { get; set; } = ComplianceCheckFrequency.Daily;
     public DateOnly PeriodDate { get; set; }
+    public DateOnly PeriodStartDate { get; set; }
+    public DateOnly PeriodEndDate { get; set; }
+    public string PeriodLabel { get; set; } = string.Empty;
+    public string? MonthName { get; set; }
+    public int? MonthNumber { get; set; }
+    public int? MonthYear { get; set; }
     public string ItemName { get; set; } = string.Empty;
     public string? Notes { get; set; }
     public string? ActionRequired { get; set; }

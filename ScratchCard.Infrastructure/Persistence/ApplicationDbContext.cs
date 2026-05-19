@@ -53,6 +53,9 @@ public class ApplicationDbContext : DbContext
     public DbSet<ComplianceCheckGroup> ComplianceCheckGroups => Set<ComplianceCheckGroup>();
     public DbSet<ComplianceCheckItem> ComplianceCheckItems => Set<ComplianceCheckItem>();
     public DbSet<ComplianceCheckEntry> ComplianceCheckEntries => Set<ComplianceCheckEntry>();
+    public DbSet<DailyComplianceCheckEntry> DailyComplianceCheckEntries => Set<DailyComplianceCheckEntry>();
+    public DbSet<WeeklyComplianceCheckEntry> WeeklyComplianceCheckEntries => Set<WeeklyComplianceCheckEntry>();
+    public DbSet<MonthlyComplianceCheckEntry> MonthlyComplianceCheckEntries => Set<MonthlyComplianceCheckEntry>();
     public DbSet<RefusalRegisterEntry> RefusalRegisterEntries => Set<RefusalRegisterEntry>();
     public DbSet<RefusalRegisterDailySignoff> RefusalRegisterDailySignoffs => Set<RefusalRegisterDailySignoff>();
     public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
@@ -516,19 +519,68 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.Entity<ComplianceCheckEntry>(entity =>
         {
-            entity.HasIndex(x => new { x.ShopId, x.Frequency, x.PeriodDate });
-            entity.HasIndex(x => new { x.ShopId, x.Frequency, x.PeriodDate, x.ComplianceCheckItemId }).IsUnique();
-            entity.Property(x => x.Notes).HasMaxLength(1000);
-            entity.Property(x => x.ActionRequired).HasMaxLength(1000);
-            entity.Property(x => x.CheckedByName).HasMaxLength(200);
-            entity.Property(x => x.ClosedOutNotes).HasMaxLength(1000);
-            entity.Property(x => x.ClosedOutByName).HasMaxLength(200);
-            entity.Property(x => x.IsActionClosedOut).HasDefaultValue(false);
-            entity.Property(x => x.Result).HasDefaultValue(ComplianceCheckResult.Pending);
-            entity.HasOne(x => x.Shop).WithMany(x => x.ComplianceCheckEntries).HasForeignKey(x => x.ShopId);
-            entity.HasOne(x => x.ComplianceCheckItem).WithMany(x => x.Entries).HasForeignKey(x => x.ComplianceCheckItemId);
-            entity.HasOne<Company>().WithMany().HasForeignKey(x => x.CompanyId);
+            entity.UseTpcMappingStrategy();
+            entity.Ignore(x => x.PeriodStartDate);
+            entity.Ignore(x => x.PeriodEndDate);
+            entity.Ignore(x => x.PeriodDate);
+            entity.Ignore(x => x.PeriodLabel);
+            entity.Ignore(x => x.MonthName);
+            entity.Ignore(x => x.MonthNumber);
+            entity.Ignore(x => x.MonthYear);
         });
+
+        ConfigureComplianceCheckEntryEntity<DailyComplianceCheckEntry>(
+            modelBuilder,
+            tableName: "DailyComplianceCheckEntries",
+            frequency: ComplianceCheckFrequency.Daily,
+            configurePeriodColumns: entity =>
+            {
+                entity.Property(x => x.CheckDate).HasColumnType("date");
+                entity.HasIndex(x => new { x.ShopId, x.CheckDate });
+                entity.HasIndex(x => new { x.ShopId, x.CheckDate, x.ComplianceCheckItemId }).IsUnique();
+            });
+
+        ConfigureComplianceCheckEntryEntity<WeeklyComplianceCheckEntry>(
+            modelBuilder,
+            tableName: "WeeklyComplianceCheckEntries",
+            frequency: ComplianceCheckFrequency.Weekly,
+            configurePeriodColumns: entity =>
+            {
+                entity.Property(x => x.WeekStartDate).HasColumnType("date");
+                entity.Property(x => x.WeekEndDate).HasColumnType("date");
+                entity.HasIndex(x => new { x.ShopId, x.WeekStartDate, x.WeekEndDate });
+                entity.HasIndex(x => new { x.ShopId, x.WeekStartDate, x.WeekEndDate, x.ComplianceCheckItemId }).IsUnique();
+                entity.ToTable(
+                    "WeeklyComplianceCheckEntries",
+                    table => table.HasCheckConstraint(
+                        "CK_WeeklyComplianceCheckEntries_WeekRange",
+                        "[WeekStartDate] <= [WeekEndDate]"));
+            });
+
+        ConfigureComplianceCheckEntryEntity<MonthlyComplianceCheckEntry>(
+            modelBuilder,
+            tableName: "MonthlyComplianceCheckEntries",
+            frequency: ComplianceCheckFrequency.Monthly,
+            configurePeriodColumns: entity =>
+            {
+                entity.Property(x => x.MonthStartDate).HasColumnType("date");
+                entity.Property(x => x.MonthEndDate).HasColumnType("date");
+                entity.Property(x => x.MonthNameValue).HasMaxLength(20).HasColumnName("MonthName");
+                entity.Property(x => x.MonthNumberValue).HasColumnName("MonthNumber");
+                entity.Property(x => x.MonthYearValue).HasColumnName("MonthYear");
+                entity.HasIndex(x => new { x.ShopId, x.MonthStartDate, x.MonthEndDate });
+                entity.HasIndex(x => new { x.ShopId, x.MonthYearValue, x.MonthNumberValue, x.ComplianceCheckItemId }).IsUnique();
+                entity.ToTable(
+                    "MonthlyComplianceCheckEntries",
+                    table => table.HasCheckConstraint(
+                        "CK_MonthlyComplianceCheckEntries_MonthRange",
+                        "[MonthStartDate] <= [MonthEndDate]"));
+                entity.ToTable(
+                    "MonthlyComplianceCheckEntries",
+                    table => table.HasCheckConstraint(
+                        "CK_MonthlyComplianceCheckEntries_MonthNumber",
+                        "[MonthNumber] >= 1 AND [MonthNumber] <= 12"));
+            });
 
         modelBuilder.Entity<RefusalRegisterEntry>(entity =>
         {
@@ -655,6 +707,35 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(x => x.ShopId).IsUnique();
             entity.Property(x => x.IsActive).HasDefaultValue(true);
             configure(entity);
+        });
+    }
+
+    private static void ConfigureComplianceCheckEntryEntity<TEntity>(
+        ModelBuilder modelBuilder,
+        string tableName,
+        ComplianceCheckFrequency frequency,
+        Action<EntityTypeBuilder<TEntity>> configurePeriodColumns)
+        where TEntity : ComplianceCheckEntry
+    {
+        modelBuilder.Entity<TEntity>(entity =>
+        {
+            entity.ToTable(
+                tableName,
+                table => table.HasCheckConstraint(
+                    $"CK_{tableName}_Frequency",
+                    $"[Frequency] = {(int)frequency}"));
+
+            configurePeriodColumns(entity);
+            entity.Property(x => x.Notes).HasMaxLength(1000);
+            entity.Property(x => x.ActionRequired).HasMaxLength(1000);
+            entity.Property(x => x.CheckedByName).HasMaxLength(200);
+            entity.Property(x => x.ClosedOutNotes).HasMaxLength(1000);
+            entity.Property(x => x.ClosedOutByName).HasMaxLength(200);
+            entity.Property(x => x.IsActionClosedOut).HasDefaultValue(false);
+            entity.Property(x => x.Result).HasDefaultValue(ComplianceCheckResult.Pending);
+            entity.HasOne(x => x.Shop).WithMany(nameof(Shop.ComplianceCheckEntries)).HasForeignKey(x => x.ShopId);
+            entity.HasOne(x => x.ComplianceCheckItem).WithMany(nameof(ComplianceCheckItem.Entries)).HasForeignKey(x => x.ComplianceCheckItemId);
+            entity.HasOne<Company>().WithMany().HasForeignKey(x => x.CompanyId);
         });
     }
 }

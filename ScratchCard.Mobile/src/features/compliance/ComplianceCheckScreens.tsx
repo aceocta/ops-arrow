@@ -147,6 +147,13 @@ export function ComplianceChecksScreen() {
 
   const periodGroups = logQuery.data?.groups ?? [];
   const allRows = useMemo(() => flattenRows(periodGroups), [periodGroups]);
+  const rowByItemId = useMemo(() => {
+    const next: Record<string, ComplianceCheckPeriodRow> = {};
+    for (const row of allRows) {
+      next[row.item.id] = row;
+    }
+    return next;
+  }, [allRows]);
 
   useEffect(() => {
     const nextDrafts: Record<string, EntryDraft> = {};
@@ -188,7 +195,7 @@ export function ComplianceChecksScreen() {
     setDrafts((previous) => ({
       ...previous,
       [itemId]: {
-        ...getDraft(itemId),
+        ...(previous[itemId] ?? { result: "Pending", notes: "", actionRequired: "" }),
         ...patch,
       },
     }));
@@ -206,13 +213,44 @@ export function ComplianceChecksScreen() {
 
   function applyEditor() {
     if (!editorState) return;
+    const currentDraft = getDraft(editorState.itemId);
+    const nextDraft: EntryDraft =
+      editorState.field === "notes"
+        ? { ...currentDraft, notes: editorValue }
+        : { ...currentDraft, actionRequired: editorValue };
+
     if (editorState.field === "notes") {
-      updateDraft(editorState.itemId, { notes: editorValue });
+      updateDraft(editorState.itemId, { notes: nextDraft.notes });
     } else {
-      updateDraft(editorState.itemId, { actionRequired: editorValue });
+      updateDraft(editorState.itemId, { actionRequired: nextDraft.actionRequired });
+    }
+
+    if (editorState.field === "actionRequired" && nextDraft.result === "NonCompliant") {
+      const row = rowByItemId[editorState.itemId];
+      if (row) {
+        saveMutation.mutate({ item: row.item, draft: nextDraft });
+      }
     }
     setEditorState(null);
     setEditorValue("");
+  }
+
+  function saveDraftForItem(item: ComplianceCheckItem, draft: EntryDraft, openActionEditorOnMissing = false) {
+    if (draft.result === "NonCompliant" && !draft.actionRequired.trim()) {
+      Alert.alert("Action Required", "Please provide action required for non-compliant check.");
+      if (openActionEditorOnMissing) {
+        openEditor(item.id, "actionRequired", item.itemName);
+      }
+      return;
+    }
+
+    saveMutation.mutate({ item, draft });
+  }
+
+  function onSelectResult(row: ComplianceCheckPeriodRow, result: ComplianceCheckResult) {
+    const nextDraft: EntryDraft = { ...getDraft(row.item.id), result };
+    updateDraft(row.item.id, { result });
+    saveDraftForItem(row.item, nextDraft, result === "NonCompliant");
   }
 
   const summary = useMemo(() => {
@@ -321,7 +359,7 @@ export function ComplianceChecksScreen() {
                           <Pressable
                             key={resultOption}
                             style={[styles.choiceChip, selected ? styles.choiceChipSelected : null]}
-                            onPress={() => updateDraft(row.item.id, { result: resultOption })}
+                            onPress={() => onSelectResult(row, resultOption)}
                           >
                             <Text style={[styles.choiceChipText, selected ? styles.choiceChipTextSelected : null]}>
                               {resultOption === "NotApplicable" ? "N/A" : resultOption}
@@ -345,13 +383,7 @@ export function ComplianceChecksScreen() {
                       </Pressable>
                       <Pressable
                         style={styles.iconSaveButton}
-                        onPress={() => {
-                          if (draft.result === "NonCompliant" && !draft.actionRequired.trim()) {
-                            Alert.alert("Action Required", "Please provide action required for non-compliant check.");
-                            return;
-                          }
-                          saveMutation.mutate({ item: row.item, draft });
-                        }}
+                        onPress={() => saveDraftForItem(row.item, draft, true)}
                       >
                         <Ionicons name="save-outline" size={16} color={appTheme.colors.primary} />
                       </Pressable>
@@ -882,7 +914,7 @@ export function ComplianceActionsScreen() {
             </View>
             <Text style={styles.meta}>Group: {row.groupName}</Text>
             <Text style={styles.meta}>Frequency: {row.frequency}</Text>
-            <Text style={styles.meta}>Period: {formatDay(row.periodDate)}</Text>
+            <Text style={styles.meta}>Period: {row.periodLabel || formatDay(row.periodDate)}</Text>
             <Text style={styles.meta}>
               Checked by: {row.checkedByName ?? "-"} at {formatDateTime(row.checkedOn)}
             </Text>

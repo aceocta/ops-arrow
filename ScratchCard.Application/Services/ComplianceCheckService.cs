@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
@@ -454,7 +455,7 @@ public class ComplianceCheckService : IComplianceCheckService
         await EnsureDefaultTemplateAsync(shopId, cancellationToken);
 
         var normalizedFrequency = NormalizeFrequency(frequency);
-        var periodDate = NormalizePeriodDate(date, normalizedFrequency);
+        var period = NormalizePeriod(date, normalizedFrequency);
 
         var groups = await _groupRepository.Query()
             .AsNoTracking()
@@ -473,7 +474,13 @@ public class ComplianceCheckService : IComplianceCheckService
             {
                 ShopId = shopId,
                 Frequency = normalizedFrequency,
-                PeriodDate = periodDate,
+                PeriodDate = period.PeriodDate,
+                PeriodStartDate = period.StartDate,
+                PeriodEndDate = period.EndDate,
+                PeriodLabel = period.PeriodLabel,
+                MonthName = period.MonthName,
+                MonthNumber = period.MonthNumber,
+                MonthYear = period.MonthYear,
                 CompletedCount = 0,
                 TotalCount = 0,
                 NonCompliantCount = 0,
@@ -510,7 +517,13 @@ public class ComplianceCheckService : IComplianceCheckService
             {
                 ShopId = shopId,
                 Frequency = normalizedFrequency,
-                PeriodDate = periodDate,
+                PeriodDate = period.PeriodDate,
+                PeriodStartDate = period.StartDate,
+                PeriodEndDate = period.EndDate,
+                PeriodLabel = period.PeriodLabel,
+                MonthName = period.MonthName,
+                MonthNumber = period.MonthNumber,
+                MonthYear = period.MonthYear,
                 CompletedCount = 0,
                 TotalCount = 0,
                 NonCompliantCount = 0,
@@ -519,13 +532,8 @@ public class ComplianceCheckService : IComplianceCheckService
         }
 
         var itemIds = items.Select(x => x.Id).ToArray();
-        var entries = await _entryRepository.Query()
+        var entries = await QueryEntriesForPeriod(shopId, itemIds, normalizedFrequency, period)
             .AsNoTracking()
-            .Where(
-                x => x.ShopId == shopId
-                     && x.Frequency == normalizedFrequency
-                     && x.PeriodDate == periodDate
-                     && itemIds.Contains(x.ComplianceCheckItemId))
             .ToListAsync(cancellationToken);
 
         var entryLookup = entries.ToDictionary(x => x.ComplianceCheckItemId, x => x);
@@ -559,7 +567,13 @@ public class ComplianceCheckService : IComplianceCheckService
         {
             ShopId = shopId,
             Frequency = normalizedFrequency,
-            PeriodDate = periodDate,
+            PeriodDate = period.PeriodDate,
+            PeriodStartDate = period.StartDate,
+            PeriodEndDate = period.EndDate,
+            PeriodLabel = period.PeriodLabel,
+            MonthName = period.MonthName,
+            MonthNumber = period.MonthNumber,
+            MonthYear = period.MonthYear,
             TotalCount = periodGroups.Sum(x => x.TotalCount),
             CompletedCount = periodGroups.Sum(x => x.CompletedCount),
             NonCompliantCount = periodGroups.Sum(x => x.NonCompliantCount),
@@ -594,13 +608,10 @@ public class ComplianceCheckService : IComplianceCheckService
             throw new AppException("compliance_action_required", "Action required is mandatory for non-compliant checks.");
         }
 
-        var periodDate = NormalizePeriodDate(request.Date, item.Frequency);
-        var entry = await _entryRepository.Query()
+        var period = NormalizePeriod(request.Date, item.Frequency);
+        var entry = await QueryEntriesForPeriod(request.ShopId, item.Frequency, period)
             .FirstOrDefaultAsync(
-                x => x.ShopId == request.ShopId
-                     && x.ComplianceCheckItemId == request.ComplianceCheckItemId
-                     && x.Frequency == item.Frequency
-                     && x.PeriodDate == periodDate,
+                x => x.ComplianceCheckItemId == request.ComplianceCheckItemId,
                 cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
@@ -612,16 +623,14 @@ public class ComplianceCheckService : IComplianceCheckService
 
         if (entry is null)
         {
-            entry = new ComplianceCheckEntry
-            {
-                ShopId = request.ShopId,
-                CompanyId = companyId,
-                ComplianceCheckItemId = request.ComplianceCheckItemId,
-                Frequency = item.Frequency,
-                PeriodDate = periodDate,
-                CreatedOn = now,
-                CreatedBy = _currentUserService.UserId
-            };
+            entry = CreateEntryEntity(item.Frequency);
+            entry.ShopId = request.ShopId;
+            entry.CompanyId = companyId;
+            entry.ComplianceCheckItemId = request.ComplianceCheckItemId;
+            entry.Frequency = item.Frequency;
+            ApplyPeriodToEntry(entry, period);
+            entry.CreatedOn = now;
+            entry.CreatedBy = _currentUserService.UserId;
             await _entryRepository.AddAsync(entry, cancellationToken);
         }
         else
@@ -629,6 +638,8 @@ public class ComplianceCheckService : IComplianceCheckService
             entry.ModifiedOn = now;
             entry.ModifiedBy = _currentUserService.UserId;
             entry.CompanyId = entry.CompanyId ?? companyId;
+            ApplyPeriodToEntry(entry, period);
+            _entryRepository.Update(entry);
         }
 
         entry.Result = result;
@@ -647,7 +658,6 @@ public class ComplianceCheckService : IComplianceCheckService
             entry.ClosedOutOn = null;
         }
 
-        _entryRepository.Update(entry);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await _auditService.LogAsync(
@@ -717,27 +727,59 @@ public class ComplianceCheckService : IComplianceCheckService
             throw new AppException("compliance_invalid_range", "From date cannot be after to date.");
         }
 
-        var query = _entryRepository.Query()
+        var dailyQuery = _entryRepository.Query()
             .AsNoTracking()
+            .OfType<DailyComplianceCheckEntry>()
             .Include(x => x.ComplianceCheckItem)
             .ThenInclude(x => x.ComplianceCheckGroup)
             .Where(
                 x => x.ShopId == shopId
                      && x.Result == ComplianceCheckResult.NonCompliant
-                     && x.PeriodDate >= from
-                     && x.PeriodDate <= to);
+                     && x.CheckDate >= from
+                     && x.CheckDate <= to);
+
+        var weeklyQuery = _entryRepository.Query()
+            .AsNoTracking()
+            .OfType<WeeklyComplianceCheckEntry>()
+            .Include(x => x.ComplianceCheckItem)
+            .ThenInclude(x => x.ComplianceCheckGroup)
+            .Where(
+                x => x.ShopId == shopId
+                     && x.Result == ComplianceCheckResult.NonCompliant
+                     && x.WeekStartDate >= from
+                     && x.WeekStartDate <= to);
+
+        var monthlyQuery = _entryRepository.Query()
+            .AsNoTracking()
+            .OfType<MonthlyComplianceCheckEntry>()
+            .Include(x => x.ComplianceCheckItem)
+            .ThenInclude(x => x.ComplianceCheckGroup)
+            .Where(
+                x => x.ShopId == shopId
+                     && x.Result == ComplianceCheckResult.NonCompliant
+                     && x.MonthStartDate >= from
+                     && x.MonthStartDate <= to);
 
         if (openOnly)
         {
-            query = query.Where(x => !x.IsActionClosedOut);
+            dailyQuery = dailyQuery.Where(x => !x.IsActionClosedOut);
+            weeklyQuery = weeklyQuery.Where(x => !x.IsActionClosedOut);
+            monthlyQuery = monthlyQuery.Where(x => !x.IsActionClosedOut);
         }
 
-        var entries = await query
-            .OrderByDescending(x => x.PeriodDate)
+        var dailyEntries = await dailyQuery.ToListAsync(cancellationToken);
+        var weeklyEntries = await weeklyQuery.ToListAsync(cancellationToken);
+        var monthlyEntries = await monthlyQuery.ToListAsync(cancellationToken);
+
+        var entries = dailyEntries
+            .Cast<ComplianceCheckEntry>()
+            .Concat(weeklyEntries)
+            .Concat(monthlyEntries)
+            .OrderByDescending(x => x.PeriodStartDate)
             .ThenBy(x => x.Frequency)
             .ThenBy(x => x.ComplianceCheckItem.ComplianceCheckGroup.DisplayOrder)
             .ThenBy(x => x.ComplianceCheckItem.DisplayOrder)
-            .ToListAsync(cancellationToken);
+            .ToList();
 
         return entries.Select(
                 x => new ComplianceActionReportRowDto
@@ -749,6 +791,12 @@ public class ComplianceCheckService : IComplianceCheckService
                     GroupName = x.ComplianceCheckItem.ComplianceCheckGroup.GroupName,
                     Frequency = x.Frequency,
                     PeriodDate = x.PeriodDate,
+                    PeriodStartDate = x.PeriodStartDate,
+                    PeriodEndDate = x.PeriodEndDate,
+                    PeriodLabel = x.PeriodLabel,
+                    MonthName = x.MonthName,
+                    MonthNumber = x.MonthNumber,
+                    MonthYear = x.MonthYear,
                     ItemName = x.ComplianceCheckItem.ItemName,
                     Notes = x.Notes,
                     ActionRequired = x.ActionRequired,
@@ -1016,15 +1064,105 @@ public class ComplianceCheckService : IComplianceCheckService
         return result;
     }
 
-    private static DateOnly NormalizePeriodDate(DateOnly date, ComplianceCheckFrequency frequency)
+    private IQueryable<ComplianceCheckEntry> QueryEntriesForPeriod(
+        Guid shopId,
+        ComplianceCheckFrequency frequency,
+        CompliancePeriod period)
+    {
+        var baseQuery = _entryRepository.Query()
+            .Where(x => x.ShopId == shopId && x.Frequency == frequency);
+
+        return frequency switch
+        {
+            ComplianceCheckFrequency.Daily => baseQuery
+                .OfType<DailyComplianceCheckEntry>()
+                .Where(x => x.CheckDate == period.StartDate),
+            ComplianceCheckFrequency.Weekly => baseQuery
+                .OfType<WeeklyComplianceCheckEntry>()
+                .Where(x => x.WeekStartDate == period.StartDate && x.WeekEndDate == period.EndDate),
+            ComplianceCheckFrequency.Monthly => baseQuery
+                .OfType<MonthlyComplianceCheckEntry>()
+                .Where(x => x.MonthStartDate == period.StartDate && x.MonthEndDate == period.EndDate),
+            _ => throw new AppException("validation_failed", "Invalid compliance check frequency.")
+        };
+    }
+
+    private IQueryable<ComplianceCheckEntry> QueryEntriesForPeriod(
+        Guid shopId,
+        IReadOnlyCollection<Guid> itemIds,
+        ComplianceCheckFrequency frequency,
+        CompliancePeriod period)
+    {
+        return QueryEntriesForPeriod(shopId, frequency, period)
+            .Where(x => itemIds.Contains(x.ComplianceCheckItemId));
+    }
+
+    private static CompliancePeriod NormalizePeriod(DateOnly date, ComplianceCheckFrequency frequency)
     {
         return frequency switch
         {
-            ComplianceCheckFrequency.Daily => date,
-            ComplianceCheckFrequency.Weekly => date.AddDays(-GetMondayOffset(date.DayOfWeek)),
-            ComplianceCheckFrequency.Monthly => new DateOnly(date.Year, date.Month, 1),
+            ComplianceCheckFrequency.Daily => new CompliancePeriod(
+                frequency,
+                StartDate: date,
+                EndDate: date,
+                MonthName: null,
+                MonthNumber: null,
+                MonthYear: null),
+            ComplianceCheckFrequency.Weekly => BuildWeeklyPeriod(date),
+            ComplianceCheckFrequency.Monthly => BuildMonthlyPeriod(date),
             _ => throw new AppException("validation_failed", "Invalid compliance check frequency.")
         };
+    }
+
+    private static CompliancePeriod BuildWeeklyPeriod(DateOnly date)
+    {
+        var weekStart = date.AddDays(-GetMondayOffset(date.DayOfWeek));
+        var weekEnd = weekStart.AddDays(6);
+        return new CompliancePeriod(
+            ComplianceCheckFrequency.Weekly,
+            StartDate: weekStart,
+            EndDate: weekEnd,
+            MonthName: null,
+            MonthNumber: null,
+            MonthYear: null);
+    }
+
+    private static CompliancePeriod BuildMonthlyPeriod(DateOnly date)
+    {
+        var monthStart = new DateOnly(date.Year, date.Month, 1);
+        var monthEnd = new DateOnly(date.Year, date.Month, DateTime.DaysInMonth(date.Year, date.Month));
+        var monthName = monthStart.ToString("MMMM", CultureInfo.InvariantCulture);
+
+        return new CompliancePeriod(
+            ComplianceCheckFrequency.Monthly,
+            StartDate: monthStart,
+            EndDate: monthEnd,
+            MonthName: monthName,
+            MonthNumber: date.Month,
+            MonthYear: date.Year);
+    }
+
+    private static void ApplyPeriodToEntry(ComplianceCheckEntry entry, CompliancePeriod period)
+    {
+        switch (entry)
+        {
+            case DailyComplianceCheckEntry dailyEntry:
+                dailyEntry.CheckDate = period.StartDate;
+                break;
+            case WeeklyComplianceCheckEntry weeklyEntry:
+                weeklyEntry.WeekStartDate = period.StartDate;
+                weeklyEntry.WeekEndDate = period.EndDate;
+                break;
+            case MonthlyComplianceCheckEntry monthlyEntry:
+                monthlyEntry.MonthStartDate = period.StartDate;
+                monthlyEntry.MonthEndDate = period.EndDate;
+                monthlyEntry.MonthNameValue = period.MonthName ?? period.StartDate.ToString("MMMM", CultureInfo.InvariantCulture);
+                monthlyEntry.MonthNumberValue = period.MonthNumber ?? period.StartDate.Month;
+                monthlyEntry.MonthYearValue = period.MonthYear ?? period.StartDate.Year;
+                break;
+            default:
+                throw new AppException("validation_failed", "Unsupported compliance check entry type.");
+        }
     }
 
     private static int GetMondayOffset(DayOfWeek dayOfWeek)
@@ -1040,6 +1178,17 @@ public class ComplianceCheckService : IComplianceCheckService
     private static string BuildItemKey(ComplianceCheckFrequency frequency, string groupName, string itemName)
     {
         return $"{frequency}:{groupName.Trim()}:{itemName.Trim()}";
+    }
+
+    private static ComplianceCheckEntry CreateEntryEntity(ComplianceCheckFrequency frequency)
+    {
+        return frequency switch
+        {
+            ComplianceCheckFrequency.Daily => new DailyComplianceCheckEntry(),
+            ComplianceCheckFrequency.Weekly => new WeeklyComplianceCheckEntry(),
+            ComplianceCheckFrequency.Monthly => new MonthlyComplianceCheckEntry(),
+            _ => throw new AppException("validation_failed", "Invalid compliance check frequency.")
+        };
     }
 
     private static string NormalizeRequiredText(string? value, string errorMessage)
@@ -1087,26 +1236,76 @@ public class ComplianceCheckService : IComplianceCheckService
         IsSystemDefault = item.IsSystemDefault
     };
 
-    private static ComplianceCheckEntryDto MapEntry(ComplianceCheckEntry entry) => new()
+    private static ComplianceCheckEntryDto MapEntry(ComplianceCheckEntry entry)
     {
-        Id = entry.Id,
-        ShopId = entry.ShopId,
-        CompanyId = entry.CompanyId,
-        ComplianceCheckItemId = entry.ComplianceCheckItemId,
-        Frequency = entry.Frequency,
-        PeriodDate = entry.PeriodDate,
-        Result = entry.Result,
-        Notes = entry.Notes,
-        ActionRequired = entry.ActionRequired,
-        CheckedByUserId = entry.CheckedByUserId,
-        CheckedByName = entry.CheckedByName,
-        CheckedOn = entry.CheckedOn,
-        IsActionClosedOut = entry.IsActionClosedOut,
-        ClosedOutNotes = entry.ClosedOutNotes,
-        ClosedOutByUserId = entry.ClosedOutByUserId,
-        ClosedOutByName = entry.ClosedOutByName,
-        ClosedOutOn = entry.ClosedOutOn
-    };
+        var dto = new ComplianceCheckEntryDto
+        {
+            Id = entry.Id,
+            ShopId = entry.ShopId,
+            CompanyId = entry.CompanyId,
+            ComplianceCheckItemId = entry.ComplianceCheckItemId,
+            Frequency = entry.Frequency,
+            PeriodDate = entry.PeriodDate,
+            PeriodStartDate = entry.PeriodStartDate,
+            PeriodEndDate = entry.PeriodEndDate,
+            PeriodLabel = entry.PeriodLabel,
+            MonthName = entry.MonthName,
+            MonthNumber = entry.MonthNumber,
+            MonthYear = entry.MonthYear,
+            Result = entry.Result,
+            Notes = entry.Notes,
+            ActionRequired = entry.ActionRequired,
+            CheckedByUserId = entry.CheckedByUserId,
+            CheckedByName = entry.CheckedByName,
+            CheckedOn = entry.CheckedOn,
+            IsActionClosedOut = entry.IsActionClosedOut,
+            ClosedOutNotes = entry.ClosedOutNotes,
+            ClosedOutByUserId = entry.ClosedOutByUserId,
+            ClosedOutByName = entry.ClosedOutByName,
+            ClosedOutOn = entry.ClosedOutOn
+        };
+
+        switch (entry)
+        {
+            case DailyComplianceCheckEntry dailyEntry:
+                dto.CheckDate = dailyEntry.CheckDate;
+                break;
+            case WeeklyComplianceCheckEntry weeklyEntry:
+                dto.WeekStartDate = weeklyEntry.WeekStartDate;
+                dto.WeekEndDate = weeklyEntry.WeekEndDate;
+                break;
+            case MonthlyComplianceCheckEntry monthlyEntry:
+                dto.MonthStartDate = monthlyEntry.MonthStartDate;
+                dto.MonthEndDate = monthlyEntry.MonthEndDate;
+                dto.MonthName = monthlyEntry.MonthNameValue;
+                dto.MonthNumber = monthlyEntry.MonthNumberValue;
+                dto.MonthYear = monthlyEntry.MonthYearValue;
+                break;
+        }
+
+        return dto;
+    }
+
+    private readonly record struct CompliancePeriod(
+        ComplianceCheckFrequency Frequency,
+        DateOnly StartDate,
+        DateOnly EndDate,
+        string? MonthName,
+        int? MonthNumber,
+        int? MonthYear)
+    {
+        public DateOnly PeriodDate => StartDate;
+
+        public string PeriodLabel => Frequency switch
+        {
+            ComplianceCheckFrequency.Daily => StartDate.ToString("yyyy-MM-dd"),
+            ComplianceCheckFrequency.Weekly => $"{StartDate:yyyy-MM-dd} to {EndDate:yyyy-MM-dd}",
+            ComplianceCheckFrequency.Monthly => string.IsNullOrWhiteSpace(MonthName)
+                ? $"{StartDate:yyyy-MM-dd} to {EndDate:yyyy-MM-dd}"
+                : $"{MonthName} {MonthYear}",
+            _ => $"{StartDate:yyyy-MM-dd}"
+        };
+    }
 
     private sealed record ComplianceTemplate(
         ComplianceCheckGroup[] Groups,
