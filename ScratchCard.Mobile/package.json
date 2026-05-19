@@ -9,6 +9,7 @@
     "start:localhost": "expo start --host localhost --clear",
     "android": "expo run:android",
     "ios": "expo run:ios",
+    "ios:submit": "npx eas-cli@latest build -p ios --submit",
     "typecheck": "tsc --noEmit",
     "postinstall": "patch-package"
   },

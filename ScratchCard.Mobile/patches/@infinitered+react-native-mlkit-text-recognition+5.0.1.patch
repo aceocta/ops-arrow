@@ -1,0 +1,13 @@
+diff --git a/node_modules/@infinitered/react-native-mlkit-text-recognition/ios/RNMLKitTextRecord.swift b/node_modules/@infinitered/react-native-mlkit-text-recognition/ios/RNMLKitTextRecord.swift
+index 7672854..3ceeb67 100644
+--- a/node_modules/@infinitered/react-native-mlkit-text-recognition/ios/RNMLKitTextRecord.swift
++++ b/node_modules/@infinitered/react-native-mlkit-text-recognition/ios/RNMLKitTextRecord.swift
+@@ -70,7 +70,7 @@ func mapTextBlockToRecord(_ textBlock: TextBlock) -> BlockRecord {
+     )
+ }
+ 
+-func mapTextToRecord(_ text: Text) -> TextRecord {
++func mapTextToRecord(_ text: MLKitTextRecognition.Text) -> TextRecord {
+     return TextRecord(
+         text: text.text,
+         blocks: text.blocks.map(mapTextBlockToRecord)

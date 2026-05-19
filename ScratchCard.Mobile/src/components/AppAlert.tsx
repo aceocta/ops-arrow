@@ -270,8 +270,15 @@ export function AppAlertHost() {
 
   return (
     <>
-      {current && isAutoClose ? (
-        <View pointerEvents="none" style={[styles.toastRoot, { bottom: toastBottomOffset }]}>
+      <Modal
+        visible={Boolean(current) && isAutoClose}
+        transparent
+        animationType="none"
+        presentationStyle="overFullScreen"
+        statusBarTranslucent
+        onRequestClose={closeCurrent}
+      >
+        <View pointerEvents="none" style={[styles.toastRoot, { paddingBottom: toastBottomOffset }]}>
           <View style={styles.toastCard}>
             <View
               style={[
@@ -283,17 +290,19 @@ export function AppAlertHost() {
               ]}
             />
             <View style={styles.toastTextWrap}>
-              <Text style={styles.toastTitle}>{current.title || "Notice"}</Text>
-              {current.message ? <Text style={styles.toastMessage}>{current.message}</Text> : null}
+              <Text style={styles.toastTitle}>{current?.title || "Notice"}</Text>
+              {current?.message ? <Text style={styles.toastMessage}>{current.message}</Text> : null}
             </View>
           </View>
         </View>
-      ) : null}
+      </Modal>
 
       <Modal
         visible={Boolean(current) && !isAutoClose}
         transparent
         animationType="fade"
+        presentationStyle="overFullScreen"
+        statusBarTranslucent
         onRequestClose={() => {
           if (canDismiss) {
             closeCurrent();
@@ -358,10 +367,8 @@ export function AppAlertHost() {
 
 const styles = StyleSheet.create({
   toastRoot: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    zIndex: 9999,
+    flex: 1,
+    justifyContent: "flex-end",
     paddingHorizontal: 16,
     alignItems: "center",
   },

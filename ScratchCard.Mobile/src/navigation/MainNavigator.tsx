@@ -295,7 +295,8 @@ function MainStackScreens() {
           lineHeight: 21,
         },
         headerShadowVisible: false,
-        headerBackTitleVisible: false,
+        headerBackButtonDisplayMode: "minimal",
+        headerBackButtonMenuEnabled: false,
         headerRightContainerStyle: {
           paddingRight: appTheme.spacing.xs,
         },
