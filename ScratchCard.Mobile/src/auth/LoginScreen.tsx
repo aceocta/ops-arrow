@@ -134,24 +134,34 @@ export function LoginScreen() {
           onPress={() => void onSignIn()}
           disabled={busy}
         />
-        <PrimaryButton
-          label="Forgot password?"
+        <Pressable
+          accessibilityRole="button"
+          style={styles.inlineLink}
           onPress={() => navigation.navigate("ForgotPassword")}
-          tone="neutral"
           disabled={busy}
-        />
-        <PrimaryButton
-          label="Create an account"
-          onPress={() => navigation.navigate("CompanySignup")}
-          tone="neutral"
-          disabled={busy}
-        />
-        <PrimaryButton
-          label="Accept Invitation"
-          onPress={() => navigation.navigate("InvitationAccept")}
-          tone="neutral"
-          disabled={busy}
-        />
+        >
+          <Text style={styles.inlineLinkText}>Forgot password?</Text>
+        </Pressable>
+        <View style={styles.secondaryActionsRow}>
+          <Pressable
+            accessibilityRole="button"
+            style={styles.secondaryActionButton}
+            onPress={() => navigation.navigate("CompanySignup")}
+            disabled={busy}
+          >
+            <Ionicons name="person-add-outline" size={16} color={appTheme.colors.textInfoStrong} />
+            <Text style={styles.secondaryActionButtonText}>Create account</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            style={styles.secondaryActionButton}
+            onPress={() => navigation.navigate("InvitationAccept")}
+            disabled={busy}
+          >
+            <Ionicons name="mail-open-outline" size={16} color={appTheme.colors.textInfoStrong} />
+            <Text style={styles.secondaryActionButtonText}>Accept invitation</Text>
+          </Pressable>
+        </View>
         {/* {appConfig.enableDevAuthBypass ? (
           <>
             <Text style={styles.devHint}>Dev bypass enabled via app config.</Text>
@@ -256,6 +266,40 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: "center",
     alignItems: "center",
+  },
+  inlineLink: {
+    alignSelf: "flex-end",
+    paddingVertical: 2,
+    paddingHorizontal: 2,
+  },
+  inlineLinkText: {
+    color: appTheme.colors.primary,
+    fontSize: 12,
+    lineHeight: 15,
+    fontFamily: appTheme.fonts.bodyMedium,
+  },
+  secondaryActionsRow: {
+    flexDirection: "row",
+    gap: appTheme.spacing.xs,
+  },
+  secondaryActionButton: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: appTheme.radius.sm,
+    borderWidth: 0,
+    backgroundColor: appTheme.colors.surfaceInfoMuted,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  secondaryActionButtonText: {
+    color: appTheme.colors.textInfoStrong,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 15,
   },
   devHint: {
     color: appTheme.colors.warning,
