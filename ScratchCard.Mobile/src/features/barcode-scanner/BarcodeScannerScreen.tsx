@@ -146,6 +146,7 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
   const isAutoClosingRef = useRef(false);
   const initialAutoPendingCountRef = useRef(0);
   const pendingAutoPacksRef = useRef<AutoPendingPack[]>([]);
+  const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const canScan = useMemo(() => permission?.granted ?? false, [permission]);
   const mode = route.params.mode ?? "single";
@@ -162,7 +163,7 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
       const nextPending = (route.params.pendingPacks ?? []).map((pack) => ({
         packId: pack.packId,
         packNumber: pack.packNumber,
-        label: pack.label?.trim() ? pack.label.trim() : `Pack ${pack.packNumber}`,
+        label: pack.label?.trim() ? pack.label.trim() : pack.packNumber,
       }));
       initialAutoPendingCountRef.current = nextPending.length;
       pendingAutoPacksRef.current = nextPending;
@@ -175,6 +176,30 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
     setPendingAutoPacks([]);
   }, [isManualPackScanMode, route.params.packId, route.params.packNumber, route.params.pendingPacks, mode]);
 
+  const closeScannerAfterPendingComplete = useCallback((message: string) => {
+    if (isAutoClosingRef.current) {
+      return;
+    }
+
+    isAutoClosingRef.current = true;
+    setLastScanMessage(message);
+    setIsAutoOcrEnabled(true);
+
+    if (autoCloseTimerRef.current) {
+      clearTimeout(autoCloseTimerRef.current);
+    }
+
+    autoCloseTimerRef.current = setTimeout(() => {
+      navigation.goBack();
+    }, 350);
+  }, [navigation]);
+
+  useEffect(() => () => {
+    if (autoCloseTimerRef.current) {
+      clearTimeout(autoCloseTimerRef.current);
+    }
+  }, []);
+
   useEffect(() => {
     if (mode !== "auto") {
       return;
@@ -186,15 +211,8 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
       return;
     }
 
-    isAutoClosingRef.current = true;
-    setLastScanMessage("All pending packs scanned. Closing camera...");
-    setIsAutoOcrEnabled(true);
-    const timer = setTimeout(() => {
-      navigation.goBack();
-    }, 350);
-
-    return () => clearTimeout(timer);
-  }, [mode, navigation, pendingAutoPacks.length]);
+    closeScannerAfterPendingComplete("All pending packs scanned. Closing camera...");
+  }, [mode, pendingAutoPacks.length, closeScannerAfterPendingComplete]);
 
   useEffect(() => {
     pendingAutoPacksRef.current = pendingAutoPacks;
@@ -240,14 +258,14 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
 
       const removedLabel = matched?.pack.label ?? previous[index].label;
       const next = [...previous.slice(0, index), ...previous.slice(index + 1)];
-      setLastScanMessage(
-        next.length === 0
-          ? `OCR captured: ${rawBarcode}. All pending packs scanned.`
-          : `OCR captured: ${rawBarcode}. ${removedLabel} done, ${next.length} pending.`
-      );
+      if (next.length === 0) {
+        closeScannerAfterPendingComplete(`OCR captured: ${rawBarcode}. All pending packs scanned.`);
+      } else {
+        setLastScanMessage(`OCR captured: ${rawBarcode}. ${removedLabel} done, ${next.length} pending.`);
+      }
       return next;
     });
-  }, [mode]);
+  }, [mode, closeScannerAfterPendingComplete]);
 
   const onBarcodeScanned = useCallback((result: { data: string; type?: string }) => {
     if (!isManualPackScanMode || hasHandledPackBarcodeRef.current) {

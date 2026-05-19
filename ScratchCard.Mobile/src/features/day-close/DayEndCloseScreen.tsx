@@ -1169,7 +1169,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.pageContent}>
+      <View style={styles.pageContent}>
         <View style={[ui.card, styles.dayHeaderCard]}>
           <View style={styles.summaryHeaderRow}>
             <View style={styles.summaryHeading}>
@@ -2052,7 +2052,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             </View>
           </View>
         </Modal>
-      </ScrollView>
+      </View>
     </ScreenContainer>
   );
 }
@@ -2094,10 +2094,11 @@ const styles = StyleSheet.create({
     alignItems: "stretch",
     flexWrap: "wrap",
     gap: appTheme.spacing.xs,
+    justifyContent: "space-between",
   },
   summaryMetaItem: {
-    flex: 1,
-    minWidth: 112,
+    width: "48.8%",
+    minWidth: 0,
     backgroundColor: appTheme.colors.surfaceMuted,
     borderRadius: appTheme.radius.sm,
     paddingHorizontal: appTheme.spacing.sm,
@@ -2118,10 +2119,10 @@ const styles = StyleSheet.create({
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.primary,
     minHeight: 48,
+    width: "48.8%",
     paddingHorizontal: appTheme.spacing.sm,
     alignItems: "center",
     justifyContent: "center",
-    flexGrow: 1,
   },
   dateActionButtonDisabled: {
     opacity: 0.55,
