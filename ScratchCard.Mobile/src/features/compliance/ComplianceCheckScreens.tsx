@@ -1171,7 +1171,7 @@ export function ComplianceChecksScreen() {
       [item.id]: nextAttachments,
     }));
 
-    saveDraftForItem(item, draft, false, nextAttachments);
+    saveDraftForItem(item, draft, nextAttachments);
   }
 
   function applyEditor() {
@@ -1196,11 +1196,7 @@ export function ComplianceChecksScreen() {
     }
 
     const row = rowByItemId[editorState.itemId];
-    const canAutoSave =
-      editorState.field === "actionRequired"
-      || nextDraft.result !== "NonCompliant"
-      || Boolean(nextDraft.actionRequired.trim());
-    if (row && canAutoSave) {
+    if (row) {
       saveDraftForItem(row.item, nextDraft);
     }
     setEditorState(null);
@@ -1210,24 +1206,15 @@ export function ComplianceChecksScreen() {
   function saveDraftForItem(
     item: ComplianceCheckItem,
     draft: EntryDraft,
-    openActionEditorOnMissing = false,
     attachmentsOverride?: ComplianceAttachmentState[],
   ) {
-    if (draft.result === "NonCompliant" && !draft.actionRequired.trim()) {
-      Alert.alert("Action Required", "Please provide action required for non-compliant check.");
-      if (openActionEditorOnMissing) {
-        openEditor(item.id, "actionRequired", item.itemName);
-      }
-      return;
-    }
-
     saveMutation.mutate({ item, draft, attachments: attachmentsOverride });
   }
 
   function onSelectResult(row: ComplianceCheckPeriodRow, result: ComplianceCheckResult) {
     const nextDraft: EntryDraft = { ...getDraft(row.item.id), result };
     updateDraft(row.item.id, { result });
-    saveDraftForItem(row.item, nextDraft, result === "NonCompliant");
+    saveDraftForItem(row.item, nextDraft);
   }
 
   function onChangeWeeklyStartDate(value: string) {
@@ -1471,7 +1458,6 @@ export function ComplianceChecksScreen() {
                 const pendingAttachments = getAttachments(row.item.id);
                 const attachmentCount = uploadedAttachments.length + pendingAttachments.length;
                 const isAttachmentPanelOpen = expandedAttachmentItemId === row.item.id;
-                const isActionRequiredMissing = draft.result === "NonCompliant" && !draft.actionRequired.trim();
                 const checkedByDisplayName = draft.checkedByName.trim() || defaultCheckedByName;
                 return (
                   <View key={row.item.id} style={styles.itemCard}>
@@ -1513,26 +1499,27 @@ export function ComplianceChecksScreen() {
                     </View>
 
                     <View style={styles.row}>
-                      <Pressable style={styles.noteButton} onPress={() => openEditor(row.item.id, "notes", row.item.itemName)}>
-                        <Ionicons name="create-outline" size={14} color={appTheme.colors.primary} />
-                        <Text style={styles.noteButtonText}>Notes</Text>
+                      <Pressable
+                        style={[styles.noteButton, styles.noteActionButton]}
+                        onPress={() => openEditor(row.item.id, "notes", row.item.itemName)}
+                      >
+                        <Ionicons name="create-outline" size={16} color={appTheme.colors.primary} />
+                        <Text style={[styles.noteButtonText, styles.noteActionButtonText]}>Notes</Text>
                       </Pressable>
                       <Pressable
                         style={[
                           styles.noteButton,
+                          styles.noteActionButton,
                           draft.result === "NonCompliant" ? styles.noteButtonWarning : null,
-                          isActionRequiredMissing ? styles.noteButtonDanger : null,
                         ]}
                         onPress={() => openEditor(row.item.id, "actionRequired", row.item.itemName)}
                       >
                         <Ionicons
                           name="warning-outline"
-                          size={14}
-                          color={isActionRequiredMissing ? appTheme.colors.danger : appTheme.colors.warning}
+                          size={16}
+                          color={appTheme.colors.warning}
                         />
-                        <Text style={styles.noteButtonText}>
-                          {draft.result === "NonCompliant" && !draft.actionRequired.trim() ? "Action *" : "Action"}
-                        </Text>
+                        <Text style={[styles.noteButtonText, styles.noteActionButtonText]}>Action</Text>
                       </Pressable>
                       <Pressable style={styles.noteButton} onPress={() => toggleAttachmentPanel(row.item.id)}>
                         <Ionicons name="attach-outline" size={14} color={appTheme.colors.info} />
@@ -1679,9 +1666,6 @@ export function ComplianceChecksScreen() {
                       </View>
                     ) : null}
 
-                    {isActionRequiredMissing ? (
-                      <Text style={styles.inlineWarningText}>Action required must be added for non-compliant checks.</Text>
-                    ) : null}
                   </View>
                 );
               })}
@@ -1751,12 +1735,12 @@ export function ComplianceChecksScreen() {
               autoCapitalize="words"
               maxLength={editorState?.field === "checkedByName" ? 120 : 1000}
             />
-            <View style={styles.row}>
-              <Pressable style={styles.secondaryButton} onPress={() => setEditorState(null)}>
-                <Text style={styles.secondaryButtonText}>Cancel</Text>
+            <View style={[styles.row, styles.modalActionRow]}>
+              <Pressable style={[styles.secondaryButton, styles.modalActionButton]} onPress={() => setEditorState(null)}>
+                <Text style={[styles.secondaryButtonText, styles.modalActionButtonText]}>Cancel</Text>
               </Pressable>
-              <Pressable style={styles.secondaryButton} onPress={applyEditor}>
-                <Text style={styles.secondaryButtonText}>Apply</Text>
+              <Pressable style={[styles.secondaryButton, styles.modalActionButton]} onPress={applyEditor}>
+                <Text style={[styles.secondaryButtonText, styles.modalActionButtonText]}>Apply</Text>
               </Pressable>
             </View>
           </View>
@@ -2567,6 +2551,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
   },
+  noteActionButton: {
+    minHeight: 40,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 6,
+  },
   noteButtonWarning: {
     backgroundColor: appTheme.colors.surfaceWarningMuted,
   },
@@ -2580,6 +2570,26 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 11,
     lineHeight: 14,
+  },
+  noteActionButtonText: {
+    fontSize: 12,
+    lineHeight: 15,
+  },
+  modalActionRow: {
+    flexWrap: "nowrap",
+  },
+  modalActionButton: {
+    flex: 1,
+    minHeight: 44,
+    alignSelf: "stretch",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  modalActionButtonText: {
+    fontSize: 13,
+    lineHeight: 16,
   },
   secondaryButton: {
     borderRadius: appTheme.radius.sm,
