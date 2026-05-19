@@ -10,7 +10,7 @@ import { appTheme } from "../../ui/theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "InvitationAccept">;
 
-export function InvitationAcceptanceScreen({ route }: Props) {
+export function InvitationAcceptanceScreen({ route, navigation }: Props) {
   const [token, setToken] = useState(route.params?.token ?? "");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -55,7 +55,11 @@ export function InvitationAcceptanceScreen({ route }: Props) {
         lastName: lastName.trim(),
         password
       });
-      Alert.alert("Invitation accepted", "You can now sign in with your email and password on the login screen.");
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Login" }],
+      });
+      Alert.alert("Invitation accepted", "You can now sign in with your email and password.");
     } catch (error: any) {
       Alert.alert("Failed", error?.response?.data?.message ?? "Could not accept invitation.");
     } finally {
