@@ -18,6 +18,14 @@ public class AuthController : BaseApiController
         _configuration = configuration;
     }
 
+    [HttpPost("signup/request-verification-code")]
+    [AllowAnonymous]
+    public async Task<IActionResult> RequestSignupVerificationCode([FromBody] SignupEmailVerificationRequest request, CancellationToken cancellationToken)
+    {
+        var response = await _authService.RequestSignupEmailVerificationAsync(request, cancellationToken);
+        return Success(response, "Verification code sent.");
+    }
+
     [HttpPost("signup")]
     [AllowAnonymous]
     public async Task<IActionResult> Signup([FromBody] PasswordSignupRequest request, CancellationToken cancellationToken)

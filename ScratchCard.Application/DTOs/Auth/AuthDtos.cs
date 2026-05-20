@@ -33,8 +33,19 @@ public class PasswordSignupRequest
 {
     public string Email { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
+    public string VerificationCode { get; set; } = string.Empty;
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
+}
+
+public class SignupEmailVerificationRequest
+{
+    public string Email { get; set; } = string.Empty;
+}
+
+public class SignupEmailVerificationResponse
+{
+    public DateTimeOffset ExpiresOn { get; set; }
 }
 
 public class DevLoginRequest

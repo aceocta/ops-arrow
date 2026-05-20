@@ -1,6 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using System.Net;
+using System.Net.Mail;
+using System.Security.Cryptography;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Models;
@@ -14,7 +16,10 @@ namespace ScratchCard.Application.Services;
 public class AuthService : IAuthService
 {
     private const string DefaultPasswordResetBaseUrl = "https://wa-ops-arrow-uat-dvdrbjf9fraydwdd.canadacentral-01.azurewebsites.net";
+    private const int SignupVerificationCodeLength = 6;
+    private static readonly TimeSpan SignupVerificationCodeLifetime = TimeSpan.FromMinutes(10);
     private readonly IRepository<User> _userRepository;
+    private readonly IRepository<SignupEmailVerification> _signupEmailVerificationRepository;
     private readonly IRepository<Company> _companyRepository;
     private readonly IRepository<ShopUser> _shopUserRepository;
     private readonly IRepository<UserRole> _userRoleRepository;
@@ -31,6 +36,7 @@ public class AuthService : IAuthService
 
     public AuthService(
         IRepository<User> userRepository,
+        IRepository<SignupEmailVerification> signupEmailVerificationRepository,
         IRepository<Company> companyRepository,
         IRepository<ShopUser> shopUserRepository,
         IRepository<UserRole> userRoleRepository,
@@ -46,6 +52,7 @@ public class AuthService : IAuthService
         IConfiguration configuration)
     {
         _userRepository = userRepository;
+        _signupEmailVerificationRepository = signupEmailVerificationRepository;
         _companyRepository = companyRepository;
         _shopUserRepository = shopUserRepository;
         _userRoleRepository = userRoleRepository;
@@ -66,6 +73,79 @@ public class AuthService : IAuthService
             ?? DefaultPasswordResetBaseUrl;
     }
 
+    public async Task<SignupEmailVerificationResponse> RequestSignupEmailVerificationAsync(SignupEmailVerificationRequest request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            throw new AppException("validation_failed", "Email is required.", 400);
+        }
+
+        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+        if (!IsValidEmail(normalizedEmail))
+        {
+            throw new AppException("validation_failed", "Email format is invalid.", 400);
+        }
+
+        var existingUser = await _userRepository.Query()
+            .AsNoTracking()
+            .AnyAsync(x => x.Email == normalizedEmail, cancellationToken);
+
+        if (existingUser)
+        {
+            throw new AppException("email_already_registered", "A user with this email already exists.", 409);
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var expiresOn = now.Add(SignupVerificationCodeLifetime);
+        var code = GenerateNumericVerificationCode(SignupVerificationCodeLength);
+        var codeHash = _tokenService.ComputeHash(code);
+
+        var existingVerification = await _signupEmailVerificationRepository.Query()
+            .FirstOrDefaultAsync(x => x.Email == normalizedEmail, cancellationToken);
+
+        if (existingVerification is null)
+        {
+            existingVerification = new SignupEmailVerification
+            {
+                Email = normalizedEmail,
+                CodeHash = codeHash,
+                CodeLength = SignupVerificationCodeLength,
+                ExpiresOn = expiresOn,
+                FailedAttempts = 0,
+                LastSentOn = now,
+                CreatedOn = now
+            };
+            await _signupEmailVerificationRepository.AddAsync(existingVerification, cancellationToken);
+        }
+        else
+        {
+            existingVerification.CodeHash = codeHash;
+            existingVerification.CodeLength = SignupVerificationCodeLength;
+            existingVerification.ExpiresOn = expiresOn;
+            existingVerification.FailedAttempts = 0;
+            existingVerification.LastSentOn = now;
+            existingVerification.ModifiedOn = now;
+            _signupEmailVerificationRepository.Update(existingVerification);
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var emailMessage = BuildSignupVerificationEmailMessage(normalizedEmail, code, expiresOn);
+        await _emailSender.SendAsync(emailMessage, cancellationToken);
+
+        await _auditService.LogAsync(
+            nameof(SignupEmailVerification),
+            existingVerification.Id,
+            "SignupEmailVerificationCodeRequested",
+            newValue: normalizedEmail,
+            cancellationToken: cancellationToken);
+
+        return new SignupEmailVerificationResponse
+        {
+            ExpiresOn = expiresOn
+        };
+    }
+
     public async Task<AuthTokenResponseDto> SignUpWithPasswordAsync(PasswordSignupRequest request, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(request.Email))
@@ -78,7 +158,23 @@ public class AuthService : IAuthService
             throw new AppException("validation_failed", "Password must be at least 8 characters.", 400);
         }
 
+        if (string.IsNullOrWhiteSpace(request.VerificationCode))
+        {
+            throw new AppException("validation_failed", "Verification code is required.", 400);
+        }
+
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+        if (!IsValidEmail(normalizedEmail))
+        {
+            throw new AppException("validation_failed", "Email format is invalid.", 400);
+        }
+
+        var normalizedCode = request.VerificationCode.Trim();
+        if (!IsValidVerificationCode(normalizedCode))
+        {
+            throw new AppException("validation_failed", "Verification code must be a 6 digit number.", 400);
+        }
+
         var existingUser = await _userRepository.Query()
             .AsNoTracking()
             .AnyAsync(x => x.Email == normalizedEmail, cancellationToken);
@@ -88,8 +184,38 @@ public class AuthService : IAuthService
             throw new AppException("email_already_registered", "A user with this email already exists.", 409);
         }
 
-        var (firstName, lastName) = ResolveUserName(normalizedEmail, request.FirstName, request.LastName);
+        var verification = await _signupEmailVerificationRepository.Query()
+            .FirstOrDefaultAsync(x => x.Email == normalizedEmail, cancellationToken)
+            ?? throw new AppException("verification_required", "Email verification is required before signup.", 400);
+
         var now = DateTimeOffset.UtcNow;
+        if (verification.ExpiresOn <= now)
+        {
+            _signupEmailVerificationRepository.Remove(verification);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            throw new AppException("verification_code_expired", "Verification code expired. Request a new code.", 400);
+        }
+
+        if (normalizedCode.Length != SignupVerificationCodeLength)
+        {
+            verification.FailedAttempts += 1;
+            verification.ModifiedOn = now;
+            _signupEmailVerificationRepository.Update(verification);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            throw new AppException("invalid_verification_code", "Verification code is invalid.", 400);
+        }
+
+        var codeHash = _tokenService.ComputeHash(normalizedCode);
+        if (!string.Equals(verification.CodeHash, codeHash, StringComparison.Ordinal))
+        {
+            verification.FailedAttempts += 1;
+            verification.ModifiedOn = now;
+            _signupEmailVerificationRepository.Update(verification);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            throw new AppException("invalid_verification_code", "Verification code is invalid.", 400);
+        }
+
+        var (firstName, lastName) = ResolveUserName(normalizedEmail, request.FirstName, request.LastName);
         var user = new User
         {
             Email = normalizedEmail,
@@ -119,6 +245,8 @@ public class AuthService : IAuthService
             CreatedOn = now,
             CreatedBy = user.Id
         }, cancellationToken);
+
+        _signupEmailVerificationRepository.Remove(verification);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -620,6 +748,94 @@ public class AuthService : IAuthService
 
         var emailPrefix = normalizedEmail.Split('@', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
         return (string.IsNullOrWhiteSpace(emailPrefix) ? "User" : emailPrefix, string.Empty);
+    }
+
+    private static bool IsValidEmail(string email)
+    {
+        return MailAddress.TryCreate(email, out _);
+    }
+
+    private static bool IsValidVerificationCode(string code)
+    {
+        if (code.Length != SignupVerificationCodeLength)
+        {
+            return false;
+        }
+
+        foreach (var ch in code)
+        {
+            if (!char.IsAsciiDigit(ch))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static string GenerateNumericVerificationCode(int codeLength)
+    {
+        var chars = new char[codeLength];
+        for (var index = 0; index < codeLength; index++)
+        {
+            chars[index] = (char)('0' + RandomNumberGenerator.GetInt32(0, 10));
+        }
+
+        return new string(chars);
+    }
+
+    private static EmailMessage BuildSignupVerificationEmailMessage(string recipient, string code, DateTimeOffset expiresOnUtc)
+    {
+        var safeRecipient = WebUtility.HtmlEncode(recipient);
+        var safeCode = WebUtility.HtmlEncode(code);
+        var safeExpiry = WebUtility.HtmlEncode(expiresOnUtc.ToString("yyyy-MM-dd HH:mm 'UTC'"));
+
+        var html = """
+            <!doctype html>
+            <html lang="en">
+            <head>
+              <meta charset="utf-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1" />
+              <title>Ops Arrow Signup Verification</title>
+            </head>
+            <body style="margin:0;padding:0;background:#f2f6fb;font-family:Arial,'Segoe UI',sans-serif;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2f6fb;padding:28px 12px;">
+                <tr>
+                  <td align="center">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:620px;background:#ffffff;border:1px solid #d9e1ec;border-radius:14px;overflow:hidden;">
+                      <tr>
+                        <td style="background:linear-gradient(135deg,#0f3d3e,#1f6f7a);padding:26px 24px;color:#ffffff;">
+                          <div style="font-size:12px;letter-spacing:0.8px;text-transform:uppercase;opacity:0.9;">Ops Arrow</div>
+                          <div style="font-size:24px;line-height:30px;font-weight:700;margin-top:8px;">Verify your email</div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:24px;">
+                          <p style="margin:0 0 12px;color:#2b3f4a;font-size:15px;line-height:22px;">Hello <strong>__RECIPIENT__</strong>,</p>
+                          <p style="margin:0 0 18px;color:#4a5f6b;font-size:15px;line-height:22px;">Use this 6-digit verification code to continue creating your account:</p>
+                          <p style="margin:0 0 14px;padding:12px 14px;border:1px dashed #b3c0cf;border-radius:8px;color:#0f3d3e;font-size:24px;line-height:26px;letter-spacing:4px;text-align:center;"><strong>__VERIFICATION_CODE__</strong></p>
+                          <p style="margin:0;color:#617785;font-size:13px;line-height:20px;">This code expires at <strong>__EXPIRY__</strong>.</p>
+                          <p style="margin:16px 0 0;color:#617785;font-size:13px;line-height:20px;">If you did not request this, you can ignore this email.</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
+            """
+            .Replace("__RECIPIENT__", safeRecipient, StringComparison.Ordinal)
+            .Replace("__VERIFICATION_CODE__", safeCode, StringComparison.Ordinal)
+            .Replace("__EXPIRY__", safeExpiry, StringComparison.Ordinal);
+
+        return new EmailMessage
+        {
+            Recipient = recipient,
+            Subject = "Ops Arrow Signup Verification Code",
+            Body = html,
+            IsBodyHtml = true
+        };
     }
 
     private string BuildPasswordResetOpenLink(string token)

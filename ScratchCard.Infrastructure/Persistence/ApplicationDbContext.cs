@@ -48,6 +48,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<TemperatureMonitoringUnit> TemperatureMonitoringUnits => Set<TemperatureMonitoringUnit>();
     public DbSet<TemperatureReading> TemperatureReadings => Set<TemperatureReading>();
     public DbSet<TemperatureDailySignoff> TemperatureDailySignoffs => Set<TemperatureDailySignoff>();
+    public DbSet<SignupEmailVerification> SignupEmailVerifications => Set<SignupEmailVerification>();
     public DbSet<ShopChecklistGroup> ShopChecklistGroups => Set<ShopChecklistGroup>();
     public DbSet<ShopChecklistTask> ShopChecklistTasks => Set<ShopChecklistTask>();
     public DbSet<ShopChecklistTaskCompletion> ShopChecklistTaskCompletions => Set<ShopChecklistTaskCompletion>();
@@ -82,6 +83,13 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.ExternalProvider).HasMaxLength(100);
             entity.Property(x => x.ExternalProviderUserId).HasMaxLength(200);
             entity.Property(x => x.PasswordResetTokenHash).HasMaxLength(200);
+        });
+
+        modelBuilder.Entity<SignupEmailVerification>(entity =>
+        {
+            entity.HasIndex(x => x.Email).IsUnique();
+            entity.Property(x => x.Email).HasMaxLength(320).IsRequired();
+            entity.Property(x => x.CodeHash).HasMaxLength(200).IsRequired();
         });
 
         modelBuilder.Entity<Role>(entity =>

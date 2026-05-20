@@ -44,8 +44,20 @@ public class PasswordSignupRequestValidator : AbstractValidator<PasswordSignupRe
     {
         RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(320);
         RuleFor(x => x.Password).NotEmpty().MinimumLength(8);
+        RuleFor(x => x.VerificationCode)
+            .NotEmpty()
+            .Matches("^[0-9]{6}$")
+            .WithMessage("Verification code must be a 6 digit number.");
         RuleFor(x => x.FirstName).MaximumLength(100);
         RuleFor(x => x.LastName).MaximumLength(100);
+    }
+}
+
+public class SignupEmailVerificationRequestValidator : AbstractValidator<SignupEmailVerificationRequest>
+{
+    public SignupEmailVerificationRequestValidator()
+    {
+        RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(320);
     }
 }
 

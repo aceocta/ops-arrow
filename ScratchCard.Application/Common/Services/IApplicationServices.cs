@@ -26,6 +26,7 @@ namespace ScratchCard.Application.Common.Services;
 
 public interface IAuthService
 {
+    Task<SignupEmailVerificationResponse> RequestSignupEmailVerificationAsync(SignupEmailVerificationRequest request, CancellationToken cancellationToken = default);
     Task<AuthTokenResponseDto> SignUpWithPasswordAsync(PasswordSignupRequest request, CancellationToken cancellationToken = default);
     Task<AuthTokenResponseDto> SignInWithPasswordAsync(PasswordLoginRequest request, CancellationToken cancellationToken = default);
     Task<AuthTokenResponseDto> SignInDevAsync(DevLoginRequest request, CancellationToken cancellationToken = default);

@@ -53,7 +53,21 @@ export async function signInWithPassword(payload: { email: string; password: str
   return parseAuthTokenResult(response.data);
 }
 
-export async function signUpWithPassword(payload: { email: string; password: string; firstName?: string; lastName?: string }) {
+export async function requestSignupVerificationCode(payload: { email: string }) {
+  const response = await apiClient.post<{ success: boolean; data: { expiresOn: string } }>(
+    "/auth/signup/request-verification-code",
+    payload
+  );
+  return response.data.data;
+}
+
+export async function signUpWithPassword(payload: {
+  email: string;
+  password: string;
+  verificationCode: string;
+  firstName?: string;
+  lastName?: string;
+}) {
   const response = await apiClient.post("/auth/signup", payload);
   return parseAuthTokenResult(response.data);
 }
