@@ -9,6 +9,7 @@ import { getShift } from "../../api/shiftsApi";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { MainStackParamList } from "../../types/navigation";
+import { formatGbp } from "../../utils/currency";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -152,7 +153,7 @@ export function PrizePayoutScreen({ route }: Props) {
           <Text style={styles.sectionTitle}>Shift Payouts</Text>
           {(payoutsQuery.data ?? []).map((payout) => (
             <View style={[ui.listItem, styles.item]} key={payout.id}>
-              <Text style={styles.itemTitle}>{`\u00A3 ${Number(payout.prizeAmount).toFixed(2)} (${payout.approvalStatus})`}</Text>
+              <Text style={styles.itemTitle}>{`${formatGbp(Number(payout.prizeAmount))} (${payout.approvalStatus})`}</Text>
               <Text style={styles.meta}>Ticket: {payout.ticketNumber ?? "-"}</Text>
               <Text style={styles.meta}>Paid On: {new Date(payout.paidOn).toLocaleString()}</Text>
               {payout.approvalStatus !== "Approved" ? (

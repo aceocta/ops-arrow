@@ -21,6 +21,7 @@ import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
+import { formatGbp } from "../../utils/currency";
 import { SellingOrder } from "../../types/enums";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -515,8 +516,7 @@ export function ReceiveDeliveryScreen() {
                 <Text style={styles.rowTitle}>Pack Row {index + 1}</Text>
                 <Text style={styles.meta}>Game: {gameLabel}</Text>
                 <Text style={styles.meta}>Pack Number: {row.packNumber || "-"}</Text>
-                <Text style={styles.meta}>Display Number: {row.displayNumber || "-"}</Text>
-                <Text style={styles.meta}>Price: £ {Number(row.ticketPrice || 0).toFixed(2)} | Tickets: {row.totalTickets || "-"}</Text>
+                <Text style={styles.meta}>Price: {formatGbp(Number(row.ticketPrice || 0))} | Tickets: {row.totalTickets || "-"}</Text>
                 <Text style={styles.meta}>Serial: {row.startSerialNumber || "-"} {"->"} {row.endSerialNumber || "-"}</Text>
                 {needsNewGame ? (
                   <Text style={styles.newGameWarning}>New master game will be created and assigned to this shop on save.</Text>

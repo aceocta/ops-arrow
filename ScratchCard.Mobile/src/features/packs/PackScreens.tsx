@@ -14,6 +14,7 @@ import { MainStackParamList } from "../../types/navigation";
 import { createGame, listGames, updateGame } from "../../api/gamesApi";
 import { getConfigurations } from "../../api/configurationsApi";
 import { activatePack, completePack, createManualPack, getPack, listPacks, markIssuePack, pausePack, returnPack, updatePackDetails } from "../../api/packsApi";
+import { formatGbp } from "../../utils/currency";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 import { subscribeScan } from "../barcode-scanner/scanBus";
@@ -343,7 +344,7 @@ export function ScratchCardGamesScreen() {
                 <StatusBadge label={game.isActive ? "Active" : "Inactive"} tone={game.isActive ? "success" : "warning"} />
               ) : null}
               <View style={styles.metricRow}>
-                <View style={styles.metricChip}><Text style={styles.metricText}>\u00A3 {Number(game.defaultTicketPrice).toFixed(2)}</Text></View>
+                <View style={styles.metricChip}><Text style={styles.metricText}>{formatGbp(Number(game.defaultTicketPrice))}</Text></View>
                 <View style={styles.metricChip}><Text style={styles.metricText}>{game.defaultTicketsPerPack} Tickets</Text></View>
                 {/* <View style={styles.metricChip}><Text style={styles.metricText}>{game.defaultSellingOrder}</Text></View> */}
               </View>
@@ -642,7 +643,7 @@ export function ScratchCardPacksScreen({ navigation }: PackListProps) {
                   <View style={styles.metricChip}><Text style={styles.metricText}>Display {pack.displayNumber}</Text></View>
                 ) : null}
                 <View style={styles.metricChip}><Text style={styles.metricText}>Current: {pack.currentSerialNumber}</Text></View>
-                <View style={styles.metricChip}><Text style={styles.metricText}>\u00A3 {Number(pack.ticketPrice).toFixed(2)}</Text></View>
+                <View style={styles.metricChip}><Text style={styles.metricText}>{formatGbp(Number(pack.ticketPrice))}</Text></View>
                 <View style={styles.metricChip}><Text style={styles.metricText}>{pack.totalTickets} Tickets</Text></View>
                 {pack.isManuallyAdded ? (
                   <View style={styles.metricChip}><Text style={styles.metricText}>Manual</Text></View>
@@ -791,7 +792,7 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
     if (!Number.isFinite(parsed) || parsed <= 0) {
       return "";
     }
-    return `\u00A3 ${parsed.toFixed(2)}`;
+    return formatGbp(parsed);
   }, [ticketPrice]);
   const configuredSerialDefaults = useMemo(
     () => getSerialBoundsByOrder(totalTickets, configuredPackSellingOrder),
@@ -1410,7 +1411,7 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
               <Text style={styles.metricText}>Current: {pack?.currentSerialNumber ?? "-"}</Text>
             </View>
             <View style={styles.metricChip}>
-              <Text style={styles.metricText}>\u00A3 {isEditingDetails ? Number(editTicketPrice || 0).toFixed(2) : Number(pack?.ticketPrice ?? 0).toFixed(2)}</Text>
+              <Text style={styles.metricText}>{formatGbp(isEditingDetails ? Number(editTicketPrice || 0) : Number(pack?.ticketPrice ?? 0))}</Text>
             </View>
           </View>
           <Text style={styles.meta}>Serial: {isEditingDetails ? editStartSerial : (pack?.startSerialNumber ?? "-")} {"->"} {isEditingDetails ? editEndSerial : (pack?.endSerialNumber ?? "-")}</Text>

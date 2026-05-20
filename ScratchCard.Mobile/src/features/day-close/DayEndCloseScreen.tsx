@@ -23,6 +23,7 @@ import { StatusBadge } from "../../components/StatusBadge";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { deriveShopOperationalSetup } from "../settings/shopConfiguration";
+import { formatGbpOrDash, formatSignedGbp } from "../../utils/currency";
 import { PackStatus, ShiftStatus } from "../../types/enums";
 import { MainStackParamList } from "../../types/navigation";
 import { BusinessDay, ConfigurationItem, Shift } from "../../types/models";
@@ -103,10 +104,7 @@ function resolveGameCodeFromPack(pack: { gameCode?: string; packNumber: string }
 }
 
 function formatCurrency(value?: number) {
-  if (value == null || !Number.isFinite(value)) {
-    return "-";
-  }
-  return `\u00A3 ${value.toFixed(2)}`;
+  return formatGbpOrDash(value);
 }
 
 function getDateValueOffset(baseDateValue: string, dayOffset: number) {
@@ -893,7 +891,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   const hasTillPayoutVariance = tillPayoutVariance != null && Math.abs(tillPayoutVariance) >= 0.01;
   const tillPayoutVarianceText =
     tillPayoutVariance != null
-      ? `${tillPayoutVariance > 0 ? "+" : "-"}\u00A3 ${Math.abs(tillPayoutVariance).toFixed(2)}`
+      ? formatSignedGbp(tillPayoutVariance)
       : "";
   const tillPayoutVarianceStyle =
     hasTillPayoutVariance

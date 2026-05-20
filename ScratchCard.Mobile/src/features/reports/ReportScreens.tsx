@@ -22,6 +22,7 @@ import { listShifts } from "../../api/shiftsApi";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
+import { formatGbp } from "../../utils/currency";
 import type { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -47,7 +48,7 @@ function DateRangeInputs({
 }
 
 function formatCurrency(value: number) {
-  return `\u00A3 ${Number(value ?? 0).toFixed(2)}`;
+  return formatGbp(Number(value ?? 0));
 }
 
 function DailyReportActionButton({

@@ -14,6 +14,7 @@ import { enqueueOfflineShiftClose } from "../../offline/queueRepository";
 import { clearShiftDraft, getShiftDraft } from "../../offline/draftRepository";
 import { calculateShiftSales } from "../../utils/serialCalculation";
 import { toApiEntryMethod } from "../../utils/enumParsers";
+import { formatGbp } from "../../utils/currency";
 import { EntryMethod, SellingOrder, ShiftStatus } from "../../types/enums";
 import { ScratchCardPack } from "../../types/models";
 import { MainStackParamList } from "../../types/navigation";
@@ -251,7 +252,7 @@ function getBusinessDayStatusTone(status?: string): "neutral" | "warning" | "dan
 }
 
 function formatCurrency(value: number) {
-  return `\u00A3 ${value.toFixed(2)}`;
+  return formatGbp(value);
 }
 
 function formatFileSize(size?: number) {

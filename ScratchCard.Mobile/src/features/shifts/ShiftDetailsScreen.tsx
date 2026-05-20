@@ -10,6 +10,7 @@ import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ShiftStatus } from "../../types/enums";
 import { MainStackParamList } from "../../types/navigation";
+import { formatGbp } from "../../utils/currency";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -50,7 +51,7 @@ function formatDuration(startTime?: string, endTime?: string) {
 }
 
 function formatCurrency(value: number) {
-  return `\u00A3 ${value.toFixed(2)}`;
+  return formatGbp(value);
 }
 
 function formatFileSize(size?: number) {

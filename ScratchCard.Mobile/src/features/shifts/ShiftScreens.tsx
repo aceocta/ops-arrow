@@ -10,6 +10,7 @@ import { deleteShift, getShift, getShiftSales, listShiftCloseCandidates, listShi
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { deriveShopOperationalSetup } from "../settings/shopConfiguration";
+import { formatGbp } from "../../utils/currency";
 import { PackStatus, ShiftStatus } from "../../types/enums";
 import { ShiftCloseCandidate } from "../../types/models";
 import { MainStackParamList } from "../../types/navigation";
@@ -694,7 +695,7 @@ export function ShiftReconciliationScreen({ route }: ReconciliationProps) {
         <View style={ui.card}>
           <Text style={styles.meta}>Shift: {shiftQuery.data?.shiftName ?? shiftId}</Text>
           <Text style={styles.meta}>Status: {shiftQuery.data?.status ?? "-"}</Text>
-          <Text style={styles.meta}>Expected Cash: £ {expectedCash.toFixed(2)}</Text>
+          <Text style={styles.meta}>Expected Cash: {formatGbp(expectedCash)}</Text>
           <Text style={styles.hint}>
             Reconciliation is calculated here for review. Final server reconciliation is captured during shift close submission.
           </Text>
@@ -880,6 +881,7 @@ const styles = StyleSheet.create({
   },
   smallButtonText: { color: appTheme.colors.onPrimary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 14 },
 });
+
 
 
 
