@@ -1,3 +1,5 @@
+using ScratchCard.Domain.Enums;
+
 namespace ScratchCard.Application.DTOs.Shops;
 
 public class CreateShopRequest
@@ -10,6 +12,8 @@ public class CreateShopRequest
     public string City { get; set; } = string.Empty;
     public string PostCode { get; set; } = string.Empty;
     public string Country { get; set; } = string.Empty;
+    public int? ScratchCardDisplayCount { get; set; }
+    public SellingOrder? PackSellingOrder { get; set; }
 }
 
 public class UpdateShopRequest : CreateShopRequest

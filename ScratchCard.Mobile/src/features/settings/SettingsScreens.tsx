@@ -1168,6 +1168,8 @@ export function ShopManagementScreen() {
   const [city, setCity] = useState("");
   const [postCode, setPostCode] = useState("");
   const [country, setCountry] = useState("UK");
+  const [scratchCardDisplayCount, setScratchCardDisplayCount] = useState("24");
+  const [packSellingOrder, setPackSellingOrder] = useState<SellingOrder>(SellingOrder.Ascending);
 
   const companiesQuery = useQuery({
     queryKey: ["companies", "mine"],
@@ -1201,7 +1203,7 @@ export function ShopManagementScreen() {
         throw new Error("Shop name, address, city, postcode, and country are required.");
       }
 
-      const payload = {
+      const basePayload = {
         companyId: resolvedCompanyId,
         shopName: shopName.trim(),
         addressLine1: addressLine1.trim(),
@@ -1213,12 +1215,21 @@ export function ShopManagementScreen() {
 
       if (editingShopId) {
         return updateShop(editingShopId, {
-          ...payload,
+          ...basePayload,
           isActive: editingIsActive,
         });
       }
 
-      return createShop(payload);
+      const parsedDisplayCount = Number(scratchCardDisplayCount.trim());
+      if (!Number.isInteger(parsedDisplayCount) || parsedDisplayCount <= 0) {
+        throw new Error("Display count must be a whole number greater than 0.");
+      }
+
+      return createShop({
+        ...basePayload,
+        scratchCardDisplayCount: parsedDisplayCount,
+        packSellingOrder,
+      });
     },
     onSuccess: () => {
       setEditingShopId(null);
@@ -1229,6 +1240,8 @@ export function ShopManagementScreen() {
       setCity("");
       setPostCode("");
       setCountry("UK");
+      setScratchCardDisplayCount("24");
+      setPackSellingOrder(SellingOrder.Ascending);
       Alert.alert(editingShopId ? "Updated" : "Created", editingShopId ? "Shop updated successfully." : "Shop created successfully.");
       void Promise.all([queryClient.invalidateQueries({ queryKey: ["shops", resolvedCompanyId] }), refreshProfile()]);
     },
@@ -1257,6 +1270,8 @@ export function ShopManagementScreen() {
     setCity("");
     setPostCode("");
     setCountry("UK");
+    setScratchCardDisplayCount("24");
+    setPackSellingOrder(SellingOrder.Ascending);
   }
 
   return (
@@ -1294,6 +1309,35 @@ export function ShopManagementScreen() {
           <TextInput style={styles.input} value={postCode} onChangeText={setPostCode} placeholder="Post code" />
           <Text style={styles.fieldLabel}>Country</Text>
           <TextInput style={styles.input} value={country} onChangeText={setCountry} placeholder="Country" />
+          {!editingShopId ? (
+            <View style={styles.subSectionCard}>
+              {/* <Text style={styles.subSectionTitle}>Pack Configuration</Text> */}
+              {/* <Text style={styles.caption}>These defaults are applied when creating packs for this shop.</Text> */}
+              <Text style={styles.fieldLabel}>Scratch Card Display Count</Text>
+              <TextInput
+                style={styles.input}
+                value={scratchCardDisplayCount}
+                onChangeText={setScratchCardDisplayCount}
+                placeholder="e.g. 24"
+                keyboardType="number-pad"
+              />
+              <Text style={styles.fieldLabel}>Pack Selling Order</Text>
+              <View style={styles.row}>
+                <Pressable
+                  style={[styles.choiceChip, packSellingOrder === SellingOrder.Ascending ? styles.choiceChipSelected : null]}
+                  onPress={() => setPackSellingOrder(SellingOrder.Ascending)}
+                >
+                  <Text style={[styles.choiceChipText, packSellingOrder === SellingOrder.Ascending ? styles.choiceChipTextSelected : null]}>Start From 0</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.choiceChip, packSellingOrder === SellingOrder.Descending ? styles.choiceChipSelected : null]}
+                  onPress={() => setPackSellingOrder(SellingOrder.Descending)}
+                >
+                  <Text style={[styles.choiceChipText, packSellingOrder === SellingOrder.Descending ? styles.choiceChipTextSelected : null]}>End To 0</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
 
           {editingShopId ? (
             <View style={styles.row}>
@@ -1988,6 +2032,21 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontFamily: appTheme.fonts.bodyMedium,
     marginTop: 2,
+  },
+  subSectionCard: {
+    marginTop: appTheme.spacing.xs,
+    borderWidth: 0,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    padding: appTheme.spacing.sm,
+    gap: appTheme.spacing.xs,
+  },
+  subSectionTitle: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
   },
   caption: { color: appTheme.colors.textSubtle, fontSize: 12, lineHeight: 16, fontFamily: appTheme.fonts.body },
   row: { flexDirection: "row", gap: 8 },

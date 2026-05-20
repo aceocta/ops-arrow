@@ -19,6 +19,7 @@ public class ShopService : IShopService
     private readonly IRepository<Role> _roleRepository;
     private readonly IRepository<ScratchCardGame> _masterGameRepository;
     private readonly IRepository<ShopScratchCardGame> _shopGameRepository;
+    private readonly IRepository<CfgPackSettings> _packSettingsRepository;
     private readonly IRepository<CompanySubscription> _companySubscriptionRepository;
     private readonly IRepository<BillingEvent> _billingEventRepository;
     private readonly ISubscriptionCalculationService _subscriptionCalculationService;
@@ -33,6 +34,7 @@ public class ShopService : IShopService
         IRepository<Role> roleRepository,
         IRepository<ScratchCardGame> masterGameRepository,
         IRepository<ShopScratchCardGame> shopGameRepository,
+        IRepository<CfgPackSettings> packSettingsRepository,
         IRepository<CompanySubscription> companySubscriptionRepository,
         IRepository<BillingEvent> billingEventRepository,
         ISubscriptionCalculationService subscriptionCalculationService,
@@ -46,6 +48,7 @@ public class ShopService : IShopService
         _roleRepository = roleRepository;
         _masterGameRepository = masterGameRepository;
         _shopGameRepository = shopGameRepository;
+        _packSettingsRepository = packSettingsRepository;
         _companySubscriptionRepository = companySubscriptionRepository;
         _billingEventRepository = billingEventRepository;
         _subscriptionCalculationService = subscriptionCalculationService;
@@ -95,6 +98,7 @@ public class ShopService : IShopService
 
         await _shopRepository.AddAsync(shop, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await UpsertPackConfigurationAsync(shop.Id, request.PackSellingOrder, request.ScratchCardDisplayCount, cancellationToken);
         await AssignActiveMasterGamesToShopAsync(shop, cancellationToken);
         await EnsureCreatorOwnershipAsync(shop, cancellationToken);
         await RecalculateCompanySubscriptionAsync(
@@ -148,6 +152,7 @@ public class ShopService : IShopService
 
         _shopRepository.Update(shop);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await UpsertPackConfigurationAsync(shop.Id, request.PackSellingOrder, request.ScratchCardDisplayCount, cancellationToken);
         if (activeStateChanged && shop.CompanyId.HasValue)
         {
             await RecalculateCompanySubscriptionAsync(
@@ -267,6 +272,64 @@ public class ShopService : IShopService
         });
 
         await _shopGameRepository.AddRangeAsync(assignments, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task UpsertPackConfigurationAsync(
+        Guid shopId,
+        SellingOrder? packSellingOrder,
+        int? scratchCardDisplayCount,
+        CancellationToken cancellationToken)
+    {
+        if (!packSellingOrder.HasValue && !scratchCardDisplayCount.HasValue)
+        {
+            return;
+        }
+
+        if (scratchCardDisplayCount.HasValue && scratchCardDisplayCount.Value <= 0)
+        {
+            throw new AppException("invalid_display_count", "Scratch card display count must be greater than zero.", 400);
+        }
+
+        var settings = await _packSettingsRepository.Query()
+            .FirstOrDefaultAsync(x => x.ShopId == shopId, cancellationToken);
+        var isNew = settings is null;
+
+        if (isNew)
+        {
+            settings = new CfgPackSettings
+            {
+                ShopId = shopId,
+                IsActive = true,
+                CreatedOn = DateTimeOffset.UtcNow,
+                CreatedBy = _currentUserService.UserId
+            };
+            await _packSettingsRepository.AddAsync(settings, cancellationToken);
+        }
+
+        if (settings is null)
+        {
+            throw new AppException("pack_settings_failed", "Unable to initialize pack settings.", 500);
+        }
+
+        if (packSellingOrder.HasValue)
+        {
+            settings.PackSellingOrder = packSellingOrder.Value.ToString();
+        }
+
+        if (scratchCardDisplayCount.HasValue)
+        {
+            settings.ScratchCardDisplayCount = scratchCardDisplayCount.Value;
+        }
+
+        settings.ModifiedOn = DateTimeOffset.UtcNow;
+        settings.ModifiedBy = _currentUserService.UserId;
+
+        if (!isNew)
+        {
+            _packSettingsRepository.Update(settings);
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 

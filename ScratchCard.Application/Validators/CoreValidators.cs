@@ -101,6 +101,9 @@ public class CreateShopRequestValidator : AbstractValidator<CreateShopRequest>
         RuleFor(x => x.City).NotEmpty().MaximumLength(100);
         RuleFor(x => x.PostCode).NotEmpty().MaximumLength(20);
         RuleFor(x => x.Country).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.ScratchCardDisplayCount)
+            .GreaterThan(0)
+            .When(x => x.ScratchCardDisplayCount.HasValue);
     }
 }
 

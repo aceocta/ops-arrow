@@ -1,6 +1,7 @@
 import { apiClient } from "./client";
 import { ApiResponse } from "./types";
 import { Shop } from "../types/models";
+import { SellingOrder } from "../types/enums";
 
 export type CreateShopPayload = {
   companyId?: string;
@@ -11,6 +12,8 @@ export type CreateShopPayload = {
   city: string;
   postCode: string;
   country: string;
+  scratchCardDisplayCount?: number;
+  packSellingOrder?: SellingOrder;
 };
 
 export type UpdateShopPayload = CreateShopPayload & {
