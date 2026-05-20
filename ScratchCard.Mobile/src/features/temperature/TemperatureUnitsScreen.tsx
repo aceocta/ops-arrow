@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createTemperatureUnit, listTemperatureUnits, updateTemperatureUnit } from "../../api/temperatureLogsApi";
@@ -29,7 +29,7 @@ export function TemperatureUnitsScreen() {
   const queryClient = useQueryClient();
   const { activeShopId, activeShop, profile } = useAuth();
   const shopId = activeShopId;
-  const canManageUnits = profile?.roles?.some((role) => role === "ShopOwner" || role === "Manager") ?? false;
+  const canManageUnits = profile?.roles?.some((role) => role === "CompanyOwner" || role === "Manager") ?? false;
 
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
   const [newUnitName, setNewUnitName] = useState("");
@@ -160,7 +160,7 @@ export function TemperatureUnitsScreen() {
             <Text style={styles.addButtonText}>Add New Unit</Text>
           </Pressable>
         </View>
-        {!canManageUnits ? <Text style={styles.meta}>Only manager or shop owner can add new units.</Text> : null}
+        {!canManageUnits ? <Text style={styles.meta}>Only manager or company owner can add new units.</Text> : null}
 
         {(unitsQuery.data ?? []).map((unit) => (
           <View key={unit.id} style={styles.unitItem}>
@@ -539,5 +539,6 @@ const styles = StyleSheet.create({
     gap: appTheme.spacing.xs,
   },
 });
+
 
 

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import { Alert, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -53,7 +53,7 @@ export function RefusalEntryDetailsScreen({ route, navigation }: Props) {
 
   const entry = entryQuery.data;
   const signatureDataUrl = signatureQuery.data;
-  const canReview = profile?.roles?.some((role) => role === "ShopOwner" || role === "Manager") ?? false;
+  const canReview = profile?.roles?.some((role) => role === "CompanyOwner" || role === "Manager") ?? false;
 
   const reviewMutation = useMutation({
     mutationFn: async () => {
@@ -147,7 +147,7 @@ export function RefusalEntryDetailsScreen({ route, navigation }: Props) {
               {canReview ? (
                 <PrimaryButton label={entry.reviewedOn ? "Update Review" : "Mark as Reviewed"} onPress={openReviewModal} />
               ) : (
-                <Text style={styles.pathText}>Only manager or shop owner can complete review.</Text>
+                <Text style={styles.pathText}>Only manager or company owner can complete review.</Text>
               )}
             </View>
             <PrimaryButton label="Edit Entry" tone="neutral" onPress={() => navigation.navigate("RefusalEntryEdit", { entryId: entry.id })} />
@@ -352,5 +352,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
+
 
 

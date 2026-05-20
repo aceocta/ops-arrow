@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.ShiftSales;
@@ -7,7 +7,7 @@ using ScratchCard.Domain.Constants;
 namespace ScratchCard.Api.Controllers;
 
 [Route("api/shift-sales")]
-[Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager},{RoleNames.Cashier},{RoleNames.SalesAssistant}")]
+[Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager},{RoleNames.Cashier},{RoleNames.SalesAssistant}")]
 public class ShiftSalesController : BaseApiController
 {
     private readonly IShiftSalesService _shiftSalesService;
@@ -38,3 +38,4 @@ public class ShiftSalesController : BaseApiController
         return Success(result);
     }
 }
+

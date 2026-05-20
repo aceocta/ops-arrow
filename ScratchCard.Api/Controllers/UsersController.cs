@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Users;
@@ -7,7 +7,7 @@ using ScratchCard.Domain.Constants;
 namespace ScratchCard.Api.Controllers;
 
 [Route("api/users")]
-[Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.ShopOwner},{RoleNames.Manager}")]
+[Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.OwnerRoles},{RoleNames.Manager}")]
 public class UsersController : BaseApiController
 {
     private readonly IUserService _userService;
@@ -45,3 +45,4 @@ public class UsersController : BaseApiController
         return Success(new { Updated = true });
     }
 }
+

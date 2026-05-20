@@ -1,5 +1,6 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using ScratchCard.Application.Common.Exceptions;
+using ScratchCard.Application.Common.Extensions;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.RefusalRegister;
@@ -199,9 +200,9 @@ public class RefusalRegisterService : IRefusalRegisterService
 
     public async Task<RefusalRegisterEntryDto> ReviewEntryAsync(Guid id, ReviewRefusalRegisterEntryRequest request, CancellationToken cancellationToken = default)
     {
-        if (!_currentUserService.IsInRole(RoleNames.ShopOwner) && !_currentUserService.IsInRole(RoleNames.Manager))
+        if (!_currentUserService.IsOwner() && !_currentUserService.IsInRole(RoleNames.Manager))
         {
-            throw new AppException(ErrorCodes.UnauthorizedRole, "Only manager or shop owner can review refusal entries.", 403);
+            throw new AppException(ErrorCodes.UnauthorizedRole, "Only manager or company owner can review refusal entries.", 403);
         }
 
         var entry = await _entryRepository.Query()
@@ -227,9 +228,9 @@ public class RefusalRegisterService : IRefusalRegisterService
 
     public async Task<IReadOnlyCollection<RefusalRegisterEntryDto>> ReviewEntriesAsync(ReviewRefusalRegisterEntriesRequest request, CancellationToken cancellationToken = default)
     {
-        if (!_currentUserService.IsInRole(RoleNames.ShopOwner) && !_currentUserService.IsInRole(RoleNames.Manager))
+        if (!_currentUserService.IsOwner() && !_currentUserService.IsInRole(RoleNames.Manager))
         {
-            throw new AppException(ErrorCodes.UnauthorizedRole, "Only manager or shop owner can review refusal entries.", 403);
+            throw new AppException(ErrorCodes.UnauthorizedRole, "Only manager or company owner can review refusal entries.", 403);
         }
 
         var reviewedByUserId = _currentUserService.UserId
@@ -277,9 +278,9 @@ public class RefusalRegisterService : IRefusalRegisterService
 
     public async Task<RefusalRegisterDailySignoffDto> SignOffDailyAsync(SignOffRefusalRegisterDailyRequest request, CancellationToken cancellationToken = default)
     {
-        if (!_currentUserService.IsInRole(RoleNames.ShopOwner) && !_currentUserService.IsInRole(RoleNames.Manager))
+        if (!_currentUserService.IsOwner() && !_currentUserService.IsInRole(RoleNames.Manager))
         {
-            throw new AppException(ErrorCodes.UnauthorizedRole, "Only manager or shop owner can sign off refusals register.", 403);
+            throw new AppException(ErrorCodes.UnauthorizedRole, "Only manager or company owner can sign off refusals register.", 403);
         }
 
         var entryCount = await _entryRepository.Query()
@@ -350,9 +351,9 @@ public class RefusalRegisterService : IRefusalRegisterService
 
     public async Task ReopenDailyAsync(ReopenRefusalRegisterDailyRequest request, CancellationToken cancellationToken = default)
     {
-        if (!_currentUserService.IsInRole(RoleNames.ShopOwner) && !_currentUserService.IsInRole(RoleNames.Manager))
+        if (!_currentUserService.IsOwner() && !_currentUserService.IsInRole(RoleNames.Manager))
         {
-            throw new AppException(ErrorCodes.UnauthorizedRole, "Only manager or shop owner can reopen refusals register.", 403);
+            throw new AppException(ErrorCodes.UnauthorizedRole, "Only manager or company owner can reopen refusals register.", 403);
         }
 
         var signoff = await _signoffRepository.Query()
@@ -567,3 +568,7 @@ public class RefusalRegisterService : IRefusalRegisterService
         return Directory.GetCurrentDirectory();
     }
 }
+
+
+
+

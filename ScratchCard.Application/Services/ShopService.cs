@@ -1,5 +1,6 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using ScratchCard.Application.Common.Exceptions;
+using ScratchCard.Application.Common.Extensions;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Shops;
@@ -17,6 +18,7 @@ public class ShopService : IShopService
     private readonly IRepository<Company> _companyRepository;
     private readonly IRepository<ShopUser> _shopUserRepository;
     private readonly IRepository<Role> _roleRepository;
+    private readonly IRepository<UserRole> _userRoleRepository;
     private readonly IRepository<ScratchCardGame> _masterGameRepository;
     private readonly IRepository<ShopScratchCardGame> _shopGameRepository;
     private readonly IRepository<CfgPackSettings> _packSettingsRepository;
@@ -32,6 +34,7 @@ public class ShopService : IShopService
         IRepository<Company> companyRepository,
         IRepository<ShopUser> shopUserRepository,
         IRepository<Role> roleRepository,
+        IRepository<UserRole> userRoleRepository,
         IRepository<ScratchCardGame> masterGameRepository,
         IRepository<ShopScratchCardGame> shopGameRepository,
         IRepository<CfgPackSettings> packSettingsRepository,
@@ -46,6 +49,7 @@ public class ShopService : IShopService
         _companyRepository = companyRepository;
         _shopUserRepository = shopUserRepository;
         _roleRepository = roleRepository;
+        _userRoleRepository = userRoleRepository;
         _masterGameRepository = masterGameRepository;
         _shopGameRepository = shopGameRepository;
         _packSettingsRepository = packSettingsRepository;
@@ -431,6 +435,7 @@ public class ShopService : IShopService
             };
 
             await _companyRepository.AddAsync(company, cancellationToken);
+            await EnsureCompanyOwnerRoleAssignedAsync(_currentUserService.UserId, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             await _auditService.LogAsync(nameof(Company), company.Id, "CompanyCreated", cancellationToken: cancellationToken);
             return company;
@@ -493,11 +498,53 @@ public class ShopService : IShopService
             return;
         }
 
-        throw new AppException(ErrorCodes.UnauthorizedRole, "Only platform admin or shop owner can add shops.", 403);
+        throw new AppException(ErrorCodes.UnauthorizedRole, "Only platform admin or company owner can add shops.", 403);
     }
 
     private bool CanUseCompanyScope()
-        => _currentUserService.IsInRole(RoleNames.PlatformAdmin) || _currentUserService.IsInRole(RoleNames.ShopOwner);
+        => _currentUserService.IsInRole(RoleNames.PlatformAdmin) || _currentUserService.IsOwner();
+
+    private async Task EnsureCompanyOwnerRoleAssignedAsync(Guid? userId, CancellationToken cancellationToken)
+    {
+        if (!userId.HasValue)
+        {
+            return;
+        }
+
+        var ownerRole = await _roleRepository.Query()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Name == RoleNames.CompanyOwner && x.IsActive, cancellationToken)
+            ?? throw new AppException("role_not_found", "CompanyOwner role not found.", 404);
+
+        var existingRole = await _userRoleRepository.Query()
+            .FirstOrDefaultAsync(x => x.UserId == userId.Value && x.RoleId == ownerRole.Id, cancellationToken);
+
+        var now = DateTimeOffset.UtcNow;
+        if (existingRole is null)
+        {
+            await _userRoleRepository.AddAsync(new UserRole
+            {
+                UserId = userId.Value,
+                RoleId = ownerRole.Id,
+                IsActive = true,
+                AssignedOn = now,
+                CreatedOn = now,
+                CreatedBy = userId
+            }, cancellationToken);
+            return;
+        }
+
+        if (existingRole.IsActive)
+        {
+            return;
+        }
+
+        existingRole.IsActive = true;
+        existingRole.AssignedOn = now;
+        existingRole.ModifiedOn = now;
+        existingRole.ModifiedBy = userId;
+        _userRoleRepository.Update(existingRole);
+    }
 
     private async Task EnsureCreatorOwnershipAsync(Shop shop, CancellationToken cancellationToken)
     {
@@ -517,8 +564,8 @@ public class ShopService : IShopService
 
         var ownerRole = await _roleRepository.Query()
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Name == RoleNames.ShopOwner && x.IsActive, cancellationToken)
-            ?? throw new AppException("role_not_found", "ShopOwner role not found.", 404);
+            .FirstOrDefaultAsync(x => x.Name == RoleNames.CompanyOwner && x.IsActive, cancellationToken)
+            ?? throw new AppException("role_not_found", "CompanyOwner role not found.", 404);
 
         var shopUser = new ShopUser
         {
@@ -592,3 +639,9 @@ public class ShopService : IShopService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 }
+
+
+
+
+
+

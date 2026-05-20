@@ -149,7 +149,7 @@ export function SsoLoginScreen() {
     <ScreenContainer centerContent>
       <View style={[styles.hero, styles.contentBlock]}>
         <Text style={styles.heroTitle}>{appInfo.loginTitle}</Text>
-        <Text style={styles.heroSubtitle}>Secure access for shop owners, managers, and cashiers.</Text>
+        <Text style={styles.heroSubtitle}>Secure access for company owners, managers, and cashiers.</Text>
       </View>
       <View style={[ui.card, styles.contentBlock]}>
         <Text style={styles.title}>Sign in with Google</Text>

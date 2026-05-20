@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.TemperatureLogs;
@@ -7,7 +7,7 @@ using ScratchCard.Domain.Constants;
 namespace ScratchCard.Api.Controllers;
 
 [Route("api/temperature-logs")]
-[Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager},{RoleNames.Cashier},{RoleNames.SalesAssistant}")]
+[Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager},{RoleNames.Cashier},{RoleNames.SalesAssistant}")]
 public class TemperatureLogsController : BaseApiController
 {
     private readonly ITemperatureLogService _temperatureLogService;
@@ -25,7 +25,7 @@ public class TemperatureLogsController : BaseApiController
     }
 
     [HttpPost("units")]
-    [Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager}")]
+    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
     public async Task<IActionResult> CreateUnit([FromBody] CreateTemperatureMonitoringUnitRequest request, CancellationToken cancellationToken)
     {
         var result = await _temperatureLogService.CreateUnitAsync(request, cancellationToken);
@@ -33,7 +33,7 @@ public class TemperatureLogsController : BaseApiController
     }
 
     [HttpPut("units/{id:guid}")]
-    [Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager}")]
+    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
     public async Task<IActionResult> UpdateUnit(Guid id, [FromBody] UpdateTemperatureMonitoringUnitRequest request, CancellationToken cancellationToken)
     {
         var result = await _temperatureLogService.UpdateUnitAsync(id, request, cancellationToken);
@@ -67,10 +67,11 @@ public class TemperatureLogsController : BaseApiController
     }
 
     [HttpPost("signoff")]
-    [Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager}")]
+    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
     public async Task<IActionResult> SignOff([FromBody] SignOffTemperatureDailyLogRequest request, CancellationToken cancellationToken)
     {
         var result = await _temperatureLogService.SignOffDailyAsync(request, cancellationToken);
         return Success(result);
     }
 }
+

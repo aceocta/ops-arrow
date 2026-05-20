@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Services;
@@ -14,6 +14,7 @@ public class CompanySignupService : ICompanySignupService
 {
     private readonly IRepository<User> _userRepository;
     private readonly IRepository<Role> _roleRepository;
+    private readonly IRepository<UserRole> _userRoleRepository;
     private readonly IRepository<Company> _companyRepository;
     private readonly IRepository<Shop> _shopRepository;
     private readonly IRepository<ShopUser> _shopUserRepository;
@@ -29,6 +30,7 @@ public class CompanySignupService : ICompanySignupService
     public CompanySignupService(
         IRepository<User> userRepository,
         IRepository<Role> roleRepository,
+        IRepository<UserRole> userRoleRepository,
         IRepository<Company> companyRepository,
         IRepository<Shop> shopRepository,
         IRepository<ShopUser> shopUserRepository,
@@ -43,6 +45,7 @@ public class CompanySignupService : ICompanySignupService
     {
         _userRepository = userRepository;
         _roleRepository = roleRepository;
+        _userRoleRepository = userRoleRepository;
         _companyRepository = companyRepository;
         _shopRepository = shopRepository;
         _shopUserRepository = shopUserRepository;
@@ -210,16 +213,42 @@ public class CompanySignupService : ICompanySignupService
         await _shopRepository.AddAsync(firstShop, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        var shopOwnerRole = await _roleRepository.Query()
+        var CompanyOwnerRole = await _roleRepository.Query()
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Name == RoleNames.ShopOwner && x.IsActive, cancellationToken)
-            ?? throw new AppException("role_not_found", "ShopOwner role not found.", 404);
+            .FirstOrDefaultAsync(x => x.Name == RoleNames.CompanyOwner && x.IsActive, cancellationToken)
+            ?? throw new AppException("role_not_found", "CompanyOwner role not found.", 404);
+
+        var existingUserRole = await _userRoleRepository.Query()
+            .FirstOrDefaultAsync(
+                x => x.UserId == user.Id && x.RoleId == CompanyOwnerRole.Id,
+                cancellationToken);
+
+        if (existingUserRole is null)
+        {
+            await _userRoleRepository.AddAsync(new UserRole
+            {
+                UserId = user.Id,
+                RoleId = CompanyOwnerRole.Id,
+                IsActive = true,
+                AssignedOn = now,
+                CreatedOn = now,
+                CreatedBy = user.Id
+            }, cancellationToken);
+        }
+        else if (!existingUserRole.IsActive)
+        {
+            existingUserRole.IsActive = true;
+            existingUserRole.AssignedOn = now;
+            existingUserRole.ModifiedOn = now;
+            existingUserRole.ModifiedBy = user.Id;
+            _userRoleRepository.Update(existingUserRole);
+        }
 
         await _shopUserRepository.AddAsync(new ShopUser
         {
             ShopId = firstShop.Id,
             UserId = user.Id,
-            RoleId = shopOwnerRole.Id,
+            RoleId = CompanyOwnerRole.Id,
             IsActive = true,
             JoinedOn = now,
             CreatedOn = now,
@@ -275,7 +304,7 @@ public class CompanySignupService : ICompanySignupService
             Email = user.Email,
             FirstName = user.FirstName,
             LastName = user.LastName,
-            Roles = [RoleNames.ShopOwner],
+            Roles = [RoleNames.CompanyOwner],
             Shops =
             [
                 new UserShopDto
@@ -284,7 +313,7 @@ public class CompanySignupService : ICompanySignupService
                     CompanyId = company.Id,
                     CompanyName = company.CompanyName,
                     ShopName = firstShop.ShopName,
-                    Role = RoleNames.ShopOwner
+                    Role = RoleNames.CompanyOwner
                 }
             ],
             HasCompanySetup = true,
@@ -292,7 +321,7 @@ public class CompanySignupService : ICompanySignupService
             PrimaryCompanyId = company.Id
         };
 
-        var token = _jwtTokenService.CreateToken(user, [RoleNames.ShopOwner]);
+        var token = _jwtTokenService.CreateToken(user, [RoleNames.CompanyOwner]);
         token.Profile = profile;
 
         await _auditService.LogAsync(
@@ -328,3 +357,5 @@ public class CompanySignupService : ICompanySignupService
         return 30;
     }
 }
+
+

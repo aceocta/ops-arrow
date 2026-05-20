@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { Alert, DevSettings, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -22,6 +22,7 @@ import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme, type ThemeMode } from "../../ui/theme";
 import { getStoredThemeModePreference, setStoredThemeModePreference } from "../../ui/themePreference";
+import { getRoleDisplayName } from "../../utils/roleLabels";
 import { buildShiftTemplateId, SHOP_CONFIG_KEYS, serializeShiftTemplates, ShiftTemplateSetup } from "./shopConfiguration";
 
 async function reloadThemeImmediately() {
@@ -445,7 +446,7 @@ export function UserManagementScreen() {
           {(usersQuery.data ?? []).map((user) => (
             <View key={user.id} style={styles.item}>
               <Text style={styles.itemTitle}>{buildDisplayName(user)} ({user.email})</Text>
-              <Text style={styles.meta}>Current Role: {user.roleName}</Text>
+              <Text style={styles.meta}>Current Role: {getRoleDisplayName(user.roleName)}</Text>
               <Text style={styles.meta}>Status: {user.isActive ? "Active" : "Inactive"}</Text>
               <Text style={styles.meta}>Last Login: {user.lastLoginOn ? new Date(user.lastLoginOn).toLocaleString() : "-"}</Text>
 
@@ -456,7 +457,7 @@ export function UserManagementScreen() {
                     style={styles.smallButton}
                     onPress={() => updateRoleMutation.mutate({ userId: user.id, roleId: role.id })}
                   >
-                    <Text style={styles.smallButtonText}>Set {role.name}</Text>
+                    <Text style={styles.smallButtonText}>Set {getRoleDisplayName(role.name)}</Text>
                   </Pressable>
                 ))}
               </ScrollView>
@@ -878,7 +879,7 @@ function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
                                   }
                                 >
                                   <Text style={[styles.choiceChipText, selected ? styles.choiceChipTextSelected : null]}>
-                                    {roleName}
+                                    {getRoleDisplayName(roleName)}
                                   </Text>
                                 </Pressable>
                               );
@@ -1158,7 +1159,7 @@ export function ShopManagementScreen() {
   const queryClient = useQueryClient();
   const { activeShop, profile, refreshProfile } = useAuth();
   const userRoles = profile?.roles ?? [];
-  const canCreateShop = userRoles.some((role) => role === "PlatformAdmin" || role === "ShopOwner");
+  const canCreateShop = userRoles.some((role) => role === "PlatformAdmin" || role === "CompanyOwner");
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(activeShop?.companyId ?? "");
   const [editingShopId, setEditingShopId] = useState<string | null>(null);
   const [editingIsActive, setEditingIsActive] = useState(true);
@@ -1441,12 +1442,12 @@ export function SettingsScreen() {
   const avatarInitial = displayName !== "-" && displayName.trim().length > 0 ? displayName.trim().charAt(0).toUpperCase() : "?";
   const shopCount = profile?.shops?.length ?? 0;
   const primaryRole = profile?.roles?.[0] ?? "-";
-  const isShopOwner = profile?.roles?.some((role) => role === "ShopOwner") ?? false;
+  const isCompanyOwner = profile?.roles?.some((role) => role === "CompanyOwner") ?? false;
   const isManager = profile?.roles?.some((role) => role === "Manager") ?? false;
   const isPlatformAdmin = profile?.roles?.some((role) => role === "PlatformAdmin") ?? false;
-  const canManageUsersAndShops = isPlatformAdmin || isShopOwner || isManager;
+  const canManageUsersAndShops = isPlatformAdmin || isCompanyOwner || isManager;
   const canManageInvitations =
-    profile?.roles?.some((role) => role === "PlatformAdmin" || role === "ShopOwner" || role === "Manager") ?? false;
+    profile?.roles?.some((role) => role === "PlatformAdmin" || role === "CompanyOwner" || role === "Manager") ?? false;
   const appVersion = Constants.expoConfig?.version ?? "1.0.0";
   const [themeMode, setThemeMode] = useState<ThemeMode>("system");
   const [isApplyingThemeMode, setIsApplyingThemeMode] = useState(false);
@@ -1501,7 +1502,7 @@ export function SettingsScreen() {
     });
   }
 
-  if (isShopOwner) {
+  if (isCompanyOwner) {
     managementActions.push({
       key: "company-management",
       title: "Company Management",
@@ -1571,7 +1572,7 @@ export function SettingsScreen() {
             <View style={styles.settingsMetaChipRow}>
               <View style={styles.settingsMetaChip}>
                 <Ionicons name="shield-checkmark-outline" size={12} color={appTheme.colors.primary} />
-                <Text style={styles.settingsMetaChipText}>{primaryRole}</Text>
+                <Text style={styles.settingsMetaChipText}>{getRoleDisplayName(primaryRole)}</Text>
               </View>
               <View style={styles.settingsMetaChip}>
                 <Ionicons name="business-outline" size={12} color={appTheme.colors.primary} />
@@ -2140,6 +2141,8 @@ const styles = StyleSheet.create({
   },
   logoutButtonText: { color: appTheme.colors.onPrimary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 16, lineHeight: 18 },
 });
+
+
 
 
 

@@ -63,8 +63,8 @@
       "appDisplayName": "Ops Arrow",
       "enableDevAuthBypass": false,
       "devBypassEmail": "dev.shopowner@scratchcard.local",
-      "devBypassFullName": "Development Shop Owner",
-      "devBypassRole": "ShopOwner",
+      "devBypassFullName": "Development Company Owner",
+      "devBypassRole": "CompanyOwner",
       "eas": {
         "projectId": "f1ea68f4-7d49-43f8-b522-2e8aeb9756d0"
       }

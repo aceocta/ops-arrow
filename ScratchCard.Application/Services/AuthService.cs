@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using System.Net;
 using ScratchCard.Application.Common.Exceptions;
@@ -17,6 +17,7 @@ public class AuthService : IAuthService
     private readonly IRepository<User> _userRepository;
     private readonly IRepository<Company> _companyRepository;
     private readonly IRepository<ShopUser> _shopUserRepository;
+    private readonly IRepository<UserRole> _userRoleRepository;
     private readonly IRepository<Role> _roleRepository;
     private readonly IRepository<Shop> _shopRepository;
     private readonly ICurrentUserService _currentUserService;
@@ -32,6 +33,7 @@ public class AuthService : IAuthService
         IRepository<User> userRepository,
         IRepository<Company> companyRepository,
         IRepository<ShopUser> shopUserRepository,
+        IRepository<UserRole> userRoleRepository,
         IRepository<Role> roleRepository,
         IRepository<Shop> shopRepository,
         ICurrentUserService currentUserService,
@@ -46,6 +48,7 @@ public class AuthService : IAuthService
         _userRepository = userRepository;
         _companyRepository = companyRepository;
         _shopUserRepository = shopUserRepository;
+        _userRoleRepository = userRoleRepository;
         _roleRepository = roleRepository;
         _shopRepository = shopRepository;
         _currentUserService = currentUserService;
@@ -101,10 +104,27 @@ public class AuthService : IAuthService
         };
 
         await _userRepository.AddAsync(user, cancellationToken);
+
+        var ownerRole = await _roleRepository.Query()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Name == RoleNames.CompanyOwner && x.IsActive, cancellationToken)
+            ?? throw new AppException("role_not_found", "CompanyOwner role not found.", 404);
+
+        await _userRoleRepository.AddAsync(new UserRole
+        {
+            UserId = user.Id,
+            RoleId = ownerRole.Id,
+            IsActive = true,
+            AssignedOn = now,
+            CreatedOn = now,
+            CreatedBy = user.Id
+        }, cancellationToken);
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        var profile = await BuildProfileAsync(user, Array.Empty<string>(), cancellationToken);
-        var token = _jwtTokenService.CreateToken(user, Array.Empty<string>());
+        var roles = new[] { RoleNames.CompanyOwner };
+        var profile = await BuildProfileAsync(user, roles, cancellationToken);
+        var token = _jwtTokenService.CreateToken(user, roles);
         token.Profile = profile;
 
         await _auditService.LogAsync(nameof(User), user.Id, "UserSignedUp", newValue: normalizedEmail, cancellationToken: cancellationToken);
@@ -160,7 +180,7 @@ public class AuthService : IAuthService
                 .ThenInclude(x => x.Company)
             .ToListAsync(cancellationToken);
 
-        var roles = shopUsers.Select(x => x.Role.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var roles = await ResolveEffectiveRoleNamesAsync(user.Id, shopUsers, cancellationToken);
         var profile = await BuildProfileAsync(user, roles, cancellationToken, shopUsers);
 
         var token = _jwtTokenService.CreateToken(user, roles);
@@ -179,7 +199,7 @@ public class AuthService : IAuthService
         }
 
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
-        var requestedRole = string.IsNullOrWhiteSpace(request.Role) ? RoleNames.ShopOwner : request.Role.Trim();
+        var requestedRole = string.IsNullOrWhiteSpace(request.Role) ? RoleNames.CompanyOwner : request.Role.Trim();
         var validRoleName = RoleNames.All.FirstOrDefault(x => x.Equals(requestedRole, StringComparison.OrdinalIgnoreCase));
 
         if (validRoleName is null)
@@ -289,10 +309,7 @@ public class AuthService : IAuthService
                 .ThenInclude(x => x.Company)
             .ToListAsync(cancellationToken);
 
-        var roles = activeShopUsers
-            .Select(x => x.Role.Name)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+        var roles = await ResolveEffectiveRoleNamesAsync(user.Id, activeShopUsers, cancellationToken);
 
         var profile = await BuildProfileAsync(user, roles, cancellationToken, activeShopUsers);
 
@@ -430,10 +447,7 @@ public class AuthService : IAuthService
                 .ThenInclude(x => x.Company)
             .ToListAsync(cancellationToken);
 
-        var roles = shopUsers
-            .Select(x => x.Role.Name)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+        var roles = await ResolveEffectiveRoleNamesAsync(user.Id, shopUsers, cancellationToken);
 
         var profile = await BuildProfileAsync(user, roles, cancellationToken, shopUsers);
         var token = _jwtTokenService.CreateToken(user, roles);
@@ -497,7 +511,7 @@ public class AuthService : IAuthService
             Email = user.Email,
             FirstName = user.FirstName,
             LastName = user.LastName,
-            Roles = _currentUserService.Roles,
+            Roles = await ResolveEffectiveRoleNamesAsync(user.Id, null, cancellationToken),
             Shops = shops,
             HasCompanySetup = ownedCompanyIds.Count > 0 || companyIdsFromShops.Count > 0,
             HasShopSetup = shops.Count > 0,
@@ -559,6 +573,30 @@ public class AuthService : IAuthService
             HasShopSetup = shops.Length > 0,
             PrimaryCompanyId = primaryCompanyId == Guid.Empty ? null : primaryCompanyId
         };
+    }
+
+    private async Task<string[]> ResolveEffectiveRoleNamesAsync(
+        Guid userId,
+        IReadOnlyCollection<ShopUser>? preloadedShopUsers,
+        CancellationToken cancellationToken)
+    {
+        var shopRoleNames = (preloadedShopUsers ?? await _shopUserRepository.Query()
+                .AsNoTracking()
+                .Where(x => x.UserId == userId && x.IsActive)
+                .Include(x => x.Role)
+                .ToListAsync(cancellationToken))
+            .Select(x => x.Role.Name);
+
+        var directRoleNames = await _userRoleRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.UserId == userId && x.IsActive && x.Role.IsActive)
+            .Select(x => x.Role.Name)
+            .ToListAsync(cancellationToken);
+
+        return shopRoleNames
+            .Concat(directRoleNames)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static bool IsNameProvided(string? firstName, string? lastName)
@@ -665,3 +703,5 @@ public class AuthService : IAuthService
         };
     }
 }
+
+

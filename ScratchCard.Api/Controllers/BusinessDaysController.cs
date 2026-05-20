@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.BusinessDays;
@@ -7,7 +7,7 @@ using ScratchCard.Domain.Constants;
 namespace ScratchCard.Api.Controllers;
 
 [Route("api/business-days")]
-[Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager},{RoleNames.Cashier},{RoleNames.SalesAssistant}")]
+[Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager},{RoleNames.Cashier},{RoleNames.SalesAssistant}")]
 public class BusinessDaysController : BaseApiController
 {
     private readonly IBusinessDayService _businessDayService;
@@ -18,7 +18,7 @@ public class BusinessDaysController : BaseApiController
     }
 
     [HttpPost("open")]
-    [Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager}")]
+    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
     public async Task<IActionResult> Open([FromBody] OpenBusinessDayRequest request, CancellationToken cancellationToken)
     {
         var result = await _businessDayService.OpenAsync(request, cancellationToken);
@@ -40,7 +40,7 @@ public class BusinessDaysController : BaseApiController
     }
 
     [HttpPost("{id:guid}/close")]
-    [Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager}")]
+    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
     public async Task<IActionResult> Close(Guid id, [FromBody] CloseBusinessDayRequest request, CancellationToken cancellationToken)
     {
         var result = await _businessDayService.CloseAsync(id, request, cancellationToken);
@@ -48,7 +48,7 @@ public class BusinessDaysController : BaseApiController
     }
 
     [HttpPost("{id:guid}/reopen")]
-    [Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager}")]
+    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
     public async Task<IActionResult> Reopen(Guid id, [FromBody] ReopenBusinessDayRequest request, CancellationToken cancellationToken)
     {
         var result = await _businessDayService.ReopenAsync(id, request, cancellationToken);
@@ -62,3 +62,4 @@ public class BusinessDaysController : BaseApiController
         return Success(result);
     }
 }
+

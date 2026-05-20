@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Reports;
@@ -7,7 +7,7 @@ using ScratchCard.Domain.Constants;
 namespace ScratchCard.Api.Controllers;
 
 [Route("api/reports")]
-[Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager}")]
+[Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
 public class ReportsController : BaseApiController
 {
     private readonly IReportService _reportService;
@@ -85,3 +85,4 @@ public class ReportsController : BaseApiController
         return Success(true, "Report email sent.");
     }
 }
+

@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+﻿import React, { useMemo, useRef, useState } from "react";
 import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import SignatureScreen, { SignatureViewRef } from "react-native-signature-canvas";
@@ -40,7 +40,7 @@ export function RefusalManagerReviewScreen() {
   const queryClient = useQueryClient();
   const signatureRef = useRef<SignatureViewRef>(null);
   const { activeShopId, profile } = useAuth();
-  const canReview = profile?.roles?.some((role) => role === "ShopOwner" || role === "Manager") ?? false;
+  const canReview = profile?.roles?.some((role) => role === "CompanyOwner" || role === "Manager") ?? false;
   const defaultRange = useMemo(() => buildDefaultRange(), []);
   const [fromDate, setFromDate] = useState(defaultRange.from);
   const [toDate, setToDate] = useState(defaultRange.to);
@@ -73,7 +73,7 @@ export function RefusalManagerReviewScreen() {
         throw new Error("No shop selected.");
       }
       if (!canReview) {
-        throw new Error("Only manager or shop owner can review.");
+        throw new Error("Only manager or company owner can review.");
       }
       if (selectedEntryIds.length === 0) {
         throw new Error("Select at least one refusal entry.");
@@ -189,7 +189,7 @@ export function RefusalManagerReviewScreen() {
           onPress={openReviewModal}
           disabled={!canReview || selectedEntryIds.length === 0 || hasDateRangeError}
         />
-        {!canReview ? <Text style={styles.errorText}>Only manager or shop owner can apply review.</Text> : null}
+        {!canReview ? <Text style={styles.errorText}>Only manager or company owner can apply review.</Text> : null}
       </View>
 
       <View style={ui.card}>
@@ -600,5 +600,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
+
 
 

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using ScratchCard.Domain.Constants;
 using ScratchCard.Domain.Entities;
@@ -26,6 +26,7 @@ public static class SeedDataInitializer
         await SeedDemoShopAsync(dbContext, cancellationToken);
         await SeedComplianceCheckTemplatesAsync(dbContext, cancellationToken);
         await SeedPlatformUserAsync(dbContext, cancellationToken);
+        await SeedUserRoleAssignmentsAsync(dbContext, cancellationToken);
         await SeedSubscriptionPlansAsync(dbContext, cancellationToken);
         await SeedSubscriptionDiscountRulesAsync(dbContext, cancellationToken);
         await SeedDefaultConfigurationsAsync(dbContext, cancellationToken);
@@ -56,7 +57,7 @@ public static class SeedDataInitializer
         var roles = new[]
         {
             new Role { Name = RoleNames.PlatformAdmin, Description = "Platform-wide billing/configuration administration", IsActive = true },
-            new Role { Name = RoleNames.ShopOwner, Description = "Full shop access", IsActive = true },
+            new Role { Name = RoleNames.CompanyOwner, Description = "Full shop access", IsActive = true },
             new Role { Name = RoleNames.Manager, Description = "Operational manager access", IsActive = true },
             new Role { Name = RoleNames.Cashier, Description = "Cashier access", IsActive = true },
             new Role { Name = RoleNames.SalesAssistant, Description = "Sales assistant access", IsActive = true }
@@ -461,6 +462,105 @@ public static class SeedDataInitializer
         }
     }
 
+    private static async Task SeedUserRoleAssignmentsAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var hasChanges = false;
+
+        var rolesByName = await dbContext.Roles
+            .Where(x => x.IsActive && (x.Name == RoleNames.CompanyOwner || x.Name == RoleNames.PlatformAdmin))
+            .ToDictionaryAsync(x => x.Name, x => x, cancellationToken);
+
+        if (rolesByName.TryGetValue(RoleNames.CompanyOwner, out var CompanyOwnerRole))
+        {
+            var ownerUserIds = await dbContext.Companies
+                .AsNoTracking()
+                .Where(x => !x.IsDeleted && x.OwnerUserId.HasValue)
+                .Select(x => x.OwnerUserId!.Value)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            if (ownerUserIds.Count > 0)
+            {
+                var existingOwnerRoles = await dbContext.UserRoles
+                    .Where(x => x.RoleId == CompanyOwnerRole.Id && ownerUserIds.Contains(x.UserId))
+                    .ToListAsync(cancellationToken);
+
+                var ownerRolesByUserId = existingOwnerRoles
+                    .GroupBy(x => x.UserId)
+                    .ToDictionary(x => x.Key, x => x.OrderByDescending(r => r.IsActive).ThenByDescending(r => r.AssignedOn).First());
+
+                foreach (var ownerUserId in ownerUserIds)
+                {
+                    if (!ownerRolesByUserId.TryGetValue(ownerUserId, out var existingRole))
+                    {
+                        await dbContext.UserRoles.AddAsync(new UserRole
+                        {
+                            UserId = ownerUserId,
+                            RoleId = CompanyOwnerRole.Id,
+                            IsActive = true,
+                            AssignedOn = now,
+                            CreatedOn = now,
+                            CreatedBy = ownerUserId
+                        }, cancellationToken);
+                        hasChanges = true;
+                        continue;
+                    }
+
+                    if (existingRole.IsActive)
+                    {
+                        continue;
+                    }
+
+                    existingRole.IsActive = true;
+                    existingRole.AssignedOn = now;
+                    existingRole.ModifiedOn = now;
+                    existingRole.ModifiedBy = ownerUserId;
+                    hasChanges = true;
+                }
+            }
+        }
+
+        if (rolesByName.TryGetValue(RoleNames.PlatformAdmin, out var platformAdminRole))
+        {
+            var platformUser = await dbContext.Users
+                .FirstOrDefaultAsync(x => x.Email == PlatformUserEmail, cancellationToken);
+
+            if (platformUser is not null)
+            {
+                var existingPlatformRole = await dbContext.UserRoles
+                    .FirstOrDefaultAsync(x => x.UserId == platformUser.Id && x.RoleId == platformAdminRole.Id, cancellationToken);
+
+                if (existingPlatformRole is null)
+                {
+                    await dbContext.UserRoles.AddAsync(new UserRole
+                    {
+                        UserId = platformUser.Id,
+                        RoleId = platformAdminRole.Id,
+                        IsActive = true,
+                        AssignedOn = now,
+                        CreatedOn = now,
+                        CreatedBy = platformUser.Id
+                    }, cancellationToken);
+                    hasChanges = true;
+                }
+                else if (!existingPlatformRole.IsActive)
+                {
+                    existingPlatformRole.IsActive = true;
+                    existingPlatformRole.AssignedOn = now;
+                    existingPlatformRole.ModifiedOn = now;
+                    existingPlatformRole.ModifiedBy = platformUser.Id;
+                    hasChanges = true;
+                }
+            }
+        }
+
+        if (hasChanges)
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+    }
+
     private static string BuildGroupTemplateKey(ComplianceCheckFrequency frequency, string groupName)
     {
         return $"{frequency}:{groupName.Trim()}";
@@ -543,7 +643,7 @@ public static class SeedDataInitializer
                 ShopId = null,
                 RequireShiftClose = true,
                 AllowShiftReopen = true,
-                WhoCanReopenShift = "Manager,ShopOwner",
+                WhoCanReopenShift = "Manager,CompanyOwner",
                 ShiftStartTime = "06:00",
                 ShiftEndTime = "23:00",
                 ShiftDefaultName = "Main Shift",
@@ -568,7 +668,7 @@ public static class SeedDataInitializer
                 ShopId = null,
                 RequireDayEndClose = true,
                 AllowDayReopen = true,
-                WhoCanReopenDay = "Manager,ShopOwner",
+                WhoCanReopenDay = "Manager,CompanyOwner",
                 RequireAllShiftsClosedBeforeDayClose = true,
                 RequireNoteWhenDayDifferenceExists = true,
                 IsActive = true,
@@ -604,9 +704,9 @@ public static class SeedDataInitializer
             {
                 ShopId = null,
                 NotificationChannels = "Email",
-                ManualEntryNotificationRecipients = "ShopOwner,Manager",
-                CashDifferenceNotificationRecipients = "ShopOwner,Manager",
-                HighPrizePayoutNotificationRecipients = "ShopOwner,Manager",
+                ManualEntryNotificationRecipients = "CompanyOwner,Manager",
+                CashDifferenceNotificationRecipients = "CompanyOwner,Manager",
+                HighPrizePayoutNotificationRecipients = "CompanyOwner,Manager",
                 SendNotificationOnShiftFinalize = true,
                 IsActive = true,
                 CreatedOn = now
@@ -795,3 +895,5 @@ public static class SeedDataInitializer
     }
 
 }
+
+

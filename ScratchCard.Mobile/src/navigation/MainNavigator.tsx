@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { DrawerActions, NavigatorScreenParams, useNavigation, useNavigationState } from "@react-navigation/native";
 import { createDrawerNavigator, DrawerContentScrollView, type DrawerContentComponentProps } from "@react-navigation/drawer";
@@ -51,6 +51,7 @@ import { BestEntryProvider, EntryOperation, useBestEntry } from "./BestEntryCont
 import { MainStackParamList } from "../types/navigation";
 import { appTheme } from "../ui/theme";
 import { appInfo } from "../config/appInfo";
+import { getRoleDisplayName } from "../utils/roleLabels";
 
 type MainDrawerParamList = {
   MainStack: NavigatorScreenParams<MainStackParamList> | undefined;
@@ -81,28 +82,28 @@ const operationsItems: MenuItem[] = [
     screen: "ComplianceConfig",
     icon: "build-outline",
     mode: "compliance",
-    allowedRoles: ["PlatformAdmin", "ShopOwner", "Manager"],
+    allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
   },
   {
     label: "Compliance Action Report",
     screen: "ComplianceActions",
     icon: "warning-outline",
     mode: "compliance",
-    allowedRoles: ["PlatformAdmin", "ShopOwner", "Manager"],
+    allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
   },
   {
     label: "Checklist Setup",
     screen: "ChecklistConfiguration",
     icon: "construct-outline",
     mode: "checklist",
-    allowedRoles: ["PlatformAdmin", "ShopOwner", "Manager"],
+    allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
   },
   {
     label: "Checklist History",
     screen: "ChecklistHistory",
     icon: "document-text-outline",
     mode: "checklist",
-    allowedRoles: ["PlatformAdmin", "ShopOwner", "Manager"],
+    allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
   },
   { label: "Day Management", screen: "Dashboard", icon: "calendar-outline", mode: "scratchCard" },
   { label: "Deliveries", screen: "Deliveries", icon: "cube-outline", mode: "scratchCard" },
@@ -124,10 +125,10 @@ const operationsItems: MenuItem[] = [
 
 const managementItems: MenuItem[] = [
   { label: "Settings", screen: "Settings", icon: "settings-outline" },
-  { label: "User Invitations", screen: "UserInvitations", icon: "mail-outline", allowedRoles: ["PlatformAdmin", "ShopOwner", "Manager"] },
+  { label: "User Invitations", screen: "UserInvitations", icon: "mail-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"] },
   // { label: "Company Management", screen: "CompanyManagement", icon: "business-outline", shopOwnerOnly: true },
-  { label: "Shop Management", screen: "ShopManagement", icon: "storefront-outline", allowedRoles: ["PlatformAdmin", "ShopOwner", "Manager"] },
-  { label: "User Management", screen: "UserManagement", icon: "people-outline", allowedRoles: ["PlatformAdmin", "ShopOwner", "Manager"] },
+  { label: "Shop Management", screen: "ShopManagement", icon: "storefront-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"] },
+  { label: "User Management", screen: "UserManagement", icon: "people-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"] },
   { label: "Shop Configuration", screen: "ShopConfiguration", icon: "storefront-outline" },
   { label: "App Configuration", screen: "AppConfiguration", icon: "construct-outline" },
 ];
@@ -441,7 +442,7 @@ function DrawerSection({
   sectionKey,
   title,
   items,
-  isShopOwner,
+  isCompanyOwner,
   userRoles,
   onPress,
   selectedOperation,
@@ -452,7 +453,7 @@ function DrawerSection({
   sectionKey: DrawerSectionKey;
   title: string;
   items: MenuItem[];
-  isShopOwner: boolean;
+  isCompanyOwner: boolean;
   userRoles: string[];
   onPress: (item: MenuItem) => void;
   selectedOperation: EntryOperation | null;
@@ -462,7 +463,7 @@ function DrawerSection({
 }) {
   const visibleItems = items.filter(
     (item) =>
-      (!item.shopOwnerOnly || isShopOwner) &&
+      (!item.shopOwnerOnly || isCompanyOwner) &&
       (!item.allowedRoles || item.allowedRoles.some((role) => userRoles.includes(role))) &&
       (!selectedOperation || !item.mode || item.mode === selectedOperation)
   );
@@ -530,10 +531,10 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
   const insets = useSafeAreaInsets();
   const { profile, activeShop } = useAuth();
   const userRoles = profile?.roles ?? [];
-  const isShopOwner = userRoles.some((role) => role === "ShopOwner");
+  const isCompanyOwner = userRoles.some((role) => role === "CompanyOwner");
   const isPlatformAdmin = userRoles.some((role) => role === "PlatformAdmin");
   const isManager = userRoles.some((role) => role === "Manager");
-  const roleLabel = isPlatformAdmin ? "Admin" : isShopOwner ? "Shop Owner" : isManager ? "Manager" : "Staff";
+  const roleLabel = isPlatformAdmin ? "Admin" : isCompanyOwner ? getRoleDisplayName("CompanyOwner") : isManager ? "Manager" : "Staff";
   const activeRouteName = getDeepestRouteName(props.state);
   const activeScreen = activeRouteName as keyof MainStackParamList | undefined;
   const operationLabel = getOperationLabel(selectedOperation);
@@ -586,7 +587,7 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
         sectionKey="operations"
         title="Operations"
         items={operationsItems}
-        isShopOwner={isShopOwner}
+        isCompanyOwner={isCompanyOwner}
         userRoles={userRoles}
         onPress={goTo}
         selectedOperation={selectedOperation}
@@ -599,7 +600,7 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
         sectionKey="reports"
         title="Reports"
         items={reportItems}
-        isShopOwner={isShopOwner}
+        isCompanyOwner={isCompanyOwner}
         userRoles={userRoles}
         onPress={goTo}
         selectedOperation={selectedOperation}
@@ -611,7 +612,7 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
         sectionKey="management"
         title="Management"
         items={managementItems}
-        isShopOwner={isShopOwner}
+        isCompanyOwner={isCompanyOwner}
         userRoles={userRoles}
         onPress={goTo}
         selectedOperation={selectedOperation}
@@ -854,3 +855,5 @@ const styles = StyleSheet.create({
     color: appTheme.colors.primary,
   },
 });
+
+

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -53,7 +53,7 @@ function resolveGameCodeFromPack(pack: { gameCode?: string; packNumber: string }
 export function OpenShiftScreen({ navigation }: OpenShiftProps) {
   const { activeShopId, activeShop, profile } = useAuth();
   const shopId = activeShopId;
-  const canDeleteAutoShift = profile?.roles?.some((role) => role === "ShopOwner" || role === "Manager") ?? false;
+  const canDeleteAutoShift = profile?.roles?.some((role) => role === "CompanyOwner" || role === "Manager") ?? false;
 
   const [viewMode, setViewMode] = useState<"open" | "close">("open");
   const [selectedBusinessDayId, setSelectedBusinessDayId] = useState("");
@@ -881,6 +881,7 @@ const styles = StyleSheet.create({
   },
   smallButtonText: { color: appTheme.colors.onPrimary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 14 },
 });
+
 
 
 

@@ -2,8 +2,8 @@ import axios from "axios";
 import Constants from "expo-constants";
 import { getAccessToken } from "../auth/tokenStorage";
 const configuredBaseUrl =
-  "https://wa-ops-arrow-uat-dvdrbjf9fraydwdd.canadacentral-01.azurewebsites.net/api";
-  // "https://gaming-lent-startup.ngrok-free.dev/api";
+  // "https://wa-ops-arrow-uat-dvdrbjf9fraydwdd.canadacentral-01.azurewebsites.net/api";
+  "https://gaming-lent-startup.ngrok-free.dev/api";
 // const configuredBaseUrl =
 //   (Constants.expoConfig?.extra?.apiBaseUrl as string | undefined) ??
 //   "http://localhost:5268/api";

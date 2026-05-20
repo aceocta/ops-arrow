@@ -1,6 +1,7 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using ScratchCard.Application.Common.Exceptions;
+using ScratchCard.Application.Common.Extensions;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Common;
@@ -733,7 +734,7 @@ public class ComplianceCheckService : IComplianceCheckService
         CancellationToken cancellationToken = default)
     {
         if (!_currentUserService.IsInRole(RoleNames.PlatformAdmin)
-            && !_currentUserService.IsInRole(RoleNames.ShopOwner)
+            && !_currentUserService.IsOwner()
             && !_currentUserService.IsInRole(RoleNames.Manager))
         {
             throw new AppException(ErrorCodes.UnauthorizedRole, "Only owner, admin, or manager can close actions.", 403);
@@ -1470,3 +1471,6 @@ public class ComplianceCheckService : IComplianceCheckService
         int GroupSeedOrder,
         int ItemSeedOrder);
 }
+
+
+

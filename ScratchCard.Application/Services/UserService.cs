@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Services;
@@ -12,6 +12,7 @@ public class UserService : IUserService
 {
     private readonly IRepository<ShopUser> _shopUserRepository;
     private readonly IRepository<User> _userRepository;
+    private readonly IRepository<Role> _roleRepository;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
@@ -19,12 +20,14 @@ public class UserService : IUserService
     public UserService(
         IRepository<ShopUser> shopUserRepository,
         IRepository<User> userRepository,
+        IRepository<Role> roleRepository,
         IAuditService auditService,
         ICurrentUserService currentUserService,
         IUnitOfWork unitOfWork)
     {
         _shopUserRepository = shopUserRepository;
         _userRepository = userRepository;
+        _roleRepository = roleRepository;
         _auditService = auditService;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
@@ -55,6 +58,17 @@ public class UserService : IUserService
     public async Task UpdateRoleAsync(Guid userId, UpdateUserRoleRequest request, CancellationToken cancellationToken = default)
     {
         await EnsureCanManageShopUsersAsync(request.ShopId, cancellationToken);
+
+        var targetRole = await _roleRepository.Query()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == request.RoleId && x.IsActive, cancellationToken)
+            ?? throw new AppException("role_not_found", "Role not found.", 404);
+
+        if (string.Equals(targetRole.Name, RoleNames.PlatformAdmin, StringComparison.OrdinalIgnoreCase)
+            && !_currentUserService.IsInRole(RoleNames.PlatformAdmin))
+        {
+            throw new AppException("unauthorized_role", "Only platform admin can assign PlatformAdmin role.", 403);
+        }
 
         var link = await _shopUserRepository.Query()
             .FirstOrDefaultAsync(x => x.UserId == userId && x.ShopId == request.ShopId, cancellationToken)
@@ -128,12 +142,14 @@ public class UserService : IUserService
                 x => x.ShopId == shopId
                      && x.UserId == actorId
                      && x.IsActive
-                     && (x.Role.Name == RoleNames.ShopOwner || x.Role.Name == RoleNames.Manager),
+                     && (x.Role.Name == RoleNames.CompanyOwner || x.Role.Name == RoleNames.Manager),
                 cancellationToken);
 
         if (!hasManagementRoleForShop)
         {
-            throw new AppException("unauthorized_role", "Only shop owner or manager can manage users for this shop.", 403);
+            throw new AppException("unauthorized_role", "Only company owner or manager can manage users for this shop.", 403);
         }
     }
 }
+
+

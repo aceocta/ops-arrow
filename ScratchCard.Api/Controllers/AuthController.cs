@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Services;
@@ -67,7 +67,7 @@ public class AuthController : BaseApiController
 
         if (string.IsNullOrWhiteSpace(request.Role))
         {
-            request.Role = _configuration["DevAuth:DefaultRole"] ?? "ShopOwner";
+            request.Role = _configuration["DevAuth:DefaultRole"] ?? "CompanyOwner";
         }
 
         var token = await _authService.SignInDevAsync(request, cancellationToken);
@@ -197,3 +197,4 @@ public class AuthController : BaseApiController
         return (firstName, lastName);
     }
 }
+

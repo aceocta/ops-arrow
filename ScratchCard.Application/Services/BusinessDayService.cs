@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Net;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
@@ -880,7 +880,7 @@ public class BusinessDayService : IBusinessDayService
                 x.ShopId == shopId &&
                 x.IsActive &&
                 !string.IsNullOrWhiteSpace(x.User.Email) &&
-                (x.Role.Name == RoleNames.ShopOwner || x.Role.Name == RoleNames.Manager))
+                (x.Role.Name == RoleNames.CompanyOwner || x.Role.Name == RoleNames.Manager))
             .Select(x => x.User.Email)
             .ToListAsync(cancellationToken);
 
@@ -1129,3 +1129,4 @@ public class BusinessDayService : IBusinessDayService
         return sb.ToString();
     }
 }
+

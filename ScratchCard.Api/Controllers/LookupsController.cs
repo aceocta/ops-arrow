@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Domain.Constants;
@@ -6,7 +6,7 @@ using ScratchCard.Domain.Constants;
 namespace ScratchCard.Api.Controllers;
 
 [Route("api/lookups")]
-[Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager}")]
+[Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.OwnerRoles},{RoleNames.Manager}")]
 public class LookupsController : BaseApiController
 {
     private readonly ILookupService _lookupService;
@@ -23,3 +23,4 @@ public class LookupsController : BaseApiController
         return Success(roles);
     }
 }
+

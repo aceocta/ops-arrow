@@ -6,6 +6,7 @@ import { ScreenContainer } from "../../components/ScreenContainer";
 import { RootStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
+import { getRoleDisplayName } from "../../utils/roleLabels";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ShopSelector">;
 
@@ -85,7 +86,7 @@ export function ShopSelectorScreen({ navigation }: Props) {
                   >
                     <View style={{ flex: 1 }}>
                       <Text style={styles.shopName}>{shop.shopName}</Text>
-                      <Text style={styles.meta}>Role: {shop.role}</Text>
+                      <Text style={styles.meta}>Role: {getRoleDisplayName(shop.role)}</Text>
                     </View>
                     <Text style={[styles.badge, selected ? styles.badgeSelected : null]}>
                       {selected ? "Active" : "Select"}

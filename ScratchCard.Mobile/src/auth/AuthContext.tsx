@@ -5,6 +5,7 @@ import {
   refreshAuthToken,
   signInWithDevBypass,
   signInWithPassword as signInWithPasswordApi,
+  signUpCompany as signUpCompanyApi,
   signUpWithPassword as signUpWithPasswordApi,
 } from "../api/authApi";
 import { AuthProfile } from "../types/models";
@@ -32,6 +33,20 @@ type AuthContextValue = {
   setActiveShop: (shopId: string) => Promise<void>;
   signInWithPassword: (payload: { email: string; password: string }) => Promise<void>;
   signUpWithPassword: (payload: { email: string; password: string; firstName?: string; lastName?: string }) => Promise<void>;
+  signUpCompany: (payload: {
+    companyName: string;
+    ownerFirstName: string;
+    ownerLastName: string;
+    ownerEmail: string;
+    phoneNumber?: string;
+    addressLine1?: string;
+    addressLine2?: string;
+    city?: string;
+    postCode?: string;
+    country: string;
+    firstShopName?: string;
+    password: string;
+  }) => Promise<void>;
   signInWithGoogleToken: (idToken: string) => Promise<void>;
   signInWithDevBypass: (payload: { email?: string; firstName?: string; lastName?: string; role?: string; shopId?: string }) => Promise<void>;
   signOut: () => Promise<void>;
@@ -128,6 +143,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  async function signUpCompany(payload: {
+    companyName: string;
+    ownerFirstName: string;
+    ownerLastName: string;
+    ownerEmail: string;
+    phoneNumber?: string;
+    addressLine1?: string;
+    addressLine2?: string;
+    city?: string;
+    postCode?: string;
+    country: string;
+    firstShopName?: string;
+    password: string;
+  }) {
+    setIsLoading(true);
+    try {
+      const result = await signUpCompanyApi(payload);
+      await applyAuthTokenResult(result);
+    } catch (error) {
+      await clearAccessToken();
+      await clearAuthProfile();
+      await clearActiveShopId();
+      setProfile(null);
+      setActiveShopId(null);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   async function signInWithDevBypassLogin(payload: { email?: string; firstName?: string; lastName?: string; role?: string; shopId?: string }) {
     setIsLoading(true);
     try {
@@ -202,6 +247,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setActiveShop,
       signInWithPassword,
       signUpWithPassword,
+      signUpCompany,
       signInWithGoogleToken,
       signInWithDevBypass: signInWithDevBypassLogin,
       signOut,

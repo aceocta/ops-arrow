@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Domain.Constants;
@@ -6,7 +6,7 @@ using ScratchCard.Domain.Constants;
 namespace ScratchCard.Api.Controllers;
 
 [Route("api/notifications")]
-[Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager}")]
+[Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
 public class NotificationsController : BaseApiController
 {
     private readonly INotificationLogService _notificationLogService;
@@ -30,3 +30,4 @@ public class NotificationsController : BaseApiController
         return Success(new { Retried = true });
     }
 }
+

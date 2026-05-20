@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
@@ -115,7 +115,7 @@ public class ConfigurationService : IConfigurationService
 
         AddItem(items, shopId, ShiftGroup, "RequireShiftClose", ToConfigString(Resolve(shopShift?.RequireShiftClose, globalShift?.RequireShiftClose, true)), "bool", null);
         AddItem(items, shopId, ShiftGroup, "AllowShiftReopen", ToConfigString(Resolve(shopShift?.AllowShiftReopen, globalShift?.AllowShiftReopen, true)), "bool", null);
-        AddItem(items, shopId, ShiftGroup, "WhoCanReopenShift", Resolve(shopShift?.WhoCanReopenShift, globalShift?.WhoCanReopenShift, "Manager,ShopOwner"), "string", null);
+        AddItem(items, shopId, ShiftGroup, "WhoCanReopenShift", Resolve(shopShift?.WhoCanReopenShift, globalShift?.WhoCanReopenShift, "Manager,CompanyOwner"), "string", null);
         AddItem(items, shopId, ShiftGroup, ConfigurationKeys.ShiftStartTime, Resolve(shopShift?.ShiftStartTime, globalShift?.ShiftStartTime, "06:00"), "string", "Configured shift opening window start time (HH:mm)");
         AddItem(items, shopId, ShiftGroup, ConfigurationKeys.ShiftEndTime, Resolve(shopShift?.ShiftEndTime, globalShift?.ShiftEndTime, "23:00"), "string", "Configured shift opening window end time (HH:mm)");
         AddItem(items, shopId, ShiftGroup, ConfigurationKeys.ShiftDefaultName, Resolve(shopShift?.ShiftDefaultName, globalShift?.ShiftDefaultName, "Main Shift"), "string", "Default shift name used when custom names are not allowed");
@@ -128,7 +128,7 @@ public class ConfigurationService : IConfigurationService
 
         AddItem(items, shopId, DayCloseGroup, "RequireDayEndClose", ToConfigString(Resolve(shopDayClose?.RequireDayEndClose, globalDayClose?.RequireDayEndClose, true)), "bool", null);
         AddItem(items, shopId, DayCloseGroup, "AllowDayReopen", ToConfigString(Resolve(shopDayClose?.AllowDayReopen, globalDayClose?.AllowDayReopen, true)), "bool", null);
-        AddItem(items, shopId, DayCloseGroup, "WhoCanReopenDay", Resolve(shopDayClose?.WhoCanReopenDay, globalDayClose?.WhoCanReopenDay, "Manager,ShopOwner"), "string", null);
+        AddItem(items, shopId, DayCloseGroup, "WhoCanReopenDay", Resolve(shopDayClose?.WhoCanReopenDay, globalDayClose?.WhoCanReopenDay, "Manager,CompanyOwner"), "string", null);
         AddItem(items, shopId, DayCloseGroup, "RequireAllShiftsClosedBeforeDayClose", ToConfigString(Resolve(shopDayClose?.RequireAllShiftsClosedBeforeDayClose, globalDayClose?.RequireAllShiftsClosedBeforeDayClose, true)), "bool", null);
         AddItem(items, shopId, DayCloseGroup, "RequireNoteWhenDayDifferenceExists", ToConfigString(Resolve(shopDayClose?.RequireNoteWhenDayDifferenceExists, globalDayClose?.RequireNoteWhenDayDifferenceExists, true)), "bool", null);
 
@@ -140,9 +140,9 @@ public class ConfigurationService : IConfigurationService
         AddItem(items, shopId, PrizePayoutGroup, "AllowedPayoutMethods", Resolve(shopPrizePayout?.AllowedPayoutMethods, globalPrizePayout?.AllowedPayoutMethods, "Cash,Card,Transfer"), "string", null);
 
         AddItem(items, shopId, NotificationGroup, "NotificationChannels", Resolve(shopNotification?.NotificationChannels, globalNotification?.NotificationChannels, "Email"), "string", null);
-        AddItem(items, shopId, NotificationGroup, "ManualEntryNotificationRecipients", Resolve(shopNotification?.ManualEntryNotificationRecipients, globalNotification?.ManualEntryNotificationRecipients, "ShopOwner,Manager"), "string", null);
-        AddItem(items, shopId, NotificationGroup, "CashDifferenceNotificationRecipients", Resolve(shopNotification?.CashDifferenceNotificationRecipients, globalNotification?.CashDifferenceNotificationRecipients, "ShopOwner,Manager"), "string", null);
-        AddItem(items, shopId, NotificationGroup, "HighPrizePayoutNotificationRecipients", Resolve(shopNotification?.HighPrizePayoutNotificationRecipients, globalNotification?.HighPrizePayoutNotificationRecipients, "ShopOwner,Manager"), "string", null);
+        AddItem(items, shopId, NotificationGroup, "ManualEntryNotificationRecipients", Resolve(shopNotification?.ManualEntryNotificationRecipients, globalNotification?.ManualEntryNotificationRecipients, "CompanyOwner,Manager"), "string", null);
+        AddItem(items, shopId, NotificationGroup, "CashDifferenceNotificationRecipients", Resolve(shopNotification?.CashDifferenceNotificationRecipients, globalNotification?.CashDifferenceNotificationRecipients, "CompanyOwner,Manager"), "string", null);
+        AddItem(items, shopId, NotificationGroup, "HighPrizePayoutNotificationRecipients", Resolve(shopNotification?.HighPrizePayoutNotificationRecipients, globalNotification?.HighPrizePayoutNotificationRecipients, "CompanyOwner,Manager"), "string", null);
         AddItem(items, shopId, NotificationGroup, "SendNotificationOnShiftFinalize", ToConfigString(Resolve(shopNotification?.SendNotificationOnShiftFinalize, globalNotification?.SendNotificationOnShiftFinalize, true)), "bool", null);
 
         AddItem(items, shopId, BarcodeGroup, "EnableMobileCameraBarcodeScanning", ToConfigString(Resolve(shopBarcode?.EnableMobileCameraBarcodeScanning, globalBarcode?.EnableMobileCameraBarcodeScanning, true)), "bool", null);
@@ -862,3 +862,4 @@ public class ConfigurationService : IConfigurationService
         }
     }
 }
+

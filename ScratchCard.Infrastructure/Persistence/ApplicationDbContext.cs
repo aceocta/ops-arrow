@@ -13,6 +13,7 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<User> Users => Set<User>();
     public DbSet<Role> Roles => Set<Role>();
+    public DbSet<UserRole> UserRoles => Set<UserRole>();
     public DbSet<Company> Companies => Set<Company>();
     public DbSet<Shop> Shops => Set<Shop>();
     public DbSet<ShopUser> ShopUsers => Set<ShopUser>();
@@ -88,6 +89,15 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(x => x.Name).IsUnique();
             entity.Property(x => x.Name).HasMaxLength(50).IsRequired();
             entity.Property(x => x.Description).HasMaxLength(300);
+        });
+
+        modelBuilder.Entity<UserRole>(entity =>
+        {
+            entity.ToTable("UserRoles");
+            entity.HasIndex(x => new { x.UserId, x.RoleId }).IsUnique();
+            entity.HasIndex(x => new { x.UserId, x.IsActive });
+            entity.HasOne(x => x.User).WithMany(x => x.UserRoles).HasForeignKey(x => x.UserId);
+            entity.HasOne(x => x.Role).WithMany(x => x.UserRoles).HasForeignKey(x => x.RoleId);
         });
 
         modelBuilder.Entity<Company>(entity =>

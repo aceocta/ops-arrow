@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.RefusalRegister;
@@ -7,7 +7,7 @@ using ScratchCard.Domain.Constants;
 namespace ScratchCard.Api.Controllers;
 
 [Route("api/refusal-register")]
-[Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager},{RoleNames.Cashier},{RoleNames.SalesAssistant}")]
+[Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager},{RoleNames.Cashier},{RoleNames.SalesAssistant}")]
 public class RefusalRegisterController : BaseApiController
 {
     private readonly IRefusalRegisterService _refusalRegisterService;
@@ -32,7 +32,7 @@ public class RefusalRegisterController : BaseApiController
     }
 
     [HttpGet("entries/range")]
-    [Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager}")]
+    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
     public async Task<IActionResult> ListEntriesByRange([FromQuery] Guid shopId, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken cancellationToken)
     {
         var result = await _refusalRegisterService.ListEntriesByRangeAsync(shopId, from, to, cancellationToken);
@@ -68,7 +68,7 @@ public class RefusalRegisterController : BaseApiController
     }
 
     [HttpPost("entries/{id:guid}/review")]
-    [Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager}")]
+    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
     public async Task<IActionResult> ReviewEntry(Guid id, [FromBody] ReviewRefusalRegisterEntryRequest request, CancellationToken cancellationToken)
     {
         var result = await _refusalRegisterService.ReviewEntryAsync(id, request, cancellationToken);
@@ -76,7 +76,7 @@ public class RefusalRegisterController : BaseApiController
     }
 
     [HttpPost("entries/review")]
-    [Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager}")]
+    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
     public async Task<IActionResult> ReviewEntries([FromBody] ReviewRefusalRegisterEntriesRequest request, CancellationToken cancellationToken)
     {
         var result = await _refusalRegisterService.ReviewEntriesAsync(request, cancellationToken);
@@ -91,7 +91,7 @@ public class RefusalRegisterController : BaseApiController
     }
 
     [HttpPost("signoff")]
-    [Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager}")]
+    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
     public async Task<IActionResult> SignOff([FromBody] SignOffRefusalRegisterDailyRequest request, CancellationToken cancellationToken)
     {
         var result = await _refusalRegisterService.SignOffDailyAsync(request, cancellationToken);
@@ -99,10 +99,11 @@ public class RefusalRegisterController : BaseApiController
     }
 
     [HttpPost("reopen")]
-    [Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager}")]
+    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
     public async Task<IActionResult> Reopen([FromBody] ReopenRefusalRegisterDailyRequest request, CancellationToken cancellationToken)
     {
         await _refusalRegisterService.ReopenDailyAsync(request, cancellationToken);
         return Success(true, "Daily signoff reopened.");
     }
 }
+

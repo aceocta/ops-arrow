@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Checklists;
@@ -7,7 +7,7 @@ using ScratchCard.Domain.Constants;
 namespace ScratchCard.Api.Controllers;
 
 [Route("api/shop-checklists")]
-[Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.ShopOwner},{RoleNames.Manager},{RoleNames.Cashier},{RoleNames.SalesAssistant}")]
+[Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.OwnerRoles},{RoleNames.Manager},{RoleNames.Cashier},{RoleNames.SalesAssistant}")]
 public class ShopChecklistsController : BaseApiController
 {
     private readonly IShopChecklistService _shopChecklistService;
@@ -25,7 +25,7 @@ public class ShopChecklistsController : BaseApiController
     }
 
     [HttpPost("groups")]
-    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.ShopOwner},{RoleNames.Manager}")]
+    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.OwnerRoles},{RoleNames.Manager}")]
     public async Task<IActionResult> CreateGroup([FromBody] CreateShopChecklistGroupRequest request, CancellationToken cancellationToken)
     {
         var result = await _shopChecklistService.CreateGroupAsync(request, cancellationToken);
@@ -33,7 +33,7 @@ public class ShopChecklistsController : BaseApiController
     }
 
     [HttpPut("groups/{id:guid}")]
-    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.ShopOwner},{RoleNames.Manager}")]
+    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.OwnerRoles},{RoleNames.Manager}")]
     public async Task<IActionResult> UpdateGroup(Guid id, [FromBody] UpdateShopChecklistGroupRequest request, CancellationToken cancellationToken)
     {
         var result = await _shopChecklistService.UpdateGroupAsync(id, request, cancellationToken);
@@ -41,7 +41,7 @@ public class ShopChecklistsController : BaseApiController
     }
 
     [HttpPost("groups/reorder")]
-    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.ShopOwner},{RoleNames.Manager}")]
+    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.OwnerRoles},{RoleNames.Manager}")]
     public async Task<IActionResult> ReorderGroups([FromBody] ReorderChecklistGroupsRequest request, CancellationToken cancellationToken)
     {
         await _shopChecklistService.ReorderGroupsAsync(request, cancellationToken);
@@ -49,7 +49,7 @@ public class ShopChecklistsController : BaseApiController
     }
 
     [HttpPost("tasks")]
-    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.ShopOwner},{RoleNames.Manager}")]
+    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.OwnerRoles},{RoleNames.Manager}")]
     public async Task<IActionResult> CreateTask([FromBody] CreateShopChecklistTaskRequest request, CancellationToken cancellationToken)
     {
         var result = await _shopChecklistService.CreateTaskAsync(request, cancellationToken);
@@ -57,7 +57,7 @@ public class ShopChecklistsController : BaseApiController
     }
 
     [HttpPut("tasks/{id:guid}")]
-    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.ShopOwner},{RoleNames.Manager}")]
+    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.OwnerRoles},{RoleNames.Manager}")]
     public async Task<IActionResult> UpdateTask(Guid id, [FromBody] UpdateShopChecklistTaskRequest request, CancellationToken cancellationToken)
     {
         var result = await _shopChecklistService.UpdateTaskAsync(id, request, cancellationToken);
@@ -65,7 +65,7 @@ public class ShopChecklistsController : BaseApiController
     }
 
     [HttpPost("tasks/reorder")]
-    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.ShopOwner},{RoleNames.Manager}")]
+    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.OwnerRoles},{RoleNames.Manager}")]
     public async Task<IActionResult> ReorderTasks([FromBody] ReorderChecklistTasksRequest request, CancellationToken cancellationToken)
     {
         await _shopChecklistService.ReorderTasksAsync(request, cancellationToken);
@@ -98,7 +98,7 @@ public class ShopChecklistsController : BaseApiController
     }
 
     [HttpGet("history")]
-    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.ShopOwner},{RoleNames.Manager}")]
+    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.OwnerRoles},{RoleNames.Manager}")]
     public async Task<IActionResult> History(
         [FromQuery] Guid shopId,
         [FromQuery] DateOnly from,
@@ -109,3 +109,4 @@ public class ShopChecklistsController : BaseApiController
         return Success(result);
     }
 }
+

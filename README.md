@@ -1,4 +1,4 @@
-# Scratch Card Management System
+﻿# Scratch Card Management System
 
 Production-style monorepo for scratch card operations with:
 - **Backend**: ASP.NET Core .NET 10 Web API, EF Core, SQL Server
@@ -72,7 +72,7 @@ Production-style monorepo for scratch card operations with:
 
 ### Multi-Shop Under Company
 - Backend `Company` entity with `Shop.CompanyId` relationship.
-- ShopOwner company APIs:
+- CompanyOwner company APIs:
   - `POST /api/companies`
   - `PUT /api/companies/{id}`
   - `GET /api/companies/{id}`
@@ -183,7 +183,7 @@ Default dev identity values are configured in:
 ## Delivery Note Auto-Fill (AI)
 
 - API endpoint: `POST /api/deliveries/parse-note` (multipart form fields: `shopId`, `image`)
-- Access: `ShopOwner` or `Manager`
+- Access: `CompanyOwner` or `Manager`
 - Response includes:
   - Parsed supplier/reference/date
   - Suggested pack rows mapped to shop games
@@ -195,7 +195,7 @@ Default dev identity values are configured in:
 ## Seed Data
 
 Seed includes:
-- Roles: ShopOwner, Manager, Cashier
+- Roles: CompanyOwner, Manager, Cashier
 - Default app configurations (all major groups)
 - Demo shop
 - Demo scratch card games
@@ -232,3 +232,4 @@ npm run typecheck
 3. Replace no-op SMS provider with a real gateway (Twilio/Azure Communication Services).
 4. Add CI/CD pipelines (build, test, migration validation, mobile build).
 5. Implement full screen-level UX for all placeholder modules.
+

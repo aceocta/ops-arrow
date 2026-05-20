@@ -125,12 +125,12 @@ public class CompanySignupRequestValidator : AbstractValidator<CompanySignupRequ
         RuleFor(x => x.OwnerLastName).NotEmpty().MaximumLength(100);
         RuleFor(x => x.OwnerEmail).NotEmpty().EmailAddress().MaximumLength(320);
         RuleFor(x => x.PhoneNumber).MaximumLength(50);
-        RuleFor(x => x.FirstShopName).NotEmpty().MaximumLength(200);
-        RuleFor(x => x.AddressLine1).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.FirstShopName).MaximumLength(200);
+        RuleFor(x => x.AddressLine1).MaximumLength(200);
         RuleFor(x => x.AddressLine2).MaximumLength(200);
-        RuleFor(x => x.City).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.PostCode).NotEmpty().MaximumLength(20);
-        RuleFor(x => x.Country).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.City).MaximumLength(100);
+        RuleFor(x => x.PostCode).MaximumLength(20);
+        RuleFor(x => x.Country).MaximumLength(100);
         RuleFor(x => x.Password).NotEmpty().MinimumLength(8);
     }
 }

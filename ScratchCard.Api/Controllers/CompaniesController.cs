@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Companies;
@@ -28,7 +28,7 @@ public class CompaniesController : BaseApiController
     }
 
     [HttpPost]
-    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.ShopOwner}")]
+    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.OwnerRoles}")]
     public async Task<IActionResult> Create([FromBody] CreateCompanyRequest request, CancellationToken cancellationToken)
     {
         var result = await _companyService.CreateAsync(request, cancellationToken);
@@ -36,7 +36,7 @@ public class CompaniesController : BaseApiController
     }
 
     [HttpPut("{id:guid}")]
-    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.ShopOwner}")]
+    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.OwnerRoles}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateCompanyRequest request, CancellationToken cancellationToken)
     {
         var result = await _companyService.UpdateAsync(id, request, cancellationToken);
@@ -57,3 +57,4 @@ public class CompaniesController : BaseApiController
         return Success(result);
     }
 }
+

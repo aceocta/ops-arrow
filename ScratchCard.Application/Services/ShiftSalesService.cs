@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Globalization;
 using System.Net;
 using Microsoft.EntityFrameworkCore;
@@ -600,7 +600,7 @@ public class ShiftSalesService : IShiftSalesService
                 x.ShopId == shopId &&
                 x.IsActive &&
                 !string.IsNullOrWhiteSpace(x.User.Email) &&
-                (x.Role.Name == RoleNames.ShopOwner || x.Role.Name == RoleNames.Manager))
+                (x.Role.Name == RoleNames.CompanyOwner || x.Role.Name == RoleNames.Manager))
             .Select(x => x.User.Email)
             .ToListAsync(cancellationToken);
 
@@ -643,7 +643,7 @@ public class ShiftSalesService : IShiftSalesService
 
         var recipients = await _shopUserRepository.Query()
             .AsNoTracking()
-            .Where(x => x.ShopId == shift.ShopId && x.IsActive && (x.Role.Name == "ShopOwner" || x.Role.Name == "Manager"))
+            .Where(x => x.ShopId == shift.ShopId && x.IsActive && (x.Role.Name == "CompanyOwner" || x.Role.Name == "Manager"))
             .Include(x => x.Role)
             .Include(x => x.User)
             .Select(x => x.User.Email)
@@ -903,7 +903,7 @@ sb.Append("<tfoot>");
 sb.Append("<tr>");
 sb.Append("<td colspan=\"3\" class=\"num\">Total</td>");
 sb.Append($"<td class=\"num\">{totalSoldQty.ToString(CultureInfo.InvariantCulture)}</td>");
-sb.Append($"<td class=\"num\">£{totalSales.ToString("0.00", CultureInfo.InvariantCulture)}</td>");
+sb.Append($"<td class=\"num\">Â£{totalSales.ToString("0.00", CultureInfo.InvariantCulture)}</td>");
 sb.Append("</tr>");
 sb.Append("</tfoot>");
 
@@ -1375,3 +1375,4 @@ sb.Append("</html>");       return sb.ToString();
         stream.Write(bytes, 0, bytes.Length);
     }
 }
+

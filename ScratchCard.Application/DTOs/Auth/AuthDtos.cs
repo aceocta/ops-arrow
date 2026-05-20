@@ -1,4 +1,4 @@
-namespace ScratchCard.Application.DTOs.Auth;
+﻿namespace ScratchCard.Application.DTOs.Auth;
 
 public class CurrentUserProfileDto
 {
@@ -42,7 +42,7 @@ public class DevLoginRequest
     public string Email { get; set; } = string.Empty;
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
-    public string Role { get; set; } = "ShopOwner";
+    public string Role { get; set; } = "CompanyOwner";
     public Guid? ShopId { get; set; }
 }
 
@@ -64,3 +64,4 @@ public class AuthTokenResponseDto
     public string TokenType { get; set; } = "Bearer";
     public CurrentUserProfileDto Profile { get; set; } = new();
 }
+

@@ -1,5 +1,6 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using ScratchCard.Application.Common.Exceptions;
+using ScratchCard.Application.Common.Extensions;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Companies;
@@ -12,6 +13,8 @@ public class CompanyService : ICompanyService
 {
     private readonly IRepository<Company> _companyRepository;
     private readonly IRepository<ShopUser> _shopUserRepository;
+    private readonly IRepository<Role> _roleRepository;
+    private readonly IRepository<UserRole> _userRoleRepository;
     private readonly ICurrentUserService _currentUserService;
     private readonly IAuditService _auditService;
     private readonly IUnitOfWork _unitOfWork;
@@ -19,12 +22,16 @@ public class CompanyService : ICompanyService
     public CompanyService(
         IRepository<Company> companyRepository,
         IRepository<ShopUser> shopUserRepository,
+        IRepository<Role> roleRepository,
+        IRepository<UserRole> userRoleRepository,
         ICurrentUserService currentUserService,
         IAuditService auditService,
         IUnitOfWork unitOfWork)
     {
         _companyRepository = companyRepository;
         _shopUserRepository = shopUserRepository;
+        _roleRepository = roleRepository;
+        _userRoleRepository = userRoleRepository;
         _currentUserService = currentUserService;
         _auditService = auditService;
         _unitOfWork = unitOfWork;
@@ -85,6 +92,7 @@ public class CompanyService : ICompanyService
         };
 
         await _companyRepository.AddAsync(company, cancellationToken);
+        await EnsureCompanyOwnerRoleAssignedAsync(_currentUserService.UserId.Value, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await _auditService.LogAsync(nameof(Company), company.Id, "CompanyCreated", cancellationToken: cancellationToken);
@@ -169,12 +177,12 @@ public class CompanyService : ICompanyService
 
     private void EnsureCompanyWriteAccess()
     {
-        if (_currentUserService.IsInRole(RoleNames.PlatformAdmin) || _currentUserService.IsInRole(RoleNames.ShopOwner))
+        if (_currentUserService.IsInRole(RoleNames.PlatformAdmin) || _currentUserService.IsOwner())
         {
             return;
         }
 
-        throw new AppException(ErrorCodes.UnauthorizedRole, "Only platform admin or shop owner can edit company details.", 403);
+        throw new AppException(ErrorCodes.UnauthorizedRole, "Only platform admin or company owner can edit company details.", 403);
     }
 
     private async Task EnsureCompanyAccessAsync(Guid companyId, CancellationToken cancellationToken)
@@ -210,4 +218,47 @@ public class CompanyService : ICompanyService
             throw new AppException(ErrorCodes.UnauthorizedRole, "You do not have access to this company.", 403);
         }
     }
+
+    private async Task EnsureCompanyOwnerRoleAssignedAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var ownerRole = await _roleRepository.Query()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Name == RoleNames.CompanyOwner && x.IsActive, cancellationToken)
+            ?? throw new AppException("role_not_found", "CompanyOwner role not found.", 404);
+
+        var existingRole = await _userRoleRepository.Query()
+            .FirstOrDefaultAsync(x => x.UserId == userId && x.RoleId == ownerRole.Id, cancellationToken);
+
+        var now = DateTimeOffset.UtcNow;
+        if (existingRole is null)
+        {
+            await _userRoleRepository.AddAsync(new UserRole
+            {
+                UserId = userId,
+                RoleId = ownerRole.Id,
+                IsActive = true,
+                AssignedOn = now,
+                CreatedOn = now,
+                CreatedBy = _currentUserService.UserId
+            }, cancellationToken);
+            return;
+        }
+
+        if (existingRole.IsActive)
+        {
+            return;
+        }
+
+        existingRole.IsActive = true;
+        existingRole.AssignedOn = now;
+        existingRole.ModifiedOn = now;
+        existingRole.ModifiedBy = _currentUserService.UserId;
+        _userRoleRepository.Update(existingRole);
+    }
 }
+
+
+
+
+
+

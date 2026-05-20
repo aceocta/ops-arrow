@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+﻿import React, { useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
@@ -8,6 +8,7 @@ import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
+import { getRoleDisplayName } from "../../utils/roleLabels";
 
 type InvitationItem = {
   id: string;
@@ -24,9 +25,9 @@ export function UserInvitationsScreen() {
   const { activeShopId, activeShop, profile } = useAuth();
   const shopId = activeShopId;
   const canSendInvitations =
-    profile?.roles?.some((role) => role === "PlatformAdmin" || role === "ShopOwner" || role === "Manager") ?? false;
+    profile?.roles?.some((role) => role === "PlatformAdmin" || role === "CompanyOwner" || role === "Manager") ?? false;
   const canCancelInvitations =
-    profile?.roles?.some((role) => role === "ShopOwner") ?? false;
+    profile?.roles?.some((role) => role === "CompanyOwner") ?? false;
   const [email, setEmail] = useState("");
   const [expiryHours, setExpiryHours] = useState("72");
   const [selectedRoleId, setSelectedRoleId] = useState<string>("");
@@ -57,7 +58,7 @@ export function UserInvitationsScreen() {
         throw new Error("No shop selected.");
       }
       if (!canSendInvitations) {
-        throw new Error("Only PlatformAdmin, ShopOwner, or Manager can send invitations.");
+        throw new Error("Only Platform Admin, Company Owner, or Manager can send invitations.");
       }
 
       if (!email.trim()) {
@@ -110,7 +111,7 @@ export function UserInvitationsScreen() {
           <Text style={styles.caption}>Shop: {activeShop?.shopName ?? "-"}</Text>
           <Text style={styles.subtitle}>Invite managers or cashiers to this shop.</Text>
           {!canSendInvitations ? (
-            <Text style={styles.caption}>Only PlatformAdmin, ShopOwner, or Manager can send invitations.</Text>
+            <Text style={styles.caption}>Only Platform Admin, Company Owner, or Manager can send invitations.</Text>
           ) : null}
 
           <Text style={styles.fieldLabel}>Invitee Email</Text>
@@ -146,13 +147,13 @@ export function UserInvitationsScreen() {
                   style={[styles.roleChip, selected && styles.roleChipSelected]}
                   onPress={() => canSendInvitations && setSelectedRoleId(role.id)}
                 >
-                  <Text style={[styles.roleChipText, selected && styles.roleChipTextSelected]}>{role.name}</Text>
+                  <Text style={[styles.roleChipText, selected && styles.roleChipTextSelected]}>{getRoleDisplayName(role.name)}</Text>
                 </Pressable>
               );
             })}
           </View>
 
-          {selectedRoleName ? <Text style={styles.caption}>Selected role: {selectedRoleName}</Text> : null}
+          {selectedRoleName ? <Text style={styles.caption}>Selected role: {getRoleDisplayName(selectedRoleName)}</Text> : null}
 
           <PrimaryButton
             label={sendInvitationMutation.isPending ? "Sending..." : "Send Invitation"}
@@ -169,7 +170,7 @@ export function UserInvitationsScreen() {
             <View key={item.id} style={[ui.listItem, styles.listItem]}>
               <Text style={styles.email}>{item.email}</Text>
               <Text style={styles.meta}>
-                Role: {item.roleName} | Status: {item.status}
+                Role: {getRoleDisplayName(item.roleName)} | Status: {item.status}
               </Text>
               <Text style={styles.meta}>Expires: {new Date(item.expiresOn).toLocaleString()}</Text>
               {item.status === "Pending" && canCancelInvitations ? (
@@ -288,3 +289,4 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
 });
+

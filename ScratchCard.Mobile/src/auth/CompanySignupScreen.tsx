@@ -12,20 +12,21 @@ import { useState } from "react";
 type SignupForm = {
   firstName: string;
   lastName: string;
+  companyName: string;
   email: string;
   password: string;
   confirmPassword: string;
 };
 
 export function CompanySignupScreen() {
-  const { signUpWithPassword, isLoading } = useAuth();
+  const { signUpCompany, isLoading } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [progressMessage, setProgressMessage] = useState<string | null>(null);
   const { control, handleSubmit } = useForm<SignupForm>({
     defaultValues: {
       firstName: "",
       lastName: "",
+      companyName: "",
       email: "",
       password: "",
       confirmPassword: "",
@@ -36,9 +37,18 @@ export function CompanySignupScreen() {
     const email = values.email.trim();
     const firstName = values.firstName.trim();
     const lastName = values.lastName.trim();
+    const companyName = values.companyName.trim();
 
     if (!email) {
       Alert.alert("Validation Error", "Email address is required.");
+      return;
+    }
+    if (!firstName || !lastName) {
+      Alert.alert("Validation Error", "First name and last name are required.");
+      return;
+    }
+    if (!companyName) {
+      Alert.alert("Validation Error", "Company name is required.");
       return;
     }
     if (!values.password || values.password.length < 8) {
@@ -51,18 +61,16 @@ export function CompanySignupScreen() {
     }
 
     try {
-      // setProgressMessage("Creating login credentials...");
-      await signUpWithPassword({
-        email,
+      await signUpCompany({
+        companyName,
+        ownerFirstName: firstName,
+        ownerLastName: lastName,
+        ownerEmail: email,
+        country: "UK",
         password: values.password,
-        firstName: firstName || undefined,
-        lastName: lastName || undefined,
       });
-      // setProgressMessage("Opening company setup...");
     } catch (error: any) {
       Alert.alert("Sign up failed", error?.response?.data?.message ?? error?.message ?? "Unable to create account.");
-    } finally {
-      setProgressMessage(null);
     }
   });
 
@@ -73,7 +81,7 @@ export function CompanySignupScreen() {
       <View style={ui.card}>
         <View style={styles.header}>
           <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Sign up with email and password. Company and shop setup comes next.</Text>
+          <Text style={styles.subtitle}>Sign up and create your company in one step.</Text>
         </View>
 
         <Text style={styles.fieldLabel}>First Name</Text>
@@ -102,6 +110,22 @@ export function CompanySignupScreen() {
               value={value}
               onChangeText={onChange}
               placeholder="e.g. Smith"
+              underlineColorAndroid="transparent"
+              editable={!busy}
+            />
+          )}
+        />
+
+        <Text style={styles.fieldLabel}>Company Name</Text>
+        <Controller
+          control={control}
+          name="companyName"
+          render={({ field: { value, onChange } }) => (
+            <TextInput
+              style={styles.input}
+              value={value}
+              onChangeText={onChange}
+              placeholder="e.g. Sunrise Retail Ltd"
               underlineColorAndroid="transparent"
               editable={!busy}
             />
@@ -195,11 +219,10 @@ export function CompanySignupScreen() {
         />
 
         <PrimaryButton
-          label={busy ? progressMessage ?? "Creating account..." : "Create Account"}
+          label={busy ? "Creating account..." : "Create Account"}
           onPress={() => void onSubmit()}
           disabled={busy}
         />
-        {busy && progressMessage ? <Text style={styles.progressText}>{progressMessage}</Text> : null}
       </View>
     </ScreenContainer>
   );
@@ -270,12 +293,5 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: "center",
     alignItems: "center",
-  },
-  progressText: {
-    color: appTheme.colors.textMuted,
-    fontSize: 12,
-    lineHeight: 16,
-    fontFamily: appTheme.fonts.body,
-    textAlign: "center",
   },
 });

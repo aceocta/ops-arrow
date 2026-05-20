@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -261,7 +261,7 @@ export function ShopChecklistScreen() {
   );
   const canConfigureChecklist = useMemo(() => {
     const roles = profile?.roles ?? [];
-    return roles.includes("PlatformAdmin") || roles.includes("ShopOwner") || roles.includes("Manager");
+    return roles.includes("PlatformAdmin") || roles.includes("CompanyOwner") || roles.includes("Manager");
   }, [profile?.roles]);
 
   if (!shopId) {
@@ -1168,5 +1168,6 @@ const styles = StyleSheet.create({
     opacity: 0.94,
   },
 });
+
 
 

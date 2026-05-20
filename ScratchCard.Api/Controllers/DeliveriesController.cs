@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Services;
@@ -8,7 +8,7 @@ using ScratchCard.Domain.Constants;
 namespace ScratchCard.Api.Controllers;
 
 [Route("api/deliveries")]
-[Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager},{RoleNames.Cashier},{RoleNames.SalesAssistant}")]
+[Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager},{RoleNames.Cashier},{RoleNames.SalesAssistant}")]
 public class DeliveriesController : BaseApiController
 {
     private readonly IDeliveryService _deliveryService;
@@ -19,7 +19,7 @@ public class DeliveriesController : BaseApiController
     }
 
     [HttpPost]
-    [Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager}")]
+    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
     public async Task<IActionResult> Create([FromBody] CreateDeliveryRequest request, CancellationToken cancellationToken)
     {
         var result = await _deliveryService.CreateAsync(request, cancellationToken);
@@ -27,7 +27,7 @@ public class DeliveriesController : BaseApiController
     }
 
     [HttpPost("parse-note")]
-    [Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager}")]
+    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
     [RequestSizeLimit(10 * 1024 * 1024)]
     public async Task<IActionResult> ParseNote([FromForm] ParseDeliveryNoteFormRequest request, CancellationToken cancellationToken)
     {
@@ -81,3 +81,4 @@ public class ParseDeliveryNoteFormRequest
     public Guid ShopId { get; set; }
     public IFormFile? Image { get; set; }
 }
+

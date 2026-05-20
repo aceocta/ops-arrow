@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.PrizePayouts;
@@ -7,7 +7,7 @@ using ScratchCard.Domain.Constants;
 namespace ScratchCard.Api.Controllers;
 
 [Route("api/prize-payouts")]
-[Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager},{RoleNames.Cashier},{RoleNames.SalesAssistant}")]
+[Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager},{RoleNames.Cashier},{RoleNames.SalesAssistant}")]
 public class PrizePayoutsController : BaseApiController
 {
     private readonly IPrizePayoutService _prizePayoutService;
@@ -32,10 +32,11 @@ public class PrizePayoutsController : BaseApiController
     }
 
     [HttpPost("{id:guid}/approve")]
-    [Authorize(Roles = $"{RoleNames.ShopOwner},{RoleNames.Manager}")]
+    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
     public async Task<IActionResult> Approve(Guid id, [FromBody] ApprovePrizePayoutRequest request, CancellationToken cancellationToken)
     {
         var result = await _prizePayoutService.ApproveAsync(id, request, cancellationToken);
         return Success(result);
     }
 }
+

@@ -16,4 +16,5 @@ public class User : AuditableEntity
     public DateTimeOffset? LastLoginOn { get; set; }
 
     public ICollection<ShopUser> ShopUsers { get; set; } = new List<ShopUser>();
+    public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
 }

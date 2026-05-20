@@ -1,7 +1,8 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using System.Net;
 using ScratchCard.Application.Common.Exceptions;
+using ScratchCard.Application.Common.Extensions;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Models;
 using ScratchCard.Application.Common.Services;
@@ -61,11 +62,11 @@ public class InvitationService : IInvitationService
         var inviterId = _currentUserService.UserId ?? throw new AppException("unauthorized", "User context missing.", 401);
         var canSendInvitation =
             _currentUserService.IsInRole(RoleNames.PlatformAdmin) ||
-            _currentUserService.IsInRole(RoleNames.ShopOwner) ||
+            _currentUserService.IsOwner() ||
             _currentUserService.IsInRole(RoleNames.Manager);
         if (!canSendInvitation)
         {
-            throw new AppException("forbidden", "Only PlatformAdmin, ShopOwner, or Manager can send invitations.", 403);
+            throw new AppException("forbidden", "Only PlatformAdmin, CompanyOwner, or Manager can send invitations.", 403);
         }
 
         var role = await _roleRepository.Query()
@@ -411,3 +412,7 @@ public class InvitationService : IInvitationService
         };
     }
 }
+
+
+
+

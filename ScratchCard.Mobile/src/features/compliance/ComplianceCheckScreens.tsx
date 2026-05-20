@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -282,7 +282,7 @@ function normalizeGroups(groups: ComplianceCheckGroup[]) {
 }
 
 function isManagerLike(roles: string[]) {
-  return roles.includes("PlatformAdmin") || roles.includes("ShopOwner") || roles.includes("Manager");
+  return roles.includes("PlatformAdmin") || roles.includes("CompanyOwner") || roles.includes("Manager");
 }
 
 function flattenRows(groups: { rows: ComplianceCheckPeriodRow[] }[]) {
@@ -2930,3 +2930,4 @@ const styles = StyleSheet.create({
     opacity: 0.94,
   },
 });
+

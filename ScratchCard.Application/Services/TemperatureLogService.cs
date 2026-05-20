@@ -1,5 +1,6 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using ScratchCard.Application.Common.Exceptions;
+using ScratchCard.Application.Common.Extensions;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.TemperatureLogs;
@@ -293,9 +294,9 @@ public class TemperatureLogService : ITemperatureLogService
 
     public async Task<TemperatureDailySignoffDto> SignOffDailyAsync(SignOffTemperatureDailyLogRequest request, CancellationToken cancellationToken = default)
     {
-        if (!_currentUserService.IsInRole(RoleNames.ShopOwner) && !_currentUserService.IsInRole(RoleNames.Manager))
+        if (!_currentUserService.IsOwner() && !_currentUserService.IsInRole(RoleNames.Manager))
         {
-            throw new AppException(ErrorCodes.UnauthorizedRole, "Only manager or shop owner can sign off daily temperature logs.", 403);
+            throw new AppException(ErrorCodes.UnauthorizedRole, "Only manager or company owner can sign off daily temperature logs.", 403);
         }
 
         var readings = await _readingRepository.Query()
@@ -461,3 +462,7 @@ public class TemperatureLogService : ITemperatureLogService
         return cleaned[..20];
     }
 }
+
+
+
+
