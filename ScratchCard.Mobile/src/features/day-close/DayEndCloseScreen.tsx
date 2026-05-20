@@ -1168,36 +1168,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   return (
     <ScreenContainer>
       <View style={styles.pageContent}>
-        <View style={[ui.card, styles.dayHeaderCard]}>
-          <View style={styles.summaryHeaderRow}>
-            <View style={styles.summaryHeading}>
-              {/* <Text style={styles.summaryEyebrow}>Business Date</Text> */}
-              <Text style={styles.summaryDate}>{day?.businessDate ?? "-"}</Text>
-            </View>
-            <StatusBadge label={status ?? "-"} tone={getStatusTone(status)} />
-          </View>
-          {/* <Text style={styles.meta}>{dayStatusMessage}</Text> */}
-          <View style={styles.summaryMetaGrid}>
-            <View style={styles.summaryMetaItem}>
-              <Text style={styles.summaryMetaText}>Open Shifts - {openShiftCount}</Text>
-            </View>
-            <View style={styles.summaryMetaItem}>
-              <Text style={styles.summaryMetaText}>Closed Shifts - {closedShiftCount}</Text>
-            </View>
-            <View style={styles.summaryMetaItem}>
-              <Text style={styles.summaryMetaText}>Scheduled - {scheduledShiftCount}</Text>
-            </View>
-            <View style={styles.summaryMetaItem}>
-              <Text
-                style={[
-                  styles.summaryMetaText,
-                  missingOpeningTicketCount > 0 ? styles.summaryMetaTextDanger : null,
-                ]}
-              >
-                Missing Tickets - {missingOpeningTicketCount}
-              </Text>
-            </View>
-            <View style={styles.dateNavigationRow}>
+
+         <View style={styles.dateNavigationRow}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={previousBusinessDay ? `Go to previous day ${previousBusinessDay.businessDate}` : "No previous day available"}
@@ -1244,6 +1216,36 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 <Text style={styles.dateNavigationButtonText}>Next Day</Text>
               </Pressable>
             </View>
+        <View style={[ui.card, styles.dayHeaderCard]}>
+          <View style={styles.summaryHeaderRow}>
+            <View style={styles.summaryHeading}>
+              {/* <Text style={styles.summaryEyebrow}>Business Date</Text> */}
+              <Text style={styles.summaryDate}>{day?.businessDate ?? "-"}</Text>
+            </View>
+            <StatusBadge label={status ?? "-"} tone={getStatusTone(status)} />
+          </View>
+          {/* <Text style={styles.meta}>{dayStatusMessage}</Text> */}
+          <View style={styles.summaryMetaGrid}>
+            <View style={styles.summaryMetaItem}>
+              <Text style={styles.summaryMetaText}>Open Shifts - {openShiftCount}</Text>
+            </View>
+            <View style={styles.summaryMetaItem}>
+              <Text style={styles.summaryMetaText}>Closed Shifts - {closedShiftCount}</Text>
+            </View>
+            <View style={styles.summaryMetaItem}>
+              <Text style={styles.summaryMetaText}>Scheduled - {scheduledShiftCount}</Text>
+            </View>
+            <View style={styles.summaryMetaItem}>
+              <Text
+                style={[
+                  styles.summaryMetaText,
+                  missingOpeningTicketCount > 0 ? styles.summaryMetaTextDanger : null,
+                ]}
+              >
+                Missing Tickets - {missingOpeningTicketCount}
+              </Text>
+            </View>
+           
           </View>
         </View>
 

@@ -10,9 +10,12 @@ import {
 import { AuthProfile } from "../types/models";
 import {
   clearAccessToken,
+  clearAuthProfile,
   clearActiveShopId,
+  getAuthProfile,
   getAccessToken,
   getActiveShopId,
+  saveAuthProfile,
   saveAccessToken,
   saveActiveShopId,
 } from "./tokenStorage";
@@ -20,6 +23,7 @@ import {
 type AuthShop = AuthProfile["shops"][number];
 
 type AuthContextValue = {
+  isBootstrapping: boolean;
   isLoading: boolean;
   isAuthenticated: boolean;
   profile: AuthProfile | null;
@@ -37,6 +41,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [profile, setProfile] = useState<AuthProfile | null>(null);
   const [activeShopId, setActiveShopId] = useState<string | null>(null);
@@ -46,34 +51,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   async function bootstrap() {
+    setIsBootstrapping(true);
     setIsLoading(true);
     try {
-      const token = await getAccessToken();
+      const [token, savedShopId, cachedProfile] = await Promise.all([
+        getAccessToken(),
+        getActiveShopId(),
+        getAuthProfile(),
+      ]);
+
       if (!token) {
         setProfile(null);
         setActiveShopId(null);
         return;
       }
 
-      const currentUser = await getCurrentUserProfile();
-      const savedShopId = await getActiveShopId();
-      const nextShopId = resolveActiveShopId(currentUser, savedShopId);
+      if (cachedProfile) {
+        const cachedShopId = resolveActiveShopId(cachedProfile, savedShopId);
+        setProfile(cachedProfile);
+        setActiveShopId(cachedShopId);
 
-      setProfile(currentUser);
-      setActiveShopId(nextShopId);
+        if (cachedShopId) {
+          void saveActiveShopId(cachedShopId);
+        } else {
+          void clearActiveShopId();
+        }
 
-      if (nextShopId) {
-        await saveActiveShopId(nextShopId);
-      } else {
-        await clearActiveShopId();
+        void refreshProfileFromServer(cachedShopId);
+        return;
       }
+
+      await refreshProfileFromServer(savedShopId);
     } catch {
       await clearAccessToken();
+      await clearAuthProfile();
       await clearActiveShopId();
       setProfile(null);
       setActiveShopId(null);
     } finally {
       setIsLoading(false);
+      setIsBootstrapping(false);
     }
   }
 
@@ -84,6 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await applyAuthTokenResult(result);
     } catch (error) {
       await clearAccessToken();
+      await clearAuthProfile();
       await clearActiveShopId();
       setProfile(null);
       setActiveShopId(null);
@@ -100,6 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await applyAuthTokenResult(result);
     } catch (error) {
       await clearAccessToken();
+      await clearAuthProfile();
       await clearActiveShopId();
       setProfile(null);
       setActiveShopId(null);
@@ -116,6 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await applyAuthTokenResult(result, payload.shopId);
     } catch (error) {
       await clearAccessToken();
+      await clearAuthProfile();
       await clearActiveShopId();
       setProfile(null);
       setActiveShopId(null);
@@ -149,6 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const nextShopId = resolveActiveShopId(currentUser, preferredShopId ?? activeShopId);
     setProfile(currentUser);
     setActiveShopId(nextShopId);
+    await saveAuthProfile(currentUser);
 
     if (nextShopId) {
       await saveActiveShopId(nextShopId);
@@ -159,6 +180,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function signOut() {
     await clearAccessToken();
+    await clearAuthProfile();
     await clearActiveShopId();
     setProfile(null);
     setActiveShopId(null);
@@ -171,6 +193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<AuthContextValue>(
     () => ({
+      isBootstrapping,
       isLoading,
       isAuthenticated: Boolean(profile),
       profile,
@@ -184,7 +207,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signOut,
       refreshProfile,
     }),
-    [activeShop, activeShopId, isLoading, profile]
+    [activeShop, activeShopId, isBootstrapping, isLoading, profile]
   );
 
   async function applyAuthTokenResult(result: AuthTokenResult, preferredShopId?: string | null) {
@@ -193,11 +216,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const nextShopId = resolveActiveShopId(resolvedProfile, preferredShopId);
     setProfile(resolvedProfile);
     setActiveShopId(nextShopId);
+    await saveAuthProfile(resolvedProfile);
 
     if (nextShopId) {
       await saveActiveShopId(nextShopId);
     } else {
       await clearActiveShopId();
+    }
+  }
+
+  async function refreshProfileFromServer(preferredShopId?: string | null) {
+    try {
+      const currentUser = await getCurrentUserProfile();
+      const nextShopId = resolveActiveShopId(currentUser, preferredShopId);
+      setProfile(currentUser);
+      setActiveShopId(nextShopId);
+      await saveAuthProfile(currentUser);
+
+      if (nextShopId) {
+        await saveActiveShopId(nextShopId);
+      } else {
+        await clearActiveShopId();
+      }
+    } catch (error: any) {
+      const status = error?.response?.status as number | undefined;
+      if (status === 401 || status === 403) {
+        await clearAccessToken();
+        await clearAuthProfile();
+        await clearActiveShopId();
+        setProfile(null);
+        setActiveShopId(null);
+      }
     }
   }
 

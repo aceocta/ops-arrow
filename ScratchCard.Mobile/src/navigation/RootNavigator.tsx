@@ -25,7 +25,7 @@ import { MainNavigator } from "./MainNavigator";
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
-  const { isLoading, isAuthenticated, profile, activeShop } = useAuth();
+  const { isBootstrapping, isAuthenticated, profile, activeShop } = useAuth();
   const companyId = profile?.primaryCompanyId ?? activeShop?.companyId;
   const needsCompanySetup = isAuthenticated && profile?.hasCompanySetup === false;
   const needsShopSetup = isAuthenticated && profile?.hasCompanySetup === true && profile?.hasShopSetup === false;
@@ -41,7 +41,7 @@ export function RootNavigator() {
     refetchOnWindowFocus: false,
   });
 
-  if (isLoading) {
+  if (isBootstrapping) {
     return <SplashLoadingScreen />;
   }
 
