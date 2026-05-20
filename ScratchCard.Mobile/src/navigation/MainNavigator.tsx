@@ -109,6 +109,7 @@ const operationsItems: MenuItem[] = [
   { label: "Temperature Logs", screen: "TemperatureLogs", icon: "thermometer-outline", mode: "temperature" },
   { label: "Temperature Logs by Day", screen: "TemperatureLogsByDay", icon: "calendar-number-outline", mode: "temperature" },
   { label: "Temperature Logs Report", screen: "TemperatureLogsReport", icon: "bar-chart-outline", mode: "temperature" },
+  { label: "Temperature Logs Date Range Report", screen: "TemperatureLogsDateRangeReport", icon: "document-text-outline", mode: "temperature" },
   { label: "Temperature Units", screen: "TemperatureUnits", icon: "options-outline", mode: "temperature" },
   { label: "No ID / No Sale", screen: "RefusalRegister", icon: "shield-checkmark-outline", mode: "refusals" },
   // { label: "Refusals by Day", screen: "RefusalRegisterByDay", mode: "refusals" },
@@ -225,6 +226,7 @@ function resolveActiveBottomDockScreen(routeName: string | undefined): keyof Mai
     routeName === "TemperatureLogs" ||
     routeName === "TemperatureLogsByDay" ||
     routeName === "TemperatureLogsReport" ||
+    routeName === "TemperatureLogsDateRangeReport" ||
     routeName === "TemperatureUnits"
   ) {
     return "TemperatureLogs";
@@ -339,6 +341,7 @@ function MainStackScreens() {
       <Stack.Screen name="TemperatureLogs" component={TemperatureLogScreen} options={{ title: "Temperature Logs" }} />
       <Stack.Screen name="TemperatureLogsByDay" component={TemperatureLogsByDayScreen} options={{ title: "Temperature Logs by Day" }} />
       <Stack.Screen name="TemperatureLogsReport" component={TemperatureLogsReportScreen} options={{ title: "Temperature Logs Report" }} />
+      <Stack.Screen name="TemperatureLogsDateRangeReport" component={TemperatureLogsReportScreen} options={{ title: "Temperature Logs Date Range Report" }} />
       <Stack.Screen name="TemperatureUnits" component={TemperatureUnitsScreen} options={{ title: "Temperature Units" }} />
       <Stack.Screen name="RefusalRegister" component={RefusalRegisterScreen} options={{ title: "No ID / No Sale" }} />
       <Stack.Screen name="RefusalRegisterByDay" component={RefusalRegisterByDayScreen} options={{ title: "Refusals by Day" }} />

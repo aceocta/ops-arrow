@@ -1,6 +1,6 @@
 import { apiClient } from "./client";
 import { ApiResponse } from "./types";
-import { AuditLogRow, DailySalesReportRow, ManualEntryReviewRow, NotificationLogRow, StockReportRow } from "../types/models";
+import { AuditLogRow, DailySalesReportRow, ManualEntryReviewRow, NotificationLogRow, StockReportRow, TemperatureReading } from "../types/models";
 
 export type SendReportEmailPayload = {
   recipientEmail?: string;
@@ -58,6 +58,47 @@ export async function getSyncStatusReport(shopId: string, from: string, to: stri
     params: { shopId, from, to },
   });
   return response.data.data;
+}
+
+function normalizeDateOnly(value: unknown) {
+  const raw = typeof value === "string" ? value : "";
+  return raw.length >= 10 ? raw.slice(0, 10) : raw;
+}
+
+function normalizeTimeOnly(value: unknown) {
+  const raw = typeof value === "string" ? value : "";
+  if (!raw) {
+    return raw;
+  }
+  return raw.length >= 5 ? raw.slice(0, 5) : raw;
+}
+
+function mapTemperatureReading(raw: any): TemperatureReading {
+  return {
+    id: String(raw.id),
+    shopId: String(raw.shopId),
+    temperatureMonitoringUnitId: String(raw.temperatureMonitoringUnitId),
+    unitName: String(raw.unitName ?? ""),
+    equipmentType: raw.equipmentType,
+    minTemperatureCelsius: Number(raw.minTemperatureCelsius ?? 0),
+    maxTemperatureCelsius: Number(raw.maxTemperatureCelsius ?? 0),
+    readingDate: normalizeDateOnly(raw.readingDate),
+    readingTime: normalizeTimeOnly(raw.readingTime),
+    temperatureCelsius: Number(raw.temperatureCelsius ?? 0),
+    isOutOfRange: Boolean(raw.isOutOfRange),
+    checkedByInitials: String(raw.checkedByInitials ?? ""),
+    notes: raw.notes ?? undefined,
+    actionTaken: raw.actionTaken ?? undefined,
+    recordedOn: String(raw.recordedOn ?? ""),
+    recordedByName: raw.recordedByName ?? undefined,
+  };
+}
+
+export async function getTemperatureLogsReport(shopId: string, from: string, to: string, unitId?: string) {
+  const response = await apiClient.get<ApiResponse<TemperatureReading[]>>("/reports/temperature-logs", {
+    params: { shopId, from, to, unitId },
+  });
+  return response.data.data.map(mapTemperatureReading);
 }
 
 export async function sendReportEmail(payload: SendReportEmailPayload) {

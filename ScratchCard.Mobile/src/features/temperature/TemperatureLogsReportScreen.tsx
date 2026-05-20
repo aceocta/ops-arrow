@@ -2,8 +2,9 @@ import React, { useMemo, useState } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import * as Print from "expo-print";
-import { sendReportEmail } from "../../api/reportsApi";
-import { listTemperatureReadings } from "../../api/temperatureLogsApi";
+import * as Sharing from "expo-sharing";
+import * as FileSystem from "expo-file-system/legacy";
+import { getTemperatureLogsReport, sendReportEmail } from "../../api/reportsApi";
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { ReportActionButton } from "../../components/ReportActionButton";
@@ -55,7 +56,7 @@ export function TemperatureLogsReportScreen() {
 
   const readingsQuery = useQuery({
     queryKey: ["temperature-range-report", shopId, fromDate, toDate],
-    queryFn: () => listTemperatureReadings(shopId as string, fromDate, toDate),
+    queryFn: () => getTemperatureLogsReport(shopId as string, fromDate, toDate),
     enabled: Boolean(shopId) && rangeIsValid,
   });
 
@@ -83,24 +84,41 @@ export function TemperatureLogsReportScreen() {
         readings,
       });
 
+      const { uri } = await Print.printToFileAsync({
+        html,
+        width: 792,
+        height: 612,
+      });
+      const attachmentBase64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const attachmentFileName = `temperature-logs-report-${fromDate}-to-${toDate}.pdf`;
+      const outOfRange = readings.filter((entry) => entry.isOutOfRange).length;
+      const inRange = readings.length - outOfRange;
+
       await sendReportEmail({
         recipientEmail: profile?.email,
         subject: `Temperature Logs Report (${fromDate} to ${toDate})`,
-        body: html,
-        isBodyHtml: true,
+        body: `Please find attached the Temperature Logs Report for ${fromDate} to ${toDate}. In range: ${inRange}. Out of range: ${outOfRange}.`,
+        isBodyHtml: false,
+        attachmentFileName,
+        attachmentBase64,
       });
     },
   });
 
+  const buildReportHtml = () =>
+    buildTemperatureRangeReportHtml({
+      shopName: activeShop?.shopName ?? "-",
+      from: fromDate,
+      to: toDate,
+      generatedOn: new Date().toISOString(),
+      readings,
+    });
+
   const printReport = async () => {
     try {
-      const html = buildTemperatureRangeReportHtml({
-        shopName: activeShop?.shopName ?? "-",
-        from: fromDate,
-        to: toDate,
-        generatedOn: new Date().toISOString(),
-        readings,
-      });
+      const html = buildReportHtml();
 
       await Print.printAsync({
         html,
@@ -110,6 +128,26 @@ export function TemperatureLogsReportScreen() {
       });
     } catch (error: any) {
       Alert.alert("Failed", error?.message ?? "Unable to open print dialog.");
+    }
+  };
+
+  const shareReport = async () => {
+    try {
+      const html = buildReportHtml();
+      const { uri } = await Print.printToFileAsync({ html, width: 792, height: 612 });
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) {
+        Alert.alert("Share unavailable", "Sharing is not available on this device.");
+        return;
+      }
+
+      await Sharing.shareAsync(uri, {
+        mimeType: "application/pdf",
+        dialogTitle: `Temperature Logs Report ${fromDate} to ${toDate}`,
+        UTI: "com.adobe.pdf",
+      });
+    } catch (error: any) {
+      Alert.alert("Failed", error?.message ?? "Unable to generate or share PDF.");
     }
   };
 
@@ -161,6 +199,12 @@ export function TemperatureLogsReportScreen() {
             onPress={() => void emailReport()}
             disabled={!rangeIsValid || readingsQuery.isLoading || readings.length === 0 || emailReportMutation.isPending}
           />
+          <ReportActionButton
+            icon="share-social-outline"
+            label="Share"
+            onPress={() => void shareReport()}
+            disabled={!rangeIsValid || readingsQuery.isLoading || readings.length === 0}
+          />
         </View>
       </View>
 
@@ -185,7 +229,7 @@ export function TemperatureLogsReportScreen() {
               {group.units.map((unit) => (
                 <View key={`${group.date}-${unit.unitName}`} style={styles.unitBlock}>
                   <View style={styles.unitHeader}>
-                    <Text style={styles.unitTitle}>Unit: {unit.unitName}</Text>
+                    <Text style={styles.unitTitle}>{unit.unitName}</Text>
                     <StatusBadge
                       label={`${unit.entries.length} reading${unit.entries.length === 1 ? "" : "s"}`}
                       tone="neutral"

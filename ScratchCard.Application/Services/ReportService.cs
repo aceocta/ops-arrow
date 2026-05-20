@@ -5,6 +5,7 @@ using ScratchCard.Application.Common.Models;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Notifications;
 using ScratchCard.Application.DTOs.Reports;
+using ScratchCard.Application.DTOs.TemperatureLogs;
 using ScratchCard.Domain.Entities;
 
 namespace ScratchCard.Application.Services;
@@ -16,6 +17,7 @@ public class ReportService : IReportService
     private readonly IRepository<ShiftReconciliation> _reconciliationRepository;
     private readonly IRepository<ShiftScratchCardSale> _salesRepository;
     private readonly IRepository<ScratchCardPack> _packRepository;
+    private readonly IRepository<TemperatureReading> _temperatureReadingRepository;
     private readonly IRepository<AuditLog> _auditLogRepository;
     private readonly IRepository<NotificationLog> _notificationRepository;
     private readonly IEmailSender _emailSender;
@@ -27,6 +29,7 @@ public class ReportService : IReportService
         IRepository<ShiftReconciliation> reconciliationRepository,
         IRepository<ShiftScratchCardSale> salesRepository,
         IRepository<ScratchCardPack> packRepository,
+        IRepository<TemperatureReading> temperatureReadingRepository,
         IRepository<AuditLog> auditLogRepository,
         IRepository<NotificationLog> notificationRepository,
         IEmailSender emailSender,
@@ -37,6 +40,7 @@ public class ReportService : IReportService
         _reconciliationRepository = reconciliationRepository;
         _salesRepository = salesRepository;
         _packRepository = packRepository;
+        _temperatureReadingRepository = temperatureReadingRepository;
         _auditLogRepository = auditLogRepository;
         _notificationRepository = notificationRepository;
         _emailSender = emailSender;
@@ -96,6 +100,36 @@ public class ReportService : IReportService
                 NotificationSent = x.NotificationSent
             })
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<TemperatureReadingDto>> GetTemperatureLogsReportAsync(
+        Guid shopId,
+        DateOnly from,
+        DateOnly to,
+        Guid? unitId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (from > to)
+        {
+            throw new AppException("temperature_invalid_range", "From date cannot be after to date.");
+        }
+
+        var query = _temperatureReadingRepository.Query()
+            .AsNoTracking()
+            .Include(x => x.TemperatureMonitoringUnit)
+            .Where(x => x.ShopId == shopId && x.ReadingDate >= from && x.ReadingDate <= to);
+
+        if (unitId.HasValue)
+        {
+            query = query.Where(x => x.TemperatureMonitoringUnitId == unitId.Value);
+        }
+
+        var readings = await query
+            .OrderByDescending(x => x.ReadingDate)
+            .ThenByDescending(x => x.ReadingTime)
+            .ToListAsync(cancellationToken);
+
+        return readings.Select(x => x.ToDto()).ToArray();
     }
 
     public async Task<IReadOnlyCollection<StockReportRowDto>> GetStockReportAsync(Guid shopId, CancellationToken cancellationToken = default)

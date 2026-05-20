@@ -49,6 +49,7 @@ export type MainStackParamList = {
   TemperatureLogs: undefined;
   TemperatureLogsByDay: undefined;
   TemperatureLogsReport: undefined;
+  TemperatureLogsDateRangeReport: undefined;
   TemperatureUnits: undefined;
   RefusalRegister: undefined;
   RefusalRegisterByDay: undefined;

@@ -38,6 +38,18 @@ public class ReportsController : BaseApiController
         return Success(result);
     }
 
+    [HttpGet("temperature-logs")]
+    public async Task<IActionResult> TemperatureLogs(
+        [FromQuery] Guid shopId,
+        [FromQuery] DateOnly from,
+        [FromQuery] DateOnly to,
+        [FromQuery] Guid? unitId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _reportService.GetTemperatureLogsReportAsync(shopId, from, to, unitId, cancellationToken);
+        return Success(result);
+    }
+
     [HttpGet("stock")]
     public async Task<IActionResult> Stock([FromQuery] Guid shopId, CancellationToken cancellationToken)
     {
