@@ -3,8 +3,10 @@ import React, { useMemo, useState } from "react";
 import { Platform, Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
 import { appTheme } from "../ui/theme";
 
+type DateTimeFieldMode = "date" | "time" | "datetime";
+
 type DateTimeFieldProps = {
-  mode: "date" | "time";
+  mode: DateTimeFieldMode;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
@@ -39,6 +41,10 @@ export function formatDateValue(value: Date) {
 
 export function formatTimeValue(value: Date) {
   return `${pad(value.getHours())}:${pad(value.getMinutes())}`;
+}
+
+export function formatDateTimeValue(value: Date) {
+  return `${formatDateValue(value)} ${formatTimeValue(value)}`;
 }
 
 export function parseDateValue(value: string): Date | null {
@@ -78,6 +84,23 @@ export function parseTimeValue(value: string): Date | null {
   return now;
 }
 
+export function parseDateTimeValue(value: string): Date | null {
+  const match = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})$/.exec(value.trim());
+  if (!match) {
+    return null;
+  }
+
+  const parsedDate = parseDateValue(match[1]);
+  const parsedTime = parseTimeValue(match[2]);
+  if (!parsedDate || !parsedTime) {
+    return null;
+  }
+
+  const next = new Date(parsedDate);
+  next.setHours(parsedTime.getHours(), parsedTime.getMinutes(), 0, 0);
+  return next;
+}
+
 export function DateTimeField({
   mode,
   value,
@@ -88,18 +111,45 @@ export function DateTimeField({
   style,
 }: DateTimeFieldProps) {
   const [showPicker, setShowPicker] = useState(false);
+  const [androidDateTimeStage, setAndroidDateTimeStage] = useState<"date" | "time" | null>(null);
+  const [androidDateTimeDraft, setAndroidDateTimeDraft] = useState<Date | null>(null);
 
   const pickerValue = useMemo(() => {
+    if (mode === "datetime") {
+      if (Platform.OS === "android" && androidDateTimeStage === "time" && androidDateTimeDraft) {
+        return androidDateTimeDraft;
+      }
+
+      return parseDateTimeValue(value) ?? new Date();
+    }
+
     if (mode === "date") {
       return parseDateValue(value) ?? new Date();
     }
 
     return parseTimeValue(value) ?? new Date();
-  }, [mode, value]);
+  }, [androidDateTimeDraft, androidDateTimeStage, mode, value]);
 
   const displayValue = useMemo(() => {
     if (!value) {
+      if (mode === "datetime") {
+        return placeholder ?? "Select date & time";
+      }
       return placeholder ?? (mode === "date" ? "Select date" : "Select time");
+    }
+
+    if (mode === "datetime") {
+      const parsed = parseDateTimeValue(value);
+      return parsed
+        ? parsed.toLocaleString([], {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          })
+        : value;
     }
 
     if (mode === "date") {
@@ -112,6 +162,32 @@ export function DateTimeField({
   }, [mode, placeholder, value]);
 
   const handleChange = (event: DateTimePickerEvent, selected?: Date) => {
+    if (mode === "datetime" && Platform.OS === "android") {
+      if (event.type === "dismissed" || event.type === "neutralButtonPressed" || !selected) {
+        setShowPicker(false);
+        setAndroidDateTimeStage(null);
+        setAndroidDateTimeDraft(null);
+        return;
+      }
+
+      if (androidDateTimeStage === "date") {
+        const current = parseDateTimeValue(value) ?? new Date();
+        const dateDraft = new Date(selected);
+        dateDraft.setHours(current.getHours(), current.getMinutes(), 0, 0);
+        setAndroidDateTimeDraft(dateDraft);
+        setAndroidDateTimeStage("time");
+        return;
+      }
+
+      const next = new Date(androidDateTimeDraft ?? parseDateTimeValue(value) ?? new Date());
+      next.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
+      onChange(formatDateTimeValue(next));
+      setShowPicker(false);
+      setAndroidDateTimeStage(null);
+      setAndroidDateTimeDraft(null);
+      return;
+    }
+
     if (Platform.OS === "android") {
       setShowPicker(false);
     }
@@ -120,20 +196,54 @@ export function DateTimeField({
       return;
     }
 
-    onChange(mode === "date" ? formatDateValue(selected) : formatTimeValue(selected));
+    if (mode === "date") {
+      onChange(formatDateValue(selected));
+      return;
+    }
+
+    if (mode === "time") {
+      onChange(formatTimeValue(selected));
+      return;
+    }
+
+    onChange(formatDateTimeValue(selected));
   };
+
+  const pickerMode = useMemo(() => {
+    if (mode !== "datetime") {
+      return mode;
+    }
+
+    if (Platform.OS === "android") {
+      return androidDateTimeStage === "time" ? "time" : "date";
+    }
+
+    return "datetime";
+  }, [androidDateTimeStage, mode]);
 
   return (
     <View style={[styles.wrap, style]}>
-      <Pressable style={styles.field} onPress={() => setShowPicker((current) => (Platform.OS === "ios" ? !current : true))}>
+      <Pressable
+        style={styles.field}
+        onPress={() => {
+          if (mode === "datetime" && Platform.OS === "android") {
+            setAndroidDateTimeStage("date");
+            setAndroidDateTimeDraft(parseDateTimeValue(value) ?? new Date());
+            setShowPicker(true);
+            return;
+          }
+
+          setShowPicker((current) => (Platform.OS === "ios" ? !current : true));
+        }}
+      >
         <Text style={styles.valueText}>{displayValue}</Text>
-        <DateTimeIndicator mode={mode} />
+        <DateTimeIndicator mode={mode === "time" ? "time" : "date"} />
       </Pressable>
 
       {showPicker ? (
         <View style={styles.pickerWrap}>
           <DateTimePicker
-            mode={mode}
+            mode={pickerMode}
             value={pickerValue}
             onChange={handleChange}
             minimumDate={minimumDate}

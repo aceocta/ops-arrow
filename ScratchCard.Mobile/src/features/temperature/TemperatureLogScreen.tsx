@@ -7,7 +7,7 @@ import {
   recordTemperatureReading,
 } from "../../api/temperatureLogsApi";
 import { useAuth } from "../../auth/AuthContext";
-import { DateTimeField, formatDateValue, formatTimeValue } from "../../components/DateTimeField";
+import { DateTimeField, formatDateValue, formatTimeValue, parseDateTimeValue } from "../../components/DateTimeField";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -235,6 +235,8 @@ export function TemperatureLogScreen() {
     closeTextEditor();
     setIsLogEntryModalVisible(false);
   };
+  const selectedDateTimeValue = `${selectedDate} ${readingTime}`;
+  const entryDateTimeValue = `${entryDate} ${readingTime}`;
 
   return (
     <ScreenContainer>
@@ -254,8 +256,20 @@ export function TemperatureLogScreen() {
             )}
           </View>
           <View style={styles.row}>
-            <DateTimeField style={{ flex: 1 }} mode="date" value={selectedDate} onChange={setSelectedDate} />
-            <DateTimeField style={{ flex: 1 }} mode="time" value={readingTime} onChange={setReadingTime} />
+            <DateTimeField
+              style={{ flex: 1 }}
+              mode="datetime"
+              value={selectedDateTimeValue}
+              onChange={(value) => {
+                const parsed = parseDateTimeValue(value);
+                if (!parsed) {
+                  return;
+                }
+
+                setSelectedDate(formatDateValue(parsed));
+                setReadingTime(formatTimeValue(parsed));
+              }}
+            />
           </View>
 
          
@@ -417,8 +431,20 @@ export function TemperatureLogScreen() {
                 </View>
               ) : null}
               <View style={styles.row}>
-                <DateTimeField style={{ flex: 1 }} mode="date" value={entryDate} onChange={setEntryDate} />
-                <DateTimeField style={{ flex: 1 }} mode="time" value={readingTime} onChange={setReadingTime} />
+                <DateTimeField
+                  style={{ flex: 1 }}
+                  mode="datetime"
+                  value={entryDateTimeValue}
+                  onChange={(value) => {
+                    const parsed = parseDateTimeValue(value);
+                    if (!parsed) {
+                      return;
+                    }
+
+                    setEntryDate(formatDateValue(parsed));
+                    setReadingTime(formatTimeValue(parsed));
+                  }}
+                />
               </View>
 
               <View style={styles.entryRow}>
