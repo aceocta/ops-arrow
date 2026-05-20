@@ -2437,9 +2437,11 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceSuccessMuted,
-    minHeight: 38,
-    paddingVertical: 8,
+    minHeight: 32,
+    paddingVertical: 6,
     paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
   shiftOpenButtonDisabled: {
     opacity: 0.55,
@@ -2449,6 +2451,7 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 13,
     lineHeight: 16,
+    textAlign: "center",
   },
   sectionTitle: {
     fontSize: 18,
