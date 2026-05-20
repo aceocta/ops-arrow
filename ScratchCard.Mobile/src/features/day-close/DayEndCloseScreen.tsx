@@ -1389,6 +1389,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           {shifts.map((shift) => {
             const canCloseShift = closableStatuses.has(shift.status);
             const canStartScheduledShift = shift.status === ShiftStatus.Scheduled;
+            const isClosedShift = closedSummaryStatuses.has(shift.status);
             const shiftSalesTotal = shiftSalesTotalsQuery.data?.[shift.id];
             const isFirstShiftForBusinessDay = shift.id === firstShiftIdForBusinessDay;
             const displayWindow = shiftDisplayWindowById[shift.id];
@@ -1413,10 +1414,12 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   ) : null}
                   <DetailLine label="Start" value={displayStart.toLocaleString()} />
                   {displayEnd ? <DetailLine label="End" value={displayEnd.toLocaleString()} /> : null}
-                  <DetailLine
-                    label="Sales Total"
-                    value={shiftSalesTotal != null ? formatCurrency(shiftSalesTotal) : "Loading..."}
-                  />
+                  {isClosedShift ? (
+                    <DetailLine
+                      label="Sales Total"
+                      value={shiftSalesTotal != null ? formatCurrency(shiftSalesTotal) : "Loading..."}
+                    />
+                  ) : null}
                   {/* <Text style={styles.shiftDetailsHint}>Tap to open shift details</Text> */}
                 </Pressable>
                 {canCloseShift ? (
