@@ -757,8 +757,9 @@ export function ComplianceChecksScreen() {
     enabled: Boolean(shopId),
   });
 
-  const periodGroups = logQuery.data?.groups ?? [];
-  const allRows = useMemo(() => flattenRows(periodGroups), [periodGroups]);
+  const periodGroups = logQuery.data?.groups;
+  const visiblePeriodGroups = periodGroups ?? [];
+  const allRows = useMemo(() => flattenRows(periodGroups ?? []), [periodGroups]);
   const rowByItemId = useMemo(() => {
     const next: Record<string, ComplianceCheckPeriodRow> = {};
     for (const row of allRows) {
@@ -768,16 +769,33 @@ export function ComplianceChecksScreen() {
   }, [allRows]);
 
   useEffect(() => {
-    const nextDrafts: Record<string, EntryDraft> = {};
-    for (const row of allRows) {
-      nextDrafts[row.item.id] = {
-        result: row.entry?.result ?? "Pending",
-        notes: row.entry?.notes ?? "",
-        actionRequired: row.entry?.actionRequired ?? "",
-        checkedByName: row.entry?.checkedByName ?? defaultCheckedByName,
-      };
-    }
-    setDrafts(nextDrafts);
+    setDrafts((previous) => {
+      const nextDrafts: Record<string, EntryDraft> = {};
+      let hasChanges = Object.keys(previous).length !== allRows.length;
+
+      for (const row of allRows) {
+        const nextDraft: EntryDraft = {
+          result: row.entry?.result ?? "Pending",
+          notes: row.entry?.notes ?? "",
+          actionRequired: row.entry?.actionRequired ?? "",
+          checkedByName: row.entry?.checkedByName ?? defaultCheckedByName,
+        };
+        nextDrafts[row.item.id] = nextDraft;
+
+        const previousDraft = previous[row.item.id];
+        if (
+          !previousDraft ||
+          previousDraft.result !== nextDraft.result ||
+          previousDraft.notes !== nextDraft.notes ||
+          previousDraft.actionRequired !== nextDraft.actionRequired ||
+          previousDraft.checkedByName !== nextDraft.checkedByName
+        ) {
+          hasChanges = true;
+        }
+      }
+
+      return hasChanges ? nextDrafts : previous;
+    });
   }, [allRows, defaultCheckedByName]);
 
   const saveMutation = useMutation({
@@ -1353,7 +1371,7 @@ export function ComplianceChecksScreen() {
           {frequency === "Daily" ? (
             <>
               <DateTimeField mode="date" value={selectedDate} onChange={setSelectedDate} />
-              <Text style={styles.meta}>Selected date: {formatDay(selectedDate)}</Text>
+              {/* <Text style={styles.meta}>Selected date: {formatDay(selectedDate)}</Text> */}
             </>
           ) : null}
           {frequency === "Weekly" ? (
@@ -1362,8 +1380,7 @@ export function ComplianceChecksScreen() {
               <DateTimeField mode="date" value={weeklyRange.startDate} onChange={onChangeWeeklyStartDate} />
               <Text style={styles.metaLabel}>Week End Date</Text>
               <DateTimeField mode="date" value={weeklyRange.endDate} onChange={onChangeWeeklyEndDate} />
-              <Text style={styles.meta}>Selected week: {formatDay(weeklyRange.startDate)} to {formatDay(weeklyRange.endDate)}</Text>
-            </View>
+               </View>
           ) : null}
           {frequency === "Monthly" ? (
             <View style={styles.periodPickerSection}>
@@ -1397,7 +1414,7 @@ export function ComplianceChecksScreen() {
           ) : null}
 
           <View style={styles.reportSection}>
-            <Text style={styles.metaLabel}>Entry Report</Text>
+            {/* <Text style={styles.metaLabel}>Entry Report</Text> */}
             <View style={styles.reportButtonRow}>
               <Pressable
                 style={styles.reportActionButton}
@@ -1430,7 +1447,7 @@ export function ComplianceChecksScreen() {
                 </Text>
               </Pressable>
             </View>
-            <View style={styles.row}>
+            {/* <View style={styles.row}>
               <Pressable style={styles.secondaryButton} onPress={() => navigation.navigate("ComplianceActions")}>
                 <Text style={styles.secondaryButtonText}>Action Report</Text>
               </Pressable>
@@ -1439,12 +1456,12 @@ export function ComplianceChecksScreen() {
                   <Text style={styles.secondaryButtonText}>Setup</Text>
                 </Pressable>
               ) : null}
-            </View>
+            </View> */}
           </View>
         </View>
 
         {logQuery.isLoading ? <Text style={styles.meta}>Loading checks...</Text> : null}
-        {periodGroups.map((periodGroup) => (
+        {visiblePeriodGroups.map((periodGroup) => (
           <View key={periodGroup.group.id} style={ui.card}>
             <View style={[styles.rowBetween, styles.groupHeaderRow]}>
               <Text style={styles.groupTitle}>{periodGroup.group.groupName}</Text>
@@ -1673,7 +1690,7 @@ export function ComplianceChecksScreen() {
           </View>
         ))}
 
-        {periodGroups.length === 0 && !logQuery.isLoading ? (
+        {visiblePeriodGroups.length === 0 && !logQuery.isLoading ? (
           <View style={ui.card}>
             <Text style={styles.meta}>No compliance groups configured for this frequency.</Text>
           </View>

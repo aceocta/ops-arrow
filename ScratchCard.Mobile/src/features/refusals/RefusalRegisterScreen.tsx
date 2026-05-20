@@ -8,7 +8,7 @@ import * as Sharing from "expo-sharing";
 import SignatureScreen, { SignatureViewRef } from "react-native-signature-canvas";
 import { getRefusalDailyLog, getRefusalEntryReviewSignature, getRefusalEntrySignature, recordRefusalEntry } from "../../api/refusalRegisterApi";
 import { useAuth } from "../../auth/AuthContext";
-import { DateTimeField, formatDateValue, formatTimeValue } from "../../components/DateTimeField";
+import { DateTimeField, formatDateValue, formatTimeValue, parseDateTimeValue } from "../../components/DateTimeField";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -335,6 +335,7 @@ export function RefusalRegisterScreen() {
   const saveSignatureFromPad = () => {
     signatureRef.current?.readSignature();
   };
+  const refusalDateTimeValue = `${selectedDate} ${refusalTime}`;
 
   const buildReportHtml = async () => {
     const reportEntries = await Promise.all(
@@ -443,8 +444,20 @@ export function RefusalRegisterScreen() {
         <Text style={styles.sectionTitle}>Refusal</Text>
         <Text style={styles.sectionSubtitle}>Record refusal details and capture a staff signature.</Text>
         <View style={styles.row}>
-          <DateTimeField style={{ flex: 1 }} mode="date" value={selectedDate} onChange={setSelectedDate} />
-          <DateTimeField style={{ flex: 1 }} mode="time" value={refusalTime} onChange={setRefusalTime} />
+          <DateTimeField
+            style={{ flex: 1 }}
+            mode="datetime"
+            value={refusalDateTimeValue}
+            onChange={(value) => {
+              const parsed = parseDateTimeValue(value);
+              if (!parsed) {
+                return;
+              }
+
+              setSelectedDate(formatDateValue(parsed));
+              setRefusalTime(formatTimeValue(parsed));
+            }}
+          />
         </View>
 
         <Text style={styles.fieldLabel}>Product</Text>
