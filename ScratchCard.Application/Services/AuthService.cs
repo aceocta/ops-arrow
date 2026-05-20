@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using System.Net;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
+using ScratchCard.Application.Common.Models;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Auth;
 using ScratchCard.Domain.Constants;
@@ -10,6 +13,7 @@ namespace ScratchCard.Application.Services;
 
 public class AuthService : IAuthService
 {
+    private const string DefaultPasswordResetBaseUrl = "https://wa-ops-arrow-uat-dvdrbjf9fraydwdd.canadacentral-01.azurewebsites.net";
     private readonly IRepository<User> _userRepository;
     private readonly IRepository<Company> _companyRepository;
     private readonly IRepository<ShopUser> _shopUserRepository;
@@ -22,6 +26,7 @@ public class AuthService : IAuthService
     private readonly IEmailSender _emailSender;
     private readonly IAuditService _auditService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly string _passwordResetBaseUrl;
 
     public AuthService(
         IRepository<User> userRepository,
@@ -35,7 +40,8 @@ public class AuthService : IAuthService
         IInvitationTokenService tokenService,
         IEmailSender emailSender,
         IAuditService auditService,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IConfiguration configuration)
     {
         _userRepository = userRepository;
         _companyRepository = companyRepository;
@@ -49,6 +55,12 @@ public class AuthService : IAuthService
         _emailSender = emailSender;
         _auditService = auditService;
         _unitOfWork = unitOfWork;
+        _passwordResetBaseUrl =
+            configuration["Auth:PasswordResetBaseUrl"]?.Trim()
+            ?? configuration["PasswordResetBaseUrl"]?.Trim()
+            ?? configuration["Invitation:InvitationAcceptBaseUrl"]?.Trim()
+            ?? configuration["InvitationAcceptBaseUrl"]?.Trim()
+            ?? DefaultPasswordResetBaseUrl;
     }
 
     public async Task<AuthTokenResponseDto> SignUpWithPasswordAsync(PasswordSignupRequest request, CancellationToken cancellationToken = default)
@@ -334,19 +346,16 @@ public class AuthService : IAuthService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var escapedToken = Uri.EscapeDataString(token);
-        var resetLink = $"scratchcard://reset-password?token={escapedToken}";
-        var body =
-            "We received a request to reset your Ops Arrow password.\n\n" +
-            $"Reset link: {resetLink}\n\n" +
-            $"If the app does not open, enter this token manually in the reset screen:\n{token}\n\n" +
-            $"This token expires at {expiresOn:yyyy-MM-dd HH:mm} UTC.\n" +
-            "If you did not request this, you can ignore this email.";
+        var resetDeepLink = $"scratchcard://reset-password?token={escapedToken}";
+        var resetOpenLink = BuildPasswordResetOpenLink(token);
+        var message = BuildPasswordResetEmailMessage(
+            recipient: normalizedEmail,
+            resetOpenLink: resetOpenLink,
+            resetDeepLink: resetDeepLink,
+            resetToken: token,
+            expiresOnUtc: expiresOn);
 
-        await _emailSender.SendAsync(
-            normalizedEmail,
-            "Ops Arrow Password Reset",
-            body,
-            cancellationToken);
+        await _emailSender.SendAsync(message, cancellationToken);
 
         await _auditService.LogAsync(
             nameof(User),
@@ -573,5 +582,86 @@ public class AuthService : IAuthService
 
         var emailPrefix = normalizedEmail.Split('@', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
         return (string.IsNullOrWhiteSpace(emailPrefix) ? "User" : emailPrefix, string.Empty);
+    }
+
+    private string BuildPasswordResetOpenLink(string token)
+    {
+        var escapedToken = Uri.EscapeDataString(token);
+        return $"{_passwordResetBaseUrl.TrimEnd('/')}/api/auth/reset-password?token={escapedToken}";
+    }
+
+    private static EmailMessage BuildPasswordResetEmailMessage(
+        string recipient,
+        string resetOpenLink,
+        string resetDeepLink,
+        string resetToken,
+        DateTimeOffset expiresOnUtc)
+    {
+        var safeRecipient = WebUtility.HtmlEncode(recipient);
+        var safeResetOpenLink = WebUtility.HtmlEncode(resetOpenLink);
+        var safeResetDeepLink = WebUtility.HtmlEncode(resetDeepLink);
+        var safeResetToken = WebUtility.HtmlEncode(resetToken);
+        var safeExpiry = WebUtility.HtmlEncode(expiresOnUtc.ToString("yyyy-MM-dd HH:mm 'UTC'"));
+
+        var html = """
+            <!doctype html>
+            <html lang="en">
+            <head>
+              <meta charset="utf-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1" />
+              <title>Ops Arrow Password Reset</title>
+            </head>
+            <body style="margin:0;padding:0;background:#f2f6fb;font-family:Arial,'Segoe UI',sans-serif;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2f6fb;padding:28px 12px;">
+                <tr>
+                  <td align="center">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:620px;background:#ffffff;border:1px solid #d9e1ec;border-radius:14px;overflow:hidden;">
+                      <tr>
+                        <td style="background:linear-gradient(135deg,#0f3d3e,#1f6f7a);padding:26px 24px;color:#ffffff;">
+                          <div style="font-size:12px;letter-spacing:0.8px;text-transform:uppercase;opacity:0.9;">Ops Arrow</div>
+                          <div style="font-size:24px;line-height:30px;font-weight:700;margin-top:8px;">Reset your password</div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:24px;">
+                          <p style="margin:0 0 12px;color:#2b3f4a;font-size:15px;line-height:22px;">Hello <strong>__RECIPIENT__</strong>,</p>
+                          <p style="margin:0 0 18px;color:#4a5f6b;font-size:15px;line-height:22px;">We received a request to reset your Ops Arrow password.</p>
+                          <p style="margin:0 0 20px;color:#4a5f6b;font-size:14px;line-height:21px;">This reset link expires at <strong>__EXPIRY__</strong>.</p>
+                          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 18px;">
+                            <tr>
+                              <td align="center" bgcolor="#0f3d3e" style="border-radius:10px;">
+                                <a href="__RESET_OPEN_LINK__" style="display:inline-block;padding:12px 22px;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;">Open reset screen</a>
+                              </td>
+                            </tr>
+                          </table>
+                          <p style="margin:0 0 8px;color:#617785;font-size:13px;line-height:20px;">If the app does not open from the page, tap the Open App button there, or copy this token into the reset screen:</p>
+                          <p style="margin:0 0 12px;padding:10px 12px;border:1px dashed #b3c0cf;border-radius:8px;color:#0f3d3e;font-size:13px;line-height:20px;word-break:break-all;"><strong>__RESET_TOKEN__</strong></p>
+                          <p style="margin:0 0 8px;color:#617785;font-size:13px;line-height:20px;">Reset link page:</p>
+                          <p style="margin:0 0 10px;word-break:break-all;color:#0f3d3e;font-size:13px;line-height:20px;">__RESET_OPEN_LINK__</p>
+                          <p style="margin:0 0 8px;color:#617785;font-size:13px;line-height:20px;">App deep link (if needed):</p>
+                          <p style="margin:0;word-break:break-all;color:#0f3d3e;font-size:13px;line-height:20px;">__RESET_DEEP_LINK__</p>
+                          <p style="margin:18px 0 0;color:#617785;font-size:13px;line-height:20px;">If you did not request this, you can ignore this email.</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
+            """
+            .Replace("__RECIPIENT__", safeRecipient, StringComparison.Ordinal)
+            .Replace("__EXPIRY__", safeExpiry, StringComparison.Ordinal)
+            .Replace("__RESET_TOKEN__", safeResetToken, StringComparison.Ordinal)
+            .Replace("__RESET_OPEN_LINK__", safeResetOpenLink, StringComparison.Ordinal)
+            .Replace("__RESET_DEEP_LINK__", safeResetDeepLink, StringComparison.Ordinal);
+
+        return new EmailMessage
+        {
+            Recipient = recipient,
+            Subject = "Ops Arrow Password Reset",
+            Body = html,
+            IsBodyHtml = true
+        };
     }
 }

@@ -875,6 +875,7 @@ export function AppConfigurationScreen() {
 
 export function CompanyManagementScreen() {
   const queryClient = useQueryClient();
+  const { profile } = useAuth();
   const [companyName, setCompanyName] = useState("");
   const [registrationNumber, setRegistrationNumber] = useState("");
 
@@ -882,9 +883,38 @@ export function CompanyManagementScreen() {
     queryKey: ["companies", "mine"],
     queryFn: listMyCompanies,
   });
+  const companies = companiesQuery.data ?? [];
+  const ownedCompany = useMemo(() => {
+    const currentUserId = profile?.userId?.toLowerCase();
+    const currentEmail = profile?.email?.trim().toLowerCase();
+    if (!currentUserId && !currentEmail) {
+      return null;
+    }
+
+    return (
+      companies.find((company) => {
+        const ownerUserId = company.ownerUserId?.toLowerCase();
+        const ownerEmail = company.email?.trim().toLowerCase();
+        return (currentUserId ? ownerUserId === currentUserId : false) || (currentEmail ? ownerEmail === currentEmail : false);
+      }) ?? null
+    );
+  }, [companies, profile?.email, profile?.userId]);
+  const canCreateCompany = !ownedCompany;
+
+  useEffect(() => {
+    if (!ownedCompany) {
+      return;
+    }
+
+    setCompanyName(ownedCompany.companyName);
+    setRegistrationNumber(ownedCompany.registrationNumber ?? "");
+  }, [ownedCompany?.id]);
 
   const createCompanyMutation = useMutation({
     mutationFn: async () => {
+      if (!canCreateCompany) {
+        throw new Error("You already own a company. One owner can have only one company.");
+      }
       if (!companyName.trim()) {
         throw new Error("Company name is required.");
       }
@@ -905,13 +935,44 @@ export function CompanyManagementScreen() {
     },
   });
 
+  const updateCompanyMutation = useMutation({
+    mutationFn: async () => {
+      if (!ownedCompany) {
+        throw new Error("No owned company found.");
+      }
+
+      const trimmedCompanyName = companyName.trim();
+      if (!trimmedCompanyName) {
+        throw new Error("Company name is required.");
+      }
+
+      return updateCompany(ownedCompany.id, {
+        companyName: trimmedCompanyName,
+        registrationNumber: registrationNumber.trim() || undefined,
+        isActive: ownedCompany.isActive,
+      });
+    },
+    onSuccess: () => {
+      Alert.alert("Updated", "Company details updated successfully.");
+      void queryClient.invalidateQueries({ queryKey: ["companies", "mine"] });
+    },
+    onError: (error: any) => {
+      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to update company details.");
+    },
+  });
+
   const toggleCompanyMutation = useMutation({
-    mutationFn: async (company: Company) =>
-      updateCompany(company.id, {
-        companyName: company.companyName,
-        registrationNumber: company.registrationNumber,
-        isActive: !company.isActive,
-      }),
+    mutationFn: async () => {
+      if (!ownedCompany) {
+        throw new Error("No owned company found.");
+      }
+
+      return updateCompany(ownedCompany.id, {
+        companyName: ownedCompany.companyName,
+        registrationNumber: ownedCompany.registrationNumber,
+        isActive: !ownedCompany.isActive,
+      });
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["companies", "mine"] });
     },
@@ -923,31 +984,61 @@ export function CompanyManagementScreen() {
   return (
     <ScreenContainer>
       <ScrollView contentContainerStyle={{ gap: 12 }}>
-        <View style={ui.card}>
-          <Text style={styles.fieldLabel}>Company Name</Text>
-          <TextInput style={styles.input} value={companyName} onChangeText={setCompanyName} placeholder="Company name" />
-          <Text style={styles.fieldLabel}>Registration Number</Text>
-          <TextInput
-            style={styles.input}
-            value={registrationNumber}
-            onChangeText={setRegistrationNumber}
-            placeholder="Registration number (optional)"
-          />
-          <Pressable style={styles.actionButton} onPress={() => createCompanyMutation.mutate()}>
-            <Text style={styles.actionButtonText}>{createCompanyMutation.isPending ? "Creating..." : "Create Company"}</Text>
-          </Pressable>
-        </View>
+        {canCreateCompany ? (
+          <View style={ui.card}>
+            <Text style={styles.sectionTitle}>Create Company</Text>
+            <Text style={styles.meta}>One owner can have only one company.</Text>
+            <Text style={styles.fieldLabel}>Company Name</Text>
+            <TextInput style={styles.input} value={companyName} onChangeText={setCompanyName} placeholder="Company name" />
+            <Text style={styles.fieldLabel}>Registration Number</Text>
+            <TextInput
+              style={styles.input}
+              value={registrationNumber}
+              onChangeText={setRegistrationNumber}
+              placeholder="Registration number (optional)"
+            />
+            <Pressable style={styles.actionButton} onPress={() => createCompanyMutation.mutate()}>
+              <Text style={styles.actionButtonText}>{createCompanyMutation.isPending ? "Creating..." : "Create Company"}</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <View style={ui.card}>
+            <Text style={styles.sectionTitle}>Company Settings</Text>
+            <Text style={styles.meta}>One owner can have only one company. Update your company details below.</Text>
+            <Text style={styles.fieldLabel}>Company Name</Text>
+            <TextInput style={styles.input} value={companyName} onChangeText={setCompanyName} placeholder="Company name" />
+            <Text style={styles.fieldLabel}>Registration Number</Text>
+            <TextInput
+              style={styles.input}
+              value={registrationNumber}
+              onChangeText={setRegistrationNumber}
+              placeholder="Registration number (optional)"
+            />
+            <View style={styles.configFooterActionRow}>
+              <Pressable style={styles.actionButton} onPress={() => updateCompanyMutation.mutate()}>
+                <Text style={styles.actionButtonText}>{updateCompanyMutation.isPending ? "Saving..." : "Save Changes"}</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.secondaryActionButton, toggleCompanyMutation.isPending ? styles.dateActionButtonDisabled : null]}
+                onPress={() => toggleCompanyMutation.mutate()}
+                disabled={toggleCompanyMutation.isPending}
+              >
+                <Text style={styles.secondaryActionButtonText}>
+                  {toggleCompanyMutation.isPending ? "Updating..." : ownedCompany?.isActive ? "Deactivate" : "Activate"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
 
         <View style={ui.card}>
-          <Text style={styles.sectionTitle}>My Companies</Text>
-          {(companiesQuery.data ?? []).map((company) => (
+          <Text style={styles.sectionTitle}>{ownedCompany ? "My Company" : "My Companies"}</Text>
+          {(ownedCompany ? [ownedCompany] : companies).map((company) => (
             <View key={company.id} style={styles.item}>
               <Text style={styles.itemTitle}>{company.companyName}</Text>
               <Text style={styles.meta}>Reg No: {company.registrationNumber || "-"}</Text>
               <Text style={styles.meta}>Status: {company.isActive ? "Active" : "Inactive"}</Text>
-              <Pressable style={styles.smallButton} onPress={() => toggleCompanyMutation.mutate(company)}>
-                <Text style={styles.smallButtonText}>{company.isActive ? "Deactivate" : "Activate"}</Text>
-              </Pressable>
+              <Text style={styles.meta}>Owner Email: {company.email}</Text>
             </View>
           ))}
         </View>
