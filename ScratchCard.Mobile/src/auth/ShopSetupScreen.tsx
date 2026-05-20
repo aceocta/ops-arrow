@@ -6,6 +6,7 @@ import { ScreenContainer } from "../components/ScreenContainer";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { ui } from "../ui/primitives";
 import { appTheme } from "../ui/theme";
+import { SellingOrder } from "../types/enums";
 
 export function ShopSetupScreen() {
   const { profile, refreshProfile, isLoading } = useAuth();
@@ -15,6 +16,8 @@ export function ShopSetupScreen() {
   const [city, setCity] = useState("");
   const [postCode, setPostCode] = useState("");
   const [country, setCountry] = useState("UK");
+  const [scratchCardDisplayCount, setScratchCardDisplayCount] = useState("24");
+  const [packSellingOrder, setPackSellingOrder] = useState<SellingOrder>(SellingOrder.Ascending);
   const [isBusy, setIsBusy] = useState(false);
   const [progressMessage, setProgressMessage] = useState<string | null>(null);
 
@@ -30,6 +33,11 @@ export function ShopSetupScreen() {
       Alert.alert("Validation", "Shop name, address, city, post code, and country are required.");
       return;
     }
+    const parsedDisplayCount = Number(scratchCardDisplayCount.trim());
+    if (!Number.isInteger(parsedDisplayCount) || parsedDisplayCount <= 0) {
+      Alert.alert("Validation", "Display count must be a whole number greater than 0.");
+      return;
+    }
 
     setIsBusy(true);
     try {
@@ -42,6 +50,8 @@ export function ShopSetupScreen() {
         city: city.trim(),
         postCode: postCode.trim(),
         country: country.trim(),
+        scratchCardDisplayCount: parsedDisplayCount,
+        packSellingOrder,
       });
       // setProgressMessage("Finalizing setup...");
       await refreshProfile(createdShop.id, true);
@@ -122,6 +132,38 @@ export function ShopSetupScreen() {
           editable={!busy}
         />
 
+        <View style={styles.configSection}>
+          <Text style={styles.configTitle}>Pack Configuration</Text>
+          <Text style={styles.configSubtitle}>Set the initial selling order and display capacity for this shop.</Text>
+
+          <Text style={styles.fieldLabel}>Scratch Card Display Count</Text>
+          <TextInput
+            style={styles.input}
+            value={scratchCardDisplayCount}
+            onChangeText={setScratchCardDisplayCount}
+            placeholder="e.g. 24"
+            keyboardType="number-pad"
+            underlineColorAndroid="transparent"
+            editable={!busy}
+          />
+
+          <Text style={styles.fieldLabel}>Pack Selling Order</Text>
+          <View style={styles.choiceRow}>
+            <Text
+              style={[styles.choiceChip, packSellingOrder === SellingOrder.Ascending ? styles.choiceChipSelected : null]}
+              onPress={() => setPackSellingOrder(SellingOrder.Ascending)}
+            >
+              Start From 0
+            </Text>
+            <Text
+              style={[styles.choiceChip, packSellingOrder === SellingOrder.Descending ? styles.choiceChipSelected : null]}
+              onPress={() => setPackSellingOrder(SellingOrder.Descending)}
+            >
+              End To 0
+            </Text>
+          </View>
+        </View>
+
         <PrimaryButton
           label={busy ? progressMessage ?? "Saving..." : "Finish Setup"}
           onPress={() => void onContinue()}
@@ -165,6 +207,49 @@ const styles = StyleSheet.create({
     color: appTheme.colors.text,
     fontSize: 14,
     fontFamily: appTheme.fonts.body,
+  },
+  configSection: {
+    marginTop: appTheme.spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: appTheme.colors.border,
+    paddingTop: appTheme.spacing.sm,
+    gap: 6,
+  },
+  configTitle: {
+    color: appTheme.colors.text,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: appTheme.fonts.bodyMedium,
+  },
+  configSubtitle: {
+    color: appTheme.colors.textMuted,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: appTheme.fonts.body,
+  },
+  choiceRow: {
+    flexDirection: "row",
+    gap: appTheme.spacing.xs,
+    alignItems: "center",
+  },
+  choiceChip: {
+    flex: 1,
+    borderRadius: appTheme.radius.pill,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    color: appTheme.colors.text,
+    textAlign: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 16,
+  },
+  choiceChipSelected: {
+    borderColor: appTheme.colors.borderStrong,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+    color: appTheme.colors.primary,
   },
   progressText: {
     color: appTheme.colors.textMuted,

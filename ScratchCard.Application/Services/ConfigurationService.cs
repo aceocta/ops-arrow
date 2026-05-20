@@ -85,7 +85,7 @@ public class ConfigurationService : IConfigurationService
         var fallbackBusinessEndTime = Resolve(
             shopGeneral?.BusinessDateCutOffTime,
             globalGeneral?.BusinessDateCutOffTime,
-            Resolve(shopShift?.ShiftEndTime, globalShift?.ShiftEndTime, "21:59"));
+            Resolve(shopShift?.ShiftEndTime, globalShift?.ShiftEndTime, "22:00"));
 
         var items = new List<ConfigurationItemDto>();
 
@@ -117,9 +117,9 @@ public class ConfigurationService : IConfigurationService
         AddItem(items, shopId, ShiftGroup, "AllowShiftReopen", ToConfigString(Resolve(shopShift?.AllowShiftReopen, globalShift?.AllowShiftReopen, true)), "bool", null);
         AddItem(items, shopId, ShiftGroup, "WhoCanReopenShift", Resolve(shopShift?.WhoCanReopenShift, globalShift?.WhoCanReopenShift, "Manager,CompanyOwner"), "string", null);
         AddItem(items, shopId, ShiftGroup, ConfigurationKeys.ShiftStartTime, Resolve(shopShift?.ShiftStartTime, globalShift?.ShiftStartTime, "06:00"), "string", "Configured shift opening window start time (HH:mm)");
-        AddItem(items, shopId, ShiftGroup, ConfigurationKeys.ShiftEndTime, Resolve(shopShift?.ShiftEndTime, globalShift?.ShiftEndTime, "23:00"), "string", "Configured shift opening window end time (HH:mm)");
-        AddItem(items, shopId, ShiftGroup, ConfigurationKeys.ShiftDefaultName, Resolve(shopShift?.ShiftDefaultName, globalShift?.ShiftDefaultName, "Main Shift"), "string", "Default shift name used when custom names are not allowed");
-        AddItem(items, shopId, ShiftGroup, ConfigurationKeys.ShiftTemplates, Resolve(shopShift?.ShiftTemplates, globalShift?.ShiftTemplates, "[{\"id\":\"main\",\"name\":\"Main Shift\",\"startTime\":\"06:00\",\"endTime\":\"23:00\",\"isActive\":true}]"), "json", "Shop shift templates. Supports multiple shifts and overnight windows (end time earlier than start means next day).");
+        AddItem(items, shopId, ShiftGroup, ConfigurationKeys.ShiftEndTime, Resolve(shopShift?.ShiftEndTime, globalShift?.ShiftEndTime, "22:00"), "string", "Configured shift opening window end time (HH:mm)");
+        AddItem(items, shopId, ShiftGroup, ConfigurationKeys.ShiftDefaultName, Resolve(shopShift?.ShiftDefaultName, globalShift?.ShiftDefaultName, "Morning Shift"), "string", "Default shift name used when custom names are not allowed");
+        AddItem(items, shopId, ShiftGroup, ConfigurationKeys.ShiftTemplates, Resolve(shopShift?.ShiftTemplates, globalShift?.ShiftTemplates, "[{\"id\":\"morning\",\"name\":\"Morning Shift\",\"startTime\":\"06:00\",\"endTime\":\"14:00\",\"isActive\":true},{\"id\":\"evening\",\"name\":\"Evening Shift\",\"startTime\":\"14:00\",\"endTime\":\"22:00\",\"isActive\":true}]"), "json", "Shop shift templates. Supports multiple shifts and overnight windows (end time earlier than start means next day).");
         AddItem(items, shopId, ShiftGroup, ConfigurationKeys.EnforceShiftTimeWindow, ToConfigString(Resolve(shopShift?.EnforceShiftTimeWindow, globalShift?.EnforceShiftTimeWindow, false)), "bool", "Allow opening shifts only inside configured start/end time window");
         AddItem(items, shopId, ShiftGroup, ConfigurationKeys.AllowCustomShiftName, ToConfigString(Resolve(shopShift?.AllowCustomShiftName, globalShift?.AllowCustomShiftName, true)), "bool", "Allow manually entering shift name when opening a shift");
         AddItem(items, shopId, ShiftGroup, "RequireReasonForManualClosingSerial", ToConfigString(Resolve(shopShift?.RequireReasonForManualClosingSerial, globalShift?.RequireReasonForManualClosingSerial, false)), "bool", null);

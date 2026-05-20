@@ -18,6 +18,8 @@ public static class SeedDataInitializer
     private const string PlatformUserPassword = "Platform@123";
     private const string PlatformUserFirstName = "Platform";
     private const string PlatformUserLastName = "User";
+    private const string LegacyMainShiftTemplatesJson = "[{\"id\":\"main\",\"name\":\"Main Shift\",\"startTime\":\"06:00\",\"endTime\":\"23:00\",\"isActive\":true}]";
+    private const string DefaultShiftTemplatesJson = "[{\"id\":\"morning\",\"name\":\"Morning Shift\",\"startTime\":\"06:00\",\"endTime\":\"14:00\",\"isActive\":true},{\"id\":\"evening\",\"name\":\"Evening Shift\",\"startTime\":\"14:00\",\"endTime\":\"22:00\",\"isActive\":true}]";
 
     public static async Task SeedAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken = default)
     {
@@ -645,9 +647,9 @@ public static class SeedDataInitializer
                 AllowShiftReopen = true,
                 WhoCanReopenShift = "Manager,CompanyOwner",
                 ShiftStartTime = "06:00",
-                ShiftEndTime = "23:00",
-                ShiftDefaultName = "Main Shift",
-                ShiftTemplates = "[{\"id\":\"main\",\"name\":\"Main Shift\",\"startTime\":\"06:00\",\"endTime\":\"23:00\",\"isActive\":true}]",
+                ShiftEndTime = "22:00",
+                ShiftDefaultName = "Morning Shift",
+                ShiftTemplates = DefaultShiftTemplatesJson,
                 EnforceShiftTimeWindow = false,
                 AllowCustomShiftName = true,
                 RequireReasonForManualClosingSerial = false,
@@ -776,17 +778,39 @@ public static class SeedDataInitializer
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        var scratchCardDisplayCountChanged = false;
+        var defaultSettingsChanged = false;
         globalPack ??= await dbContext.CfgPackSettings.FirstOrDefaultAsync(x => x.ShopId == null, cancellationToken);
         if (globalPack is not null && globalPack.ScratchCardDisplayCount == 20)
         {
             globalPack.ScratchCardDisplayCount = 24;
             globalPack.ModifiedOn = DateTimeOffset.UtcNow;
             dbContext.CfgPackSettings.Update(globalPack);
-            scratchCardDisplayCountChanged = true;
+            defaultSettingsChanged = true;
         }
 
-        if (scratchCardDisplayCountChanged)
+        globalShift ??= await dbContext.CfgShiftSettings.FirstOrDefaultAsync(x => x.ShopId == null, cancellationToken);
+        if (globalShift is not null)
+        {
+            var normalizedTemplates = (globalShift.ShiftTemplates ?? string.Empty).Trim();
+            var isLegacySingleShift =
+                string.Equals(normalizedTemplates, LegacyMainShiftTemplatesJson, StringComparison.OrdinalIgnoreCase) ||
+                (string.Equals(globalShift.ShiftDefaultName?.Trim(), "Main Shift", StringComparison.OrdinalIgnoreCase)
+                 && string.Equals(globalShift.ShiftStartTime?.Trim(), "06:00", StringComparison.OrdinalIgnoreCase)
+                 && string.Equals(globalShift.ShiftEndTime?.Trim(), "23:00", StringComparison.OrdinalIgnoreCase));
+
+            if (isLegacySingleShift)
+            {
+                globalShift.ShiftStartTime = "06:00";
+                globalShift.ShiftEndTime = "22:00";
+                globalShift.ShiftDefaultName = "Morning Shift";
+                globalShift.ShiftTemplates = DefaultShiftTemplatesJson;
+                globalShift.ModifiedOn = DateTimeOffset.UtcNow;
+                dbContext.CfgShiftSettings.Update(globalShift);
+                defaultSettingsChanged = true;
+            }
+        }
+
+        if (defaultSettingsChanged)
         {
             await dbContext.SaveChangesAsync(cancellationToken);
         }
