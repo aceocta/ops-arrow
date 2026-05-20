@@ -809,8 +809,8 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
           {!isManualClosingSerialEnabled && isCameraScanningEnabled ? (
             <Text style={styles.meta}>Manual closing serial entry is disabled. Use scan for each pack.</Text>
           ) : null}
-          <Text style={styles.meta}>{readinessMessage}</Text>
-          {scanStatus ? <Text style={styles.scanStatus}>{scanStatus}</Text> : null}
+          {/* <Text style={styles.meta}>{readinessMessage}</Text> */}
+          {/* {scanStatus ? <Text style={styles.scanStatus}>{scanStatus}</Text> : null} */}
         {/* </View> */}
 
         {computedRows.length === 0 ? (

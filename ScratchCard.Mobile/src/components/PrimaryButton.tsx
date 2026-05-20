@@ -6,7 +6,7 @@ type Props = {
   label: string;
   onPress: () => void;
   disabled?: boolean;
-  tone?: "primary" | "neutral" | "danger";
+  tone?: "primary" | "neutral" | "danger" | "success";
   size?: "sm" | "md";
 };
 
@@ -19,6 +19,7 @@ export function PrimaryButton({ label, onPress, disabled, tone = "primary", size
         styles.button,
         tone === "neutral" && styles.buttonNeutral,
         tone === "danger" && styles.buttonDanger,
+        tone === "success" && styles.buttonSuccess,
         size === "sm" && styles.buttonSmall,
         pressed && !disabled && styles.pressed,
         disabled && styles.disabled,
@@ -51,6 +52,9 @@ const styles = StyleSheet.create({
   },
   buttonDanger: {
     backgroundColor: appTheme.colors.danger,
+  },
+  buttonSuccess: {
+    backgroundColor: appTheme.colors.success,
   },
   pressed: { opacity: 0.92, transform: [{ scale: 0.995 }] },
   disabled: { backgroundColor: appTheme.colors.borderStrong },

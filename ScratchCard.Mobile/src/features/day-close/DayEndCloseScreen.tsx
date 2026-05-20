@@ -1470,6 +1470,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   <View style={styles.shiftActionRow}>
                     <PrimaryButton
                       label="Close Shift"
+                      tone="success"
                       onPress={() => navigation.navigate("ShiftClose", { shiftId: shift.id, shopId: shift.shopId })}
                       disabled={!canManageShifts}
                     />
