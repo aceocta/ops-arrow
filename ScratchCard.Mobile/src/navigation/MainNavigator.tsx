@@ -773,8 +773,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 11,
     borderRadius: appTheme.radius.sm,
-    borderWidth: 1,
-    borderColor: appTheme.colors.border,
     backgroundColor: appTheme.colors.surface,
     flexDirection: "row",
     alignItems: "center",
@@ -782,7 +780,6 @@ const styles = StyleSheet.create({
     gap: appTheme.spacing.xs,
   },
   drawerItemActive: {
-    borderColor: appTheme.colors.borderBrandSoft,
     backgroundColor: appTheme.colors.surfaceBrandMuted,
   },
   drawerItemMain: {
