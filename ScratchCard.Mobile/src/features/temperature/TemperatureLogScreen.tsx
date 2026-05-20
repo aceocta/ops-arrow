@@ -232,6 +232,7 @@ export function TemperatureLogScreen() {
     setIsLogEntryModalVisible(true);
   };
   const closeLogEntryModal = () => {
+    closeTextEditor();
     setIsLogEntryModalVisible(false);
   };
 
@@ -485,45 +486,40 @@ export function TemperatureLogScreen() {
                 </Pressable>
               </View>
               </ScrollView>
-            </View>
-          </View>
-        </Modal>
 
-        <Modal
-          visible={textEditorField !== null}
-          transparent
-          animationType="fade"
-          onRequestClose={closeTextEditor}
-        >
-          <View style={styles.modalBackdrop}>
-            <ModalBackdropBlur />
-            <View style={styles.modalCard}>
-              <Text style={styles.sectionTitle}>
-                {textEditorField === "notes" ? "Edit Notes" : "Edit Action Taken"}
-              </Text>
-              <TextInput
-                style={[styles.input, styles.modalTextArea]}
-                value={textEditorValue}
-                onChangeText={setTextEditorValue}
-                placeholder={textEditorField === "notes" ? "Enter notes" : "Enter corrective action"}
-                placeholderTextColor={appTheme.colors.textSubtle}
-                multiline
-                textAlignVertical="top"
-              />
-              <View style={styles.modalActionRow}>
-                <Pressable
-                  style={[styles.modalActionButton, styles.modalActionPrimary]}
-                  onPress={saveTextEditor}
-                >
-                  <Text style={styles.modalActionPrimaryText}>Save</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.modalActionButton, styles.modalActionSecondary]}
-                  onPress={closeTextEditor}
-                >
-                  <Text style={styles.modalActionSecondaryText}>Cancel</Text>
-                </Pressable>
-              </View>
+              {textEditorField ? (
+                <View style={styles.inlineEditorOverlay}>
+                  <Pressable style={StyleSheet.absoluteFill} onPress={closeTextEditor} />
+                  <View style={styles.inlineEditorCard}>
+                    <Text style={styles.sectionTitle}>
+                      {textEditorField === "notes" ? "Edit Notes" : "Edit Action Taken"}
+                    </Text>
+                    <TextInput
+                      style={[styles.input, styles.modalTextArea]}
+                      value={textEditorValue}
+                      onChangeText={setTextEditorValue}
+                      placeholder={textEditorField === "notes" ? "Enter notes" : "Enter corrective action"}
+                      placeholderTextColor={appTheme.colors.textSubtle}
+                      multiline
+                      textAlignVertical="top"
+                    />
+                    <View style={styles.modalActionRow}>
+                      <Pressable
+                        style={[styles.modalActionButton, styles.modalActionPrimary]}
+                        onPress={saveTextEditor}
+                      >
+                        <Text style={styles.modalActionPrimaryText}>Save</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[styles.modalActionButton, styles.modalActionSecondary]}
+                        onPress={closeTextEditor}
+                      >
+                        <Text style={styles.modalActionSecondaryText}>Cancel</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                </View>
+              ) : null}
             </View>
           </View>
         </Modal>
@@ -956,6 +952,21 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     padding: appTheme.spacing.md,
     maxHeight: "88%",
+    overflow: "hidden",
+  },
+  inlineEditorOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: appTheme.colors.overlay,
+    justifyContent: "center",
+    padding: appTheme.spacing.sm,
+    zIndex: 2,
+  },
+  inlineEditorCard: {
+    borderWidth: 0,
+    borderRadius: appTheme.radius.md,
+    backgroundColor: appTheme.colors.surface,
+    padding: appTheme.spacing.md,
+    gap: appTheme.spacing.sm,
   },
   modalScroll: {
     flexGrow: 0,
