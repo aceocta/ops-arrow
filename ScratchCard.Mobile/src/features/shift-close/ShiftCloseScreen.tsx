@@ -784,12 +784,8 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
             </View> */}
           {/* </View> */}
           {/* <Text style={styles.meta}>{readinessMessage}</Text> */}
-        </View>
 
-        {/* <View style={[ui.card, styles.quickScanCard]}> */}
-          {/* <Text style={styles.cardTitle}>Quick Scan</Text>
-          <Text style={styles.meta}>Scan continuously and auto-apply closing serials by pack.</Text> */}
-          {isCameraScanningEnabled ? (
+              {isCameraScanningEnabled ? (
             <PrimaryButton
               label="Scan Any Pack"
               tone="neutral"
@@ -804,6 +800,12 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
           ) : (
             <Text style={styles.meta}>Camera scanning is disabled for this shop. Use the closing serial textbox.</Text>
           )}
+        </View>
+
+        {/* <View style={[ui.card, styles.quickScanCard]}> */}
+          {/* <Text style={styles.cardTitle}>Quick Scan</Text>
+          <Text style={styles.meta}>Scan continuously and auto-apply closing serials by pack.</Text> */}
+      
           {!isManualClosingSerialEnabled && isCameraScanningEnabled ? (
             <Text style={styles.meta}>Manual closing serial entry is disabled. Use scan for each pack.</Text>
           ) : null}

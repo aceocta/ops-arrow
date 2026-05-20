@@ -1267,7 +1267,16 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     <ScreenContainer>
       <View style={styles.pageContent}>
 
-         <View style={styles.dateNavigationRow}>
+        
+        <View style={[ui.card, styles.dayHeaderCard]}>
+          <View style={styles.summaryHeaderRow}>
+            <View style={styles.summaryHeading}>
+              {/* <Text style={styles.summaryEyebrow}>Business Date</Text> */}
+              <Text style={styles.summaryDate}>{day?.businessDate ?? "-"}</Text>
+            </View>
+            <StatusBadge label={status ?? "-"} tone={getStatusTone(status)} />
+          </View>
+           <View style={styles.dateNavigationRow}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={previousBusinessDay ? `Go to previous day ${previousBusinessDay.businessDate}` : "No previous day available"}
@@ -1314,16 +1323,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 <Text style={styles.dateNavigationButtonText}>Next Day</Text>
               </Pressable>
             </View>
-        <View style={[ui.card, styles.dayHeaderCard]}>
-          <View style={styles.summaryHeaderRow}>
-            <View style={styles.summaryHeading}>
-              {/* <Text style={styles.summaryEyebrow}>Business Date</Text> */}
-              <Text style={styles.summaryDate}>{day?.businessDate ?? "-"}</Text>
-            </View>
-            <StatusBadge label={status ?? "-"} tone={getStatusTone(status)} />
-          </View>
           {/* <Text style={styles.meta}>{dayStatusMessage}</Text> */}
-          <View style={styles.summaryMetaGrid}>
+          {/* <View style={styles.summaryMetaGrid}>
             <View style={styles.summaryMetaItem}>
               <Text style={styles.summaryMetaText}>Open Shifts - {openShiftCount}</Text>
             </View>
@@ -1344,7 +1345,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               </Text>
             </View>
            
-          </View>
+          </View> */}
         </View>
 
         <View style={[ui.card, styles.sectionCard]}>
@@ -1380,7 +1381,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               </Pressable> */}
             </View>
           </View>
-          <View style={styles.summaryDivider} />
+          {/* <View style={styles.summaryDivider} /> */}
           {shifts.length === 0 && !shiftsQuery.isFetching ? (
             <Text style={styles.meta}>No shifts found for this day.</Text>
           ) : null}
