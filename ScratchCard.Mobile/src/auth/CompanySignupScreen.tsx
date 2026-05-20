@@ -12,21 +12,19 @@ import { useState } from "react";
 type SignupForm = {
   firstName: string;
   lastName: string;
-  companyName: string;
   email: string;
   password: string;
   confirmPassword: string;
 };
 
 export function CompanySignupScreen() {
-  const { signUpCompany, isLoading } = useAuth();
+  const { signUpWithPassword, isLoading } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { control, handleSubmit } = useForm<SignupForm>({
     defaultValues: {
       firstName: "",
       lastName: "",
-      companyName: "",
       email: "",
       password: "",
       confirmPassword: "",
@@ -37,7 +35,6 @@ export function CompanySignupScreen() {
     const email = values.email.trim();
     const firstName = values.firstName.trim();
     const lastName = values.lastName.trim();
-    const companyName = values.companyName.trim();
 
     if (!email) {
       Alert.alert("Validation Error", "Email address is required.");
@@ -45,10 +42,6 @@ export function CompanySignupScreen() {
     }
     if (!firstName || !lastName) {
       Alert.alert("Validation Error", "First name and last name are required.");
-      return;
-    }
-    if (!companyName) {
-      Alert.alert("Validation Error", "Company name is required.");
       return;
     }
     if (!values.password || values.password.length < 8) {
@@ -61,12 +54,10 @@ export function CompanySignupScreen() {
     }
 
     try {
-      await signUpCompany({
-        companyName,
-        ownerFirstName: firstName,
-        ownerLastName: lastName,
-        ownerEmail: email,
-        country: "UK",
+      await signUpWithPassword({
+        email,
+        firstName,
+        lastName,
         password: values.password,
       });
     } catch (error: any) {
@@ -81,7 +72,7 @@ export function CompanySignupScreen() {
       <View style={ui.card}>
         <View style={styles.header}>
           <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Sign up and create your company in one step.</Text>
+          <Text style={styles.subtitle}>Step 1 of 2: enter your personal sign-up details.</Text>
         </View>
 
         <Text style={styles.fieldLabel}>First Name</Text>
@@ -110,22 +101,6 @@ export function CompanySignupScreen() {
               value={value}
               onChangeText={onChange}
               placeholder="e.g. Smith"
-              underlineColorAndroid="transparent"
-              editable={!busy}
-            />
-          )}
-        />
-
-        <Text style={styles.fieldLabel}>Company Name</Text>
-        <Controller
-          control={control}
-          name="companyName"
-          render={({ field: { value, onChange } }) => (
-            <TextInput
-              style={styles.input}
-              value={value}
-              onChangeText={onChange}
-              placeholder="e.g. Sunrise Retail Ltd"
               underlineColorAndroid="transparent"
               editable={!busy}
             />
@@ -219,7 +194,7 @@ export function CompanySignupScreen() {
         />
 
         <PrimaryButton
-          label={busy ? "Creating account..." : "Create Account"}
+          label={busy ? "Creating account..." : "Continue to Company Details"}
           onPress={() => void onSubmit()}
           disabled={busy}
         />
