@@ -218,6 +218,8 @@ export function AppAlertHost() {
   const current = queue[0];
   const tone = useMemo(() => resolveTone(current?.title ?? "", current?.message), [current?.title, current?.message]);
   const isAutoClose = Boolean(current?.autoCloseMs);
+  const showToast = Boolean(current) && isAutoClose;
+  const showDialog = Boolean(current) && !isAutoClose;
   const toastBottomOffset = Math.max(22, insets.bottom + appTheme.spacing.md);
 
   useEffect(() => {
@@ -270,28 +272,39 @@ export function AppAlertHost() {
 
   return (
     <>
-      {Boolean(current) && isAutoClose ? (
-        <View pointerEvents="none" style={[styles.toastOverlay, { paddingBottom: toastBottomOffset }]}>
-          <View style={styles.toastCard}>
-            <View
-              style={[
-                styles.toastToneDot,
-                tone === "success" && styles.toneSuccess,
-                tone === "warning" && styles.toneWarning,
-                tone === "danger" && styles.toneDanger,
-                tone === "info" && styles.toneInfo,
-              ]}
-            />
-            <View style={styles.toastTextWrap}>
-              <Text style={styles.toastTitle}>{current?.title || "Notice"}</Text>
-              {current?.message ? <Text style={styles.toastMessage}>{current.message}</Text> : null}
+      {showToast ? (
+        <Modal
+          visible
+          transparent
+          animationType="none"
+          presentationStyle="overFullScreen"
+          statusBarTranslucent
+          onRequestClose={() => {
+            closeCurrent();
+          }}
+        >
+          <View pointerEvents="box-none" style={[styles.toastOverlay, { paddingBottom: toastBottomOffset }]}>
+            <View pointerEvents="none" style={styles.toastCard}>
+              <View
+                style={[
+                  styles.toastToneDot,
+                  tone === "success" && styles.toneSuccess,
+                  tone === "warning" && styles.toneWarning,
+                  tone === "danger" && styles.toneDanger,
+                  tone === "info" && styles.toneInfo,
+                ]}
+              />
+              <View style={styles.toastTextWrap}>
+                <Text style={styles.toastTitle}>{current?.title || "Notice"}</Text>
+                {current?.message ? <Text style={styles.toastMessage}>{current.message}</Text> : null}
+              </View>
             </View>
           </View>
-        </View>
+        </Modal>
       ) : null}
 
       <Modal
-        visible={Boolean(current) && !isAutoClose}
+        visible={showDialog}
         transparent
         animationType="fade"
         presentationStyle="overFullScreen"
