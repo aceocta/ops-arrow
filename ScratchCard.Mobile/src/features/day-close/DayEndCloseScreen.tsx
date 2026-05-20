@@ -313,6 +313,48 @@ function DayManagementLoadingState() {
   );
 }
 
+function ShiftOperationsLoadingState() {
+  const pulse = useRef(new Animated.Value(0.45)).current;
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 820,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0.45,
+          duration: 820,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    animation.start();
+    return () => animation.stop();
+  }, [pulse]);
+
+  const placeholderStyle = { opacity: pulse };
+
+  return (
+    <View style={styles.loadingShiftList}>
+      <View style={styles.loadingShiftItem}>
+        <Animated.View style={[styles.loadingShiftTitle, placeholderStyle]} />
+        <Animated.View style={[styles.loadingShiftLine, placeholderStyle]} />
+        <Animated.View style={[styles.loadingShiftLineShort, placeholderStyle]} />
+        <Animated.View style={[styles.loadingShiftAction, placeholderStyle]} />
+      </View>
+      <View style={styles.loadingShiftItem}>
+        <Animated.View style={[styles.loadingShiftTitle, placeholderStyle]} />
+        <Animated.View style={[styles.loadingShiftLine, placeholderStyle]} />
+        <Animated.View style={[styles.loadingShiftLineShort, placeholderStyle]} />
+      </View>
+    </View>
+  );
+}
+
 export function DayEndCloseScreen({ route, navigation }: Props) {
   const { businessDayId } = route.params;
   const queryClient = useQueryClient();
@@ -1382,11 +1424,13 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             </View>
           </View>
           {/* <View style={styles.summaryDivider} /> */}
-          {shifts.length === 0 && !shiftsQuery.isFetching ? (
+          {shiftsQuery.isFetching ? (
+            <ShiftOperationsLoadingState />
+          ) : shifts.length === 0 ? (
             <Text style={styles.meta}>No shifts found for this day.</Text>
           ) : null}
 
-          {shifts.map((shift) => {
+          {!shiftsQuery.isFetching ? shifts.map((shift) => {
             const canCloseShift = closableStatuses.has(shift.status);
             const canStartScheduledShift = shift.status === ShiftStatus.Scheduled;
             const isClosedShift = closedSummaryStatuses.has(shift.status);
@@ -1441,7 +1485,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 ) : null}
               </View>
             );
-          })}
+          }) : null}
         </View>
 
         {missingOpeningTicketDetails.length > 0 ? (
