@@ -252,10 +252,14 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
       return "Pending packs: none.";
     }
 
-    const preview = pendingAutoPacks.slice(0, 4).map((pack) => pack.label);
+    const preview = pendingAutoPacks.slice(0, 8).map((pack, index) => `${index + 1}. ${pack.label}`);
     const remaining = pendingAutoPacks.length - preview.length;
-    const suffix = remaining > 0 ? ` +${remaining} more` : "";
-    return `Pending packs (${pendingAutoPacks.length}): ${preview.join(" | ")}${suffix}`;
+    const lines = [`Pending packs (${pendingAutoPacks.length}):`, ...preview];
+    if (remaining > 0) {
+      lines.push(`+${remaining} more`);
+    }
+
+    return lines.join("\n");
   }, [mode, pendingAutoPacks]);
 
   const consumePendingPack = useCallback((
@@ -545,6 +549,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   overlayText: { color: "white", textAlign: "center", fontWeight: "600" },
-  pendingText: { color: "#F8E9B8", textAlign: "center", marginTop: 8 },
+  pendingText: { color: "#F8E9B8", textAlign: "left", marginTop: 8, lineHeight: 18 },
   subText: { color: "#D4FCE9", textAlign: "center", marginTop: 8, marginBottom: 8 },
 });

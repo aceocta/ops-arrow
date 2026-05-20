@@ -605,7 +605,7 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
         .map((row) => ({
           packId: row.pack.id,
           packNumber: row.pack.packNumber,
-          label: `Pack ${row.pack.packNumber}`,
+          label: `Display ${row.pack.displayNumber != null ? `#${row.pack.displayNumber}` : "-"} | Pack ${row.pack.packNumber}`,
         })),
     [computedRows, entries]
   );
