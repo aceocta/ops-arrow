@@ -32,6 +32,27 @@ function formatDateTimeValue(value: Date) {
   return `${value.toLocaleDateString()} ${value.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 }
 
+function formatReportDate(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) {
+    return value;
+  }
+
+  return `${match[3]}/${match[2]}/${match[1]}`;
+}
+
+function formatDeviation(value: number, min: number, max: number) {
+  if (value < min) {
+    return `-${(min - value).toFixed(1)} C`;
+  }
+
+  if (value > max) {
+    return `+${(value - max).toFixed(1)} C`;
+  }
+
+  return "0.0 C";
+}
+
 export function sortTemperatureReadingsForReport(readings: TemperatureReading[]) {
   return [...readings].sort((left, right) => {
     const dateCompare = right.readingDate.localeCompare(left.readingDate);
@@ -97,26 +118,55 @@ export function buildTemperatureRangeReportHtml(input: {
   const reportDateTime = Number.isNaN(generatedAt.getTime())
     ? input.generatedOn ?? "-"
     : formatDateTimeValue(generatedAt);
-  const groups = groupTemperatureReadingsByDateAndUnit(input.readings);
+  const orderedReadings = [...input.readings].sort((left, right) => {
+    const dateCompare = right.readingDate.localeCompare(left.readingDate);
+    if (dateCompare !== 0) {
+      return dateCompare;
+    }
+
+    const unitCompare = left.unitName.localeCompare(right.unitName);
+    if (unitCompare !== 0) {
+      return unitCompare;
+    }
+
+    return right.readingTime.localeCompare(left.readingTime);
+  });
   const outOfRangeCount = input.readings.filter((reading) => reading.isOutOfRange).length;
   const inRangeCount = input.readings.length - outOfRangeCount;
+  const groupedByDateAndUnit = groupTemperatureReadingsByDateAndUnit(orderedReadings);
 
-  const groupHtml = groups
-    .map((group) => {
-      const unitRows = group.units
+  const dateSectionsHtml = groupedByDateAndUnit
+    .map((dateGroup) => {
+      const dateEntries = dateGroup.units.flatMap((unit) => unit.entries);
+      const dateOutOfRange = dateEntries.filter((entry) => entry.isOutOfRange).length;
+      const dateInRange = dateEntries.length - dateOutOfRange;
+
+      const unitSectionsHtml = dateGroup.units
         .map((unitGroup) => {
-          const sampleReading = unitGroup.entries[0];
-          const rangeLabel = sampleReading
-            ? `${formatTemperature(Number(sampleReading.minTemperatureCelsius))} to ${formatTemperature(Number(sampleReading.maxTemperatureCelsius))}`
+          const sample = unitGroup.entries[0];
+          const sampleRange = sample
+            ? `${formatTemperature(Number(sample.minTemperatureCelsius))} to ${formatTemperature(Number(sample.maxTemperatureCelsius))}`
             : "-";
-          const rows = unitGroup.entries
+          const unitOutOfRange = unitGroup.entries.filter((entry) => entry.isOutOfRange).length;
+          const unitInRange = unitGroup.entries.length - unitOutOfRange;
+
+          const rowsHtml = unitGroup.entries
             .map((reading) => {
+              const minTemperature = Number(reading.minTemperatureCelsius);
+              const maxTemperature = Number(reading.maxTemperatureCelsius);
+              const recordedTemperature = Number(reading.temperatureCelsius);
+              const rangeLabel = `${formatTemperature(minTemperature)} to ${formatTemperature(maxTemperature)}`;
+              const deviationLabel = formatDeviation(recordedTemperature, minTemperature, maxTemperature);
               return `
-                <tr>
+                <tr class="${reading.isOutOfRange ? "row-out" : ""}">
                   <td>${escapeHtml(reading.readingTime || "--:--")}</td>
                   <td>${escapeHtml(reading.equipmentType)}</td>
-                  <td>${escapeHtml(formatTemperature(Number(reading.temperatureCelsius)))}</td>
-                  <td>${escapeHtml(reading.isOutOfRange ? "Out of range" : "In range")}</td>
+                  <td>${escapeHtml(rangeLabel)}</td>
+                  <td>${escapeHtml(formatTemperature(recordedTemperature))}</td>
+                  <td class="${reading.isOutOfRange ? "deviation-out" : "deviation-in"}">${escapeHtml(deviationLabel)}</td>
+                  <td class="${reading.isOutOfRange ? "status-out" : "status-in"}">${escapeHtml(
+                    reading.isOutOfRange ? "Out of range" : "In range"
+                  )}</td>
                   <td>${escapeHtml(reading.recordedByName ?? reading.checkedByInitials ?? "-")}</td>
                   <td>${escapeHtml(reading.actionTaken ?? "-")}</td>
                   <td>${escapeHtml(reading.notes ?? "-")}</td>
@@ -126,34 +176,32 @@ export function buildTemperatureRangeReportHtml(input: {
             .join("");
 
           return `
-            <tr class="unit-row">
-              <td colspan="7">
-                ${escapeHtml(unitGroup.unitName)} (Range: ${escapeHtml(rangeLabel)})
-              </td>
-            </tr>
-            ${rows || `<tr><td colspan="7">No readings for this unit.</td></tr>`}
+            <div class="unit-title">Unit: ${escapeHtml(unitGroup.unitName)} | Type: ${escapeHtml(sample?.equipmentType ?? "-")} | Range: ${escapeHtml(sampleRange)} | Total: ${unitGroup.entries.length} | In range: ${unitInRange} | Out of range: ${unitOutOfRange}</div>
+            <table>
+              <thead>
+                <tr>
+                  <th class="col-time">Time</th>
+                  <th class="col-type">Type</th>
+                  <th class="col-range">Allowed Range</th>
+                  <th class="col-temp">Recorded Temp</th>
+                  <th class="col-deviation">Deviation</th>
+                  <th class="col-status">Status</th>
+                  <th class="col-by">Checked By</th>
+                  <th class="col-action">Action</th>
+                  <th class="col-notes">Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml || '<tr><td colspan="9">No readings found for this unit.</td></tr>'}
+              </tbody>
+            </table>
           `;
         })
         .join("");
 
       return `
-        <div class="group-title">Date: ${escapeHtml(group.date)}</div>
-        <table>
-          <thead>
-            <tr>
-              <th class="col-time">Time</th>
-              <th class="col-type">Type</th>
-              <th class="col-temp">Temp</th>
-              <th class="col-status">Status</th>
-              <th class="col-by">Checked By</th>
-              <th class="col-action">Action</th>
-              <th class="col-notes">Notes</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${unitRows || `<tr><td colspan="7">No readings for this date.</td></tr>`}
-          </tbody>
-        </table>
+        <div class="date-title">Date: ${escapeHtml(formatReportDate(dateGroup.date))} | Total: ${dateEntries.length} | In range: ${dateInRange} | Out of range: ${dateOutOfRange}</div>
+        ${unitSectionsHtml}
       `;
     })
     .join("");
@@ -189,10 +237,17 @@ export function buildTemperatureRangeReportHtml(input: {
             color: #425463;
             margin-bottom: 10px;
           }
-          .group-title {
-            margin-top: 12px;
-            margin-bottom: 6px;
+          .date-title {
+            margin-top: 16px;
+            margin-bottom: 8px;
             font-size: 12px;
+            font-weight: 700;
+            color: #1a2a36;
+          }
+          .unit-title {
+            margin-top: 10px;
+            margin-bottom: 6px;
+            font-size: 11px;
             font-weight: 700;
             color: #223542;
           }
@@ -216,26 +271,44 @@ export function buildTemperatureRangeReportHtml(input: {
           td {
             font-size: 9px;
           }
-          .unit-row td {
-            background: #f7fafc;
-            font-weight: 700;
-            font-size: 10px;
+          tbody tr:nth-child(even) td {
+            background: #fafcfd;
           }
-          .col-time { width: 10%; }
-          .col-type { width: 11%; }
+          .row-out td {
+            background: #fff8f8;
+          }
+          .status-in {
+            color: #0b6b3a;
+            font-weight: 700;
+          }
+          .status-out {
+            color: #9d1c20;
+            font-weight: 700;
+          }
+          .deviation-in {
+            color: #0f1720;
+          }
+          .deviation-out {
+            color: #9d1c20;
+            font-weight: 700;
+          }
+          .col-time { width: 7%; }
+          .col-type { width: 8%; }
+          .col-range { width: 14%; }
           .col-temp { width: 10%; }
-          .col-status { width: 11%; }
+          .col-deviation { width: 8%; }
+          .col-status { width: 9%; }
           .col-by { width: 12%; }
-          .col-action { width: 22%; }
-          .col-notes { width: 24%; }
+          .col-action { width: 14%; }
+          .col-notes { width: 18%; }
         </style>
       </head>
       <body>
         <div class="title">Temperature Logs Range Report</div>
-        <div class="subtitle">Shop: ${escapeHtml(input.shopName)} | Date Range: ${escapeHtml(input.from)} to ${escapeHtml(input.to)}</div>
+        <div class="subtitle">Shop: ${escapeHtml(input.shopName)} | Date Range: ${escapeHtml(formatReportDate(input.from))} to ${escapeHtml(formatReportDate(input.to))}</div>
         <div class="meta">Report Date Time: ${escapeHtml(reportDateTime)}</div>
         <div class="meta">Total: ${input.readings.length} | In range: ${inRangeCount} | Out of range: ${outOfRangeCount}</div>
-        ${groupHtml || "<div>No readings found for this date range.</div>"}
+        ${dateSectionsHtml || "<div>No readings found for this date range.</div>"}
       </body>
     </html>
   `;

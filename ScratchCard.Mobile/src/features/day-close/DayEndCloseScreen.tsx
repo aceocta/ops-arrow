@@ -1689,7 +1689,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
 
                 <View style={styles.dayPickerDateSection}>
                   <View style={styles.dayPickerSectionHeaderRow}>
-                    <Text style={styles.dayPickerSectionLabel}>1. Select Business Date</Text>
+                    <Text style={styles.dayPickerSectionLabel}>Select Business Date</Text>
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel="Select today's date"
@@ -1705,7 +1705,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     onChange={setTargetBusinessDate}
                     style={styles.dayPickerDateField}
                   />
-                  <View style={styles.dayPickerQuickDateRow}>
+                  {/* <View style={styles.dayPickerQuickDateRow}>
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel="Select currently managed business date"
@@ -1714,12 +1714,12 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     >
                       <Text style={styles.dayPickerQuickActionButtonText}>Use Current Day</Text>
                     </Pressable>
-                  </View>
+                  </View> */}
                 </View>
 
                 <View style={styles.dayPickerSelectionCard}>
-                  <Text style={styles.dayPickerSectionLabel}>2. Review Selected Date</Text>
-                  <Text style={styles.dayPickerSelectionDate}>{targetBusinessDate}</Text>
+                  {/* <Text style={styles.dayPickerSectionLabel}>2. Review Selected Date</Text>
+                  <Text style={styles.dayPickerSelectionDate}>{targetBusinessDate}</Text> */}
                   {isDayPickerLookupLoading ? (
                     <Text style={styles.dayPickerSelectionMeta}>Checking day availability...</Text>
                   ) : dayPickerLookupErrorMessage ? (
@@ -1736,8 +1736,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     </>
                   ) : (
                     <>
-                      <Text style={styles.dayPickerSelectionTitle}>No business day exists for this date.</Text>
-                      <Text style={styles.dayPickerSelectionMeta}>Create and open a new business day for {targetBusinessDate}.</Text>
+                      {/* <Text style={styles.dayPickerSelectionTitle}>No business day exists for this date.</Text> */}
+                      {/* <Text style={styles.dayPickerSelectionMeta}>Create and open a new business day for {targetBusinessDate}.</Text> */}
                     </>
                   )}
                   <PrimaryButton
@@ -1750,12 +1750,12 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
 
                 <View style={styles.dayPickerListSection}>
                   <View style={styles.dayPickerListHeader}>
-                    <Text style={styles.dayPickerSectionLabel}>3. Nearby Business Days</Text>
+                    <Text style={styles.dayPickerSectionLabel}>Nearby Business Days</Text>
                     <Text style={styles.dayPickerListMeta}>
                       {daysQuery.isFetching ? "Refreshing..." : `${availableDays.length} loaded`}
                     </Text>
                   </View>
-                  <Text style={styles.dayPickerListHint}>Tap a row to prefill the selected date above.</Text>
+                  {/* <Text style={styles.dayPickerListHint}>Tap a row to prefill the selected date above.</Text> */}
                   <ScrollView
                     style={styles.dayPickerList}
                     contentContainerStyle={styles.dayPickerListContent}

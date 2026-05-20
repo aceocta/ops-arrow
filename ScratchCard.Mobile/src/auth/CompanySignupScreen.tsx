@@ -76,7 +76,7 @@ export function CompanySignupScreen() {
           <Text style={styles.subtitle}>Sign up with email and password. Company and shop setup comes next.</Text>
         </View>
 
-        <Text style={styles.fieldLabel}>First Name (optional)</Text>
+        <Text style={styles.fieldLabel}>First Name</Text>
         <Controller
           control={control}
           name="firstName"
@@ -92,7 +92,7 @@ export function CompanySignupScreen() {
           )}
         />
 
-        <Text style={styles.fieldLabel}>Last Name (optional)</Text>
+        <Text style={styles.fieldLabel}>Last Name</Text>
         <Controller
           control={control}
           name="lastName"
