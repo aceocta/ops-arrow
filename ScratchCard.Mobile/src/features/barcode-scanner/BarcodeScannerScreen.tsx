@@ -140,6 +140,7 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
   const [isProcessingOcr, setIsProcessingOcr] = useState(false);
   const [isAutoOcrEnabled, setIsAutoOcrEnabled] = useState(true);
   const [isCameraReady, setIsCameraReady] = useState(false);
+  const [isAutoPendingReady, setIsAutoPendingReady] = useState(false);
   const [lastScanMessage, setLastScanMessage] = useState<string>("");
   const [pendingAutoPacks, setPendingAutoPacks] = useState<AutoPendingPack[]>([]);
   const cameraRef = useRef<CameraView | null>(null);
@@ -174,6 +175,7 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
     setLastScanMessage("");
     hasHandledPackBarcodeRef.current = false;
     isAutoClosingRef.current = false;
+    setIsAutoPendingReady(false);
 
     if (mode === "auto") {
       const nextPending = (route.params.pendingPacks ?? []).map((pack) => ({
@@ -184,12 +186,14 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
       initialAutoPendingCountRef.current = nextPending.length;
       pendingAutoPacksRef.current = nextPending;
       setPendingAutoPacks(nextPending);
+      setIsAutoPendingReady(true);
       return;
     }
 
     initialAutoPendingCountRef.current = 0;
     pendingAutoPacksRef.current = [];
     setPendingAutoPacks([]);
+    setIsAutoPendingReady(true);
   }, [isManualPackScanMode, route.params.packId, route.params.packNumber, route.params.pendingPacks, mode]);
 
   const closeScannerAfterPendingComplete = useCallback((message: string) => {
@@ -220,6 +224,9 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
     if (mode !== "auto") {
       return;
     }
+    if (!isAutoPendingReady) {
+      return;
+    }
     if (initialAutoPendingCountRef.current === 0) {
       return;
     }
@@ -228,7 +235,7 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
     }
 
     closeScannerAfterPendingComplete("All pending packs scanned. Closing camera...");
-  }, [mode, pendingAutoPacks.length, closeScannerAfterPendingComplete]);
+  }, [mode, isAutoPendingReady, pendingAutoPacks.length, closeScannerAfterPendingComplete]);
 
   useEffect(() => {
     pendingAutoPacksRef.current = pendingAutoPacks;
