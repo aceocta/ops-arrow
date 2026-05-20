@@ -28,6 +28,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
+import { ReportActionButton } from "../../components/ReportActionButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
@@ -1416,36 +1417,24 @@ export function ComplianceChecksScreen() {
           <View style={styles.reportSection}>
             {/* <Text style={styles.metaLabel}>Entry Report</Text> */}
             <View style={styles.reportButtonRow}>
-              <Pressable
-                style={styles.reportActionButton}
+              <ReportActionButton
+                icon="print-outline"
+                label={reportActionInProgress === "print" ? "Preparing..." : "Print"}
                 onPress={() => runComplianceReport("print")}
                 disabled={complianceMatrixReportMutation.isPending}
-              >
-                <Ionicons name="print-outline" size={14} color={appTheme.colors.text} />
-                <Text style={styles.reportActionButtonText}>
-                  {reportActionInProgress === "print" ? "Preparing..." : "Print"}
-                </Text>
-              </Pressable>
-              <Pressable
-                style={styles.reportActionButton}
+              />
+              <ReportActionButton
+                icon="share-social-outline"
+                label={reportActionInProgress === "share" ? "Preparing..." : "Share"}
                 onPress={() => runComplianceReport("share")}
                 disabled={complianceMatrixReportMutation.isPending}
-              >
-                <Ionicons name="share-social-outline" size={14} color={appTheme.colors.text} />
-                <Text style={styles.reportActionButtonText}>
-                  {reportActionInProgress === "share" ? "Preparing..." : "Share"}
-                </Text>
-              </Pressable>
-              <Pressable
-                style={styles.reportActionButton}
+              />
+              <ReportActionButton
+                icon="mail-outline"
+                label={reportActionInProgress === "email" ? "Sending..." : "Email"}
                 onPress={() => runComplianceReport("email")}
                 disabled={complianceMatrixReportMutation.isPending}
-              >
-                <Ionicons name="mail-outline" size={14} color={appTheme.colors.text} />
-                <Text style={styles.reportActionButtonText}>
-                  {reportActionInProgress === "email" ? "Sending..." : "Email"}
-                </Text>
-              </Pressable>
+              />
             </View>
             {/* <View style={styles.row}>
               <Pressable style={styles.secondaryButton} onPress={() => navigation.navigate("ComplianceActions")}>
@@ -2681,23 +2670,6 @@ const styles = StyleSheet.create({
   reportButtonRow: {
     flexDirection: "row",
     gap: appTheme.spacing.xs,
-  },
-  reportActionButton: {
-    flex: 1,
-    borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surfaceTintSoft,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-  },
-  reportActionButtonText: {
-    color: appTheme.colors.text,
-    fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 12,
-    lineHeight: 15,
   },
   monthYearPickerRow: {
     flexDirection: "row",

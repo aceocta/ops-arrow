@@ -6,7 +6,7 @@ import { sendReportEmail } from "../../api/reportsApi";
 import { listTemperatureReadings } from "../../api/temperatureLogsApi";
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
-import { PrimaryButton } from "../../components/PrimaryButton";
+import { ReportActionButton } from "../../components/ReportActionButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ui } from "../../ui/primitives";
@@ -149,16 +149,16 @@ export function TemperatureLogsReportScreen() {
           </View>
         </View>
         <View style={styles.actionRow}>
-          <PrimaryButton
-            label="Print Report PDF"
+          <ReportActionButton
+            icon="print-outline"
+            label="Print"
             onPress={() => void printReport()}
-            tone="neutral"
             disabled={!rangeIsValid || readingsQuery.isLoading || readings.length === 0}
           />
-          <PrimaryButton
-            label={emailReportMutation.isPending ? "Sending..." : "Email Report"}
+          <ReportActionButton
+            icon="mail-outline"
+            label={emailReportMutation.isPending ? "Sending..." : "Email"}
             onPress={() => void emailReport()}
-            tone="neutral"
             disabled={!rangeIsValid || readingsQuery.isLoading || readings.length === 0 || emailReportMutation.isPending}
           />
         </View>
@@ -279,6 +279,7 @@ const styles = StyleSheet.create({
     lineHeight: 13,
   },
   actionRow: {
+    flexDirection: "row",
     gap: appTheme.spacing.xs,
   },
   groupBlock: {

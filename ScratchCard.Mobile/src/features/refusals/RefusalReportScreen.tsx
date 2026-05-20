@@ -3,7 +3,6 @@ import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Ionicons } from "@expo/vector-icons";
 import * as Print from "expo-print";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
@@ -15,6 +14,7 @@ import {
 } from "../../api/refusalRegisterApi";
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
+import { ReportActionButton } from "../../components/ReportActionButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
@@ -48,30 +48,6 @@ function isValidRange(from: string, to: string) {
   }
 
   return fromDate.getTime() <= toDate.getTime();
-}
-
-function RefusalReportActionButton({
-  icon,
-  label,
-  onPress,
-  disabled,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  onPress: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      style={[styles.reportActionButton, disabled ? styles.reportActionButtonDisabled : null]}
-      onPress={onPress}
-      disabled={disabled}
-    >
-      <Ionicons name={icon} size={16} color={appTheme.colors.primary} />
-      <Text style={styles.reportActionButtonText}>{label}</Text>
-    </Pressable>
-  );
 }
 
 export function RefusalReportScreen() {
@@ -241,19 +217,19 @@ export function RefusalReportScreen() {
         </View>
         {!rangeIsValid ? <Text style={styles.warning}>From date must be earlier than or equal to To date.</Text> : null}
         <View style={styles.reportActionRow}>
-          <RefusalReportActionButton
+          <ReportActionButton
             icon="print-outline"
             label="Print"
             onPress={() => void printReport()}
             disabled={!rangeIsValid || rangeQuery.isLoading || entries.length === 0}
           />
-          <RefusalReportActionButton
+          <ReportActionButton
             icon="mail-outline"
             label={emailReportMutation.isPending ? "Sending..." : "Email"}
             onPress={() => void emailReport()}
             disabled={!rangeIsValid || rangeQuery.isLoading || entries.length === 0 || emailReportMutation.isPending}
           />
-          <RefusalReportActionButton
+          <ReportActionButton
             icon="share-social-outline"
             label="Share"
             onPress={() => void shareReport()}
@@ -419,27 +395,6 @@ const styles = StyleSheet.create({
   reportActionRow: {
     flexDirection: "row",
     gap: appTheme.spacing.xs,
-  },
-  reportActionButton: {
-    flex: 1,
-    minHeight: 42,
-    borderWidth: 0,
-    borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surfaceTintSoft,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 6,
-    paddingHorizontal: 10,
-  },
-  reportActionButtonDisabled: {
-    opacity: 0.5,
-  },
-  reportActionButtonText: {
-    color: appTheme.colors.primary,
-    fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 12,
-    lineHeight: 15,
   },
   groupBlock: {
     gap: appTheme.spacing.xs,

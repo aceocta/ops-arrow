@@ -3,7 +3,6 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Ionicons } from "@expo/vector-icons";
 import * as Print from "expo-print";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
@@ -20,6 +19,7 @@ import {
 } from "../../api/reportsApi";
 import { listShifts } from "../../api/shiftsApi";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
+import { ReportActionButton } from "../../components/ReportActionButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
 import { formatGbp } from "../../utils/currency";
@@ -49,30 +49,6 @@ function DateRangeInputs({
 
 function formatCurrency(value: number) {
   return formatGbp(Number(value ?? 0));
-}
-
-function DailyReportActionButton({
-  icon,
-  label,
-  onPress,
-  disabled,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  onPress: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      style={[styles.dailyActionButton, disabled ? styles.dailyActionButtonDisabled : null]}
-      onPress={onPress}
-      disabled={disabled}
-    >
-      <Ionicons name={icon} size={16} color={appTheme.colors.primary} />
-      <Text style={styles.dailyActionButtonText}>{label}</Text>
-    </Pressable>
-  );
 }
 
 function getDifferenceValue(row: { difference?: number }) {
@@ -387,19 +363,19 @@ export function DailySalesReportScreen() {
 
 
           <View style={styles.dailyActionRow}>
-            <DailyReportActionButton
+            <ReportActionButton
               icon="print-outline"
               label="Print"
               onPress={() => void printReport()}
               disabled={query.isLoading || totalShifts === 0}
             />
-            <DailyReportActionButton
+            <ReportActionButton
               icon="mail-outline"
               label={emailReportMutation.isPending ? "Sending..." : "Email"}
               onPress={() => void emailReport()}
               disabled={query.isLoading || totalShifts === 0 || emailReportMutation.isPending}
             />
-            <DailyReportActionButton
+            <ReportActionButton
               icon="share-social-outline"
               label="Share"
               onPress={() => void shareReport()}
@@ -856,27 +832,6 @@ const styles = StyleSheet.create({
   dailyActionRow: {
     flexDirection: "row",
     gap: appTheme.spacing.xs,
-  },
-  dailyActionButton: {
-    flex: 1,
-    minHeight: 42,
-    borderWidth: 0,
-    borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surfaceTintSoft,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 6,
-    paddingHorizontal: 10,
-  },
-  dailyActionButtonDisabled: {
-    opacity: 0.5,
-  },
-  dailyActionButtonText: {
-    color: appTheme.colors.primary,
-    fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 12,
-    lineHeight: 15,
   },
   actionRow: {
     gap: appTheme.spacing.xs,
