@@ -875,9 +875,15 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
     Keyboard.dismiss();
     awaitingPackScanRef.current = true;
     // setScanMessage("Scan pack barcode and keep the label text in view.");
+    const allowedGameCodes = activeGamesRef.current
+      .map((game) => normalizeGameCodeInput(game.gameCode))
+      .filter((code, index, all) => code.length > 0 && all.indexOf(code) === index);
     const rootLikeNavigation = navigation.getParent()?.getParent() ?? navigation.getParent() ?? navigation;
     setTimeout(() => {
-      (rootLikeNavigation as any).navigate("BarcodeScanner", { mode: "single" });
+      (rootLikeNavigation as any).navigate("BarcodeScanner", {
+        mode: "single",
+        allowedGameCodes,
+      });
     }, 60);
   }
 

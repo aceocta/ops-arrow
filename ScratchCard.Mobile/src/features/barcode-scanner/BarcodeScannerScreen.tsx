@@ -152,6 +152,21 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
   const canScan = useMemo(() => permission?.granted ?? false, [permission]);
   const mode = route.params.mode ?? "single";
   const isManualPackScanMode = mode === "single" && !route.params.packId && !route.params.packNumber;
+  const allowedManualGameCodes = useMemo(() => {
+    if (!isManualPackScanMode) {
+      return null;
+    }
+
+    const normalized = (route.params.allowedGameCodes ?? [])
+      .map((code) => normalizePackNumber(code))
+      .filter((code) => code.length > 0);
+
+    if (normalized.length === 0) {
+      return null;
+    }
+
+    return new Set(normalized);
+  }, [isManualPackScanMode, route.params.allowedGameCodes]);
 
   useEffect(() => {
     // Default Auto OCR to ON for shift-close scan modes (single targeted pack and auto mode).
@@ -289,6 +304,13 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
       return;
     }
 
+    if (allowedManualGameCodes && !allowedManualGameCodes.has(normalizePackNumber(parsed.gameCode))) {
+      setLastScanMessage(
+        `Scanned code ${parsed.gameCode}-${parsed.packComponent}, but game ${parsed.gameCode} is not in this shop. Keep scanning.`
+      );
+      return;
+    }
+
     hasHandledPackBarcodeRef.current = true;
 
     emitScan({
@@ -300,7 +322,7 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
 
     setLastScanMessage(`Scanned game ${parsed.gameCode}, pack ${parsed.packComponent}.`);
     navigation.goBack();
-  }, [isManualPackScanMode, navigation]);
+  }, [isManualPackScanMode, navigation, allowedManualGameCodes]);
 
   async function recognizeTextWithMlkit(imageUri: string) {
     if (Constants.appOwnership === "expo" || Constants.executionEnvironment === "storeClient") {

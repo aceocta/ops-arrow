@@ -15,6 +15,7 @@ export type RootStackParamList = {
     mode?: "single" | "auto";
     packId?: string;
     packNumber?: string;
+    allowedGameCodes?: string[];
     pendingPacks?: Array<{
       packId?: string;
       packNumber: string;

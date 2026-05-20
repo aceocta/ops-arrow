@@ -94,7 +94,15 @@ export function RootNavigator() {
           <Stack.Screen name="ChoosePlan" component={ChoosePlanScreen} options={{ title: "Choose Plan" }} />
           <Stack.Screen name="BillingRequired" component={BillingRequiredScreen} options={{ title: "Billing Required" }} />
           <Stack.Screen name="ShopSelector" component={ShopSelectorScreen} options={{ title: "Shop Selector" }} />
-          <Stack.Screen name="BarcodeScanner" component={BarcodeScannerScreen} options={{ title: "Scan Barcode" }} />
+          <Stack.Screen
+            name="BarcodeScanner"
+            component={BarcodeScannerScreen}
+            options={{
+              title: "Scan Barcode",
+              presentation: "fullScreenModal",
+              headerShown: false,
+            }}
+          />
           <Stack.Screen name="PendingSync" component={PendingSyncScreen} options={{ title: "Pending Sync" }} />
           <Stack.Screen name="SyncConflict" component={SyncConflictScreen} options={{ title: "Sync Conflict" }} />
         </>
