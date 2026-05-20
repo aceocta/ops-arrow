@@ -74,7 +74,7 @@ const Stack = createNativeStackNavigator<MainStackParamList>();
 
 const operationsItems: MenuItem[] = [
   { label: "Home", screen: "BestEntry", icon: "home-outline" },
-  { label: "Shop Checklist", screen: "ShopChecklist", icon: "checkmark-done-outline" },
+  { label: "Shop Checklist", screen: "ShopChecklist", icon: "checkmark-done-outline", mode: "checklist" },
   { label: "Compliance Checks", screen: "ComplianceChecks", icon: "clipboard-outline", mode: "compliance" },
   {
     label: "Compliance Setup",
