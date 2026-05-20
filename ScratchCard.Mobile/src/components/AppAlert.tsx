@@ -270,15 +270,8 @@ export function AppAlertHost() {
 
   return (
     <>
-      <Modal
-        visible={Boolean(current) && isAutoClose}
-        transparent
-        animationType="none"
-        presentationStyle="overFullScreen"
-        statusBarTranslucent
-        onRequestClose={closeCurrent}
-      >
-        <View pointerEvents="none" style={[styles.toastRoot, { paddingBottom: toastBottomOffset }]}>
+      {Boolean(current) && isAutoClose ? (
+        <View pointerEvents="none" style={[styles.toastOverlay, { paddingBottom: toastBottomOffset }]}>
           <View style={styles.toastCard}>
             <View
               style={[
@@ -295,7 +288,7 @@ export function AppAlertHost() {
             </View>
           </View>
         </View>
-      </Modal>
+      ) : null}
 
       <Modal
         visible={Boolean(current) && !isAutoClose}
@@ -366,8 +359,10 @@ export function AppAlertHost() {
 }
 
 const styles = StyleSheet.create({
-  toastRoot: {
-    flex: 1,
+  toastOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 9999,
+    elevation: 9999,
     justifyContent: "flex-end",
     paddingHorizontal: 16,
     alignItems: "center",
