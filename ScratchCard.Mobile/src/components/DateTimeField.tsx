@@ -13,6 +13,7 @@ type DateTimeFieldProps = {
   minimumDate?: Date;
   maximumDate?: Date;
   style?: StyleProp<ViewStyle>;
+  borderless?: boolean;
 };
 
 const pad = (value: number) => `${value}`.padStart(2, "0");
@@ -109,6 +110,7 @@ export function DateTimeField({
   minimumDate,
   maximumDate,
   style,
+  borderless = false,
 }: DateTimeFieldProps) {
   const [showPicker, setShowPicker] = useState(false);
   const [androidDateTimeStage, setAndroidDateTimeStage] = useState<"date" | "time" | null>(null);
@@ -224,7 +226,7 @@ export function DateTimeField({
   return (
     <View style={[styles.wrap, style]}>
       <Pressable
-        style={styles.field}
+        style={[styles.field, borderless ? styles.fieldBorderless : null]}
         onPress={() => {
           if (mode === "datetime" && Platform.OS === "android") {
             setAndroidDateTimeStage("date");
@@ -241,7 +243,7 @@ export function DateTimeField({
       </Pressable>
 
       {showPicker ? (
-        <View style={styles.pickerWrap}>
+        <View style={[styles.pickerWrap, borderless ? styles.pickerWrapBorderless : null]}>
           <DateTimePicker
             mode={pickerMode}
             value={pickerValue}
@@ -252,7 +254,7 @@ export function DateTimeField({
             is24Hour
           />
           {Platform.OS === "ios" ? (
-            <Pressable style={styles.doneButton} onPress={() => setShowPicker(false)}>
+            <Pressable style={[styles.doneButton, borderless ? styles.doneButtonBorderless : null]} onPress={() => setShowPicker(false)}>
               <Text style={styles.doneText}>Done</Text>
             </Pressable>
           ) : null}
@@ -276,6 +278,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+  fieldBorderless: {
+    borderWidth: 0,
   },
   valueText: {
     color: appTheme.colors.text,
@@ -332,12 +337,18 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.surface,
     overflow: "hidden",
   },
+  pickerWrapBorderless: {
+    borderWidth: 0,
+  },
   doneButton: {
     borderTopWidth: 1,
     borderTopColor: appTheme.colors.border,
     paddingVertical: 10,
     alignItems: "center",
     backgroundColor: appTheme.colors.surfaceMuted,
+  },
+  doneButtonBorderless: {
+    borderTopWidth: 0,
   },
   doneText: {
     color: appTheme.colors.primary,

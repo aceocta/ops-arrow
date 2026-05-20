@@ -239,6 +239,13 @@ const APP_CONFIGURATION_HIDDEN_KEYS = new Set([
   "RequireNoteWhenDayDifferenceExists",
 ]);
 
+const ROLE_SELECTION_CONFIG_KEYS = new Set([
+  "ManualEntryNotificationRecipients",
+  "CashDifferenceNotificationRecipients",
+  "HighPrizePayoutNotificationRecipients",
+  "WhoCanReopenDay",
+]);
+
 type ConfigurationScopeMeta = {
   title: string;
   subtitle: string;
@@ -349,6 +356,51 @@ function getConfigurationGroupSummary(groupName: string): ConfigurationGroupSumm
   };
 }
 
+function isRoleSelectionConfiguration(configKey: string) {
+  return ROLE_SELECTION_CONFIG_KEYS.has(configKey);
+}
+
+function parseCommaSeparatedValues(value: string) {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
+function mergeCommaSeparatedValues(values: string[]) {
+  const deduped: string[] = [];
+  const seen = new Set<string>();
+
+  values.forEach((value) => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) {
+      return;
+    }
+
+    seen.add(key);
+    deduped.push(trimmed);
+  });
+
+  return deduped.join(",");
+}
+
+function toggleCommaSeparatedValue(current: string, value: string) {
+  const currentValues = parseCommaSeparatedValues(current);
+  const key = value.trim().toLowerCase();
+  const exists = currentValues.some((entry) => entry.toLowerCase() === key);
+
+  if (exists) {
+    return mergeCommaSeparatedValues(currentValues.filter((entry) => entry.toLowerCase() !== key));
+  }
+
+  return mergeCommaSeparatedValues([...currentValues, value]);
+}
+
 export function UserManagementScreen() {
   const queryClient = useQueryClient();
   const { activeShopId, activeShop } = useAuth();
@@ -440,6 +492,19 @@ function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
     queryFn: () => getConfigurations(shopId ?? undefined),
     enabled: Boolean(shopId),
   });
+  const notificationRolesQuery = useQuery({
+    queryKey: ["roles", "notification-settings"],
+    queryFn: getRoleOptions,
+    enabled: Boolean(shopId) && scope === "app",
+  });
+  const availableNotificationRoleNames = useMemo(
+    () =>
+      (notificationRolesQuery.data ?? [])
+        .map((role) => role.name?.trim())
+        .filter((name): name is string => Boolean(name))
+        .sort((left, right) => left.localeCompare(right)),
+    [notificationRolesQuery.data],
+  );
 
   const grouped = useMemo(() => {
     const hiddenConfigKeys = new Set([
@@ -638,6 +703,19 @@ function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
                   const isBooleanFalse = currentBoolValue === false;
                   const normalizedTimeValue = normalizeTimeValue(currentValue);
                   const isEdited = typeof draft === "string" && draft !== item.configValue;
+                  const selectedNotificationRoles = isRoleSelectionConfiguration(item.configKey)
+                    ? parseCommaSeparatedValues(currentValue)
+                    : [];
+                  const selectedRoleKeys = new Set(selectedNotificationRoles.map((roleName) => roleName.toLowerCase()));
+                  const notificationRoleChoices = isRoleSelectionConfiguration(item.configKey)
+                    ? mergeCommaSeparatedValues([
+                        ...availableNotificationRoleNames,
+                        ...selectedNotificationRoles,
+                      ])
+                        .split(",")
+                        .map((value) => value.trim())
+                        .filter((value) => value.length > 0)
+                    : [];
 
                   return (
                     <View
@@ -780,7 +858,36 @@ function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
                           value={normalizedTimeValue ?? ""}
                           onChange={(value) => setDraftValues((prev) => ({ ...prev, [itemDraftKey]: value }))}
                           placeholder="Select time"
+                          borderless
                         />
+                      ) : isRoleSelectionConfiguration(item.configKey) ? (
+                        <View style={styles.notificationRoleSelectionWrap}>
+                          {notificationRolesQuery.isLoading ? <Text style={styles.caption}>Loading roles...</Text> : null}
+                          <View style={styles.choiceChipWrap}>
+                            {notificationRoleChoices.map((roleName) => {
+                              const selected = selectedRoleKeys.has(roleName.toLowerCase());
+                              return (
+                                <Pressable
+                                  key={roleName}
+                                  style={[styles.choiceChip, selected ? styles.choiceChipSelected : null]}
+                                  onPress={() =>
+                                    setDraftValues((prev) => ({
+                                      ...prev,
+                                      [itemDraftKey]: toggleCommaSeparatedValue(currentValue, roleName),
+                                    }))
+                                  }
+                                >
+                                  <Text style={[styles.choiceChipText, selected ? styles.choiceChipTextSelected : null]}>
+                                    {roleName}
+                                  </Text>
+                                </Pressable>
+                              );
+                            })}
+                          </View>
+                          {!notificationRolesQuery.isLoading && notificationRoleChoices.length === 0 ? (
+                            <Text style={styles.caption}>No roles available.</Text>
+                          ) : null}
+                        </View>
                       ) : isSellingOrderConfiguration(item.configKey) ? (
                         <View style={styles.row}>
                           <Pressable
@@ -1513,7 +1620,7 @@ const styles = StyleSheet.create({
   configHeroCard: {
     gap: appTheme.spacing.sm,
     backgroundColor: appTheme.colors.surfaceTint,
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.borderInfoSoft,
   },
   configHeroHeaderRow: {
@@ -1537,7 +1644,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     backgroundColor: appTheme.colors.surfaceInfoAlt,
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.borderInfoSoft,
   },
   configCountPillText: {
@@ -1563,7 +1670,7 @@ const styles = StyleSheet.create({
     borderRadius: appTheme.radius.pill,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderWidth: 1,
+    borderWidth: 0,
   },
   configStatusChipWarning: {
     backgroundColor: appTheme.colors.surfaceWarningSoft,
@@ -1637,7 +1744,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 5,
     borderRadius: appTheme.radius.pill,
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.borderBrandSoft,
     backgroundColor: appTheme.colors.surfaceBrandMuted,
     paddingHorizontal: 10,
@@ -1650,7 +1757,7 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   settingsContextCard: {
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surface,
@@ -1676,7 +1783,7 @@ const styles = StyleSheet.create({
     marginTop: appTheme.spacing.xs,
   },
   settingsNavRow: {
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceMuted,
@@ -1726,7 +1833,7 @@ const styles = StyleSheet.create({
   actionButton: {
     backgroundColor: appTheme.colors.primary,
     borderRadius: appTheme.radius.sm,
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.primaryPressed,
     paddingVertical: 11,
     paddingHorizontal: 12,
@@ -1739,7 +1846,7 @@ const styles = StyleSheet.create({
   },
   actionButtonText: { color: appTheme.colors.textOnDark, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 18 },
   groupCard: {
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.borderSoft,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceNeutralPale,
@@ -1765,7 +1872,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: appTheme.colors.surfaceBrandMuted,
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.borderBrandSoft,
   },
   groupHeaderTextWrap: {
@@ -1788,7 +1895,7 @@ const styles = StyleSheet.create({
     borderRadius: appTheme.radius.pill,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.borderInfoSoft,
     backgroundColor: appTheme.colors.surfaceTintAlt,
   },
@@ -1802,7 +1909,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   configFieldCard: {
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surface,
@@ -1831,7 +1938,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     backgroundColor: appTheme.colors.surfaceBrandPale,
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.borderBrandSoft,
   },
   configEditedBadgeText: {
@@ -1844,7 +1951,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   shiftTemplateCard: {
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surface,
@@ -1866,7 +1973,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   item: {
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceMuted,
@@ -1884,8 +1991,16 @@ const styles = StyleSheet.create({
   },
   caption: { color: appTheme.colors.textSubtle, fontSize: 12, lineHeight: 16, fontFamily: appTheme.fonts.body },
   row: { flexDirection: "row", gap: 8 },
+  choiceChipWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  notificationRoleSelectionWrap: {
+    gap: 8,
+  },
   choiceChip: {
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.primary,
     borderRadius: appTheme.radius.pill,
     backgroundColor: appTheme.colors.surfaceBrandSoft,
@@ -1905,7 +2020,7 @@ const styles = StyleSheet.create({
     color: appTheme.colors.textOnDark,
   },
   input: {
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surface,
@@ -1925,7 +2040,7 @@ const styles = StyleSheet.create({
   },
   smallButtonSecondary: {
     backgroundColor: appTheme.colors.surfaceBrandMuted,
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.borderBrandSoft,
   },
   smallButtonDanger: { backgroundColor: appTheme.colors.danger },
@@ -1943,7 +2058,7 @@ const styles = StyleSheet.create({
   },
   secondaryActionButton: {
     borderRadius: appTheme.radius.sm,
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: appTheme.colors.border,
     backgroundColor: appTheme.colors.surfaceMuted,
     paddingVertical: 11,
