@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Animated, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -225,6 +225,92 @@ function ensureFileNameWithExtension(fileName: string, contentType: string) {
 
   const extension = getFileExtensionFromContentType(contentType);
   return `${trimmed}${extension || ""}`;
+}
+
+function DayManagementLoadingState() {
+  const pulse = useRef(new Animated.Value(0.45)).current;
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 820,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0.45,
+          duration: 820,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    animation.start();
+    return () => animation.stop();
+  }, [pulse]);
+
+  const placeholderStyle = { opacity: pulse };
+
+  return (
+    <View style={styles.loadingShell}>
+      <View style={styles.dateNavigationRow}>
+        <Pressable style={[styles.dateNavigationButton, styles.dateActionButtonDisabled]} disabled>
+          <Text style={styles.dateNavigationButtonText}>Previous Day</Text>
+        </Pressable>
+        <Pressable style={[styles.dateActionInlineButton, styles.dateActionButtonDisabled]} disabled>
+          <Text style={styles.dateActionInlineButtonText}>Change Date</Text>
+        </Pressable>
+        <Pressable style={[styles.dateNavigationButton, styles.dateActionButtonDisabled]} disabled>
+          <Text style={styles.dateNavigationButtonText}>Next Day</Text>
+        </Pressable>
+      </View>
+
+      <View style={[ui.card, styles.loadingCard]}>
+        <View style={styles.loadingHeaderRow}>
+          <Animated.View style={[styles.loadingDateText, placeholderStyle]} />
+          <Animated.View style={[styles.loadingStatusBadge, placeholderStyle]} />
+        </View>
+        <View style={styles.loadingSummaryGrid}>
+          <Animated.View style={[styles.loadingSummaryTile, placeholderStyle]} />
+          <Animated.View style={[styles.loadingSummaryTile, placeholderStyle]} />
+          <Animated.View style={[styles.loadingSummaryTile, placeholderStyle]} />
+          <Animated.View style={[styles.loadingSummaryTile, placeholderStyle]} />
+        </View>
+      </View>
+
+      <View style={[ui.card, styles.loadingCard]}>
+        <View style={styles.loadingHeaderRow}>
+          <Animated.View style={[styles.loadingSectionTitle, placeholderStyle]} />
+          <Animated.View style={[styles.loadingActionButton, placeholderStyle]} />
+        </View>
+        <View style={styles.loadingDivider} />
+        <View style={styles.loadingShiftList}>
+          <View style={styles.loadingShiftItem}>
+            <Animated.View style={[styles.loadingShiftTitle, placeholderStyle]} />
+            <Animated.View style={[styles.loadingShiftLine, placeholderStyle]} />
+            <Animated.View style={[styles.loadingShiftLineShort, placeholderStyle]} />
+            <Animated.View style={[styles.loadingShiftAction, placeholderStyle]} />
+          </View>
+          <View style={styles.loadingShiftItem}>
+            <Animated.View style={[styles.loadingShiftTitle, placeholderStyle]} />
+            <Animated.View style={[styles.loadingShiftLine, placeholderStyle]} />
+            <Animated.View style={[styles.loadingShiftLineShort, placeholderStyle]} />
+          </View>
+        </View>
+      </View>
+
+      <View style={[ui.card, styles.loadingCard]}>
+        <Animated.View style={[styles.loadingSectionTitle, placeholderStyle]} />
+        <View style={styles.loadingKpiGrid}>
+          <Animated.View style={[styles.loadingKpiTile, placeholderStyle]} />
+          <Animated.View style={[styles.loadingKpiTile, placeholderStyle]} />
+          <Animated.View style={[styles.loadingKpiTile, placeholderStyle]} />
+          <Animated.View style={[styles.loadingKpiTile, placeholderStyle]} />
+        </View>
+      </View>
+    </View>
+  );
 }
 
 export function DayEndCloseScreen({ route, navigation }: Props) {
@@ -1165,6 +1251,18 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     return true;
   };
 
+  const isDayManagementInitialLoading =
+    (dayQuery.isLoading && !dayQuery.data) ||
+    (Boolean(day?.shopId) && shiftsQuery.isLoading && !shiftsQuery.data);
+
+  if (isDayManagementInitialLoading) {
+    return (
+      <ScreenContainer>
+        <DayManagementLoadingState />
+      </ScreenContainer>
+    );
+  }
+
   return (
     <ScreenContainer>
       <View style={styles.pageContent}>
@@ -2058,6 +2156,115 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
+  loadingShell: {
+    gap: appTheme.spacing.sm,
+    paddingBottom: appTheme.spacing.sm,
+  },
+  loadingCard: {
+    gap: appTheme.spacing.sm,
+  },
+  loadingDateButton: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surfaceTintAlt,
+  },
+  loadingDateButtonCenter: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surfaceBrandMuted,
+  },
+  loadingHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.sm,
+  },
+  loadingDateText: {
+    width: 148,
+    height: 28,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceTintAlt,
+  },
+  loadingStatusBadge: {
+    width: 88,
+    height: 30,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surfaceNeutralSoft,
+  },
+  loadingSummaryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: appTheme.spacing.xs,
+  },
+  loadingSummaryTile: {
+    width: "48.8%",
+    minHeight: 54,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceTint,
+  },
+  loadingSectionTitle: {
+    width: 156,
+    height: 24,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceTintAlt,
+  },
+  loadingActionButton: {
+    width: 104,
+    height: 38,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surfaceBrandMuted,
+  },
+  loadingDivider: {
+    height: 1,
+    backgroundColor: appTheme.colors.borderSoft,
+  },
+  loadingShiftList: {
+    gap: appTheme.spacing.xs,
+  },
+  loadingShiftItem: {
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceTintAlt,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.sm,
+    gap: 8,
+  },
+  loadingShiftTitle: {
+    width: "56%",
+    height: 20,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+  },
+  loadingShiftLine: {
+    width: "100%",
+    height: 16,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+  },
+  loadingShiftLineShort: {
+    width: "72%",
+    height: 16,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+  },
+  loadingShiftAction: {
+    width: "100%",
+    height: 42,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surfaceBrandMuted,
+  },
+  loadingKpiGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: appTheme.spacing.xs,
+  },
+  loadingKpiTile: {
+    width: "48.8%",
+    minHeight: 62,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceTint,
+  },
   pageContent: {
     gap: appTheme.spacing.sm,
     paddingBottom: appTheme.spacing.sm,
