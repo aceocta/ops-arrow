@@ -473,25 +473,39 @@ function DrawerSection({
   return (
     <View style={styles.drawerSection}>
       <Pressable
-        style={styles.drawerSectionHeader}
+        style={({ pressed }) => [
+          styles.drawerSectionHeader,
+          pressed ? styles.drawerSectionHeaderPressed : null,
+        ]}
         onPress={() => onToggle(sectionKey)}
         accessibilityRole="button"
         accessibilityLabel={`${expanded ? "Collapse" : "Expand"} ${title} menu`}
         accessibilityState={{ expanded }}
       >
-        <Text style={styles.drawerSectionTitle}>{title}</Text>
-        <Ionicons
-          name={expanded ? "chevron-up-outline" : "chevron-down-outline"}
-          size={14}
-          color={appTheme.colors.textSubtle}
-        />
+        <View style={styles.drawerSectionHeaderMain}>
+          <Text style={styles.drawerSectionTitle}>{title}</Text>
+          {/* <View style={styles.drawerSectionCountBadge}>
+            <Text style={styles.drawerSectionCountText}>{visibleItems.length}</Text>
+          </View> */}
+        </View>
+        <View style={styles.drawerSectionToggleIconWrap}>
+          <Ionicons
+            name={expanded ? "chevron-up-outline" : "chevron-down-outline"}
+            size={14}
+            color={appTheme.colors.textSubtle}
+          />
+        </View>
       </Pressable>
       {expanded ? (
         <View style={styles.drawerSectionItems}>
           {visibleItems.map((item) => (
             <Pressable
               key={item.screen}
-              style={[styles.drawerItem, activeScreen === item.screen ? styles.drawerItemActive : null]}
+              style={({ pressed }) => [
+                styles.drawerItem,
+                activeScreen === item.screen ? styles.drawerItemActive : null,
+                pressed ? styles.drawerItemPressed : null,
+              ]}
               onPress={() => onPress(item)}
             >
               <View style={styles.drawerItemMain}>
@@ -514,7 +528,7 @@ function DrawerSection({
               <Ionicons
                 name={activeScreen === item.screen ? "checkmark-circle" : "chevron-forward"}
                 size={14}
-                color={activeScreen === item.screen ? appTheme.colors.primary : appTheme.colors.textSubtle}
+                color={activeScreen === item.screen ? appTheme.colors.primary : appTheme.colors.textMuted}
               />
             </Pressable>
           ))}
@@ -599,7 +613,11 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
 
         <View style={styles.drawerTopItemWrap}>
           <Pressable
-            style={[styles.drawerItem, activeScreen === "BestEntry" ? styles.drawerItemActive : null]}
+            style={({ pressed }) => [
+              styles.drawerItem,
+              activeScreen === "BestEntry" ? styles.drawerItemActive : null,
+              pressed ? styles.drawerItemPressed : null,
+            ]}
             onPress={onOpenHome}
             accessibilityRole="button"
             accessibilityLabel="Home"
@@ -669,7 +687,11 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
 
       <View style={styles.drawerFooter}>
         <Pressable
-          style={[styles.drawerItem, activeScreen === "Settings" ? styles.drawerItemActive : null]}
+          style={({ pressed }) => [
+            styles.drawerItem,
+            activeScreen === "Settings" ? styles.drawerItemActive : null,
+            pressed ? styles.drawerItemPressed : null,
+          ]}
           onPress={onOpenSettings}
           accessibilityRole="button"
           accessibilityLabel="Settings"
@@ -699,7 +721,11 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
         </Pressable>
 
         <Pressable
-          style={[styles.drawerItem, styles.drawerSignOutItem]}
+          style={({ pressed }) => [
+            styles.drawerItem,
+            styles.drawerSignOutItem,
+            pressed ? styles.drawerItemPressed : null,
+          ]}
           onPress={() => {
             void onSignOut();
           }}
@@ -858,63 +884,122 @@ const styles = StyleSheet.create({
     paddingTop: appTheme.spacing.md,
   },
   drawerFooter: {
-    marginTop: appTheme.spacing.md,
+    marginTop: appTheme.spacing.lg,
     paddingHorizontal: appTheme.spacing.md,
     paddingBottom: appTheme.spacing.sm,
-    gap: 10,
+    gap: appTheme.spacing.xs,
   },
   drawerSectionHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 2,
-    paddingVertical: 6,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: 9,
+    borderRadius: appTheme.radius.pill,
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderSoft,
+    backgroundColor: appTheme.colors.surfaceNeutralSoft,
+  },
+  drawerSectionHeaderPressed: {
+    opacity: 0.94,
+  },
+  drawerSectionHeaderMain: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
   },
   drawerSectionItems: {
-    gap: 10,
-    marginTop: 8,
+    gap: appTheme.spacing.xs,
+    marginTop: appTheme.spacing.xs,
   },
   drawerSectionTitle: {
-    color: appTheme.colors.textSubtle,
-    fontSize: 12,
+    color: appTheme.colors.textMuted,
+    fontSize: 11,
     lineHeight: 14,
     textTransform: "uppercase",
     fontFamily: appTheme.fonts.bodyMedium,
+    letterSpacing: 0.4,
+  },
+  drawerSectionCountBadge: {
+    minWidth: 22,
+    borderRadius: appTheme.radius.pill,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surface,
+  },
+  drawerSectionCountText: {
+    color: appTheme.colors.textSubtle,
+    fontSize: 11,
+    lineHeight: 13,
+    fontFamily: appTheme.fonts.bodyMedium,
+  },
+  drawerSectionToggleIconWrap: {
+    width: 22,
+    height: 22,
+    borderRadius: appTheme.radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: appTheme.colors.surface,
   },
   drawerItem: {
-    paddingVertical: 10,
-    paddingHorizontal: 11,
+    paddingVertical: 11,
+    paddingHorizontal: 12,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surface,
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderSoft,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: appTheme.spacing.xs,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#102030",
+        shadowOpacity: 0.06,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 2 },
+      },
+      android: {
+        elevation: 1,
+      },
+      default: {},
+    }),
   },
   drawerItemActive: {
-    backgroundColor: appTheme.colors.surfaceBrandMuted,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+    borderColor: appTheme.colors.borderBrandSoft,
+  },
+  drawerItemPressed: {
+    opacity: 0.94,
   },
   drawerItemMain: {
     flexDirection: "row",
     alignItems: "center",
-    gap: appTheme.spacing.xs,
+    gap: appTheme.spacing.sm,
     flex: 1,
   },
   drawerItemIconWrap: {
-    width: 26,
-    height: 26,
+    width: 30,
+    height: 30,
     borderRadius: appTheme.radius.pill,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: appTheme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
   },
   drawerItemIconWrapActive: {
     backgroundColor: appTheme.colors.primary,
+    borderColor: appTheme.colors.primary,
   },
   drawerItemText: {
     color: appTheme.colors.text,
     fontSize: 14,
-    lineHeight: 18,
+    lineHeight: 19,
     fontFamily: appTheme.fonts.bodyMedium,
   },
   drawerItemTextActive: {
@@ -922,16 +1007,16 @@ const styles = StyleSheet.create({
   },
   drawerSignOutItem: {
     borderWidth: 1,
-    borderColor: appTheme.colors.dangerPressed,
-    backgroundColor: appTheme.colors.surfaceMuted,
+    borderColor: appTheme.colors.borderDangerSoft,
+    backgroundColor: appTheme.colors.surfaceDangerSoft,
   },
   drawerSignOutIconWrap: {
-    width: 26,
-    height: 26,
+    width: 30,
+    height: 30,
     borderRadius: appTheme.radius.pill,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: appTheme.colors.surfaceTint,
+    backgroundColor: appTheme.colors.surfaceDangerMuted,
   },
   drawerSignOutText: {
     color: appTheme.colors.danger,
