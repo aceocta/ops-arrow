@@ -394,7 +394,13 @@ function MainBottomDock() {
   const insets = useSafeAreaInsets();
   const navigationState = useNavigationState((state) => state);
   const currentRouteName = getDeepestRouteName(navigationState);
-  if (currentRouteName === "BestEntry") {
+  if (
+    currentRouteName === "BestEntry" ||
+    currentRouteName === "Dashboard" ||
+    currentRouteName === "DayEndClose" ||
+    currentRouteName === "CloseShift" ||
+    currentRouteName === "ShiftClose"
+  ) {
     return null;
   }
 
@@ -848,4 +854,3 @@ const styles = StyleSheet.create({
     color: appTheme.colors.primary,
   },
 });
-
