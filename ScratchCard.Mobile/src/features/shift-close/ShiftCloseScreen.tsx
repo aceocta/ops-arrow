@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import NetInfo, { useNetInfo } from "@react-native-community/netinfo";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -746,8 +746,28 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
     }
   }
 
+  const finalizeFooter = (
+    <View style={[ui.card, styles.fixedFooterCard]}>
+      <View >
+        {!canFinalize ? (
+          <Text style={styles.meta}>
+            {isManualClosingSerialEnabled
+              ? "Enter valid closing serials for all packs before finalising."
+              : "Scan all packs and resolve serial errors before finalising."}
+          </Text>
+        ) : null}
+
+        <PrimaryButton
+          label={isSubmitting ? "Finalising..." : "Finalise Shift"}
+          onPress={onFinalize}
+          disabled={!canFinalize}
+        />
+      </View>
+    </View>
+  );
+
   return (
-    <ScreenContainer>
+    <ScreenContainer footer={finalizeFooter}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={[ui.card, styles.summaryCard]}>
           <View style={styles.summaryHeaderRow}>
@@ -1058,23 +1078,6 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
           </View>
         </View>
 
-        <View style={[ui.card, styles.compactCard]}>
-          <View style={styles.actionGroup}>
-            {!canFinalize ? (
-              <Text style={styles.meta}>
-                {isManualClosingSerialEnabled
-                  ? "Enter valid closing serials for all packs before finalising."
-                  : "Scan all packs and resolve serial errors before finalising."}
-              </Text>
-            ) : null}
-
-            <PrimaryButton
-              label={isSubmitting ? "Finalising..." : "Finalise Shift"}
-              onPress={onFinalize}
-              disabled={!canFinalize}
-            />
-          </View>
-        </View>
       </ScrollView>
     </ScreenContainer>
   );
@@ -1082,7 +1085,11 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   content: {
     gap: appTheme.spacing.sm,
-    paddingBottom: appTheme.spacing.sm,
+    paddingBottom: appTheme.spacing.xl * 2 + appTheme.spacing.sm,
+  },
+  fixedFooterCard: {
+    paddingVertical: appTheme.spacing.sm,
+    marginBottom: Platform.OS === "android" ? appTheme.spacing.sm : 0,
   },
   compactCard: {
     gap: appTheme.spacing.sm,
