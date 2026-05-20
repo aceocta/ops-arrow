@@ -74,7 +74,6 @@ const Drawer = createDrawerNavigator<MainDrawerParamList>();
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
 const operationsItems: MenuItem[] = [
-  { label: "Home", screen: "BestEntry", icon: "home-outline" },
   { label: "Shop Checklist", screen: "ShopChecklist", icon: "checkmark-done-outline", mode: "checklist" },
   { label: "Compliance Checks", screen: "ComplianceChecks", icon: "clipboard-outline", mode: "compliance" },
   {
@@ -124,7 +123,6 @@ const operationsItems: MenuItem[] = [
 ];
 
 const managementItems: MenuItem[] = [
-  { label: "Settings", screen: "Settings", icon: "settings-outline" },
   { label: "User Invitations", screen: "UserInvitations", icon: "mail-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"] },
   // { label: "Company Management", screen: "CompanyManagement", icon: "business-outline", shopOwnerOnly: true },
   { label: "Shop Management", screen: "ShopManagement", icon: "storefront-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"] },
@@ -529,7 +527,7 @@ function DrawerSection({
 function DrawerMenuContent(props: DrawerContentComponentProps) {
   const { selectedOperation, setSelectedOperation } = useBestEntry();
   const insets = useSafeAreaInsets();
-  const { profile, activeShop } = useAuth();
+  const { profile, activeShop, signOut } = useAuth();
   const userRoles = profile?.roles ?? [];
   const isCompanyOwner = userRoles.some((role) => role === "CompanyOwner");
   const isPlatformAdmin = userRoles.some((role) => role === "PlatformAdmin");
@@ -565,11 +563,27 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
     }));
   };
 
+  function onOpenSettings() {
+    props.navigation.navigate("MainStack", { screen: "Settings" });
+    props.navigation.closeDrawer();
+  }
+
+  function onOpenHome() {
+    setSelectedOperation(null);
+    props.navigation.navigate("MainStack", { screen: "BestEntry" });
+    props.navigation.closeDrawer();
+  }
+
+  async function onSignOut() {
+    props.navigation.closeDrawer();
+    await signOut();
+  }
+
   return (
     <DrawerContentScrollView {...props} contentContainerStyle={styles.drawerScrollContent}>
-      <View style={[styles.drawerHeader, { paddingTop: appTheme.spacing.md + insets.top }]}>
-        <Text style={styles.drawerEyebrow}>Navigation</Text>
-        <Text style={styles.drawerTitle}>Menu</Text>
+        <View style={[styles.drawerHeader, { paddingTop: appTheme.spacing.md + insets.top }]}>
+          <Text style={styles.drawerEyebrow}>Navigation</Text>
+          <Text style={styles.drawerTitle}>Menu</Text>
         <Text style={styles.drawerSubtle}>{currentUser}</Text>
         <Text style={styles.drawerShopName}>{activeShop?.shopName ?? "No active shop selected"}</Text>
         <View style={styles.drawerPillRow}>
@@ -580,13 +594,45 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
           <View style={styles.drawerRolePill}>
             <Text style={styles.drawerRolePillText}>{roleLabel}</Text>
           </View>
+          </View>
         </View>
-      </View>
 
-      <DrawerSection
-        sectionKey="operations"
-        title="Operations"
-        items={operationsItems}
+        <View style={styles.drawerTopItemWrap}>
+          <Pressable
+            style={[styles.drawerItem, activeScreen === "BestEntry" ? styles.drawerItemActive : null]}
+            onPress={onOpenHome}
+            accessibilityRole="button"
+            accessibilityLabel="Home"
+          >
+            <View style={styles.drawerItemMain}>
+              <View
+                style={[
+                  styles.drawerItemIconWrap,
+                  activeScreen === "BestEntry" ? styles.drawerItemIconWrapActive : null,
+                ]}
+              >
+                <Ionicons
+                  name="home-outline"
+                  size={15}
+                  color={activeScreen === "BestEntry" ? appTheme.colors.onPrimary : appTheme.colors.textMuted}
+                />
+              </View>
+              <Text style={[styles.drawerItemText, activeScreen === "BestEntry" ? styles.drawerItemTextActive : null]}>
+                Home
+              </Text>
+            </View>
+            <Ionicons
+              name={activeScreen === "BestEntry" ? "checkmark-circle" : "chevron-forward"}
+              size={14}
+              color={activeScreen === "BestEntry" ? appTheme.colors.primary : appTheme.colors.textSubtle}
+            />
+          </Pressable>
+        </View>
+
+        <DrawerSection
+          sectionKey="operations"
+          title="Operations"
+          items={operationsItems}
         isCompanyOwner={isCompanyOwner}
         userRoles={userRoles}
         onPress={goTo}
@@ -620,6 +666,55 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
         onToggle={toggleSection}
         activeScreen={activeScreen}
       />
+
+      <View style={styles.drawerFooter}>
+        <Pressable
+          style={[styles.drawerItem, activeScreen === "Settings" ? styles.drawerItemActive : null]}
+          onPress={onOpenSettings}
+          accessibilityRole="button"
+          accessibilityLabel="Settings"
+        >
+          <View style={styles.drawerItemMain}>
+            <View
+              style={[
+                styles.drawerItemIconWrap,
+                activeScreen === "Settings" ? styles.drawerItemIconWrapActive : null,
+              ]}
+            >
+              <Ionicons
+                name="settings-outline"
+                size={15}
+                color={activeScreen === "Settings" ? appTheme.colors.onPrimary : appTheme.colors.textMuted}
+              />
+            </View>
+            <Text style={[styles.drawerItemText, activeScreen === "Settings" ? styles.drawerItemTextActive : null]}>
+              Settings
+            </Text>
+          </View>
+          <Ionicons
+            name={activeScreen === "Settings" ? "checkmark-circle" : "chevron-forward"}
+            size={14}
+            color={activeScreen === "Settings" ? appTheme.colors.primary : appTheme.colors.textSubtle}
+          />
+        </Pressable>
+
+        <Pressable
+          style={[styles.drawerItem, styles.drawerSignOutItem]}
+          onPress={() => {
+            void onSignOut();
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Sign out"
+        >
+          <View style={styles.drawerItemMain}>
+            <View style={styles.drawerSignOutIconWrap}>
+              <Ionicons name="log-out-outline" size={15} color={appTheme.colors.danger} />
+            </View>
+            <Text style={[styles.drawerItemText, styles.drawerSignOutText]}>Sign Out</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={14} color={appTheme.colors.textSubtle} />
+        </Pressable>
+      </View>
     </DrawerContentScrollView>
   );
 }
@@ -758,6 +853,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: appTheme.spacing.md,
     paddingTop: appTheme.spacing.md,
   },
+  drawerTopItemWrap: {
+    paddingHorizontal: appTheme.spacing.md,
+    paddingTop: appTheme.spacing.md,
+  },
+  drawerFooter: {
+    marginTop: appTheme.spacing.md,
+    paddingHorizontal: appTheme.spacing.md,
+    paddingBottom: appTheme.spacing.sm,
+    gap: 10,
+  },
   drawerSectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -766,7 +871,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   drawerSectionItems: {
-    gap: 8,
+    gap: 10,
     marginTop: 8,
   },
   drawerSectionTitle: {
@@ -814,6 +919,22 @@ const styles = StyleSheet.create({
   },
   drawerItemTextActive: {
     color: appTheme.colors.textBrandStrong,
+  },
+  drawerSignOutItem: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.dangerPressed,
+    backgroundColor: appTheme.colors.surfaceMuted,
+  },
+  drawerSignOutIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: appTheme.radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: appTheme.colors.surfaceTint,
+  },
+  drawerSignOutText: {
+    color: appTheme.colors.danger,
   },
   bottomDockWrap: {
     position: "absolute",
