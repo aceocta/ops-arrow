@@ -174,6 +174,9 @@ public interface IBusinessDayService
     Task<BusinessDayDto> OpenAsync(OpenBusinessDayRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<BusinessDayDto>> ListAsync(Guid shopId, DateOnly? from = null, DateOnly? to = null, CancellationToken cancellationToken = default);
     Task<BusinessDayDto> GetAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<CanisterDto>> ListCanistersAsync(Guid businessDayId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<CanisterDropDto>> ListCanisterDropsAsync(Guid businessDayId, CancellationToken cancellationToken = default);
+    Task<CanisterDropDto> AddCanisterDropAsync(Guid businessDayId, CreateCanisterDropRequest request, CancellationToken cancellationToken = default);
     Task<BusinessDayDto> CloseAsync(Guid id, CloseBusinessDayRequest request, CancellationToken cancellationToken = default);
     Task<BusinessDayDto> ReopenAsync(Guid id, ReopenBusinessDayRequest request, CancellationToken cancellationToken = default);
     Task<string?> GetCloseAttachmentDataUrlAsync(Guid attachmentId, CancellationToken cancellationToken = default);

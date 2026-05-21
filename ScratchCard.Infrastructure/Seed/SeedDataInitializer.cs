@@ -673,6 +673,7 @@ public static class SeedDataInitializer
                 WhoCanReopenDay = "Manager,CompanyOwner",
                 RequireAllShiftsClosedBeforeDayClose = true,
                 RequireNoteWhenDayDifferenceExists = true,
+                EnableSafeDropManagement = false,
                 IsActive = true,
                 CreatedOn = now
             }, cancellationToken);
@@ -832,6 +833,7 @@ public static class SeedDataInitializer
                 PricePerShop = 0,
                 TrialDays = 30,
                 Description = "Default free trial for new companies",
+                IncludedFeatures = string.Empty,
                 IsActive = true,
                 CreatedOn = now
             }, cancellationToken);
@@ -846,6 +848,7 @@ public static class SeedDataInitializer
                 PricePerShop = 20,
                 TrialDays = 0,
                 Description = "Monthly subscription per active shop",
+                IncludedFeatures = FeatureKeys.SafeDropManagement,
                 IsActive = true,
                 CreatedOn = now
             }, cancellationToken);
@@ -860,12 +863,39 @@ public static class SeedDataInitializer
                 PricePerShop = 200,
                 TrialDays = 0,
                 Description = "Annual subscription per active shop",
+                IncludedFeatures = FeatureKeys.SafeDropManagement,
                 IsActive = true,
                 CreatedOn = now
             }, cancellationToken);
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        var updatablePlans = await dbContext.SubscriptionPlans
+            .Where(x => x.BillingCycle == BillingCycle.Monthly || x.BillingCycle == BillingCycle.Annual)
+            .ToListAsync(cancellationToken);
+
+        var updated = false;
+        foreach (var plan in updatablePlans)
+        {
+            if (!string.IsNullOrWhiteSpace(plan.IncludedFeatures) &&
+                plan.IncludedFeatures.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Any(x => string.Equals(x, FeatureKeys.SafeDropManagement, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            plan.IncludedFeatures = string.IsNullOrWhiteSpace(plan.IncludedFeatures)
+                ? FeatureKeys.SafeDropManagement
+                : $"{plan.IncludedFeatures.Trim()},{FeatureKeys.SafeDropManagement}";
+            plan.ModifiedOn = DateTimeOffset.UtcNow;
+            updated = true;
+        }
+
+        if (updated)
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
     }
 
     private static async Task SeedSubscriptionDiscountRulesAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)

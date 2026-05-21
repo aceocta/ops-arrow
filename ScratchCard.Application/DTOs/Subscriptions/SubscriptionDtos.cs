@@ -10,6 +10,7 @@ public class SubscriptionPlanDto
     public decimal PricePerShop { get; set; }
     public int TrialDays { get; set; }
     public string? Description { get; set; }
+    public IReadOnlyCollection<string> IncludedFeatures { get; set; } = [];
     public bool IsActive { get; set; }
 }
 
@@ -68,6 +69,7 @@ public class SubscriptionSummaryDto
     public DateTimeOffset? CurrentPeriodEndsOn { get; set; }
     public int? TrialDaysRemaining { get; set; }
     public bool RequiresBillingAction { get; set; }
+    public IReadOnlyCollection<string> IncludedFeatures { get; set; } = [];
 }
 
 public class SubscriptionInvoiceLineDto

@@ -39,6 +39,27 @@ public class BusinessDaysController : BaseApiController
         return Success(result);
     }
 
+    [HttpGet("{id:guid}/safe-drop/canisters")]
+    public async Task<IActionResult> ListCanisters(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _businessDayService.ListCanistersAsync(id, cancellationToken);
+        return Success(result);
+    }
+
+    [HttpGet("{id:guid}/safe-drop/canister-drops")]
+    public async Task<IActionResult> ListCanisterDrops(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _businessDayService.ListCanisterDropsAsync(id, cancellationToken);
+        return Success(result);
+    }
+
+    [HttpPost("{id:guid}/safe-drop/canister-drops")]
+    public async Task<IActionResult> AddCanisterDrop(Guid id, [FromBody] CreateCanisterDropRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _businessDayService.AddCanisterDropAsync(id, request, cancellationToken);
+        return Success(result);
+    }
+
     [HttpPost("{id:guid}/close")]
     [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
     public async Task<IActionResult> Close(Guid id, [FromBody] CloseBusinessDayRequest request, CancellationToken cancellationToken)

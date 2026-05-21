@@ -21,6 +21,7 @@ public class BusinessDay : AuditableEntity
     public Shop Shop { get; set; } = null!;
     public ICollection<Shift> Shifts { get; set; } = new List<Shift>();
     public ICollection<PrizePayout> PrizePayouts { get; set; } = new List<PrizePayout>();
+    public ICollection<CanisterDrop> CanisterDrops { get; set; } = new List<CanisterDrop>();
     public ICollection<BusinessDayCloseAttachment> CloseAttachments { get; set; } = new List<BusinessDayCloseAttachment>();
     public ScratchCardDayCloseSummary? ScratchCardDayCloseSummary { get; set; }
     public ScratchCardDayReview? ScratchCardDayReview { get; set; }

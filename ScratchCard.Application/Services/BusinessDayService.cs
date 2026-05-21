@@ -17,11 +17,15 @@ public class BusinessDayService : IBusinessDayService
 {
     private readonly IRepository<BusinessDay> _businessDayRepository;
     private readonly IRepository<Shift> _shiftRepository;
+    private readonly IRepository<Canister> _canisterRepository;
     private readonly IRepository<ShiftOpeningSerial> _shiftOpeningSerialRepository;
     private readonly IRepository<ShiftScratchCardSale> _salesRepository;
     private readonly IRepository<PrizePayout> _payoutRepository;
     private readonly IRepository<ScratchCardDayCloseSummary> _dayCloseSummaryRepository;
+    private readonly IRepository<CanisterDrop> _canisterDropRepository;
     private readonly IRepository<BusinessDayCloseAttachment> _dayCloseAttachmentRepository;
+    private readonly IRepository<CfgDayCloseSettings> _dayCloseSettingsRepository;
+    private readonly IRepository<CompanySubscription> _companySubscriptionRepository;
     private readonly IRepository<ShopUser> _shopUserRepository;
     private readonly IRepository<Shop> _shopRepository;
     private readonly IShopConfigurationService _shopConfigurationService;
@@ -35,11 +39,15 @@ public class BusinessDayService : IBusinessDayService
     public BusinessDayService(
         IRepository<BusinessDay> businessDayRepository,
         IRepository<Shift> shiftRepository,
+        IRepository<Canister> canisterRepository,
         IRepository<ShiftOpeningSerial> shiftOpeningSerialRepository,
         IRepository<ShiftScratchCardSale> salesRepository,
         IRepository<PrizePayout> payoutRepository,
         IRepository<ScratchCardDayCloseSummary> dayCloseSummaryRepository,
+        IRepository<CanisterDrop> canisterDropRepository,
         IRepository<BusinessDayCloseAttachment> dayCloseAttachmentRepository,
+        IRepository<CfgDayCloseSettings> dayCloseSettingsRepository,
+        IRepository<CompanySubscription> companySubscriptionRepository,
         IRepository<ShopUser> shopUserRepository,
         IRepository<Shop> shopRepository,
         IShopConfigurationService shopConfigurationService,
@@ -52,11 +60,15 @@ public class BusinessDayService : IBusinessDayService
     {
         _businessDayRepository = businessDayRepository;
         _shiftRepository = shiftRepository;
+        _canisterRepository = canisterRepository;
         _shiftOpeningSerialRepository = shiftOpeningSerialRepository;
         _salesRepository = salesRepository;
         _payoutRepository = payoutRepository;
         _dayCloseSummaryRepository = dayCloseSummaryRepository;
+        _canisterDropRepository = canisterDropRepository;
         _dayCloseAttachmentRepository = dayCloseAttachmentRepository;
+        _dayCloseSettingsRepository = dayCloseSettingsRepository;
+        _companySubscriptionRepository = companySubscriptionRepository;
         _shopUserRepository = shopUserRepository;
         _shopRepository = shopRepository;
         _shopConfigurationService = shopConfigurationService;
@@ -182,6 +194,143 @@ public class BusinessDayService : IBusinessDayService
         dayDto.MissingOpeningTicketCount = missingByDayId.GetValueOrDefault(day.Id);
         dayDto.MissingOpeningTicketDetails = missingDetailsByDayId.GetValueOrDefault(day.Id, []);
         return dayDto;
+    }
+
+    public async Task<IReadOnlyCollection<CanisterDto>> ListCanistersAsync(
+        Guid businessDayId,
+        CancellationToken cancellationToken = default)
+    {
+        var day = await _businessDayRepository.Query()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == businessDayId, cancellationToken)
+            ?? throw new AppException("business_day_not_found", "Business day not found.", 404);
+
+        await EnsureSafeDropManagementEnabledAsync(day.ShopId, cancellationToken);
+
+        var canisters = await _canisterRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == day.ShopId)
+            .OrderByDescending(x => x.IsActive)
+            .ThenBy(x => x.CanisterNumber)
+            .ThenBy(x => x.CreatedOn)
+            .ToListAsync(cancellationToken);
+
+        return canisters.Select(x => x.ToDto()).ToArray();
+    }
+
+    public async Task<IReadOnlyCollection<CanisterDropDto>> ListCanisterDropsAsync(
+        Guid businessDayId,
+        CancellationToken cancellationToken = default)
+    {
+        var day = await _businessDayRepository.Query()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == businessDayId, cancellationToken)
+            ?? throw new AppException("business_day_not_found", "Business day not found.", 404);
+
+        await EnsureSafeDropManagementEnabledAsync(day.ShopId, cancellationToken);
+
+        var drops = await _canisterDropRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.BusinessDayId == businessDayId)
+            .Include(x => x.Shift)
+            .Include(x => x.Canister)
+            .OrderByDescending(x => x.DroppedOn)
+            .ThenByDescending(x => x.CreatedOn)
+            .ToListAsync(cancellationToken);
+
+        return drops.Select(x => x.ToDto()).ToArray();
+    }
+
+    public async Task<CanisterDropDto> AddCanisterDropAsync(
+        Guid businessDayId,
+        CreateCanisterDropRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var day = await _businessDayRepository.Query()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == businessDayId, cancellationToken)
+            ?? throw new AppException("business_day_not_found", "Business day not found.", 404);
+
+        await EnsureSafeDropManagementEnabledAsync(day.ShopId, cancellationToken);
+
+        var activeShift = await _shiftRepository.Query()
+            .Where(
+                x => x.BusinessDayId == day.Id &&
+                     (x.Status == ShiftStatus.Open || x.Status == ShiftStatus.Reopened))
+            .OrderByDescending(x => x.OpenedOn ?? x.CreatedOn)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (activeShift is null)
+        {
+            throw new AppException(
+                "safe_drop_open_shift_required",
+                "An open shift is required before recording a safe drop.",
+                400);
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var droppedByName = string.IsNullOrWhiteSpace(request.DroppedByName)
+            ? _currentUserService.FullName.Trim()
+            : request.DroppedByName.Trim();
+        if (string.IsNullOrWhiteSpace(droppedByName))
+        {
+            droppedByName = _currentUserService.Email.Trim();
+        }
+
+        var normalizedCanisterNumber = request.CanisterNumber.Trim();
+        var canister = await _canisterRepository.Query()
+            .FirstOrDefaultAsync(
+                x => x.ShopId == day.ShopId && x.CanisterNumber == normalizedCanisterNumber,
+                cancellationToken);
+
+        if (canister is null)
+        {
+            canister = new Canister
+            {
+                ShopId = day.ShopId,
+                CanisterNumber = normalizedCanisterNumber,
+                IsActive = true,
+                CreatedOn = now,
+                CreatedBy = _currentUserService.UserId
+            };
+            await _canisterRepository.AddAsync(canister, cancellationToken);
+        }
+        else if (!canister.IsActive)
+        {
+            canister.IsActive = true;
+            canister.ModifiedOn = now;
+            canister.ModifiedBy = _currentUserService.UserId;
+            _canisterRepository.Update(canister);
+        }
+
+        var entity = new CanisterDrop
+        {
+            ShopId = day.ShopId,
+            BusinessDayId = day.Id,
+            ShiftId = activeShift.Id,
+            CanisterId = canister.Id,
+            Amount = request.Amount,
+            DroppedByUserId = _currentUserService.UserId,
+            DroppedByName = droppedByName,
+            DroppedOn = now,
+            CreatedOn = now,
+            CreatedBy = _currentUserService.UserId
+        };
+
+        await _canisterDropRepository.AddAsync(entity, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _auditService.LogAsync(
+            nameof(CanisterDrop),
+            entity.Id,
+            "CanisterDropAdded",
+            day.ShopId,
+            reason: $"Canister {canister.CanisterNumber} amount {entity.Amount:0.00}",
+            cancellationToken: cancellationToken);
+
+        entity.Canister = canister;
+        entity.Shift = activeShift;
+        return entity.ToDto();
     }
 
     public async Task<string?> GetCloseAttachmentDataUrlAsync(Guid attachmentId, CancellationToken cancellationToken = default)
@@ -738,6 +887,70 @@ public class BusinessDayService : IBusinessDayService
             .ToDictionary(
                 group => group.Key,
                 group => (IReadOnlyCollection<MissingOpeningTicketDetailDto>)group.Select(x => x.Detail).ToArray());
+    }
+
+    private async Task EnsureSafeDropManagementEnabledAsync(Guid shopId, CancellationToken cancellationToken)
+    {
+        var companyId = await _shopRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.Id == shopId && !x.IsDeleted && x.CompanyId.HasValue)
+            .Select(x => x.CompanyId!.Value)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (companyId == Guid.Empty)
+        {
+            throw new AppException("shop_not_found", "Shop not found.", 404);
+        }
+
+        var companySubscription = await _companySubscriptionRepository.Query()
+            .AsNoTracking()
+            .Include(x => x.SubscriptionPlan)
+            .FirstOrDefaultAsync(x => x.CompanyId == companyId, cancellationToken);
+
+        if (companySubscription?.SubscriptionPlan is null)
+        {
+            throw new AppException(
+                "safe_drop_feature_not_in_subscription",
+                "Safe drop management is not available for your subscription package.",
+                403);
+        }
+
+        var includedFeatures = ServiceMappingExtensions.ParseIncludedFeatures(companySubscription.SubscriptionPlan.IncludedFeatures);
+        var hasSubscriptionFeature = includedFeatures.Any(
+            x => string.Equals(x, FeatureKeys.SafeDropManagement, StringComparison.OrdinalIgnoreCase));
+
+        if (!hasSubscriptionFeature)
+        {
+            throw new AppException(
+                "safe_drop_feature_not_in_subscription",
+                "Safe drop management is not available for your subscription package.",
+                403);
+        }
+
+        var settingsRows = await _dayCloseSettingsRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.IsActive && (x.ShopId == null || x.ShopId == shopId))
+            .OrderByDescending(x => x.ShopId == shopId)
+            .ThenByDescending(x => x.ModifiedOn ?? x.CreatedOn)
+            .ToListAsync(cancellationToken);
+
+        var shopValue = settingsRows
+            .Where(x => x.ShopId == shopId)
+            .Select(x => x.EnableSafeDropManagement)
+            .FirstOrDefault();
+        var globalValue = settingsRows
+            .Where(x => x.ShopId == null)
+            .Select(x => x.EnableSafeDropManagement)
+            .FirstOrDefault();
+        var isEnabled = shopValue ?? globalValue ?? false;
+
+        if (!isEnabled)
+        {
+            throw new AppException(
+                "safe_drop_feature_disabled",
+                "Safe drop management is disabled for this shop.",
+                403);
+        }
     }
 
     private async Task SendDayCloseSummaryToOwnersAsync(

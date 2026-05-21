@@ -72,6 +72,7 @@ internal static class ServiceMappingExtensions
         PricePerShop = plan.PricePerShop,
         TrialDays = plan.TrialDays,
         Description = plan.Description,
+        IncludedFeatures = ParseIncludedFeatures(plan.IncludedFeatures),
         IsActive = plan.IsActive
     };
 
@@ -411,4 +412,41 @@ internal static class ServiceMappingExtensions
         CompletedOn = completion.CompletedOn,
         Notes = completion.Notes
     };
+
+    public static CanisterDto ToDto(this Canister canister) => new()
+    {
+        Id = canister.Id,
+        ShopId = canister.ShopId,
+        CanisterNumber = canister.CanisterNumber,
+        IsActive = canister.IsActive
+    };
+
+    public static CanisterDropDto ToDto(this CanisterDrop drop) => new()
+    {
+        Id = drop.Id,
+        ShopId = drop.ShopId,
+        BusinessDayId = drop.BusinessDayId,
+        ShiftId = drop.ShiftId,
+        CanisterId = drop.CanisterId,
+        ShiftName = drop.Shift?.ShiftName ?? string.Empty,
+        CanisterNumber = drop.Canister?.CanisterNumber ?? string.Empty,
+        Amount = drop.Amount,
+        DroppedByUserId = drop.DroppedByUserId,
+        DroppedByName = drop.DroppedByName,
+        DroppedOn = drop.DroppedOn
+    };
+
+    public static IReadOnlyCollection<string> ParseIncludedFeatures(string? rawFeatures)
+    {
+        if (string.IsNullOrWhiteSpace(rawFeatures))
+        {
+            return [];
+        }
+
+        return rawFeatures
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
 }

@@ -131,6 +131,7 @@ public class ConfigurationService : IConfigurationService
         AddItem(items, shopId, DayCloseGroup, "WhoCanReopenDay", Resolve(shopDayClose?.WhoCanReopenDay, globalDayClose?.WhoCanReopenDay, "Manager,CompanyOwner"), "string", null);
         AddItem(items, shopId, DayCloseGroup, "RequireAllShiftsClosedBeforeDayClose", ToConfigString(Resolve(shopDayClose?.RequireAllShiftsClosedBeforeDayClose, globalDayClose?.RequireAllShiftsClosedBeforeDayClose, true)), "bool", null);
         AddItem(items, shopId, DayCloseGroup, "RequireNoteWhenDayDifferenceExists", ToConfigString(Resolve(shopDayClose?.RequireNoteWhenDayDifferenceExists, globalDayClose?.RequireNoteWhenDayDifferenceExists, true)), "bool", null);
+        AddItem(items, shopId, DayCloseGroup, ConfigurationKeys.EnableSafeDropManagement, ToConfigString(Resolve(shopDayClose?.EnableSafeDropManagement, globalDayClose?.EnableSafeDropManagement, false)), "bool", "Enable safe drop management canister drops in day management.");
 
         AddItem(items, shopId, PrizePayoutGroup, "RequirePackNumberForPayout", ToConfigString(Resolve(shopPrizePayout?.RequirePackNumberForPayout, globalPrizePayout?.RequirePackNumberForPayout, true)), "bool", null);
         AddItem(items, shopId, PrizePayoutGroup, "RequireTicketNumberForPayout", ToConfigString(Resolve(shopPrizePayout?.RequireTicketNumberForPayout, globalPrizePayout?.RequireTicketNumberForPayout, true)), "bool", null);
@@ -444,6 +445,9 @@ public class ConfigurationService : IConfigurationService
             case "RequireNoteWhenDayDifferenceExists":
                 target.RequireNoteWhenDayDifferenceExists = ParseBool(value, key);
                 break;
+            case ConfigurationKeys.EnableSafeDropManagement:
+                target.EnableSafeDropManagement = ParseBool(value, key);
+                break;
             default:
                 throw new AppException("configuration_key_not_supported", $"Unsupported configuration key '{key}' in {DayCloseGroup}.");
         }
@@ -651,6 +655,7 @@ public class ConfigurationService : IConfigurationService
             "WhoCanReopenDay" => DayCloseGroup,
             "RequireAllShiftsClosedBeforeDayClose" => DayCloseGroup,
             "RequireNoteWhenDayDifferenceExists" => DayCloseGroup,
+            ConfigurationKeys.EnableSafeDropManagement => DayCloseGroup,
 
             "RequirePackNumberForPayout" => PrizePayoutGroup,
             "RequireTicketNumberForPayout" => PrizePayoutGroup,

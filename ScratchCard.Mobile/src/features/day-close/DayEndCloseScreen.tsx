@@ -7,14 +7,18 @@ import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import {
+  addCanisterDrop,
   closeBusinessDay,
   getBusinessDay,
   getBusinessDayCloseAttachmentContent,
+  listCanisters,
+  listCanisterDrops,
   listBusinessDays,
   openBusinessDay,
   reopenBusinessDay,
 } from "../../api/businessDaysApi";
 import { getConfigurations } from "../../api/configurationsApi";
+import { getSubscriptionSummary } from "../../api/subscriptionApi";
 import { listPacks } from "../../api/packsApi";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
@@ -29,6 +33,7 @@ import { MainStackParamList } from "../../types/navigation";
 import { BusinessDay, ConfigurationItem, Shift } from "../../types/models";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
+import { useAuth } from "../../auth/AuthContext";
 
 type Props = NativeStackScreenProps<MainStackParamList, "DayEndClose">;
 
@@ -44,6 +49,8 @@ type CloseAttachmentState = {
 const MAX_CLOSE_ATTACHMENTS = 10;
 const MAX_CLOSE_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const DEFAULT_CLOSE_DAY_PAYOUT = "0";
+const SAFE_DROP_FEATURE_KEY = "SafeDropManagement";
+const SAFE_DROP_CONFIG_KEY = "EnableSafeDropManagement";
 
 function getStatusTone(status?: string): "neutral" | "warning" | "danger" | "success" {
   if (!status) return "neutral";
@@ -118,6 +125,17 @@ function getConfigurationValue(items: ConfigurationItem[] | undefined, key: stri
   const matched = items?.find((item) => item.configKey.toLowerCase() === key.toLowerCase());
   const value = matched?.configValue?.trim();
   return value && value.length > 0 ? value : fallback;
+}
+
+function parseConfigurationBool(rawValue: string, fallback = false) {
+  const normalized = rawValue.trim().toLowerCase();
+  if (normalized === "true" || normalized === "1" || normalized === "yes") {
+    return true;
+  }
+  if (normalized === "false" || normalized === "0" || normalized === "no") {
+    return false;
+  }
+  return fallback;
 }
 
 function parseTimeToMinutes(value: string, fallbackMinutes: number) {
@@ -353,10 +371,14 @@ function ShiftOperationsLoadingState() {
 export function DayEndCloseScreen({ route, navigation }: Props) {
   const { businessDayId } = route.params;
   const queryClient = useQueryClient();
+  const { profile, activeShop } = useAuth();
   const [notes, setNotes] = useState("");
   const [lottoPayoutAmount, setLottoPayoutAmount] = useState(DEFAULT_CLOSE_DAY_PAYOUT);
   const [scratchCardPayoutAmount, setScratchCardPayoutAmount] = useState(DEFAULT_CLOSE_DAY_PAYOUT);
   const [tillPayoutAmount, setTillPayoutAmount] = useState(DEFAULT_CLOSE_DAY_PAYOUT);
+  const [safeDropCanisterNumber, setSafeDropCanisterNumber] = useState("");
+  const [safeDropAmount, setSafeDropAmount] = useState("");
+  const [safeDropByName, setSafeDropByName] = useState("");
   const [reopenReason, setReopenReason] = useState("");
   const [targetBusinessDate, setTargetBusinessDate] = useState(formatDateValue(new Date()));
   const [isDayPickerModalVisible, setIsDayPickerModalVisible] = useState(false);
@@ -380,6 +402,31 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     queryKey: ["business-day", businessDayId],
     queryFn: () => getBusinessDay(businessDayId),
   });
+
+  const defaultSafeDropByName = useMemo(() => {
+    const displayName = profile?.displayName?.trim();
+    if (displayName) {
+      return displayName;
+    }
+
+    const firstName = profile?.firstName?.trim() ?? "";
+    const lastName = profile?.lastName?.trim() ?? "";
+    const fullName = `${firstName} ${lastName}`.trim();
+    if (fullName) {
+      return fullName;
+    }
+
+    return profile?.email?.trim() ?? "";
+  }, [profile?.displayName, profile?.email, profile?.firstName, profile?.lastName]);
+
+  useEffect(() => {
+    setSafeDropByName((previous) => {
+      if (previous.trim().length > 0) {
+        return previous;
+      }
+      return defaultSafeDropByName;
+    });
+  }, [defaultSafeDropByName]);
 
   useEffect(() => {
     const dayCloseSummary = dayQuery.data?.scratchCardDayCloseSummary;
@@ -561,9 +608,42 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       Alert.alert("Failed", error?.response?.data?.message ?? "Unable to start scheduled shift.");
     },
   });
+  const addCanisterDropMutation = useMutation({
+    mutationFn: async () => {
+      const canisterNumber = safeDropCanisterNumber.trim();
+      if (!canisterNumber) {
+        throw new Error("Canister number is required.");
+      }
+
+      const parsedAmount = Number(safeDropAmount.trim());
+      if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+        throw new Error("Amount must be a valid number greater than zero.");
+      }
+
+      return addCanisterDrop(businessDayId, {
+        canisterNumber,
+        amount: parsedAmount,
+        droppedByName: safeDropByName.trim() || undefined,
+      });
+    },
+    onSuccess: async () => {
+      setSafeDropCanisterNumber("");
+      setSafeDropAmount("");
+      setSafeDropByName((previous) => previous.trim() || defaultSafeDropByName);
+      Alert.alert("Saved", "Safe drop recorded successfully.");
+      await queryClient.invalidateQueries({ queryKey: ["safe-drop-canisters", businessDayId] });
+      await queryClient.invalidateQueries({ queryKey: ["safe-drops", businessDayId] });
+    },
+    onError: (error: any) => {
+      const message = error?.response?.data?.message ?? error?.message ?? "Unable to record safe drop.";
+      Alert.alert("Failed", message);
+    },
+  });
 
   const day = dayQuery.data;
   const status = day?.status;
+  const dayCompanyId = profile?.shops.find((shop) => shop.shopId === day?.shopId)?.companyId;
+  const companyId = dayCompanyId ?? activeShop?.companyId ?? profile?.primaryCompanyId;
   const persistedDayAttachments = day?.closeAttachments ?? [];
   const missingOpeningTicketCount = day?.missingOpeningTicketCount ?? 0;
   const missingOpeningTicketDetails = day?.missingOpeningTicketDetails ?? [];
@@ -600,6 +680,12 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     queryFn: () => getConfigurations(day?.shopId as string),
     enabled: Boolean(day?.shopId),
   });
+  const subscriptionSummaryQuery = useQuery({
+    queryKey: ["subscription-summary", companyId],
+    queryFn: () => getSubscriptionSummary(companyId as string),
+    enabled: Boolean(companyId),
+    staleTime: 5 * 60 * 1000,
+  });
   const packsQuery = useQuery({
     queryKey: ["packs", day?.shopId],
     queryFn: () => listPacks(day?.shopId as string),
@@ -609,6 +695,25 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     () => deriveShopOperationalSetup(configurationQuery.data),
     [configurationQuery.data],
   );
+  const subscriptionIncludedFeatures = subscriptionSummaryQuery.data?.includedFeatures ?? [];
+  const hasSafeDropSubscriptionFeature = subscriptionIncludedFeatures.some(
+    (feature) => feature.toLowerCase() === SAFE_DROP_FEATURE_KEY.toLowerCase(),
+  );
+  const safeDropConfigEnabled = parseConfigurationBool(
+    getConfigurationValue(configurationQuery.data, SAFE_DROP_CONFIG_KEY, "false"),
+    false,
+  );
+  const isSafeDropManagementVisible = hasSafeDropSubscriptionFeature && safeDropConfigEnabled;
+  const canistersQuery = useQuery({
+    queryKey: ["safe-drop-canisters", businessDayId],
+    queryFn: () => listCanisters(businessDayId),
+    enabled: isSafeDropManagementVisible,
+  });
+  const canisterDropsQuery = useQuery({
+    queryKey: ["safe-drops", businessDayId],
+    queryFn: () => listCanisterDrops(businessDayId),
+    enabled: isSafeDropManagementVisible,
+  });
   const businessDayTiming = useMemo(() => {
     const startRaw = getConfigurationValue(
       configurationQuery.data,
@@ -1022,6 +1127,10 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   const closableStatuses = new Set<ShiftStatus>([ShiftStatus.Open, ShiftStatus.Reopened]);
   const hasOpenShifts = shifts.some((shift) => closableStatuses.has(shift.status));
   const openShiftCount = shifts.filter((shift) => closableStatuses.has(shift.status)).length;
+  const canRecordSafeDrop = isSafeDropManagementVisible && hasOpenShifts && canManageShifts;
+  const safeDropSectionMessage = !hasOpenShifts
+    ? "Open a shift before recording safe drops."
+    : "Record each safe drop against the current open shift.";
   const scheduledShiftCount = shifts.filter((shift) => shift.status === ShiftStatus.Scheduled).length;
   const closedShiftCount = shifts.filter((shift) => closedSummaryStatuses.has(shift.status)).length;
   const dayStatusMessage = canClose
@@ -1478,6 +1587,124 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             );
           }) : null}
         </View>
+
+        {isSafeDropManagementVisible ? (
+          <View style={[ui.card, styles.sectionCard]}>
+            <View style={styles.sectionTitleRow}>
+              <Text style={styles.sectionTitle}>Safe Drop Management</Text>
+              <StatusBadge
+                label={`${canisterDropsQuery.data?.length ?? 0}`}
+                tone={(canisterDropsQuery.data?.length ?? 0) > 0 ? "success" : "neutral"}
+              />
+            </View>
+            <Text style={styles.meta}>{safeDropSectionMessage}</Text>
+            <Text style={styles.safeDropTableTitle}>Canister List</Text>
+            {canistersQuery.isFetching ? (
+              <Text style={styles.meta}>Loading canisters...</Text>
+            ) : canistersQuery.data && canistersQuery.data.length > 0 ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.safeDropTableScrollContent}>
+                <View style={styles.safeDropCanisterTable}>
+                  <View style={[styles.safeDropTableRow, styles.safeDropTableHeaderRow]}>
+                    <Text style={[styles.safeDropTableCell, styles.safeDropCanisterIdCell, styles.safeDropTableHeaderText]}>Canister ID</Text>
+                    <Text style={[styles.safeDropTableCell, styles.safeDropCanisterNumberCell, styles.safeDropTableHeaderText]}>Canister Number</Text>
+                    <Text style={[styles.safeDropTableCell, styles.safeDropCanisterShopIdCell, styles.safeDropTableHeaderText]}>Shop ID</Text>
+                    <Text style={[styles.safeDropTableCell, styles.safeDropCanisterActiveCell, styles.safeDropTableHeaderText]}>Active</Text>
+                  </View>
+                  {canistersQuery.data.map((canister) => (
+                    <View key={canister.id} style={styles.safeDropTableRow}>
+                      <Text style={[styles.safeDropTableCell, styles.safeDropCanisterIdCell]} numberOfLines={1}>
+                        {canister.id}
+                      </Text>
+                      <Text style={[styles.safeDropTableCell, styles.safeDropCanisterNumberCell]} numberOfLines={1}>
+                        {canister.canisterNumber}
+                      </Text>
+                      <Text style={[styles.safeDropTableCell, styles.safeDropCanisterShopIdCell]} numberOfLines={1}>
+                        {canister.shopId}
+                      </Text>
+                      <Text style={[styles.safeDropTableCell, styles.safeDropCanisterActiveCell]} numberOfLines={1}>
+                        {canister.isActive ? "Yes" : "No"}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
+            ) : (
+              <Text style={styles.meta}>No canisters available yet.</Text>
+            )}
+
+            <Text style={styles.safeDropTableTitle}>Safe Drop Entries</Text>
+            <Text style={styles.fieldLabel}>Canister Number</Text>
+            <TextInput
+              style={styles.input}
+              value={safeDropCanisterNumber}
+              onChangeText={setSafeDropCanisterNumber}
+              placeholder="Canister number"
+              placeholderTextColor={appTheme.colors.textSubtle}
+              editable={!addCanisterDropMutation.isPending}
+            />
+            <Text style={styles.fieldLabel}>Amount</Text>
+            <TextInput
+              style={styles.input}
+              value={safeDropAmount}
+              onChangeText={setSafeDropAmount}
+              placeholder="Amount"
+              placeholderTextColor={appTheme.colors.textSubtle}
+              keyboardType="decimal-pad"
+              editable={!addCanisterDropMutation.isPending}
+            />
+            <Text style={styles.fieldLabel}>Dropped By</Text>
+            <TextInput
+              style={styles.input}
+              value={safeDropByName}
+              onChangeText={setSafeDropByName}
+              placeholder="Dropped by"
+              placeholderTextColor={appTheme.colors.textSubtle}
+              editable={!addCanisterDropMutation.isPending}
+            />
+            <PrimaryButton
+              label={addCanisterDropMutation.isPending ? "Saving..." : "Add Safe Drop"}
+              onPress={() => addCanisterDropMutation.mutate()}
+              disabled={!canRecordSafeDrop || addCanisterDropMutation.isPending}
+            />
+
+            {canisterDropsQuery.isFetching ? (
+              <Text style={styles.meta}>Loading safe drops...</Text>
+            ) : canisterDropsQuery.data && canisterDropsQuery.data.length > 0 ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.safeDropTableScrollContent}>
+                <View style={styles.safeDropTable}>
+                  <View style={[styles.safeDropTableRow, styles.safeDropTableHeaderRow]}>
+                    <Text style={[styles.safeDropTableCell, styles.safeDropTableCellCanister, styles.safeDropTableHeaderText]}>Canister</Text>
+                    <Text style={[styles.safeDropTableCell, styles.safeDropTableCellAmount, styles.safeDropTableHeaderText]}>Amount</Text>
+                    <Text style={[styles.safeDropTableCell, styles.safeDropTableCellBy, styles.safeDropTableHeaderText]}>Dropped By</Text>
+                    <Text style={[styles.safeDropTableCell, styles.safeDropTableCellShift, styles.safeDropTableHeaderText]}>Shift</Text>
+                    <Text style={[styles.safeDropTableCell, styles.safeDropTableCellTime, styles.safeDropTableHeaderText]}>Time</Text>
+                  </View>
+                  {canisterDropsQuery.data.map((drop) => (
+                    <View key={drop.id} style={styles.safeDropTableRow}>
+                      <Text style={[styles.safeDropTableCell, styles.safeDropTableCellCanister]} numberOfLines={1}>
+                        {drop.canisterNumber}
+                      </Text>
+                      <Text style={[styles.safeDropTableCell, styles.safeDropTableCellAmount, styles.safeDropAmount]} numberOfLines={1}>
+                        {formatCurrency(drop.amount)}
+                      </Text>
+                      <Text style={[styles.safeDropTableCell, styles.safeDropTableCellBy]} numberOfLines={1}>
+                        {drop.droppedByName}
+                      </Text>
+                      <Text style={[styles.safeDropTableCell, styles.safeDropTableCellShift]} numberOfLines={1}>
+                        {drop.shiftName || "-"}
+                      </Text>
+                      <Text style={[styles.safeDropTableCell, styles.safeDropTableCellTime]} numberOfLines={1}>
+                        {new Date(drop.droppedOn).toLocaleString()}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
+            ) : (
+              <Text style={styles.meta}>No safe drops recorded for this day.</Text>
+            )}
+          </View>
+        ) : null}
 
         {missingOpeningTicketDetails.length > 0 ? (
           <View style={[ui.card, styles.sectionCard]}>
@@ -2528,6 +2755,86 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
   meta: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, lineHeight: 19, fontSize: 13 },
+  safeDropTableTitle: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 16,
+    marginTop: appTheme.spacing.xs,
+  },
+  safeDropTableScrollContent: {
+    paddingBottom: 2,
+  },
+  safeDropCanisterTable: {
+    minWidth: 840,
+    borderWidth: 0,
+    borderRadius: appTheme.radius.sm,
+    overflow: "hidden",
+    backgroundColor: appTheme.colors.surface,
+  },
+  safeDropTable: {
+    minWidth: 620,
+    borderWidth: 0,
+    borderRadius: appTheme.radius.sm,
+    overflow: "hidden",
+    backgroundColor: appTheme.colors.surface,
+  },
+  safeDropTableRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderBottomWidth: 0,
+    borderBottomColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surfaceMuted,
+  },
+  safeDropTableHeaderRow: {
+    backgroundColor: appTheme.colors.surfaceTintAlt,
+  },
+  safeDropTableCell: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
+    paddingHorizontal: appTheme.spacing.xs,
+    paddingVertical: 9,
+  },
+  safeDropTableHeaderText: {
+    fontFamily: appTheme.fonts.bodyMedium,
+    color: appTheme.colors.textSubtle,
+    textTransform: "uppercase",
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  safeDropTableCellCanister: {
+    width: 100,
+  },
+  safeDropCanisterIdCell: {
+    width: 260,
+  },
+  safeDropCanisterNumberCell: {
+    width: 180,
+  },
+  safeDropCanisterShopIdCell: {
+    width: 260,
+  },
+  safeDropCanisterActiveCell: {
+    width: 90,
+  },
+  safeDropTableCellAmount: {
+    width: 100,
+  },
+  safeDropTableCellBy: {
+    width: 140,
+  },
+  safeDropTableCellShift: {
+    width: 130,
+  },
+  safeDropTableCellTime: {
+    width: 190,
+  },
+  safeDropAmount: {
+    fontFamily: appTheme.fonts.bodyMedium,
+    color: appTheme.colors.primary,
+  },
   error: {
     color: appTheme.colors.danger,
     fontFamily: appTheme.fonts.bodyMedium,

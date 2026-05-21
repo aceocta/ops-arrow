@@ -31,6 +31,8 @@ public class Shop : AuditableEntity
     public ICollection<Delivery> Deliveries { get; set; } = new List<Delivery>();
     public ICollection<ScratchCardPack> ScratchCardPacks { get; set; } = new List<ScratchCardPack>();
     public ICollection<BusinessDay> BusinessDays { get; set; } = new List<BusinessDay>();
+    public ICollection<Canister> Canisters { get; set; } = new List<Canister>();
+    public ICollection<CanisterDrop> CanisterDrops { get; set; } = new List<CanisterDrop>();
     public ICollection<TemperatureMonitoringUnit> TemperatureMonitoringUnits { get; set; } = new List<TemperatureMonitoringUnit>();
     public ICollection<TemperatureReading> TemperatureReadings { get; set; } = new List<TemperatureReading>();
     public ICollection<TemperatureDailySignoff> TemperatureDailySignoffs { get; set; } = new List<TemperatureDailySignoff>();

@@ -7,4 +7,5 @@ public class CfgDayCloseSettings : CfgSettingsBase
     public string? WhoCanReopenDay { get; set; }
     public bool? RequireAllShiftsClosedBeforeDayClose { get; set; }
     public bool? RequireNoteWhenDayDifferenceExists { get; set; }
+    public bool? EnableSafeDropManagement { get; set; }
 }

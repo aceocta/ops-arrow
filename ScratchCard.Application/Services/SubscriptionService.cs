@@ -446,6 +446,7 @@ public class SubscriptionService : ISubscriptionService
             or SubscriptionStatus.Suspended
             or SubscriptionStatus.PaymentFailed
             or SubscriptionStatus.PastDue;
+        var includedFeatures = ServiceMappingExtensions.ParseIncludedFeatures(subscription.SubscriptionPlan.IncludedFeatures);
 
         return new SubscriptionSummaryDto
         {
@@ -466,7 +467,8 @@ public class SubscriptionService : ISubscriptionService
             CurrentPeriodStartedOn = subscription.CurrentPeriodStartedOn,
             CurrentPeriodEndsOn = subscription.CurrentPeriodEndsOn,
             TrialDaysRemaining = trialDaysRemaining,
-            RequiresBillingAction = requiresBillingAction
+            RequiresBillingAction = requiresBillingAction,
+            IncludedFeatures = includedFeatures
         };
     }
 

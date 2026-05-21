@@ -35,6 +35,7 @@ export type SubscriptionPlan = {
   pricePerShop: number;
   trialDays: number;
   description?: string;
+  includedFeatures?: string[];
   isActive: boolean;
 };
 
@@ -57,6 +58,7 @@ export type SubscriptionSummary = {
   currentPeriodEndsOn?: string;
   trialDaysRemaining?: number;
   requiresBillingAction: boolean;
+  includedFeatures?: string[];
 };
 
 export type Shop = {
@@ -189,6 +191,27 @@ export type MissingOpeningTicketDetail = {
   actualOpeningSerialNumber: string;
   missingQuantity: number;
   overageQuantity: number;
+};
+
+export type CanisterDrop = {
+  id: string;
+  shopId: string;
+  businessDayId: string;
+  shiftId: string;
+  canisterId: string;
+  shiftName: string;
+  canisterNumber: string;
+  amount: number;
+  droppedByUserId?: string;
+  droppedByName: string;
+  droppedOn: string;
+};
+
+export type Canister = {
+  id: string;
+  canisterNumber: string;
+  shopId: string;
+  isActive: boolean;
 };
 
 export type Shift = {

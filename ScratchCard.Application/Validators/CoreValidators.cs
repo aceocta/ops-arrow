@@ -287,6 +287,16 @@ public class OpenShiftRequestValidator : AbstractValidator<OpenShiftRequest>
     }
 }
 
+public class CreateCanisterDropRequestValidator : AbstractValidator<CreateCanisterDropRequest>
+{
+    public CreateCanisterDropRequestValidator()
+    {
+        RuleFor(x => x.CanisterNumber).NotEmpty().MaximumLength(60);
+        RuleFor(x => x.Amount).GreaterThan(0);
+        RuleFor(x => x.DroppedByName).MaximumLength(200);
+    }
+}
+
 public class OpenShiftPackSerialConfirmationRequestValidator : AbstractValidator<OpenShiftPackSerialConfirmationRequest>
 {
     public OpenShiftPackSerialConfirmationRequestValidator()

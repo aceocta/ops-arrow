@@ -34,9 +34,11 @@ public class ApplicationDbContext : DbContext
     public DbSet<DeliveryPack> DeliveryPacks => Set<DeliveryPack>();
     public DbSet<ScratchCardPack> ScratchCardPacks => Set<ScratchCardPack>();
     public DbSet<BusinessDay> BusinessDays => Set<BusinessDay>();
+    public DbSet<Canister> Canisters => Set<Canister>();
     public DbSet<Shift> Shifts => Set<Shift>();
     public DbSet<ShiftOpeningSerial> ShiftOpeningSerials => Set<ShiftOpeningSerial>();
     public DbSet<ShiftScratchCardSale> ShiftScratchCardSales => Set<ShiftScratchCardSale>();
+    public DbSet<CanisterDrop> CanisterDrops => Set<CanisterDrop>();
     public DbSet<PrizePayout> PrizePayouts => Set<PrizePayout>();
     public DbSet<ScratchCardDayCloseSummary> ScratchCardDayCloseSummaries => Set<ScratchCardDayCloseSummary>();
     public DbSet<ScratchCardDayReview> ScratchCardDayReviews => Set<ScratchCardDayReview>();
@@ -324,6 +326,27 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.Notes).HasMaxLength(1000);
             entity.HasOne(x => x.BusinessDay).WithMany(x => x.Shifts).HasForeignKey(x => x.BusinessDayId);
             entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId);
+        });
+
+        modelBuilder.Entity<Canister>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.CanisterNumber }).IsUnique();
+            entity.HasIndex(x => new { x.ShopId, x.IsActive });
+            entity.Property(x => x.CanisterNumber).HasMaxLength(60).IsRequired();
+            entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.HasOne(x => x.Shop).WithMany(x => x.Canisters).HasForeignKey(x => x.ShopId);
+        });
+
+        modelBuilder.Entity<CanisterDrop>(entity =>
+        {
+            entity.HasIndex(x => new { x.BusinessDayId, x.ShiftId, x.DroppedOn });
+            entity.HasIndex(x => new { x.ShopId, x.DroppedOn });
+            entity.Property(x => x.DroppedByName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Amount).HasPrecision(18, 2);
+            entity.HasOne(x => x.Shop).WithMany(x => x.CanisterDrops).HasForeignKey(x => x.ShopId);
+            entity.HasOne(x => x.BusinessDay).WithMany(x => x.CanisterDrops).HasForeignKey(x => x.BusinessDayId);
+            entity.HasOne(x => x.Shift).WithMany(x => x.CanisterDrops).HasForeignKey(x => x.ShiftId);
+            entity.HasOne(x => x.Canister).WithMany(x => x.CanisterDrops).HasForeignKey(x => x.CanisterId);
         });
 
         modelBuilder.Entity<ShiftOpeningSerial>(entity =>
@@ -649,6 +672,7 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.Name).HasMaxLength(120).IsRequired();
             entity.Property(x => x.PricePerShop).HasPrecision(18, 2);
             entity.Property(x => x.Description).HasMaxLength(500);
+            entity.Property(x => x.IncludedFeatures).HasMaxLength(2000);
         });
 
         modelBuilder.Entity<CompanySubscription>(entity =>

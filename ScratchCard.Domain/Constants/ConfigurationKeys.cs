@@ -13,4 +13,5 @@ public static class ConfigurationKeys
     public const string AllowCustomShiftName = "AllowCustomShiftName";
     public const string PackSellingOrder = "PackSellingOrder";
     public const string ScratchCardDisplayCount = "ScratchCardDisplayCount";
+    public const string EnableSafeDropManagement = "EnableSafeDropManagement";
 }
