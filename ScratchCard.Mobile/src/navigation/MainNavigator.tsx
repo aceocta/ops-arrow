@@ -376,7 +376,11 @@ function MainStackScreens() {
       <Stack.Screen name="OpenShift" component={OpenShiftScreen} options={{ title: "Shift Operations" }} />
       <Stack.Screen name="CloseShift" component={CloseShiftScreen} options={{ title: "Close Shift" }} />
       <Stack.Screen name="ShiftDetails" component={ShiftDetailsScreen} options={{ title: "Shift Details" }} />
-      <Stack.Screen name="ShiftClose" component={ShiftCloseScreen} options={{ title: "Shift Close" }} />
+      <Stack.Screen
+        name="ShiftClose"
+        component={ShiftCloseScreen}
+        options={{ title: "Shift Close", headerRight: () => null }}
+      />
       <Stack.Screen
         name="PrizePayout"
         component={PrizePayoutScreen}

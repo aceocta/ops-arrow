@@ -308,10 +308,10 @@ export function TemperatureLogScreen() {
                     )}
                   </View>
                   <View style={styles.unitRowBottom}>
-                    <Text style={styles.unitRowRange}>
+                    <Text style={styles.unitRowRange} numberOfLines={1}>
                       Range: {formatTemperature(unit.minTemperatureCelsius)} to {formatTemperature(unit.maxTemperatureCelsius)}
                     </Text>
-                    <Text style={styles.unitRowLast}>
+                    <Text style={styles.unitRowLast} numberOfLines={1}>
                       {latestReading
                         ? `Last: ${latestReading.readingTime} | ${formatTemperature(Number(latestReading.temperatureCelsius))}`
                         : "Last: No reading"}
@@ -814,19 +814,24 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   unitRowBottom: {
-    gap: 2,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
   },
   unitRowRange: {
     color: appTheme.colors.textMuted,
     fontFamily: appTheme.fonts.body,
     fontSize: 12,
     lineHeight: 16,
+    flex: 1,
   },
   unitRowLast: {
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 12,
     lineHeight: 16,
+    textAlign: "right",
   },
   unitRowActionHint: {
     color: appTheme.colors.primary,
