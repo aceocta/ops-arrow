@@ -1003,21 +1003,16 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
               {row.hasError ? <Text style={styles.error}>{row.message}</Text> : null}
 
               {hasClosingSerial ? (
-                <View style={styles.metricsBlock}>
-                  <View style={styles.metricsRow}>
-                    <View style={styles.metricTile}>
-                      <Text style={styles.metricLabel}>Price</Text>
-                      <Text style={styles.metricValue}>{formatCurrency(row.pack.ticketPrice)}</Text>
-                    </View>
-                    <View style={styles.metricTile}>
-                      <Text style={styles.metricLabel}>Qty</Text>
-                      <Text style={styles.metricValue}>{row.soldQuantity}</Text>
-                    </View>
-                    <View style={styles.metricTile}>
-                      <Text style={styles.metricLabel}>Sales Amount</Text>
-                      <Text style={[styles.metricValue, styles.metricValueRight]}>{formatCurrency(row.salesAmount)}</Text>
-                    </View>
-                  </View>
+                <View style={styles.metricsInlineRow}>
+                  <Text style={[styles.packMeta, styles.metricsInlineItem]}>
+                    Price {formatCurrency(row.pack.ticketPrice)}
+                  </Text>
+                  <Text style={[styles.packMeta, styles.metricsInlineItemCenter]}>
+                    Qty {row.soldQuantity}
+                  </Text>
+                  <Text style={[styles.packMeta, styles.metricsInlineItemRight]}>
+                    Sales {formatCurrency(row.salesAmount)}
+                  </Text>
                 </View>
               ) : null}
             </View>
@@ -1025,16 +1020,17 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
         })}
 
         <View style={[ui.card, styles.compactCard]}>
-          <Text style={styles.cardTitle}>Shift Totals</Text>
-          <Text style={styles.readonly}>Total sales: {formatCurrency(totals.salesAmount)}</Text>
+          {/* <Text style={styles.cardTitle}>Shift Totals</Text> */}
+          <Text style={styles.cardTitle}>Total sales: {formatCurrency(totals.salesAmount)}</Text>
           {/* <Text style={styles.meta}>{pendingRows > 0 ? `Pending: ${pendingRows}` : ""}</Text> */}
         </View>
 
         <View style={[ui.card, styles.compactCard]}>
-          <Text style={styles.fieldLabel}>Attachments (Optional)</Text>
+          {/* <Text style={styles.fieldLabel}>Attachments (Optional)</Text> */}
           {/* <Text style={styles.meta}>Up to 10 files. Images show a preview.</Text> */}
           {closeAttachments.length === 0 ? (
-            <Text style={styles.meta}>No attachments selected.</Text>
+            <></>
+            // <Text style={styles.meta}>No attachments selected.</Text>
           ) : (
             <Text style={styles.meta}>{closeAttachments.length} attachment(s) selected.</Text>
           )}
@@ -1379,6 +1375,22 @@ const styles = StyleSheet.create({
   },
   metricsBlock: {
     marginTop: 2,
+  },
+  metricsInlineRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.sm,
+  },
+  metricsInlineItem: {
+    flex: 1,
+  },
+  metricsInlineItemCenter: {
+    flex: 1,
+    textAlign: "center",
+  },
+  metricsInlineItemRight: {
+    flex: 1,
+    textAlign: "right",
   },
   metricsRow: {
     flexDirection: "row",
