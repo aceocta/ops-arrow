@@ -23,7 +23,7 @@ import { ui } from "../../ui/primitives";
 import { appTheme, type ThemeMode } from "../../ui/theme";
 import { getStoredThemeModePreference, setStoredThemeModePreference } from "../../ui/themePreference";
 import { getRoleDisplayName } from "../../utils/roleLabels";
-import { buildShiftTemplateId, SHOP_CONFIG_KEYS, serializeShiftTemplates, ShiftTemplateSetup } from "./shopConfiguration";
+import { buildShiftTemplateId, deriveShopOperationalSetup, SHOP_CONFIG_KEYS, serializeShiftTemplates, ShiftTemplateSetup } from "./shopConfiguration";
 
 async function reloadThemeImmediately() {
   try {
@@ -1171,6 +1171,7 @@ export function ShopManagementScreen() {
   const [country, setCountry] = useState("UK");
   const [scratchCardDisplayCount, setScratchCardDisplayCount] = useState("24");
   const [packSellingOrder, setPackSellingOrder] = useState<SellingOrder>(SellingOrder.Ascending);
+  const [hasEditedPackSettings, setHasEditedPackSettings] = useState(false);
 
   const companiesQuery = useQuery({
     queryKey: ["companies", "mine"],
@@ -1191,6 +1192,22 @@ export function ShopManagementScreen() {
     queryFn: () => listShops(resolvedCompanyId || undefined),
     enabled: companies.length > 0,
   });
+  const editingShopConfigurationsQuery = useQuery({
+    queryKey: ["configurations", editingShopId],
+    queryFn: () => getConfigurations(editingShopId ?? undefined),
+    enabled: Boolean(editingShopId),
+  });
+
+  useEffect(() => {
+    if (!editingShopId || !editingShopConfigurationsQuery.data) {
+      return;
+    }
+
+    const setup = deriveShopOperationalSetup(editingShopConfigurationsQuery.data);
+    setScratchCardDisplayCount(String(setup.scratchCardDisplayCount));
+    setPackSellingOrder(setup.packSellingOrder);
+    setHasEditedPackSettings(false);
+  }, [editingShopId, editingShopConfigurationsQuery.data]);
 
   const saveShopMutation = useMutation({
     mutationFn: async () => {
@@ -1204,6 +1221,15 @@ export function ShopManagementScreen() {
         throw new Error("Shop name, address, city, postcode, and country are required.");
       }
 
+      const shouldPersistPackSettings = !editingShopId || hasEditedPackSettings;
+      let parsedDisplayCount: number | null = null;
+      if (shouldPersistPackSettings) {
+        parsedDisplayCount = Number(scratchCardDisplayCount.trim());
+        if (!Number.isInteger(parsedDisplayCount) || parsedDisplayCount <= 0) {
+          throw new Error("Display count must be a whole number greater than 0.");
+        }
+      }
+
       const basePayload = {
         companyId: resolvedCompanyId,
         shopName: shopName.trim(),
@@ -1212,6 +1238,12 @@ export function ShopManagementScreen() {
         city: city.trim(),
         postCode: postCode.trim(),
         country: country.trim(),
+        ...(shouldPersistPackSettings
+          ? {
+              scratchCardDisplayCount: parsedDisplayCount as number,
+              packSellingOrder,
+            }
+          : {}),
       };
 
       if (editingShopId) {
@@ -1221,16 +1253,7 @@ export function ShopManagementScreen() {
         });
       }
 
-      const parsedDisplayCount = Number(scratchCardDisplayCount.trim());
-      if (!Number.isInteger(parsedDisplayCount) || parsedDisplayCount <= 0) {
-        throw new Error("Display count must be a whole number greater than 0.");
-      }
-
-      return createShop({
-        ...basePayload,
-        scratchCardDisplayCount: parsedDisplayCount,
-        packSellingOrder,
-      });
+      return createShop(basePayload);
     },
     onSuccess: () => {
       setEditingShopId(null);
@@ -1243,6 +1266,7 @@ export function ShopManagementScreen() {
       setCountry("UK");
       setScratchCardDisplayCount("24");
       setPackSellingOrder(SellingOrder.Ascending);
+      setHasEditedPackSettings(false);
       Alert.alert(editingShopId ? "Updated" : "Created", editingShopId ? "Shop updated successfully." : "Shop created successfully.");
       void Promise.all([queryClient.invalidateQueries({ queryKey: ["shops", resolvedCompanyId] }), refreshProfile()]);
     },
@@ -1260,6 +1284,9 @@ export function ShopManagementScreen() {
     setCity(shop.city);
     setPostCode(shop.postCode);
     setCountry(shop.country);
+    setScratchCardDisplayCount("24");
+    setPackSellingOrder(SellingOrder.Ascending);
+    setHasEditedPackSettings(false);
   }
 
   function cancelEditShop() {
@@ -1273,7 +1300,10 @@ export function ShopManagementScreen() {
     setCountry("UK");
     setScratchCardDisplayCount("24");
     setPackSellingOrder(SellingOrder.Ascending);
+    setHasEditedPackSettings(false);
   }
+
+  const isSavingDisabled = (!editingShopId && !canCreateShop) || (Boolean(editingShopId) && editingShopConfigurationsQuery.isLoading);
 
   return (
     <ScreenContainer>
@@ -1310,35 +1340,47 @@ export function ShopManagementScreen() {
           <TextInput style={styles.input} value={postCode} onChangeText={setPostCode} placeholder="Post code" />
           <Text style={styles.fieldLabel}>Country</Text>
           <TextInput style={styles.input} value={country} onChangeText={setCountry} placeholder="Country" />
-          {!editingShopId ? (
-            <View style={styles.subSectionCard}>
-              {/* <Text style={styles.subSectionTitle}>Pack Configuration</Text> */}
-              {/* <Text style={styles.caption}>These defaults are applied when creating packs for this shop.</Text> */}
-              <Text style={styles.fieldLabel}>Scratch Card Display Count</Text>
-              <TextInput
-                style={styles.input}
-                value={scratchCardDisplayCount}
-                onChangeText={setScratchCardDisplayCount}
-                placeholder="e.g. 24"
-                keyboardType="number-pad"
-              />
-              <Text style={styles.fieldLabel}>Pack Selling Order</Text>
-              <View style={styles.row}>
-                <Pressable
-                  style={[styles.choiceChip, packSellingOrder === SellingOrder.Ascending ? styles.choiceChipSelected : null]}
-                  onPress={() => setPackSellingOrder(SellingOrder.Ascending)}
-                >
-                  <Text style={[styles.choiceChipText, packSellingOrder === SellingOrder.Ascending ? styles.choiceChipTextSelected : null]}>Start From 0</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.choiceChip, packSellingOrder === SellingOrder.Descending ? styles.choiceChipSelected : null]}
-                  onPress={() => setPackSellingOrder(SellingOrder.Descending)}
-                >
-                  <Text style={[styles.choiceChipText, packSellingOrder === SellingOrder.Descending ? styles.choiceChipTextSelected : null]}>End To 0</Text>
-                </Pressable>
-              </View>
+          <View style={styles.subSectionCard}>
+            <Text style={styles.subSectionTitle}>Pack Settings</Text>
+            {editingShopId && editingShopConfigurationsQuery.isLoading ? (
+              <Text style={styles.meta}>Loading current pack settings...</Text>
+            ) : null}
+            {editingShopId && editingShopConfigurationsQuery.isError ? (
+              <Text style={styles.error}>Unable to load current pack settings. You can still set them manually.</Text>
+            ) : null}
+            <Text style={styles.fieldLabel}>Scratch Card Display Count</Text>
+            <TextInput
+              style={styles.input}
+              value={scratchCardDisplayCount}
+              onChangeText={(value) => {
+                setScratchCardDisplayCount(value);
+                setHasEditedPackSettings(true);
+              }}
+              placeholder="e.g. 24"
+              keyboardType="number-pad"
+            />
+            <Text style={styles.fieldLabel}>Pack Selling Order</Text>
+            <View style={styles.row}>
+              <Pressable
+                style={[styles.choiceChip, packSellingOrder === SellingOrder.Ascending ? styles.choiceChipSelected : null]}
+                onPress={() => {
+                  setPackSellingOrder(SellingOrder.Ascending);
+                  setHasEditedPackSettings(true);
+                }}
+              >
+                <Text style={[styles.choiceChipText, packSellingOrder === SellingOrder.Ascending ? styles.choiceChipTextSelected : null]}>Start From 0</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.choiceChip, packSellingOrder === SellingOrder.Descending ? styles.choiceChipSelected : null]}
+                onPress={() => {
+                  setPackSellingOrder(SellingOrder.Descending);
+                  setHasEditedPackSettings(true);
+                }}
+              >
+                <Text style={[styles.choiceChipText, packSellingOrder === SellingOrder.Descending ? styles.choiceChipTextSelected : null]}>End To 0</Text>
+              </Pressable>
             </View>
-          ) : null}
+          </View>
 
           {editingShopId ? (
             <View style={styles.row}>
@@ -1360,10 +1402,10 @@ export function ShopManagementScreen() {
           <Pressable
             style={[
               styles.actionButton,
-              (!editingShopId && !canCreateShop) ? styles.dateActionButtonDisabled : null,
+              isSavingDisabled ? styles.dateActionButtonDisabled : null,
             ]}
             onPress={() => saveShopMutation.mutate()}
-            disabled={!editingShopId && !canCreateShop}
+            disabled={isSavingDisabled}
           >
             <Text style={styles.actionButtonText}>
               {saveShopMutation.isPending
@@ -2027,6 +2069,7 @@ const styles = StyleSheet.create({
   },
   itemTitle: { fontFamily: appTheme.fonts.bodyMedium, color: appTheme.colors.text, fontSize: 14, lineHeight: 18 },
   meta: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 13, lineHeight: 18 },
+  error: { color: appTheme.colors.danger, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, lineHeight: 18 },
   fieldLabel: {
     color: appTheme.colors.text,
     fontSize: 13,
