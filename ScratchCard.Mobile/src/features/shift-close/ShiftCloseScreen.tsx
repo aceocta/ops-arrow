@@ -1156,7 +1156,7 @@ const styles = StyleSheet.create({
     gap: appTheme.spacing.sm,
   },
   packCard: {
-    gap: appTheme.spacing.sm,
+    gap: appTheme.spacing.xs,
   },
   packCardPending: {
     backgroundColor: appTheme.colors.surface,
@@ -1188,8 +1188,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   packTitle: {
-    fontSize: 16,
-    lineHeight: 21,
+    fontSize: 15,
+    lineHeight: 19,
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
     flex: 1,
@@ -1217,8 +1217,8 @@ const styles = StyleSheet.create({
   packMeta: {
     color: appTheme.colors.textMuted,
     fontFamily: appTheme.fonts.body,
-    lineHeight: 18,
-    fontSize: 13,
+    lineHeight: 16,
+    fontSize: 12,
   },
   packMetaRow: {
     flexDirection: "row",
@@ -1248,7 +1248,7 @@ const styles = StyleSheet.create({
   scanInputRow: {
     flexDirection: "row",
     alignItems: "stretch",
-    gap: appTheme.spacing.xs,
+    gap: 6,
   },
   scanInputCell: {
     flex: 1,
@@ -1257,7 +1257,7 @@ const styles = StyleSheet.create({
   },
   inlineScanButton: {
     width: "100%",
-    height: 44,
+    height: 38,
     borderWidth: 0,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceInfoSoft,
@@ -1266,7 +1266,7 @@ const styles = StyleSheet.create({
   },
   soldOutButton: {
     width: "100%",
-    height: 44,
+    height: 38,
     borderWidth: 0,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceTintSoft,
@@ -1277,75 +1277,75 @@ const styles = StyleSheet.create({
   soldOutButtonText: {
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 12,
-    lineHeight: 14,
+    fontSize: 11,
+    lineHeight: 13,
   },
   actionButtonDisabled: {
     opacity: 0.55,
   },
   scanIconWrap: {
-    width: 22,
-    height: 22,
+    width: 18,
+    height: 18,
     position: "relative",
     alignItems: "center",
     justifyContent: "center",
   },
   scanCorner: {
     position: "absolute",
-    width: 6,
-    height: 6,
+    width: 5,
+    height: 5,
     borderColor: appTheme.colors.textSubtle,
   },
   scanCornerTopLeft: {
-    top: 1,
-    left: 1,
+    top: 0.5,
+    left: 0.5,
     borderTopWidth: 1.5,
     borderLeftWidth: 1.5,
   },
   scanCornerTopRight: {
-    top: 1,
-    right: 1,
+    top: 0.5,
+    right: 0.5,
     borderTopWidth: 1.5,
     borderRightWidth: 1.5,
   },
   scanCornerBottomLeft: {
-    bottom: 1,
-    left: 1,
+    bottom: 0.5,
+    left: 0.5,
     borderBottomWidth: 1.5,
     borderLeftWidth: 1.5,
   },
   scanCornerBottomRight: {
-    bottom: 1,
-    right: 1,
+    bottom: 0.5,
+    right: 0.5,
     borderBottomWidth: 1.5,
     borderRightWidth: 1.5,
   },
   inlineScanGlyph: {
     flexDirection: "row",
     alignItems: "flex-end",
-    height: 14,
-    gap: 1.5,
+    height: 11,
+    gap: 1,
   },
   barcodeBar: {
     backgroundColor: appTheme.colors.text,
     borderRadius: 0.5,
   },
   barcodeBarThin: {
-    width: 1.75,
-    height: 9,
+    width: 1.5,
+    height: 7,
   },
   barcodeBarMedium: {
-    width: 2.5,
-    height: 12,
+    width: 2,
+    height: 9,
   },
   barcodeBarWide: {
-    width: 3,
-    height: 14,
+    width: 2.5,
+    height: 11,
   },
   inlineSerialInput: {
     width: "100%",
-    height: 44,
-    paddingVertical: 10,
+    height: 38,
+    paddingVertical: 6,
   },
   readonly: {
     color: appTheme.colors.info,
