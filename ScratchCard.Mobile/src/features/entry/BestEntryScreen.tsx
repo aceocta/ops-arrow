@@ -47,14 +47,6 @@ const operationOptions: OperationOption[] = [
     iconColor: appTheme.colors.warning,
     iconBg: appTheme.colors.surfaceWarningSoft,
     operation: "refusals",
-  },{
-    key: "checklist",
-    title: "Shop Checklist",
-    route: "ShopChecklist",
-    icon: "checkmark-done-outline",
-    iconColor: appTheme.colors.primary,
-    iconBg: appTheme.colors.surfaceSuccessSoft,
-    operation: "checklist",
   },
   {
     key: "compliance",

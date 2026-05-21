@@ -306,6 +306,17 @@ function getMonthAnchorDate(value: string) {
   return formatDateValue(new Date(parsed.getFullYear(), parsed.getMonth(), 1));
 }
 
+function shiftDateValueByDays(value: string, days: number) {
+  const parsed = parseDateValue(value);
+  if (!parsed) {
+    return value;
+  }
+
+  const shifted = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  shifted.setDate(shifted.getDate() + days);
+  return formatDateValue(shifted);
+}
+
 function resolveDefaultCheckedByName(profile?: {
   firstName?: string;
   lastName?: string;
@@ -726,6 +737,7 @@ export function ComplianceChecksScreen() {
 
   const [frequency, setFrequency] = useState<ComplianceCheckFrequency>("Daily");
   const [selectedDate, setSelectedDate] = useState(formatDateValue(new Date()));
+  const [showPendingOnly, setShowPendingOnly] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, EntryDraft>>({});
   const [editorState, setEditorState] = useState<NoteEditorState>(null);
   const [editorValue, setEditorValue] = useState("");
@@ -759,8 +771,20 @@ export function ComplianceChecksScreen() {
   });
 
   const periodGroups = logQuery.data?.groups;
-  const visiblePeriodGroups = periodGroups ?? [];
   const allRows = useMemo(() => flattenRows(periodGroups ?? []), [periodGroups]);
+  const visiblePeriodGroups = useMemo(() => {
+    const groups = periodGroups ?? [];
+    if (!showPendingOnly) {
+      return groups;
+    }
+
+    return groups
+      .map((group) => ({
+        ...group,
+        rows: group.rows.filter((row) => (drafts[row.item.id]?.result ?? row.entry?.result ?? "Pending") === "Pending"),
+      }))
+      .filter((group) => group.rows.length > 0);
+  }, [drafts, periodGroups, showPendingOnly]);
   const rowByItemId = useMemo(() => {
     const next: Record<string, ComplianceCheckPeriodRow> = {};
     for (const row of allRows) {
@@ -1252,6 +1276,10 @@ export function ComplianceChecksScreen() {
     setSelectedDate(formatDateValue(new Date(selectedMonthYear + delta, selectedMonthIndex, 1)));
   }
 
+  function shiftDailyDate(delta: number) {
+    setSelectedDate((previous) => shiftDateValueByDays(previous, delta));
+  }
+
   function runComplianceReport(action: ComplianceReportAction) {
     complianceMatrixReportMutation.mutate(action);
   }
@@ -1315,7 +1343,7 @@ export function ComplianceChecksScreen() {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} stickyHeaderIndices={[0]}>
         {/* <View style={styles.heroCard}>
           <View style={styles.heroHead}>
             <View style={{ flex: 1 }}>
@@ -1353,25 +1381,65 @@ export function ComplianceChecksScreen() {
           </View>
         </View> */}
 
-        <View style={ui.card}>
-          <Text style={styles.fieldLabel}>Frequency</Text>
-          <View style={styles.chipRow}>
-            {frequencyOptions.map((option) => {
-              const selected = frequency === option;
-              return (
-                <Pressable
-                  key={option}
-                  style={[styles.choiceChip, selected ? styles.choiceChipSelected : null]}
-                  onPress={() => setFrequency(option)}
-                >
-                  <Text style={[styles.choiceChipText, selected ? styles.choiceChipTextSelected : null]}>{option}</Text>
-                </Pressable>
-              );
-            })}
+        <View style={styles.frequencyStickyWrap}>
+          <View style={[ui.card, styles.frequencyStickyCard]}>
+            <View style={styles.chipRow}>
+              {frequencyOptions.map((option) => {
+                const selected = frequency === option;
+                return (
+                  <Pressable
+                    key={option}
+                    style={[styles.choiceChip, selected ? styles.choiceChipSelected : null]}
+                    onPress={() => setFrequency(option)}
+                  >
+                    <Text style={[styles.choiceChipText, selected ? styles.choiceChipTextSelected : null]}>{option}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
+        </View>
+
+        <View style={ui.card}>
+          {/* <View style={styles.chipRow}>
+            <Pressable
+              style={[styles.choiceChip, styles.quickFilterChip, !showPendingOnly ? styles.choiceChipSelected : null]}
+              onPress={() => setShowPendingOnly(false)}
+            >
+              <Text style={[styles.choiceChipText, !showPendingOnly ? styles.choiceChipTextSelected : null]}>
+                All Checks
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.choiceChip, styles.quickFilterChip, showPendingOnly ? styles.choiceChipSelected : null]}
+              onPress={() => setShowPendingOnly(true)}
+            >
+              <Text style={[styles.choiceChipText, showPendingOnly ? styles.choiceChipTextSelected : null]}>
+                Pending Only ({summary.pending})
+              </Text>
+            </Pressable>
+          </View> */}
           {frequency === "Daily" ? (
             <>
-              <DateTimeField mode="date" value={selectedDate} onChange={setSelectedDate} />
+              <View style={styles.dailyDateNavRow}>
+                <Pressable
+                  style={styles.dailyDateNavButton}
+                  onPress={() => shiftDailyDate(-1)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Previous day"
+                >
+                  <Text style={styles.dailyDateNavButtonText}>{"<"}</Text>
+                </Pressable>
+                <DateTimeField style={{ flex: 1 }} mode="date" value={selectedDate} onChange={setSelectedDate} />
+                <Pressable
+                  style={styles.dailyDateNavButton}
+                  onPress={() => shiftDailyDate(1)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Next day"
+                >
+                  <Text style={styles.dailyDateNavButtonText}>{">"}</Text>
+                </Pressable>
+              </View>
               {/* <Text style={styles.meta}>Selected date: {formatDay(selectedDate)}</Text> */}
             </>
           ) : null}
@@ -1451,10 +1519,13 @@ export function ComplianceChecksScreen() {
 
         {logQuery.isLoading ? <Text style={styles.meta}>Loading checks...</Text> : null}
         {visiblePeriodGroups.map((periodGroup) => (
-          <View key={periodGroup.group.id} style={ui.card}>
+          <View key={periodGroup.group.id} style={[ui.card, styles.periodGroupCardTight]}>
             <View style={[styles.rowBetween, styles.groupHeaderRow]}>
               <Text style={styles.groupTitle}>{periodGroup.group.groupName}</Text>
-              <StatusBadge label={`${periodGroup.completedCount}/${periodGroup.totalCount}`} tone="neutral" />
+              <StatusBadge
+                label={showPendingOnly ? `${periodGroup.rows.length} pending` : `${periodGroup.completedCount}/${periodGroup.totalCount}`}
+                tone={showPendingOnly ? "warning" : "neutral"}
+              />
             </View>
             {periodGroup.group.description ? <Text style={styles.meta}>{periodGroup.group.description}</Text> : null}
             <View style={styles.groupRows}>
@@ -1680,8 +1751,10 @@ export function ComplianceChecksScreen() {
         ))}
 
         {visiblePeriodGroups.length === 0 && !logQuery.isLoading ? (
-          <View style={ui.card}>
-            <Text style={styles.meta}>No compliance groups configured for this frequency.</Text>
+          <View style={[ui.card, styles.periodGroupCardTight]}>
+            <Text style={styles.meta}>
+              {showPendingOnly ? "No pending checks for this period." : "No compliance groups configured for this frequency."}
+            </Text>
           </View>
         ) : null}
       </ScrollView>
@@ -2304,6 +2377,13 @@ const styles = StyleSheet.create({
     gap: appTheme.spacing.sm,
     paddingBottom: appTheme.spacing.sm,
   },
+  frequencyStickyWrap: {
+    backgroundColor: appTheme.colors.background,
+  },
+  frequencyStickyCard: {
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.xs,
+  },
   pageTitle: {
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.heading,
@@ -2440,6 +2520,37 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 4,
+  },
+  quickFilterRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+    marginTop: 2,
+  },
+  quickFilterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  dailyDateNavRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+  },
+  dailyDateNavButton: {
+    width: 32,
+    height: 32,
+    borderRadius: appTheme.radius.sm,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dailyDateNavButtonText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 16,
+    lineHeight: 18,
   },
   resultChoiceRow: {
     flexDirection: "row",
@@ -2670,6 +2781,9 @@ const styles = StyleSheet.create({
   reportButtonRow: {
     flexDirection: "row",
     gap: appTheme.spacing.xs,
+  },
+  periodGroupCardTight: {
+    marginHorizontal: -appTheme.spacing.xs,
   },
   monthYearPickerRow: {
     flexDirection: "row",
@@ -2930,4 +3044,3 @@ const styles = StyleSheet.create({
     opacity: 0.94,
   },
 });
-
