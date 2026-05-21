@@ -9,7 +9,6 @@ import { getConfigurations } from "../../api/configurationsApi";
 import { getActivePacksForShift, finalizeShift, getShift } from "../../api/shiftsApi";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
-import { StatusBadge } from "../../components/StatusBadge";
 import { enqueueOfflineShiftClose } from "../../offline/queueRepository";
 import { clearShiftDraft, getShiftDraft } from "../../offline/draftRepository";
 import { calculateShiftSales } from "../../utils/serialCalculation";
@@ -232,23 +231,6 @@ function getLastSerialForPack(pack: ScratchCardPack) {
   return pack.sellingOrder === SellingOrder.Descending
     ? pack.startSerialNumber
     : pack.endSerialNumber;
-}
-
-function getShiftStatusTone(status?: string): "neutral" | "warning" | "danger" | "success" {
-  if (!status) return "neutral";
-  if (status === ShiftStatus.Open) return "success";
-  if (status === ShiftStatus.Scheduled) return "warning";
-  if (status === ShiftStatus.Reopened) return "warning";
-  if (status === ShiftStatus.Closed || status === ShiftStatus.Approved) return "neutral";
-  return "neutral";
-}
-
-function getBusinessDayStatusTone(status?: string): "neutral" | "warning" | "danger" | "success" {
-  if (!status) return "neutral";
-  if (status === "Closed") return "success";
-  if (status === "ReadyToClose") return "warning";
-  if (status === "Reopened") return "danger";
-  return "neutral";
 }
 
 function formatCurrency(value: number) {
@@ -789,19 +771,12 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={[ui.card, styles.summaryCard]}>
           <View style={styles.summaryHeaderRow}>
-            <View style={styles.summaryHeading}>
-              {/* <Text style={styles.summaryEyebrow}>Shift Close</Text> */}
-              <Text style={styles.summaryTitle}>{shiftQuery.data?.shiftName ?? "-"}</Text>
-              <Text style={styles.meta}>Business Date: {businessDayQuery.data?.businessDate ?? "-"}</Text>
-            </View>
-            <StatusBadge label={shiftQuery.data?.status ?? "-"} tone={getShiftStatusTone(shiftQuery.data?.status)} />
-          </View>
-          <View style={styles.summaryStatusRow}>
-            {/* <StatusBadge
-              label={businessDayQuery.data?.status ?? "-"}
-              tone={getBusinessDayStatusTone(businessDayQuery.data?.status)}
-            /> */}
-            {/* <StatusBadge label={isOnline ? "Online" : "Offline"} tone={isOnline ? "success" : "warning"} /> */}
+            <Text style={styles.summaryTitle} numberOfLines={1}>
+              {shiftQuery.data?.shiftName ?? "-"}
+            </Text>
+            <Text style={styles.summaryDate} numberOfLines={1}>
+              {businessDayQuery.data?.businessDate ?? "-"}
+            </Text>
           </View>
           {/* <View style={styles.progressRow}> */}
             {/* <View style={styles.progressTile}>
@@ -844,9 +819,6 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
           {/* <Text style={styles.cardTitle}>Quick Scan</Text>
           <Text style={styles.meta}>Scan continuously and auto-apply closing serials by pack.</Text> */}
       
-          {!isManualClosingSerialEnabled && isCameraScanningEnabled ? (
-            <Text style={styles.meta}>Manual closing serial entry is disabled. Use scan for each pack.</Text>
-          ) : null}
           {/* <Text style={styles.meta}>{readinessMessage}</Text> */}
           {/* {scanStatus ? <Text style={styles.scanStatus}>{scanStatus}</Text> : null} */}
         {/* </View> */}
@@ -1113,7 +1085,7 @@ const styles = StyleSheet.create({
     gap: appTheme.spacing.sm,
   },
   summaryCard: {
-    gap: appTheme.spacing.sm,
+    gap: appTheme.spacing.xs,
   },
   summaryHeaderRow: {
     flexDirection: "row",
@@ -1136,8 +1108,16 @@ const styles = StyleSheet.create({
   summaryTitle: {
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.heading,
-    fontSize: 22,
-    lineHeight: 28,
+    fontSize: 18,
+    lineHeight: 22,
+    flex: 1,
+  },
+  summaryDate: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 16,
+    textAlign: "right",
   },
   summaryStatusRow: {
     flexDirection: "row",
