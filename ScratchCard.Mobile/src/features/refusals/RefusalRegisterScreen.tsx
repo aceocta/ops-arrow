@@ -71,6 +71,18 @@ function formatReviewedOn(value?: string) {
   return `${parsed.toLocaleDateString()} ${parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 }
 
+function shiftDateByDays(dateValue: string, days: number) {
+  const parts = dateValue.split("-").map((part) => Number(part));
+  if (parts.length !== 3 || parts.some((part) => Number.isNaN(part))) {
+    return dateValue;
+  }
+
+  const [year, month, day] = parts;
+  const shifted = new Date(year, month - 1, day);
+  shifted.setDate(shifted.getDate() + days);
+  return formatDateValue(shifted);
+}
+
 function buildRefusalReportHtml(input: {
   shopName: string;
   date: string;
@@ -335,6 +347,9 @@ export function RefusalRegisterScreen() {
   const saveSignatureFromPad = () => {
     signatureRef.current?.readSignature();
   };
+  const moveSelectedDate = (days: number) => {
+    setSelectedDate((current) => shiftDateByDays(current, days));
+  };
   const refusalDateTimeValue = `${selectedDate} ${refusalTime}`;
 
   const buildReportHtml = async () => {
@@ -415,10 +430,9 @@ export function RefusalRegisterScreen() {
 
   return (
     <ScreenContainer>
-      <View style={styles.screenHeaderCard}>
+      {/* <View style={styles.screenHeaderCard}>
         <View style={styles.screenHeaderTopRow}>
           <View style={styles.screenHeaderTitleWrap}>
-            {/* <Text style={styles.screenHeaderEyebrow}>No ID / No Sale</Text> */}
             <Text style={styles.screenHeaderTitle}>Refusal Register</Text>
             <Text style={styles.screenHeaderMeta}>Shop: {activeShop?.shopName ?? "-"}</Text>
           </View>
@@ -438,12 +452,20 @@ export function RefusalRegisterScreen() {
             <Text style={styles.headerMetricLabel}>Pending</Text>
           </View>
         </View>
-      </View>
+      </View> */}
 
       <View style={ui.card}>
-        <Text style={styles.sectionTitle}>Refusal</Text>
-        <Text style={styles.sectionSubtitle}>Record refusal details and capture a staff signature.</Text>
-        <View style={styles.row}>
+        {/* <Text style={styles.sectionTitle}>Refusal</Text> */}
+        {/* <Text style={styles.sectionSubtitle}>Record refusal details and capture a staff signature.</Text> */}
+        <View style={styles.dateNavRow}>
+          <Pressable
+            style={styles.dateNavButton}
+            onPress={() => moveSelectedDate(-1)}
+            accessibilityRole="button"
+            accessibilityLabel="Previous day"
+          >
+            <Text style={styles.dateNavButtonText}>{"<"}</Text>
+          </Pressable>
           <DateTimeField
             style={{ flex: 1 }}
             mode="datetime"
@@ -458,6 +480,14 @@ export function RefusalRegisterScreen() {
               setRefusalTime(formatTimeValue(parsed));
             }}
           />
+          <Pressable
+            style={styles.dateNavButton}
+            onPress={() => moveSelectedDate(1)}
+            accessibilityRole="button"
+            accessibilityLabel="Next day"
+          >
+            <Text style={styles.dateNavButtonText}>{">"}</Text>
+          </Pressable>
         </View>
 
         <Text style={styles.fieldLabel}>Product</Text>
@@ -726,6 +756,27 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     gap: appTheme.spacing.xs,
+  },
+  dateNavRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+  },
+  dateNavButton: {
+    width: 32,
+    height: 32,
+    borderRadius: appTheme.radius.sm,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dateNavButtonText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 16,
+    lineHeight: 18,
   },
   input: {
     borderWidth: 0,
