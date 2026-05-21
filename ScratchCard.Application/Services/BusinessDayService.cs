@@ -889,6 +889,54 @@ public class BusinessDayService : IBusinessDayService
                 group => (IReadOnlyCollection<MissingOpeningTicketDetailDto>)group.Select(x => x.Detail).ToArray());
     }
 
+    private async Task<bool> IsSafeDropManagementEnabledForReportAsync(Guid shopId, CancellationToken cancellationToken)
+    {
+        var companyId = await _shopRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.Id == shopId && !x.IsDeleted && x.CompanyId.HasValue)
+            .Select(x => x.CompanyId!.Value)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (companyId == Guid.Empty)
+        {
+            return false;
+        }
+
+        var companySubscription = await _companySubscriptionRepository.Query()
+            .AsNoTracking()
+            .Include(x => x.SubscriptionPlan)
+            .FirstOrDefaultAsync(x => x.CompanyId == companyId, cancellationToken);
+        if (companySubscription?.SubscriptionPlan is null)
+        {
+            return false;
+        }
+
+        var includedFeatures = ServiceMappingExtensions.ParseIncludedFeatures(companySubscription.SubscriptionPlan.IncludedFeatures);
+        var hasSubscriptionFeature = includedFeatures.Any(
+            x => string.Equals(x, FeatureKeys.SafeDropManagement, StringComparison.OrdinalIgnoreCase));
+        if (!hasSubscriptionFeature)
+        {
+            return false;
+        }
+
+        var settingsRows = await _dayCloseSettingsRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.IsActive && (x.ShopId == null || x.ShopId == shopId))
+            .OrderByDescending(x => x.ShopId == shopId)
+            .ThenByDescending(x => x.ModifiedOn ?? x.CreatedOn)
+            .ToListAsync(cancellationToken);
+
+        var shopValue = settingsRows
+            .Where(x => x.ShopId == shopId)
+            .Select(x => x.EnableSafeDropManagement)
+            .FirstOrDefault();
+        var globalValue = settingsRows
+            .Where(x => x.ShopId == null)
+            .Select(x => x.EnableSafeDropManagement)
+            .FirstOrDefault();
+
+        return shopValue ?? globalValue ?? false;
+    }
+
     private async Task EnsureSafeDropManagementEnabledAsync(Guid shopId, CancellationToken cancellationToken)
     {
         var companyId = await _shopRepository.Query()
@@ -977,8 +1025,31 @@ public class BusinessDayService : IBusinessDayService
             .Where(x => x.BusinessDayId == day.Id)
             .SumAsync(x => (int?)x.MissingQuantity, cancellationToken) ?? 0;
 
+        var safeDropManagementEnabled = await IsSafeDropManagementEnabledForReportAsync(day.ShopId, cancellationToken);
+        var safeDropRows = safeDropManagementEnabled
+            ? await _canisterDropRepository.Query()
+                .AsNoTracking()
+                .Where(x => x.BusinessDayId == day.Id)
+                .OrderByDescending(x => x.DroppedOn)
+                .ThenByDescending(x => x.CreatedOn)
+                .Select(x => new SafeDropSummaryRow(
+                    x.Canister.CanisterNumber,
+                    x.Amount,
+                    x.DroppedByName,
+                    x.Shift.ShiftName,
+                    x.DroppedOn))
+                .ToArrayAsync(cancellationToken)
+            : [];
+
         var subject = $"Day Close Summary - {shopName} - {day.BusinessDate:yyyy-MM-dd}";
-        var body = BuildDayCloseSummaryBodyHtml(shopName, day, shifts, entries, missingOpeningTicketCount);
+        var body = BuildDayCloseSummaryBodyHtml(
+            shopName,
+            day,
+            shifts,
+            entries,
+            missingOpeningTicketCount,
+            safeDropRows,
+            safeDropManagementEnabled);
 
         foreach (var recipient in recipients)
         {
@@ -1122,12 +1193,21 @@ public class BusinessDayService : IBusinessDayService
             .ToList();
     }
 
+    private sealed record SafeDropSummaryRow(
+        string CanisterNumber,
+        decimal Amount,
+        string DroppedByName,
+        string ShiftName,
+        DateTimeOffset DroppedOn);
+
     private static string BuildDayCloseSummaryBodyHtml(
         string shopName,
         BusinessDay day,
         IReadOnlyCollection<Shift> shifts,
         IReadOnlyCollection<ShiftScratchCardSale> entries,
-        int missingOpeningTicketCount)
+        int missingOpeningTicketCount,
+        IReadOnlyCollection<SafeDropSummaryRow> safeDropRows,
+        bool safeDropManagementEnabled)
     {
         var rows = entries
             .Select(entry => new
@@ -1207,6 +1287,27 @@ public class BusinessDayService : IBusinessDayService
                         "</tr>";
                 }));
 
+        var safeDropTotalAmount = safeDropRows.Sum(x => x.Amount);
+        var safeDropRowsHtml = safeDropRows.Count == 0
+            ? "<tr><td colspan=\"5\" class=\"empty\">No safe drops recorded for this business day.</td></tr>"
+            : string.Join(
+                string.Empty,
+                safeDropRows.Select(row =>
+                {
+                    var canisterNumber = string.IsNullOrWhiteSpace(row.CanisterNumber) ? "-" : row.CanisterNumber;
+                    var droppedByName = string.IsNullOrWhiteSpace(row.DroppedByName) ? "-" : row.DroppedByName;
+                    var shiftName = string.IsNullOrWhiteSpace(row.ShiftName) ? "-" : row.ShiftName;
+                    var droppedOnUtc = row.DroppedOn.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+                    return
+                        "<tr>" +
+                        $"<td>{WebUtility.HtmlEncode(canisterNumber)}</td>" +
+                        $"<td class=\"num\">{row.Amount.ToString("0.00", CultureInfo.InvariantCulture)}</td>" +
+                        $"<td>{WebUtility.HtmlEncode(droppedByName)}</td>" +
+                        $"<td>{WebUtility.HtmlEncode(shiftName)}</td>" +
+                        $"<td>{WebUtility.HtmlEncode(droppedOnUtc)} UTC</td>" +
+                        "</tr>";
+                }));
+
         var sb = new StringBuilder();
         sb.Append("<html><head><style>");
         sb.Append("body{font-family:Arial,Helvetica,sans-serif;background:#f3f7fc;color:#152231;margin:0;padding:18px;}");
@@ -1281,6 +1382,20 @@ public class BusinessDayService : IBusinessDayService
         sb.Append($"<td class=\"num\">{totalSoldQty.ToString(CultureInfo.InvariantCulture)}</td>");
         sb.Append($"<td class=\"num\">{totalSales.ToString("0.00", CultureInfo.InvariantCulture)}</td>");
         sb.Append("</tr></tfoot></table>");
+
+        if (safeDropManagementEnabled)
+        {
+            sb.Append("<div class=\"table-title\">Safe Drop Detail</div>");
+            sb.Append("<table class=\"report-table\"><thead><tr>");
+            sb.Append("<th>Canister</th><th class=\"num\">Amount</th><th>Dropped By</th><th>Shift</th><th>Dropped On (UTC)</th>");
+            sb.Append("</tr></thead><tbody>");
+            sb.Append(safeDropRowsHtml);
+            sb.Append("</tbody><tfoot><tr>");
+            sb.Append("<td class=\"num\">Total</td>");
+            sb.Append($"<td class=\"num\">{safeDropTotalAmount.ToString("0.00", CultureInfo.InvariantCulture)}</td>");
+            sb.Append($"<td colspan=\"3\">Entries: {safeDropRows.Count.ToString(CultureInfo.InvariantCulture)}</td>");
+            sb.Append("</tr></tfoot></table>");
+        }
 
         if (!string.IsNullOrWhiteSpace(day.Notes))
         {

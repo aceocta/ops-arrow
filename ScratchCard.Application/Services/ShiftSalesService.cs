@@ -24,6 +24,9 @@ public class ShiftSalesService : IShiftSalesService
     private readonly IRepository<PrizePayout> _payoutRepository;
     private readonly IRepository<ShiftReconciliation> _reconciliationRepository;
     private readonly IRepository<ShiftCloseAttachment> _shiftCloseAttachmentRepository;
+    private readonly IRepository<CanisterDrop> _canisterDropRepository;
+    private readonly IRepository<CfgDayCloseSettings> _dayCloseSettingsRepository;
+    private readonly IRepository<CompanySubscription> _companySubscriptionRepository;
     private readonly IRepository<ShopUser> _shopUserRepository;
     private readonly IRepository<Shop> _shopRepository;
     private readonly IShopConfigurationService _shopConfigurationService;
@@ -45,6 +48,9 @@ public class ShiftSalesService : IShiftSalesService
         IRepository<PrizePayout> payoutRepository,
         IRepository<ShiftReconciliation> reconciliationRepository,
         IRepository<ShiftCloseAttachment> shiftCloseAttachmentRepository,
+        IRepository<CanisterDrop> canisterDropRepository,
+        IRepository<CfgDayCloseSettings> dayCloseSettingsRepository,
+        IRepository<CompanySubscription> companySubscriptionRepository,
         IRepository<ShopUser> shopUserRepository,
         IRepository<Shop> shopRepository,
         IShopConfigurationService shopConfigurationService,
@@ -65,6 +71,9 @@ public class ShiftSalesService : IShiftSalesService
         _payoutRepository = payoutRepository;
         _reconciliationRepository = reconciliationRepository;
         _shiftCloseAttachmentRepository = shiftCloseAttachmentRepository;
+        _canisterDropRepository = canisterDropRepository;
+        _dayCloseSettingsRepository = dayCloseSettingsRepository;
+        _companySubscriptionRepository = companySubscriptionRepository;
         _shopUserRepository = shopUserRepository;
         _shopRepository = shopRepository;
         _shopConfigurationService = shopConfigurationService;
@@ -551,11 +560,40 @@ public class ShiftSalesService : IShiftSalesService
             .Select(x => x.ShopName)
             .FirstOrDefaultAsync(cancellationToken) ?? "Unknown Shop";
 
+        var safeDropManagementEnabled = await IsSafeDropManagementEnabledAsync(shift.ShopId, cancellationToken);
+        var safeDropRows = safeDropManagementEnabled
+            ? await _canisterDropRepository.Query()
+                .AsNoTracking()
+                .Where(x => x.BusinessDayId == businessDay.Id && x.ShiftId == shift.Id)
+                .OrderByDescending(x => x.DroppedOn)
+                .ThenByDescending(x => x.CreatedOn)
+                .Select(x => new SafeDropSummaryRow(
+                    x.Canister.CanisterNumber,
+                    x.Amount,
+                    x.DroppedByName,
+                    x.DroppedOn))
+                .ToArrayAsync(cancellationToken)
+            : [];
+
         var summaryRows = BuildShiftCloseSummaryRows(entries, packs);
         var reportGeneratedOnUtc = DateTimeOffset.UtcNow;
         var subject = $"Shift Close Summary - {shopName} - {businessDay.BusinessDate:yyyy-MM-dd} - {shift.ShiftName}";
-        var body = BuildShiftCloseSummaryBodyHtml(shopName, shift, businessDay, summaryRows, reportGeneratedOnUtc);
-        var summaryPdf = BuildShiftCloseSummaryPdf(shopName, shift, businessDay, summaryRows, reportGeneratedOnUtc);
+        var body = BuildShiftCloseSummaryBodyHtml(
+            shopName,
+            shift,
+            businessDay,
+            summaryRows,
+            safeDropRows,
+            safeDropManagementEnabled,
+            reportGeneratedOnUtc);
+        var summaryPdf = BuildShiftCloseSummaryPdf(
+            shopName,
+            shift,
+            businessDay,
+            summaryRows,
+            safeDropRows,
+            safeDropManagementEnabled,
+            reportGeneratedOnUtc);
         var summaryPdfFileName = BuildShiftCloseSummaryPdfFileName(shift, businessDay);
         var attachments = new EmailAttachment[]
         {
@@ -627,6 +665,54 @@ public class ShiftSalesService : IShiftSalesService
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    private async Task<bool> IsSafeDropManagementEnabledAsync(Guid shopId, CancellationToken cancellationToken)
+    {
+        var companyId = await _shopRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.Id == shopId && !x.IsDeleted && x.CompanyId.HasValue)
+            .Select(x => x.CompanyId!.Value)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (companyId == Guid.Empty)
+        {
+            return false;
+        }
+
+        var companySubscription = await _companySubscriptionRepository.Query()
+            .AsNoTracking()
+            .Include(x => x.SubscriptionPlan)
+            .FirstOrDefaultAsync(x => x.CompanyId == companyId, cancellationToken);
+        if (companySubscription?.SubscriptionPlan is null)
+        {
+            return false;
+        }
+
+        var includedFeatures = ServiceMappingExtensions.ParseIncludedFeatures(companySubscription.SubscriptionPlan.IncludedFeatures);
+        var hasSubscriptionFeature = includedFeatures.Any(
+            x => string.Equals(x, FeatureKeys.SafeDropManagement, StringComparison.OrdinalIgnoreCase));
+        if (!hasSubscriptionFeature)
+        {
+            return false;
+        }
+
+        var settingsRows = await _dayCloseSettingsRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.IsActive && (x.ShopId == null || x.ShopId == shopId))
+            .OrderByDescending(x => x.ShopId == shopId)
+            .ThenByDescending(x => x.ModifiedOn ?? x.CreatedOn)
+            .ToListAsync(cancellationToken);
+
+        var shopValue = settingsRows
+            .Where(x => x.ShopId == shopId)
+            .Select(x => x.EnableSafeDropManagement)
+            .FirstOrDefault();
+        var globalValue = settingsRows
+            .Where(x => x.ShopId == null)
+            .Select(x => x.EnableSafeDropManagement)
+            .FirstOrDefault();
+
+        return shopValue ?? globalValue ?? false;
     }
 
     private async Task SendManualEntryNotificationsAsync(
@@ -753,6 +839,12 @@ public class ShiftSalesService : IShiftSalesService
         int SoldQuantity,
         decimal SalesAmount);
 
+    private sealed record SafeDropSummaryRow(
+        string CanisterNumber,
+        decimal Amount,
+        string DroppedByName,
+        DateTimeOffset DroppedOn);
+
     private static ShiftCloseSummaryRow[] BuildShiftCloseSummaryRows(
         IReadOnlyCollection<ShiftScratchCardSale> entries,
         IReadOnlyDictionary<Guid, ScratchCardPack> packs)
@@ -778,6 +870,8 @@ public class ShiftSalesService : IShiftSalesService
         Shift shift,
         BusinessDay businessDay,
         IReadOnlyCollection<ShiftCloseSummaryRow> rows,
+        IReadOnlyCollection<SafeDropSummaryRow> safeDropRows,
+        bool safeDropManagementEnabled,
         DateTimeOffset reportGeneratedOnUtc)
     {
         var reportDateText = reportGeneratedOnUtc.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
@@ -799,6 +893,24 @@ public class ShiftSalesService : IShiftSalesService
                         $"<td class=\"num\">{row.TicketPrice.ToString("0.00", CultureInfo.InvariantCulture)}</td>" +
                         $"<td class=\"num\">{row.SoldQuantity.ToString(CultureInfo.InvariantCulture)}</td>" +
                         $"<td class=\"num\">{row.SalesAmount.ToString("0.00", CultureInfo.InvariantCulture)}</td>" +
+                        "</tr>";
+                }));
+
+        var safeDropTotalAmount = safeDropRows.Sum(x => x.Amount);
+        var safeDropRowsHtml = safeDropRows.Count == 0
+            ? "<tr><td colspan=\"4\" class=\"empty\">No safe drops recorded for this shift.</td></tr>"
+            : string.Join(
+                string.Empty,
+                safeDropRows.Select(row =>
+                {
+                    var droppedByName = string.IsNullOrWhiteSpace(row.DroppedByName) ? "-" : row.DroppedByName;
+                    var droppedOnUtc = row.DroppedOn.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+                    return
+                        "<tr>" +
+                        $"<td>{WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(row.CanisterNumber) ? "-" : row.CanisterNumber)}</td>" +
+                        $"<td class=\"num\">{row.Amount.ToString("0.00", CultureInfo.InvariantCulture)}</td>" +
+                        $"<td>{WebUtility.HtmlEncode(droppedByName)}</td>" +
+                        $"<td>{WebUtility.HtmlEncode(droppedOnUtc)} UTC</td>" +
                         "</tr>";
                 }));
 
@@ -903,11 +1015,39 @@ sb.Append("<tfoot>");
 sb.Append("<tr>");
 sb.Append("<td colspan=\"3\" class=\"num\">Total</td>");
 sb.Append($"<td class=\"num\">{totalSoldQty.ToString(CultureInfo.InvariantCulture)}</td>");
-sb.Append($"<td class=\"num\">Â£{totalSales.ToString("0.00", CultureInfo.InvariantCulture)}</td>");
+sb.Append($"<td class=\"num\">£{totalSales.ToString("0.00", CultureInfo.InvariantCulture)}</td>");
 sb.Append("</tr>");
 sb.Append("</tfoot>");
 
 sb.Append("</table>");
+
+if (safeDropManagementEnabled)
+{
+    sb.Append("<div class=\"section-header\">");
+    sb.Append("<h3 class=\"section-title\">Safe Drop Detail</h3>");
+    sb.Append("</div>");
+
+    sb.Append("<table class=\"report-table\">");
+    sb.Append("<thead>");
+    sb.Append("<tr>");
+    sb.Append("<th>Canister</th>");
+    sb.Append("<th class=\"num\">Amount</th>");
+    sb.Append("<th>Dropped By</th>");
+    sb.Append("<th>Dropped On (UTC)</th>");
+    sb.Append("</tr>");
+    sb.Append("</thead>");
+    sb.Append("<tbody>");
+    sb.Append(safeDropRowsHtml);
+    sb.Append("</tbody>");
+    sb.Append("<tfoot>");
+    sb.Append("<tr>");
+    sb.Append("<td class=\"num\">Total</td>");
+    sb.Append($"<td class=\"num\">{safeDropTotalAmount.ToString("0.00", CultureInfo.InvariantCulture)}</td>");
+    sb.Append($"<td colspan=\"2\">Entries: {safeDropRows.Count.ToString(CultureInfo.InvariantCulture)}</td>");
+    sb.Append("</tr>");
+    sb.Append("</tfoot>");
+    sb.Append("</table>");
+}
 
 sb.Append("<div class=\"footer\">Generated by Ops Arrow</div>");
 
@@ -923,6 +1063,8 @@ sb.Append("</html>");       return sb.ToString();
         Shift shift,
         BusinessDay businessDay,
         IReadOnlyCollection<ShiftCloseSummaryRow> rows,
+        IReadOnlyCollection<SafeDropSummaryRow> safeDropRows,
+        bool safeDropManagementEnabled,
         DateTimeOffset reportGeneratedOnUtc)
     {
         const float pageWidth = 842f;
@@ -936,6 +1078,9 @@ sb.Append("</html>");       return sb.ToString();
         var gameColumnWidth = 250f;
         var priceColumnWidth = 90f;
         var qtyColumnWidth = 74f;
+        var safeDropCanisterColumnWidth = 140f;
+        var safeDropAmountColumnWidth = 100f;
+        var safeDropDroppedByColumnWidth = 300f;
 
         var headerFill = new PdfColor(0.80f, 0.84f, 0.90f);
         var totalFill = new PdfColor(0.80f, 0.84f, 0.90f);
@@ -948,6 +1093,7 @@ sb.Append("</html>");       return sb.ToString();
 
         var totalSoldQty = rows.Sum(x => x.SoldQuantity);
         var totalSales = rows.Sum(x => x.SalesAmount);
+        var totalSafeDropAmount = safeDropRows.Sum(x => x.Amount);
         var reportDateText = reportGeneratedOnUtc.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
         var shiftDetail = $"{shift.ShiftName} ({businessDay.BusinessDate:yyyy-MM-dd})";
 
@@ -1023,6 +1169,74 @@ sb.Append("</html>");       return sb.ToString();
         DrawCellText(totalSoldQty.ToString(CultureInfo.InvariantCulture), margin + displayColumnWidth + gameColumnWidth + priceColumnWidth + qtyColumnWidth - 8f, cursorY + 24f, "F2", 18f, textColor, true);
         DrawCellText(totalSales.ToString("0.00", CultureInfo.InvariantCulture), margin + contentWidth - 8f, cursorY + 24f, "F2", 18f, textColor, true);
         DrawRowBorders(cursorY, totalRowHeight);
+        cursorY += totalRowHeight;
+
+        if (safeDropManagementEnabled)
+        {
+            const float sectionTitleHeight = 28f;
+            const float safeDropHeaderHeight = 36f;
+            const float safeDropMinRowHeight = 30f;
+            const float safeDropTotalRowHeight = 34f;
+            var rowIndex = 0;
+
+            EnsureSpace(sectionTitleHeight + safeDropHeaderHeight + safeDropTotalRowHeight + 8f);
+            DrawText(currentPage, pageHeight, "F2", 18f, textColor, margin, cursorY + 20f, "Safe Drop Detail");
+            cursorY += sectionTitleHeight;
+
+            DrawRowBackground(cursorY, safeDropHeaderHeight, headerFill);
+            DrawCellText("Canister", margin + 8f, cursorY + 22f, "F2", 14f, textColor, false);
+            DrawCellText("Amount", margin + safeDropCanisterColumnWidth + 8f, cursorY + 22f, "F2", 14f, textColor, false);
+            DrawCellText("Dropped By", margin + safeDropCanisterColumnWidth + safeDropAmountColumnWidth + 8f, cursorY + 22f, "F2", 14f, textColor, false);
+            DrawCellText("Dropped On (UTC)", margin + safeDropCanisterColumnWidth + safeDropAmountColumnWidth + safeDropDroppedByColumnWidth + 8f, cursorY + 22f, "F2", 14f, textColor, false);
+            DrawSafeDropRowBorders(cursorY, safeDropHeaderHeight);
+            cursorY += safeDropHeaderHeight;
+
+            if (safeDropRows.Count == 0)
+            {
+                EnsureSpace(safeDropMinRowHeight + safeDropTotalRowHeight + 8f);
+                DrawRowBackground(cursorY, safeDropMinRowHeight, cellFill);
+                DrawCellText("No safe drops recorded for this shift.", margin + safeDropCanisterColumnWidth + safeDropAmountColumnWidth + 8f, cursorY + 20f, "F1", 12f, textColor, false);
+                DrawSafeDropRowBorders(cursorY, safeDropMinRowHeight);
+                cursorY += safeDropMinRowHeight;
+            }
+            else
+            {
+                foreach (var safeDropRow in safeDropRows)
+                {
+                    var droppedByText = string.IsNullOrWhiteSpace(safeDropRow.DroppedByName) ? "-" : safeDropRow.DroppedByName;
+                    var droppedByLines = WrapTextForPdf(droppedByText, safeDropDroppedByColumnWidth - 16f, 12f);
+                    var rowHeight = Math.Max(safeDropMinRowHeight, 12f + (droppedByLines.Length * 14f));
+
+                    EnsureSpace(rowHeight + safeDropTotalRowHeight + 8f);
+                    DrawRowBackground(cursorY, rowHeight, rowIndex % 2 == 0 ? cellFill : stripeFill);
+                    DrawCellText(string.IsNullOrWhiteSpace(safeDropRow.CanisterNumber) ? "-" : safeDropRow.CanisterNumber, margin + 8f, cursorY + 20f, "F1", 12f, textColor, false);
+                    DrawCellText(safeDropRow.Amount.ToString("0.00", CultureInfo.InvariantCulture), margin + safeDropCanisterColumnWidth + safeDropAmountColumnWidth - 8f, cursorY + 20f, "F1", 12f, textColor, true);
+                    for (var i = 0; i < droppedByLines.Length; i++)
+                    {
+                        DrawCellText(droppedByLines[i], margin + safeDropCanisterColumnWidth + safeDropAmountColumnWidth + 8f, cursorY + 20f + (i * 14f), "F1", 12f, textColor, false);
+                    }
+
+                    DrawCellText(
+                        safeDropRow.DroppedOn.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+                        margin + safeDropCanisterColumnWidth + safeDropAmountColumnWidth + safeDropDroppedByColumnWidth + 8f,
+                        cursorY + 20f,
+                        "F1",
+                        12f,
+                        textColor,
+                        false);
+                    DrawSafeDropRowBorders(cursorY, rowHeight);
+                    cursorY += rowHeight;
+                    rowIndex++;
+                }
+            }
+
+            EnsureSpace(safeDropTotalRowHeight);
+            DrawRowBackground(cursorY, safeDropTotalRowHeight, totalFill);
+            DrawCellText("Total", margin + safeDropCanisterColumnWidth - 8f, cursorY + 22f, "F2", 14f, textColor, true);
+            DrawCellText(totalSafeDropAmount.ToString("0.00", CultureInfo.InvariantCulture), margin + safeDropCanisterColumnWidth + safeDropAmountColumnWidth - 8f, cursorY + 22f, "F2", 14f, textColor, true);
+            DrawCellText($"Entries: {safeDropRows.Count.ToString(CultureInfo.InvariantCulture)}", margin + safeDropCanisterColumnWidth + safeDropAmountColumnWidth + 8f, cursorY + 22f, "F2", 14f, textColor, false);
+            DrawSafeDropRowBorders(cursorY, safeDropTotalRowHeight);
+        }
 
         return BuildPdfFromPageContents(
             pages.Select(page => page.ToString()),
@@ -1066,6 +1280,13 @@ sb.Append("</html>");       return sb.ToString();
             DrawVerticalLine(margin + displayColumnWidth + gameColumnWidth, rowY, rowHeight);
             DrawVerticalLine(margin + displayColumnWidth + gameColumnWidth + priceColumnWidth, rowY, rowHeight);
             DrawVerticalLine(margin + displayColumnWidth + gameColumnWidth + priceColumnWidth + qtyColumnWidth, rowY, rowHeight);
+        }
+
+        void DrawSafeDropRowBorders(float rowY, float rowHeight)
+        {
+            DrawVerticalLine(margin + safeDropCanisterColumnWidth, rowY, rowHeight);
+            DrawVerticalLine(margin + safeDropCanisterColumnWidth + safeDropAmountColumnWidth, rowY, rowHeight);
+            DrawVerticalLine(margin + safeDropCanisterColumnWidth + safeDropAmountColumnWidth + safeDropDroppedByColumnWidth, rowY, rowHeight);
         }
 
         void DrawCellText(
