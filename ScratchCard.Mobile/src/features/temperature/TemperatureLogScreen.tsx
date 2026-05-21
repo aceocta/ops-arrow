@@ -45,6 +45,18 @@ function buildDefaultInitials(firstName?: string, lastName?: string, email?: str
   return fromEmail || "";
 }
 
+function shiftDateByDays(dateValue: string, days: number) {
+  const parts = dateValue.split("-").map((part) => Number(part));
+  if (parts.length !== 3 || parts.some((part) => Number.isNaN(part))) {
+    return dateValue;
+  }
+
+  const [year, month, day] = parts;
+  const shifted = new Date(year, month - 1, day);
+  shifted.setDate(shifted.getDate() + days);
+  return formatDateValue(shifted);
+}
+
 export function TemperatureLogScreen() {
   const queryClient = useQueryClient();
   const { activeShopId, profile } = useAuth();
@@ -235,6 +247,9 @@ export function TemperatureLogScreen() {
     closeTextEditor();
     setIsLogEntryModalVisible(false);
   };
+  const moveSelectedDate = (days: number) => {
+    setSelectedDate((current) => shiftDateByDays(current, days));
+  };
   const selectedDateTimeValue = `${selectedDate} ${readingTime}`;
   const entryDateTimeValue = `${entryDate} ${readingTime}`;
 
@@ -247,15 +262,23 @@ export function TemperatureLogScreen() {
         </View> */}
 
         <View style={[ui.card, styles.quickEntryCard]}>
-          <View style={styles.quickEntryHeader}>
+          {/* <View style={styles.quickEntryHeader}>
             <Text style={styles.sectionTitle}>Temperature Log</Text>
             {summary.outOfRange > 0 ? (
               <StatusBadge label={`${summary.outOfRange} out of range`} tone="danger" />
             ) : (
               <StatusBadge label="In range" tone="success" />
             )}
-          </View>
-          <View style={styles.row}>
+          </View> */}
+          <View style={styles.dateNavRow}>
+            <Pressable
+              style={styles.dateNavButton}
+              onPress={() => moveSelectedDate(-1)}
+              accessibilityRole="button"
+              accessibilityLabel="Previous day"
+            >
+              <Text style={styles.dateNavButtonText}>{"<"}</Text>
+            </Pressable>
             <DateTimeField
               style={{ flex: 1 }}
               mode="datetime"
@@ -270,11 +293,19 @@ export function TemperatureLogScreen() {
                 setReadingTime(formatTimeValue(parsed));
               }}
             />
+            <Pressable
+              style={styles.dateNavButton}
+              onPress={() => moveSelectedDate(1)}
+              accessibilityRole="button"
+              accessibilityLabel="Next day"
+            >
+              <Text style={styles.dateNavButtonText}>{">"}</Text>
+            </Pressable>
           </View>
 
-         
-
-          <Text style={styles.fieldLabel}>Monitoring Units</Text>
+         </View>
+<View >
+          {/* <Text style={styles.fieldLabel}>Monitoring Units</Text> */}
           {dailyLogQuery.isLoading ? <Text style={styles.meta}>Loading units...</Text> : null}
           <View style={styles.unitList}>
             {dailyUnitLogs.map((unitLog) => {
@@ -326,7 +357,7 @@ export function TemperatureLogScreen() {
           </View>
         </View>
 
-        <View style={[ui.card, styles.readingsCard]}>
+        {/* <View style={[ui.card, styles.readingsCard]}> */}
           <Text style={styles.sectionTitle}>Readings · {selectedDate}</Text>
           {dailyLogQuery.isLoading ? <Text style={styles.meta}>Loading daily readings...</Text> : null}
           {dailyUnitLogs.map((unitLog) => (
@@ -381,7 +412,7 @@ export function TemperatureLogScreen() {
           {!dailyLogQuery.isLoading && dailyUnitLogs.length === 0 ? (
             <Text style={styles.meta}>No units configured for this shop.</Text>
           ) : null}
-        </View>
+        {/* </View> */}
 
         {/* <View style={ui.card}>
           <Text style={styles.sectionTitle}>Recent History</Text>
@@ -756,6 +787,27 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 12,
     lineHeight: 16,
+  },
+  dateNavRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+  },
+  dateNavButton: {
+    width: 32,
+    height: 32,
+    borderRadius: appTheme.radius.sm,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dateNavButtonText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 16,
+    lineHeight: 18,
   },
   row: { flexDirection: "row", gap: appTheme.spacing.xs },
   rowBetween: {
