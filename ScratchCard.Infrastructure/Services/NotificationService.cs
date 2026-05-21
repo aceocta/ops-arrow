@@ -11,6 +11,7 @@ public class NotificationService : INotificationService
     private readonly IRepository<NotificationLog> _notificationRepository;
     private readonly IEmailSender _emailSender;
     private readonly ISmsSender _smsSender;
+    private readonly IPushSender _pushSender;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<NotificationService> _logger;
 
@@ -18,12 +19,14 @@ public class NotificationService : INotificationService
         IRepository<NotificationLog> notificationRepository,
         IEmailSender emailSender,
         ISmsSender smsSender,
+        IPushSender pushSender,
         IUnitOfWork unitOfWork,
         ILogger<NotificationService> logger)
     {
         _notificationRepository = notificationRepository;
         _emailSender = emailSender;
         _smsSender = smsSender;
+        _pushSender = pushSender;
         _unitOfWork = unitOfWork;
         _logger = logger;
     }
@@ -64,7 +67,7 @@ public class NotificationService : INotificationService
                     await _smsSender.SendAsync(message.Recipient, message.Body, cancellationToken);
                     break;
                 case NotificationChannel.InApp:
-                    // Placeholder for push/in-app channel.
+                    await _pushSender.SendAsync(message, cancellationToken);
                     break;
             }
 

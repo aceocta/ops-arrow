@@ -229,6 +229,8 @@ public interface INotificationLogService
 {
     Task<IReadOnlyCollection<NotificationLogDto>> GetLogsAsync(Guid shopId, CancellationToken cancellationToken = default);
     Task RetryFailedAsync(Guid notificationLogId, CancellationToken cancellationToken = default);
+    Task RegisterPushTokenAsync(RegisterPushTokenRequest request, CancellationToken cancellationToken = default);
+    Task UnregisterPushTokenAsync(UnregisterPushTokenRequest request, CancellationToken cancellationToken = default);
 }
 
 public interface ILookupService

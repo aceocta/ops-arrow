@@ -23,6 +23,7 @@ public class BusinessDayService : IBusinessDayService
     private readonly IRepository<PrizePayout> _payoutRepository;
     private readonly IRepository<ScratchCardDayCloseSummary> _dayCloseSummaryRepository;
     private readonly IRepository<CanisterDrop> _canisterDropRepository;
+    private readonly IRepository<UserPushToken> _userPushTokenRepository;
     private readonly IRepository<BusinessDayCloseAttachment> _dayCloseAttachmentRepository;
     private readonly IRepository<CfgDayCloseSettings> _dayCloseSettingsRepository;
     private readonly IRepository<CompanySubscription> _companySubscriptionRepository;
@@ -45,6 +46,7 @@ public class BusinessDayService : IBusinessDayService
         IRepository<PrizePayout> payoutRepository,
         IRepository<ScratchCardDayCloseSummary> dayCloseSummaryRepository,
         IRepository<CanisterDrop> canisterDropRepository,
+        IRepository<UserPushToken> userPushTokenRepository,
         IRepository<BusinessDayCloseAttachment> dayCloseAttachmentRepository,
         IRepository<CfgDayCloseSettings> dayCloseSettingsRepository,
         IRepository<CompanySubscription> companySubscriptionRepository,
@@ -66,6 +68,7 @@ public class BusinessDayService : IBusinessDayService
         _payoutRepository = payoutRepository;
         _dayCloseSummaryRepository = dayCloseSummaryRepository;
         _canisterDropRepository = canisterDropRepository;
+        _userPushTokenRepository = userPushTokenRepository;
         _dayCloseAttachmentRepository = dayCloseAttachmentRepository;
         _dayCloseSettingsRepository = dayCloseSettingsRepository;
         _companySubscriptionRepository = companySubscriptionRepository;
@@ -328,6 +331,13 @@ public class BusinessDayService : IBusinessDayService
             reason: $"Canister {canister.CanisterNumber} amount {entity.Amount:0.00}",
             cancellationToken: cancellationToken);
 
+        await SendSafeDropOwnerNotificationsAsync(
+            day,
+            activeShift,
+            canister,
+            entity,
+            cancellationToken);
+
         entity.Canister = canister;
         entity.Shift = activeShift;
         return entity.ToDto();
@@ -345,6 +355,77 @@ public class BusinessDayService : IBusinessDayService
             attachment.StoredPath,
             attachment.ContentType,
             cancellationToken);
+    }
+
+    private async Task SendSafeDropOwnerNotificationsAsync(
+        BusinessDay day,
+        Shift shift,
+        Canister canister,
+        CanisterDrop drop,
+        CancellationToken cancellationToken)
+    {
+        var ownerUserIds = await _shopUserRepository.Query()
+            .AsNoTracking()
+            .Where(
+                x =>
+                    x.ShopId == day.ShopId &&
+                    x.IsActive &&
+                    x.Role.Name == RoleNames.CompanyOwner)
+            .Select(x => x.UserId)
+            .Distinct()
+            .ToArrayAsync(cancellationToken);
+        if (ownerUserIds.Length == 0)
+        {
+            return;
+        }
+
+        var recipientTokens = await _userPushTokenRepository.Query()
+            .AsNoTracking()
+            .Where(
+                x =>
+                    x.ShopId == day.ShopId &&
+                    x.IsActive &&
+                    (x.Platform.ToLower() == "android" || x.Platform.ToLower() == "fcm") &&
+                    ownerUserIds.Contains(x.UserId))
+            .Select(x => x.PushToken)
+            .Distinct()
+            .ToArrayAsync(cancellationToken);
+        if (recipientTokens.Length == 0)
+        {
+            return;
+        }
+
+        var shopName = await _shopRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.Id == day.ShopId)
+            .Select(x => x.ShopName)
+            .FirstOrDefaultAsync(cancellationToken) ?? "Shop";
+
+        var subject = $"Safe Drop Recorded - {shopName}";
+        var amountText = drop.Amount.ToString("0.00", CultureInfo.InvariantCulture);
+        var body = $"{drop.DroppedByName} recorded {amountText} in canister {canister.CanisterNumber} for shift {shift.ShiftName}.";
+
+        foreach (var token in recipientTokens)
+        {
+            try
+            {
+                await _notificationService.SendAsync(new NotificationMessage
+                {
+                    ShopId = day.ShopId,
+                    NotificationType = NotificationType.SafeDropRecorded,
+                    Channel = NotificationChannel.InApp,
+                    Recipient = token,
+                    Subject = subject,
+                    Body = body,
+                    RelatedEntityName = nameof(CanisterDrop),
+                    RelatedEntityId = drop.Id
+                }, cancellationToken);
+            }
+            catch
+            {
+                // Notification failures are logged by notification service and must not block safe drop recording.
+            }
+        }
     }
 
     public async Task<BusinessDayDto> CloseAsync(Guid id, CloseBusinessDayRequest request, CancellationToken cancellationToken = default)
@@ -517,6 +598,7 @@ public class BusinessDayService : IBusinessDayService
                     .ThenInclude(x => x.Game)
                 .ToArrayAsync(cancellationToken);
 
+        await SendDayClosePushNotificationsAsync(day, cancellationToken);
         await SendDayCloseSummaryToOwnersAsync(day, shifts, daySalesEntries, cancellationToken);
         await SendManualEntrySummaryByShiftOnDayCloseAsync(day, shifts, daySalesEntries, cancellationToken);
     }
@@ -1064,6 +1146,73 @@ public class BusinessDayService : IBusinessDayService
                     Subject = subject,
                     Body = body,
                     IsBodyHtml = true,
+                    RelatedEntityName = nameof(BusinessDay),
+                    RelatedEntityId = day.Id
+                }, cancellationToken);
+            }
+            catch
+            {
+                // Notification failures are logged by notification service and must not block day close.
+            }
+        }
+    }
+
+    private async Task SendDayClosePushNotificationsAsync(
+        BusinessDay day,
+        CancellationToken cancellationToken)
+    {
+        var recipientUserIds = await _shopUserRepository.Query()
+            .AsNoTracking()
+            .Where(
+                x =>
+                    x.ShopId == day.ShopId &&
+                    x.IsActive &&
+                    (x.Role.Name == RoleNames.CompanyOwner || x.Role.Name == RoleNames.Manager))
+            .Select(x => x.UserId)
+            .Distinct()
+            .ToArrayAsync(cancellationToken);
+        if (recipientUserIds.Length == 0)
+        {
+            return;
+        }
+
+        var recipientTokens = await _userPushTokenRepository.Query()
+            .AsNoTracking()
+            .Where(
+                x =>
+                    x.ShopId == day.ShopId &&
+                    x.IsActive &&
+                    recipientUserIds.Contains(x.UserId) &&
+                    (x.Platform.ToLower() == "fcm" || x.Platform.ToLower() == "android" || x.Platform.ToLower() == "ios"))
+            .Select(x => x.PushToken)
+            .Distinct()
+            .ToArrayAsync(cancellationToken);
+        if (recipientTokens.Length == 0)
+        {
+            return;
+        }
+
+        var shopName = await _shopRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.Id == day.ShopId)
+            .Select(x => x.ShopName)
+            .FirstOrDefaultAsync(cancellationToken) ?? "Shop";
+
+        var subject = $"Day Closed - {shopName}";
+        var body = $"Business day {day.BusinessDate:yyyy-MM-dd} is closed. Expected cash: {day.ExpectedCash:0.00}, till: {day.ScratchCardDayCloseSummary?.TillPayout ?? 0m:0.00}.";
+
+        foreach (var token in recipientTokens)
+        {
+            try
+            {
+                await _notificationService.SendAsync(new NotificationMessage
+                {
+                    ShopId = day.ShopId,
+                    NotificationType = NotificationType.DayCloseSummary,
+                    Channel = NotificationChannel.InApp,
+                    Recipient = token,
+                    Subject = subject,
+                    Body = body,
                     RelatedEntityName = nameof(BusinessDay),
                     RelatedEntityId = day.Id
                 }, cancellationToken);

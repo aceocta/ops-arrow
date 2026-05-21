@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1088643757431",
+    "project_id": "ops-arrow-d583c",
+    "storage_bucket": "ops-arrow-d583c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1088643757431:android:82cf9af6132f24bc175d72",
+        "android_client_info": {
+          "package_name": "com.octa.opsarrow"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC8hHPbtYe09fWGMDO-adwmeJKgTO5FrOA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

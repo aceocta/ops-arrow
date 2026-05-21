@@ -7,5 +7,6 @@ public enum NotificationType
     CashDifferenceAlert = 3,
     HighPrizePayoutAlert = 4,
     ShiftCloseSummary = 5,
-    DayCloseSummary = 6
+    DayCloseSummary = 6,
+    SafeDropRecorded = 7
 }

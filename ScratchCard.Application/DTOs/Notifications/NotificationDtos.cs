@@ -11,3 +11,17 @@ public class NotificationLogDto
     public DateTimeOffset? SentOn { get; set; }
     public string? FailedReason { get; set; }
 }
+
+public class RegisterPushTokenRequest
+{
+    public Guid ShopId { get; set; }
+    public string PushToken { get; set; } = string.Empty;
+    public string Platform { get; set; } = string.Empty;
+    public string? DeviceName { get; set; }
+}
+
+public class UnregisterPushTokenRequest
+{
+    public Guid ShopId { get; set; }
+    public string PushToken { get; set; } = string.Empty;
+}

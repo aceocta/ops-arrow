@@ -27,6 +27,7 @@ public static class DependencyInjection
         services.Configure<AppJwtOptions>(configuration.GetSection("Jwt"));
         services.Configure<OpenAiOptions>(configuration.GetSection("OpenAI"));
         services.Configure<AttachmentStorageOptions>(configuration.GetSection("AttachmentStorage"));
+        services.Configure<FirebasePushOptions>(configuration.GetSection("FirebasePush"));
 
         services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
         services.AddScoped<IPasswordHashService, PasswordHashService>();
@@ -51,6 +52,7 @@ public static class DependencyInjection
         services.AddScoped<IInvitationTokenService, InvitationTokenService>();
         services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<INotificationService, NotificationService>();
+        services.AddHttpClient<IPushSender, FirebasePushSender>();
         services.AddSingleton<ShiftCloseNotificationBackgroundQueue>();
         services.AddSingleton<IShiftCloseNotificationDispatcher>(provider => provider.GetRequiredService<ShiftCloseNotificationBackgroundQueue>());
         services.AddHostedService<ShiftCloseNotificationBackgroundService>();

@@ -8,6 +8,8 @@ import {
   signUpCompany as signUpCompanyApi,
   signUpWithPassword as signUpWithPasswordApi,
 } from "../api/authApi";
+import { registerPushToken } from "../api/notificationsApi";
+import { resolveFirebasePushTokenAsync } from "../notifications/pushRegistration";
 import { AuthProfile } from "../types/models";
 import {
   clearAccessToken,
@@ -64,6 +66,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     void bootstrap();
   }, []);
+
+  useEffect(() => {
+    if (!profile?.userId || !activeShopId) {
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const devicePushToken = await resolveFirebasePushTokenAsync();
+        if (!devicePushToken || cancelled) {
+          return;
+        }
+
+        await registerPushToken({
+          shopId: activeShopId,
+          pushToken: devicePushToken.token,
+          platform: devicePushToken.platform,
+          deviceName: profile.displayName?.trim() || profile.email,
+        });
+      } catch {
+        // Push registration is best-effort and must not block app usage.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeShopId, profile?.displayName, profile?.email, profile?.userId]);
 
   async function bootstrap() {
     setIsBootstrapping(true);

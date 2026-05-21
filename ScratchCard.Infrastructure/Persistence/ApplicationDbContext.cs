@@ -46,6 +46,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<ShiftCloseAttachment> ShiftCloseAttachments => Set<ShiftCloseAttachment>();
     public DbSet<BusinessDayCloseAttachment> BusinessDayCloseAttachments => Set<BusinessDayCloseAttachment>();
     public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
+    public DbSet<UserPushToken> UserPushTokens => Set<UserPushToken>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<TemperatureMonitoringUnit> TemperatureMonitoringUnits => Set<TemperatureMonitoringUnit>();
     public DbSet<TemperatureReading> TemperatureReadings => Set<TemperatureReading>();
@@ -438,6 +439,19 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.FailedReason).HasMaxLength(1000);
             entity.Property(x => x.RelatedEntityName).HasMaxLength(200).IsRequired();
             entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId);
+        });
+
+        modelBuilder.Entity<UserPushToken>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.UserId, x.PushToken }).IsUnique();
+            entity.HasIndex(x => new { x.ShopId, x.IsActive });
+            entity.HasIndex(x => new { x.UserId, x.IsActive });
+            entity.Property(x => x.PushToken).HasMaxLength(256).IsRequired();
+            entity.Property(x => x.Platform).HasMaxLength(32).IsRequired();
+            entity.Property(x => x.DeviceName).HasMaxLength(120);
+            entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId);
+            entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId);
         });
 
         modelBuilder.Entity<AuditLog>(entity =>

@@ -11,6 +11,7 @@ using ScratchCard.Application.DTOs.Packs;
 using ScratchCard.Application.DTOs.PrizePayouts;
 using ScratchCard.Application.DTOs.Reports;
 using ScratchCard.Application.DTOs.RefusalRegister;
+using ScratchCard.Application.DTOs.Notifications;
 using ScratchCard.Application.DTOs.ShiftSales;
 using ScratchCard.Application.DTOs.Shifts;
 using ScratchCard.Application.DTOs.Shops;
@@ -297,6 +298,26 @@ public class CreateCanisterDropRequestValidator : AbstractValidator<CreateCanist
         RuleFor(x => x.CanisterNumber).NotEmpty().MaximumLength(60);
         RuleFor(x => x.Amount).GreaterThan(0);
         RuleFor(x => x.DroppedByName).MaximumLength(200);
+    }
+}
+
+public class RegisterPushTokenRequestValidator : AbstractValidator<RegisterPushTokenRequest>
+{
+    public RegisterPushTokenRequestValidator()
+    {
+        RuleFor(x => x.ShopId).NotEmpty();
+        RuleFor(x => x.PushToken).NotEmpty().MaximumLength(256);
+        RuleFor(x => x.Platform).NotEmpty().MaximumLength(32);
+        RuleFor(x => x.DeviceName).MaximumLength(120);
+    }
+}
+
+public class UnregisterPushTokenRequestValidator : AbstractValidator<UnregisterPushTokenRequest>
+{
+    public UnregisterPushTokenRequestValidator()
+    {
+        RuleFor(x => x.ShopId).NotEmpty();
+        RuleFor(x => x.PushToken).NotEmpty().MaximumLength(256);
     }
 }
 

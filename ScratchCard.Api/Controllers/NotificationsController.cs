@@ -1,6 +1,7 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ScratchCard.Application.Common.Services;
+using ScratchCard.Application.DTOs.Notifications;
 using ScratchCard.Domain.Constants;
 
 namespace ScratchCard.Api.Controllers;
@@ -29,5 +30,18 @@ public class NotificationsController : BaseApiController
         await _notificationLogService.RetryFailedAsync(id, cancellationToken);
         return Success(new { Retried = true });
     }
-}
 
+    [HttpPost("push/register")]
+    public async Task<IActionResult> RegisterPushToken([FromBody] RegisterPushTokenRequest request, CancellationToken cancellationToken)
+    {
+        await _notificationLogService.RegisterPushTokenAsync(request, cancellationToken);
+        return Success(new { Registered = true });
+    }
+
+    [HttpPost("push/unregister")]
+    public async Task<IActionResult> UnregisterPushToken([FromBody] UnregisterPushTokenRequest request, CancellationToken cancellationToken)
+    {
+        await _notificationLogService.UnregisterPushTokenAsync(request, cancellationToken);
+        return Success(new { Unregistered = true });
+    }
+}

@@ -18,8 +18,12 @@
       "supportsTablet": true,
       "userInterfaceStyle": "automatic",
       "bundleIdentifier": "com.aceocta.opsarrow",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
       }
     },
     "android": {
@@ -28,6 +32,7 @@
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#0F3D3E"
       },
+      "googleServicesFile": "./google-services.json",
       "package": "com.aceocta.opsarrow",
       "versionCode": 2,
       "permissions": [
@@ -39,6 +44,8 @@
       "bundler": "metro"
     },
     "plugins": [
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging",
       "expo-secure-store",
       [
         "expo-camera",
