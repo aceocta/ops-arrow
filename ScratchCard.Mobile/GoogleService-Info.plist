@@ -9,7 +9,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.octa.opsarrow</string>
+	<string>com.aceocta.opsarrow</string>
 	<key>PROJECT_ID</key>
 	<string>ops-arrow-d583c</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:1088643757431:ios:6f942592638505fc175d72</string>
+	<string>1:1088643757431:ios:2375eb85242b3167175d72</string>
 </dict>
 </plist>

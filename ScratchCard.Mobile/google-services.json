@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1088643757431:android:82cf9af6132f24bc175d72",
+        "mobilesdk_app_id": "1:1088643757431:android:7b0e5dc20f5b6282175d72",
         "android_client_info": {
-          "package_name": "com.octa.opsarrow"
+          "package_name": "com.aceocta.opsarrow"
         }
       },
       "oauth_client": [],
