@@ -136,6 +136,14 @@ function parseConfigurationBool(rawValue: string, fallback = false) {
   return fallback;
 }
 
+function normalizeRoleKey(value?: string | null) {
+  return (value ?? "").replace(/[\s_-]+/g, "").trim().toLowerCase();
+}
+
+function normalizeLookupValue(value?: string | null) {
+  return (value ?? "").trim().toLowerCase();
+}
+
 function parseTimeToMinutes(value: string, fallbackMinutes: number) {
   const trimmed = value.trim();
   const match = /^(\d{2}):(\d{2})$/.exec(trimmed);
@@ -580,7 +588,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   });
   const day = dayQuery.data;
   const status = day?.status;
-  const dayCompanyId = profile?.shops.find((shop) => shop.shopId === day?.shopId)?.companyId;
+  const dayShopMembership = profile?.shops.find((shop) => shop.shopId === day?.shopId);
+  const dayCompanyId = dayShopMembership?.companyId;
   const companyId = dayCompanyId ?? activeShop?.companyId ?? profile?.primaryCompanyId;
   const persistedDayAttachments = day?.closeAttachments ?? [];
   const missingOpeningTicketCount = day?.missingOpeningTicketCount ?? 0;
@@ -1057,10 +1066,50 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     hasTillPayoutVariance
       ? [styles.kpiValue, styles.kpiValueNegative]
       : styles.kpiValue;
+  const canViewAllSafeDrops = useMemo(() => {
+    const normalizedRoles = new Set((profile?.roles ?? []).map((role) => normalizeRoleKey(role)));
+    normalizedRoles.add(normalizeRoleKey(dayShopMembership?.role));
+    return normalizedRoles.has("companyowner") || normalizedRoles.has("manager") || normalizedRoles.has("shopmanager");
+  }, [dayShopMembership?.role, profile?.roles]);
+  const safeDropUserAliases = useMemo(() => {
+    const aliases = new Set<string>();
+    const displayName = profile?.displayName?.trim();
+    if (displayName) {
+      aliases.add(displayName.toLowerCase());
+    }
+    const fullName = `${profile?.firstName ?? ""} ${profile?.lastName ?? ""}`.trim();
+    if (fullName) {
+      aliases.add(fullName.toLowerCase());
+    }
+    const email = profile?.email?.trim();
+    if (email) {
+      aliases.add(email.toLowerCase());
+    }
+    return aliases;
+  }, [profile?.displayName, profile?.email, profile?.firstName, profile?.lastName]);
+  const visibleCanisterDrops = useMemo(() => {
+    const drops = canisterDropsQuery.data ?? [];
+    if (canViewAllSafeDrops) {
+      return drops;
+    }
+
+    const currentUserId = normalizeLookupValue(profile?.userId);
+    return drops.filter((drop) => {
+      const droppedByUserId = normalizeLookupValue(drop.droppedByUserId);
+      if (currentUserId && droppedByUserId) {
+        return droppedByUserId === currentUserId;
+      }
+
+      const droppedByName = normalizeLookupValue(drop.droppedByName);
+      return droppedByName.length > 0 && safeDropUserAliases.has(droppedByName);
+    });
+  }, [canViewAllSafeDrops, canisterDropsQuery.data, profile?.userId, safeDropUserAliases]);
   const closableStatuses = new Set<ShiftStatus>([ShiftStatus.Open, ShiftStatus.Reopened]);
   const hasOpenShifts = shifts.some((shift) => closableStatuses.has(shift.status));
   const openShiftCount = shifts.filter((shift) => closableStatuses.has(shift.status)).length;
-  const safeDropSectionMessage = "Safe drops recorded for this business day.";
+  const safeDropSectionMessage = canViewAllSafeDrops
+    ? "Showing all safe drops for this business day."
+    : "Showing only safe drops recorded by you.";
   const scheduledShiftCount = shifts.filter((shift) => shift.status === ShiftStatus.Scheduled).length;
   const closedShiftCount = shifts.filter((shift) => closedSummaryStatuses.has(shift.status)).length;
   const dayStatusMessage = canClose
@@ -1523,15 +1572,14 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             <View style={styles.sectionTitleRow}>
               <Text style={styles.sectionTitle}>Safe Drop List</Text>
               <StatusBadge
-                label={`${canisterDropsQuery.data?.length ?? 0}`}
-                tone={(canisterDropsQuery.data?.length ?? 0) > 0 ? "success" : "neutral"}
+                label={`${visibleCanisterDrops.length}`}
+                tone={visibleCanisterDrops.length > 0 ? "success" : "neutral"}
               />
             </View>
-            {/* <Text style={styles.meta}>{safeDropSectionMessage}</Text>
-            <Text style={styles.safeDropTableTitle}>Safe Drop List</Text> */}
+            <Text style={styles.meta}>{safeDropSectionMessage}</Text>
             {canisterDropsQuery.isFetching ? (
               <Text style={styles.meta}>Loading safe drops...</Text>
-            ) : canisterDropsQuery.data && canisterDropsQuery.data.length > 0 ? (
+            ) : visibleCanisterDrops.length > 0 ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.safeDropTableScrollContent}>
                 <View style={styles.safeDropTable}>
                   <View style={[styles.safeDropTableRow, styles.safeDropTableHeaderRow]}>
@@ -1541,7 +1589,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     <Text style={[styles.safeDropTableCell, styles.safeDropTableCellShift, styles.safeDropTableHeaderText]}>Shift</Text>
                     <Text style={[styles.safeDropTableCell, styles.safeDropTableCellTime, styles.safeDropTableHeaderText]}>Time</Text>
                   </View>
-                  {canisterDropsQuery.data.map((drop) => (
+                  {visibleCanisterDrops.map((drop) => (
                     <View key={drop.id} style={styles.safeDropTableRow}>
                       <Text style={[styles.safeDropTableCell, styles.safeDropTableCellCanister]} numberOfLines={1}>
                         {drop.canisterNumber}
@@ -1563,7 +1611,11 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 </View>
               </ScrollView>
             ) : (
-              <Text style={styles.meta}>No safe drops recorded for this day.</Text>
+              <Text style={styles.meta}>
+                {canViewAllSafeDrops
+                  ? "No safe drops recorded for this day."
+                  : "No safe drops recorded by you for this day."}
+              </Text>
             )}
           </View>
         ) : null}
