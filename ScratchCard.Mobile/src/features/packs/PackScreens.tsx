@@ -1543,6 +1543,13 @@ export function ActivatePackScreen({ route, navigation }: ActivatePackProps) {
             style={styles.input}
             value={openingSerialNumber}
             onChangeText={setOpeningSerialNumber}
+            onFocus={() => {
+              if ((openingSerialNumber ?? "").trim() !== (pack?.currentSerialNumber ?? "").trim()) {
+                return;
+              }
+
+              setOpeningSerialNumber("");
+            }}
             placeholder="Opening serial number"
             placeholderTextColor={appTheme.colors.textSubtle}
             keyboardType="number-pad"
