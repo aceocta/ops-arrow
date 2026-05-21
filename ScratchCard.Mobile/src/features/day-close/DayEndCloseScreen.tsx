@@ -140,13 +140,8 @@ function parseTimeToMinutes(value: string, fallbackMinutes: number) {
   return (hours * 60) + minutes;
 }
 
-function DetailLine({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.detailLine}>
-      <Text style={styles.detailLabel}>{label}</Text>
-      <Text style={styles.detailValue}>{value}</Text>
-    </View>
-  );
+function formatShiftDateTimeCompact(value: Date) {
+  return value.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 function formatFileSize(size?: number) {
@@ -953,7 +948,6 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       }),
     [shiftDisplayWindowById, shiftsQuery.data],
   );
-  const firstShiftIdForBusinessDay = shifts[0]?.id;
   const closedSummaryStatuses = new Set<ShiftStatus>([ShiftStatus.Closed, ShiftStatus.Approved]);
   const closedShiftIds = useMemo(
     () => shifts.filter((shift) => closedSummaryStatuses.has(shift.status)).map((shift) => shift.id),
@@ -1435,10 +1429,14 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             const canStartScheduledShift = shift.status === ShiftStatus.Scheduled;
             const isClosedShift = closedSummaryStatuses.has(shift.status);
             const shiftSalesTotal = shiftSalesTotalsQuery.data?.[shift.id];
-            const isFirstShiftForBusinessDay = shift.id === firstShiftIdForBusinessDay;
             const displayWindow = shiftDisplayWindowById[shift.id];
             const displayStart = displayWindow?.start ?? new Date(shift.startTime);
             const displayEnd = displayWindow?.end;
+            const compactStart = formatShiftDateTimeCompact(displayStart);
+            const compactEnd = displayEnd ? formatShiftDateTimeCompact(displayEnd) : "";
+            const compactSales = isClosedShift
+              ? (shiftSalesTotal != null ? formatCurrency(shiftSalesTotal) : "Loading...")
+              : "";
             return (
               <View key={shift.id} style={styles.shiftItem}>
                 <Pressable
@@ -1451,19 +1449,11 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     <Text style={styles.shiftName}>{shift.shiftName}</Text>
                     <StatusBadge label={shift.status} tone={getShiftTone(shift.status)} />
                   </View>
-                  {isFirstShiftForBusinessDay ? (
-                    <Text style={styles.meta}>
-                      First shift for business day {day?.businessDate ?? "-"}
-                    </Text>
-                  ) : null}
-                  <DetailLine label="Start" value={displayStart.toLocaleString()} />
-                  {displayEnd ? <DetailLine label="End" value={displayEnd.toLocaleString()} /> : null}
-                  {isClosedShift ? (
-                    <DetailLine
-                      label="Sales Total"
-                      value={shiftSalesTotal != null ? formatCurrency(shiftSalesTotal) : "Loading..."}
-                    />
-                  ) : null}
+                  <Text style={styles.shiftCompactMeta}>
+                    Start {compactStart}
+                    {compactEnd ? ` | End ${compactEnd}` : ""}
+                    {compactSales ? ` | Sales ${compactSales}` : ""}
+                  </Text>
                   {/* <Text style={styles.shiftDetailsHint}>Tap to open shift details</Text> */}
                 </Pressable>
                 {canCloseShift ? (
@@ -2315,11 +2305,11 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.surfaceTint,
   },
   pageContent: {
-    gap: appTheme.spacing.sm,
-    paddingBottom: appTheme.spacing.sm,
+    gap: appTheme.spacing.xs,
+    paddingBottom: appTheme.spacing.xs,
   },
   dayHeaderCard: {
-    gap: appTheme.spacing.sm,
+    gap: appTheme.spacing.xs,
   },
   summaryHeaderRow: {
     flexDirection: "row",
@@ -2341,8 +2331,8 @@ const styles = StyleSheet.create({
   },
   summaryDate: {
     color: appTheme.colors.text,
-    fontSize: 22,
-    lineHeight: 28,
+    fontSize: 19,
+    lineHeight: 24,
     fontFamily: appTheme.fonts.heading,
   },
   summaryMetaGrid: {
@@ -2372,7 +2362,7 @@ const styles = StyleSheet.create({
   },
   dateActionInlineButton: {
     flex: 1,
-    minHeight: 40,
+    minHeight: 34,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.primary,
     alignItems: "center",
@@ -2385,8 +2375,8 @@ const styles = StyleSheet.create({
   dateActionInlineButtonText: {
     color: appTheme.colors.onPrimary,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 13,
-    lineHeight: 16,
+    fontSize: 12,
+    lineHeight: 14,
   },
   dateNavigationRow: {
     width: "100%",
@@ -2396,7 +2386,7 @@ const styles = StyleSheet.create({
   },
   dateNavigationButton: {
     flex: 1,
-    minHeight: 40,
+    minHeight: 34,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceSuccessMuted,
     alignItems: "center",
@@ -2406,8 +2396,8 @@ const styles = StyleSheet.create({
   dateNavigationButtonText: {
     color: appTheme.colors.primary,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 12,
-    lineHeight: 15,
+    fontSize: 11,
+    lineHeight: 13,
   },
   summaryDivider: {
     marginTop: 2,
@@ -2544,31 +2534,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontSize: 12,
   },
-  detailLine: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: appTheme.spacing.xs,
-    backgroundColor: appTheme.colors.surface,
-    borderRadius: appTheme.radius.sm,
-    paddingHorizontal: appTheme.spacing.sm,
-    paddingVertical: 8,
-  },
-  detailLabel: {
-    minWidth: 84,
-    color: appTheme.colors.textMuted,
-    fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  detailValue: {
-    flex: 1,
-    color: appTheme.colors.text,
-    fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 12,
-    lineHeight: 16,
-    textAlign: "right",
-  },
   reviewSnapshotCard: {
     borderWidth: 0,
     borderColor: appTheme.colors.border,
@@ -2614,11 +2579,12 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceTintAlt,
-    padding: appTheme.spacing.sm,
-    gap: appTheme.spacing.xs,
+    paddingHorizontal: appTheme.spacing.xs,
+    paddingVertical: appTheme.spacing.xs,
+    gap: 4,
   },
   shiftDetailsTapArea: {
-    gap: 8,
+    gap: 4,
   },
   shiftHeader: {
     flexDirection: "row",
@@ -2629,9 +2595,15 @@ const styles = StyleSheet.create({
   shiftName: {
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 15,
-    lineHeight: 19,
+    fontSize: 14,
+    lineHeight: 17,
     flexShrink: 1,
+  },
+  shiftCompactMeta: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 15,
   },
   shiftDetailsHint: {
     color: appTheme.colors.textSubtle,
