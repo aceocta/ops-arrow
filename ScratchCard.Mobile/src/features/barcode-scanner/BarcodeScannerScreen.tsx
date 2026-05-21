@@ -527,7 +527,7 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
               onPress={() => setIsAutoOcrEnabled((previous) => !previous)}
               disabled={!isCameraReady}
             />
-            {mode === "auto" ? <Button title="Done" onPress={() => navigation.goBack()} /> : null}
+            <Button title="Done" onPress={() => navigation.goBack()} />
           </>
         )}
       </View>
