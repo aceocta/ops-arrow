@@ -848,6 +848,7 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
 
         {computedRows.map((row) => {
           const entry = entries[row.pack.id];
+          const hasClosingSerial = Boolean(entry?.closingSerialNumber?.trim());
           const isFlagged =
             entry?.entryMethod === EntryMethod.Manual ||
             (entry?.originalScannedSerialNumber &&
@@ -881,7 +882,7 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
                 {/* <Text style={styles.packMetaRight}>Price {formatCurrency(row.pack.ticketPrice)}</Text> */}
               </View>
 
-              <Text style={styles.fieldLabel}>Closing Serial Number</Text>
+              {/* <Text style={styles.fieldLabel}>Closing Serial Number</Text> */}
               <View style={styles.scanInputRow}>
                 <View style={styles.scanInputCell}>
                   <TextInput
@@ -975,29 +976,27 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
                 <Text style={styles.meta}>Original scanned serial: {entry.originalScannedSerialNumber}</Text>
               ) : null}
 
-              {isFlagged ? <StatusBadge label="Edited serial" tone="warning" /> : null}
+              {/* {isFlagged ? <StatusBadge label="Edited serial" tone="warning" /> : null} */}
               {row.hasError ? <Text style={styles.error}>{row.message}</Text> : null}
 
-              <View style={styles.metricsBlock}>
-                <View style={styles.metricsRow}>
-                   {/* <View style={styles.metricTile}>
-                    <Text style={styles.metricLabel}>Sold Qty</Text>
-                    <Text style={styles.metricValue}>{row.soldQuantity}</Text>
-                  </View> */}
-                   <View style={styles.metricTile}>
-                <Text style={styles.metricLabel}>Price</Text>
-                <Text style={styles.metricValue}> {formatCurrency(row.pack.ticketPrice)}</Text>
-              </View>
-                  <View style={styles.metricTile}>
-                    <Text style={styles.metricLabel}>Sold Qty</Text>
-                    <Text style={styles.metricValue}>{row.soldQuantity}</Text>
-                  </View>
-                  <View style={styles.metricTile}>
-                    <Text style={styles.metricLabel}>Sales Amount</Text>
-                    <Text style={[styles.metricValue, styles.metricValueRight]}>{formatCurrency(row.salesAmount)}</Text>
+              {hasClosingSerial ? (
+                <View style={styles.metricsBlock}>
+                  <View style={styles.metricsRow}>
+                    <View style={styles.metricTile}>
+                      <Text style={styles.metricLabel}>Price</Text>
+                      <Text style={styles.metricValue}>{formatCurrency(row.pack.ticketPrice)}</Text>
+                    </View>
+                    <View style={styles.metricTile}>
+                      <Text style={styles.metricLabel}>Qty</Text>
+                      <Text style={styles.metricValue}>{row.soldQuantity}</Text>
+                    </View>
+                    <View style={styles.metricTile}>
+                      <Text style={styles.metricLabel}>Sales Amount</Text>
+                      <Text style={[styles.metricValue, styles.metricValueRight]}>{formatCurrency(row.salesAmount)}</Text>
+                    </View>
                   </View>
                 </View>
-              </View>
+              ) : null}
             </View>
           );
         })}
@@ -1005,7 +1004,7 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
         <View style={[ui.card, styles.compactCard]}>
           <Text style={styles.cardTitle}>Shift Totals</Text>
           <Text style={styles.readonly}>Total sales: {formatCurrency(totals.salesAmount)}</Text>
-          <Text style={styles.meta}>{pendingRows > 0 ? `Pending: ${pendingRows}` : ""}</Text>
+          {/* <Text style={styles.meta}>{pendingRows > 0 ? `Pending: ${pendingRows}` : ""}</Text> */}
         </View>
 
         <View style={[ui.card, styles.compactCard]}>
