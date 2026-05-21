@@ -151,6 +151,18 @@ const bottomDockItems: Array<{
   { icon: "settings-outline", label: "Settings", screen: "Settings" },
 ];
 
+const drawerBottomPaddingWithDock = 92;
+
+function shouldShowBottomDock(routeName: string | undefined) {
+  return !(
+    routeName === "BestEntry" ||
+    routeName === "Dashboard" ||
+    routeName === "DayEndClose" ||
+    routeName === "CloseShift" ||
+    routeName === "ShiftClose"
+  );
+}
+
 function resolveOperationForBottomDockScreen(screen: keyof MainStackParamList): EntryOperation | null {
   if (screen === "Dashboard") {
     return "scratchCard";
@@ -393,13 +405,7 @@ function MainBottomDock() {
   const insets = useSafeAreaInsets();
   const navigationState = useNavigationState((state) => state);
   const currentRouteName = getDeepestRouteName(navigationState);
-  if (
-    currentRouteName === "BestEntry" ||
-    currentRouteName === "Dashboard" ||
-    currentRouteName === "DayEndClose" ||
-    currentRouteName === "CloseShift" ||
-    currentRouteName === "ShiftClose"
-  ) {
+  if (!shouldShowBottomDock(currentRouteName)) {
     return null;
   }
 
@@ -549,6 +555,10 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
   const roleLabel = isPlatformAdmin ? "Admin" : isCompanyOwner ? getRoleDisplayName("CompanyOwner") : isManager ? "Manager" : "Staff";
   const activeRouteName = getDeepestRouteName(props.state);
   const activeScreen = activeRouteName as keyof MainStackParamList | undefined;
+  const showBottomDock = shouldShowBottomDock(activeRouteName);
+  const drawerBottomPadding = showBottomDock
+    ? insets.bottom + drawerBottomPaddingWithDock
+    : insets.bottom + appTheme.spacing.md;
   const operationLabel = getOperationLabel(selectedOperation);
   const currentUser = profile?.displayName ?? profile?.email ?? "Signed-in user";
   const [expandedSections, setExpandedSections] = useState<Record<DrawerSectionKey, boolean>>({
@@ -594,7 +604,10 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
   }
 
   return (
-    <DrawerContentScrollView {...props} contentContainerStyle={styles.drawerScrollContent}>
+    <DrawerContentScrollView
+      {...props}
+      contentContainerStyle={[styles.drawerScrollContent, { paddingBottom: drawerBottomPadding }]}
+    >
         <View style={[styles.drawerHeader, { paddingTop: appTheme.spacing.md + insets.top }]}>
           <Text style={styles.drawerEyebrow}>Navigation</Text>
           <Text style={styles.drawerTitle}>Menu</Text>
@@ -1061,5 +1074,3 @@ const styles = StyleSheet.create({
     color: appTheme.colors.primary,
   },
 });
-
-
