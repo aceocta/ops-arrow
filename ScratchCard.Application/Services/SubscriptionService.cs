@@ -104,8 +104,9 @@ public class SubscriptionService : ISubscriptionService
         var now = DateTimeOffset.UtcNow;
         var subscription = await _companySubscriptionRepository.Query()
             .FirstOrDefaultAsync(x => x.CompanyId == request.CompanyId, cancellationToken);
+        var isNewSubscription = subscription is null;
 
-        if (subscription is null)
+        if (isNewSubscription)
         {
             subscription = new CompanySubscription
             {
@@ -133,13 +134,15 @@ public class SubscriptionService : ISubscriptionService
         subscription.CancelAtPeriodEnd = false;
         subscription.ModifiedOn = now;
         subscription.ModifiedBy = _currentUserService.UserId;
-
-        _companySubscriptionRepository.Update(subscription);
+        if (!isNewSubscription)
+        {
+            _companySubscriptionRepository.Update(subscription);
+        }
 
         await _billingEventRepository.AddAsync(new BillingEvent
         {
             CompanyId = request.CompanyId,
-            CompanySubscription = subscription,
+            CompanySubscriptionId = subscription.Id,
             EventType = previousStatus == SubscriptionStatus.Active
                 ? BillingEventType.SubscriptionChanged
                 : BillingEventType.SubscriptionActivated,

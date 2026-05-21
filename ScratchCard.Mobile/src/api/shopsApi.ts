@@ -6,6 +6,7 @@ import { SellingOrder } from "../types/enums";
 export type CreateShopPayload = {
   companyId?: string;
   companyName?: string;
+  subscriptionPlanId?: string;
   shopName: string;
   addressLine1: string;
   addressLine2?: string;

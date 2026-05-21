@@ -12,11 +12,12 @@ import { resolvedApiBaseUrl } from "../../api/client";
 import { DateTimeField } from "../../components/DateTimeField";
 import { getRoleOptions } from "../../api/lookupsApi";
 import { createShop, listShops, updateShop } from "../../api/shopsApi";
+import { listSubscriptionPlans } from "../../api/subscriptionApi";
 import { deactivateUser, listUsers, reactivateUser, updateUserRole } from "../../api/usersApi";
 import { useAuth } from "../../auth/AuthContext";
 import { LabeledValue } from "../../components/LabeledValue";
 import { ScreenContainer } from "../../components/ScreenContainer";
-import { SellingOrder } from "../../types/enums";
+import { BillingCycle, SellingOrder } from "../../types/enums";
 import { Company, ConfigurationItem, Shop } from "../../types/models";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
@@ -1171,6 +1172,7 @@ export function ShopManagementScreen() {
   const [country, setCountry] = useState("UK");
   const [scratchCardDisplayCount, setScratchCardDisplayCount] = useState("24");
   const [packSellingOrder, setPackSellingOrder] = useState<SellingOrder>(SellingOrder.Ascending);
+  const [selectedSubscriptionPlanId, setSelectedSubscriptionPlanId] = useState("");
   const [hasEditedPackSettings, setHasEditedPackSettings] = useState(false);
 
   const companiesQuery = useQuery({
@@ -1178,7 +1180,16 @@ export function ShopManagementScreen() {
     queryFn: listMyCompanies,
   });
 
+  const subscriptionPlansQuery = useQuery({
+    queryKey: ["subscription-plans", "shop-management"],
+    queryFn: listSubscriptionPlans,
+  });
+
   const companies = companiesQuery.data ?? [];
+  const selectableSubscriptionPlans = useMemo(
+    () => (subscriptionPlansQuery.data ?? []).filter((plan) => plan.billingCycle !== BillingCycle.Trial),
+    [subscriptionPlansQuery.data]
+  );
 
   const resolvedCompanyId = useMemo(() => {
     if (selectedCompanyId) {
@@ -1209,6 +1220,24 @@ export function ShopManagementScreen() {
     setHasEditedPackSettings(false);
   }, [editingShopId, editingShopConfigurationsQuery.data]);
 
+  useEffect(() => {
+    if (editingShopId) {
+      return;
+    }
+
+    if (selectableSubscriptionPlans.length === 0) {
+      setSelectedSubscriptionPlanId("");
+      return;
+    }
+
+    if (selectedSubscriptionPlanId && selectableSubscriptionPlans.some((plan) => plan.id === selectedSubscriptionPlanId)) {
+      return;
+    }
+
+    const starterPlan = selectableSubscriptionPlans.find((plan) => plan.name.trim().toLowerCase() === "starter");
+    setSelectedSubscriptionPlanId(starterPlan?.id ?? selectableSubscriptionPlans[0].id);
+  }, [editingShopId, selectableSubscriptionPlans, selectedSubscriptionPlanId]);
+
   const saveShopMutation = useMutation({
     mutationFn: async () => {
       if (!resolvedCompanyId) {
@@ -1219,6 +1248,9 @@ export function ShopManagementScreen() {
       }
       if (!shopName.trim() || !addressLine1.trim() || !city.trim() || !postCode.trim() || !country.trim()) {
         throw new Error("Shop name, address, city, postcode, and country are required.");
+      }
+      if (!editingShopId && !selectedSubscriptionPlanId) {
+        throw new Error("Select a subscription package before creating the shop.");
       }
 
       const shouldPersistPackSettings = !editingShopId || hasEditedPackSettings;
@@ -1232,6 +1264,7 @@ export function ShopManagementScreen() {
 
       const basePayload = {
         companyId: resolvedCompanyId,
+        subscriptionPlanId: editingShopId ? undefined : selectedSubscriptionPlanId,
         shopName: shopName.trim(),
         addressLine1: addressLine1.trim(),
         addressLine2: addressLine2.trim() || undefined,
@@ -1266,6 +1299,7 @@ export function ShopManagementScreen() {
       setCountry("UK");
       setScratchCardDisplayCount("24");
       setPackSellingOrder(SellingOrder.Ascending);
+      setSelectedSubscriptionPlanId("");
       setHasEditedPackSettings(false);
       Alert.alert(editingShopId ? "Updated" : "Created", editingShopId ? "Shop updated successfully." : "Shop created successfully.");
       void Promise.all([queryClient.invalidateQueries({ queryKey: ["shops", resolvedCompanyId] }), refreshProfile()]);
@@ -1300,10 +1334,16 @@ export function ShopManagementScreen() {
     setCountry("UK");
     setScratchCardDisplayCount("24");
     setPackSellingOrder(SellingOrder.Ascending);
+    setSelectedSubscriptionPlanId("");
     setHasEditedPackSettings(false);
   }
 
-  const isSavingDisabled = (!editingShopId && !canCreateShop) || (Boolean(editingShopId) && editingShopConfigurationsQuery.isLoading);
+  const isSavingDisabled = (!editingShopId && (
+    !canCreateShop ||
+    subscriptionPlansQuery.isLoading ||
+    selectableSubscriptionPlans.length === 0 ||
+    !selectedSubscriptionPlanId
+  )) || (Boolean(editingShopId) && editingShopConfigurationsQuery.isLoading);
 
   return (
     <ScreenContainer>
@@ -1340,6 +1380,32 @@ export function ShopManagementScreen() {
           <TextInput style={styles.input} value={postCode} onChangeText={setPostCode} placeholder="Post code" />
           <Text style={styles.fieldLabel}>Country</Text>
           <TextInput style={styles.input} value={country} onChangeText={setCountry} placeholder="Country" />
+          {!editingShopId ? (
+            <View style={styles.subSectionCard}>
+              <Text style={styles.subSectionTitle}>Subscription Package</Text>
+              <Text style={styles.caption}>Select the package to apply feature access when this shop is created.</Text>
+              {subscriptionPlansQuery.isLoading ? <Text style={styles.meta}>Loading subscription plans...</Text> : null}
+              {selectableSubscriptionPlans.length === 0 && !subscriptionPlansQuery.isLoading ? (
+                <Text style={styles.error}>No active subscription plans are available.</Text>
+              ) : null}
+              <View style={styles.choiceChipWrap}>
+                {selectableSubscriptionPlans.map((plan) => {
+                  const selected = selectedSubscriptionPlanId === plan.id;
+                  return (
+                    <Pressable
+                      key={plan.id}
+                      style={[styles.choiceChip, selected ? styles.choiceChipSelected : null]}
+                      onPress={() => setSelectedSubscriptionPlanId(plan.id)}
+                    >
+                      <Text style={[styles.choiceChipText, selected ? styles.choiceChipTextSelected : null]}>
+                        {plan.name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
           <View style={styles.subSectionCard}>
             <Text style={styles.subSectionTitle}>Pack Settings</Text>
             {editingShopId && editingShopConfigurationsQuery.isLoading ? (

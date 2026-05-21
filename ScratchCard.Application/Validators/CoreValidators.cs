@@ -104,6 +104,9 @@ public class CreateShopRequestValidator : AbstractValidator<CreateShopRequest>
 {
     public CreateShopRequestValidator()
     {
+        RuleFor(x => x.SubscriptionPlanId)
+            .NotEqual(Guid.Empty)
+            .When(x => x.SubscriptionPlanId.HasValue);
         RuleFor(x => x.CompanyName)
             .MaximumLength(200)
             .When(x => !string.IsNullOrWhiteSpace(x.CompanyName));

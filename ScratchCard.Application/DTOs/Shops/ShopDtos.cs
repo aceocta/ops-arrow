@@ -6,6 +6,7 @@ public class CreateShopRequest
 {
     public Guid? CompanyId { get; set; }
     public string? CompanyName { get; set; }
+    public Guid? SubscriptionPlanId { get; set; }
     public string ShopName { get; set; } = string.Empty;
     public string AddressLine1 { get; set; } = string.Empty;
     public string? AddressLine2 { get; set; }

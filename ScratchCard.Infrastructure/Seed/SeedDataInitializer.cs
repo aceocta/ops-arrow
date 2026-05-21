@@ -820,6 +820,15 @@ public static class SeedDataInitializer
     private static async Task SeedSubscriptionPlansAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
+        var starterFeatureSet = new[]
+        {
+            FeatureKeys.ScratchCardManagement,
+            FeatureKeys.TemperatureLog,
+            FeatureKeys.RefusalNoIdNoSale,
+            FeatureKeys.ComplianceChecklist,
+            FeatureKeys.SafeDropManagement
+        };
+        var starterIncludedFeatures = BuildIncludedFeaturesCsv(starterFeatureSet);
         var existing = await dbContext.SubscriptionPlans
             .AsNoTracking()
             .ToListAsync(cancellationToken);
@@ -843,12 +852,12 @@ public static class SeedDataInitializer
         {
             await dbContext.SubscriptionPlans.AddAsync(new SubscriptionPlan
             {
-                Name = "Monthly Plan",
+                Name = "Starter",
                 BillingCycle = BillingCycle.Monthly,
                 PricePerShop = 20,
                 TrialDays = 0,
-                Description = "Monthly subscription per active shop",
-                IncludedFeatures = FeatureKeys.SafeDropManagement,
+                Description = "Starter package with scratch card management, temperature log, refusal (No ID/No Sale), compliance checklist, and safe drop management.",
+                IncludedFeatures = starterIncludedFeatures,
                 IsActive = true,
                 CreatedOn = now
             }, cancellationToken);
@@ -863,7 +872,7 @@ public static class SeedDataInitializer
                 PricePerShop = 200,
                 TrialDays = 0,
                 Description = "Annual subscription per active shop",
-                IncludedFeatures = FeatureKeys.SafeDropManagement,
+                IncludedFeatures = starterIncludedFeatures,
                 IsActive = true,
                 CreatedOn = now
             }, cancellationToken);
@@ -878,16 +887,34 @@ public static class SeedDataInitializer
         var updated = false;
         foreach (var plan in updatablePlans)
         {
-            if (!string.IsNullOrWhiteSpace(plan.IncludedFeatures) &&
-                plan.IncludedFeatures.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                    .Any(x => string.Equals(x, FeatureKeys.SafeDropManagement, StringComparison.OrdinalIgnoreCase)))
+            var parsedExistingFeatures = ParseIncludedFeatures(plan.IncludedFeatures);
+            var mergedFeatures = parsedExistingFeatures.ToList();
+            var featuresChanged = false;
+
+            foreach (var feature in starterFeatureSet)
+            {
+                if (mergedFeatures.Any(x => string.Equals(x, feature, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                mergedFeatures.Add(feature);
+                featuresChanged = true;
+            }
+
+            if (plan.BillingCycle == BillingCycle.Monthly &&
+                !string.Equals(plan.Name?.Trim(), "Starter", StringComparison.Ordinal))
+            {
+                plan.Name = "Starter";
+                featuresChanged = true;
+            }
+
+            if (!featuresChanged)
             {
                 continue;
             }
 
-            plan.IncludedFeatures = string.IsNullOrWhiteSpace(plan.IncludedFeatures)
-                ? FeatureKeys.SafeDropManagement
-                : $"{plan.IncludedFeatures.Trim()},{FeatureKeys.SafeDropManagement}";
+            plan.IncludedFeatures = BuildIncludedFeaturesCsv(mergedFeatures);
             plan.ModifiedOn = DateTimeOffset.UtcNow;
             updated = true;
         }
@@ -896,6 +923,30 @@ public static class SeedDataInitializer
         {
             await dbContext.SaveChangesAsync(cancellationToken);
         }
+    }
+
+    private static IReadOnlyCollection<string> ParseIncludedFeatures(string? rawFeatures)
+    {
+        if (string.IsNullOrWhiteSpace(rawFeatures))
+        {
+            return [];
+        }
+
+        return rawFeatures
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static string BuildIncludedFeaturesCsv(IEnumerable<string> features)
+    {
+        return string.Join(
+            ',',
+            features
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase));
     }
 
     private static async Task SeedSubscriptionDiscountRulesAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)

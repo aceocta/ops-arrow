@@ -22,9 +22,12 @@ public class ShopService : IShopService
     private readonly IRepository<ScratchCardGame> _masterGameRepository;
     private readonly IRepository<ShopScratchCardGame> _shopGameRepository;
     private readonly IRepository<CfgPackSettings> _packSettingsRepository;
+    private readonly IRepository<CfgDayCloseSettings> _dayCloseSettingsRepository;
+    private readonly IRepository<SubscriptionPlan> _subscriptionPlanRepository;
     private readonly IRepository<CompanySubscription> _companySubscriptionRepository;
     private readonly IRepository<BillingEvent> _billingEventRepository;
     private readonly ISubscriptionCalculationService _subscriptionCalculationService;
+    private readonly ISubscriptionBillingService _subscriptionBillingService;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
@@ -38,9 +41,12 @@ public class ShopService : IShopService
         IRepository<ScratchCardGame> masterGameRepository,
         IRepository<ShopScratchCardGame> shopGameRepository,
         IRepository<CfgPackSettings> packSettingsRepository,
+        IRepository<CfgDayCloseSettings> dayCloseSettingsRepository,
+        IRepository<SubscriptionPlan> subscriptionPlanRepository,
         IRepository<CompanySubscription> companySubscriptionRepository,
         IRepository<BillingEvent> billingEventRepository,
         ISubscriptionCalculationService subscriptionCalculationService,
+        ISubscriptionBillingService subscriptionBillingService,
         IAuditService auditService,
         ICurrentUserService currentUserService,
         IUnitOfWork unitOfWork)
@@ -53,9 +59,12 @@ public class ShopService : IShopService
         _masterGameRepository = masterGameRepository;
         _shopGameRepository = shopGameRepository;
         _packSettingsRepository = packSettingsRepository;
+        _dayCloseSettingsRepository = dayCloseSettingsRepository;
+        _subscriptionPlanRepository = subscriptionPlanRepository;
         _companySubscriptionRepository = companySubscriptionRepository;
         _billingEventRepository = billingEventRepository;
         _subscriptionCalculationService = subscriptionCalculationService;
+        _subscriptionBillingService = subscriptionBillingService;
         _auditService = auditService;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
@@ -65,6 +74,7 @@ public class ShopService : IShopService
     {
         EnsureCreateShopAccess();
         var resolvedCompany = await ResolveCompanyAsync(request, cancellationToken);
+        var requestedSubscriptionPlan = await ResolveRequestedSubscriptionPlanAsync(request.SubscriptionPlanId, cancellationToken);
         var shopName = request.ShopName.Trim();
 
         if (string.IsNullOrWhiteSpace(shopName))
@@ -105,9 +115,11 @@ public class ShopService : IShopService
         await UpsertPackConfigurationAsync(shop.Id, request.PackSellingOrder, request.ScratchCardDisplayCount, cancellationToken);
         await AssignActiveMasterGamesToShopAsync(shop, cancellationToken);
         await EnsureCreatorOwnershipAsync(shop, cancellationToken);
-        await RecalculateCompanySubscriptionAsync(
+        await ApplySubscriptionAndFeatureConfigurationAsync(
             resolvedCompany.Id,
-            $"Shop added: {shop.ShopName}",
+            shop.Id,
+            shop.ShopName,
+            requestedSubscriptionPlan,
             cancellationToken);
 
         await _auditService.LogAsync(nameof(Shop), shop.Id, "ShopCreated", shop.Id, cancellationToken: cancellationToken);
@@ -342,6 +354,185 @@ public class ShopService : IShopService
         var safeTicketsPerPack = Math.Max(2, ticketsPerPack);
         var endSerial = (safeTicketsPerPack - 1).ToString();
         return (DefaultStartSerialNumber, endSerial);
+    }
+
+    private async Task<SubscriptionPlan?> ResolveRequestedSubscriptionPlanAsync(Guid? subscriptionPlanId, CancellationToken cancellationToken)
+    {
+        if (!subscriptionPlanId.HasValue)
+        {
+            return null;
+        }
+
+        if (subscriptionPlanId.Value == Guid.Empty)
+        {
+            throw new AppException("validation_failed", "Subscription plan is required.", 400);
+        }
+
+        var plan = await _subscriptionPlanRepository.Query()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == subscriptionPlanId.Value && x.IsActive, cancellationToken)
+            ?? throw new AppException("subscription_plan_not_found", "Subscription plan not found or inactive.", 404);
+
+        if (plan.BillingCycle == BillingCycle.Trial)
+        {
+            throw new AppException("validation_failed", "Trial plan cannot be selected when creating a shop.", 400);
+        }
+
+        return plan;
+    }
+
+    private async Task ApplySubscriptionAndFeatureConfigurationAsync(
+        Guid companyId,
+        Guid shopId,
+        string shopName,
+        SubscriptionPlan? requestedSubscriptionPlan,
+        CancellationToken cancellationToken)
+    {
+        if (requestedSubscriptionPlan is not null)
+        {
+            var currentSubscription = await _companySubscriptionRepository.Query()
+                .AsNoTracking()
+                .Where(x => x.CompanyId == companyId)
+                .Select(x => new
+                {
+                    x.SubscriptionPlanId,
+                    x.Status
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (currentSubscription is not null &&
+                currentSubscription.SubscriptionPlanId == requestedSubscriptionPlan.Id &&
+                currentSubscription.Status == SubscriptionStatus.Active)
+            {
+                await RecalculateCompanySubscriptionAsync(
+                    companyId,
+                    $"Shop added: {shopName}",
+                    cancellationToken);
+            }
+            else
+            {
+                await SelectSubscriptionPlanForCompanyAsync(companyId, requestedSubscriptionPlan, cancellationToken);
+            }
+        }
+        else
+        {
+            await RecalculateCompanySubscriptionAsync(
+                companyId,
+                $"Shop added: {shopName}",
+                cancellationToken);
+        }
+
+        var effectivePlan = requestedSubscriptionPlan ?? await GetCurrentCompanySubscriptionPlanAsync(companyId, cancellationToken);
+        var includedFeatures = ServiceMappingExtensions.ParseIncludedFeatures(effectivePlan?.IncludedFeatures);
+        var enableSafeDropManagement = includedFeatures.Any(
+            featureKey => string.Equals(featureKey, FeatureKeys.SafeDropManagement, StringComparison.OrdinalIgnoreCase));
+
+        await UpsertSafeDropManagementSettingAsync(shopId, enableSafeDropManagement, cancellationToken);
+    }
+
+    private async Task<SubscriptionPlan?> GetCurrentCompanySubscriptionPlanAsync(Guid companyId, CancellationToken cancellationToken)
+    {
+        return await _companySubscriptionRepository.Query()
+            .AsNoTracking()
+            .Include(x => x.SubscriptionPlan)
+            .Where(x => x.CompanyId == companyId)
+            .Select(x => x.SubscriptionPlan)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private async Task SelectSubscriptionPlanForCompanyAsync(Guid companyId, SubscriptionPlan plan, CancellationToken cancellationToken)
+    {
+        var calculation = await _subscriptionCalculationService.CalculateAsync(companyId, plan.Id, cancellationToken);
+        if (calculation.ActiveShopCount < 1)
+        {
+            throw new AppException("validation_failed", "At least one active shop is required for paid plans.", 400);
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var subscription = await _companySubscriptionRepository.Query()
+            .FirstOrDefaultAsync(x => x.CompanyId == companyId, cancellationToken);
+        var isNewSubscription = subscription is null;
+
+        if (isNewSubscription)
+        {
+            subscription = new CompanySubscription
+            {
+                CompanyId = companyId,
+                SubscriptionPlanId = plan.Id,
+                CreatedOn = now,
+                CreatedBy = _currentUserService.UserId
+            };
+            await _companySubscriptionRepository.AddAsync(subscription, cancellationToken);
+        }
+
+        var previousStatus = subscription.Status;
+        subscription.SubscriptionPlanId = plan.Id;
+        subscription.Status = SubscriptionStatus.Active;
+        subscription.BillingCycle = plan.BillingCycle;
+        subscription.PricePerShop = calculation.PricePerShop;
+        subscription.ActiveShopCount = calculation.ActiveShopCount;
+        subscription.DiscountAmount = calculation.DiscountAmount;
+        subscription.DiscountPercentage = calculation.DiscountPercentage;
+        subscription.SubTotalAmount = calculation.SubTotalAmount;
+        subscription.TotalAmount = calculation.TotalAmount;
+        subscription.CurrentPeriodStartedOn = now;
+        subscription.CurrentPeriodEndsOn = plan.BillingCycle == BillingCycle.Annual ? now.AddYears(1) : now.AddMonths(1);
+        subscription.CancelledOn = null;
+        subscription.CancelAtPeriodEnd = false;
+        subscription.ModifiedOn = now;
+        subscription.ModifiedBy = _currentUserService.UserId;
+        if (!isNewSubscription)
+        {
+            _companySubscriptionRepository.Update(subscription);
+        }
+
+        await _billingEventRepository.AddAsync(new BillingEvent
+        {
+            CompanyId = companyId,
+            CompanySubscriptionId = subscription.Id,
+            EventType = previousStatus == SubscriptionStatus.Active
+                ? BillingEventType.SubscriptionChanged
+                : BillingEventType.SubscriptionActivated,
+            Description = $"Plan selected on shop create: {plan.Name}",
+            OldValue = previousStatus.ToString(),
+            NewValue = $"{plan.BillingCycle}|{calculation.TotalAmount}",
+            CreatedOn = now,
+            CreatedBy = _currentUserService.UserId
+        }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _subscriptionBillingService.CreateInvoiceAsync(subscription.Id, cancellationToken);
+    }
+
+    private async Task UpsertSafeDropManagementSettingAsync(Guid shopId, bool enabled, CancellationToken cancellationToken)
+    {
+        var settings = await _dayCloseSettingsRepository.Query()
+            .FirstOrDefaultAsync(x => x.ShopId == shopId, cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+
+        if (settings is null)
+        {
+            settings = new CfgDayCloseSettings
+            {
+                ShopId = shopId,
+                EnableSafeDropManagement = enabled,
+                IsActive = true,
+                CreatedOn = now,
+                CreatedBy = _currentUserService.UserId
+            };
+
+            await _dayCloseSettingsRepository.AddAsync(settings, cancellationToken);
+        }
+        else
+        {
+            settings.EnableSafeDropManagement = enabled;
+            settings.IsActive = true;
+            settings.ModifiedOn = now;
+            settings.ModifiedBy = _currentUserService.UserId;
+            _dayCloseSettingsRepository.Update(settings);
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
     private async Task<Company> ResolveCompanyAsync(CreateShopRequest request, CancellationToken cancellationToken)

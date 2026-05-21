@@ -1,12 +1,14 @@
-import React, { useState } from "react";
-import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useQuery } from "@tanstack/react-query";
 import { createShop } from "../api/shopsApi";
+import { listSubscriptionPlans } from "../api/subscriptionApi";
 import { useAuth } from "./AuthContext";
 import { ScreenContainer } from "../components/ScreenContainer";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { ui } from "../ui/primitives";
 import { appTheme } from "../ui/theme";
-import { SellingOrder } from "../types/enums";
+import { BillingCycle, SellingOrder } from "../types/enums";
 
 export function ShopSetupScreen() {
   const { profile, refreshProfile, isLoading } = useAuth();
@@ -18,11 +20,31 @@ export function ShopSetupScreen() {
   const [country, setCountry] = useState("UK");
   const [scratchCardDisplayCount, setScratchCardDisplayCount] = useState("24");
   const [packSellingOrder, setPackSellingOrder] = useState<SellingOrder>(SellingOrder.Ascending);
+  const [selectedSubscriptionPlanId, setSelectedSubscriptionPlanId] = useState("");
   const [isBusy, setIsBusy] = useState(false);
   const [progressMessage, setProgressMessage] = useState<string | null>(null);
 
   const companyId = profile?.primaryCompanyId;
   const busy = isLoading || isBusy;
+
+  const plansQuery = useQuery({
+    queryKey: ["subscription-plans", "shop-setup"],
+    queryFn: listSubscriptionPlans,
+  });
+
+  const selectablePlans = useMemo(
+    () => (plansQuery.data ?? []).filter((plan) => plan.billingCycle !== BillingCycle.Trial),
+    [plansQuery.data]
+  );
+
+  useEffect(() => {
+    if (selectedSubscriptionPlanId || selectablePlans.length === 0) {
+      return;
+    }
+
+    const starterPlan = selectablePlans.find((plan) => plan.name.trim().toLowerCase() === "starter");
+    setSelectedSubscriptionPlanId(starterPlan?.id ?? selectablePlans[0].id);
+  }, [selectablePlans, selectedSubscriptionPlanId]);
 
   async function onContinue() {
     if (!companyId) {
@@ -31,6 +53,10 @@ export function ShopSetupScreen() {
     }
     if (!shopName.trim() || !addressLine1.trim() || !city.trim() || !postCode.trim() || !country.trim()) {
       Alert.alert("Validation", "Shop name, address, city, post code, and country are required.");
+      return;
+    }
+    if (!selectedSubscriptionPlanId) {
+      Alert.alert("Validation", "Please select a subscription package for this shop.");
       return;
     }
     const parsedDisplayCount = Number(scratchCardDisplayCount.trim());
@@ -44,6 +70,7 @@ export function ShopSetupScreen() {
       // setProgressMessage("Creating shop...");
       const createdShop = await createShop({
         companyId,
+        subscriptionPlanId: selectedSubscriptionPlanId,
         shopName: shopName.trim(),
         addressLine1: addressLine1.trim(),
         addressLine2: addressLine2.trim() || undefined,
@@ -133,6 +160,33 @@ export function ShopSetupScreen() {
         />
 
         <View style={styles.configSection}>
+          <Text style={styles.configTitle}>Subscription Package</Text>
+          <Text style={styles.configSubtitle}>Choose the package to apply feature access for this shop.</Text>
+          {plansQuery.isLoading ? <Text style={styles.progressText}>Loading subscription plans...</Text> : null}
+          {selectablePlans.length === 0 && !plansQuery.isLoading ? (
+            <Text style={styles.progressText}>No active subscription plans are available.</Text>
+          ) : null}
+          <View style={styles.choiceRow}>
+            {selectablePlans.map((plan) => {
+              const selected = selectedSubscriptionPlanId === plan.id;
+              return (
+                <Pressable
+                  key={plan.id}
+                  style={[styles.choiceChipPressable, selected ? styles.choiceChipPressableSelected : null]}
+                  onPress={() => setSelectedSubscriptionPlanId(plan.id)}
+                  disabled={busy}
+                >
+                  <Text style={[styles.choiceChipText, selected ? styles.choiceChipTextSelected : null]}>{plan.name}</Text>
+                  <Text style={[styles.choiceChipMetaText, selected ? styles.choiceChipTextSelected : null]}>
+                    {plan.billingCycle}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={styles.configSection}>
           <Text style={styles.configTitle}>Pack Configuration</Text>
           <Text style={styles.configSubtitle}>Set the initial selling order and display capacity for this shop.</Text>
 
@@ -167,7 +221,7 @@ export function ShopSetupScreen() {
         <PrimaryButton
           label={busy ? progressMessage ?? "Saving..." : "Finish Setup"}
           onPress={() => void onContinue()}
-          disabled={busy}
+          disabled={busy || selectablePlans.length === 0}
         />
         {busy && progressMessage ? <Text style={styles.progressText}>{progressMessage}</Text> : null}
       </View>
@@ -231,6 +285,38 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: appTheme.spacing.xs,
     alignItems: "center",
+    flexWrap: "wrap",
+  },
+  choiceChipPressable: {
+    minWidth: 120,
+    borderRadius: appTheme.radius.pill,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+  },
+  choiceChipPressableSelected: {
+    borderColor: appTheme.colors.borderStrong,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+  },
+  choiceChipText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 16,
+  },
+  choiceChipMetaText: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  choiceChipTextSelected: {
+    color: appTheme.colors.primary,
   },
   choiceChip: {
     flex: 1,
