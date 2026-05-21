@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Button, StyleSheet, Text, View } from "react-native";
 import { BarcodeType, CameraView, useCameraPermissions } from "expo-camera";
 import Constants from "expo-constants";
+import * as ImageManipulator from "expo-image-manipulator";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../types/navigation";
 import { emitScan } from "./scanBus";
@@ -391,8 +392,30 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
         return false;
       }
 
+      const expectedPackNumber = mode === "single" ? route.params.packNumber : undefined;
       const recognized = await recognizeTextWithMlkit(captured.uri);
-      const parsedFromText = parseTicketText(recognized.text, mode === "single" ? route.params.packNumber : undefined);
+      let parsedFromText = parseTicketText(recognized.text, expectedPackNumber);
+      let matchedRotation = 0;
+
+      if (!parsedFromText) {
+        try {
+          const rotated = await ImageManipulator.manipulateAsync(
+            captured.uri,
+            [{ rotate: 180 }],
+            {
+              compress: 1,
+              format: ImageManipulator.SaveFormat.JPEG,
+            }
+          );
+          const rotatedRecognized = await recognizeTextWithMlkit(rotated.uri);
+          parsedFromText = parseTicketText(rotatedRecognized.text, expectedPackNumber);
+          if (parsedFromText) {
+            matchedRotation = 180;
+          }
+        } catch {
+          // Best-effort fallback: keep primary OCR result path.
+        }
+      }
 
       if (!parsedFromText) {
         setLastScanMessage("OCR could not read ticket code. Try flatter image with better light.");
@@ -415,7 +438,8 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
         barcodeType: "mlkit-text",
       });
 
-      setLastScanMessage(`OCR captured: ${parsedFromText.rawBarcode}`);
+      const rotationMessage = matchedRotation === 0 ? "" : ` (rotated ${matchedRotation}deg)`;
+      setLastScanMessage(`OCR captured: ${parsedFromText.rawBarcode}${rotationMessage}`);
       consumePendingPack(
         parsedFromText.parsedPackNumber,
         parsedFromText.rawBarcode,
