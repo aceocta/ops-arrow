@@ -294,8 +294,10 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
   const [scanStatus, setScanStatus] = useState<string | null>(null);
   const [closeAttachments, setCloseAttachments] = useState<CloseAttachmentState[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [gameNameTooltipPackId, setGameNameTooltipPackId] = useState<string | null>(null);
   const packsRef = useRef<ScratchCardPack[]>([]);
   const entriesRef = useRef<Record<string, EntryState>>({});
+  const gameNameTooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function openBarcodeScanner(params: {
     mode: "single" | "auto";
@@ -434,6 +436,22 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
       }
     })();
   }, [shiftId]);
+
+  useEffect(() => () => {
+    if (gameNameTooltipTimerRef.current) {
+      clearTimeout(gameNameTooltipTimerRef.current);
+    }
+  }, []);
+
+  function showGameNameTooltip(packId: string) {
+    setGameNameTooltipPackId(packId);
+    if (gameNameTooltipTimerRef.current) {
+      clearTimeout(gameNameTooltipTimerRef.current);
+    }
+    gameNameTooltipTimerRef.current = setTimeout(() => {
+      setGameNameTooltipPackId((previous) => (previous === packId ? null : previous));
+    }, 1800);
+  }
 
   useEffect(() => {
     const unsubscribe = subscribeScan((payload) => {
@@ -869,18 +887,23 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
               key={row.pack.id}
             >
               <View style={styles.packHeaderRow}>
-                <Text style={styles.packTitle}>
-                  {row.pack.displayNumber != null ? `#${row.pack.displayNumber} - ` : ""}{row.pack.gameName}
-                </Text>
+                <Pressable
+                  style={styles.packTitlePressable}
+                  onPress={() => showGameNameTooltip(row.pack.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Show game name for pack ${row.pack.packNumber}`}
+                >
+                  <Text style={styles.packTitle} numberOfLines={1}>
+                    {row.pack.displayNumber != null ? `#${row.pack.displayNumber} | ` : ""}
+                    Pack - {row.pack.packNumber}
+                  </Text>
+                </Pressable>
+                <Text style={styles.packMeta}>Opening: {row.pack.currentSerialNumber}</Text>
                 {/* <StatusBadge label={rowStatusLabel} tone={rowStatusTone} /> */}
               </View>
-
-              {/* <Text style={styles.packMeta}>Pack: {row.pack.packNumber}</Text> */}
-              <View style={styles.packMetaRow}>
-                <Text style={styles.packMeta}>Pack: {row.pack.packNumber}</Text>
-                <Text style={styles.packMeta}>Opening serial: {row.pack.currentSerialNumber}</Text>
-                {/* <Text style={styles.packMetaRight}>Price {formatCurrency(row.pack.ticketPrice)}</Text> */}
-              </View>
+              {gameNameTooltipPackId === row.pack.id ? (
+                <Text style={styles.packTooltip}>{row.pack.gameName}</Text>
+              ) : null}
 
               {/* <Text style={styles.fieldLabel}>Closing Serial Number</Text> */}
               <View style={styles.scanInputRow}>
@@ -1194,6 +1217,20 @@ const styles = StyleSheet.create({
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
     flex: 1,
+  },
+  packTitlePressable: {
+    flex: 1,
+  },
+  packTooltip: {
+    alignSelf: "flex-start",
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 15,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    borderRadius: appTheme.radius.sm,
+    paddingHorizontal: appTheme.spacing.xs,
+    paddingVertical: 4,
   },
   packHeaderRow: {
     flexDirection: "row",
