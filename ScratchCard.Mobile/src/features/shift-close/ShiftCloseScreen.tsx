@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import NetInfo, { useNetInfo } from "@react-native-community/netinfo";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -767,8 +767,8 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
   );
 
   return (
-    <ScreenContainer footer={finalizeFooter}>
-      <ScrollView contentContainerStyle={styles.content}>
+    <ScreenContainer footer={finalizeFooter} keyboardScrollOffset={160}>
+      <View style={styles.content}>
         <View style={[ui.card, styles.summaryCard]}>
           <View style={styles.summaryHeaderRow}>
             <Text style={styles.summaryTitle} numberOfLines={1}>
@@ -1068,7 +1068,7 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
           </View>
         </View>
 
-      </ScrollView>
+      </View>
     </ScreenContainer>
   );
 }
