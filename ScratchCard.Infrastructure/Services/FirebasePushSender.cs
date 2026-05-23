@@ -65,20 +65,20 @@ public class FirebasePushSender : IPushSender
                     Title = message.Subject,
                     Body = message.Body
                 },
-                Data = new Dictionary<string, string>
-                {
-                    ["shopId"] = message.ShopId.ToString(),
-                    ["notificationType"] = message.NotificationType.ToString(),
-                    ["relatedEntityName"] = message.RelatedEntityName,
-                    ["relatedEntityId"] = message.RelatedEntityId?.ToString() ?? string.Empty
-                },
+                //Data = new Dictionary<string, string>
+                //{
+                //    ["shopId"] = message.ShopId.ToString(),
+                //    ["notificationType"] = message.NotificationType.ToString(),
+                //    ["relatedEntityName"] = message.RelatedEntityName,
+                //    ["relatedEntityId"] = message.RelatedEntityId?.ToString() ?? string.Empty
+                //},
                 Android = new FirebaseAndroidConfig
                 {
                     Priority = "high",
                     Notification = new FirebaseAndroidNotification
                     {
                         Sound = "default",
-                        ChannelId = "default"
+                        // ChannelId = "default"
                     }
                 }
             }
