@@ -28,6 +28,7 @@ public class ShiftSalesService : IShiftSalesService
     private readonly IRepository<CfgDayCloseSettings> _dayCloseSettingsRepository;
     private readonly IRepository<CompanySubscription> _companySubscriptionRepository;
     private readonly IRepository<ShopUser> _shopUserRepository;
+    private readonly IRepository<UserPushToken> _userPushTokenRepository;
     private readonly IRepository<Shop> _shopRepository;
     private readonly IShopConfigurationService _shopConfigurationService;
     private readonly ISerialCalculationService _serialCalculationService;
@@ -52,6 +53,7 @@ public class ShiftSalesService : IShiftSalesService
         IRepository<CfgDayCloseSettings> dayCloseSettingsRepository,
         IRepository<CompanySubscription> companySubscriptionRepository,
         IRepository<ShopUser> shopUserRepository,
+        IRepository<UserPushToken> userPushTokenRepository,
         IRepository<Shop> shopRepository,
         IShopConfigurationService shopConfigurationService,
         ISerialCalculationService serialCalculationService,
@@ -75,6 +77,7 @@ public class ShiftSalesService : IShiftSalesService
         _dayCloseSettingsRepository = dayCloseSettingsRepository;
         _companySubscriptionRepository = companySubscriptionRepository;
         _shopUserRepository = shopUserRepository;
+        _userPushTokenRepository = userPushTokenRepository;
         _shopRepository = shopRepository;
         _shopConfigurationService = shopConfigurationService;
         _serialCalculationService = serialCalculationService;
@@ -166,6 +169,7 @@ public class ShiftSalesService : IShiftSalesService
             await SendManualEntryNotificationsAsync(shift, businessDay, entries, cancellationToken);
         }
 
+        await SendShiftClosePushNotificationsAsync(shift, businessDay, entries, cancellationToken);
         await SendShiftCloseSummaryToOwnersAsync(shift, businessDay, entries, packs, cancellationToken);
     }
 
@@ -450,18 +454,26 @@ public class ShiftSalesService : IShiftSalesService
         var hasFlags = salesEntries.Any(x => x.NotificationRequired);
         try
         {
-            using var enqueueTimeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(250));
             await _shiftCloseNotificationDispatcher.EnqueueAsync(
                 new ShiftCloseNotificationWorkItem
                 {
                     ShiftId = shift.Id,
                     IncludeManualEntryNotifications = false
                 },
-                enqueueTimeout.Token);
+                CancellationToken.None);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to enqueue shift close notifications for shift {ShiftId}", shift.Id);
+            try
+            {
+                // Fallback ensures notification delivery when background queue is temporarily unavailable.
+                await SendShiftCloseNotificationsAsync(shift.Id, includeManualEntryNotifications: false, cancellationToken);
+            }
+            catch (Exception fallbackEx)
+            {
+                _logger.LogError(fallbackEx, "Fallback shift close notification dispatch failed for shift {ShiftId}", shift.Id);
+            }
         }
 
         await _auditService.LogAsync(
@@ -628,6 +640,89 @@ public class ShiftSalesService : IShiftSalesService
                 // Notification failures are logged by notification service and must not block shift close.
             }
         }
+    }
+
+    private async Task SendShiftClosePushNotificationsAsync(
+        Shift shift,
+        BusinessDay businessDay,
+        IReadOnlyCollection<ShiftScratchCardSale> entries,
+        CancellationToken cancellationToken)
+    {
+        var recipientUserIds = await _shopUserRepository.Query()
+            .AsNoTracking()
+            .Where(
+                x =>
+                    x.ShopId == shift.ShopId &&
+                    x.IsActive &&
+                    (x.Role.Name == RoleNames.CompanyOwner || x.Role.Name == RoleNames.Manager))
+            .Select(x => x.UserId)
+            .Distinct()
+            .ToArrayAsync(cancellationToken);
+        if (recipientUserIds.Length == 0)
+        {
+            _logger.LogInformation(
+                "Shift close push skipped for shift {ShiftId}: no active manager/company owner users for shop {ShopId}.",
+                shift.Id,
+                shift.ShopId);
+            return;
+        }
+
+        var recipientTokens = await _userPushTokenRepository.Query()
+            .AsNoTracking()
+            .Where(
+                x =>
+                    x.ShopId == shift.ShopId &&
+                    x.IsActive &&
+                    recipientUserIds.Contains(x.UserId) &&
+                    (x.Platform.ToLower() == "fcm" || x.Platform.ToLower() == "android" || x.Platform.ToLower() == "ios"))
+            .Select(x => x.PushToken)
+            .Distinct()
+            .ToArrayAsync(cancellationToken);
+        if (recipientTokens.Length == 0)
+        {
+            _logger.LogInformation(
+                "Shift close push skipped for shift {ShiftId}: no active FCM tokens for manager/company owner users in shop {ShopId}.",
+                shift.Id,
+                shift.ShopId);
+            return;
+        }
+
+        var shopName = await _shopRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.Id == shift.ShopId)
+            .Select(x => x.ShopName)
+            .FirstOrDefaultAsync(cancellationToken) ?? "Shop";
+
+        var totalSales = entries.Sum(x => x.SalesAmount);
+        var subject = $"Shift Closed - {shopName}";
+        var body = $"Shift {shift.ShiftName} for {businessDay.BusinessDate:yyyy-MM-dd} is closed. Total sales: {totalSales:0.00}.";
+
+        foreach (var token in recipientTokens)
+        {
+            try
+            {
+                await _notificationService.SendAsync(new NotificationMessage
+                {
+                    ShopId = shift.ShopId,
+                    NotificationType = NotificationType.ShiftCloseSummary,
+                    Channel = NotificationChannel.InApp,
+                    Recipient = token,
+                    Subject = subject,
+                    Body = body,
+                    RelatedEntityName = nameof(Shift),
+                    RelatedEntityId = shift.Id
+                }, cancellationToken);
+            }
+            catch
+            {
+                // Notification failures are logged by notification service and must not block shift close.
+            }
+        }
+
+        _logger.LogInformation(
+            "Shift close push attempted for shift {ShiftId} to {RecipientCount} recipient token(s).",
+            shift.Id,
+            recipientTokens.Length);
     }
 
     private async Task<List<string>> ResolveSummaryRecipientsAsync(Guid shopId, CancellationToken cancellationToken)
@@ -1596,4 +1691,3 @@ sb.Append("</html>");       return sb.ToString();
         stream.Write(bytes, 0, bytes.Length);
     }
 }
-
