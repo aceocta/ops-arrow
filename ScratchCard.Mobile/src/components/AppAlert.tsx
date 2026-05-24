@@ -284,7 +284,7 @@ export function AppAlertHost() {
           }}
         >
           <View pointerEvents="box-none" style={[styles.toastOverlay, { paddingBottom: toastBottomOffset }]}>
-            <View pointerEvents="none" style={styles.toastCard}>
+            <Pressable style={styles.toastCard} onPress={closeCurrent}>
               <View
                 style={[
                   styles.toastToneDot,
@@ -298,7 +298,7 @@ export function AppAlertHost() {
                 <Text style={styles.toastTitle}>{current?.title || "Notice"}</Text>
                 {current?.message ? <Text style={styles.toastMessage}>{current.message}</Text> : null}
               </View>
-            </View>
+            </Pressable>
           </View>
         </Modal>
       ) : null}
