@@ -74,7 +74,10 @@ public class ShopService : IShopService
     {
         EnsureCreateShopAccess();
         var resolvedCompany = await ResolveCompanyAsync(request, cancellationToken);
-        var requestedSubscriptionPlan = await ResolveRequestedSubscriptionPlanAsync(request.SubscriptionPlanId, cancellationToken);
+        var requestedSubscriptionPlan = await ResolveRequestedSubscriptionPlanAsync(
+            resolvedCompany.Id,
+            request.SubscriptionPlanId,
+            cancellationToken);
         var shopName = request.ShopName.Trim();
 
         if (string.IsNullOrWhiteSpace(shopName))
@@ -356,11 +359,41 @@ public class ShopService : IShopService
         return (DefaultStartSerialNumber, endSerial);
     }
 
-    private async Task<SubscriptionPlan?> ResolveRequestedSubscriptionPlanAsync(Guid? subscriptionPlanId, CancellationToken cancellationToken)
+    private async Task<SubscriptionPlan?> ResolveRequestedSubscriptionPlanAsync(
+        Guid companyId,
+        Guid? subscriptionPlanId,
+        CancellationToken cancellationToken)
     {
         if (!subscriptionPlanId.HasValue)
         {
-            return null;
+            var hasExistingSubscription = await _companySubscriptionRepository.Query()
+                .AsNoTracking()
+                .AnyAsync(x => x.CompanyId == companyId, cancellationToken);
+            if (hasExistingSubscription)
+            {
+                return null;
+            }
+
+            var activeSelectablePlans = await _subscriptionPlanRepository.Query()
+                .AsNoTracking()
+                .Where(x => x.IsActive && x.BillingCycle != BillingCycle.Trial)
+                .ToListAsync(cancellationToken);
+            if (activeSelectablePlans.Count == 0)
+            {
+                throw new AppException("subscription_plan_not_found", "No active paid subscription plan is configured.", 500);
+            }
+
+            var starterPlan = activeSelectablePlans.FirstOrDefault(
+                x => string.Equals(x.Name?.Trim(), "Starter", StringComparison.OrdinalIgnoreCase));
+            if (starterPlan is not null)
+            {
+                return starterPlan;
+            }
+
+            return activeSelectablePlans
+                .OrderBy(x => x.BillingCycle == BillingCycle.Monthly ? 0 : 1)
+                .ThenBy(x => x.PricePerShop)
+                .First();
         }
 
         if (subscriptionPlanId.Value == Guid.Empty)

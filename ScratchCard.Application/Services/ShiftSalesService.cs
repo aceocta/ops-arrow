@@ -695,7 +695,7 @@ public class ShiftSalesService : IShiftSalesService
 
         var totalSales = entries.Sum(x => x.SalesAmount);
         var subject = $"Shift Closed - {shopName}";
-        var body = $"Shift {shift.ShiftName} for {businessDay.BusinessDate:yyyy-MM-dd} is closed. Total sales: {totalSales:0.00}.";
+        var body = $"Shift {shift.ShiftName} for {businessDay.BusinessDate:yyyy-MM-dd} is closed. Total scratch card sales: {totalSales:0.00}.";
 
         foreach (var token in recipientTokens)
         {
