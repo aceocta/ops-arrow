@@ -11,6 +11,8 @@ public class SubscriptionPlan : AuditableEntity
     public int TrialDays { get; set; }
     public string? Description { get; set; }
     public string? IncludedFeatures { get; set; }
+    public int? MaxUsers { get; set; }
+    public int? ReportExportsPerMonth { get; set; }
     public bool IsActive { get; set; } = true;
 
     public ICollection<CompanySubscription> CompanySubscriptions { get; set; } = new List<CompanySubscription>();

@@ -73,6 +73,8 @@ internal static class ServiceMappingExtensions
         TrialDays = plan.TrialDays,
         Description = plan.Description,
         IncludedFeatures = ParseIncludedFeatures(plan.IncludedFeatures),
+        MaxUsers = plan.MaxUsers,
+        ReportExportsPerMonth = plan.ReportExportsPerMonth,
         IsActive = plan.IsActive
     };
 

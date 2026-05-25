@@ -48,7 +48,8 @@ import {
 } from "../features/reports/ReportScreens";
 import { UserManagementScreen, ShopConfigurationScreen, AppConfigurationScreen, CompanyManagementScreen, ShopManagementScreen, SettingsScreen } from "../features/settings/SettingsScreens";
 import { BestEntryProvider, EntryOperation, useBestEntry } from "./BestEntryContext";
-import { MainStackParamList } from "../types/navigation";
+import { useEntitlements } from "../features/subscription/useEntitlements";
+import { MainStackParamList, RootStackParamList } from "../types/navigation";
 import { appTheme } from "../ui/theme";
 import { appInfo } from "../config/appInfo";
 import { getRoleDisplayName } from "../utils/roleLabels";
@@ -66,6 +67,10 @@ type MenuItem = {
   shopOwnerOnly?: boolean;
   allowedRoles?: string[];
   mode?: EntryOperation;
+  rootScreen?: keyof RootStackParamList;
+  /** Optional feature gate. If set, the item is only visible when the active shop's
+   *  subscription includes this feature key (e.g. "audit_log.basic"). */
+  requiredFeature?: string;
 };
 
 type DrawerSectionKey = "operations" | "management" | "reports";
@@ -127,6 +132,13 @@ const managementItems: MenuItem[] = [
   // { label: "Company Management", screen: "CompanyManagement", icon: "business-outline", shopOwnerOnly: true },
   { label: "Shop Management", screen: "ShopManagement", icon: "storefront-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"] },
   { label: "User Management", screen: "UserManagement", icon: "people-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"] },
+  {
+    label: "Subscription",
+    screen: "Settings",
+    rootScreen: "SubscriptionSummary",
+    icon: "card-outline",
+    allowedRoles: ["PlatformAdmin", "CompanyOwner"],
+  },
   { label: "Shop Configuration", screen: "ShopConfiguration", icon: "storefront-outline" },
   { label: "App Configuration", screen: "AppConfiguration", icon: "construct-outline" },
 ];
@@ -136,7 +148,7 @@ const reportItems: MenuItem[] = [
   // { label: "Shift Sales Report", screen: "ShiftSalesReport", mode: "scratchCard" },
   // { label: "Manual Entry Review", screen: "ManualClosingReview", mode: "scratchCard" },
   { label: "Stock Report", screen: "StockReport", icon: "archive-outline", mode: "scratchCard" },
-  // { label: "Audit Log", screen: "AuditLog", mode: "scratchCard" },
+  { label: "Audit Log", screen: "AuditLog", icon: "document-text-outline", mode: "scratchCard", requiredFeature: "audit_log.basic" },
   { label: "Notification Log", screen: "NotificationLog", icon: "notifications-outline", mode: "scratchCard" },
 ];
 
@@ -398,7 +410,7 @@ function MainStackScreens() {
       {/* <Stack.Screen name="ShiftSalesReport" component={ShiftSalesReportScreen} options={{ title: "Shift Sales Report" }} /> */}
       <Stack.Screen name="ManualClosingReview" component={ManualClosingReviewScreen} options={{ title: "Manual Entry Review" }} />
       <Stack.Screen name="StockReport" component={StockReportScreen} options={{ title: "Stock Report" }} />
-      {/* <Stack.Screen name="AuditLog" component={AuditLogScreen} options={{ title: "Audit Log" }} /> */}
+      <Stack.Screen name="AuditLog" component={AuditLogScreen} options={{ title: "Audit Log" }} />
       <Stack.Screen name="NotificationLog" component={NotificationLogScreen} options={{ title: "Notification Log" }} />
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
     </Stack.Navigator>
@@ -454,6 +466,7 @@ type DrawerSectionProps = {
   items: MenuItem[];
   isCompanyOwner: boolean;
   userRoles: string[];
+  features: string[];
   onPress: (item: MenuItem) => void;
   selectedOperation: EntryOperation | null;
   expanded: boolean;
@@ -467,6 +480,7 @@ const DrawerSection = React.memo(function DrawerSection({
   items,
   isCompanyOwner,
   userRoles,
+  features,
   onPress,
   selectedOperation,
   expanded,
@@ -479,9 +493,10 @@ const DrawerSection = React.memo(function DrawerSection({
         (item) =>
           (!item.shopOwnerOnly || isCompanyOwner) &&
           (!item.allowedRoles || item.allowedRoles.some((role) => userRoles.includes(role))) &&
-          (!selectedOperation || !item.mode || item.mode === selectedOperation)
+          (!selectedOperation || !item.mode || item.mode === selectedOperation) &&
+          (!item.requiredFeature || features.includes(item.requiredFeature))
       ),
-    [items, isCompanyOwner, userRoles, selectedOperation]
+    [items, isCompanyOwner, userRoles, features, selectedOperation]
   );
 
   const handleToggle = useCallback(() => onToggle(sectionKey), [onToggle, sectionKey]);
@@ -562,6 +577,8 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
   const { selectedOperation, setSelectedOperation } = useBestEntry();
   const insets = useSafeAreaInsets();
   const { profile, activeShop, signOut } = useAuth();
+  const { entitlements } = useEntitlements();
+  const features = entitlements?.features ?? [];
   const userRoles = profile?.roles ?? [];
   const isCompanyOwner = userRoles.some((role) => role === "CompanyOwner");
   const isPlatformAdmin = userRoles.some((role) => role === "PlatformAdmin");
@@ -582,6 +599,13 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
   });
 
   const goTo = (item: MenuItem) => {
+    if (item.rootScreen) {
+      const parent = props.navigation.getParent();
+      parent?.navigate(item.rootScreen as never);
+      props.navigation.closeDrawer();
+      return;
+    }
+
     if (item.screen === "ShopChecklist") {
       setSelectedOperation("checklist");
     } else if (item.screen === "ComplianceChecks" || item.screen === "ComplianceConfig" || item.screen === "ComplianceActions") {
@@ -680,6 +704,7 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
           items={operationsItems}
         isCompanyOwner={isCompanyOwner}
         userRoles={userRoles}
+        features={features}
         onPress={goTo}
         selectedOperation={selectedOperation}
         expanded={expandedSections.operations}
@@ -693,6 +718,7 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
         items={reportItems}
         isCompanyOwner={isCompanyOwner}
         userRoles={userRoles}
+        features={features}
         onPress={goTo}
         selectedOperation={selectedOperation}
         expanded={expandedSections.reports}
@@ -705,6 +731,7 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
         items={managementItems}
         isCompanyOwner={isCompanyOwner}
         userRoles={userRoles}
+        features={features}
         onPress={goTo}
         selectedOperation={selectedOperation}
         expanded={expandedSections.management}

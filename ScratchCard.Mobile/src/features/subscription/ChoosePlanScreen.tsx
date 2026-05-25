@@ -18,18 +18,8 @@ import { track } from "../../utils/analytics";
 import { haptics } from "../../utils/haptics";
 import { restorePurchases } from "./purchaseService";
 
-type CycleFilter = "monthly" | "annual" | "all";
-
 const TERMS_URL = "https://opsarrow.com/terms";
 const PRIVACY_URL = "https://opsarrow.com/privacy";
-
-function matchesCycle(cycle: BillingCycle | string, filter: CycleFilter) {
-  if (filter === "all") return true;
-  const normalized = String(cycle).toLowerCase();
-  if (filter === "monthly") return normalized.includes("month");
-  if (filter === "annual") return normalized.includes("annual") || normalized.includes("year");
-  return true;
-}
 
 export function ChoosePlanScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -37,7 +27,6 @@ export function ChoosePlanScreen() {
   const { activeShop, activeShopId } = useAuth();
   const shopId = activeShopId;
   const [selectedPlanId, setSelectedPlanId] = useState<string>("");
-  const [cycleFilter, setCycleFilter] = useState<CycleFilter>("monthly");
   const [restorePending, setRestorePending] = useState(false);
 
   useEffect(() => {
@@ -49,14 +38,14 @@ export function ChoosePlanScreen() {
     queryFn: listSubscriptionPlans,
   });
 
-  const billablePlans = useMemo(
-    () => (plansQuery.data ?? []).filter((plan) => plan.billingCycle !== BillingCycle.Trial),
-    [plansQuery.data]
-  );
-
+  // Monthly-only catalogue. The backend may still hold legacy Trial / Annual rows, so we filter
+  // to active Monthly plans here.
   const visiblePlans = useMemo(
-    () => billablePlans.filter((plan) => matchesCycle(plan.billingCycle, cycleFilter)),
-    [billablePlans, cycleFilter]
+    () =>
+      (plansQuery.data ?? []).filter(
+        (plan) => plan.isActive && plan.billingCycle === BillingCycle.Monthly
+      ),
+    [plansQuery.data]
   );
 
   const selectedPlan = visiblePlans.find((plan) => plan.id === selectedPlanId);
@@ -100,23 +89,6 @@ export function ChoosePlanScreen() {
       <View style={ui.card}>
         <Text style={styles.title}>Choose Subscription Plan</Text>
         <Text style={styles.meta}>Company: {activeShop?.companyName ?? "-"}</Text>
-
-        <View style={styles.cycleToggle}>
-          {(["monthly", "annual", "all"] as CycleFilter[]).map((value) => (
-            <Pressable
-              key={value}
-              onPress={() => setCycleFilter(value)}
-              style={[styles.cycleToggleButton, cycleFilter === value && styles.cycleToggleButtonActive]}
-              accessibilityRole="button"
-              accessibilityState={{ selected: cycleFilter === value }}
-              accessibilityLabel={`Show ${value} plans`}
-            >
-              <Text style={[styles.cycleToggleText, cycleFilter === value && styles.cycleToggleTextActive]}>
-                {value === "monthly" ? "Monthly" : value === "annual" ? "Annual" : "All"}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
 
         {plansQuery.isLoading ? (
           <View style={{ gap: 8 }}>
@@ -221,29 +193,6 @@ const styles = StyleSheet.create({
   meta: {
     ...appTheme.typography.body,
     color: appTheme.colors.textMuted,
-  },
-  cycleToggle: {
-    flexDirection: "row",
-    backgroundColor: appTheme.colors.surfaceMuted,
-    borderRadius: appTheme.radius.pill,
-    padding: 4,
-    gap: 4,
-  },
-  cycleToggleButton: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: appTheme.radius.pill,
-    alignItems: "center",
-  },
-  cycleToggleButtonActive: {
-    backgroundColor: appTheme.colors.primary,
-  },
-  cycleToggleText: {
-    ...appTheme.typography.bodyEmphasis,
-    color: appTheme.colors.textMuted,
-  },
-  cycleToggleTextActive: {
-    color: appTheme.colors.onPrimary,
   },
   planCard: {
     borderWidth: 1,

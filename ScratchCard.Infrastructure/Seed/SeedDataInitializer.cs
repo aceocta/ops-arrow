@@ -820,110 +820,157 @@ public static class SeedDataInitializer
     private static async Task SeedSubscriptionPlansAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
-        var starterFeatureSet = new[]
+
+        // --- Feature sets per tier ---
+        // Starter: basic capabilities + 3 users + 30 report exports/month + email notifications.
+        var starterFeatures = new[]
         {
-            FeatureKeys.ScratchCardManagement,
-            FeatureKeys.TemperatureLog,
-            FeatureKeys.RefusalNoIdNoSale,
-            FeatureKeys.ComplianceChecklist,
-            FeatureKeys.SafeDropManagement
+            FeatureKeys.ScratchCardManagement, FeatureKeys.TemperatureLog, FeatureKeys.RefusalNoIdNoSale,
+            FeatureKeys.ComplianceChecklist, FeatureKeys.SafeDropManagement,
+            FeatureKeys.ScratchCardBasic,
+            FeatureKeys.TemperatureLogBasic,
+            FeatureKeys.RefusalLogBasic,
+            FeatureKeys.ComplianceBasic,
+            FeatureKeys.SafeDropBasic,
+            FeatureKeys.NotificationsEmail,
         };
-        var starterIncludedFeatures = BuildIncludedFeaturesCsv(starterFeatureSet);
-        var existing = await dbContext.SubscriptionPlans
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
 
-        if (!existing.Any(x => x.BillingCycle == BillingCycle.Trial))
+        // Growth: Starter + attachments, missed-log warnings, multi-manager review, daily/weekly/monthly
+        // compliance, canister-limit alerts, push + WhatsApp notifications, basic dashboard, audit log.
+        var growthFeatures = starterFeatures.Concat(new[]
         {
-            await dbContext.SubscriptionPlans.AddAsync(new SubscriptionPlan
-            {
-                Name = "1 Month Free Trial",
-                BillingCycle = BillingCycle.Trial,
-                PricePerShop = 0,
-                TrialDays = 30,
-                Description = "Default free trial for new companies",
-                IncludedFeatures = string.Empty,
-                IsActive = true,
-                CreatedOn = now
-            }, cancellationToken);
-        }
+            FeatureKeys.ScratchCardAttachments, FeatureKeys.ScratchCardManualEntryAlerts,
+            FeatureKeys.TemperatureLogMissedAlerts,
+            FeatureKeys.RefusalLogAttachments, FeatureKeys.RefusalLogMultiManagerReview,
+            FeatureKeys.ComplianceDailyWeeklyMonthly,
+            FeatureKeys.SafeDropCanisterLimitAlerts,
+            FeatureKeys.NotificationsPush, FeatureKeys.NotificationsWhatsApp,
+            FeatureKeys.DashboardBasic,
+            FeatureKeys.AuditLogBasic,
+        }).ToArray();
 
-        if (!existing.Any(x => x.BillingCycle == BillingCycle.Monthly))
+        // Pro: Growth + advanced validation, suspicious alerts, scheduled checks, full history,
+        // analytics, staff-wise reports, advanced compliance with photo evidence, advanced safe drop
+        // (approval workflow + cash variance), priority notifications + support, advanced + multi-shop
+        // dashboards, approval workflow, advanced reports.
+        var proFeatures = growthFeatures.Concat(new[]
         {
-            await dbContext.SubscriptionPlans.AddAsync(new SubscriptionPlan
-            {
-                Name = "Starter",
-                BillingCycle = BillingCycle.Monthly,
-                PricePerShop = 20,
-                TrialDays = 0,
-                Description = "Starter package with scratch card management, temperature log, refusal (No ID/No Sale), compliance checklist, and safe drop management.",
-                IncludedFeatures = starterIncludedFeatures,
-                IsActive = true,
-                CreatedOn = now
-            }, cancellationToken);
-        }
+            FeatureKeys.ScratchCardAdvancedValidation, FeatureKeys.ScratchCardManualCorrectionReasons,
+            FeatureKeys.ScratchCardSuspiciousAlerts,
+            FeatureKeys.TemperatureLogScheduledChecks, FeatureKeys.TemperatureLogFullHistory,
+            FeatureKeys.RefusalLogAnalytics, FeatureKeys.RefusalLogStaffReports,
+            FeatureKeys.ComplianceAdvanced, FeatureKeys.CompliancePhotoEvidence,
+            FeatureKeys.SafeDropAdvanced, FeatureKeys.SafeDropApprovalWorkflow, FeatureKeys.SafeDropCashVariance,
+            FeatureKeys.NotificationsPriority,
+            FeatureKeys.DashboardAdvanced, FeatureKeys.DashboardMultiShop,
+            FeatureKeys.ApprovalWorkflow,
+            FeatureKeys.ReportsAdvanced,
+            FeatureKeys.SupportPriority,
+        }).ToArray();
 
-        if (!existing.Any(x => x.BillingCycle == BillingCycle.Annual))
+        var starterCsv = BuildIncludedFeaturesCsv(starterFeatures);
+        var growthCsv = BuildIncludedFeaturesCsv(growthFeatures);
+        var proCsv = BuildIncludedFeaturesCsv(proFeatures);
+
+        // Pricing here is placeholder — adjust to your commercial terms before launch.
+        // MaxUsers / ReportExportsPerMonth: null means unlimited.
+        // Monthly-only catalogue. Annual SKUs are intentionally not seeded; see deactivation below
+        // for any historical Annual rows that may still exist in older databases.
+        var templates = new[]
         {
-            await dbContext.SubscriptionPlans.AddAsync(new SubscriptionPlan
-            {
-                Name = "Annual Plan",
-                BillingCycle = BillingCycle.Annual,
-                PricePerShop = 200,
-                TrialDays = 0,
-                Description = "Annual subscription per active shop",
-                IncludedFeatures = starterIncludedFeatures,
-                IsActive = true,
-                CreatedOn = now
-            }, cancellationToken);
-        }
+            new PlanTemplate("1 Month Free Trial", BillingCycle.Trial,    0m,   30, string.Empty, null, null,
+                "Default free trial for new shops."),
+            new PlanTemplate("Starter Monthly",    BillingCycle.Monthly, 19.99m, 0, starterCsv,  3,    30,
+                "Starter: basic Scratch Card, Temperature Log, Refusals, Compliance and Safe Drop. Limited users."),
+            new PlanTemplate("Growth Monthly",     BillingCycle.Monthly, 39.99m, 0, growthCsv,  10,   100,
+                "Growth: attachments, missed-log alerts, advanced compliance schedules, dashboard, audit log."),
+            new PlanTemplate("Pro Monthly",        BillingCycle.Monthly, 79.99m, 0, proCsv,     null, 500,
+                "Pro: advanced validation, approval workflows, multi-shop dashboards, unlimited users."),
+        };
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        var existing = await dbContext.SubscriptionPlans.ToListAsync(cancellationToken);
+        var changed = false;
 
-        var updatablePlans = await dbContext.SubscriptionPlans
-            .Where(x => x.BillingCycle == BillingCycle.Monthly || x.BillingCycle == BillingCycle.Annual)
-            .ToListAsync(cancellationToken);
-
-        var updated = false;
-        foreach (var plan in updatablePlans)
+        foreach (var template in templates)
         {
-            var parsedExistingFeatures = ParseIncludedFeatures(plan.IncludedFeatures);
-            var mergedFeatures = parsedExistingFeatures.ToList();
-            var featuresChanged = false;
+            var current = existing.FirstOrDefault(p =>
+                string.Equals(p.Name, template.Name, StringComparison.OrdinalIgnoreCase) && p.BillingCycle == template.BillingCycle);
 
-            foreach (var feature in starterFeatureSet)
+            if (current is null)
             {
-                if (mergedFeatures.Any(x => string.Equals(x, feature, StringComparison.OrdinalIgnoreCase)))
+                await dbContext.SubscriptionPlans.AddAsync(new SubscriptionPlan
                 {
-                    continue;
-                }
-
-                mergedFeatures.Add(feature);
-                featuresChanged = true;
-            }
-
-            if (plan.BillingCycle == BillingCycle.Monthly &&
-                !string.Equals(plan.Name?.Trim(), "Starter", StringComparison.Ordinal))
-            {
-                plan.Name = "Starter";
-                featuresChanged = true;
-            }
-
-            if (!featuresChanged)
-            {
+                    Name = template.Name,
+                    BillingCycle = template.BillingCycle,
+                    PricePerShop = template.Price,
+                    TrialDays = template.TrialDays,
+                    Description = template.Description,
+                    IncludedFeatures = template.FeaturesCsv,
+                    MaxUsers = template.MaxUsers,
+                    ReportExportsPerMonth = template.ReportExportsPerMonth,
+                    IsActive = true,
+                    CreatedOn = now,
+                }, cancellationToken);
+                changed = true;
                 continue;
             }
 
-            plan.IncludedFeatures = BuildIncludedFeaturesCsv(mergedFeatures);
-            plan.ModifiedOn = DateTimeOffset.UtcNow;
-            updated = true;
+            // Keep existing rows aligned with the template (idempotent re-seed).
+            if (!string.Equals(current.IncludedFeatures ?? string.Empty, template.FeaturesCsv, StringComparison.OrdinalIgnoreCase))
+            {
+                current.IncludedFeatures = template.FeaturesCsv;
+                changed = true;
+            }
+            if (current.MaxUsers != template.MaxUsers)
+            {
+                current.MaxUsers = template.MaxUsers;
+                changed = true;
+            }
+            if (current.ReportExportsPerMonth != template.ReportExportsPerMonth)
+            {
+                current.ReportExportsPerMonth = template.ReportExportsPerMonth;
+                changed = true;
+            }
+            if (!string.Equals(current.Description, template.Description, StringComparison.Ordinal))
+            {
+                current.Description = template.Description;
+                changed = true;
+            }
+            if (changed)
+            {
+                current.ModifiedOn = now;
+            }
         }
 
-        if (updated)
+        // Defensive: deactivate any historical Annual SKUs so they no longer appear in the picker.
+        // The app is monthly-only; this keeps old databases tidy without dropping rows that may be
+        // referenced by old ShopSubscription/CompanySubscription records.
+        var annualPlans = await dbContext.SubscriptionPlans
+            .Where(p => p.BillingCycle == BillingCycle.Annual && p.IsActive)
+            .ToListAsync(cancellationToken);
+
+        foreach (var plan in annualPlans)
+        {
+            plan.IsActive = false;
+            plan.ModifiedOn = now;
+            changed = true;
+        }
+
+        if (changed)
         {
             await dbContext.SaveChangesAsync(cancellationToken);
         }
     }
+
+    private sealed record PlanTemplate(
+        string Name,
+        BillingCycle BillingCycle,
+        decimal Price,
+        int TrialDays,
+        string FeaturesCsv,
+        int? MaxUsers,
+        int? ReportExportsPerMonth,
+        string Description);
 
     private static IReadOnlyCollection<string> ParseIncludedFeatures(string? rawFeatures)
     {

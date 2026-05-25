@@ -688,6 +688,7 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.PricePerShop).HasPrecision(18, 2);
             entity.Property(x => x.Description).HasMaxLength(500);
             entity.Property(x => x.IncludedFeatures).HasMaxLength(2000);
+            // MaxUsers and ReportExportsPerMonth are nullable — null means unlimited.
         });
 
         modelBuilder.Entity<CompanySubscription>(entity =>

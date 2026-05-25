@@ -25,6 +25,8 @@ export type ShopSubscriptionSummary = {
   trialDaysRemaining: number | null;
   requiresBillingAction: boolean;
   includedFeatures: string[];
+  maxUsers: number | null;
+  reportExportsPerMonth: number | null;
 };
 
 export type ShopEntitlementsResponse = {
@@ -38,6 +40,8 @@ export type ShopEntitlementsResponse = {
   trialDaysRemaining: number | null;
   expiresAt: string | null;
   features: string[];
+  maxUsers: number | null;
+  reportExportsPerMonth: number | null;
 };
 
 export async function getShopSubscriptionSummary(shopId: string) {

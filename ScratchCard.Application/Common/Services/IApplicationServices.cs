@@ -93,7 +93,7 @@ public interface ISubscriptionService
 
 public interface IShopSubscriptionService
 {
-    Task<ShopSubscriptionSummaryDto> EnsureTrialAsync(Guid shopId, CancellationToken cancellationToken = default);
+    Task<ShopSubscriptionSummaryDto> EnsureTrialAsync(Guid shopId, Guid? intendedPlanId = null, CancellationToken cancellationToken = default);
     Task<ShopSubscriptionSummaryDto> GetSummaryAsync(Guid shopId, CancellationToken cancellationToken = default);
     Task<ShopEntitlementsDto> GetEntitlementsAsync(Guid shopId, CancellationToken cancellationToken = default);
     Task<ShopSubscriptionSummaryDto> SelectPlanAsync(SelectShopSubscriptionPlanRequest request, CancellationToken cancellationToken = default);

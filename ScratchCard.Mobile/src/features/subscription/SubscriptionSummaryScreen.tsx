@@ -53,6 +53,30 @@ export function SubscriptionSummaryScreen() {
             <Text style={styles.meta}>Current Period Ends: {formatDate(summary.currentPeriodEndsOn)}</Text>
             <Text style={styles.meta}>Trial Ends: {formatDate(summary.trialEndsOn)}</Text>
             <Text style={styles.meta}>Trial Days Remaining: {summary.trialDaysRemaining ?? "-"}</Text>
+
+            <View style={styles.limitsRow}>
+              <View style={styles.limitChip}>
+                <Text style={styles.limitChipText}>
+                  {summary.maxUsers == null ? "Unlimited users" : `${summary.maxUsers} users included`}
+                </Text>
+              </View>
+              <View style={styles.limitChip}>
+                <Text style={styles.limitChipText}>
+                  {summary.reportExportsPerMonth == null
+                    ? "Unlimited report exports"
+                    : `${summary.reportExportsPerMonth} report exports / month`}
+                </Text>
+              </View>
+            </View>
+
+            {summary.includedFeatures.length > 0 ? (
+              <View style={styles.featuresBlock}>
+                <Text style={styles.featuresHeading}>Included features</Text>
+                {summary.includedFeatures.map((feature) => (
+                  <Text key={feature} style={styles.featureBullet}>• {feature}</Text>
+                ))}
+              </View>
+            ) : null}
           </>
         ) : null}
         <PrimaryButton label="Choose Plan" onPress={() => navigation.navigate("ChoosePlan")} disabled={!shopId} />
@@ -68,6 +92,35 @@ const styles = StyleSheet.create({
   },
   meta: {
     ...appTheme.typography.body,
+    color: appTheme.colors.textMuted,
+  },
+  limitsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 6,
+  },
+  limitChip: {
+    backgroundColor: appTheme.colors.surfaceInfoMuted,
+    borderRadius: appTheme.radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  limitChipText: {
+    ...appTheme.typography.caption,
+    color: appTheme.colors.textInfoStrong,
+  },
+  featuresBlock: {
+    marginTop: appTheme.spacing.sm,
+    gap: 2,
+  },
+  featuresHeading: {
+    ...appTheme.typography.bodyEmphasis,
+    color: appTheme.colors.text,
+    marginBottom: 2,
+  },
+  featureBullet: {
+    ...appTheme.typography.caption,
     color: appTheme.colors.textMuted,
   },
 });

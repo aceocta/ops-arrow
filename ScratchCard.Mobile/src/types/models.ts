@@ -36,6 +36,8 @@ export type SubscriptionPlan = {
   trialDays: number;
   description?: string;
   includedFeatures?: string[];
+  maxUsers?: number | null;
+  reportExportsPerMonth?: number | null;
   isActive: boolean;
 };
 

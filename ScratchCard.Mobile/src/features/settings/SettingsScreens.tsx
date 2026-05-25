@@ -16,6 +16,7 @@ import { deactivateUser, listUsers, reactivateUser, updateUserRole } from "../..
 import { useAuth } from "../../auth/AuthContext";
 import { LabeledValue } from "../../components/LabeledValue";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { SubscriptionPlanPicker } from "../subscription/SubscriptionPlanPicker";
 import { SellingOrder } from "../../types/enums";
 import { Company, ConfigurationItem, Shop } from "../../types/models";
 import { MainStackParamList } from "../../types/navigation";
@@ -1172,6 +1173,7 @@ export function ShopManagementScreen() {
   const [scratchCardDisplayCount, setScratchCardDisplayCount] = useState("24");
   const [packSellingOrder, setPackSellingOrder] = useState<SellingOrder>(SellingOrder.Ascending);
   const [hasEditedPackSettings, setHasEditedPackSettings] = useState(false);
+  const [subscriptionPlanId, setSubscriptionPlanId] = useState<string | null>(null);
 
   const companiesQuery = useQuery({
     queryKey: ["companies", "mine"],
@@ -1252,7 +1254,11 @@ export function ShopManagementScreen() {
         });
       }
 
-      return createShop(basePayload);
+      if (!subscriptionPlanId) {
+        throw new Error("Select a subscription plan before creating the shop.");
+      }
+
+      return createShop({ ...basePayload, subscriptionPlanId });
     },
     onSuccess: () => {
       setEditingShopId(null);
@@ -1266,6 +1272,7 @@ export function ShopManagementScreen() {
       setScratchCardDisplayCount("24");
       setPackSellingOrder(SellingOrder.Ascending);
       setHasEditedPackSettings(false);
+      setSubscriptionPlanId(null);
       Alert.alert(editingShopId ? "Updated" : "Created", editingShopId ? "Shop updated successfully." : "Shop created successfully.");
       void Promise.all([queryClient.invalidateQueries({ queryKey: ["shops", resolvedCompanyId] }), refreshProfile()]);
     },
@@ -1300,9 +1307,13 @@ export function ShopManagementScreen() {
     setScratchCardDisplayCount("24");
     setPackSellingOrder(SellingOrder.Ascending);
     setHasEditedPackSettings(false);
+    setSubscriptionPlanId(null);
   }
 
-  const isSavingDisabled = (!editingShopId && !canCreateShop) || (Boolean(editingShopId) && editingShopConfigurationsQuery.isLoading);
+  const isSavingDisabled =
+    (!editingShopId && !canCreateShop) ||
+    (!editingShopId && !subscriptionPlanId) ||
+    (Boolean(editingShopId) && editingShopConfigurationsQuery.isLoading);
 
   return (
     <ScreenContainer>
@@ -1396,6 +1407,14 @@ export function ShopManagementScreen() {
                 <Text style={[styles.choiceChipText, !editingIsActive ? styles.choiceChipTextSelected : null]}>Inactive</Text>
               </Pressable>
             </View>
+          ) : null}
+
+          {!editingShopId && canCreateShop ? (
+            <SubscriptionPlanPicker
+              value={subscriptionPlanId}
+              onChange={setSubscriptionPlanId}
+              disabled={saveShopMutation.isPending}
+            />
           ) : null}
 
           <Pressable

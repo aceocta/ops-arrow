@@ -11,6 +11,8 @@ public class SubscriptionPlanDto
     public int TrialDays { get; set; }
     public string? Description { get; set; }
     public IReadOnlyCollection<string> IncludedFeatures { get; set; } = [];
+    public int? MaxUsers { get; set; }
+    public int? ReportExportsPerMonth { get; set; }
     public bool IsActive { get; set; }
 }
 
@@ -142,6 +144,8 @@ public class ShopSubscriptionSummaryDto
     public int? TrialDaysRemaining { get; set; }
     public bool RequiresBillingAction { get; set; }
     public IReadOnlyCollection<string> IncludedFeatures { get; set; } = [];
+    public int? MaxUsers { get; set; }
+    public int? ReportExportsPerMonth { get; set; }
 }
 
 public class SelectShopSubscriptionPlanRequest
@@ -173,4 +177,6 @@ public class ShopEntitlementsDto
     public int? TrialDaysRemaining { get; set; }
     public DateTimeOffset? ExpiresAt { get; set; }
     public IReadOnlyCollection<string> Features { get; set; } = [];
+    public int? MaxUsers { get; set; }
+    public int? ReportExportsPerMonth { get; set; }
 }

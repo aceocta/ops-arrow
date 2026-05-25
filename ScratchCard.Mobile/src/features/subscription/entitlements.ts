@@ -3,13 +3,23 @@ import type { ShopEntitlementsResponse, ShopSubscriptionSummary } from "../../ap
 
 const ENTITLEMENTS_CACHE_KEY_PREFIX = "opsarrow_shop_entitlements_v1:";
 
+// Mirrors the granular keys in ScratchCard.Domain.Constants.FeatureKeys. Kept as `string`
+// for forward-compat so backend can ship new keys without a mobile release; specific keys are
+// listed below for IDE autocomplete and documentation.
 export type EntitlementFeature =
-  | "compliance.advanced"
-  | "reports.export"
-  | "reports.audit"
-  | "multi-shop"
-  | "manager-review"
-  | "barcode-scanner";
+  | "ScratchCardManagement" | "TemperatureLog" | "RefusalNoIdNoSale" | "ComplianceChecklist" | "SafeDropManagement"
+  | "scratch_card.basic" | "scratch_card.attachments" | "scratch_card.manual_entry_alerts"
+  | "scratch_card.advanced_validation" | "scratch_card.manual_correction_reasons" | "scratch_card.suspicious_alerts"
+  | "temperature_log.basic" | "temperature_log.missed_alerts" | "temperature_log.scheduled_checks" | "temperature_log.full_history"
+  | "refusal_log.basic" | "refusal_log.attachments" | "refusal_log.multi_manager_review"
+  | "refusal_log.analytics" | "refusal_log.staff_reports"
+  | "compliance.basic" | "compliance.daily_weekly_monthly" | "compliance.advanced" | "compliance.photo_evidence"
+  | "safe_drop.basic" | "safe_drop.canister_limit_alerts" | "safe_drop.advanced"
+  | "safe_drop.approval_workflow" | "safe_drop.cash_variance"
+  | "notifications.email" | "notifications.push" | "notifications.whatsapp" | "notifications.priority"
+  | "dashboard.basic" | "dashboard.advanced" | "dashboard.multi_shop"
+  | "audit_log.basic" | "approval_workflow.manager" | "reports.advanced" | "support.priority"
+  | (string & {});
 
 export type Entitlements = {
   shopId: string | null;
@@ -22,6 +32,8 @@ export type Entitlements = {
   inGracePeriod: boolean;
   expiresAt: string | null;
   trialDaysRemaining: number | null;
+  maxUsers: number | null;
+  reportExportsPerMonth: number | null;
   cachedAt: string;
 };
 
@@ -45,6 +57,8 @@ export function deriveEntitlementsFromSummary(summary: ShopSubscriptionSummary |
       inGracePeriod: false,
       expiresAt: null,
       trialDaysRemaining: null,
+      maxUsers: null,
+      reportExportsPerMonth: null,
       cachedAt: new Date().toISOString(),
     };
   }
@@ -65,6 +79,8 @@ export function deriveEntitlementsFromSummary(summary: ShopSubscriptionSummary |
     inGracePeriod,
     expiresAt: summary.currentPeriodEndsOn ?? summary.trialEndsOn ?? null,
     trialDaysRemaining: summary.trialDaysRemaining ?? null,
+    maxUsers: summary.maxUsers ?? null,
+    reportExportsPerMonth: summary.reportExportsPerMonth ?? null,
     cachedAt: new Date().toISOString(),
   };
 }
@@ -81,6 +97,8 @@ export function fromShopEntitlementsResponse(response: ShopEntitlementsResponse)
     inGracePeriod: response.inGracePeriod,
     expiresAt: response.expiresAt,
     trialDaysRemaining: response.trialDaysRemaining,
+    maxUsers: response.maxUsers ?? null,
+    reportExportsPerMonth: response.reportExportsPerMonth ?? null,
     cachedAt: new Date().toISOString(),
   };
 }
@@ -117,6 +135,6 @@ export async function clearCachedEntitlements(shopId: string | null | undefined)
 export function hasFeature(entitlements: Entitlements | null | undefined, feature: EntitlementFeature) {
   if (!entitlements) return false;
   if (!entitlements.isActive && !entitlements.inGracePeriod) return false;
-  if (!entitlements.features || entitlements.features.length === 0) return true;
+  if (!entitlements.features || entitlements.features.length === 0) return false;
   return entitlements.features.includes(feature);
 }

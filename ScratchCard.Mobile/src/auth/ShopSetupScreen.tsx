@@ -4,6 +4,7 @@ import { createShop } from "../api/shopsApi";
 import { useAuth } from "./AuthContext";
 import { ScreenContainer } from "../components/ScreenContainer";
 import { PrimaryButton } from "../components/PrimaryButton";
+import { SubscriptionPlanPicker } from "../features/subscription/SubscriptionPlanPicker";
 import { ui } from "../ui/primitives";
 import { appTheme } from "../ui/theme";
 import { SellingOrder } from "../types/enums";
@@ -18,6 +19,7 @@ export function ShopSetupScreen() {
   const [country, setCountry] = useState("UK");
   const [scratchCardDisplayCount, setScratchCardDisplayCount] = useState("24");
   const [packSellingOrder, setPackSellingOrder] = useState<SellingOrder>(SellingOrder.Ascending);
+  const [subscriptionPlanId, setSubscriptionPlanId] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [progressMessage, setProgressMessage] = useState<string | null>(null);
 
@@ -38,6 +40,10 @@ export function ShopSetupScreen() {
       Alert.alert("Validation", "Display count must be a whole number greater than 0.");
       return;
     }
+    if (!subscriptionPlanId) {
+      Alert.alert("Validation", "Please select a subscription plan for this shop.");
+      return;
+    }
 
     setIsBusy(true);
     try {
@@ -52,6 +58,7 @@ export function ShopSetupScreen() {
         country: country.trim(),
         scratchCardDisplayCount: parsedDisplayCount,
         packSellingOrder,
+        subscriptionPlanId,
       });
       // setProgressMessage("Finalizing setup...");
       await refreshProfile(createdShop.id, true);
@@ -164,10 +171,18 @@ export function ShopSetupScreen() {
           </View>
         </View>
 
+        <View style={styles.configSection}>
+          <SubscriptionPlanPicker
+            value={subscriptionPlanId}
+            onChange={setSubscriptionPlanId}
+            disabled={busy}
+          />
+        </View>
+
         <PrimaryButton
           label={busy ? progressMessage ?? "Saving..." : "Finish Setup"}
           onPress={() => void onContinue()}
-          disabled={busy}
+          disabled={busy || !subscriptionPlanId}
         />
         {busy && progressMessage ? <Text style={styles.progressText}>{progressMessage}</Text> : null}
       </View>

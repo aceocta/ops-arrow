@@ -129,7 +129,9 @@ public class ShopService : IShopService
             cancellationToken);
 
         // Per-shop subscription: every new shop automatically starts on a free trial.
-        await _shopSubscriptionService.EnsureTrialAsync(shop.Id, cancellationToken);
+        // The owner picks the intended plan during shop creation; the trial counts down to that
+        // plan's billing terms when it converts.
+        await _shopSubscriptionService.EnsureTrialAsync(shop.Id, request.SubscriptionPlanId, cancellationToken);
 
         await _auditService.LogAsync(nameof(Shop), shop.Id, "ShopCreated", shop.Id, cancellationToken: cancellationToken);
 

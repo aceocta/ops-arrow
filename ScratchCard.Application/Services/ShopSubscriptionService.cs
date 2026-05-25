@@ -35,7 +35,7 @@ public class ShopSubscriptionService : IShopSubscriptionService
         _unitOfWork = unitOfWork;
     }
 
-    public async Task<ShopSubscriptionSummaryDto> EnsureTrialAsync(Guid shopId, CancellationToken cancellationToken = default)
+    public async Task<ShopSubscriptionSummaryDto> EnsureTrialAsync(Guid shopId, Guid? intendedPlanId = null, CancellationToken cancellationToken = default)
     {
         var existing = await _shopSubscriptionRepository.Query()
             .Where(x => x.ShopId == shopId)
@@ -55,8 +55,18 @@ public class ShopSubscriptionService : IShopSubscriptionService
             throw new AppException("validation_failed", "Shop is not associated with a company.", 400);
         }
 
+        // The owner picks the plan they intend to subscribe to at shop-creation time. We start the
+        // shop on a trial referencing that plan so the user knows what they'll be charged at
+        // conversion. If no plan is supplied we fall back to a generic trial plan.
+        var intendedPlan = intendedPlanId.HasValue
+            ? await _planRepository.GetByIdAsync(intendedPlanId.Value, cancellationToken)
+            : null;
         var trialPlan = await ResolveTrialPlanAsync(cancellationToken);
-        var trialDays = trialPlan?.TrialDays > 0 ? trialPlan.TrialDays : DefaultTrialDaysFallback;
+
+        var planForRecord = intendedPlan ?? trialPlan;
+        var trialDays = intendedPlan?.TrialDays > 0
+            ? intendedPlan.TrialDays
+            : trialPlan?.TrialDays > 0 ? trialPlan.TrialDays : DefaultTrialDaysFallback;
         var now = DateTimeOffset.UtcNow;
 
         var subscription = new ShopSubscription
@@ -64,9 +74,9 @@ public class ShopSubscriptionService : IShopSubscriptionService
             Id = Guid.NewGuid(),
             ShopId = shop.Id,
             CompanyId = shop.CompanyId.Value,
-            SubscriptionPlanId = trialPlan?.Id,
+            SubscriptionPlanId = planForRecord?.Id,
             Status = SubscriptionStatus.TrialActive,
-            BillingCycle = trialPlan?.BillingCycle ?? BillingCycle.Trial,
+            BillingCycle = planForRecord?.BillingCycle ?? BillingCycle.Trial,
             Price = 0m,
             TrialStartedOn = now,
             TrialEndsOn = now.AddDays(trialDays),
@@ -81,7 +91,9 @@ public class ShopSubscriptionService : IShopSubscriptionService
             Id = Guid.NewGuid(),
             CompanyId = shop.CompanyId.Value,
             EventType = BillingEventType.TrialStarted,
-            Description = $"Trial started for shop {shop.ShopName}.",
+            Description = intendedPlan is not null
+                ? $"Trial started for shop {shop.ShopName} (intended plan: {intendedPlan.Name})."
+                : $"Trial started for shop {shop.ShopName}.",
         };
         await _billingEventRepository.AddAsync(billingEvent, cancellationToken);
 
@@ -99,7 +111,7 @@ public class ShopSubscriptionService : IShopSubscriptionService
 
         if (subscription is null)
         {
-            return await EnsureTrialAsync(shopId, cancellationToken);
+            return await EnsureTrialAsync(shopId, null, cancellationToken);
         }
 
         return await BuildSummaryAsync(subscription, cancellationToken);
@@ -126,6 +138,8 @@ public class ShopSubscriptionService : IShopSubscriptionService
             TrialDaysRemaining = summary.TrialDaysRemaining,
             ExpiresAt = expiresAt,
             Features = summary.IncludedFeatures,
+            MaxUsers = summary.MaxUsers,
+            ReportExportsPerMonth = summary.ReportExportsPerMonth,
         };
     }
 
@@ -291,6 +305,8 @@ public class ShopSubscriptionService : IShopSubscriptionService
             TrialDaysRemaining = trialDaysRemaining,
             RequiresBillingAction = requiresBilling,
             IncludedFeatures = features,
+            MaxUsers = plan?.MaxUsers,
+            ReportExportsPerMonth = plan?.ReportExportsPerMonth,
         };
     }
 
