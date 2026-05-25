@@ -125,42 +125,6 @@ public class UpsertSubscriptionDiscountRuleRequest
     public string? Description { get; set; }
 }
 
-public class EntitlementsDto
-{
-    public Guid CompanyId { get; set; }
-    public string? Tier { get; set; }
-    public SubscriptionStatus Status { get; set; }
-    public bool IsActive { get; set; }
-    public bool IsInTrial { get; set; }
-    public bool InGracePeriod { get; set; }
-    public int? TrialDaysRemaining { get; set; }
-    public DateTimeOffset? ExpiresAt { get; set; }
-    public IReadOnlyCollection<string> Features { get; set; } = [];
-}
-
-public class IapReceiptRequest
-{
-    public Guid CompanyId { get; set; }
-    public string Platform { get; set; } = string.Empty;
-    public string ProductId { get; set; } = string.Empty;
-    public string TransactionId { get; set; } = string.Empty;
-    public string? PurchaseToken { get; set; }
-    public string? OriginalTransactionId { get; set; }
-    public string? ReceiptData { get; set; }
-}
-
-public class IapWebhookEvent
-{
-    public string Provider { get; set; } = string.Empty;
-    public string EventType { get; set; } = string.Empty;
-    public string? AppUserId { get; set; }
-    public string? ProductId { get; set; }
-    public string? TransactionId { get; set; }
-    public string? OriginalTransactionId { get; set; }
-    public DateTimeOffset? OccurredAt { get; set; }
-    public string? RawPayload { get; set; }
-}
-
 public class ShopSubscriptionSummaryDto
 {
     public Guid ShopId { get; set; }

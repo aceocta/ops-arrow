@@ -6,7 +6,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { addCanisterDrop, getBusinessDay, listCanisterDrops } from "../../api/businessDaysApi";
 import { getConfigurations } from "../../api/configurationsApi";
-import { getSubscriptionSummary } from "../../api/subscriptionApi";
+import { getShopSubscriptionSummary } from "../../api/subscriptionApi";
 import { useAuth } from "../../auth/AuthContext";
 import { getShift, getShiftCloseAttachmentContent, getShiftSales } from "../../api/shiftsApi";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -151,7 +151,7 @@ function ensureFileNameWithExtension(fileName: string, contentType: string) {
 export function ShiftDetailsScreen({ route, navigation }: Props) {
   const { shiftId, shopId: routeShopId } = route.params;
   const queryClient = useQueryClient();
-  const { profile, activeShop } = useAuth();
+  const { profile } = useAuth();
   const [isAttachmentPreviewModalVisible, setIsAttachmentPreviewModalVisible] = useState(false);
   const [attachmentPreviewId, setAttachmentPreviewId] = useState<string | null>(null);
   const [attachmentPreviewTitle, setAttachmentPreviewTitle] = useState("");
@@ -168,8 +168,6 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
   });
   const shift = shiftQuery.data;
   const shiftShopId = shift?.shopId ?? routeShopId;
-  const shiftCompanyId = profile?.shops.find((shop) => shop.shopId === shiftShopId)?.companyId;
-  const companyId = shiftCompanyId ?? activeShop?.companyId ?? profile?.primaryCompanyId;
 
   const businessDayQuery = useQuery({
     queryKey: ["business-day", shiftQuery.data?.businessDayId],
@@ -184,9 +182,9 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
   });
 
   const subscriptionSummaryQuery = useQuery({
-    queryKey: ["subscription-summary", companyId],
-    queryFn: () => getSubscriptionSummary(companyId as string),
-    enabled: Boolean(companyId),
+    queryKey: ["shop-subscription-summary", shiftShopId],
+    queryFn: () => getShopSubscriptionSummary(shiftShopId as string),
+    enabled: Boolean(shiftShopId),
     staleTime: 5 * 60 * 1000,
   });
 

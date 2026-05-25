@@ -16,7 +16,7 @@ import {
   reopenBusinessDay,
 } from "../../api/businessDaysApi";
 import { getConfigurations } from "../../api/configurationsApi";
-import { getSubscriptionSummary } from "../../api/subscriptionApi";
+import { getShopSubscriptionSummary } from "../../api/subscriptionApi";
 import { listPacks } from "../../api/packsApi";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
@@ -589,8 +589,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   const day = dayQuery.data;
   const status = day?.status;
   const dayShopMembership = profile?.shops.find((shop) => shop.shopId === day?.shopId);
-  const dayCompanyId = dayShopMembership?.companyId;
-  const companyId = dayCompanyId ?? activeShop?.companyId ?? profile?.primaryCompanyId;
+  const subscriptionShopId = day?.shopId ?? activeShop?.shopId ?? null;
   const persistedDayAttachments = day?.closeAttachments ?? [];
   const missingOpeningTicketCount = day?.missingOpeningTicketCount ?? 0;
   const missingOpeningTicketDetails = day?.missingOpeningTicketDetails ?? [];
@@ -628,9 +627,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     enabled: Boolean(day?.shopId),
   });
   const subscriptionSummaryQuery = useQuery({
-    queryKey: ["subscription-summary", companyId],
-    queryFn: () => getSubscriptionSummary(companyId as string),
-    enabled: Boolean(companyId),
+    queryKey: ["shop-subscription-summary", subscriptionShopId],
+    queryFn: () => getShopSubscriptionSummary(subscriptionShopId as string),
+    enabled: Boolean(subscriptionShopId),
     staleTime: 5 * 60 * 1000,
   });
   const packsQuery = useQuery({
