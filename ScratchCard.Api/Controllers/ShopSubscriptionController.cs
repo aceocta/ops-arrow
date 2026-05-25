@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Subscriptions;
+using ScratchCard.Infrastructure.Services;
 
 namespace ScratchCard.Api.Controllers;
 
@@ -10,10 +12,12 @@ namespace ScratchCard.Api.Controllers;
 public class ShopSubscriptionController : BaseApiController
 {
     private readonly IShopSubscriptionService _shopSubscriptionService;
+    private readonly RevenueCatOptions _revenueCatOptions;
 
-    public ShopSubscriptionController(IShopSubscriptionService shopSubscriptionService)
+    public ShopSubscriptionController(IShopSubscriptionService shopSubscriptionService, IOptions<RevenueCatOptions> revenueCatOptions)
     {
         _shopSubscriptionService = shopSubscriptionService;
+        _revenueCatOptions = revenueCatOptions.Value;
     }
 
     [HttpGet("summary")]
@@ -56,5 +60,44 @@ public class ShopSubscriptionController : BaseApiController
     {
         var result = await _shopSubscriptionService.ReactivateAsync(request.ShopId, cancellationToken);
         return Success(result);
+    }
+
+    /// <summary>
+    /// Anonymous endpoint that RevenueCat calls when a subscription lifecycle event occurs.
+    /// Verifies the fixed Authorization header (configured in the RevenueCat dashboard) before
+    /// applying the event to the matching ShopSubscription.
+    /// </summary>
+    [HttpPost("revenuecat-webhook")]
+    [AllowAnonymous]
+    public async Task<IActionResult> RevenueCatWebhook([FromBody] RevenueCatWebhookPayload payload, CancellationToken cancellationToken)
+    {
+        var expected = _revenueCatOptions.WebhookAuthorization;
+        if (string.IsNullOrWhiteSpace(expected))
+        {
+            // Refuse to accept webhooks when no secret is configured — fail closed.
+            return Unauthorized();
+        }
+
+        var provided = Request.Headers["Authorization"].ToString();
+        if (!CryptographicallyEqual(provided, expected))
+        {
+            return Unauthorized();
+        }
+
+        if (payload.Event is null)
+        {
+            return Success(true);
+        }
+
+        await _shopSubscriptionService.ApplyRevenueCatEventAsync(payload.Event, cancellationToken);
+        return Success(true);
+    }
+
+    private static bool CryptographicallyEqual(string a, string b)
+    {
+        if (a is null || b is null) return false;
+        var bytesA = System.Text.Encoding.UTF8.GetBytes(a);
+        var bytesB = System.Text.Encoding.UTF8.GetBytes(b);
+        return System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(bytesA, bytesB);
     }
 }

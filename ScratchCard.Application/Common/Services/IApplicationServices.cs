@@ -101,6 +101,7 @@ public interface IShopSubscriptionService
     Task<ShopSubscriptionSummaryDto> CancelAsync(Guid shopId, bool cancelAtPeriodEnd, CancellationToken cancellationToken = default);
     Task<ShopSubscriptionSummaryDto> ReactivateAsync(Guid shopId, CancellationToken cancellationToken = default);
     Task ProcessTrialExpiriesAsync(CancellationToken cancellationToken = default);
+    Task ApplyRevenueCatEventAsync(RevenueCatWebhookEvent webhookEvent, CancellationToken cancellationToken = default);
 }
 
 public interface ISubscriptionCalculationService

@@ -28,6 +28,7 @@ public static class DependencyInjection
         services.Configure<OpenAiOptions>(configuration.GetSection("OpenAI"));
         services.Configure<AttachmentStorageOptions>(configuration.GetSection("AttachmentStorage"));
         services.Configure<FirebasePushOptions>(configuration.GetSection("FirebasePush"));
+        services.Configure<RevenueCatOptions>(configuration.GetSection("RevenueCat"));
 
         services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
         services.AddScoped<IPasswordHashService, PasswordHashService>();
@@ -60,6 +61,15 @@ public static class DependencyInjection
         services.AddSingleton<IDayCloseNotificationDispatcher>(provider => provider.GetRequiredService<DayCloseNotificationBackgroundQueue>());
         services.AddHostedService<DayCloseNotificationBackgroundService>();
         services.AddHostedService<ShopTrialExpiryBackgroundService>();
+
+        // Replace the Noop IAP verifier (registered in Application) with the RevenueCat-backed one.
+        // The HttpClient is configured here so timeouts and headers live alongside other infra config.
+        services.AddHttpClient<IIapReceiptVerifier, RevenueCatReceiptVerifier>((provider, client) =>
+        {
+            var options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<RevenueCatOptions>>().Value;
+            client.BaseAddress = new Uri(options.BaseUrl);
+            client.Timeout = TimeSpan.FromSeconds(15);
+        });
         services.AddScoped<IPaymentProviderService, ManualPaymentProviderService>();
         services.AddScoped<IDeliveryNoteAiParser, OpenAiDeliveryNoteParser>();
         services.AddScoped<SmtpEmailSender>();

@@ -361,6 +361,121 @@ public class ShopSubscriptionService : IShopSubscriptionService
         return await BuildSummaryAsync(subscription, cancellationToken);
     }
 
+    public async Task ApplyRevenueCatEventAsync(RevenueCatWebhookEvent webhookEvent, CancellationToken cancellationToken = default)
+    {
+        if (webhookEvent is null || string.IsNullOrWhiteSpace(webhookEvent.AppUserId))
+        {
+            return;
+        }
+
+        if (!Guid.TryParse(webhookEvent.AppUserId, out var shopId))
+        {
+            // RevenueCat appUserId is expected to be the ShopId GUID. If it's not, we have a
+            // misconfigured client; persist a billing event for audit and bail.
+            return;
+        }
+
+        var subscription = await _shopSubscriptionRepository.Query()
+            .Where(x => x.ShopId == shopId)
+            .OrderByDescending(x => x.CreatedOn)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (subscription is null)
+        {
+            return;
+        }
+
+        var type = (webhookEvent.Type ?? string.Empty).ToUpperInvariant();
+        var purchasedAt = webhookEvent.PurchasedAtMs.HasValue
+            ? DateTimeOffset.FromUnixTimeMilliseconds(webhookEvent.PurchasedAtMs.Value)
+            : (DateTimeOffset?)null;
+        var expiresAt = webhookEvent.ExpirationAtMs.HasValue
+            ? DateTimeOffset.FromUnixTimeMilliseconds(webhookEvent.ExpirationAtMs.Value)
+            : (DateTimeOffset?)null;
+
+        // Resolve plan from product id if RevenueCat gave us one (so a product-change updates the
+        // plan reference on the subscription too).
+        var resolvedProductId = webhookEvent.NewProductId ?? webhookEvent.ProductId;
+        if (!string.IsNullOrWhiteSpace(resolvedProductId))
+        {
+            var platform = ResolvePlatform(webhookEvent.Store);
+            var matchedPlan = await ResolvePlanByProductIdAsync(platform, resolvedProductId, cancellationToken);
+            if (matchedPlan is not null)
+            {
+                subscription.SubscriptionPlanId = matchedPlan.Id;
+                subscription.BillingCycle = matchedPlan.BillingCycle;
+                subscription.Price = matchedPlan.PricePerShop;
+            }
+            subscription.ProviderProductId = resolvedProductId;
+        }
+
+        switch (type)
+        {
+            case "INITIAL_PURCHASE":
+            case "RENEWAL":
+            case "UNCANCELLATION":
+            case "PRODUCT_CHANGE":
+                subscription.Status = SubscriptionStatus.Active;
+                subscription.CancelAtPeriodEnd = false;
+                subscription.CancelledOn = null;
+                if (purchasedAt.HasValue) subscription.CurrentPeriodStartedOn = purchasedAt;
+                if (expiresAt.HasValue) subscription.CurrentPeriodEndsOn = expiresAt;
+                break;
+
+            case "CANCELLATION":
+                // User cancelled but still has access until period end.
+                subscription.CancelAtPeriodEnd = true;
+                break;
+
+            case "EXPIRATION":
+                subscription.Status = SubscriptionStatus.Expired;
+                subscription.CurrentPeriodEndsOn ??= expiresAt;
+                break;
+
+            case "BILLING_ISSUE":
+                subscription.Status = SubscriptionStatus.PaymentFailed;
+                break;
+
+            case "SUBSCRIPTION_PAUSED":
+                subscription.Status = SubscriptionStatus.Suspended;
+                break;
+
+            // Other events (NON_RENEWING_PURCHASE, TRANSFER, INVOICE_ISSUANCE, TEST) — log only.
+        }
+
+        subscription.PaymentProvider = "revenuecat";
+        subscription.ModifiedOn = DateTimeOffset.UtcNow;
+
+        await _billingEventRepository.AddAsync(new BillingEvent
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = subscription.CompanyId,
+            EventType = MapBillingEventType(type),
+            Description = $"RevenueCat {type} for shop {subscription.ShopId}.",
+            NewValue = System.Text.Json.JsonSerializer.Serialize(webhookEvent),
+        }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    private static BillingEventType MapBillingEventType(string type) => type switch
+    {
+        "INITIAL_PURCHASE" => BillingEventType.SubscriptionActivated,
+        "RENEWAL" => BillingEventType.SubscriptionRenewed,
+        "PRODUCT_CHANGE" => BillingEventType.SubscriptionChanged,
+        "UNCANCELLATION" => BillingEventType.SubscriptionReactivated,
+        "CANCELLATION" => BillingEventType.SubscriptionCancelled,
+        "EXPIRATION" => BillingEventType.SubscriptionCancelled,
+        "BILLING_ISSUE" => BillingEventType.PaymentFailed,
+        _ => BillingEventType.SubscriptionChanged,
+    };
+
+    private static string ResolvePlatform(string? store)
+    {
+        if (string.IsNullOrWhiteSpace(store)) return "ios";
+        var upper = store.ToUpperInvariant();
+        return upper == "APP_STORE" || upper == "MAC_APP_STORE" ? "ios" : "android";
+    }
+
     public async Task ProcessTrialExpiriesAsync(CancellationToken cancellationToken = default)
     {
         var now = DateTimeOffset.UtcNow;

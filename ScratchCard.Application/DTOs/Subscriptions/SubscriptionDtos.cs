@@ -167,6 +167,30 @@ public class ShopIapReceiptRequest
     public string? ReceiptData { get; set; }
 }
 
+public class RevenueCatWebhookPayload
+{
+    public RevenueCatWebhookEvent? Event { get; set; }
+    public string? ApiVersion { get; set; }
+}
+
+public class RevenueCatWebhookEvent
+{
+    public string? Id { get; set; }
+    public string? Type { get; set; }
+    public string? AppUserId { get; set; }
+    public string? OriginalAppUserId { get; set; }
+    public string? ProductId { get; set; }
+    public string? PeriodType { get; set; }
+    public string? Store { get; set; }
+    public string? Environment { get; set; }
+    public long? PurchasedAtMs { get; set; }
+    public long? ExpirationAtMs { get; set; }
+    public long? EventTimestampMs { get; set; }
+    public IReadOnlyCollection<string>? EntitlementIds { get; set; }
+    public string? CancelReason { get; set; }
+    public string? NewProductId { get; set; }
+}
+
 public class CancelShopSubscriptionRequest
 {
     public Guid ShopId { get; set; }
