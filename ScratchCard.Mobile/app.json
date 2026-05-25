@@ -63,7 +63,33 @@
       "expo-system-ui",
       "expo-font",
       "expo-web-browser",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "15.5",
+            "extraPods": [
+              {
+                "name": "MLKitVision",
+                "version": "~> 10.0"
+              },
+              {
+                "name": "MLKitCommon",
+                "version": "~> 14.0"
+              },
+              {
+                "name": "GoogleUtilities",
+                "modular_headers": true
+              },
+              {
+                "name": "FirebaseCoreInternal",
+                "modular_headers": true
+              }
+            ]
+          }
+        }
+      ]
     ],
     "extra": {
       "apiBaseUrl": "http://localhost:5268/api",
