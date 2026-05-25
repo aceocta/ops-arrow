@@ -876,16 +876,22 @@ public static class SeedDataInitializer
         // MaxUsers / ReportExportsPerMonth: null means unlimited.
         // Monthly-only catalogue. Annual SKUs are intentionally not seeded; see deactivation below
         // for any historical Annual rows that may still exist in older databases.
+        // TODO: Replace AppleProductId / GoogleProductId placeholders with the real product IDs
+        // registered in App Store Connect and Google Play Console before launching IAP.
         var templates = new[]
         {
             new PlanTemplate("1 Month Free Trial", BillingCycle.Trial,    0m,   30, string.Empty, null, null,
-                "Default free trial for new shops."),
+                "Default free trial for new shops.",
+                AppleProductId: null, GoogleProductId: null),
             new PlanTemplate("Starter Monthly",    BillingCycle.Monthly, 19.99m, 0, starterCsv,  3,    30,
-                "Starter: basic Scratch Card, Temperature Log, Refusals, Compliance and Safe Drop. Limited users."),
+                "Starter: basic Scratch Card, Temperature Log, Refusals, Compliance and Safe Drop. Limited users.",
+                AppleProductId: "com.opsarrow.starter.monthly", GoogleProductId: "opsarrow_starter_monthly"),
             new PlanTemplate("Growth Monthly",     BillingCycle.Monthly, 39.99m, 0, growthCsv,  10,   100,
-                "Growth: attachments, missed-log alerts, advanced compliance schedules, dashboard, audit log."),
+                "Growth: attachments, missed-log alerts, advanced compliance schedules, dashboard, audit log.",
+                AppleProductId: "com.opsarrow.growth.monthly", GoogleProductId: "opsarrow_growth_monthly"),
             new PlanTemplate("Pro Monthly",        BillingCycle.Monthly, 79.99m, 0, proCsv,     null, 500,
-                "Pro: advanced validation, approval workflows, multi-shop dashboards, unlimited users."),
+                "Pro: advanced validation, approval workflows, multi-shop dashboards, unlimited users.",
+                AppleProductId: "com.opsarrow.pro.monthly", GoogleProductId: "opsarrow_pro_monthly"),
         };
 
         var existing = await dbContext.SubscriptionPlans.ToListAsync(cancellationToken);
@@ -908,6 +914,8 @@ public static class SeedDataInitializer
                     IncludedFeatures = template.FeaturesCsv,
                     MaxUsers = template.MaxUsers,
                     ReportExportsPerMonth = template.ReportExportsPerMonth,
+                    AppleProductId = template.AppleProductId,
+                    GoogleProductId = template.GoogleProductId,
                     IsActive = true,
                     CreatedOn = now,
                 }, cancellationToken);
@@ -929,6 +937,16 @@ public static class SeedDataInitializer
             if (current.ReportExportsPerMonth != template.ReportExportsPerMonth)
             {
                 current.ReportExportsPerMonth = template.ReportExportsPerMonth;
+                changed = true;
+            }
+            if (current.AppleProductId != template.AppleProductId)
+            {
+                current.AppleProductId = template.AppleProductId;
+                changed = true;
+            }
+            if (current.GoogleProductId != template.GoogleProductId)
+            {
+                current.GoogleProductId = template.GoogleProductId;
                 changed = true;
             }
             if (!string.Equals(current.Description, template.Description, StringComparison.Ordinal))
@@ -970,7 +988,9 @@ public static class SeedDataInitializer
         string FeaturesCsv,
         int? MaxUsers,
         int? ReportExportsPerMonth,
-        string Description);
+        string Description,
+        string? AppleProductId = null,
+        string? GoogleProductId = null);
 
     private static IReadOnlyCollection<string> ParseIncludedFeatures(string? rawFeatures)
     {

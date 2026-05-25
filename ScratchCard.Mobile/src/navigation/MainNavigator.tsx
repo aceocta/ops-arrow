@@ -47,6 +47,7 @@ import {
   NotificationLogScreen,
 } from "../features/reports/ReportScreens";
 import { UserManagementScreen, ShopConfigurationScreen, AppConfigurationScreen, CompanyManagementScreen, ShopManagementScreen, SettingsScreen } from "../features/settings/SettingsScreens";
+import { NotificationPreferencesScreen } from "../features/settings/NotificationPreferencesScreen";
 import { BestEntryProvider, EntryOperation, useBestEntry } from "./BestEntryContext";
 import { useEntitlements } from "../features/subscription/useEntitlements";
 import { MainStackParamList, RootStackParamList } from "../types/navigation";
@@ -119,7 +120,7 @@ const operationsItems: MenuItem[] = [
   { label: "No ID / No Sale", screen: "RefusalRegister", icon: "shield-checkmark-outline", mode: "refusals" },
   // { label: "Refusals by Day", screen: "RefusalRegisterByDay", mode: "refusals" },
   { label: "Refusal Report", screen: "RefusalReport", icon: "document-text-outline", mode: "refusals" },
-  { label: "Refusal Manager Review", screen: "RefusalManagerReview", icon: "clipboard-outline", mode: "refusals" },
+  { label: "Refusal Manager Review", screen: "RefusalManagerReview", icon: "clipboard-outline", mode: "refusals", requiredFeature: "refusal_log.multi_manager_review" },
   { label: "Card Packs", screen: "ScratchCardPacks", icon: "albums-outline", mode: "scratchCard" },
   { label: "Card Games", screen: "ScratchCardGames", icon: "game-controller-outline", mode: "scratchCard" },
   // { label: "Business Day", screen: "BusinessDay" },
@@ -139,6 +140,7 @@ const managementItems: MenuItem[] = [
     icon: "card-outline",
     allowedRoles: ["PlatformAdmin", "CompanyOwner"],
   },
+  { label: "Notifications", screen: "NotificationPreferences", icon: "notifications-outline" },
   { label: "Shop Configuration", screen: "ShopConfiguration", icon: "storefront-outline" },
   { label: "App Configuration", screen: "AppConfiguration", icon: "construct-outline" },
 ];
@@ -413,6 +415,7 @@ function MainStackScreens() {
       <Stack.Screen name="AuditLog" component={AuditLogScreen} options={{ title: "Audit Log" }} />
       <Stack.Screen name="NotificationLog" component={NotificationLogScreen} options={{ title: "Notification Log" }} />
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
+      <Stack.Screen name="NotificationPreferences" component={NotificationPreferencesScreen} options={{ title: "Notifications" }} />
     </Stack.Navigator>
   );
 }
@@ -659,6 +662,23 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
           <View style={styles.drawerRolePill}>
             <Text style={styles.drawerRolePillText}>{roleLabel}</Text>
           </View>
+          {entitlements?.tier ? (
+            <Pressable
+              style={styles.drawerPlanPill}
+              onPress={() => {
+                props.navigation.getParent()?.navigate("SubscriptionSummary" as never);
+                props.navigation.closeDrawer();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`View subscription. Current plan: ${entitlements.tier}`}
+            >
+              <Ionicons name="card-outline" size={12} color={appTheme.colors.textBrandStrong} />
+              <Text style={styles.drawerPlanPillText}>
+                {entitlements.tier}
+                {entitlements.isInTrial ? " · Trial" : ""}
+              </Text>
+            </Pressable>
+          ) : null}
           </View>
         </View>
 
@@ -925,6 +945,23 @@ const styles = StyleSheet.create({
   },
   drawerRolePillText: {
     color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 14,
+  },
+  drawerPlanPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: appTheme.radius.pill,
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderBrandSoft,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  drawerPlanPillText: {
+    color: appTheme.colors.textBrandStrong,
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 12,
     lineHeight: 14,

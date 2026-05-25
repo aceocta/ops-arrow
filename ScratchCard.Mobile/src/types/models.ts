@@ -38,6 +38,8 @@ export type SubscriptionPlan = {
   includedFeatures?: string[];
   maxUsers?: number | null;
   reportExportsPerMonth?: number | null;
+  appleProductId?: string | null;
+  googleProductId?: string | null;
   isActive: boolean;
 };
 

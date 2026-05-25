@@ -29,11 +29,14 @@ export async function submitPurchaseReceipt(shopId: string, receipt: PurchaseRec
   }
 }
 
+import { Platform } from "react-native";
+
 type IapModule = {
   initConnection?: () => Promise<unknown>;
   endConnection?: () => Promise<unknown>;
   getSubscriptions?: (skus: string[]) => Promise<unknown>;
-  requestSubscription?: (request: { sku: string }) => Promise<unknown>;
+  requestSubscription?: (request: { sku: string }) => Promise<any>;
+  finishTransaction?: (args: { purchase: any; isConsumable?: boolean }) => Promise<unknown>;
   getAvailablePurchases?: () => Promise<any[]>;
 };
 
@@ -45,6 +48,65 @@ try {
 }
 
 export const isIapAvailable = () => Boolean(iapModule?.initConnection && iapModule?.requestSubscription);
+
+/**
+ * Trigger an in-app purchase for the given product ID and then send the resulting receipt to
+ * the backend for verification. The backend resolves the product ID to a SubscriptionPlan and
+ * activates the shop's subscription.
+ *
+ * Returns a friendly message describing the result.
+ *
+ * TODO before launch:
+ *   - Install `react-native-iap` (`npm install react-native-iap`) and run the native build.
+ *   - Make sure the App Store Connect / Google Play product IDs match the ones in the SubscriptionPlan rows.
+ *   - Wire receipt verification on the backend (replace NoopIapReceiptVerifier).
+ */
+export async function purchaseSubscription(args: {
+  shopId: string;
+  appleProductId?: string | null;
+  googleProductId?: string | null;
+}): Promise<SubmitReceiptResult> {
+  if (!isIapAvailable() || !iapModule?.requestSubscription) {
+    return { ok: false, message: "In-app purchase is not available in this build." };
+  }
+
+  const productId = Platform.OS === "ios" ? args.appleProductId : args.googleProductId;
+  if (!productId) {
+    return { ok: false, message: "This plan has no store product ID configured. Contact support." };
+  }
+
+  try {
+    await iapModule.initConnection?.();
+    const purchase = await iapModule.requestSubscription({ sku: productId });
+    if (!purchase) {
+      return { ok: false, message: "Purchase was not completed." };
+    }
+
+    const receipt: PurchaseReceipt = {
+      platform: Platform.OS === "ios" ? "ios" : "android",
+      productId,
+      transactionId: purchase.transactionId ?? purchase.purchaseToken,
+      purchaseToken: purchase.purchaseToken,
+      originalTransactionId: purchase.originalTransactionIdentifierIOS ?? purchase.originalTransactionId,
+      receiptData: purchase.transactionReceipt,
+    };
+
+    const result = await submitPurchaseReceipt(args.shopId, receipt);
+    if (result.ok) {
+      try {
+        await iapModule.finishTransaction?.({ purchase, isConsumable: false });
+      } catch {
+        // best-effort
+      }
+    }
+    return result;
+  } catch (error: any) {
+    reportError(error, { phase: "purchase-subscription", productId, shopId: args.shopId });
+    return { ok: false, message: error?.message ?? "Purchase failed." };
+  } finally {
+    try { await iapModule.endConnection?.(); } catch { /* ignore */ }
+  }
+}
 
 export async function restorePurchases(shopId: string): Promise<SubmitReceiptResult> {
   if (!isIapAvailable() || !iapModule?.getAvailablePurchases) {

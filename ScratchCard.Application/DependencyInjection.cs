@@ -24,6 +24,10 @@ public static class DependencyInjection
         services.AddScoped<ISubscriptionBillingService, SubscriptionBillingService>();
         services.AddScoped<ISubscriptionService, SubscriptionService>();
         services.AddScoped<IShopSubscriptionService, ShopSubscriptionService>();
+        services.AddScoped<IFeatureGateService, FeatureGateService>();
+        // Default IAP receipt verifier is a no-op. Replace with the real implementation (App
+        // Store Server API / Google Play Developer API / RevenueCat) before production.
+        services.AddScoped<IIapReceiptVerifier, NoopIapReceiptVerifier>();
         services.AddScoped<ISubscriptionAccessService, SubscriptionAccessService>();
         services.AddScoped<IConfigurationService, ConfigurationService>();
         services.AddScoped<IShopConfigurationService, ShopConfigurationService>();

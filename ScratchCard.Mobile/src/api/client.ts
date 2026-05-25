@@ -1,6 +1,7 @@
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 import Constants from "expo-constants";
 import { getAccessToken } from "../auth/tokenStorage";
+import { classifySubscriptionError, emitSubscriptionError } from "../features/subscription/subscriptionErrorBus";
 const configuredBaseUrl =
   // "https://wa-ops-arrow-uat-dvdrbjf9fraydwdd.canadacentral-01.azurewebsites.net/api";
   "https://gaming-lent-startup.ngrok-free.dev/api";
@@ -51,3 +52,21 @@ apiClient.interceptors.request.use(async (config) => {
   }
   return config;
 });
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError<{ code?: string; message?: string }>) => {
+    if (error.response?.status === 403) {
+      const code = error.response.data?.code;
+      const kind = classifySubscriptionError(code);
+      if (kind) {
+        emitSubscriptionError({
+          kind,
+          message: error.response.data?.message,
+          feature: code === "feature_not_in_plan" ? (error.response.data as any)?.feature : undefined,
+        });
+      }
+    }
+    return Promise.reject(error);
+  }
+);

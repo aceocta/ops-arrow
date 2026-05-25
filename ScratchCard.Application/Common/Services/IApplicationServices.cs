@@ -98,6 +98,9 @@ public interface IShopSubscriptionService
     Task<ShopEntitlementsDto> GetEntitlementsAsync(Guid shopId, CancellationToken cancellationToken = default);
     Task<ShopSubscriptionSummaryDto> SelectPlanAsync(SelectShopSubscriptionPlanRequest request, CancellationToken cancellationToken = default);
     Task<ShopSubscriptionSummaryDto> RecordIapReceiptAsync(ShopIapReceiptRequest request, CancellationToken cancellationToken = default);
+    Task<ShopSubscriptionSummaryDto> CancelAsync(Guid shopId, bool cancelAtPeriodEnd, CancellationToken cancellationToken = default);
+    Task<ShopSubscriptionSummaryDto> ReactivateAsync(Guid shopId, CancellationToken cancellationToken = default);
+    Task ProcessTrialExpiriesAsync(CancellationToken cancellationToken = default);
 }
 
 public interface ISubscriptionCalculationService

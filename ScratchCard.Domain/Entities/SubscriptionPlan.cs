@@ -13,6 +13,10 @@ public class SubscriptionPlan : AuditableEntity
     public string? IncludedFeatures { get; set; }
     public int? MaxUsers { get; set; }
     public int? ReportExportsPerMonth { get; set; }
+    // Store-side product IDs for IAP receipt mapping. Apple StoreKit and Google Play use
+    // separate IDs; leave null if the plan is admin-only.
+    public string? AppleProductId { get; set; }
+    public string? GoogleProductId { get; set; }
     public bool IsActive { get; set; } = true;
 
     public ICollection<CompanySubscription> CompanySubscriptions { get; set; } = new List<CompanySubscription>();

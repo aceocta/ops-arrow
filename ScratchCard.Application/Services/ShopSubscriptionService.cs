@@ -16,6 +16,7 @@ public class ShopSubscriptionService : IShopSubscriptionService
     private readonly IRepository<ShopSubscription> _shopSubscriptionRepository;
     private readonly IRepository<SubscriptionPlan> _planRepository;
     private readonly IRepository<BillingEvent> _billingEventRepository;
+    private readonly IIapReceiptVerifier _iapReceiptVerifier;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -24,6 +25,7 @@ public class ShopSubscriptionService : IShopSubscriptionService
         IRepository<ShopSubscription> shopSubscriptionRepository,
         IRepository<SubscriptionPlan> planRepository,
         IRepository<BillingEvent> billingEventRepository,
+        IIapReceiptVerifier iapReceiptVerifier,
         ICurrentUserService currentUserService,
         IUnitOfWork unitOfWork)
     {
@@ -31,6 +33,7 @@ public class ShopSubscriptionService : IShopSubscriptionService
         _shopSubscriptionRepository = shopSubscriptionRepository;
         _planRepository = planRepository;
         _billingEventRepository = billingEventRepository;
+        _iapReceiptVerifier = iapReceiptVerifier;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
     }
@@ -235,20 +238,46 @@ public class ShopSubscriptionService : IShopSubscriptionService
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new AppException("subscription_not_found", "No subscription exists for this shop. Select a plan first.", 404);
 
-        var now = DateTimeOffset.UtcNow;
+        // Verify the receipt with the store before trusting it. The default implementation is a
+        // no-op for development; production binds the real verifier in Infrastructure DI.
+        var verification = await _iapReceiptVerifier.VerifyAsync(new IapReceiptVerificationRequest
+        {
+            Platform = request.Platform,
+            ProductId = request.ProductId,
+            TransactionId = request.TransactionId,
+            PurchaseToken = request.PurchaseToken,
+            OriginalTransactionId = request.OriginalTransactionId,
+            ReceiptData = request.ReceiptData,
+        }, cancellationToken);
 
-        // STUB: production must verify the receipt against the store (App Store Server / Google
-        // Play Developer API) or trust a signed RevenueCat webhook. We trust the client here so
-        // mobile development can continue and record an audit trail.
+        if (!verification.IsValid)
+        {
+            throw new AppException("receipt_invalid", verification.Reason ?? "Receipt could not be verified.", 400);
+        }
+
+        // Resolve the plan from the store's product ID so the shop is tied to the right tier.
+        var resolvedProductId = verification.ResolvedProductId ?? request.ProductId;
+        var matchedPlan = await ResolvePlanByProductIdAsync(request.Platform, resolvedProductId, cancellationToken);
+
+        var now = DateTimeOffset.UtcNow;
         subscription.PaymentProvider = request.Platform;
-        subscription.ProviderProductId = request.ProductId;
+        subscription.ProviderProductId = resolvedProductId;
         subscription.ProviderSubscriptionId = request.TransactionId;
         subscription.ProviderOriginalTransactionId = request.OriginalTransactionId ?? request.TransactionId;
         subscription.Status = SubscriptionStatus.Active;
-        subscription.CurrentPeriodStartedOn = now;
-        subscription.CurrentPeriodEndsOn = subscription.BillingCycle == BillingCycle.Annual
-            ? now.AddYears(1)
-            : now.AddMonths(1);
+        subscription.CurrentPeriodStartedOn = verification.PurchaseDate ?? now;
+
+        if (matchedPlan is not null)
+        {
+            subscription.SubscriptionPlanId = matchedPlan.Id;
+            subscription.BillingCycle = matchedPlan.BillingCycle;
+            subscription.Price = matchedPlan.PricePerShop;
+        }
+
+        // Prefer the store-reported expiry if available; otherwise project from cycle.
+        subscription.CurrentPeriodEndsOn = verification.ExpiresDate ?? (subscription.BillingCycle == BillingCycle.Annual
+            ? subscription.CurrentPeriodStartedOn.Value.AddYears(1)
+            : subscription.CurrentPeriodStartedOn.Value.AddMonths(1));
         subscription.ModifiedOn = now;
         subscription.ModifiedBy = _currentUserService.UserId;
 
@@ -265,6 +294,99 @@ public class ShopSubscriptionService : IShopSubscriptionService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return await BuildSummaryAsync(subscription, cancellationToken);
+    }
+
+    public async Task<ShopSubscriptionSummaryDto> CancelAsync(Guid shopId, bool cancelAtPeriodEnd, CancellationToken cancellationToken = default)
+    {
+        var subscription = await _shopSubscriptionRepository.Query()
+            .Where(x => x.ShopId == shopId)
+            .OrderByDescending(x => x.CreatedOn)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new AppException("subscription_not_found", "No subscription exists for this shop.", 404);
+
+        var now = DateTimeOffset.UtcNow;
+        subscription.CancelAtPeriodEnd = cancelAtPeriodEnd;
+        if (!cancelAtPeriodEnd)
+        {
+            subscription.Status = SubscriptionStatus.Cancelled;
+            subscription.CancelledOn = now;
+        }
+        subscription.ModifiedOn = now;
+        subscription.ModifiedBy = _currentUserService.UserId;
+
+        await _billingEventRepository.AddAsync(new BillingEvent
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = subscription.CompanyId,
+            EventType = BillingEventType.SubscriptionCancelled,
+            Description = cancelAtPeriodEnd
+                ? "Cancellation scheduled at period end."
+                : "Subscription cancelled immediately.",
+        }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return await BuildSummaryAsync(subscription, cancellationToken);
+    }
+
+    public async Task<ShopSubscriptionSummaryDto> ReactivateAsync(Guid shopId, CancellationToken cancellationToken = default)
+    {
+        var subscription = await _shopSubscriptionRepository.Query()
+            .Where(x => x.ShopId == shopId)
+            .OrderByDescending(x => x.CreatedOn)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new AppException("subscription_not_found", "No subscription exists for this shop.", 404);
+
+        var now = DateTimeOffset.UtcNow;
+        subscription.CancelAtPeriodEnd = false;
+        subscription.CancelledOn = null;
+        if (subscription.Status == SubscriptionStatus.Cancelled)
+        {
+            // Only revive if still within the paid period; otherwise leave for user to repurchase.
+            subscription.Status = subscription.CurrentPeriodEndsOn.HasValue && subscription.CurrentPeriodEndsOn.Value > now
+                ? SubscriptionStatus.Active
+                : SubscriptionStatus.TrialExpired;
+        }
+        subscription.ModifiedOn = now;
+        subscription.ModifiedBy = _currentUserService.UserId;
+
+        await _billingEventRepository.AddAsync(new BillingEvent
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = subscription.CompanyId,
+            EventType = BillingEventType.SubscriptionReactivated,
+            Description = "Subscription reactivated.",
+        }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return await BuildSummaryAsync(subscription, cancellationToken);
+    }
+
+    public async Task ProcessTrialExpiriesAsync(CancellationToken cancellationToken = default)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var expired = await _shopSubscriptionRepository.Query()
+            .Where(x => x.Status == SubscriptionStatus.TrialActive
+                        && x.TrialEndsOn.HasValue
+                        && x.TrialEndsOn.Value < now)
+            .ToListAsync(cancellationToken);
+
+        if (expired.Count == 0) return;
+
+        foreach (var item in expired)
+        {
+            item.Status = SubscriptionStatus.TrialExpired;
+            item.ModifiedOn = now;
+
+            await _billingEventRepository.AddAsync(new BillingEvent
+            {
+                Id = Guid.NewGuid(),
+                CompanyId = item.CompanyId,
+                EventType = BillingEventType.TrialExpired,
+                Description = $"Trial expired for shop {item.ShopId}.",
+            }, cancellationToken);
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
     private async Task<ShopSubscriptionSummaryDto> BuildSummaryAsync(ShopSubscription subscription, CancellationToken cancellationToken)
@@ -308,6 +430,14 @@ public class ShopSubscriptionService : IShopSubscriptionService
             MaxUsers = plan?.MaxUsers,
             ReportExportsPerMonth = plan?.ReportExportsPerMonth,
         };
+    }
+
+    private async Task<SubscriptionPlan?> ResolvePlanByProductIdAsync(string platform, string productId, CancellationToken cancellationToken)
+    {
+        var isIos = string.Equals(platform, "ios", StringComparison.OrdinalIgnoreCase);
+        return await _planRepository.Query()
+            .Where(p => p.IsActive && (isIos ? p.AppleProductId == productId : p.GoogleProductId == productId))
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     private async Task<SubscriptionPlan?> ResolveTrialPlanAsync(CancellationToken cancellationToken)

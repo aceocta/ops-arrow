@@ -72,6 +72,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<SubscriptionInvoiceLine> SubscriptionInvoiceLines => Set<SubscriptionInvoiceLine>();
     public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
     public DbSet<BillingEvent> BillingEvents => Set<BillingEvent>();
+    public DbSet<ReportExportLog> ReportExportLogs => Set<ReportExportLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -688,6 +689,8 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.PricePerShop).HasPrecision(18, 2);
             entity.Property(x => x.Description).HasMaxLength(500);
             entity.Property(x => x.IncludedFeatures).HasMaxLength(2000);
+            entity.Property(x => x.AppleProductId).HasMaxLength(200);
+            entity.Property(x => x.GoogleProductId).HasMaxLength(200);
             // MaxUsers and ReportExportsPerMonth are nullable — null means unlimited.
         });
 
@@ -705,6 +708,12 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.ProviderPriceId).HasMaxLength(200);
             entity.HasOne(x => x.Company).WithMany(x => x.Subscriptions).HasForeignKey(x => x.CompanyId);
             entity.HasOne(x => x.SubscriptionPlan).WithMany(x => x.CompanySubscriptions).HasForeignKey(x => x.SubscriptionPlanId);
+        });
+
+        modelBuilder.Entity<ReportExportLog>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.ExportedOn });
+            entity.Property(x => x.ReportType).HasMaxLength(100).IsRequired();
         });
 
         modelBuilder.Entity<ShopSubscription>(entity =>

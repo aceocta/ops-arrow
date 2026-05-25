@@ -1,7 +1,9 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.TemperatureLogs;
+using ScratchCard.Application.Services;
 using ScratchCard.Domain.Constants;
 
 namespace ScratchCard.Api.Controllers;
@@ -10,11 +12,16 @@ namespace ScratchCard.Api.Controllers;
 [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager},{RoleNames.Cashier},{RoleNames.SalesAssistant}")]
 public class TemperatureLogsController : BaseApiController
 {
-    private readonly ITemperatureLogService _temperatureLogService;
+    // Plans without temperature_log.full_history may only query a recent window of readings.
+    private const int LimitedHistoryDays = 30;
 
-    public TemperatureLogsController(ITemperatureLogService temperatureLogService)
+    private readonly ITemperatureLogService _temperatureLogService;
+    private readonly IFeatureGateService _featureGateService;
+
+    public TemperatureLogsController(ITemperatureLogService temperatureLogService, IFeatureGateService featureGateService)
     {
         _temperatureLogService = temperatureLogService;
+        _featureGateService = featureGateService;
     }
 
     [HttpGet("units")]
@@ -55,6 +62,20 @@ public class TemperatureLogsController : BaseApiController
         [FromQuery] Guid? unitId,
         CancellationToken cancellationToken)
     {
+        // Plans without temperature_log.full_history are limited to a 30-day rolling window.
+        if (!await _featureGateService.HasFeatureAsync(shopId, FeatureKeys.TemperatureLogFullHistory, cancellationToken))
+        {
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var earliestAllowed = today.AddDays(-LimitedHistoryDays);
+            if (from < earliestAllowed)
+            {
+                throw new AppException(
+                    "temperature_history_limited",
+                    $"Your plan allows up to {LimitedHistoryDays} days of temperature history. Upgrade to view older data.",
+                    403);
+            }
+        }
+
         var result = await _temperatureLogService.ListReadingsAsync(shopId, from, to, unitId, cancellationToken);
         return Success(result);
     }

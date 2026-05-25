@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Reports;
+using ScratchCard.Application.Services;
 using ScratchCard.Domain.Constants;
 
 namespace ScratchCard.Api.Controllers;
@@ -11,10 +12,12 @@ namespace ScratchCard.Api.Controllers;
 public class ReportsController : BaseApiController
 {
     private readonly IReportService _reportService;
+    private readonly IFeatureGateService _featureGateService;
 
-    public ReportsController(IReportService reportService)
+    public ReportsController(IReportService reportService, IFeatureGateService featureGateService)
     {
         _reportService = reportService;
+        _featureGateService = featureGateService;
     }
 
     [HttpGet("daily-sales")]
@@ -60,6 +63,7 @@ public class ReportsController : BaseApiController
     [HttpGet("audit-log")]
     public async Task<IActionResult> AuditLog([FromQuery] Guid shopId, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken cancellationToken)
     {
+        await _featureGateService.EnsureFeatureAsync(shopId, FeatureKeys.AuditLogBasic, cancellationToken);
         var result = await _reportService.GetAuditLogReportAsync(shopId, from, to, cancellationToken);
         return Success(result);
     }
@@ -81,6 +85,12 @@ public class ReportsController : BaseApiController
     [HttpPost("email")]
     public async Task<IActionResult> EmailReport([FromBody] SendReportEmailRequest request, CancellationToken cancellationToken)
     {
+        if (request.ShopId is Guid shopId && !string.IsNullOrWhiteSpace(request.ReportType))
+        {
+            // Per-shop, per-report-type monthly quota gate. Throws 403 with code
+            // 'report_export_quota_exceeded' when the plan's ReportExportsPerMonth is reached.
+            await _featureGateService.EnsureReportExportAllowedAsync(shopId, request.ReportType!, cancellationToken);
+        }
         await _reportService.SendReportByEmailAsync(request, cancellationToken);
         return Success(true, "Report email sent.");
     }

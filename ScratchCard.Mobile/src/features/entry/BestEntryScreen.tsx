@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { SubscriptionBanner } from "../subscription/SubscriptionBanner";
 import { useBestEntry } from "../../navigation/BestEntryContext";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
@@ -65,6 +66,7 @@ export function BestEntryScreen() {
 
   return (
     <ScreenContainer>
+      <SubscriptionBanner />
       <View style={styles.featureGrid}>
         {operationOptions.map((option) => {
           const selected = option.operation ? selectedOperation === option.operation : false;

@@ -59,6 +59,7 @@ public static class DependencyInjection
         services.AddSingleton<DayCloseNotificationBackgroundQueue>();
         services.AddSingleton<IDayCloseNotificationDispatcher>(provider => provider.GetRequiredService<DayCloseNotificationBackgroundQueue>());
         services.AddHostedService<DayCloseNotificationBackgroundService>();
+        services.AddHostedService<ShopTrialExpiryBackgroundService>();
         services.AddScoped<IPaymentProviderService, ManualPaymentProviderService>();
         services.AddScoped<IDeliveryNoteAiParser, OpenAiDeliveryNoteParser>();
         services.AddScoped<SmtpEmailSender>();

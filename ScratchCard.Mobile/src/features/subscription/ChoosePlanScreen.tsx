@@ -16,7 +16,7 @@ import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 import { track } from "../../utils/analytics";
 import { haptics } from "../../utils/haptics";
-import { restorePurchases } from "./purchaseService";
+import { isIapAvailable, purchaseSubscription, restorePurchases } from "./purchaseService";
 
 const TERMS_URL = "https://opsarrow.com/terms";
 const PRIVACY_URL = "https://opsarrow.com/privacy";
@@ -51,9 +51,26 @@ export function ChoosePlanScreen() {
   const selectedPlan = visiblePlans.find((plan) => plan.id === selectedPlanId);
 
   const selectPlanMutation = useMutation({
-    mutationFn: () => selectShopSubscriptionPlan(shopId as string, selectedPlanId),
-    onMutate: () => {
+    mutationFn: async () => {
       track("plan_selected", { planId: selectedPlanId, shopId });
+
+      // If react-native-iap is available, trigger the native purchase flow first; the backend
+      // /shop-subscription/iap-receipt then resolves the receipt to a plan and activates the
+      // subscription. If the IAP SDK isn't installed (e.g. running in Expo Go), fall back to the
+      // server-side select-plan which keeps the shop on its trial referencing the chosen plan.
+      if (isIapAvailable() && selectedPlan) {
+        const result = await purchaseSubscription({
+          shopId: shopId as string,
+          appleProductId: selectedPlan.appleProductId ?? null,
+          googleProductId: selectedPlan.googleProductId ?? null,
+        });
+        if (!result.ok) {
+          throw new Error(result.message ?? "Purchase failed.");
+        }
+        return result.summary;
+      }
+
+      return selectShopSubscriptionPlan(shopId as string, selectedPlanId);
     },
     onSuccess: async () => {
       haptics.success();
@@ -65,7 +82,7 @@ export function ChoosePlanScreen() {
     },
     onError: (error: any) => {
       haptics.error();
-      toastError(error?.response?.data?.message ?? "Unable to select plan.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to select plan.");
     },
   });
 

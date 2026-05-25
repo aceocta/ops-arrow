@@ -25,6 +25,7 @@ public class InvitationService : IInvitationService
     private readonly IEmailSender _emailSender;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IFeatureGateService _featureGateService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly string _invitationAcceptBaseUrl;
 
@@ -38,6 +39,7 @@ public class InvitationService : IInvitationService
         IEmailSender emailSender,
         IAuditService auditService,
         ICurrentUserService currentUserService,
+        IFeatureGateService featureGateService,
         IUnitOfWork unitOfWork,
         IConfiguration configuration)
     {
@@ -50,6 +52,7 @@ public class InvitationService : IInvitationService
         _emailSender = emailSender;
         _auditService = auditService;
         _currentUserService = currentUserService;
+        _featureGateService = featureGateService;
         _unitOfWork = unitOfWork;
         _invitationAcceptBaseUrl =
             configuration["Invitation:InvitationAcceptBaseUrl"]?.Trim()
@@ -73,6 +76,9 @@ public class InvitationService : IInvitationService
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == request.RoleId && x.IsActive, cancellationToken)
             ?? throw new AppException("role_not_found", "Role not found.", 404);
+
+        // Enforce the shop's subscription seat limit. Throws if no seat is available.
+        await _featureGateService.EnsureUserSeatAvailableAsync(request.ShopId, additionalSeats: 1, cancellationToken);
 
         var (token, tokenHash) = _tokenService.GenerateInvitationToken();
         var invitation = new UserInvitation

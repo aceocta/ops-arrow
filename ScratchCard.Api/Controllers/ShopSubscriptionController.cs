@@ -43,4 +43,18 @@ public class ShopSubscriptionController : BaseApiController
         var result = await _shopSubscriptionService.RecordIapReceiptAsync(request, cancellationToken);
         return Success(result);
     }
+
+    [HttpPost("cancel")]
+    public async Task<IActionResult> Cancel([FromBody] CancelShopSubscriptionRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _shopSubscriptionService.CancelAsync(request.ShopId, request.CancelAtPeriodEnd, cancellationToken);
+        return Success(result);
+    }
+
+    [HttpPost("reactivate")]
+    public async Task<IActionResult> Reactivate([FromBody] ReactivateShopSubscriptionRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _shopSubscriptionService.ReactivateAsync(request.ShopId, cancellationToken);
+        return Success(result);
+    }
 }

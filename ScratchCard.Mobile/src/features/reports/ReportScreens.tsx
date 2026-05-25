@@ -21,6 +21,8 @@ import { listShifts } from "../../api/shiftsApi";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
 import { ReportActionButton } from "../../components/ReportActionButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { useFeature } from "../subscription/useFeature";
+import { UpgradeNotice } from "../subscription/FeatureGate";
 import { StatusBadge } from "../../components/StatusBadge";
 import { formatGbp } from "../../utils/currency";
 import type { MainStackParamList } from "../../types/navigation";
@@ -669,11 +671,24 @@ export function AuditLogScreen() {
   const shopId = activeShopId;
   const [from, setFrom] = useState(formatDateValue(new Date()));
   const [to, setTo] = useState(formatDateValue(new Date()));
+  const auditAllowed = useFeature("audit_log.basic");
   const query = useQuery({
     queryKey: ["report-audit-log", shopId, from, to],
     queryFn: () => getAuditLogReport(shopId as string, from, to),
-    enabled: Boolean(shopId) && from.length === 10 && to.length === 10,
+    enabled: Boolean(shopId) && from.length === 10 && to.length === 10 && auditAllowed.isAllowed,
   });
+
+  if (!auditAllowed.isLoading && !auditAllowed.isAllowed) {
+    return (
+      <ScreenContainer>
+        <UpgradeNotice
+          feature="audit_log.basic"
+          title="Audit Log is a Growth feature"
+          message="Upgrade this shop's plan to Growth or Pro to view the audit log."
+        />
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer>

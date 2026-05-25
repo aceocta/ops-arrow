@@ -69,4 +69,7 @@ public class SendReportEmailRequest
     public bool IsBodyHtml { get; set; } = true;
     public string? AttachmentFileName { get; set; }
     public string? AttachmentBase64 { get; set; }
+    // Used by the FeatureGateService to enforce the monthly report-export quota per shop/report.
+    public Guid? ShopId { get; set; }
+    public string? ReportType { get; set; }
 }

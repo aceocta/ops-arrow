@@ -13,6 +13,8 @@ public class SubscriptionPlanDto
     public IReadOnlyCollection<string> IncludedFeatures { get; set; } = [];
     public int? MaxUsers { get; set; }
     public int? ReportExportsPerMonth { get; set; }
+    public string? AppleProductId { get; set; }
+    public string? GoogleProductId { get; set; }
     public bool IsActive { get; set; }
 }
 
@@ -163,6 +165,17 @@ public class ShopIapReceiptRequest
     public string? PurchaseToken { get; set; }
     public string? OriginalTransactionId { get; set; }
     public string? ReceiptData { get; set; }
+}
+
+public class CancelShopSubscriptionRequest
+{
+    public Guid ShopId { get; set; }
+    public bool CancelAtPeriodEnd { get; set; } = true;
+}
+
+public class ReactivateShopSubscriptionRequest
+{
+    public Guid ShopId { get; set; }
 }
 
 public class ShopEntitlementsDto

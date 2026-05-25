@@ -9,6 +9,8 @@ import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
+import { useFeature } from "../subscription/useFeature";
+import { UpgradeNotice } from "../subscription/FeatureGate";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 import { getStaffDisplayName } from "./refusalStaffUtils";
@@ -40,6 +42,7 @@ export function RefusalManagerReviewScreen() {
   const queryClient = useQueryClient();
   const signatureRef = useRef<SignatureViewRef>(null);
   const { activeShopId, profile } = useAuth();
+  const reviewFeature = useFeature("refusal_log.multi_manager_review");
   const canReview = profile?.roles?.some((role) => role === "CompanyOwner" || role === "Manager") ?? false;
   const defaultRange = useMemo(() => buildDefaultRange(), []);
   const [fromDate, setFromDate] = useState(defaultRange.from);
@@ -135,6 +138,18 @@ export function RefusalManagerReviewScreen() {
 
   function saveSignatureFromPad() {
     signatureRef.current?.readSignature();
+  }
+
+  if (!reviewFeature.isLoading && !reviewFeature.isAllowed) {
+    return (
+      <ScreenContainer>
+        <UpgradeNotice
+          feature="refusal_log.multi_manager_review"
+          title="Multi-entry manager review is a Growth feature"
+          message="Upgrade this shop's plan to review multiple refusal entries together."
+        />
+      </ScreenContainer>
+    );
   }
 
   return (

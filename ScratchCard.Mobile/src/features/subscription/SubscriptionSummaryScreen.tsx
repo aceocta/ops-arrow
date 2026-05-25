@@ -1,32 +1,32 @@
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useQuery } from "@tanstack/react-query";
-import { getShopSubscriptionSummary } from "../../api/subscriptionApi";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  cancelShopSubscription,
+  getShopSubscriptionSummary,
+  reactivateShopSubscription,
+} from "../../api/subscriptionApi";
 import { useAuth } from "../../auth/AuthContext";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { Skeleton } from "../../components/Skeleton";
+import { toastError, toastSuccess } from "../../components/toast";
 import { RootStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
 function formatDate(value?: string | null) {
-  if (!value) {
-    return "-";
-  }
-
+  if (!value) return "-";
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-
+  if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleString();
 }
 
 export function SubscriptionSummaryScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const queryClient = useQueryClient();
   const { activeShop, activeShopId } = useAuth();
   const shopId = activeShopId;
 
@@ -37,6 +37,39 @@ export function SubscriptionSummaryScreen() {
   });
 
   const summary = summaryQuery.data;
+  const isCancelledAtPeriodEnd = Boolean(summary?.status?.toLowerCase() === "active" && (summary as any)?.cancelAtPeriodEnd);
+  const isCancelled = summary?.status?.toLowerCase() === "cancelled";
+
+  const cancelMutation = useMutation({
+    mutationFn: (cancelAtPeriodEnd: boolean) => cancelShopSubscription(shopId as string, cancelAtPeriodEnd),
+    onSuccess: async () => {
+      toastSuccess("Cancellation scheduled.");
+      await queryClient.invalidateQueries({ queryKey: ["shop-subscription-summary", shopId] });
+      await queryClient.invalidateQueries({ queryKey: ["shop-entitlements", shopId] });
+    },
+    onError: (error: any) => toastError(error?.response?.data?.message ?? "Unable to cancel."),
+  });
+
+  const reactivateMutation = useMutation({
+    mutationFn: () => reactivateShopSubscription(shopId as string),
+    onSuccess: async () => {
+      toastSuccess("Subscription reactivated.");
+      await queryClient.invalidateQueries({ queryKey: ["shop-subscription-summary", shopId] });
+      await queryClient.invalidateQueries({ queryKey: ["shop-entitlements", shopId] });
+    },
+    onError: (error: any) => toastError(error?.response?.data?.message ?? "Unable to reactivate."),
+  });
+
+  function confirmCancel() {
+    Alert.alert(
+      "Cancel subscription?",
+      "This shop will lose access at the end of the current period.",
+      [
+        { text: "Keep subscription", style: "cancel" },
+        { text: "Cancel at period end", style: "destructive", onPress: () => cancelMutation.mutate(true) },
+      ]
+    );
+  }
 
   return (
     <ScreenContainer>
@@ -80,6 +113,24 @@ export function SubscriptionSummaryScreen() {
           </>
         ) : null}
         <PrimaryButton label="Choose Plan" onPress={() => navigation.navigate("ChoosePlan")} disabled={!shopId} />
+
+        {summary && !isCancelled && !isCancelledAtPeriodEnd ? (
+          <PrimaryButton
+            label={cancelMutation.isPending ? "Cancelling..." : "Cancel Subscription"}
+            tone="danger"
+            onPress={confirmCancel}
+            disabled={cancelMutation.isPending}
+          />
+        ) : null}
+
+        {summary && (isCancelled || isCancelledAtPeriodEnd) ? (
+          <PrimaryButton
+            label={reactivateMutation.isPending ? "Reactivating..." : "Reactivate Subscription"}
+            tone="success"
+            onPress={() => reactivateMutation.mutate()}
+            disabled={reactivateMutation.isPending}
+          />
+        ) : null}
       </View>
     </ScreenContainer>
   );

@@ -7,6 +7,8 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import { optimizeImage } from "../../utils/imageOptimizer";
+import { useFeature } from "../subscription/useFeature";
+import { UpgradeNotice } from "../subscription/FeatureGate";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import { NestableDraggableFlatList, NestableScrollContainer } from "react-native-draggable-flatlist";
@@ -729,6 +731,7 @@ export function ComplianceChecksScreen() {
   const queryClient = useQueryClient();
   const { activeShopId, activeShop, profile } = useAuth();
   const shopId = activeShopId;
+  const { isAllowed: canAttachPhotos } = useFeature("compliance.photo_evidence");
   const userRoles = profile?.roles ?? [];
   const canManage = isManagerLike(userRoles);
   const defaultCheckedByName = useMemo(
@@ -1729,14 +1732,25 @@ export function ComplianceChecksScreen() {
                         ) : null}
 
                         <View style={styles.complianceAttachmentActionRow}>
-                          <Pressable
-                            style={styles.complianceAttachmentActionButton}
-                            onPress={() => void selectAttachmentsForItem(row.item, draft)}
-                          >
-                            <Text style={styles.complianceAttachmentActionButtonText}>
-                              {attachmentCount > 0 ? "Add More Attachments" : "Add Attachments"}
-                            </Text>
-                          </Pressable>
+                          {canAttachPhotos ? (
+                            <Pressable
+                              style={styles.complianceAttachmentActionButton}
+                              onPress={() => void selectAttachmentsForItem(row.item, draft)}
+                            >
+                              <Text style={styles.complianceAttachmentActionButtonText}>
+                                {attachmentCount > 0 ? "Add More Attachments" : "Add Attachments"}
+                              </Text>
+                            </Pressable>
+                          ) : (
+                            <View style={{ flex: 1 }}>
+                              <UpgradeNotice
+                                feature="compliance.photo_evidence"
+                                title="Attachments are a Pro feature"
+                                message="Upgrade this shop to attach photo evidence to compliance entries."
+                                compact
+                              />
+                            </View>
+                          )}
                           {pendingAttachments.length > 0 ? (
                             <Pressable
                               style={[styles.complianceAttachmentActionButton, styles.complianceAttachmentActionButtonDanger]}

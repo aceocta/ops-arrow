@@ -76,4 +76,5 @@ export type MainStackParamList = {
   AuditLog: undefined;
   NotificationLog: undefined;
   Settings: undefined;
+  NotificationPreferences: undefined;
 };

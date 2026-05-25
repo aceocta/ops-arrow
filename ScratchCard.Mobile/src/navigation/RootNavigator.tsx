@@ -1,7 +1,11 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { useQuery } from "@tanstack/react-query";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthContext";
+import { installSubscriptionErrorHandler } from "../features/subscription/subscriptionErrorBus";
+import { toastError, toastWarning } from "../components/toast";
 import { BootstrapErrorScreen } from "../auth/BootstrapErrorScreen";
 import { CompanySignupScreen } from "../auth/CompanySignupScreen";
 import { CompanySetupScreen } from "../auth/CompanySetupScreen";
@@ -27,9 +31,38 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
   const { isBootstrapping, isAuthenticated, profile, activeShopId, bootstrapError, retryBootstrap, signOut } = useAuth();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const queryClient = useQueryClient();
   const needsCompanySetup = isAuthenticated && profile?.hasCompanySetup === false;
   const needsShopSetup = isAuthenticated && profile?.hasCompanySetup === true && profile?.hasShopSetup === false;
   const shouldLoadSubscription = isAuthenticated && !needsCompanySetup && !needsShopSetup && Boolean(activeShopId);
+
+  useEffect(() => {
+    installSubscriptionErrorHandler((payload) => {
+      // Refresh the cached entitlements so other queries flip to the latest plan state.
+      void queryClient.invalidateQueries({ queryKey: ["shop-entitlements"] });
+      void queryClient.invalidateQueries({ queryKey: ["shop-subscription-summary"] });
+      void queryClient.invalidateQueries({ queryKey: ["shop-subscription-summary-root"] });
+
+      if (payload.kind === "user_seat_limit_reached") {
+        toastError(payload.message ?? "This shop has reached its user seat limit. Upgrade to add more users.", "Seat limit reached");
+        navigation.navigate("SubscriptionSummary");
+        return;
+      }
+
+      if (payload.kind === "subscription_expired") {
+        toastWarning(payload.message ?? "This shop's subscription is no longer active.", "Subscription expired");
+        navigation.navigate("BillingRequired", { message: payload.message });
+        return;
+      }
+
+      // feature_not_in_plan — push to the plan picker so the user can upgrade in-context.
+      toastWarning(payload.message ?? "This feature is not in your current plan.", "Upgrade required");
+      navigation.navigate("ChoosePlan");
+    });
+
+    return () => installSubscriptionErrorHandler(null);
+  }, [navigation, queryClient]);
 
   const subscriptionSummaryQuery = useQuery({
     queryKey: ["shop-subscription-summary-root", activeShopId],

@@ -78,3 +78,18 @@ export async function submitShopIapReceipt(payload: {
   const response = await apiClient.post<ApiResponse<ShopSubscriptionSummary>>("/shop-subscription/iap-receipt", payload);
   return response.data.data;
 }
+
+export async function cancelShopSubscription(shopId: string, cancelAtPeriodEnd: boolean) {
+  const response = await apiClient.post<ApiResponse<ShopSubscriptionSummary>>("/shop-subscription/cancel", {
+    shopId,
+    cancelAtPeriodEnd,
+  });
+  return response.data.data;
+}
+
+export async function reactivateShopSubscription(shopId: string) {
+  const response = await apiClient.post<ApiResponse<ShopSubscriptionSummary>>("/shop-subscription/reactivate", {
+    shopId,
+  });
+  return response.data.data;
+}

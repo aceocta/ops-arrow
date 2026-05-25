@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.ComplianceChecks;
+using ScratchCard.Application.Services;
 using ScratchCard.Domain.Constants;
 using ScratchCard.Domain.Enums;
 
@@ -12,10 +13,12 @@ namespace ScratchCard.Api.Controllers;
 public class ComplianceChecksController : BaseApiController
 {
     private readonly IComplianceCheckService _complianceCheckService;
+    private readonly IFeatureGateService _featureGateService;
 
-    public ComplianceChecksController(IComplianceCheckService complianceCheckService)
+    public ComplianceChecksController(IComplianceCheckService complianceCheckService, IFeatureGateService featureGateService)
     {
         _complianceCheckService = complianceCheckService;
+        _featureGateService = featureGateService;
     }
 
     [HttpGet("config")]
@@ -32,6 +35,11 @@ public class ComplianceChecksController : BaseApiController
     [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.OwnerRoles},{RoleNames.Manager}")]
     public async Task<IActionResult> CreateGroup([FromBody] CreateComplianceCheckGroupRequest request, CancellationToken cancellationToken)
     {
+        // Weekly/Monthly compliance groups require compliance.daily_weekly_monthly (Growth+).
+        if (request.Frequency == ComplianceCheckFrequency.Weekly || request.Frequency == ComplianceCheckFrequency.Monthly)
+        {
+            await _featureGateService.EnsureFeatureAsync(request.ShopId, FeatureKeys.ComplianceDailyWeeklyMonthly, cancellationToken);
+        }
         var result = await _complianceCheckService.CreateGroupAsync(request, cancellationToken);
         return Success(result);
     }
@@ -100,6 +108,12 @@ public class ComplianceChecksController : BaseApiController
     [HttpPost("entries")]
     public async Task<IActionResult> UpsertEntry([FromBody] UpsertComplianceCheckEntryRequest request, CancellationToken cancellationToken)
     {
+        // Feature gate: attachments on compliance entries require compliance.photo_evidence (Pro).
+        if (request.Attachments is { Count: > 0 })
+        {
+            await _featureGateService.EnsureFeatureAsync(request.ShopId, FeatureKeys.CompliancePhotoEvidence, cancellationToken);
+        }
+
         var result = await _complianceCheckService.UpsertEntryAsync(request, cancellationToken);
         return Success(result);
     }

@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.RefusalRegister;
+using ScratchCard.Application.Services;
 using ScratchCard.Domain.Constants;
 
 namespace ScratchCard.Api.Controllers;
@@ -11,10 +12,12 @@ namespace ScratchCard.Api.Controllers;
 public class RefusalRegisterController : BaseApiController
 {
     private readonly IRefusalRegisterService _refusalRegisterService;
+    private readonly IFeatureGateService _featureGateService;
 
-    public RefusalRegisterController(IRefusalRegisterService refusalRegisterService)
+    public RefusalRegisterController(IRefusalRegisterService refusalRegisterService, IFeatureGateService featureGateService)
     {
         _refusalRegisterService = refusalRegisterService;
+        _featureGateService = featureGateService;
     }
 
     [HttpPost("entries")]
@@ -79,6 +82,8 @@ public class RefusalRegisterController : BaseApiController
     [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
     public async Task<IActionResult> ReviewEntries([FromBody] ReviewRefusalRegisterEntriesRequest request, CancellationToken cancellationToken)
     {
+        // Reviewing multiple refusal entries in one go is a Growth+ feature.
+        await _featureGateService.EnsureFeatureAsync(request.ShopId, FeatureKeys.RefusalLogMultiManagerReview, cancellationToken);
         var result = await _refusalRegisterService.ReviewEntriesAsync(request, cancellationToken);
         return Success(result);
     }

@@ -4,8 +4,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import { listInvitations, sendInvitation, cancelInvitation } from "../../api/invitationsApi";
 import { getRoleOptions } from "../../api/lookupsApi";
+import { listUsers } from "../../api/usersApi";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
+import { useEntitlements } from "../subscription/useEntitlements";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 import { getRoleDisplayName } from "../../utils/roleLabels";
@@ -43,6 +45,25 @@ export function UserInvitationsScreen() {
     queryFn: () => listInvitations(shopId as string),
     enabled: Boolean(shopId) && canSendInvitations,
   });
+
+  // Pull active shop users to compute current seat usage against the plan's MaxUsers.
+  const usersQuery = useQuery({
+    queryKey: ["shop-users", shopId],
+    queryFn: () => listUsers(shopId as string),
+    enabled: Boolean(shopId) && canSendInvitations,
+  });
+
+  const { entitlements } = useEntitlements();
+  const maxUsers = entitlements?.maxUsers ?? null;
+  const assignedUsers = usersQuery.data?.length ?? 0;
+  const pendingInvites = (invitationsQuery.data ?? []).filter(
+    (i: InvitationItem) => i.status?.toLowerCase() === "pending"
+  ).length;
+  const usedSeats = assignedUsers + pendingInvites;
+  const seatsExhausted = maxUsers !== null && usedSeats >= maxUsers;
+  const seatStatus = maxUsers === null
+    ? "Unlimited seats"
+    : `${usedSeats} of ${maxUsers} seats used`;
 
   const inviteRoleOptions = useMemo(() => {
     return (rolesQuery.data ?? []).filter((role) => role.name.replace(/\s+/g, "").toLowerCase() !== "platformadmin");
@@ -113,6 +134,14 @@ export function UserInvitationsScreen() {
           {!canSendInvitations ? (
             <Text style={styles.caption}>Only Platform Admin, Company Owner, or Manager can send invitations.</Text>
           ) : null}
+          {canSendInvitations ? (
+            <View style={[styles.seatBadge, seatsExhausted && styles.seatBadgeExhausted]}>
+              <Text style={[styles.seatBadgeText, seatsExhausted && styles.seatBadgeTextExhausted]}>
+                {seatStatus}
+                {seatsExhausted ? " — upgrade to add more" : ""}
+              </Text>
+            </View>
+          ) : null}
 
           <Text style={styles.fieldLabel}>Invitee Email</Text>
           <TextInput
@@ -156,9 +185,15 @@ export function UserInvitationsScreen() {
           {selectedRoleName ? <Text style={styles.caption}>Selected role: {getRoleDisplayName(selectedRoleName)}</Text> : null}
 
           <PrimaryButton
-            label={sendInvitationMutation.isPending ? "Sending..." : "Send Invitation"}
+            label={
+              sendInvitationMutation.isPending
+                ? "Sending..."
+                : seatsExhausted
+                  ? "Seat limit reached"
+                  : "Send Invitation"
+            }
             onPress={() => sendInvitationMutation.mutate()}
-            disabled={sendInvitationMutation.isPending || !shopId || !canSendInvitations}
+            disabled={sendInvitationMutation.isPending || !shopId || !canSendInvitations || seatsExhausted}
           />
         </View>
 
@@ -194,6 +229,25 @@ const styles = StyleSheet.create({
   content: {
     gap: appTheme.spacing.sm,
     paddingBottom: appTheme.spacing.sm,
+  },
+  seatBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: appTheme.colors.surfaceInfoMuted,
+    borderRadius: appTheme.radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  seatBadgeExhausted: {
+    backgroundColor: appTheme.colors.surfaceWarningSoft,
+  },
+  seatBadgeText: {
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 16,
+    color: appTheme.colors.textInfoStrong,
+  },
+  seatBadgeTextExhausted: {
+    color: appTheme.colors.textWarningStrong,
   },
   card: {
     gap: appTheme.spacing.sm,
