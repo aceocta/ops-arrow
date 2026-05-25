@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+﻿import React, { useCallback, useMemo, useState } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { DrawerActions, NavigatorScreenParams, useNavigation, useNavigationState } from "@react-navigation/native";
 import { createDrawerNavigator, DrawerContentScrollView, type DrawerContentComponentProps } from "@react-navigation/drawer";
@@ -448,18 +448,7 @@ function MainBottomDock() {
   );
 }
 
-function DrawerSection({
-  sectionKey,
-  title,
-  items,
-  isCompanyOwner,
-  userRoles,
-  onPress,
-  selectedOperation,
-  expanded,
-  onToggle,
-  activeScreen,
-}: {
+type DrawerSectionProps = {
   sectionKey: DrawerSectionKey;
   title: string;
   items: MenuItem[];
@@ -470,13 +459,32 @@ function DrawerSection({
   expanded: boolean;
   onToggle: (sectionKey: DrawerSectionKey) => void;
   activeScreen?: keyof MainStackParamList;
-}) {
-  const visibleItems = items.filter(
-    (item) =>
-      (!item.shopOwnerOnly || isCompanyOwner) &&
-      (!item.allowedRoles || item.allowedRoles.some((role) => userRoles.includes(role))) &&
-      (!selectedOperation || !item.mode || item.mode === selectedOperation)
+};
+
+const DrawerSection = React.memo(function DrawerSection({
+  sectionKey,
+  title,
+  items,
+  isCompanyOwner,
+  userRoles,
+  onPress,
+  selectedOperation,
+  expanded,
+  onToggle,
+  activeScreen,
+}: DrawerSectionProps) {
+  const visibleItems = useMemo(
+    () =>
+      items.filter(
+        (item) =>
+          (!item.shopOwnerOnly || isCompanyOwner) &&
+          (!item.allowedRoles || item.allowedRoles.some((role) => userRoles.includes(role))) &&
+          (!selectedOperation || !item.mode || item.mode === selectedOperation)
+      ),
+    [items, isCompanyOwner, userRoles, selectedOperation]
   );
+
+  const handleToggle = useCallback(() => onToggle(sectionKey), [onToggle, sectionKey]);
 
   if (visibleItems.length === 0) {
     return null;
@@ -489,7 +497,7 @@ function DrawerSection({
           styles.drawerSectionHeader,
           pressed ? styles.drawerSectionHeaderPressed : null,
         ]}
-        onPress={() => onToggle(sectionKey)}
+        onPress={handleToggle}
         accessibilityRole="button"
         accessibilityLabel={`${expanded ? "Collapse" : "Expand"} ${title} menu`}
         accessibilityState={{ expanded }}
@@ -548,7 +556,7 @@ function DrawerSection({
       ) : null}
     </View>
   );
-}
+});
 
 function DrawerMenuContent(props: DrawerContentComponentProps) {
   const { selectedOperation, setSelectedOperation } = useBestEntry();

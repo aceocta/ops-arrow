@@ -66,6 +66,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<RefusalRegisterDailySignoff> RefusalRegisterDailySignoffs => Set<RefusalRegisterDailySignoff>();
     public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
     public DbSet<CompanySubscription> CompanySubscriptions => Set<CompanySubscription>();
+    public DbSet<ShopSubscription> ShopSubscriptions => Set<ShopSubscription>();
     public DbSet<SubscriptionDiscountRule> SubscriptionDiscountRules => Set<SubscriptionDiscountRule>();
     public DbSet<SubscriptionInvoice> SubscriptionInvoices => Set<SubscriptionInvoice>();
     public DbSet<SubscriptionInvoiceLine> SubscriptionInvoiceLines => Set<SubscriptionInvoiceLine>();
@@ -703,6 +704,20 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.ProviderPriceId).HasMaxLength(200);
             entity.HasOne(x => x.Company).WithMany(x => x.Subscriptions).HasForeignKey(x => x.CompanyId);
             entity.HasOne(x => x.SubscriptionPlan).WithMany(x => x.CompanySubscriptions).HasForeignKey(x => x.SubscriptionPlanId);
+        });
+
+        modelBuilder.Entity<ShopSubscription>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.Status });
+            entity.HasIndex(x => x.CompanyId);
+            entity.Property(x => x.Price).HasPrecision(18, 2);
+            entity.Property(x => x.PaymentProvider).HasMaxLength(50);
+            entity.Property(x => x.ProviderProductId).HasMaxLength(200);
+            entity.Property(x => x.ProviderSubscriptionId).HasMaxLength(200);
+            entity.Property(x => x.ProviderOriginalTransactionId).HasMaxLength(200);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Company).WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.SubscriptionPlan).WithMany().HasForeignKey(x => x.SubscriptionPlanId).OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<SubscriptionDiscountRule>(entity =>

@@ -13,5 +13,7 @@ public enum BillingEventType
     ShopCountChanged = 9,
     DiscountApplied = 10,
     InvoiceCreated = 11,
-    SubscriptionReactivated = 12
+    SubscriptionReactivated = 12,
+    IapReceiptReceived = 13,
+    IapWebhookEvent = 14
 }

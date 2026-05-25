@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, StyleSheet, Text, View } from "react-native";
 import { BarcodeType, CameraView, useCameraPermissions } from "expo-camera";
+import { haptics } from "../../utils/haptics";
+import { track } from "../../utils/analytics";
 import Constants from "expo-constants";
 import * as ImageManipulator from "expo-image-manipulator";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -324,6 +326,8 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
     }
 
     hasHandledPackBarcodeRef.current = true;
+    haptics.success();
+    track("barcode_scanned", { gameCode: parsed.gameCode });
 
     emitScan({
       rawBarcode: rawData,

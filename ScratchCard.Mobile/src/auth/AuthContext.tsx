@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
   AuthTokenResult,
   getCurrentUserProfile,
@@ -11,6 +11,9 @@ import {
 import { registerPushToken } from "../api/notificationsApi";
 import { resolveFirebasePushTokenAsync } from "../notifications/pushRegistration";
 import { AuthProfile } from "../types/models";
+import { reportError } from "../utils/crashReporter";
+import { identifyUser, resetAnalytics } from "../utils/analytics";
+import { setCrashReporterUser } from "../utils/crashReporter";
 import {
   clearAccessToken,
   clearAuthProfile,
@@ -32,6 +35,8 @@ type AuthContextValue = {
   profile: AuthProfile | null;
   activeShopId: string | null;
   activeShop: AuthShop | null;
+  bootstrapError: Error | null;
+  retryBootstrap: () => Promise<void>;
   setActiveShop: (shopId: string) => Promise<void>;
   signInWithPassword: (payload: { email: string; password: string }) => Promise<void>;
   signUpWithPassword: (payload: { email: string; password: string; verificationCode: string; firstName?: string; lastName?: string }) => Promise<void>;
@@ -62,10 +67,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [profile, setProfile] = useState<AuthProfile | null>(null);
   const [activeShopId, setActiveShopId] = useState<string | null>(null);
+  const [bootstrapError, setBootstrapError] = useState<Error | null>(null);
 
   useEffect(() => {
     void bootstrap();
   }, []);
+
+  useEffect(() => {
+    if (profile?.userId) {
+      identifyUser(profile.userId, { email: profile.email });
+      setCrashReporterUser({ id: profile.userId, email: profile.email });
+    } else {
+      setCrashReporterUser(null);
+      resetAnalytics();
+    }
+  }, [profile?.userId, profile?.email]);
 
   useEffect(() => {
     if (!profile?.userId || !activeShopId) {
@@ -99,6 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function bootstrap() {
     setIsBootstrapping(true);
     setIsLoading(true);
+    setBootstrapError(null);
     try {
       const [token, savedShopId, cachedProfile] = await Promise.all([
         getAccessToken(),
@@ -128,17 +145,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       await refreshProfileFromServer(savedShopId);
-    } catch {
-      await clearAccessToken();
-      await clearAuthProfile();
-      await clearActiveShopId();
-      setProfile(null);
-      setActiveShopId(null);
+    } catch (error) {
+      const normalized = error instanceof Error ? error : new Error(String(error));
+      const status = (error as any)?.response?.status as number | undefined;
+      const isAuthFailure = status === 401 || status === 403;
+
+      reportError(normalized, { phase: "auth-bootstrap", status });
+
+      if (isAuthFailure) {
+        await clearAccessToken();
+        await clearAuthProfile();
+        await clearActiveShopId();
+        setProfile(null);
+        setActiveShopId(null);
+        setBootstrapError(null);
+      } else {
+        setBootstrapError(normalized);
+      }
     } finally {
       setIsLoading(false);
       setIsBootstrapping(false);
     }
   }
+
+  const retryBootstrap = useCallback(async () => {
+    await bootstrap();
+  }, []);
 
   async function signInWithPassword(payload: { email: string; password: string }) {
     setIsLoading(true);
@@ -275,6 +307,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       profile,
       activeShopId,
       activeShop,
+      bootstrapError,
+      retryBootstrap,
       setActiveShop,
       signInWithPassword,
       signUpWithPassword,
@@ -284,7 +318,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signOut,
       refreshProfile,
     }),
-    [activeShop, activeShopId, isBootstrapping, isLoading, profile]
+    [activeShop, activeShopId, bootstrapError, isBootstrapping, isLoading, profile, retryBootstrap]
   );
 
   async function applyAuthTokenResult(result: AuthTokenResult, preferredShopId?: string | null) {

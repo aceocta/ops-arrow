@@ -182,8 +182,28 @@ function resolveColorScheme(mode: ThemeMode) {
 export const configuredThemeMode = getRuntimeThemeModeOverride() ?? normalizeThemeMode(process.env.EXPO_PUBLIC_THEME_MODE);
 export const resolvedColorScheme = resolveColorScheme(configuredThemeMode);
 
+const activeColors = resolvedColorScheme === "dark" ? darkColors : lightColors;
+
+const fontFamilies = {
+  heading: Platform.select({
+    ios: "AvenirNext-DemiBold",
+    android: "sans-serif-black",
+    default: "System",
+  }),
+  body: Platform.select({
+    ios: "AvenirNext-Regular",
+    android: "sans-serif",
+    default: "System",
+  }),
+  bodyMedium: Platform.select({
+    ios: "AvenirNext-Medium",
+    android: "sans-serif-medium",
+    default: "System",
+  }),
+};
+
 export const appTheme = {
-  colors: resolvedColorScheme === "dark" ? darkColors : lightColors,
+  colors: activeColors,
   spacing: {
     xs: 8,
     sm: 12,
@@ -197,22 +217,74 @@ export const appTheme = {
     lg: 28,
     pill: 999,
   },
-  fonts: {
-    heading: Platform.select({
-      ios: "AvenirNext-DemiBold",
-      android: "sans-serif-black",
-      default: "System",
-    }),
-    body: Platform.select({
-      ios: "AvenirNext-Regular",
-      android: "sans-serif",
-      default: "System",
-    }),
-    bodyMedium: Platform.select({
-      ios: "AvenirNext-Medium",
-      android: "sans-serif-medium",
-      default: "System",
-    }),
+  fonts: fontFamilies,
+  typography: {
+    display: {
+      fontFamily: fontFamilies.heading,
+      fontSize: 28,
+      lineHeight: 34,
+    },
+    title: {
+      fontFamily: fontFamilies.heading,
+      fontSize: 20,
+      lineHeight: 26,
+    },
+    subtitle: {
+      fontFamily: fontFamilies.bodyMedium,
+      fontSize: 16,
+      lineHeight: 22,
+    },
+    body: {
+      fontFamily: fontFamilies.body,
+      fontSize: 14,
+      lineHeight: 20,
+    },
+    bodyEmphasis: {
+      fontFamily: fontFamilies.bodyMedium,
+      fontSize: 14,
+      lineHeight: 20,
+    },
+    caption: {
+      fontFamily: fontFamilies.body,
+      fontSize: 12,
+      lineHeight: 16,
+    },
+    overline: {
+      fontFamily: fontFamilies.bodyMedium,
+      fontSize: 11,
+      lineHeight: 14,
+      letterSpacing: 0.6,
+    },
+  },
+  elevation: {
+    none: {
+      shadowColor: "transparent",
+      shadowOpacity: 0,
+      shadowRadius: 0,
+      shadowOffset: { width: 0, height: 0 },
+      elevation: 0,
+    },
+    sm: {
+      shadowColor: activeColors.previewBackdrop,
+      shadowOpacity: 0.08,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 2,
+    },
+    md: {
+      shadowColor: activeColors.previewBackdrop,
+      shadowOpacity: 0.14,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: 4,
+    },
+    lg: {
+      shadowColor: activeColors.previewBackdrop,
+      shadowOpacity: 0.2,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 10 },
+      elevation: 8,
+    },
   },
 } as const;
 

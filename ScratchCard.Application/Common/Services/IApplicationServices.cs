@@ -89,6 +89,18 @@ public interface ISubscriptionService
     Task<SubscriptionDiscountRuleDto> UpdateDiscountRuleAsync(Guid id, UpsertSubscriptionDiscountRuleRequest request, CancellationToken cancellationToken = default);
     Task DeleteDiscountRuleAsync(Guid id, CancellationToken cancellationToken = default);
     Task ProcessTrialExpiriesAsync(CancellationToken cancellationToken = default);
+    Task<EntitlementsDto> GetEntitlementsAsync(Guid companyId, CancellationToken cancellationToken = default);
+    Task<SubscriptionSummaryDto> RecordIapReceiptAsync(IapReceiptRequest request, CancellationToken cancellationToken = default);
+    Task HandleIapWebhookAsync(IapWebhookEvent webhookEvent, CancellationToken cancellationToken = default);
+}
+
+public interface IShopSubscriptionService
+{
+    Task<ShopSubscriptionSummaryDto> EnsureTrialAsync(Guid shopId, CancellationToken cancellationToken = default);
+    Task<ShopSubscriptionSummaryDto> GetSummaryAsync(Guid shopId, CancellationToken cancellationToken = default);
+    Task<ShopEntitlementsDto> GetEntitlementsAsync(Guid shopId, CancellationToken cancellationToken = default);
+    Task<ShopSubscriptionSummaryDto> SelectPlanAsync(SelectShopSubscriptionPlanRequest request, CancellationToken cancellationToken = default);
+    Task<ShopSubscriptionSummaryDto> RecordIapReceiptAsync(ShopIapReceiptRequest request, CancellationToken cancellationToken = default);
 }
 
 public interface ISubscriptionCalculationService

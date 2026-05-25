@@ -2,6 +2,7 @@ import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthContext";
+import { BootstrapErrorScreen } from "../auth/BootstrapErrorScreen";
 import { CompanySignupScreen } from "../auth/CompanySignupScreen";
 import { CompanySetupScreen } from "../auth/CompanySetupScreen";
 import { SplashLoadingScreen } from "../auth/SplashLoadingScreen";
@@ -9,7 +10,7 @@ import { LoginScreen } from "../auth/LoginScreen";
 import { ForgotPasswordScreen } from "../auth/ForgotPasswordScreen";
 import { ResetPasswordScreen } from "../auth/ResetPasswordScreen";
 import { ShopSetupScreen } from "../auth/ShopSetupScreen";
-import { getSubscriptionSummary } from "../api/subscriptionApi";
+import { getShopSubscriptionSummary } from "../api/subscriptionApi";
 import { InvitationAcceptanceScreen } from "../features/invitations/InvitationAcceptanceScreen";
 import { BillingRequiredScreen } from "../features/subscription/BillingRequiredScreen";
 import { ChoosePlanScreen } from "../features/subscription/ChoosePlanScreen";
@@ -25,15 +26,14 @@ import { MainNavigator } from "./MainNavigator";
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
-  const { isBootstrapping, isAuthenticated, profile, activeShop } = useAuth();
-  const companyId = profile?.primaryCompanyId ?? activeShop?.companyId;
+  const { isBootstrapping, isAuthenticated, profile, activeShopId, bootstrapError, retryBootstrap, signOut } = useAuth();
   const needsCompanySetup = isAuthenticated && profile?.hasCompanySetup === false;
   const needsShopSetup = isAuthenticated && profile?.hasCompanySetup === true && profile?.hasShopSetup === false;
-  const shouldLoadSubscription = isAuthenticated && !needsCompanySetup && !needsShopSetup && Boolean(companyId);
+  const shouldLoadSubscription = isAuthenticated && !needsCompanySetup && !needsShopSetup && Boolean(activeShopId);
 
   const subscriptionSummaryQuery = useQuery({
-    queryKey: ["subscription-summary-root", companyId],
-    queryFn: () => getSubscriptionSummary(companyId as string),
+    queryKey: ["shop-subscription-summary-root", activeShopId],
+    queryFn: () => getShopSubscriptionSummary(activeShopId as string),
     enabled: shouldLoadSubscription,
     retry: 0,
     staleTime: 5 * 60 * 1000,
@@ -43,6 +43,16 @@ export function RootNavigator() {
 
   if (isBootstrapping) {
     return <SplashLoadingScreen />;
+  }
+
+  if (bootstrapError) {
+    return (
+      <BootstrapErrorScreen
+        message={bootstrapError.message}
+        onRetry={() => void retryBootstrap()}
+        onSignOut={() => void signOut()}
+      />
+    );
   }
 
   const requiresBillingAction = shouldLoadSubscription && Boolean(subscriptionSummaryQuery.data?.requiresBillingAction);

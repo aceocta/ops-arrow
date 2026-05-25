@@ -6,11 +6,46 @@ import { DarkTheme, DefaultTheme, NavigationContainer, type LinkingOptions } fro
 import * as Linking from "expo-linking";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "./src/auth/AuthContext";
+import { ErrorBoundary } from "./src/components/ErrorBoundary";
 import { useAutoSyncBootstrap } from "./src/offline/useAutoSyncBootstrap";
 import type { RootStackParamList } from "./src/types/navigation";
 import { bootstrapThemeModePreference } from "./src/ui/themePreference";
+import { initCrashReporter, reportError } from "./src/utils/crashReporter";
+import { initAnalytics, track } from "./src/utils/analytics";
 
-const queryClient = new QueryClient();
+type SplashScreenModule = {
+  preventAutoHideAsync?: () => Promise<unknown>;
+  hideAsync?: () => Promise<unknown>;
+};
+
+let SplashScreen: SplashScreenModule | null = null;
+try {
+  SplashScreen = require("expo-splash-screen") as SplashScreenModule;
+  SplashScreen?.preventAutoHideAsync?.().catch(() => {});
+} catch {
+  SplashScreen = null;
+}
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 30 * 1000,
+      gcTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+    },
+    mutations: {
+      retry: 0,
+      onError: (error) => {
+        reportError(error, { phase: "mutation" });
+      },
+    },
+  },
+});
+
+void initCrashReporter();
+void initAnalytics();
 
 const linking: LinkingOptions<RootStackParamList> = {
   prefixes: [Linking.createURL("/"), "scratchcard://"],
@@ -36,10 +71,22 @@ function AppShell() {
 
   useEffect(() => {
     void (async () => {
-      await bootstrapThemeModePreference();
-      setIsThemeReady(true);
+      try {
+        await bootstrapThemeModePreference();
+      } catch (error) {
+        reportError(error, { phase: "theme-bootstrap" });
+      } finally {
+        setIsThemeReady(true);
+      }
     })();
   }, []);
+
+  useEffect(() => {
+    if (isThemeReady) {
+      track("app_opened");
+      SplashScreen?.hideAsync?.().catch(() => {});
+    }
+  }, [isThemeReady]);
 
   const runtimeModules = useMemo(() => {
     if (!isThemeReady) {
@@ -101,14 +148,16 @@ function AppShell() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <NavigationContainer theme={navigationTheme} linking={linking}>
-              <runtimeModules.RootNavigator />
-              <runtimeModules.AppAlertHost />
-            </NavigationContainer>
-          </AuthProvider>
-        </QueryClientProvider>
+        <ErrorBoundary>
+          <QueryClientProvider client={queryClient}>
+            <AuthProvider>
+              <NavigationContainer theme={navigationTheme} linking={linking}>
+                <runtimeModules.RootNavigator />
+                <runtimeModules.AppAlertHost />
+              </NavigationContainer>
+            </AuthProvider>
+          </QueryClientProvider>
+        </ErrorBoundary>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

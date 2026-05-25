@@ -32,3 +32,90 @@ export async function selectSubscriptionPlan(companyId: string, planId: string) 
   const response = await apiClient.post<ApiResponse<SubscriptionSummary>>("/subscription/select-plan", { companyId, planId });
   return response.data.data;
 }
+
+export type EntitlementsResponse = {
+  companyId: string;
+  tier: string | null;
+  status: string;
+  isActive: boolean;
+  isInTrial: boolean;
+  inGracePeriod: boolean;
+  trialDaysRemaining: number | null;
+  expiresAt: string | null;
+  features: string[];
+};
+
+export async function getEntitlements(companyId: string) {
+  const response = await apiClient.get<ApiResponse<EntitlementsResponse>>("/subscription/entitlements", {
+    params: { companyId },
+  });
+  return response.data.data;
+}
+
+// --- Shop-scoped subscription endpoints (per-shop subscription model) ---
+
+export type ShopSubscriptionSummary = {
+  shopId: string;
+  companyId: string;
+  shopSubscriptionId: string;
+  subscriptionPlanId: string | null;
+  planName: string;
+  billingCycle: string;
+  status: string;
+  price: number;
+  trialStartedOn: string | null;
+  trialEndsOn: string | null;
+  currentPeriodStartedOn: string | null;
+  currentPeriodEndsOn: string | null;
+  trialDaysRemaining: number | null;
+  requiresBillingAction: boolean;
+  includedFeatures: string[];
+};
+
+export type ShopEntitlementsResponse = {
+  shopId: string;
+  companyId: string;
+  tier: string | null;
+  status: string;
+  isActive: boolean;
+  isInTrial: boolean;
+  inGracePeriod: boolean;
+  trialDaysRemaining: number | null;
+  expiresAt: string | null;
+  features: string[];
+};
+
+export async function getShopSubscriptionSummary(shopId: string) {
+  const response = await apiClient.get<ApiResponse<ShopSubscriptionSummary>>("/shop-subscription/summary", {
+    params: { shopId },
+  });
+  return response.data.data;
+}
+
+export async function getShopEntitlements(shopId: string) {
+  const response = await apiClient.get<ApiResponse<ShopEntitlementsResponse>>("/shop-subscription/entitlements", {
+    params: { shopId },
+  });
+  return response.data.data;
+}
+
+export async function selectShopSubscriptionPlan(shopId: string, planId: string) {
+  const response = await apiClient.post<ApiResponse<ShopSubscriptionSummary>>("/shop-subscription/select-plan", {
+    shopId,
+    planId,
+  });
+  return response.data.data;
+}
+
+export async function submitShopIapReceipt(payload: {
+  shopId: string;
+  platform: "ios" | "android";
+  productId: string;
+  transactionId: string;
+  purchaseToken?: string;
+  originalTransactionId?: string;
+  receiptData?: string;
+}) {
+  const response = await apiClient.post<ApiResponse<ShopSubscriptionSummary>>("/shop-subscription/iap-receipt", payload);
+  return response.data.data;
+}

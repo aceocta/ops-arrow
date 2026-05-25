@@ -7,6 +7,8 @@ import * as ImagePicker from "expo-image-picker";
 import { getBusinessDay, listBusinessDays } from "../../api/businessDaysApi";
 import { getConfigurations } from "../../api/configurationsApi";
 import { getActivePacksForShift, finalizeShift, getShift } from "../../api/shiftsApi";
+import { haptics } from "../../utils/haptics";
+import { track } from "../../utils/analytics";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { enqueueOfflineShiftClose } from "../../offline/queueRepository";
@@ -725,6 +727,8 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
           const nextDay = allDays.find((day) => day.businessDate === closeResult.nextBusinessDate);
 
           if (nextDay) {
+            haptics.success();
+            track("shift_closed", { shiftId, shopId, nextBusinessDate: nextDay.businessDate });
             Alert.alert(
               "Shift finalised",
               `Shift close submitted. Day management moved to ${nextDay.businessDate}.`
@@ -737,9 +741,12 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
         }
       }
 
+      haptics.success();
+      track("shift_closed", { shiftId, shopId });
       Alert.alert("Shift finalised", "Shift close submitted successfully.");
       navigation.goBack();
     } catch (error: any) {
+      haptics.error();
       Alert.alert("Failed", error?.response?.data?.message ?? "Shift close failed.");
     } finally {
       setIsSubmitting(false);

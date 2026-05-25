@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
+import { optimizeImage } from "../../utils/imageOptimizer";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import { NestableDraggableFlatList, NestableScrollContainer } from "react-native-draggable-flatlist";
@@ -1160,11 +1161,10 @@ export function ComplianceChecksScreen() {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: "images",
-      quality: 0.85,
+      quality: 1,
       allowsEditing: false,
       allowsMultipleSelection: true,
       selectionLimit: MAX_COMPLIANCE_ATTACHMENTS,
-      base64: true,
     });
 
     if (result.canceled || result.assets.length === 0) {
@@ -1172,30 +1172,38 @@ export function ComplianceChecksScreen() {
     }
 
     let oversizedCount = 0;
-    const selected = result.assets
-      .filter((asset) => Boolean(asset.base64))
-      .flatMap((asset) => {
-        if (typeof asset.fileSize === "number" && asset.fileSize > MAX_COMPLIANCE_ATTACHMENT_BYTES) {
-          oversizedCount++;
-          return [];
+    let failedCount = 0;
+    const optimizedAssets = await Promise.all(
+      result.assets.map(async (asset) => {
+        try {
+          const optimized = await optimizeImage(asset.uri, { maxDimension: 1600, compress: 0.7 });
+          if (optimized.byteSize > MAX_COMPLIANCE_ATTACHMENT_BYTES) {
+            oversizedCount++;
+            return null;
+          }
+          return {
+            id: `${Date.now()}-${Math.random()}`,
+            fileName: asset.fileName ?? `compliance-${Date.now()}.jpg`,
+            base64: optimized.base64,
+            contentType: "image/jpeg",
+            uri: optimized.uri,
+            size: optimized.byteSize,
+          };
+        } catch {
+          failedCount++;
+          return null;
         }
+      })
+    );
 
-        return [{
-          id: `${Date.now()}-${Math.random()}`,
-          fileName: asset.fileName ?? `compliance-${Date.now()}.jpg`,
-          base64: asset.base64 as string,
-          contentType: asset.mimeType ?? "image/jpeg",
-          uri: asset.uri,
-          size: asset.fileSize,
-        }];
-      });
+    const selected = optimizedAssets.filter((value): value is NonNullable<typeof value> => Boolean(value));
 
     if (oversizedCount > 0) {
-      Alert.alert("File too large", `${oversizedCount} attachment(s) exceeded 10 MB and were skipped.`);
+      Alert.alert("File too large", `${oversizedCount} attachment(s) exceeded 10 MB even after compression and were skipped.`);
     }
 
     if (selected.length === 0) {
-      Alert.alert("Attachment failed", "Unable to read selected attachment(s).");
+      Alert.alert("Attachment failed", failedCount > 0 ? "Unable to process selected attachment(s)." : "No attachment was added.");
       return;
     }
 

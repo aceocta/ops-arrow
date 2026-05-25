@@ -4,6 +4,8 @@ using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Subscriptions;
 using ScratchCard.Domain.Constants;
 
+#nullable enable
+
 namespace ScratchCard.Api.Controllers;
 
 [Route("api/subscription")]
@@ -78,6 +80,32 @@ public class SubscriptionController : BaseApiController
     public async Task<IActionResult> ProcessTrialExpiry(CancellationToken cancellationToken)
     {
         await _subscriptionService.ProcessTrialExpiriesAsync(cancellationToken);
+        return Success(true);
+    }
+
+    [HttpGet("entitlements")]
+    public async Task<IActionResult> GetEntitlements([FromQuery] Guid companyId, CancellationToken cancellationToken)
+    {
+        var result = await _subscriptionService.GetEntitlementsAsync(companyId, cancellationToken);
+        return Success(result);
+    }
+
+    [HttpPost("iap-receipt")]
+    public async Task<IActionResult> RecordIapReceipt([FromBody] IapReceiptRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _subscriptionService.RecordIapReceiptAsync(request, cancellationToken);
+        return Success(result);
+    }
+
+    [HttpPost("iap-webhook")]
+    [AllowAnonymous]
+    public async Task<IActionResult> HandleIapWebhook([FromBody] IapWebhookEvent webhookEvent, CancellationToken cancellationToken)
+    {
+        // NOTE: This endpoint is intentionally anonymous because it is invoked by RevenueCat /
+        // App Store / Google Play. Production must verify the request signature (RevenueCat
+        // Authorization header / App Store Server Notifications JWT / Google Pub/Sub JWT) before
+        // trusting the payload. Add the verification middleware before enabling for production.
+        await _subscriptionService.HandleIapWebhookAsync(webhookEvent, cancellationToken);
         return Success(true);
     }
 }

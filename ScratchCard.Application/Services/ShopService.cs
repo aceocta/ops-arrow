@@ -28,6 +28,7 @@ public class ShopService : IShopService
     private readonly IRepository<BillingEvent> _billingEventRepository;
     private readonly ISubscriptionCalculationService _subscriptionCalculationService;
     private readonly ISubscriptionBillingService _subscriptionBillingService;
+    private readonly IShopSubscriptionService _shopSubscriptionService;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
@@ -47,6 +48,7 @@ public class ShopService : IShopService
         IRepository<BillingEvent> billingEventRepository,
         ISubscriptionCalculationService subscriptionCalculationService,
         ISubscriptionBillingService subscriptionBillingService,
+        IShopSubscriptionService shopSubscriptionService,
         IAuditService auditService,
         ICurrentUserService currentUserService,
         IUnitOfWork unitOfWork)
@@ -65,6 +67,7 @@ public class ShopService : IShopService
         _billingEventRepository = billingEventRepository;
         _subscriptionCalculationService = subscriptionCalculationService;
         _subscriptionBillingService = subscriptionBillingService;
+        _shopSubscriptionService = shopSubscriptionService;
         _auditService = auditService;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
@@ -124,6 +127,9 @@ public class ShopService : IShopService
             shop.ShopName,
             requestedSubscriptionPlan,
             cancellationToken);
+
+        // Per-shop subscription: every new shop automatically starts on a free trial.
+        await _shopSubscriptionService.EnsureTrialAsync(shop.Id, cancellationToken);
 
         await _auditService.LogAsync(nameof(Shop), shop.Id, "ShopCreated", shop.Id, cancellationToken: cancellationToken);
 
