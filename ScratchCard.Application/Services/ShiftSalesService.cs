@@ -37,6 +37,7 @@ public class ShiftSalesService : IShiftSalesService
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IAttachmentStorageService _attachmentStorageService;
+    private readonly IFeatureGateService _featureGateService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<ShiftSalesService> _logger;
 
@@ -62,6 +63,7 @@ public class ShiftSalesService : IShiftSalesService
         IAuditService auditService,
         ICurrentUserService currentUserService,
         IAttachmentStorageService attachmentStorageService,
+        IFeatureGateService featureGateService,
         IUnitOfWork unitOfWork,
         ILogger<ShiftSalesService> logger)
     {
@@ -86,6 +88,7 @@ public class ShiftSalesService : IShiftSalesService
         _auditService = auditService;
         _currentUserService = currentUserService;
         _attachmentStorageService = attachmentStorageService;
+        _featureGateService = featureGateService;
         _unitOfWork = unitOfWork;
         _logger = logger;
     }
@@ -401,6 +404,9 @@ public class ShiftSalesService : IShiftSalesService
             request.AttachmentBase64);
         if (attachmentInputs.Count > 0)
         {
+            // Attaching files to the shift-close report is a Growth+ feature.
+            await _featureGateService.EnsureFeatureAsync(shift.ShopId, FeatureKeys.ScratchCardAttachments, cancellationToken);
+
             var savedAttachments = await CloseAttachmentStorage.SaveShiftAttachmentsAsync(
                 attachmentInputs,
                 _attachmentStorageService,
@@ -820,6 +826,14 @@ public class ShiftSalesService : IShiftSalesService
     {
         var flaggedEntries = entries.Where(x => x.NotificationRequired).ToArray();
         if (flaggedEntries.Length == 0)
+        {
+            return;
+        }
+
+        // Manual/edited-entry alert dispatch is a Growth+ feature. Starter shops still flag the
+        // entries (IsFlaggedForReview is set above so they show up in reports), but no email is
+        // sent.
+        if (!await _featureGateService.HasFeatureAsync(shift.ShopId, FeatureKeys.ScratchCardManualEntryAlerts, cancellationToken))
         {
             return;
         }

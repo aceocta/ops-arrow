@@ -62,6 +62,47 @@ public static class FeatureKeys
     public const string ReportsAdvanced = "reports.advanced";
     public const string SupportPriority = "support.priority";
 
+    // --- Reserved keys ---
+    // These constants are seeded onto plans today (so the admin UI shows them as "Pro features")
+    // but the platform does not yet have a concrete enforcement point for them. Adding the gate
+    // requires implementing the underlying capability first. Listed here so the next developer
+    // knows the key exists and what's expected:
+    //
+    //   scratch_card.advanced_validation        → server-side serial-range validation beyond
+    //                                              basic numeric checks. Add when the validator
+    //                                              service has a "strict" mode.
+    //   scratch_card.manual_correction_reasons  → required-reason workflow on manual sales
+    //                                              corrections (typed reason categories). Add
+    //                                              when the manual-correction UI is reworked.
+    //   scratch_card.suspicious_alerts          → alerts on suspicious activity patterns (big
+    //                                              serial jumps, after-hours sales, etc.). Add
+    //                                              when detection logic exists.
+    //   temperature_log.missed_alerts           → outbound alerts when a daily/scheduled
+    //                                              temperature check is missed. Needs a
+    //                                              background sweeper.
+    //   temperature_log.scheduled_checks        → admin-configurable schedule for required
+    //                                              temperature readings (vs. on-demand). Needs
+    //                                              new config + UI.
+    //   refusal_log.staff_reports               → staff-grouped slice inside the refusal report.
+    //                                              Today the report is flat. Add when the UI
+    //                                              splits per-staff.
+    //   safe_drop.canister_limit_alerts         → notify managers when a canister exceeds its
+    //                                              configured cash limit. Needs limit config.
+    //   safe_drop.advanced                      → catch-all for advanced safe-drop workflows.
+    //                                              No discrete endpoint yet.
+    //   safe_drop.approval_workflow             → manager-approval requirement on safe drops
+    //                                              (currently only prize payouts have this).
+    //   safe_drop.cash_variance                 → variance calculation between recorded drops
+    //                                              and reconciled cash. Needs the variance calc.
+    //   dashboard.basic / .advanced / .multi_shop → no dashboard endpoints exist on the API
+    //                                              today; these are placeholders for when one
+    //                                              is added.
+    //   notifications.priority                  → priority queue / higher-frequency dispatch.
+    //                                              The current INotificationService treats every
+    //                                              message equally.
+    //   support.priority                        → UI-only signal in the help screen; nothing
+    //                                              for the backend to enforce.
+
     // Canonical catalogue of all platform-defined features. SeedDataInitializer upserts a
     // Feature row for each entry on startup. Add new entries here when you introduce a new
     // gated capability; the seed step will create the row and existing plans will continue

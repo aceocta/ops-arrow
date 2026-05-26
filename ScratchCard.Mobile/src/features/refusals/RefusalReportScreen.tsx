@@ -20,6 +20,8 @@ import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
+import { useFeature } from "../subscription/useFeature";
+import { UpgradeNotice } from "../subscription/FeatureGate";
 import {
   buildRefusalRangeReportHtml,
   groupEntriesByReviewedDateTime,
@@ -54,6 +56,8 @@ export function RefusalReportScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const { activeShopId, activeShop, profile } = useAuth();
   const shopId = activeShopId;
+  // The date-range refusal report is a Pro analytics feature.
+  const analyticsFeature = useFeature("refusal_log.analytics");
 
   const today = useMemo(() => new Date(), []);
   const [fromDate, setFromDate] = useState(formatDateValue(monthAgo(today)));
@@ -64,7 +68,7 @@ export function RefusalReportScreen() {
   const rangeQuery = useQuery({
     queryKey: ["refusal-range-report", shopId, fromDate, toDate],
     queryFn: () => listRefusalEntriesByRange(shopId as string, fromDate, toDate),
-    enabled: Boolean(shopId) && rangeIsValid,
+    enabled: Boolean(shopId) && rangeIsValid && analyticsFeature.isAllowed,
   });
 
   const entries = useMemo(() => sortRefusalEntriesForReport(rangeQuery.data ?? []), [rangeQuery.data]);
@@ -179,6 +183,18 @@ export function RefusalReportScreen() {
       Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to send report email.");
     }
   };
+
+  if (!analyticsFeature.isLoading && !analyticsFeature.isAllowed) {
+    return (
+      <ScreenContainer>
+        <UpgradeNotice
+          feature="refusal_log.analytics"
+          title="Refusal analytics is a Pro feature"
+          message="Date-range refusal reports and analytics are available on the Pro plan."
+        />
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer>

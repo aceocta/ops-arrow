@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Models;
+using ScratchCard.Application.Services;
+using ScratchCard.Domain.Constants;
 using ScratchCard.Domain.Entities;
 using ScratchCard.Domain.Enums;
 
@@ -12,6 +14,7 @@ public class NotificationService : INotificationService
     private readonly IEmailSender _emailSender;
     private readonly ISmsSender _smsSender;
     private readonly IPushSender _pushSender;
+    private readonly IFeatureGateService _featureGateService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<NotificationService> _logger;
 
@@ -20,6 +23,7 @@ public class NotificationService : INotificationService
         IEmailSender emailSender,
         ISmsSender smsSender,
         IPushSender pushSender,
+        IFeatureGateService featureGateService,
         IUnitOfWork unitOfWork,
         ILogger<NotificationService> logger)
     {
@@ -27,6 +31,7 @@ public class NotificationService : INotificationService
         _emailSender = emailSender;
         _smsSender = smsSender;
         _pushSender = pushSender;
+        _featureGateService = featureGateService;
         _unitOfWork = unitOfWork;
         _logger = logger;
     }
@@ -48,6 +53,24 @@ public class NotificationService : INotificationService
         };
 
         await _notificationRepository.AddAsync(log, cancellationToken);
+
+        // Channel-level subscription gate. We persist the log row so the shop can see in the
+        // notification history that a message was suppressed (and why), but we never call the
+        // underlying sender. The shop-wide subscription middleware handles "no subscription";
+        // here we only handle "subscribed plan does not include this channel".
+        if (message.ShopId != Guid.Empty && TryGetChannelFeatureKey(message.Channel) is string featureKey)
+        {
+            if (!await _featureGateService.HasFeatureAsync(message.ShopId, featureKey, cancellationToken))
+            {
+                log.Status = NotificationStatus.Failed;
+                log.FailedReason = $"Channel '{message.Channel}' is not included in the shop's subscription plan ({featureKey}).";
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+                _logger.LogInformation(
+                    "Suppressed notification: shop {ShopId} plan missing feature {FeatureKey} for channel {Channel}",
+                    message.ShopId, featureKey, message.Channel);
+                return;
+            }
+        }
 
         try
         {
@@ -86,4 +109,14 @@ public class NotificationService : INotificationService
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
     }
+
+    private static string? TryGetChannelFeatureKey(NotificationChannel channel) => channel switch
+    {
+        NotificationChannel.Email => FeatureKeys.NotificationsEmail,
+        NotificationChannel.InApp => FeatureKeys.NotificationsPush,
+        // SMS today maps to the WhatsApp/SMS bucket on plans. When a dedicated WhatsApp sender
+        // is added, split this into two cases.
+        NotificationChannel.SMS => FeatureKeys.NotificationsWhatsApp,
+        _ => null
+    };
 }

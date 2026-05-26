@@ -32,6 +32,8 @@ import { BusinessDay, ConfigurationItem, Shift } from "../../types/models";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 import { useAuth } from "../../auth/AuthContext";
+import { useFeature } from "../subscription/useFeature";
+import { UpgradeNotice } from "../subscription/FeatureGate";
 
 type Props = NativeStackScreenProps<MainStackParamList, "DayEndClose">;
 
@@ -394,6 +396,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   const [attachmentPreviewId, setAttachmentPreviewId] = useState<string | null>(null);
   const [newShiftName, setNewShiftName] = useState("");
   const [closeDayAttachments, setCloseDayAttachments] = useState<CloseAttachmentState[]>([]);
+  // scratch_card.attachments is Growth+. Starter shops see a compact upgrade notice in place
+  // of the attachment uploader so they can still complete the close.
+  const attachmentsFeature = useFeature("scratch_card.attachments");
   const [attachmentPreviewTitle, setAttachmentPreviewTitle] = useState("");
   const [attachmentPreviewUri, setAttachmentPreviewUri] = useState<string>();
   const [loadingDayAttachmentId, setLoadingDayAttachmentId] = useState<string | null>(null);
@@ -2177,6 +2182,14 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 placeholderTextColor={appTheme.colors.textSubtle}
               />
               <Text style={styles.fieldLabel}>Attachments (Optional)</Text>
+              {!attachmentsFeature.isAllowed && !attachmentsFeature.isLoading ? (
+                <UpgradeNotice
+                  feature="scratch_card.attachments"
+                  title="Attachments are a Growth-tier feature"
+                  message="Upload supporting documents (e.g. scanned till receipts) to your day-close from the Growth plan and above."
+                  compact
+                />
+              ) : null}
               {/* <Text style={styles.meta}>Up to 10 files. Images show a preview.</Text> */}
               {closeDayAttachments.length === 0 ? (
                 <Text style={styles.meta}>No attachments selected.</Text>
@@ -2222,17 +2235,19 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 </View>
               ) : null}
               <View style={styles.attachmentActionRow}>
-                <Pressable
-                  style={styles.attachmentActionButton}
-                  accessibilityRole="button"
-                  accessibilityLabel={closeDayAttachments.length > 0 ? "Add more close day attachments" : "Add close day attachments"}
-                  onPress={() => void selectCloseDayAttachments()}
-                  disabled={closeMutation.isPending}
-                >
-                  <Text style={styles.attachmentActionButtonText}>
-                    {closeDayAttachments.length > 0 ? "Add More Attachments" : "Add Attachments"}
-                  </Text>
-                </Pressable>
+                {attachmentsFeature.isAllowed ? (
+                  <Pressable
+                    style={styles.attachmentActionButton}
+                    accessibilityRole="button"
+                    accessibilityLabel={closeDayAttachments.length > 0 ? "Add more close day attachments" : "Add close day attachments"}
+                    onPress={() => void selectCloseDayAttachments()}
+                    disabled={closeMutation.isPending}
+                  >
+                    <Text style={styles.attachmentActionButtonText}>
+                      {closeDayAttachments.length > 0 ? "Add More Attachments" : "Add Attachments"}
+                    </Text>
+                  </Pressable>
+                ) : null}
                 {closeDayAttachments.length > 0 ? (
                   <Pressable
                     style={[styles.attachmentActionButton, styles.attachmentActionButtonDanger]}

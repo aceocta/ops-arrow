@@ -38,6 +38,11 @@ public class RefusalRegisterService : IRefusalRegisterService
             throw new AppException("refusal_invalid_date", "Refusal date is required.");
         }
 
+        // NOTE: FeatureKeys.RefusalLogAttachments (Growth+) is intentionally NOT gated against the
+        // signature image — every plan requires a signature today, so a gate here would lock
+        // Starter shops out entirely. The feature key is reserved for when file attachments
+        // (e.g. photo of refused ID) are added to refusal entries.
+
         var now = DateTimeOffset.UtcNow;
         var nextSequence = await _entryRepository.Query()
             .AsNoTracking()

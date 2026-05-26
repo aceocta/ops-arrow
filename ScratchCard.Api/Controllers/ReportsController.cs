@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ScratchCard.Api.Authorization;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Reports;
 using ScratchCard.Application.Services;
@@ -61,10 +62,19 @@ public class ReportsController : BaseApiController
     }
 
     [HttpGet("audit-log")]
+    [RequireFeature(FeatureKeys.AuditLogBasic)]
     public async Task<IActionResult> AuditLog([FromQuery] Guid shopId, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken cancellationToken)
     {
-        await _featureGateService.EnsureFeatureAsync(shopId, FeatureKeys.AuditLogBasic, cancellationToken);
         var result = await _reportService.GetAuditLogReportAsync(shopId, from, to, cancellationToken);
+        return Success(result);
+    }
+
+    // Advanced reports (stock + sync-status surface tier-only data). Gated to Pro.
+    [HttpGet("stock-advanced")]
+    [RequireFeature(FeatureKeys.ReportsAdvanced)]
+    public async Task<IActionResult> StockAdvanced([FromQuery] Guid shopId, CancellationToken cancellationToken)
+    {
+        var result = await _reportService.GetStockReportAsync(shopId, cancellationToken);
         return Success(result);
     }
 

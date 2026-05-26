@@ -35,6 +35,7 @@ public class BusinessDayService : IBusinessDayService
     private readonly ICurrentUserService _currentUserService;
     private readonly IDayCloseNotificationDispatcher _dayCloseNotificationDispatcher;
     private readonly IAttachmentStorageService _attachmentStorageService;
+    private readonly IFeatureGateService _featureGateService;
     private readonly IUnitOfWork _unitOfWork;
 
     public BusinessDayService(
@@ -58,6 +59,7 @@ public class BusinessDayService : IBusinessDayService
         ICurrentUserService currentUserService,
         IDayCloseNotificationDispatcher dayCloseNotificationDispatcher,
         IAttachmentStorageService attachmentStorageService,
+        IFeatureGateService featureGateService,
         IUnitOfWork unitOfWork)
     {
         _businessDayRepository = businessDayRepository;
@@ -80,6 +82,7 @@ public class BusinessDayService : IBusinessDayService
         _currentUserService = currentUserService;
         _dayCloseNotificationDispatcher = dayCloseNotificationDispatcher;
         _attachmentStorageService = attachmentStorageService;
+        _featureGateService = featureGateService;
         _unitOfWork = unitOfWork;
     }
 
@@ -479,6 +482,9 @@ public class BusinessDayService : IBusinessDayService
 
         if (attachmentInputs.Count > 0)
         {
+            // Attaching files to the day-close report is a Growth+ feature.
+            await _featureGateService.EnsureFeatureAsync(day.ShopId, FeatureKeys.ScratchCardAttachments, cancellationToken);
+
             var savedAttachments = await CloseAttachmentStorage.SaveDayAttachmentsAsync(
                 attachmentInputs,
                 _attachmentStorageService,

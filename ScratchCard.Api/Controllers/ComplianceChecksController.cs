@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ScratchCard.Api.Authorization;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.ComplianceChecks;
 using ScratchCard.Application.Services;
@@ -36,6 +37,7 @@ public class ComplianceChecksController : BaseApiController
     public async Task<IActionResult> CreateGroup([FromBody] CreateComplianceCheckGroupRequest request, CancellationToken cancellationToken)
     {
         // Weekly/Monthly compliance groups require compliance.daily_weekly_monthly (Growth+).
+        // Daily groups are in every tier so we can't put a class-level [RequireFeature] — gate inline.
         if (request.Frequency == ComplianceCheckFrequency.Weekly || request.Frequency == ComplianceCheckFrequency.Monthly)
         {
             await _featureGateService.EnsureFeatureAsync(request.ShopId, FeatureKeys.ComplianceDailyWeeklyMonthly, cancellationToken);
@@ -101,6 +103,11 @@ public class ComplianceChecksController : BaseApiController
         [FromQuery] DateOnly date,
         CancellationToken cancellationToken)
     {
+        // Weekly/Monthly period logs are part of the Growth+ feature.
+        if (frequency == ComplianceCheckFrequency.Weekly || frequency == ComplianceCheckFrequency.Monthly)
+        {
+            await _featureGateService.EnsureFeatureAsync(shopId, FeatureKeys.ComplianceDailyWeeklyMonthly, cancellationToken);
+        }
         var result = await _complianceCheckService.GetPeriodLogAsync(shopId, frequency, date, cancellationToken);
         return Success(result);
     }
@@ -135,6 +142,7 @@ public class ComplianceChecksController : BaseApiController
 
     [HttpGet("actions")]
     [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [RequireFeature(FeatureKeys.ComplianceAdvanced)]
     public async Task<IActionResult> ActionReport(
         [FromQuery] Guid shopId,
         [FromQuery] DateOnly from,

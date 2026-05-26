@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ScratchCard.Api.Authorization;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.RefusalRegister;
 using ScratchCard.Application.Services;
@@ -36,6 +37,7 @@ public class RefusalRegisterController : BaseApiController
 
     [HttpGet("entries/range")]
     [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [RequireFeature(FeatureKeys.RefusalLogAnalytics)]
     public async Task<IActionResult> ListEntriesByRange([FromQuery] Guid shopId, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken cancellationToken)
     {
         var result = await _refusalRegisterService.ListEntriesByRangeAsync(shopId, from, to, cancellationToken);

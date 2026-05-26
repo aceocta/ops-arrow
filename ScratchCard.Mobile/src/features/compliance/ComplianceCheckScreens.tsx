@@ -732,6 +732,8 @@ export function ComplianceChecksScreen() {
   const { activeShopId, activeShop, profile } = useAuth();
   const shopId = activeShopId;
   const { isAllowed: canAttachPhotos } = useFeature("compliance.photo_evidence");
+  // Weekly/Monthly compliance is a Growth+ feature. Starter shops see only the Daily tab.
+  const { isAllowed: canUseExtendedFrequencies } = useFeature("compliance.daily_weekly_monthly");
   const userRoles = profile?.roles ?? [];
   const canManage = isManagerLike(userRoles);
   const defaultCheckedByName = useMemo(
@@ -1397,13 +1399,22 @@ export function ComplianceChecksScreen() {
             <View style={styles.chipRow}>
               {frequencyOptions.map((option) => {
                 const selected = frequency === option;
+                const locked = (option === "Weekly" || option === "Monthly") && !canUseExtendedFrequencies;
                 return (
                   <Pressable
                     key={option}
-                    style={[styles.choiceChip, selected ? styles.choiceChipSelected : null]}
-                    onPress={() => setFrequency(option)}
+                    style={[styles.choiceChip, selected ? styles.choiceChipSelected : null, locked ? { opacity: 0.5 } : null]}
+                    onPress={() => {
+                      if (locked) {
+                        navigation.navigate("ChoosePlan");
+                        return;
+                      }
+                      setFrequency(option);
+                    }}
                   >
-                    <Text style={[styles.choiceChipText, selected ? styles.choiceChipTextSelected : null]}>{option}</Text>
+                    <Text style={[styles.choiceChipText, selected ? styles.choiceChipTextSelected : null]}>
+                      {option}{locked ? " 🔒" : ""}
+                    </Text>
                   </Pressable>
                 );
               })}
