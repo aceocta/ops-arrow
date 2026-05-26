@@ -70,3 +70,11 @@ export async function addCanisterDrop(
   const response = await apiClient.post<ApiResponse<CanisterDrop>>(`/business-days/${businessDayId}/safe-drop/canister-drops`, payload);
   return response.data.data;
 }
+
+export async function approveCanisterDrop(canisterDropId: string, notes?: string) {
+  const response = await apiClient.post<ApiResponse<CanisterDrop>>(
+    `/business-days/safe-drop/canister-drops/${canisterDropId}/approve`,
+    { notes },
+  );
+  return response.data.data;
+}

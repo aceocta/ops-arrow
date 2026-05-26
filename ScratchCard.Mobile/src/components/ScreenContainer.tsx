@@ -1,5 +1,5 @@
 import React, { PropsWithChildren, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Keyboard, Platform, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { Animated, Keyboard, Platform, RefreshControlProps, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { appTheme } from "../ui/theme";
 
@@ -7,6 +7,7 @@ type ScreenContainerProps = PropsWithChildren<{
   centerContent?: boolean;
   footer?: React.ReactNode;
   keyboardScrollOffset?: number;
+  refreshControl?: React.ReactElement<RefreshControlProps>;
 }>;
 
 export function ScreenContainer({
@@ -14,6 +15,7 @@ export function ScreenContainer({
   centerContent = false,
   footer,
   keyboardScrollOffset = 100,
+  refreshControl,
 }: ScreenContainerProps) {
   const entrance = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
@@ -88,6 +90,7 @@ export function ScreenContainer({
         automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
         contentInsetAdjustmentBehavior="automatic"
         nestedScrollEnabled
+        refreshControl={refreshControl}
       >
         <Animated.View
           style={[

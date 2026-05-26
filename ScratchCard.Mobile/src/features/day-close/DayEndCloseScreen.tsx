@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Animated, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Animated, Image, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import {
+  approveCanisterDrop,
   closeBusinessDay,
   getBusinessDay,
   getBusinessDayCloseAttachmentContent,
@@ -51,6 +53,51 @@ const MAX_CLOSE_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const DEFAULT_CLOSE_DAY_PAYOUT = "0";
 const SAFE_DROP_FEATURE_KEY = "SafeDropManagement";
 const SAFE_DROP_CONFIG_KEY = "EnableSafeDropManagement";
+
+// Maps common axios/fetch errors into a single actionable message for the shopkeeper.
+// `fallback` is shown when the server didn't return anything more specific.
+function getApiErrorMessage(error: unknown, fallback: string): string {
+  const e = error as any;
+  const status = e?.response?.status as number | undefined;
+  const serverMessage =
+    typeof e?.response?.data?.message === "string" ? e.response.data.message :
+    typeof e?.response?.data?.error === "string" ? e.response.data.error : undefined;
+
+  if (e?.message === "Network Error" || e?.code === "ERR_NETWORK") {
+    return "Couldn't reach the server. Check your connection and try again.";
+  }
+  if (status === 401 || status === 403) {
+    return serverMessage ?? "You don't have permission for this action. Sign in again or ask your manager.";
+  }
+  if (status === 409) {
+    return serverMessage ?? "Another user changed this record. Pull to refresh and retry.";
+  }
+  if (status === 422 || status === 400) {
+    return serverMessage ?? "Please review the highlighted fields and try again.";
+  }
+  if (status && status >= 500) {
+    return "Server problem. Wait a moment and try again — the data hasn't been saved.";
+  }
+  return serverMessage ?? e?.message ?? fallback;
+}
+
+// Allow only digits + optional single decimal with up to 2 places. Strips commas (en-GB users
+// often type "12,50") and leading zeros that would otherwise display as "00250".
+function sanitizeMoneyInput(raw: string): string {
+  if (!raw) return "";
+  let s = raw.replace(/,/g, ".").replace(/[^\d.]/g, "");
+  const firstDot = s.indexOf(".");
+  if (firstDot !== -1) {
+    s = s.slice(0, firstDot + 1) + s.slice(firstDot + 1).replace(/\./g, "");
+    s = s.slice(0, firstDot + 3); // keep at most 2 decimals
+  }
+  // Strip leading zeros, but preserve "0.xx" and a bare "0".
+  if (s.length > 1 && s.startsWith("0") && !s.startsWith("0.")) {
+    s = s.replace(/^0+/, "");
+    if (s === "" || s.startsWith(".")) s = "0" + s;
+  }
+  return s;
+}
 
 function getStatusTone(status?: string): "neutral" | "warning" | "danger" | "success" {
   if (!status) return "neutral";
@@ -399,6 +446,12 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   // scratch_card.attachments is Growth+. Starter shops see a compact upgrade notice in place
   // of the attachment uploader so they can still complete the close.
   const attachmentsFeature = useFeature("scratch_card.attachments");
+  // Per-field validation error for the close-day payouts. Renders inline beneath the failing
+  // input and focus jumps via the matching ref.
+  const [payoutFieldError, setPayoutFieldError] = useState<{ key: "lotto" | "scratch" | "till"; message: string } | null>(null);
+  const lottoInputRef = useRef<TextInput | null>(null);
+  const scratchInputRef = useRef<TextInput | null>(null);
+  const tillInputRef = useRef<TextInput | null>(null);
   const [attachmentPreviewTitle, setAttachmentPreviewTitle] = useState("");
   const [attachmentPreviewUri, setAttachmentPreviewUri] = useState<string>();
   const [loadingDayAttachmentId, setLoadingDayAttachmentId] = useState<string | null>(null);
@@ -496,9 +549,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       Alert.alert("Closed", "Business day closed successfully.");
       void dayQuery.refetch();
     },
-    onError: (error: any) => {
-      const message = error?.response?.data?.message ?? "Unable to close business day.";
-      Alert.alert("Failed", message);
+    onError: (error: unknown) => {
+      Alert.alert("Couldn't close the day", getApiErrorMessage(error, "Unable to close business day."));
     },
   });
 
@@ -509,8 +561,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       Alert.alert("Reopened", "Business day reopened successfully.");
       void dayQuery.refetch();
     },
-    onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? "Unable to reopen business day.");
+    onError: (error: unknown) => {
+      Alert.alert("Couldn't reopen the day", getApiErrorMessage(error, "Unable to reopen business day."));
     },
   });
 
@@ -559,8 +611,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       Alert.alert("Shift opened", "New shift opened successfully.");
       await shiftsQuery.refetch();
     },
-    onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to open shift.");
+    onError: (error: unknown) => {
+      Alert.alert("Couldn't open shift", getApiErrorMessage(error, "Unable to open shift."));
     },
   });
   const reopenShiftMutation = useMutation({
@@ -569,8 +621,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       Alert.alert("Reopened", "Shift reopened successfully.");
       await shiftsQuery.refetch();
     },
-    onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? "Unable to reopen shift.");
+    onError: (error: unknown) => {
+      Alert.alert("Couldn't reopen shift", getApiErrorMessage(error, "Unable to reopen shift."));
     },
   });
   const startScheduledShiftMutation = useMutation({
@@ -587,8 +639,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       Alert.alert("Started", "Scheduled shift started successfully.");
       await shiftsQuery.refetch();
     },
-    onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? "Unable to start scheduled shift.");
+    onError: (error: unknown) => {
+      Alert.alert("Couldn't start shift", getApiErrorMessage(error, "Unable to start scheduled shift."));
     },
   });
   const day = dayQuery.data;
@@ -1108,6 +1160,21 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       return droppedByName.length > 0 && safeDropUserAliases.has(droppedByName);
     });
   }, [canViewAllSafeDrops, canisterDropsQuery.data, profile?.userId, safeDropUserAliases]);
+
+  const pendingDropCount = useMemo(
+    () => visibleCanisterDrops.filter((d) => d.approvalStatus === "Pending").length,
+    [visibleCanisterDrops],
+  );
+
+  const approveDropMutation = useMutation({
+    mutationFn: async (canisterDropId: string) => approveCanisterDrop(canisterDropId),
+    onSuccess: async () => {
+      await canisterDropsQuery.refetch();
+    },
+    onError: (error: unknown) => {
+      Alert.alert("Couldn't approve drop", getApiErrorMessage(error, "Unable to approve safe drop."));
+    },
+  });
   const closableStatuses = new Set<ShiftStatus>([ShiftStatus.Open, ShiftStatus.Reopened]);
   const hasOpenShifts = shifts.some((shift) => closableStatuses.has(shift.status));
   const openShiftCount = shifts.filter((shift) => closableStatuses.has(shift.status)).length;
@@ -1135,8 +1202,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       Alert.alert("Opened", `Business day opened (${openedDay.businessDate}).`);
       navigation.replace("DayEndClose", { businessDayId: openedDay.id });
     },
-    onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? "Unable to open business day.");
+    onError: (error: unknown) => {
+      Alert.alert("Couldn't open day", getApiErrorMessage(error, "Unable to open business day."));
     },
   });
 
@@ -1155,8 +1222,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       setAttachmentPreviewUri(dataUrl);
       setIsAttachmentPreviewModalVisible(true);
     },
-    onError: (error: any) => {
-      Alert.alert("Preview unavailable", error?.response?.data?.message ?? error?.message ?? "Unable to load attachment.");
+    onError: (error: unknown) => {
+      Alert.alert("Preview unavailable", getApiErrorMessage(error, "Unable to load attachment."));
     },
   });
 
@@ -1191,8 +1258,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
         dialogTitle: `Download ${fileName}`,
       });
     },
-    onError: (error: any) => {
-      Alert.alert("Download failed", error?.response?.data?.message ?? error?.message ?? "Unable to download attachment.");
+    onError: (error: unknown) => {
+      Alert.alert("Download failed", getApiErrorMessage(error, "Unable to download attachment."));
     },
   });
 
@@ -1362,20 +1429,30 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   };
 
   const validateCloseDayInputs = () => {
-    const values = [
-      { label: "Lotto payout", raw: lottoPayoutAmount },
-      { label: "Scratch card payout", raw: scratchCardPayoutAmount },
-      { label: "Till payout", raw: tillPayoutAmount },
+    // Per-field validation. Sets payoutFieldError for the first failing field so an inline
+    // hint appears beneath the input and (where possible) focus jumps there.
+    const fields: Array<{ key: "lotto" | "scratch" | "till"; label: string; raw: string; ref: React.RefObject<TextInput | null> }> = [
+      { key: "lotto", label: "Lotto payout", raw: lottoPayoutAmount, ref: lottoInputRef },
+      { key: "scratch", label: "Scratch card payout", raw: scratchCardPayoutAmount, ref: scratchInputRef },
+      { key: "till", label: "Till payout", raw: tillPayoutAmount, ref: tillInputRef },
     ];
 
-    for (const value of values) {
-      const normalizedValue = normalizePayoutInput(value.raw);
-      if (!Number.isFinite(Number(normalizedValue))) {
-        Alert.alert("Validation", `${value.label} must be a valid number.`);
+    for (const field of fields) {
+      const normalized = normalizePayoutInput(field.raw);
+      const value = Number(normalized);
+      if (!Number.isFinite(value)) {
+        setPayoutFieldError({ key: field.key, message: `${field.label} must be a valid number (digits and one decimal point only).` });
+        field.ref.current?.focus();
+        return false;
+      }
+      if (value < 0) {
+        setPayoutFieldError({ key: field.key, message: `${field.label} can't be negative.` });
+        field.ref.current?.focus();
         return false;
       }
     }
 
+    setPayoutFieldError(null);
     return true;
   };
 
@@ -1391,11 +1468,36 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     );
   }
 
-  return (
-    <ScreenContainer>
-      <View style={styles.pageContent}>
+  const onRefresh = useCallback(async () => {
+    await Promise.all([
+      dayQuery.refetch(),
+      shiftsQuery.refetch(),
+      isSafeDropManagementVisible ? canisterDropsQuery.refetch() : Promise.resolve(),
+      subscriptionShopId ? subscriptionSummaryQuery.refetch() : Promise.resolve(),
+    ]);
+  }, [dayQuery, shiftsQuery, isSafeDropManagementVisible, canisterDropsQuery, subscriptionShopId, subscriptionSummaryQuery]);
+  const isRefreshing = dayQuery.isRefetching || shiftsQuery.isRefetching;
 
-        
+  return (
+    <ScreenContainer
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={onRefresh}
+          tintColor={appTheme.colors.primary}
+        />
+      }
+    >
+      <View style={styles.pageContent}>
+        {subscriptionSummaryQuery.isError && Boolean(subscriptionShopId) ? (
+          <View style={styles.warningBanner} accessibilityRole="alert">
+            <Ionicons name="cloud-offline-outline" size={18} color={appTheme.colors.danger} />
+            <Text style={styles.warningBannerText}>
+              Couldn't verify this shop's subscription. Pull down to refresh. Some sections (e.g. Safe Drop) may be hidden until this succeeds.
+            </Text>
+          </View>
+        ) : null}
+
         <View style={[ui.card, styles.dayHeaderCard]}>
           <View style={styles.summaryHeaderRow}>
             <View style={styles.summaryHeading}>
@@ -1513,7 +1615,27 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           {shiftsQuery.isFetching ? (
             <ShiftOperationsLoadingState />
           ) : shifts.length === 0 ? (
-            <Text style={styles.meta}>No shifts found for this day.</Text>
+            <View style={styles.emptyStateCard}>
+              <Ionicons name="time-outline" size={28} color={appTheme.colors.primary} />
+              <Text style={styles.emptyStateTitle}>No shifts yet</Text>
+              <Text style={styles.emptyStateBody}>
+                Open the first shift of this business day to start recording sales.
+              </Text>
+              {canManageShifts ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Open first shift"
+                  style={[styles.emptyStateCta, !canManageShifts ? styles.shiftOpenButtonDisabled : null]}
+                  onPress={() => {
+                    if (!ensureNoExistingOpenShiftsBeforeSerialConfirmation()) return;
+                    setNewShiftName(shopOperationalSetup.shiftDefaultName.trim() || getDefaultShiftNameForNow());
+                    setIsOpenShiftModalVisible(true);
+                  }}
+                >
+                  <Text style={styles.emptyStateCtaText}>Open First Shift</Text>
+                </Pressable>
+              ) : null}
+            </View>
           ) : null}
 
           {!shiftsQuery.isFetching ? shifts.map((shift) => {
@@ -1542,11 +1664,11 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     <StatusBadge label={shift.status} tone={getShiftTone(shift.status)} />
                   </View>
                   <Text style={styles.shiftCompactMeta}>
-                    Start {compactStart}
-                    {compactEnd ? ` | End ${compactEnd}` : ""}
-                    {compactSales ? ` | Sales ${compactSales}` : ""}
+                    Start {compactStart}{compactEnd ? ` · End ${compactEnd}` : ""}
                   </Text>
-                  {/* <Text style={styles.shiftDetailsHint}>Tap to open shift details</Text> */}
+                  {compactSales ? (
+                    <Text style={styles.shiftSalesValue}>Sales {compactSales}</Text>
+                  ) : null}
                 </Pressable>
                 {canCloseShift ? (
                   <View style={styles.shiftActionRow}>
@@ -1576,44 +1698,65 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             <View style={styles.sectionTitleRow}>
               <Text style={styles.sectionTitle}>Safe Drop List</Text>
               <StatusBadge
-                label={`${visibleCanisterDrops.length}`}
-                tone={visibleCanisterDrops.length > 0 ? "success" : "neutral"}
+                label={pendingDropCount > 0 ? `${pendingDropCount} pending` : `${visibleCanisterDrops.length}`}
+                tone={pendingDropCount > 0 ? "warning" : visibleCanisterDrops.length > 0 ? "success" : "neutral"}
               />
             </View>
             <Text style={styles.meta}>{safeDropSectionMessage}</Text>
             {canisterDropsQuery.isFetching ? (
               <Text style={styles.meta}>Loading safe drops...</Text>
             ) : visibleCanisterDrops.length > 0 ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.safeDropTableScrollContent}>
-                <View style={styles.safeDropTable}>
-                  <View style={[styles.safeDropTableRow, styles.safeDropTableHeaderRow]}>
-                    <Text style={[styles.safeDropTableCell, styles.safeDropTableCellCanister, styles.safeDropTableHeaderText]}>Canister</Text>
-                    <Text style={[styles.safeDropTableCell, styles.safeDropTableCellAmount, styles.safeDropTableHeaderText]}>Amount</Text>
-                    <Text style={[styles.safeDropTableCell, styles.safeDropTableCellBy, styles.safeDropTableHeaderText]}>Dropped By</Text>
-                    <Text style={[styles.safeDropTableCell, styles.safeDropTableCellShift, styles.safeDropTableHeaderText]}>Shift</Text>
-                    <Text style={[styles.safeDropTableCell, styles.safeDropTableCellTime, styles.safeDropTableHeaderText]}>Time</Text>
-                  </View>
-                  {visibleCanisterDrops.map((drop) => (
-                    <View key={drop.id} style={styles.safeDropTableRow}>
-                      <Text style={[styles.safeDropTableCell, styles.safeDropTableCellCanister]} numberOfLines={1}>
-                        {drop.canisterNumber}
+              <View style={styles.safeDropList}>
+                {visibleCanisterDrops.map((drop) => {
+                  const isPending = drop.approvalStatus === "Pending";
+                  const isRejected = drop.approvalStatus === "Rejected";
+                  return (
+                    <View
+                      key={drop.id}
+                      style={[
+                        styles.safeDropCard,
+                        isPending ? styles.safeDropCardPending : null,
+                        isRejected ? styles.safeDropCardRejected : null,
+                      ]}
+                    >
+                      <View style={styles.safeDropCardHeader}>
+                        <View style={styles.safeDropCardCanisterBlock}>
+                          <Text style={styles.safeDropCardCanisterLabel}>Canister</Text>
+                          <Text style={styles.safeDropCardCanisterValue} numberOfLines={1}>
+                            {drop.canisterNumber}
+                          </Text>
+                        </View>
+                        <Text style={styles.safeDropCardAmount}>{formatCurrency(drop.amount)}</Text>
+                      </View>
+                      <View style={styles.safeDropCardMetaRow}>
+                        <StatusBadge
+                          label={drop.approvalStatus}
+                          tone={isPending ? "warning" : isRejected ? "danger" : "success"}
+                        />
+                        <Text style={styles.safeDropCardMetaText} numberOfLines={1}>
+                          {drop.shiftName || "—"}
+                        </Text>
+                      </View>
+                      <Text style={styles.safeDropCardMetaText} numberOfLines={1}>
+                        By {drop.droppedByName} · {new Date(drop.droppedOn).toLocaleString()}
                       </Text>
-                      <Text style={[styles.safeDropTableCell, styles.safeDropTableCellAmount, styles.safeDropAmount]} numberOfLines={1}>
-                        {formatCurrency(drop.amount)}
-                      </Text>
-                      <Text style={[styles.safeDropTableCell, styles.safeDropTableCellBy]} numberOfLines={1}>
-                        {drop.droppedByName}
-                      </Text>
-                      <Text style={[styles.safeDropTableCell, styles.safeDropTableCellShift]} numberOfLines={1}>
-                        {drop.shiftName || "-"}
-                      </Text>
-                      <Text style={[styles.safeDropTableCell, styles.safeDropTableCellTime]} numberOfLines={1}>
-                        {new Date(drop.droppedOn).toLocaleString()}
-                      </Text>
+                      {isPending && canViewAllSafeDrops ? (
+                        <Pressable
+                          style={styles.safeDropApproveButton}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Approve safe drop ${drop.canisterNumber} for ${formatCurrency(drop.amount)}`}
+                          onPress={() => approveDropMutation.mutate(drop.id)}
+                          disabled={approveDropMutation.isPending}
+                        >
+                          <Text style={styles.safeDropApproveButtonText}>
+                            {approveDropMutation.isPending ? "Approving..." : "Approve drop"}
+                          </Text>
+                        </Pressable>
+                      ) : null}
                     </View>
-                  ))}
-                </View>
-              </ScrollView>
+                  );
+                })}
+              </View>
             ) : (
               <Text style={styles.meta}>
                 {canViewAllSafeDrops
@@ -1656,14 +1799,25 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
         ) : null}
 
         <View style={[ui.card, styles.sectionCard]}>
-          <View style={styles.sectionTitleRow}>
-            <Text style={styles.sectionTitle}>Financial Summary</Text>
-            {hasTillPayoutVariance ? (
-              <Text style={[styles.summaryVarianceText, tillPayoutVarianceStyle]}>
-                {tillPayoutVarianceText}
+          <Text style={styles.sectionTitle}>Financial Summary</Text>
+          {hasTillPayoutVariance ? (
+            <View
+              style={[
+                styles.varianceHeroTile,
+                (tillPayoutVariance ?? 0) < 0 ? styles.varianceHeroTileNegative : styles.varianceHeroTilePositive,
+              ]}
+              accessibilityRole="summary"
+              accessibilityLabel={`Cash ${(tillPayoutVariance ?? 0) < 0 ? "short" : "over"} by ${tillPayoutVarianceText}`}
+            >
+              <Text style={styles.varianceHeroLabel}>
+                {(tillPayoutVariance ?? 0) < 0 ? "CASH SHORT" : "CASH OVER"}
               </Text>
-            ) : null}
-          </View>
+              <Text style={styles.varianceHeroValue}>{tillPayoutVarianceText}</Text>
+              <Text style={styles.varianceHeroHint}>
+                Till payout vs. lotto + scratch-card payouts.
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.kpiGrid}>
             <View style={styles.kpiTile}>
               <Text style={styles.kpiLabel}>Total Sales</Text>
@@ -1750,16 +1904,17 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
 
         {canClose ? (
           <PrimaryButton
-            label="Close Day"
+            label={closeMutation.isPending ? "Closing..." : "Close Day"}
             onPress={() => setIsCloseDayModalVisible(true)}
-            disabled={hasOpenShifts}
+            disabled={hasOpenShifts || closeMutation.isPending}
           />
         ) : null}
         {canReopen ? (
           <PrimaryButton
-            label="Reopen Day"
+            label={reopenMutation.isPending ? "Reopening..." : "Reopen Day"}
             tone="neutral"
             onPress={() => setIsReopenDayModalVisible(true)}
+            disabled={reopenMutation.isPending}
           />
         ) : null}
         {/* <View style={[ui.card, styles.sectionCard]}>
@@ -1853,7 +2008,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   style={styles.dayPickerCloseButton}
                   onPress={() => setIsDayPickerModalVisible(false)}
                 >
-                  <Text style={styles.dayPickerCloseButtonText}>X</Text>
+                  <Ionicons name="close" size={20} color={appTheme.colors.textMuted} />
                 </Pressable>
               </View>
               <ScrollView
@@ -2118,9 +2273,13 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               <Text style={styles.meta}>Enter payouts, then close this business day.</Text>
               <Text style={styles.fieldLabel}>Lotto Payout</Text>
               <TextInput
-                style={styles.input}
+                ref={lottoInputRef}
+                style={[styles.input, payoutFieldError?.key === "lotto" ? styles.inputError : null]}
                 value={lottoPayoutAmount}
-                onChangeText={setLottoPayoutAmount}
+                onChangeText={(t) => {
+                  setLottoPayoutAmount(sanitizeMoneyInput(t));
+                  if (payoutFieldError?.key === "lotto") setPayoutFieldError(null);
+                }}
                 onFocus={() => {
                   if (lottoPayoutAmount.trim() === DEFAULT_CLOSE_DAY_PAYOUT) {
                     setLottoPayoutAmount("");
@@ -2134,12 +2293,20 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 placeholder="Lotto payout"
                 placeholderTextColor={appTheme.colors.textSubtle}
                 keyboardType="decimal-pad"
+                accessibilityLabel="Lotto payout amount"
               />
+              {payoutFieldError?.key === "lotto" ? (
+                <Text style={styles.fieldErrorText}>{payoutFieldError.message}</Text>
+              ) : null}
               <Text style={styles.fieldLabel}>Scratch Card Payout</Text>
               <TextInput
-                style={styles.input}
+                ref={scratchInputRef}
+                style={[styles.input, payoutFieldError?.key === "scratch" ? styles.inputError : null]}
                 value={scratchCardPayoutAmount}
-                onChangeText={setScratchCardPayoutAmount}
+                onChangeText={(t) => {
+                  setScratchCardPayoutAmount(sanitizeMoneyInput(t));
+                  if (payoutFieldError?.key === "scratch") setPayoutFieldError(null);
+                }}
                 onFocus={() => {
                   if (scratchCardPayoutAmount.trim() === DEFAULT_CLOSE_DAY_PAYOUT) {
                     setScratchCardPayoutAmount("");
@@ -2153,12 +2320,20 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 placeholder="Scratch card payout"
                 placeholderTextColor={appTheme.colors.textSubtle}
                 keyboardType="decimal-pad"
+                accessibilityLabel="Scratch card payout amount"
               />
+              {payoutFieldError?.key === "scratch" ? (
+                <Text style={styles.fieldErrorText}>{payoutFieldError.message}</Text>
+              ) : null}
               <Text style={styles.fieldLabel}>Till Payout</Text>
               <TextInput
-                style={styles.input}
+                ref={tillInputRef}
+                style={[styles.input, payoutFieldError?.key === "till" ? styles.inputError : null]}
                 value={tillPayoutAmount}
-                onChangeText={setTillPayoutAmount}
+                onChangeText={(t) => {
+                  setTillPayoutAmount(sanitizeMoneyInput(t));
+                  if (payoutFieldError?.key === "till") setPayoutFieldError(null);
+                }}
                 onFocus={() => {
                   if (tillPayoutAmount.trim() === DEFAULT_CLOSE_DAY_PAYOUT) {
                     setTillPayoutAmount("");
@@ -2172,17 +2347,33 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 placeholder="Till payout"
                 placeholderTextColor={appTheme.colors.textSubtle}
                 keyboardType="decimal-pad"
+                accessibilityLabel="Till payout amount"
               />
+              {payoutFieldError?.key === "till" ? (
+                <Text style={styles.fieldErrorText}>{payoutFieldError.message}</Text>
+              ) : null}
               <Text style={styles.fieldLabel}>Additional Close Notes</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, styles.multilineInput]}
                 value={notes}
                 onChangeText={setNotes}
                 placeholder="Additional notes (optional)"
                 placeholderTextColor={appTheme.colors.textSubtle}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+                accessibilityLabel="Additional close notes"
               />
-              <Text style={styles.fieldLabel}>Attachments (Optional)</Text>
-              {!attachmentsFeature.isAllowed && !attachmentsFeature.isLoading ? (
+              {attachmentsFeature.isAllowed ? (
+                <>
+                  <Text style={styles.fieldLabel}>Attachments (Optional)</Text>
+                  <Text style={styles.meta}>
+                    {closeDayAttachments.length === 0
+                      ? "No attachments selected."
+                      : `${closeDayAttachments.length} attachment(s) selected.`}
+                  </Text>
+                </>
+              ) : !attachmentsFeature.isLoading ? (
                 <UpgradeNotice
                   feature="scratch_card.attachments"
                   title="Attachments are a Growth-tier feature"
@@ -2190,12 +2381,6 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   compact
                 />
               ) : null}
-              {/* <Text style={styles.meta}>Up to 10 files. Images show a preview.</Text> */}
-              {closeDayAttachments.length === 0 ? (
-                <Text style={styles.meta}>No attachments selected.</Text>
-              ) : (
-                <Text style={styles.meta}>{closeDayAttachments.length} attachment(s) selected.</Text>
-              )}
               {closeDayAttachments.length > 0 ? (
                 <View style={styles.attachmentList}>
                   {closeDayAttachments.map((attachment) => {
@@ -2222,9 +2407,21 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                           style={styles.attachmentRemoveButton}
                           accessibilityRole="button"
                           accessibilityLabel={`Remove attachment ${attachment.fileName}`}
-                          onPress={() =>
-                            setCloseDayAttachments((previous) => previous.filter((item) => item.id !== attachment.id))
-                          }
+                          onPress={() => {
+                            Alert.alert(
+                              "Remove attachment?",
+                              `Remove '${attachment.fileName}' from this close?`,
+                              [
+                                { text: "Cancel", style: "cancel" },
+                                {
+                                  text: "Remove",
+                                  style: "destructive",
+                                  onPress: () =>
+                                    setCloseDayAttachments((previous) => previous.filter((item) => item.id !== attachment.id)),
+                                },
+                              ],
+                            );
+                          }}
                           disabled={closeMutation.isPending}
                         >
                           <Text style={styles.attachmentRemoveButtonText}>Remove</Text>
@@ -2253,7 +2450,16 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     style={[styles.attachmentActionButton, styles.attachmentActionButtonDanger]}
                     accessibilityRole="button"
                     accessibilityLabel="Clear all close day attachments"
-                    onPress={() => setCloseDayAttachments([])}
+                    onPress={() => {
+                      Alert.alert(
+                        "Clear all attachments?",
+                        `This will remove all ${closeDayAttachments.length} attachment(s). You'll need to re-add them if you want to attach files to this close.`,
+                        [
+                          { text: "Cancel", style: "cancel" },
+                          { text: "Clear all", style: "destructive", onPress: () => setCloseDayAttachments([]) },
+                        ],
+                      );
+                    }}
                     disabled={closeMutation.isPending}
                   >
                     <Text style={[styles.attachmentActionButtonText, styles.attachmentActionButtonTextDanger]}>Clear All</Text>
@@ -2277,7 +2483,13 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   }}
                   disabled={closeMutation.isPending || !canClose}
                 >
-                  <Text style={styles.modalActionPrimaryText}>{closeMutation.isPending ? "Closing..." : "Close Day"}</Text>
+                  <Text style={styles.modalActionPrimaryText}>
+                    {closeMutation.isPending
+                      ? (closeDayAttachments.length > 0
+                          ? `Closing (uploading ${closeDayAttachments.length} file${closeDayAttachments.length === 1 ? "" : "s"})...`
+                          : "Closing...")
+                      : "Close Day"}
+                  </Text>
                 </Pressable>
                 <Pressable
                   style={[
@@ -2306,14 +2518,23 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             <ModalBackdropBlur />
             <View style={styles.modalCard}>
               <Text style={styles.sectionTitle}>Reopen Day</Text>
-              <Text style={styles.meta}>Provide a reason and reopen this day.</Text>
-              <Text style={styles.fieldLabel}>Reopen Reason</Text>
+              <View style={styles.warningBanner}>
+                <Ionicons name="warning-outline" size={18} color={appTheme.colors.danger} />
+                <Text style={styles.warningBannerText}>
+                  Reopening this day allows further edits and re-triggers downstream reconciliation.
+                </Text>
+              </View>
+              <Text style={styles.fieldLabel}>Why are you reopening? (required)</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, styles.multilineInput]}
                 value={reopenReason}
                 onChangeText={setReopenReason}
-                placeholder="Reason (optional)"
+                placeholder="Explain why this day needs to be reopened"
                 placeholderTextColor={appTheme.colors.textSubtle}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+                accessibilityLabel="Reopen reason"
               />
               <View style={styles.modalActionRow}>
                 <Pressable
@@ -2321,10 +2542,20 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     styles.modalActionButton,
                     styles.modalActionButtonLeft,
                     styles.modalActionPrimary,
-                    (reopenMutation.isPending || !canReopen) ? styles.modalActionDisabled : null,
+                    (reopenMutation.isPending || !canReopen || reopenReason.trim().length === 0) ? styles.modalActionDisabled : null,
                   ]}
-                  onPress={() => reopenMutation.mutate()}
-                  disabled={reopenMutation.isPending || !canReopen}
+                  onPress={() => {
+                    if (reopenReason.trim().length === 0) return;
+                    Alert.alert(
+                      "Reopen this day?",
+                      "Are you sure you want to reopen this closed day? This action is logged.",
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        { text: "Reopen", style: "destructive", onPress: () => reopenMutation.mutate() },
+                      ],
+                    );
+                  }}
+                  disabled={reopenMutation.isPending || !canReopen || reopenReason.trim().length === 0}
                 >
                   <Text style={styles.modalActionPrimaryText}>{reopenMutation.isPending ? "Reopening..." : "Reopen Day"}</Text>
                 </Pressable>
@@ -2541,7 +2772,7 @@ const styles = StyleSheet.create({
   },
   dateNavigationButton: {
     flex: 1,
-    minHeight: 34,
+    minHeight: 44,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceSuccessMuted,
     alignItems: "center",
@@ -2582,9 +2813,9 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceSuccessMuted,
-    minHeight: 32,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    minHeight: 44,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -2983,8 +3214,8 @@ const styles = StyleSheet.create({
     lineHeight: 29,
   },
   dayPickerCloseButton: {
-    width: 34,
-    height: 34,
+    width: 44,
+    height: 44,
     borderRadius: appTheme.radius.pill,
     backgroundColor: appTheme.colors.surfaceMuted,
     alignItems: "center",
@@ -3338,8 +3569,12 @@ const styles = StyleSheet.create({
     borderColor: appTheme.colors.borderStrong,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surface,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    minHeight: 44,
+    minWidth: 88,
+    alignItems: "center",
+    justifyContent: "center",
   },
   attachmentDownloadButtonText: {
     color: appTheme.colors.text,
@@ -3352,8 +3587,12 @@ const styles = StyleSheet.create({
     borderColor: appTheme.colors.borderStrong,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surface,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    minHeight: 44,
+    minWidth: 80,
+    alignItems: "center",
+    justifyContent: "center",
   },
   attachmentRemoveButtonText: {
     color: appTheme.colors.text,
@@ -3366,8 +3605,12 @@ const styles = StyleSheet.create({
     borderColor: appTheme.colors.primary,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceSuccessAlt,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    minHeight: 44,
+    minWidth: 88,
+    alignItems: "center",
+    justifyContent: "center",
   },
   attachmentViewButtonText: {
     color: appTheme.colors.primary,
@@ -3456,6 +3699,183 @@ const styles = StyleSheet.create({
   },
   modalActionDisabled: {
     opacity: 0.55,
+  },
+  // --- Added in the day-close UX pass ---
+  inputError: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.danger,
+  },
+  fieldErrorText: {
+    color: appTheme.colors.danger,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: -2,
+    marginBottom: 4,
+  },
+  warningBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+    backgroundColor: appTheme.colors.surfaceDangerSoft,
+    borderRadius: appTheme.radius.sm,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.sm,
+  },
+  warningBannerText: {
+    flex: 1,
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 13,
+    lineHeight: 17,
+  },
+  varianceHeroTile: {
+    borderRadius: appTheme.radius.md,
+    paddingHorizontal: appTheme.spacing.md,
+    paddingVertical: appTheme.spacing.md,
+    gap: 4,
+  },
+  varianceHeroTilePositive: {
+    backgroundColor: appTheme.colors.surfaceSuccessMuted,
+  },
+  varianceHeroTileNegative: {
+    backgroundColor: appTheme.colors.surfaceDangerSoft,
+  },
+  varianceHeroLabel: {
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 14,
+    letterSpacing: 0.6,
+    color: appTheme.colors.textMuted,
+    textTransform: "uppercase",
+  },
+  varianceHeroValue: {
+    fontFamily: appTheme.fonts.heading,
+    fontSize: 28,
+    lineHeight: 32,
+    color: appTheme.colors.text,
+  },
+  varianceHeroHint: {
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
+    color: appTheme.colors.textMuted,
+  },
+  emptyStateCard: {
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+    paddingVertical: appTheme.spacing.md,
+    paddingHorizontal: appTheme.spacing.md,
+    borderRadius: appTheme.radius.md,
+    backgroundColor: appTheme.colors.surfaceTintAlt,
+  },
+  emptyStateTitle: {
+    fontFamily: appTheme.fonts.bodyMedium,
+    color: appTheme.colors.text,
+    fontSize: 15,
+    lineHeight: 19,
+  },
+  emptyStateBody: {
+    fontFamily: appTheme.fonts.body,
+    color: appTheme.colors.textMuted,
+    fontSize: 13,
+    lineHeight: 17,
+    textAlign: "center",
+  },
+  emptyStateCta: {
+    marginTop: appTheme.spacing.xs,
+    minHeight: 44,
+    paddingHorizontal: appTheme.spacing.md,
+    backgroundColor: appTheme.colors.primary,
+    borderRadius: appTheme.radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyStateCtaText: {
+    color: appTheme.colors.onPrimary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  shiftSalesValue: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  safeDropList: {
+    gap: appTheme.spacing.xs,
+  },
+  safeDropCard: {
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.sm,
+    gap: 6,
+  },
+  safeDropCardPending: {
+    backgroundColor: appTheme.colors.surfaceDangerSoft,
+  },
+  safeDropCardRejected: {
+    backgroundColor: appTheme.colors.surfaceDangerSoft,
+    opacity: 0.65,
+  },
+  safeDropCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.sm,
+  },
+  safeDropCardCanisterBlock: {
+    flex: 1,
+    gap: 2,
+  },
+  safeDropCardCanisterLabel: {
+    fontFamily: appTheme.fonts.bodyMedium,
+    color: appTheme.colors.textMuted,
+    fontSize: 11,
+    lineHeight: 14,
+    textTransform: "uppercase",
+  },
+  safeDropCardCanisterValue: {
+    fontFamily: appTheme.fonts.bodyMedium,
+    color: appTheme.colors.text,
+    fontSize: 15,
+    lineHeight: 18,
+  },
+  safeDropCardAmount: {
+    fontFamily: appTheme.fonts.heading,
+    color: appTheme.colors.text,
+    fontSize: 20,
+    lineHeight: 24,
+  },
+  safeDropCardMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+  },
+  safeDropCardMetaText: {
+    fontFamily: appTheme.fonts.body,
+    color: appTheme.colors.textMuted,
+    fontSize: 12,
+    lineHeight: 16,
+    flex: 1,
+  },
+  safeDropApproveButton: {
+    marginTop: 2,
+    minHeight: 44,
+    paddingHorizontal: appTheme.spacing.md,
+    backgroundColor: appTheme.colors.primary,
+    borderRadius: appTheme.radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  safeDropApproveButtonText: {
+    color: appTheme.colors.onPrimary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
   },
 });
 

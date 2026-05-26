@@ -209,6 +209,10 @@ export type CanisterDrop = {
   droppedByUserId?: string;
   droppedByName: string;
   droppedOn: string;
+  approvalStatus: "Pending" | "Approved" | "Rejected";
+  approvedByUserId?: string;
+  approvedOn?: string;
+  approvalNotes?: string;
 };
 
 export type Canister = {
@@ -216,6 +220,7 @@ export type Canister = {
   canisterNumber: string;
   shopId: string;
   isActive: boolean;
+  maxAmount?: number;
 };
 
 export type Shift = {

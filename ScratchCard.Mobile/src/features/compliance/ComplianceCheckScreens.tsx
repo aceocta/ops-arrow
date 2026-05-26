@@ -1406,7 +1406,8 @@ export function ComplianceChecksScreen() {
                     style={[styles.choiceChip, selected ? styles.choiceChipSelected : null, locked ? { opacity: 0.5 } : null]}
                     onPress={() => {
                       if (locked) {
-                        navigation.navigate("ChoosePlan");
+                        // ChoosePlan lives on the RootStack — cast to bypass the MainStack typing.
+                        (navigation as unknown as { navigate: (route: string) => void }).navigate("ChoosePlan");
                         return;
                       }
                       setFrequency(option);
