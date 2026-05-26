@@ -14,10 +14,10 @@ public static class SeedDataInitializer
     public static readonly Guid DemoShopId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     public static readonly Guid DemoShopNorthId = Guid.Parse("22222222-2222-2222-2222-222222222222");
     public static readonly Guid PlatformUserId = Guid.Parse("33333333-3333-3333-3333-333333333333");
-    private const string PlatformUserEmail = "platform.user@scratchcard.local";
-    private const string PlatformUserPassword = "Platform@123";
-    private const string PlatformUserFirstName = "Platform";
-    private const string PlatformUserLastName = "User";
+    private const string PlatformUserEmail = "sukirtharan.rajadurai@gmail.com";
+    private const string PlatformUserPassword = "Debug200!";
+    private const string PlatformUserFirstName = "Sukirtharan";
+    private const string PlatformUserLastName = "Rajadurai";
     private const string LegacyMainShiftTemplatesJson = "[{\"id\":\"main\",\"name\":\"Main Shift\",\"startTime\":\"06:00\",\"endTime\":\"23:00\",\"isActive\":true}]";
     private const string DefaultShiftTemplatesJson = "[{\"id\":\"morning\",\"name\":\"Morning Shift\",\"startTime\":\"06:00\",\"endTime\":\"14:00\",\"isActive\":true},{\"id\":\"evening\",\"name\":\"Evening Shift\",\"startTime\":\"14:00\",\"endTime\":\"22:00\",\"isActive\":true}]";
 
