@@ -1440,6 +1440,61 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.ToTable("DeliveryPacks");
                 });
 
+            modelBuilder.Entity("ScratchCard.Domain.Entities.Feature", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Category")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.HasIndex("Category", "DisplayOrder");
+
+                    b.ToTable("Features");
+                });
+
             modelBuilder.Entity("ScratchCard.Domain.Entities.NotificationLog", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3137,10 +3192,6 @@ namespace ScratchCard.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<string>("IncludedFeatures")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -3173,6 +3224,50 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.HasIndex("BillingCycle", "IsActive");
 
                     b.ToTable("SubscriptionPlans");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.SubscriptionPlanFeature", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("FeatureId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("LimitValue")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("SubscriptionPlanId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FeatureId");
+
+                    b.HasIndex("SubscriptionPlanId", "FeatureId")
+                        .IsUnique();
+
+                    b.ToTable("SubscriptionPlanFeatures");
                 });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.TemperatureDailySignoff", b =>
@@ -4445,6 +4540,25 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Navigation("SubscriptionInvoice");
                 });
 
+            modelBuilder.Entity("ScratchCard.Domain.Entities.SubscriptionPlanFeature", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.Feature", "Feature")
+                        .WithMany("SubscriptionPlanFeatures")
+                        .HasForeignKey("FeatureId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("ScratchCard.Domain.Entities.SubscriptionPlan", "SubscriptionPlan")
+                        .WithMany("PlanFeatures")
+                        .HasForeignKey("SubscriptionPlanId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Feature");
+
+                    b.Navigation("SubscriptionPlan");
+                });
+
             modelBuilder.Entity("ScratchCard.Domain.Entities.TemperatureDailySignoff", b =>
                 {
                     b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
@@ -4624,6 +4738,11 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Navigation("DeliveryPacks");
                 });
 
+            modelBuilder.Entity("ScratchCard.Domain.Entities.Feature", b =>
+                {
+                    b.Navigation("SubscriptionPlanFeatures");
+                });
+
             modelBuilder.Entity("ScratchCard.Domain.Entities.Role", b =>
                 {
                     b.Navigation("ShopUsers");
@@ -4749,6 +4868,8 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Navigation("CompanySubscriptions");
 
                     b.Navigation("DiscountRules");
+
+                    b.Navigation("PlanFeatures");
                 });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.TemperatureMonitoringUnit", b =>

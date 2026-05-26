@@ -108,6 +108,18 @@ public interface ISubscriptionPlanAdminService
 {
     Task<IReadOnlyCollection<SubscriptionPlanDto>> ListAllAsync(CancellationToken cancellationToken = default);
     Task<SubscriptionPlanDto> UpdateAsync(Guid planId, UpdateSubscriptionPlanRequest request, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<SubscriptionPlanFeatureDto>> ListPlanFeaturesAsync(Guid planId, CancellationToken cancellationToken = default);
+    Task<SubscriptionPlanFeatureDto> UpsertPlanFeatureAsync(Guid planId, UpsertPlanFeatureRequest request, CancellationToken cancellationToken = default);
+    Task RemovePlanFeatureAsync(Guid planId, Guid featureId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<SubscriptionPlanFeatureDto>> SetPlanFeaturesAsync(Guid planId, SetPlanFeaturesRequest request, CancellationToken cancellationToken = default);
+}
+
+public interface IFeatureAdminService
+{
+    Task<IReadOnlyCollection<FeatureDto>> ListAsync(bool includeInactive, CancellationToken cancellationToken = default);
+    Task<FeatureDto> CreateAsync(UpsertFeatureRequest request, CancellationToken cancellationToken = default);
+    Task<FeatureDto> UpdateAsync(Guid id, UpsertFeatureRequest request, CancellationToken cancellationToken = default);
+    Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
 }
 
 public interface ISubscriptionCalculationService

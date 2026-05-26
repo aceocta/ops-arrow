@@ -15,17 +15,23 @@ public class SubscriptionPlanAdminService : ISubscriptionPlanAdminService
     private const int UnlimitedSentinel = -1;
 
     private readonly IRepository<SubscriptionPlan> _planRepository;
+    private readonly IRepository<Feature> _featureRepository;
+    private readonly IRepository<SubscriptionPlanFeature> _planFeatureRepository;
     private readonly ICurrentUserService _currentUserService;
     private readonly IAuditService _auditService;
     private readonly IUnitOfWork _unitOfWork;
 
     public SubscriptionPlanAdminService(
         IRepository<SubscriptionPlan> planRepository,
+        IRepository<Feature> featureRepository,
+        IRepository<SubscriptionPlanFeature> planFeatureRepository,
         ICurrentUserService currentUserService,
         IAuditService auditService,
         IUnitOfWork unitOfWork)
     {
         _planRepository = planRepository;
+        _featureRepository = featureRepository;
+        _planFeatureRepository = planFeatureRepository;
         _currentUserService = currentUserService;
         _auditService = auditService;
         _unitOfWork = unitOfWork;
@@ -36,6 +42,7 @@ public class SubscriptionPlanAdminService : ISubscriptionPlanAdminService
         // Admin view includes inactive plans so the operator can re-activate or audit them.
         var plans = await _planRepository.Query()
             .AsNoTracking()
+            .Include(p => p.PlanFeatures).ThenInclude(pf => pf.Feature)
             .OrderBy(p => p.BillingCycle)
             .ThenBy(p => p.PricePerShop)
             .ToListAsync(cancellationToken);
@@ -45,7 +52,9 @@ public class SubscriptionPlanAdminService : ISubscriptionPlanAdminService
 
     public async Task<SubscriptionPlanDto> UpdateAsync(Guid planId, UpdateSubscriptionPlanRequest request, CancellationToken cancellationToken = default)
     {
-        var plan = await _planRepository.GetByIdAsync(planId, cancellationToken)
+        var plan = await _planRepository.Query()
+            .Include(p => p.PlanFeatures).ThenInclude(pf => pf.Feature)
+            .FirstOrDefaultAsync(p => p.Id == planId, cancellationToken)
             ?? throw new AppException("plan_not_found", "Subscription plan not found.", 404);
 
         var changes = new List<string>();
@@ -80,11 +89,10 @@ public class SubscriptionPlanAdminService : ISubscriptionPlanAdminService
 
         if (request.IncludedFeatures is not null)
         {
-            var csv = string.Join(',', request.IncludedFeatures.Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s.Trim()).Distinct(StringComparer.OrdinalIgnoreCase));
-            if (!string.Equals(plan.IncludedFeatures ?? string.Empty, csv, StringComparison.Ordinal))
+            var diff = await ReplacePlanFeaturesByKeyAsync(plan, request.IncludedFeatures, cancellationToken);
+            if (diff is not null)
             {
-                plan.IncludedFeatures = csv;
-                changes.Add($"includedFeatures -> {csv}");
+                changes.Add(diff);
             }
         }
 
@@ -146,5 +154,227 @@ public class SubscriptionPlanAdminService : ISubscriptionPlanAdminService
             cancellationToken: cancellationToken);
 
         return plan.ToDto();
+    }
+
+    public async Task<IReadOnlyCollection<SubscriptionPlanFeatureDto>> ListPlanFeaturesAsync(Guid planId, CancellationToken cancellationToken = default)
+    {
+        _ = await _planRepository.Query()
+            .AsNoTracking()
+            .AnyAsync(p => p.Id == planId, cancellationToken)
+            ? true
+            : throw new AppException("plan_not_found", "Subscription plan not found.", 404);
+
+        var rows = await _planFeatureRepository.Query()
+            .AsNoTracking()
+            .Include(pf => pf.Feature)
+            .Where(pf => pf.SubscriptionPlanId == planId)
+            .OrderBy(pf => pf.Feature.Category)
+            .ThenBy(pf => pf.Feature.DisplayOrder)
+            .ToListAsync(cancellationToken);
+
+        return rows.Select(x => x.ToDto()).ToArray();
+    }
+
+    public async Task<SubscriptionPlanFeatureDto> UpsertPlanFeatureAsync(Guid planId, UpsertPlanFeatureRequest request, CancellationToken cancellationToken = default)
+    {
+        var plan = await _planRepository.Query()
+            .Include(p => p.PlanFeatures).ThenInclude(pf => pf.Feature)
+            .FirstOrDefaultAsync(p => p.Id == planId, cancellationToken)
+            ?? throw new AppException("plan_not_found", "Subscription plan not found.", 404);
+
+        var feature = await _featureRepository.GetByIdAsync(request.FeatureId, cancellationToken)
+            ?? throw new AppException("feature_not_found", "Feature not found.", 404);
+
+        var existing = plan.PlanFeatures.FirstOrDefault(pf => pf.FeatureId == feature.Id);
+        var now = DateTimeOffset.UtcNow;
+
+        if (existing is null)
+        {
+            existing = new SubscriptionPlanFeature
+            {
+                SubscriptionPlanId = plan.Id,
+                FeatureId = feature.Id,
+                IsEnabled = request.IsEnabled,
+                LimitValue = request.LimitValue,
+                Notes = request.Notes,
+                CreatedOn = now,
+                CreatedBy = _currentUserService.UserId,
+                Feature = feature
+            };
+            plan.PlanFeatures.Add(existing);
+        }
+        else
+        {
+            existing.IsEnabled = request.IsEnabled;
+            existing.LimitValue = request.LimitValue;
+            existing.Notes = request.Notes;
+            existing.ModifiedOn = now;
+            existing.ModifiedBy = _currentUserService.UserId;
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _auditService.LogAsync(
+            entityName: nameof(SubscriptionPlanFeature),
+            entityId: existing.Id,
+            actionType: "PlanFeatureUpserted",
+            newValue: $"plan={plan.Id}; feature={feature.Key}; enabled={existing.IsEnabled}; limit={existing.LimitValue?.ToString() ?? "<null>"}",
+            cancellationToken: cancellationToken);
+
+        return existing.ToDto();
+    }
+
+    public async Task RemovePlanFeatureAsync(Guid planId, Guid featureId, CancellationToken cancellationToken = default)
+    {
+        var row = await _planFeatureRepository.Query()
+            .Include(pf => pf.Feature)
+            .FirstOrDefaultAsync(pf => pf.SubscriptionPlanId == planId && pf.FeatureId == featureId, cancellationToken);
+
+        if (row is null) return;
+
+        var key = row.Feature?.Key ?? featureId.ToString();
+        _planFeatureRepository.Remove(row);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _auditService.LogAsync(
+            entityName: nameof(SubscriptionPlanFeature),
+            entityId: row.Id,
+            actionType: "PlanFeatureRemoved",
+            newValue: $"plan={planId}; feature={key}",
+            cancellationToken: cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<SubscriptionPlanFeatureDto>> SetPlanFeaturesAsync(Guid planId, SetPlanFeaturesRequest request, CancellationToken cancellationToken = default)
+    {
+        var plan = await _planRepository.Query()
+            .Include(p => p.PlanFeatures).ThenInclude(pf => pf.Feature)
+            .FirstOrDefaultAsync(p => p.Id == planId, cancellationToken)
+            ?? throw new AppException("plan_not_found", "Subscription plan not found.", 404);
+
+        var requestedIds = request.Features.Select(x => x.FeatureId).ToHashSet();
+        var features = await _featureRepository.Query()
+            .Where(f => requestedIds.Contains(f.Id))
+            .ToDictionaryAsync(f => f.Id, cancellationToken);
+
+        var missing = requestedIds.Where(id => !features.ContainsKey(id)).ToArray();
+        if (missing.Length > 0)
+        {
+            throw new AppException("feature_not_found", $"Unknown feature ID(s): {string.Join(",", missing)}.", 404);
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var byFeatureId = plan.PlanFeatures.ToDictionary(pf => pf.FeatureId);
+
+        // Remove anything not in the new set.
+        foreach (var existing in plan.PlanFeatures.ToList())
+        {
+            if (!requestedIds.Contains(existing.FeatureId))
+            {
+                plan.PlanFeatures.Remove(existing);
+                _planFeatureRepository.Remove(existing);
+            }
+        }
+
+        // Upsert each requested feature.
+        foreach (var item in request.Features)
+        {
+            if (byFeatureId.TryGetValue(item.FeatureId, out var existing))
+            {
+                existing.IsEnabled = item.IsEnabled;
+                existing.LimitValue = item.LimitValue;
+                existing.Notes = item.Notes;
+                existing.ModifiedOn = now;
+                existing.ModifiedBy = _currentUserService.UserId;
+            }
+            else
+            {
+                plan.PlanFeatures.Add(new SubscriptionPlanFeature
+                {
+                    SubscriptionPlanId = plan.Id,
+                    FeatureId = item.FeatureId,
+                    IsEnabled = item.IsEnabled,
+                    LimitValue = item.LimitValue,
+                    Notes = item.Notes,
+                    CreatedOn = now,
+                    CreatedBy = _currentUserService.UserId,
+                    Feature = features[item.FeatureId]
+                });
+            }
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _auditService.LogAsync(
+            entityName: nameof(SubscriptionPlan),
+            entityId: plan.Id,
+            actionType: "PlanFeaturesReplaced",
+            newValue: $"plan={plan.Id}; features={string.Join(",", request.Features.Select(x => x.FeatureId))}",
+            cancellationToken: cancellationToken);
+
+        return plan.PlanFeatures
+            .OrderBy(pf => pf.Feature?.Category)
+            .ThenBy(pf => pf.Feature?.DisplayOrder)
+            .Select(pf => pf.ToDto())
+            .ToArray();
+    }
+
+    private async Task<string?> ReplacePlanFeaturesByKeyAsync(SubscriptionPlan plan, IReadOnlyCollection<string> featureKeys, CancellationToken cancellationToken)
+    {
+        var normalised = featureKeys
+            .Where(k => !string.IsNullOrWhiteSpace(k))
+            .Select(k => k.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var features = await _featureRepository.Query()
+            .Where(f => normalised.Contains(f.Key))
+            .ToListAsync(cancellationToken);
+
+        var unknown = normalised.Where(k => !features.Any(f => string.Equals(f.Key, k, StringComparison.OrdinalIgnoreCase))).ToArray();
+        if (unknown.Length > 0)
+        {
+            throw new AppException("feature_not_found", $"Unknown feature key(s): {string.Join(",", unknown)}.", 404);
+        }
+
+        var targetIds = features.Select(f => f.Id).ToHashSet();
+        var currentIds = plan.PlanFeatures.Select(pf => pf.FeatureId).ToHashSet();
+        if (targetIds.SetEquals(currentIds) && plan.PlanFeatures.All(pf => pf.IsEnabled))
+        {
+            return null;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        foreach (var existing in plan.PlanFeatures.ToList())
+        {
+            if (!targetIds.Contains(existing.FeatureId))
+            {
+                plan.PlanFeatures.Remove(existing);
+                _planFeatureRepository.Remove(existing);
+            }
+            else
+            {
+                existing.IsEnabled = true;
+                existing.ModifiedOn = now;
+                existing.ModifiedBy = _currentUserService.UserId;
+            }
+        }
+
+        foreach (var feature in features)
+        {
+            if (!currentIds.Contains(feature.Id))
+            {
+                plan.PlanFeatures.Add(new SubscriptionPlanFeature
+                {
+                    SubscriptionPlanId = plan.Id,
+                    FeatureId = feature.Id,
+                    IsEnabled = true,
+                    CreatedOn = now,
+                    CreatedBy = _currentUserService.UserId,
+                    Feature = feature
+                });
+            }
+        }
+
+        return $"includedFeatures -> {string.Join(",", features.Select(f => f.Key))}";
     }
 }

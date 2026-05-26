@@ -777,13 +777,15 @@ public class ShiftSalesService : IShiftSalesService
         var companySubscription = await _companySubscriptionRepository.Query()
             .AsNoTracking()
             .Include(x => x.SubscriptionPlan)
+                .ThenInclude(p => p!.PlanFeatures)
+                    .ThenInclude(pf => pf.Feature)
             .FirstOrDefaultAsync(x => x.CompanyId == companyId, cancellationToken);
         if (companySubscription?.SubscriptionPlan is null)
         {
             return false;
         }
 
-        var includedFeatures = ServiceMappingExtensions.ParseIncludedFeatures(companySubscription.SubscriptionPlan.IncludedFeatures);
+        var includedFeatures = ServiceMappingExtensions.ExtractEnabledFeatureKeys(companySubscription.SubscriptionPlan.PlanFeatures);
         var hasSubscriptionFeature = includedFeatures.Any(
             x => string.Equals(x, FeatureKeys.SafeDropManagement, StringComparison.OrdinalIgnoreCase));
         if (!hasSubscriptionFeature)

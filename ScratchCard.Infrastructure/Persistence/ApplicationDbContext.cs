@@ -73,6 +73,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
     public DbSet<BillingEvent> BillingEvents => Set<BillingEvent>();
     public DbSet<ReportExportLog> ReportExportLogs => Set<ReportExportLog>();
+    public DbSet<Feature> Features => Set<Feature>();
+    public DbSet<SubscriptionPlanFeature> SubscriptionPlanFeatures => Set<SubscriptionPlanFeature>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -688,10 +690,33 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.Name).HasMaxLength(120).IsRequired();
             entity.Property(x => x.PricePerShop).HasPrecision(18, 2);
             entity.Property(x => x.Description).HasMaxLength(500);
-            entity.Property(x => x.IncludedFeatures).HasMaxLength(2000);
             entity.Property(x => x.AppleProductId).HasMaxLength(200);
             entity.Property(x => x.GoogleProductId).HasMaxLength(200);
             // MaxUsers and ReportExportsPerMonth are nullable — null means unlimited.
+        });
+
+        modelBuilder.Entity<Feature>(entity =>
+        {
+            entity.HasIndex(x => x.Key).IsUnique();
+            entity.HasIndex(x => new { x.Category, x.DisplayOrder });
+            entity.Property(x => x.Key).HasMaxLength(120).IsRequired();
+            entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(1000);
+            entity.Property(x => x.Category).HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<SubscriptionPlanFeature>(entity =>
+        {
+            entity.HasIndex(x => new { x.SubscriptionPlanId, x.FeatureId }).IsUnique();
+            entity.Property(x => x.Notes).HasMaxLength(500);
+            entity.HasOne(x => x.SubscriptionPlan)
+                .WithMany(x => x.PlanFeatures)
+                .HasForeignKey(x => x.SubscriptionPlanId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Feature)
+                .WithMany(x => x.SubscriptionPlanFeatures)
+                .HasForeignKey(x => x.FeatureId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<CompanySubscription>(entity =>

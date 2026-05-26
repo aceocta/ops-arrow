@@ -1,5 +1,7 @@
 namespace ScratchCard.Domain.Constants;
 
+public sealed record FeatureCatalogEntry(string Key, string Name, string Category, string? Description = null, int DisplayOrder = 0);
+
 public static class FeatureKeys
 {
     // --- Legacy top-level modules (kept for backwards readability) ---
@@ -59,4 +61,69 @@ public static class FeatureKeys
     public const string ApprovalWorkflow = "approval_workflow.manager";
     public const string ReportsAdvanced = "reports.advanced";
     public const string SupportPriority = "support.priority";
+
+    // Canonical catalogue of all platform-defined features. SeedDataInitializer upserts a
+    // Feature row for each entry on startup. Add new entries here when you introduce a new
+    // gated capability; the seed step will create the row and existing plans will continue
+    // to work (the new feature is simply not yet assigned to any plan).
+    public static readonly IReadOnlyList<FeatureCatalogEntry> Catalog = new[]
+    {
+        // Legacy top-level modules — kept for backwards readability.
+        new FeatureCatalogEntry(ScratchCardManagement, "Scratch Card Management", "Modules", "Top-level Scratch Card module.", 1),
+        new FeatureCatalogEntry(TemperatureLog, "Temperature Log", "Modules", "Top-level Temperature Log module.", 2),
+        new FeatureCatalogEntry(RefusalNoIdNoSale, "Refusal Register", "Modules", "Top-level Refusal / No ID No Sale module.", 3),
+        new FeatureCatalogEntry(ComplianceChecklist, "Compliance Checklist", "Modules", "Top-level Compliance module.", 4),
+        new FeatureCatalogEntry(SafeDropManagement, "Safe Drop Management", "Modules", "Top-level Safe Drop module.", 5),
+
+        // Scratch Card.
+        new FeatureCatalogEntry(ScratchCardBasic, "Basic Scratch Card", "Scratch Card", null, 10),
+        new FeatureCatalogEntry(ScratchCardAttachments, "Attachments", "Scratch Card", null, 11),
+        new FeatureCatalogEntry(ScratchCardManualEntryAlerts, "Manual-entry alerts", "Scratch Card", null, 12),
+        new FeatureCatalogEntry(ScratchCardAdvancedValidation, "Advanced validation", "Scratch Card", null, 13),
+        new FeatureCatalogEntry(ScratchCardManualCorrectionReasons, "Manual correction reasons", "Scratch Card", null, 14),
+        new FeatureCatalogEntry(ScratchCardSuspiciousAlerts, "Suspicious activity alerts", "Scratch Card", null, 15),
+
+        // Temperature Log.
+        new FeatureCatalogEntry(TemperatureLogBasic, "Basic Temperature Log", "Temperature Log", null, 20),
+        new FeatureCatalogEntry(TemperatureLogMissedAlerts, "Missed-log alerts", "Temperature Log", null, 21),
+        new FeatureCatalogEntry(TemperatureLogScheduledChecks, "Scheduled checks", "Temperature Log", null, 22),
+        new FeatureCatalogEntry(TemperatureLogFullHistory, "Full history", "Temperature Log", null, 23),
+
+        // Refusal Log.
+        new FeatureCatalogEntry(RefusalLogBasic, "Basic Refusal Log", "Refusal Log", null, 30),
+        new FeatureCatalogEntry(RefusalLogAttachments, "Attachments", "Refusal Log", null, 31),
+        new FeatureCatalogEntry(RefusalLogMultiManagerReview, "Multi-manager review", "Refusal Log", null, 32),
+        new FeatureCatalogEntry(RefusalLogAnalytics, "Analytics", "Refusal Log", null, 33),
+        new FeatureCatalogEntry(RefusalLogStaffReports, "Staff-wise reports", "Refusal Log", null, 34),
+
+        // Compliance.
+        new FeatureCatalogEntry(ComplianceBasic, "Basic Compliance", "Compliance", null, 40),
+        new FeatureCatalogEntry(ComplianceDailyWeeklyMonthly, "Daily / Weekly / Monthly", "Compliance", null, 41),
+        new FeatureCatalogEntry(ComplianceAdvanced, "Advanced Compliance", "Compliance", null, 42),
+        new FeatureCatalogEntry(CompliancePhotoEvidence, "Photo evidence", "Compliance", null, 43),
+
+        // Safe Drop.
+        new FeatureCatalogEntry(SafeDropBasic, "Basic Safe Drop", "Safe Drop", null, 50),
+        new FeatureCatalogEntry(SafeDropCanisterLimitAlerts, "Canister-limit alerts", "Safe Drop", null, 51),
+        new FeatureCatalogEntry(SafeDropAdvanced, "Advanced Safe Drop", "Safe Drop", null, 52),
+        new FeatureCatalogEntry(SafeDropApprovalWorkflow, "Approval workflow", "Safe Drop", null, 53),
+        new FeatureCatalogEntry(SafeDropCashVariance, "Cash variance", "Safe Drop", null, 54),
+
+        // Notifications.
+        new FeatureCatalogEntry(NotificationsEmail, "Email notifications", "Notifications", null, 60),
+        new FeatureCatalogEntry(NotificationsPush, "Push notifications", "Notifications", null, 61),
+        new FeatureCatalogEntry(NotificationsWhatsApp, "WhatsApp notifications", "Notifications", null, 62),
+        new FeatureCatalogEntry(NotificationsPriority, "Priority notifications", "Notifications", null, 63),
+
+        // Dashboard.
+        new FeatureCatalogEntry(DashboardBasic, "Basic dashboard", "Dashboard", null, 70),
+        new FeatureCatalogEntry(DashboardAdvanced, "Advanced dashboard", "Dashboard", null, 71),
+        new FeatureCatalogEntry(DashboardMultiShop, "Multi-shop dashboard", "Dashboard", null, 72),
+
+        // Other.
+        new FeatureCatalogEntry(AuditLogBasic, "Audit log", "Audit & Reports", null, 80),
+        new FeatureCatalogEntry(ApprovalWorkflow, "Manager approval workflow", "Audit & Reports", null, 81),
+        new FeatureCatalogEntry(ReportsAdvanced, "Advanced reports", "Audit & Reports", null, 82),
+        new FeatureCatalogEntry(SupportPriority, "Priority support", "Support", null, 90),
+    };
 }

@@ -384,6 +384,7 @@ public class ShopService : IShopService
 
             var activeSelectablePlans = await _subscriptionPlanRepository.Query()
                 .AsNoTracking()
+                .Include(p => p.PlanFeatures).ThenInclude(pf => pf.Feature)
                 .Where(x => x.IsActive && x.BillingCycle != BillingCycle.Trial)
                 .ToListAsync(cancellationToken);
             if (activeSelectablePlans.Count == 0)
@@ -411,6 +412,7 @@ public class ShopService : IShopService
 
         var plan = await _subscriptionPlanRepository.Query()
             .AsNoTracking()
+            .Include(p => p.PlanFeatures).ThenInclude(pf => pf.Feature)
             .FirstOrDefaultAsync(x => x.Id == subscriptionPlanId.Value && x.IsActive, cancellationToken)
             ?? throw new AppException("subscription_plan_not_found", "Subscription plan not found or inactive.", 404);
 
@@ -464,7 +466,7 @@ public class ShopService : IShopService
         }
 
         var effectivePlan = requestedSubscriptionPlan ?? await GetCurrentCompanySubscriptionPlanAsync(companyId, cancellationToken);
-        var includedFeatures = ServiceMappingExtensions.ParseIncludedFeatures(effectivePlan?.IncludedFeatures);
+        var includedFeatures = ServiceMappingExtensions.ExtractEnabledFeatureKeys(effectivePlan?.PlanFeatures);
         var enableSafeDropManagement = includedFeatures.Any(
             featureKey => string.Equals(featureKey, FeatureKeys.SafeDropManagement, StringComparison.OrdinalIgnoreCase));
 
@@ -476,6 +478,8 @@ public class ShopService : IShopService
         return await _companySubscriptionRepository.Query()
             .AsNoTracking()
             .Include(x => x.SubscriptionPlan)
+                .ThenInclude(p => p!.PlanFeatures)
+                    .ThenInclude(pf => pf.Feature)
             .Where(x => x.CompanyId == companyId)
             .Select(x => x.SubscriptionPlan)
             .FirstOrDefaultAsync(cancellationToken);

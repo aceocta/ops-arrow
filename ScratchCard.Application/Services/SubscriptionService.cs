@@ -59,6 +59,7 @@ public class SubscriptionService : ISubscriptionService
     {
         var plans = await _planRepository.Query()
             .AsNoTracking()
+            .Include(p => p.PlanFeatures).ThenInclude(pf => pf.Feature)
             .Where(x => x.IsActive)
             .OrderBy(x => x.BillingCycle)
             .ThenBy(x => x.Name)
@@ -399,6 +400,8 @@ public class SubscriptionService : ISubscriptionService
     {
         return await _companySubscriptionRepository.Query()
             .Include(x => x.SubscriptionPlan)
+                .ThenInclude(p => p.PlanFeatures)
+                    .ThenInclude(pf => pf.Feature)
             .FirstOrDefaultAsync(x => x.CompanyId == companyId, cancellationToken)
             ?? throw new AppException("subscription_not_found", "Subscription not found for company.", 404);
     }
@@ -449,7 +452,7 @@ public class SubscriptionService : ISubscriptionService
             or SubscriptionStatus.Suspended
             or SubscriptionStatus.PaymentFailed
             or SubscriptionStatus.PastDue;
-        var includedFeatures = ServiceMappingExtensions.ParseIncludedFeatures(subscription.SubscriptionPlan.IncludedFeatures);
+        var includedFeatures = ServiceMappingExtensions.ExtractEnabledFeatureKeys(subscription.SubscriptionPlan.PlanFeatures);
 
         return new SubscriptionSummaryDto
         {

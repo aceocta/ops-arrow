@@ -29,6 +29,7 @@ public static class SeedDataInitializer
         await SeedComplianceCheckTemplatesAsync(dbContext, cancellationToken);
         await SeedPlatformUserAsync(dbContext, cancellationToken);
         await SeedUserRoleAssignmentsAsync(dbContext, cancellationToken);
+        await SeedFeaturesAsync(dbContext, cancellationToken);
         await SeedSubscriptionPlansAsync(dbContext, cancellationToken);
         await SeedSubscriptionDiscountRulesAsync(dbContext, cancellationToken);
         await SeedDefaultConfigurationsAsync(dbContext, cancellationToken);
@@ -817,6 +818,50 @@ public static class SeedDataInitializer
         }
     }
 
+    private static async Task SeedFeaturesAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var existing = await dbContext.Features.ToListAsync(cancellationToken);
+        var byKey = existing.ToDictionary(x => x.Key, StringComparer.OrdinalIgnoreCase);
+        var changed = false;
+
+        foreach (var entry in FeatureKeys.Catalog)
+        {
+            if (byKey.TryGetValue(entry.Key, out var current))
+            {
+                // Refresh display metadata in case the catalogue text was updated. Don't touch
+                // IsActive — admins may have deactivated a feature deliberately. Name/Category
+                // updates are safe.
+                var dirty = false;
+                if (!string.Equals(current.Name, entry.Name, StringComparison.Ordinal)) { current.Name = entry.Name; dirty = true; }
+                if (!string.Equals(current.Description ?? string.Empty, entry.Description ?? string.Empty, StringComparison.Ordinal)) { current.Description = entry.Description; dirty = true; }
+                if (!string.Equals(current.Category ?? string.Empty, entry.Category, StringComparison.Ordinal)) { current.Category = entry.Category; dirty = true; }
+                if (current.DisplayOrder != entry.DisplayOrder) { current.DisplayOrder = entry.DisplayOrder; dirty = true; }
+                if (!current.IsSystem) { current.IsSystem = true; dirty = true; }
+                if (dirty) { current.ModifiedOn = now; changed = true; }
+                continue;
+            }
+
+            await dbContext.Features.AddAsync(new Feature
+            {
+                Key = entry.Key,
+                Name = entry.Name,
+                Description = entry.Description,
+                Category = entry.Category,
+                DisplayOrder = entry.DisplayOrder,
+                IsActive = true,
+                IsSystem = true,
+                CreatedOn = now
+            }, cancellationToken);
+            changed = true;
+        }
+
+        if (changed)
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+    }
+
     private static async Task SeedSubscriptionPlansAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
@@ -868,10 +913,6 @@ public static class SeedDataInitializer
             FeatureKeys.SupportPriority,
         }).ToArray();
 
-        var starterCsv = BuildIncludedFeaturesCsv(starterFeatures);
-        var growthCsv = BuildIncludedFeaturesCsv(growthFeatures);
-        var proCsv = BuildIncludedFeaturesCsv(proFeatures);
-
         // Pricing here is placeholder — adjust to your commercial terms before launch.
         // MaxUsers / ReportExportsPerMonth: null means unlimited.
         // Monthly-only catalogue. Annual SKUs are intentionally not seeded; see deactivation below
@@ -885,21 +926,23 @@ public static class SeedDataInitializer
         // registered in App Store Connect and Google Play Console before launching IAP.
         var templates = new[]
         {
-            new PlanTemplate("1 Month Free Trial", BillingCycle.Trial,    0m,   30, string.Empty, null, null,
+            new PlanTemplate("1 Month Free Trial", BillingCycle.Trial,    0m,   30, Array.Empty<string>(), null, null,
                 "Generic fallback trial. Only used if a shop is created without a picked plan, which the UI prevents today.",
                 AppleProductId: null, GoogleProductId: null),
-            new PlanTemplate("Starter Monthly",    BillingCycle.Monthly, 19.99m, 14, starterCsv,  3,    30,
+            new PlanTemplate("Starter Monthly",    BillingCycle.Monthly, 19.99m, 14, starterFeatures,  3,    30,
                 "Starter: basic Scratch Card, Temperature Log, Refusals, Compliance and Safe Drop. Limited users. 14-day trial.",
                 AppleProductId: "com.opsarrow.starter.monthly", GoogleProductId: "opsarrow_starter_monthly"),
-            new PlanTemplate("Growth Monthly",     BillingCycle.Monthly, 39.99m, 30, growthCsv,  10,   100,
+            new PlanTemplate("Growth Monthly",     BillingCycle.Monthly, 39.99m, 30, growthFeatures,  10,   100,
                 "Growth: attachments, missed-log alerts, advanced compliance schedules, dashboard, audit log. 30-day trial.",
                 AppleProductId: "com.opsarrow.growth.monthly", GoogleProductId: "opsarrow_growth_monthly"),
-            new PlanTemplate("Pro Monthly",        BillingCycle.Monthly, 79.99m, 30, proCsv,     null, 500,
+            new PlanTemplate("Pro Monthly",        BillingCycle.Monthly, 79.99m, 30, proFeatures,     null, 500,
                 "Pro: advanced validation, approval workflows, multi-shop dashboards, unlimited users. 30-day trial.",
                 AppleProductId: "com.opsarrow.pro.monthly", GoogleProductId: "opsarrow_pro_monthly"),
         };
 
         var existing = await dbContext.SubscriptionPlans.ToListAsync(cancellationToken);
+        var featureByKey = await dbContext.Features
+            .ToDictionaryAsync(x => x.Key, StringComparer.OrdinalIgnoreCase, cancellationToken);
         var changed = false;
 
         foreach (var template in templates)
@@ -909,21 +952,33 @@ public static class SeedDataInitializer
 
             if (current is null)
             {
-                await dbContext.SubscriptionPlans.AddAsync(new SubscriptionPlan
+                var plan = new SubscriptionPlan
                 {
                     Name = template.Name,
                     BillingCycle = template.BillingCycle,
                     PricePerShop = template.Price,
                     TrialDays = template.TrialDays,
                     Description = template.Description,
-                    IncludedFeatures = template.FeaturesCsv,
                     MaxUsers = template.MaxUsers,
                     ReportExportsPerMonth = template.ReportExportsPerMonth,
                     AppleProductId = template.AppleProductId,
                     GoogleProductId = template.GoogleProductId,
                     IsActive = true,
                     CreatedOn = now,
-                }, cancellationToken);
+                };
+                await dbContext.SubscriptionPlans.AddAsync(plan, cancellationToken);
+
+                foreach (var featureKey in template.Features.Distinct(StringComparer.OrdinalIgnoreCase))
+                {
+                    if (!featureByKey.TryGetValue(featureKey, out var feature)) continue;
+                    plan.PlanFeatures.Add(new SubscriptionPlanFeature
+                    {
+                        SubscriptionPlanId = plan.Id,
+                        FeatureId = feature.Id,
+                        IsEnabled = true,
+                        CreatedOn = now
+                    });
+                }
                 changed = true;
                 continue;
             }
@@ -961,36 +1016,12 @@ public static class SeedDataInitializer
         BillingCycle BillingCycle,
         decimal Price,
         int TrialDays,
-        string FeaturesCsv,
+        IReadOnlyCollection<string> Features,
         int? MaxUsers,
         int? ReportExportsPerMonth,
         string Description,
         string? AppleProductId = null,
         string? GoogleProductId = null);
-
-    private static IReadOnlyCollection<string> ParseIncludedFeatures(string? rawFeatures)
-    {
-        if (string.IsNullOrWhiteSpace(rawFeatures))
-        {
-            return [];
-        }
-
-        return rawFeatures
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-    }
-
-    private static string BuildIncludedFeaturesCsv(IEnumerable<string> features)
-    {
-        return string.Join(
-            ',',
-            features
-                .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Select(x => x.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase));
-    }
 
     private static async Task SeedSubscriptionDiscountRulesAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)
     {

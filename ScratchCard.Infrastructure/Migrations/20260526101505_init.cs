@@ -33,6 +33,28 @@ namespace ScratchCard.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "Features",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Key = table.Column<string>(type: "nvarchar(120)", maxLength: 120, nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    Category = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    IsSystem = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Features", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "MasterScratchCardGames",
                 columns: table => new
                 {
@@ -116,7 +138,6 @@ namespace ScratchCard.Infrastructure.Migrations
                     PricePerShop = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
                     TrialDays = table.Column<int>(type: "int", nullable: false),
                     Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    IncludedFeatures = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
                     MaxUsers = table.Column<int>(type: "int", nullable: true),
                     ReportExportsPerMonth = table.Column<int>(type: "int", nullable: true),
                     AppleProductId = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
@@ -179,6 +200,36 @@ namespace ScratchCard.Infrastructure.Migrations
                     table.PrimaryKey("PK_SubscriptionDiscountRules", x => x.Id);
                     table.ForeignKey(
                         name: "FK_SubscriptionDiscountRules_SubscriptionPlans_SubscriptionPlanId",
+                        column: x => x.SubscriptionPlanId,
+                        principalTable: "SubscriptionPlans",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "SubscriptionPlanFeatures",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    SubscriptionPlanId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    FeatureId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    IsEnabled = table.Column<bool>(type: "bit", nullable: false),
+                    LimitValue = table.Column<int>(type: "int", nullable: true),
+                    Notes = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SubscriptionPlanFeatures", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_SubscriptionPlanFeatures_Features_FeatureId",
+                        column: x => x.FeatureId,
+                        principalTable: "Features",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_SubscriptionPlanFeatures_SubscriptionPlans_SubscriptionPlanId",
                         column: x => x.SubscriptionPlanId,
                         principalTable: "SubscriptionPlans",
                         principalColumn: "Id");
@@ -2211,6 +2262,17 @@ namespace ScratchCard.Infrastructure.Migrations
                 column: "ScratchCardPackId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Features_Category_DisplayOrder",
+                table: "Features",
+                columns: new[] { "Category", "DisplayOrder" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Features_Key",
+                table: "Features",
+                column: "Key",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_MasterScratchCardGames_GameCode",
                 table: "MasterScratchCardGames",
                 column: "GameCode",
@@ -2557,6 +2619,17 @@ namespace ScratchCard.Infrastructure.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_SubscriptionPlanFeatures_FeatureId",
+                table: "SubscriptionPlanFeatures",
+                column: "FeatureId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SubscriptionPlanFeatures_SubscriptionPlanId_FeatureId",
+                table: "SubscriptionPlanFeatures",
+                columns: new[] { "SubscriptionPlanId", "FeatureId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_SubscriptionPlans_BillingCycle_IsActive",
                 table: "SubscriptionPlans",
                 columns: new[] { "BillingCycle", "IsActive" });
@@ -2783,6 +2856,9 @@ namespace ScratchCard.Infrastructure.Migrations
                 name: "SubscriptionInvoiceLines");
 
             migrationBuilder.DropTable(
+                name: "SubscriptionPlanFeatures");
+
+            migrationBuilder.DropTable(
                 name: "TemperatureDailySignoffs");
 
             migrationBuilder.DropTable(
@@ -2817,6 +2893,9 @@ namespace ScratchCard.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "SubscriptionInvoices");
+
+            migrationBuilder.DropTable(
+                name: "Features");
 
             migrationBuilder.DropTable(
                 name: "TemperatureMonitoringUnits");

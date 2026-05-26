@@ -3,7 +3,8 @@
     "allow": [
       "Bash(Get-ChildItem -Path src -Recurse -Directory)",
       "Bash(Select-Object -ExpandProperty FullName)",
-      "Bash(grep -r \"Promise.*\\\\\\\\.catch\\\\|unhandledRejection\\\\|addEventListener.*error\" \"J:\\\\ScratchCard\\\\ScratchCard.Mobile\\\\src\" --include=\"*.tsx\" --include=\"*.ts\")"
+      "Bash(grep -r \"Promise.*\\\\\\\\.catch\\\\|unhandledRejection\\\\|addEventListener.*error\" \"J:\\\\ScratchCard\\\\ScratchCard.Mobile\\\\src\" --include=\"*.tsx\" --include=\"*.ts\")",
+      "Bash(git log *)"
     ]
   }
 }

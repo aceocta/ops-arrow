@@ -507,7 +507,9 @@ public class ShopSubscriptionService : IShopSubscriptionService
     private async Task<ShopSubscriptionSummaryDto> BuildSummaryAsync(ShopSubscription subscription, CancellationToken cancellationToken)
     {
         var plan = subscription.SubscriptionPlanId.HasValue
-            ? await _planRepository.GetByIdAsync(subscription.SubscriptionPlanId.Value, cancellationToken)
+            ? await _planRepository.Query()
+                .Include(p => p.PlanFeatures).ThenInclude(pf => pf.Feature)
+                .FirstOrDefaultAsync(p => p.Id == subscription.SubscriptionPlanId.Value, cancellationToken)
             : null;
 
         var now = DateTimeOffset.UtcNow;
@@ -523,7 +525,7 @@ public class ShopSubscriptionService : IShopSubscriptionService
             || subscription.Status == SubscriptionStatus.Expired
             || subscription.Status == SubscriptionStatus.PaymentFailed;
 
-        var features = SplitFeatures(plan?.IncludedFeatures);
+        var features = ServiceMappingExtensions.ExtractEnabledFeatureKeys(plan?.PlanFeatures);
 
         return new ShopSubscriptionSummaryDto
         {
@@ -563,15 +565,4 @@ public class ShopSubscriptionService : IShopSubscriptionService
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    private static IReadOnlyCollection<string> SplitFeatures(string? rawFeatures)
-    {
-        if (string.IsNullOrWhiteSpace(rawFeatures))
-        {
-            return Array.Empty<string>();
-        }
-
-        return rawFeatures
-            .Split(new[] { ',', ';', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .ToArray();
-    }
 }

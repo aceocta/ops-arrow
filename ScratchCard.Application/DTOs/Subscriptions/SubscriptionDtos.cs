@@ -191,12 +191,66 @@ public class RevenueCatWebhookEvent
     public string? NewProductId { get; set; }
 }
 
+public class FeatureDto
+{
+    public Guid Id { get; set; }
+    public string Key { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string? Category { get; set; }
+    public int DisplayOrder { get; set; }
+    public bool IsActive { get; set; }
+    public bool IsSystem { get; set; }
+}
+
+public class UpsertFeatureRequest
+{
+    public string Key { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string? Category { get; set; }
+    public int DisplayOrder { get; set; }
+    public bool IsActive { get; set; } = true;
+}
+
+public class SubscriptionPlanFeatureDto
+{
+    public Guid Id { get; set; }
+    public Guid SubscriptionPlanId { get; set; }
+    public Guid FeatureId { get; set; }
+    public string FeatureKey { get; set; } = string.Empty;
+    public string FeatureName { get; set; } = string.Empty;
+    public string? Category { get; set; }
+    public bool IsEnabled { get; set; }
+    public int? LimitValue { get; set; }
+    public string? Notes { get; set; }
+}
+
+public class UpsertPlanFeatureRequest
+{
+    public Guid FeatureId { get; set; }
+    public bool IsEnabled { get; set; } = true;
+    public int? LimitValue { get; set; }
+    public string? Notes { get; set; }
+}
+
+public class SetPlanFeaturesRequest
+{
+    /// <summary>Full replacement set. Anything not in this list is removed from the plan.</summary>
+    public IReadOnlyCollection<UpsertPlanFeatureRequest> Features { get; set; } = [];
+}
+
 public class UpdateSubscriptionPlanRequest
 {
     public string? Name { get; set; }
     public decimal? PricePerShop { get; set; }
     public int? TrialDays { get; set; }
     public string? Description { get; set; }
+    /// <summary>
+    /// Legacy field — feature keys to enable on the plan. Existing callers can keep sending this;
+    /// the admin service translates keys into SubscriptionPlanFeature rows. For richer control
+    /// (per-feature LimitValue, Notes) use the new /features endpoints on the plan.
+    /// </summary>
     public IReadOnlyCollection<string>? IncludedFeatures { get; set; }
     /// <summary>Pass null to leave unchanged, or an int / -1 to set to unlimited.</summary>
     public int? MaxUsers { get; set; }

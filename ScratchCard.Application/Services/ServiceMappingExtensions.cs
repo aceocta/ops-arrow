@@ -72,7 +72,7 @@ internal static class ServiceMappingExtensions
         PricePerShop = plan.PricePerShop,
         TrialDays = plan.TrialDays,
         Description = plan.Description,
-        IncludedFeatures = ParseIncludedFeatures(plan.IncludedFeatures),
+        IncludedFeatures = ExtractEnabledFeatureKeys(plan.PlanFeatures),
         MaxUsers = plan.MaxUsers,
         ReportExportsPerMonth = plan.ReportExportsPerMonth,
         AppleProductId = plan.AppleProductId,
@@ -440,17 +440,38 @@ internal static class ServiceMappingExtensions
         DroppedOn = drop.DroppedOn
     };
 
-    public static IReadOnlyCollection<string> ParseIncludedFeatures(string? rawFeatures)
+    public static IReadOnlyCollection<string> ExtractEnabledFeatureKeys(IEnumerable<SubscriptionPlanFeature>? planFeatures)
     {
-        if (string.IsNullOrWhiteSpace(rawFeatures))
-        {
-            return [];
-        }
-
-        return rawFeatures
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(x => !string.IsNullOrWhiteSpace(x))
+        if (planFeatures is null) return [];
+        return planFeatures
+            .Where(pf => pf.IsEnabled && pf.Feature is not null && pf.Feature.IsActive)
+            .Select(pf => pf.Feature.Key)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
+
+    public static FeatureDto ToDto(this Feature feature) => new()
+    {
+        Id = feature.Id,
+        Key = feature.Key,
+        Name = feature.Name,
+        Description = feature.Description,
+        Category = feature.Category,
+        DisplayOrder = feature.DisplayOrder,
+        IsActive = feature.IsActive,
+        IsSystem = feature.IsSystem
+    };
+
+    public static SubscriptionPlanFeatureDto ToDto(this SubscriptionPlanFeature planFeature) => new()
+    {
+        Id = planFeature.Id,
+        SubscriptionPlanId = planFeature.SubscriptionPlanId,
+        FeatureId = planFeature.FeatureId,
+        FeatureKey = planFeature.Feature?.Key ?? string.Empty,
+        FeatureName = planFeature.Feature?.Name ?? string.Empty,
+        Category = planFeature.Feature?.Category,
+        IsEnabled = planFeature.IsEnabled,
+        LimitValue = planFeature.LimitValue,
+        Notes = planFeature.Notes
+    };
 }

@@ -21,6 +21,7 @@ public class FeatureGateService : IFeatureGateService
 {
     private readonly IRepository<ShopSubscription> _shopSubscriptionRepository;
     private readonly IRepository<SubscriptionPlan> _planRepository;
+    private readonly IRepository<SubscriptionPlanFeature> _planFeatureRepository;
     private readonly IRepository<ShopUser> _shopUserRepository;
     private readonly IRepository<UserInvitation> _userInvitationRepository;
     private readonly IRepository<ReportExportLog> _reportExportLogRepository;
@@ -29,6 +30,7 @@ public class FeatureGateService : IFeatureGateService
     public FeatureGateService(
         IRepository<ShopSubscription> shopSubscriptionRepository,
         IRepository<SubscriptionPlan> planRepository,
+        IRepository<SubscriptionPlanFeature> planFeatureRepository,
         IRepository<ShopUser> shopUserRepository,
         IRepository<UserInvitation> userInvitationRepository,
         IRepository<ReportExportLog> reportExportLogRepository,
@@ -36,6 +38,7 @@ public class FeatureGateService : IFeatureGateService
     {
         _shopSubscriptionRepository = shopSubscriptionRepository;
         _planRepository = planRepository;
+        _planFeatureRepository = planFeatureRepository;
         _shopUserRepository = shopUserRepository;
         _userInvitationRepository = userInvitationRepository;
         _reportExportLogRepository = reportExportLogRepository;
@@ -47,8 +50,14 @@ public class FeatureGateService : IFeatureGateService
         if (string.IsNullOrWhiteSpace(featureKey)) return true;
         var plan = await ResolveActivePlanAsync(shopId, cancellationToken);
         if (plan is null) return false;
-        var features = ParseFeatures(plan.IncludedFeatures);
-        return features.Contains(featureKey, StringComparer.OrdinalIgnoreCase);
+
+        return await _planFeatureRepository.Query()
+            .AsNoTracking()
+            .AnyAsync(pf => pf.SubscriptionPlanId == plan.Id
+                            && pf.IsEnabled
+                            && pf.Feature.IsActive
+                            && pf.Feature.Key == featureKey,
+                cancellationToken);
     }
 
     public async Task EnsureFeatureAsync(Guid shopId, string featureKey, CancellationToken cancellationToken = default)
@@ -149,12 +158,4 @@ public class FeatureGateService : IFeatureGateService
         return await _planRepository.GetByIdAsync(subscription.SubscriptionPlanId.Value, cancellationToken);
     }
 
-    private static IReadOnlyCollection<string> ParseFeatures(string? raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw)) return Array.Empty<string>();
-        return raw
-            .Split(new[] { ',', ';', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-    }
 }
