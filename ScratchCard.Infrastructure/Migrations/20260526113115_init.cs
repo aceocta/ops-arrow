@@ -480,6 +480,7 @@ namespace ScratchCard.Infrastructure.Migrations
                     ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     CanisterNumber = table.Column<string>(type: "nvarchar(60)", maxLength: 60, nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    MaxAmount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: true),
                     CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
                     CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
@@ -1379,6 +1380,8 @@ namespace ScratchCard.Infrastructure.Migrations
                     LottoPayout = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
                     ScratchCardPayout = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
                     TillPayout = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    TotalCanisterDropAmount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: true),
+                    CashVariance = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: true),
                     CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
                     CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
@@ -1559,6 +1562,37 @@ namespace ScratchCard.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "CfgTemperatureSchedules",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    TemperatureMonitoringUnitId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ExpectedTime = table.Column<TimeOnly>(type: "time", nullable: false),
+                    ToleranceMinutes = table.Column<int>(type: "int", nullable: false),
+                    Label = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CfgTemperatureSchedules", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_CfgTemperatureSchedules_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_CfgTemperatureSchedules_TemperatureMonitoringUnits_TemperatureMonitoringUnitId",
+                        column: x => x.TemperatureMonitoringUnitId,
+                        principalTable: "TemperatureMonitoringUnits",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
                 name: "TemperatureReadings",
                 columns: table => new
                 {
@@ -1608,6 +1642,10 @@ namespace ScratchCard.Infrastructure.Migrations
                     DroppedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     DroppedByName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
                     DroppedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    ApprovalStatus = table.Column<int>(type: "int", nullable: false),
+                    ApprovedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ApprovedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ApprovalNotes = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
                     CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
@@ -2080,6 +2118,11 @@ namespace ScratchCard.Infrastructure.Migrations
                 column: "ShiftId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_CanisterDrops_ShopId_ApprovalStatus",
+                table: "CanisterDrops",
+                columns: new[] { "ShopId", "ApprovalStatus" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_CanisterDrops_ShopId_DroppedOn",
                 table: "CanisterDrops",
                 columns: new[] { "ShopId", "DroppedOn" });
@@ -2164,6 +2207,16 @@ namespace ScratchCard.Infrastructure.Migrations
                 column: "ShopId",
                 unique: true,
                 filter: "[ShopId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CfgTemperatureSchedules_ShopId_IsActive",
+                table: "CfgTemperatureSchedules",
+                columns: new[] { "ShopId", "IsActive" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CfgTemperatureSchedules_TemperatureMonitoringUnitId",
+                table: "CfgTemperatureSchedules",
+                column: "TemperatureMonitoringUnitId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Companies_CompanyName",
@@ -2788,6 +2841,9 @@ namespace ScratchCard.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "CfgSubscriptionSettings");
+
+            migrationBuilder.DropTable(
+                name: "CfgTemperatureSchedules");
 
             migrationBuilder.DropTable(
                 name: "ComplianceCheckAttachments");

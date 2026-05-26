@@ -262,6 +262,10 @@ namespace ScratchCard.Infrastructure.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
 
+                    b.Property<decimal?>("MaxAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<Guid?>("ModifiedBy")
                         .HasColumnType("uniqueidentifier");
 
@@ -290,6 +294,19 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Property<decimal>("Amount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("ApprovalNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("ApprovalStatus")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("ApprovedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ApprovedOn")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<Guid>("BusinessDayId")
                         .HasColumnType("uniqueidentifier");
@@ -331,6 +348,8 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.HasIndex("CanisterId");
 
                     b.HasIndex("ShiftId");
+
+                    b.HasIndex("ShopId", "ApprovalStatus");
 
                     b.HasIndex("ShopId", "DroppedOn");
 
@@ -913,6 +932,53 @@ namespace ScratchCard.Infrastructure.Migrations
                         .HasFilter("[ShopId] IS NOT NULL");
 
                     b.ToTable("CfgSubscriptionSettings", (string)null);
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.CfgTemperatureSchedule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<TimeOnly>("ExpectedTime")
+                        .HasColumnType("time");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("TemperatureMonitoringUnitId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ToleranceMinutes")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TemperatureMonitoringUnitId");
+
+                    b.HasIndex("ShopId", "IsActive");
+
+                    b.ToTable("CfgTemperatureSchedules");
                 });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.Company", b =>
@@ -1914,6 +1980,10 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Property<Guid>("BusinessDayId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<decimal?>("CashVariance")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<Guid?>("CreatedBy")
                         .HasColumnType("uniqueidentifier");
 
@@ -1935,6 +2005,10 @@ namespace ScratchCard.Infrastructure.Migrations
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("TillPayout")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("TotalCanisterDropAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
@@ -3968,6 +4042,24 @@ namespace ScratchCard.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("Shop");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.CfgTemperatureSchedule", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
+                        .WithMany()
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("ScratchCard.Domain.Entities.TemperatureMonitoringUnit", "TemperatureMonitoringUnit")
+                        .WithMany()
+                        .HasForeignKey("TemperatureMonitoringUnitId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Shop");
+
+                    b.Navigation("TemperatureMonitoringUnit");
                 });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.Company", b =>

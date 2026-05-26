@@ -172,8 +172,70 @@ public class ShiftSalesService : IShiftSalesService
             await SendManualEntryNotificationsAsync(shift, businessDay, entries, cancellationToken);
         }
 
+        await SendSuspiciousActivityAlertsAsync(shift, businessDay, entries, cancellationToken);
+
         await SendShiftClosePushNotificationsAsync(shift, businessDay, entries, cancellationToken);
         await SendShiftCloseSummaryToOwnersAsync(shift, businessDay, entries, packs, cancellationToken);
+    }
+
+    private async Task SendSuspiciousActivityAlertsAsync(
+        Shift shift,
+        BusinessDay businessDay,
+        IReadOnlyCollection<ShiftScratchCardSale> entries,
+        CancellationToken cancellationToken)
+    {
+        // Suspicious-activity alerts are a Pro feature.
+        if (!await _featureGateService.HasFeatureAsync(shift.ShopId, FeatureKeys.ScratchCardSuspiciousAlerts, cancellationToken))
+        {
+            return;
+        }
+
+        // Heuristic: a single shift selling >50% of a pack's total tickets is unusual and worth a
+        // manager glance. Keep the rule deliberately simple — false positives cost less than
+        // letting genuine fraud slip past.
+        var suspicious = entries
+            .Where(e => e.Pack is not null && e.Pack.TotalTickets > 0 && e.SoldQuantity > e.Pack.TotalTickets / 2)
+            .ToArray();
+        if (suspicious.Length == 0) return;
+
+        var recipients = await _shopUserRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shift.ShopId && x.IsActive && (x.Role.Name == "CompanyOwner" || x.Role.Name == "Manager"))
+            .Include(x => x.Role).Include(x => x.User)
+            .Select(x => x.User.Email).Distinct()
+            .ToListAsync(cancellationToken);
+        if (recipients.Count == 0) return;
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"Shift: {shift.ShiftName} | Business date: {businessDay.BusinessDate}");
+        sb.AppendLine();
+        sb.AppendLine("The following sales exceed 50% of pack capacity in a single shift and warrant review:");
+        foreach (var e in suspicious)
+        {
+            sb.AppendLine($" - Pack {e.Pack!.PackNumber} ({e.Pack.Game?.GameName ?? "Unknown game"}): sold {e.SoldQuantity}/{e.Pack.TotalTickets} ({(decimal)e.SoldQuantity / e.Pack.TotalTickets * 100:F1}%)");
+        }
+
+        foreach (var recipient in recipients)
+        {
+            try
+            {
+                await _notificationService.SendAsync(new NotificationMessage
+                {
+                    ShopId = shift.ShopId,
+                    NotificationType = NotificationType.SuspiciousScratchCardActivity,
+                    Channel = NotificationChannel.Email,
+                    Recipient = recipient,
+                    Subject = $"Suspicious scratch-card activity - {shift.ShiftName}",
+                    Body = sb.ToString(),
+                    RelatedEntityName = nameof(Shift),
+                    RelatedEntityId = shift.Id
+                }, cancellationToken);
+            }
+            catch
+            {
+                // Alert failures must not block shift close.
+            }
+        }
     }
 
     private async Task<ShiftCloseResultDto> FinalizeInternalAsync(Guid shiftId, FinalizeShiftRequest request, bool isOfflineSync, CancellationToken cancellationToken)
@@ -223,6 +285,40 @@ public class ShiftSalesService : IShiftSalesService
                 throw new AppException(ErrorCodes.PackNotActive, $"Pack {pack.PackNumber} is not active.");
             }
         }
+
+        // Plans with scratch_card.manual_correction_reasons require a reason whenever a manual
+        // or edited entry is submitted. Below that tier, the reason field is accepted but
+        // optional.
+        var requireManualReason = await _featureGateService.HasFeatureAsync(
+            shift.ShopId,
+            FeatureKeys.ScratchCardManualCorrectionReasons,
+            cancellationToken);
+        if (requireManualReason)
+        {
+            foreach (var entry in request.Entries)
+            {
+                var entryIsManualOrEdited = entry.EntryMethod == EntryMethod.Manual
+                    || entry.EntryMethod == EntryMethod.ScannedEdited
+                    || (!string.IsNullOrWhiteSpace(entry.OriginalScannedSerialNumber) &&
+                        !string.Equals(entry.OriginalScannedSerialNumber, entry.ClosingSerialNumber, StringComparison.OrdinalIgnoreCase));
+                if (entryIsManualOrEdited && string.IsNullOrWhiteSpace(entry.ManualEntryReason))
+                {
+                    throw new AppException(
+                        "manual_correction_reason_required",
+                        "Your subscription plan requires a reason for every manual or edited closing-serial entry.",
+                        400);
+                }
+            }
+        }
+
+        // Plans with scratch_card.advanced_validation enforce a strict serial-range check:
+        // the closing serial must lie within [start, end] of the pack and the resulting sold
+        // quantity must be non-negative. The default validator silently clamps; strict mode
+        // surfaces a 400 so the user must correct the entry.
+        var strictValidation = await _featureGateService.HasFeatureAsync(
+            shift.ShopId,
+            FeatureKeys.ScratchCardAdvancedValidation,
+            cancellationToken);
 
         var openingSerialByPackId = (await _shiftOpeningSerialRepository.Query()
             .Where(x => x.ShiftId == shift.Id && packIds.Contains(x.PackId))
@@ -289,6 +385,34 @@ public class ShiftSalesService : IShiftSalesService
                 packSetup.SellingOrder,
                 pack.TicketPrice,
                 pack.TotalTickets);
+
+            if (strictValidation)
+            {
+                if (!int.TryParse(entry.ClosingSerialNumber, out var closingNum) ||
+                    !int.TryParse(pack.StartSerialNumber, out var startNum) ||
+                    !int.TryParse(pack.EndSerialNumber, out var endNum))
+                {
+                    throw new AppException(
+                        "strict_serial_invalid",
+                        $"Closing serial '{entry.ClosingSerialNumber}' for pack {pack.PackNumber} is not numeric. Your plan's strict validator rejects non-numeric serials.",
+                        400);
+                }
+                var (lo, hi) = startNum <= endNum ? (startNum, endNum) : (endNum, startNum);
+                if (closingNum < lo || closingNum > hi)
+                {
+                    throw new AppException(
+                        "strict_serial_out_of_range",
+                        $"Closing serial {closingNum} for pack {pack.PackNumber} is outside the pack's range [{lo}, {hi}].",
+                        400);
+                }
+                if (calc.SoldQuantity < 0)
+                {
+                    throw new AppException(
+                        "strict_serial_negative_sold",
+                        $"Closing serial {closingNum} for pack {pack.PackNumber} would imply a negative sold quantity ({calc.SoldQuantity}).",
+                        400);
+                }
+            }
 
             var isScannedEdited = entry.EntryMethod == EntryMethod.ScannedEdited ||
                                   (!string.IsNullOrWhiteSpace(entry.OriginalScannedSerialNumber) &&

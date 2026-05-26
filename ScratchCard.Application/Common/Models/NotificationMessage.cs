@@ -14,4 +14,10 @@ public class NotificationMessage
     public IReadOnlyCollection<EmailAttachment> Attachments { get; set; } = [];
     public string RelatedEntityName { get; set; } = string.Empty;
     public Guid? RelatedEntityId { get; set; }
+
+    // When true, the dispatcher requests high-priority delivery from the underlying transport
+    // (email X-Priority/Importance header, push priority=high). The NotificationService demotes
+    // this flag to false for shops on plans without notifications.priority so the lower-tier
+    // shop's messages don't crowd the priority queue.
+    public bool IsPriority { get; set; }
 }

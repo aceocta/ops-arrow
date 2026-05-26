@@ -195,7 +195,9 @@ internal static class ServiceMappingExtensions
             {
                 LottoPayout = day.ScratchCardDayCloseSummary.LottoPayout,
                 ScratchCardPayout = day.ScratchCardDayCloseSummary.ScratchCardPayout,
-                TillPayout = day.ScratchCardDayCloseSummary.TillPayout
+                TillPayout = day.ScratchCardDayCloseSummary.TillPayout,
+                TotalCanisterDropAmount = day.ScratchCardDayCloseSummary.TotalCanisterDropAmount,
+                CashVariance = day.ScratchCardDayCloseSummary.CashVariance
             }
     };
 
@@ -422,7 +424,8 @@ internal static class ServiceMappingExtensions
         Id = canister.Id,
         ShopId = canister.ShopId,
         CanisterNumber = canister.CanisterNumber,
-        IsActive = canister.IsActive
+        IsActive = canister.IsActive,
+        MaxAmount = canister.MaxAmount
     };
 
     public static CanisterDropDto ToDto(this CanisterDrop drop) => new()
@@ -437,7 +440,11 @@ internal static class ServiceMappingExtensions
         Amount = drop.Amount,
         DroppedByUserId = drop.DroppedByUserId,
         DroppedByName = drop.DroppedByName,
-        DroppedOn = drop.DroppedOn
+        DroppedOn = drop.DroppedOn,
+        ApprovalStatus = drop.ApprovalStatus.ToString(),
+        ApprovedByUserId = drop.ApprovedByUserId,
+        ApprovedOn = drop.ApprovedOn,
+        ApprovalNotes = drop.ApprovalNotes
     };
 
     public static IReadOnlyCollection<string> ExtractEnabledFeatureKeys(IEnumerable<SubscriptionPlanFeature>? planFeatures)

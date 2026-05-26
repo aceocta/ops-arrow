@@ -75,6 +75,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<ReportExportLog> ReportExportLogs => Set<ReportExportLog>();
     public DbSet<Feature> Features => Set<Feature>();
     public DbSet<SubscriptionPlanFeature> SubscriptionPlanFeatures => Set<SubscriptionPlanFeature>();
+    public DbSet<CfgTemperatureSchedule> CfgTemperatureSchedules => Set<CfgTemperatureSchedule>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -319,6 +320,8 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.LottoPayout).HasPrecision(18, 2);
             entity.Property(x => x.ScratchCardPayout).HasPrecision(18, 2);
             entity.Property(x => x.TillPayout).HasPrecision(18, 2);
+            entity.Property(x => x.TotalCanisterDropAmount).HasPrecision(18, 2);
+            entity.Property(x => x.CashVariance).HasPrecision(18, 2);
             entity.HasOne(x => x.BusinessDay)
                 .WithOne(x => x.ScratchCardDayCloseSummary)
                 .HasForeignKey<ScratchCardDayCloseSummary>(x => x.BusinessDayId);
@@ -339,6 +342,7 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(x => new { x.ShopId, x.IsActive });
             entity.Property(x => x.CanisterNumber).HasMaxLength(60).IsRequired();
             entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.Property(x => x.MaxAmount).HasPrecision(18, 2);
             entity.HasOne(x => x.Shop).WithMany(x => x.Canisters).HasForeignKey(x => x.ShopId);
         });
 
@@ -346,8 +350,10 @@ public class ApplicationDbContext : DbContext
         {
             entity.HasIndex(x => new { x.BusinessDayId, x.ShiftId, x.DroppedOn });
             entity.HasIndex(x => new { x.ShopId, x.DroppedOn });
+            entity.HasIndex(x => new { x.ShopId, x.ApprovalStatus });
             entity.Property(x => x.DroppedByName).HasMaxLength(200).IsRequired();
             entity.Property(x => x.Amount).HasPrecision(18, 2);
+            entity.Property(x => x.ApprovalNotes).HasMaxLength(500);
             entity.HasOne(x => x.Shop).WithMany(x => x.CanisterDrops).HasForeignKey(x => x.ShopId);
             entity.HasOne(x => x.BusinessDay).WithMany(x => x.CanisterDrops).HasForeignKey(x => x.BusinessDayId);
             entity.HasOne(x => x.Shift).WithMany(x => x.CanisterDrops).HasForeignKey(x => x.ShiftId);
@@ -717,6 +723,14 @@ public class ApplicationDbContext : DbContext
                 .WithMany(x => x.SubscriptionPlanFeatures)
                 .HasForeignKey(x => x.FeatureId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CfgTemperatureSchedule>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.IsActive });
+            entity.Property(x => x.Label).HasMaxLength(200);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.TemperatureMonitoringUnit).WithMany().HasForeignKey(x => x.TemperatureMonitoringUnitId).OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<CompanySubscription>(entity =>

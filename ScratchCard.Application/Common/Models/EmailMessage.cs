@@ -7,6 +7,7 @@ public sealed class EmailMessage
     public string Body { get; set; } = string.Empty;
     public bool IsBodyHtml { get; set; }
     public IReadOnlyCollection<EmailAttachment> Attachments { get; set; } = [];
+    public bool IsPriority { get; set; }
 }
 
 public sealed class EmailAttachment

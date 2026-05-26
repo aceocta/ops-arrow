@@ -94,5 +94,38 @@ public class TemperatureLogsController : BaseApiController
         var result = await _temperatureLogService.SignOffDailyAsync(request, cancellationToken);
         return Success(result);
     }
+
+    // Pro-only: configure expected reading slots for each day. The background sweeper compares
+    // recorded readings against these slots and alerts on misses.
+    [HttpGet("schedules")]
+    public async Task<IActionResult> ListSchedules([FromQuery] Guid shopId, CancellationToken cancellationToken)
+    {
+        var result = await _temperatureLogService.ListSchedulesAsync(shopId, cancellationToken);
+        return Success(result);
+    }
+
+    [HttpPost("schedules")]
+    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    public async Task<IActionResult> CreateSchedule([FromBody] UpsertTemperatureScheduleRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _temperatureLogService.CreateScheduleAsync(request, cancellationToken);
+        return Success(result);
+    }
+
+    [HttpPut("schedules/{id:guid}")]
+    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    public async Task<IActionResult> UpdateSchedule(Guid id, [FromBody] UpsertTemperatureScheduleRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _temperatureLogService.UpdateScheduleAsync(id, request, cancellationToken);
+        return Success(result);
+    }
+
+    [HttpDelete("schedules/{id:guid}")]
+    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    public async Task<IActionResult> DeleteSchedule(Guid id, CancellationToken cancellationToken)
+    {
+        await _temperatureLogService.DeleteScheduleAsync(id, cancellationToken);
+        return Success(new { Deleted = true });
+    }
 }
 

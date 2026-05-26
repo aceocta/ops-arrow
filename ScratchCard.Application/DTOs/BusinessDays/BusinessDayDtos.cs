@@ -67,6 +67,8 @@ public class ScratchCardDayCloseSummaryDto
     public decimal LottoPayout { get; set; }
     public decimal ScratchCardPayout { get; set; }
     public decimal TillPayout { get; set; }
+    public decimal? TotalCanisterDropAmount { get; set; }
+    public decimal? CashVariance { get; set; }
 }
 
 public class CanisterDto
@@ -75,6 +77,7 @@ public class CanisterDto
     public Guid ShopId { get; set; }
     public string CanisterNumber { get; set; } = string.Empty;
     public bool IsActive { get; set; }
+    public decimal? MaxAmount { get; set; }
 }
 
 public class CanisterDropDto
@@ -90,4 +93,13 @@ public class CanisterDropDto
     public Guid? DroppedByUserId { get; set; }
     public string DroppedByName { get; set; } = string.Empty;
     public DateTimeOffset DroppedOn { get; set; }
+    public string ApprovalStatus { get; set; } = string.Empty;
+    public Guid? ApprovedByUserId { get; set; }
+    public DateTimeOffset? ApprovedOn { get; set; }
+    public string? ApprovalNotes { get; set; }
+}
+
+public class ApproveCanisterDropRequest
+{
+    public string? Notes { get; set; }
 }

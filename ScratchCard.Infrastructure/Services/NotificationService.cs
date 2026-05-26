@@ -72,6 +72,17 @@ public class NotificationService : INotificationService
             }
         }
 
+        // Priority demotion. Plans without notifications.priority can flag a message as
+        // priority but the dispatcher silently downgrades it. This keeps callers from having to
+        // know what tier the shop is on; they always pass the semantically-correct priority.
+        if (message.IsPriority && message.ShopId != Guid.Empty)
+        {
+            if (!await _featureGateService.HasFeatureAsync(message.ShopId, FeatureKeys.NotificationsPriority, cancellationToken))
+            {
+                message.IsPriority = false;
+            }
+        }
+
         try
         {
             switch (message.Channel)
@@ -83,7 +94,8 @@ public class NotificationService : INotificationService
                         Subject = message.Subject,
                         Body = message.Body,
                         IsBodyHtml = message.IsBodyHtml,
-                        Attachments = message.Attachments
+                        Attachments = message.Attachments,
+                        IsPriority = message.IsPriority
                     }, cancellationToken);
                     break;
                 case NotificationChannel.SMS:

@@ -44,6 +44,16 @@ public class RefusalRegisterController : BaseApiController
         return Success(result);
     }
 
+    // Pro-only staff-grouped slice of the range report.
+    [HttpGet("entries/staff-summary")]
+    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [RequireFeature(FeatureKeys.RefusalLogStaffReports)]
+    public async Task<IActionResult> StaffSummary([FromQuery] Guid shopId, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken cancellationToken)
+    {
+        var result = await _refusalRegisterService.GetStaffSummaryAsync(shopId, from, to, cancellationToken);
+        return Success(result);
+    }
+
     [HttpGet("entries/{id:guid}")]
     public async Task<IActionResult> GetEntry(Guid id, CancellationToken cancellationToken)
     {

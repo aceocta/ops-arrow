@@ -60,6 +60,17 @@ public class BusinessDaysController : BaseApiController
         return Success(result);
     }
 
+    // Pro-only: approve a pending canister drop. The service enforces the feature gate; this
+    // route just exposes it. The 'id' route param is the businessDayId for path consistency,
+    // but routing here uses the drop id directly.
+    [HttpPost("safe-drop/canister-drops/{canisterDropId:guid}/approve")]
+    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    public async Task<IActionResult> ApproveCanisterDrop(Guid canisterDropId, [FromBody] ApproveCanisterDropRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _businessDayService.ApproveCanisterDropAsync(canisterDropId, request?.Notes, cancellationToken);
+        return Success(result);
+    }
+
     [HttpPost("{id:guid}/close")]
     [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
     public async Task<IActionResult> Close(Guid id, [FromBody] CloseBusinessDayRequest request, CancellationToken cancellationToken)

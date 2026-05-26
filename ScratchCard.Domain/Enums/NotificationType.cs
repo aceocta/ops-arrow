@@ -8,5 +8,8 @@ public enum NotificationType
     HighPrizePayoutAlert = 4,
     ShiftCloseSummary = 5,
     DayCloseSummary = 6,
-    SafeDropRecorded = 7
+    SafeDropRecorded = 7,
+    SuspiciousScratchCardActivity = 8,
+    CanisterLimitExceeded = 9,
+    TemperatureMissedLog = 10
 }

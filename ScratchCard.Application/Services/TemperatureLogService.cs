@@ -15,6 +15,8 @@ public class TemperatureLogService : ITemperatureLogService
     private readonly IRepository<TemperatureMonitoringUnit> _unitRepository;
     private readonly IRepository<TemperatureReading> _readingRepository;
     private readonly IRepository<TemperatureDailySignoff> _signoffRepository;
+    private readonly IRepository<CfgTemperatureSchedule> _scheduleRepository;
+    private readonly IFeatureGateService _featureGateService;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
@@ -23,6 +25,8 @@ public class TemperatureLogService : ITemperatureLogService
         IRepository<TemperatureMonitoringUnit> unitRepository,
         IRepository<TemperatureReading> readingRepository,
         IRepository<TemperatureDailySignoff> signoffRepository,
+        IRepository<CfgTemperatureSchedule> scheduleRepository,
+        IFeatureGateService featureGateService,
         IAuditService auditService,
         ICurrentUserService currentUserService,
         IUnitOfWork unitOfWork)
@@ -30,9 +34,104 @@ public class TemperatureLogService : ITemperatureLogService
         _unitRepository = unitRepository;
         _readingRepository = readingRepository;
         _signoffRepository = signoffRepository;
+        _scheduleRepository = scheduleRepository;
+        _featureGateService = featureGateService;
         _auditService = auditService;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
+    }
+
+    public async Task<IReadOnlyCollection<TemperatureScheduleDto>> ListSchedulesAsync(Guid shopId, CancellationToken cancellationToken = default)
+    {
+        var rows = await _scheduleRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId)
+            .OrderBy(x => x.ExpectedTime)
+            .ToListAsync(cancellationToken);
+        return rows.Select(x => new TemperatureScheduleDto
+        {
+            Id = x.Id,
+            ShopId = x.ShopId,
+            TemperatureMonitoringUnitId = x.TemperatureMonitoringUnitId,
+            Label = x.Label,
+            ExpectedTime = x.ExpectedTime,
+            ToleranceMinutes = x.ToleranceMinutes,
+            IsActive = x.IsActive
+        }).ToArray();
+    }
+
+    public async Task<TemperatureScheduleDto> CreateScheduleAsync(UpsertTemperatureScheduleRequest request, CancellationToken cancellationToken = default)
+    {
+        await _featureGateService.EnsureFeatureAsync(request.ShopId, FeatureKeys.TemperatureLogScheduledChecks, cancellationToken);
+        ValidateSchedule(request);
+        var row = new CfgTemperatureSchedule
+        {
+            ShopId = request.ShopId,
+            TemperatureMonitoringUnitId = request.TemperatureMonitoringUnitId,
+            Label = request.Label.Trim(),
+            ExpectedTime = request.ExpectedTime,
+            ToleranceMinutes = request.ToleranceMinutes,
+            IsActive = request.IsActive,
+            CreatedOn = DateTimeOffset.UtcNow,
+            CreatedBy = _currentUserService.UserId
+        };
+        await _scheduleRepository.AddAsync(row, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return await GetScheduleDtoAsync(row.Id, cancellationToken);
+    }
+
+    public async Task<TemperatureScheduleDto> UpdateScheduleAsync(Guid id, UpsertTemperatureScheduleRequest request, CancellationToken cancellationToken = default)
+    {
+        var row = await _scheduleRepository.GetByIdAsync(id, cancellationToken)
+            ?? throw new AppException("temperature_schedule_not_found", "Temperature schedule not found.", 404);
+        await _featureGateService.EnsureFeatureAsync(row.ShopId, FeatureKeys.TemperatureLogScheduledChecks, cancellationToken);
+        ValidateSchedule(request);
+        row.TemperatureMonitoringUnitId = request.TemperatureMonitoringUnitId;
+        row.Label = request.Label.Trim();
+        row.ExpectedTime = request.ExpectedTime;
+        row.ToleranceMinutes = request.ToleranceMinutes;
+        row.IsActive = request.IsActive;
+        row.ModifiedOn = DateTimeOffset.UtcNow;
+        row.ModifiedBy = _currentUserService.UserId;
+        _scheduleRepository.Update(row);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return await GetScheduleDtoAsync(row.Id, cancellationToken);
+    }
+
+    public async Task DeleteScheduleAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var row = await _scheduleRepository.GetByIdAsync(id, cancellationToken)
+            ?? throw new AppException("temperature_schedule_not_found", "Temperature schedule not found.", 404);
+        await _featureGateService.EnsureFeatureAsync(row.ShopId, FeatureKeys.TemperatureLogScheduledChecks, cancellationToken);
+        _scheduleRepository.Remove(row);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    private static void ValidateSchedule(UpsertTemperatureScheduleRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Label))
+        {
+            throw new AppException("validation_failed", "Schedule label is required.", 400);
+        }
+        if (request.ToleranceMinutes < 0 || request.ToleranceMinutes > 360)
+        {
+            throw new AppException("validation_failed", "ToleranceMinutes must be between 0 and 360.", 400);
+        }
+    }
+
+    private async Task<TemperatureScheduleDto> GetScheduleDtoAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var row = await _scheduleRepository.Query().AsNoTracking().FirstAsync(x => x.Id == id, cancellationToken);
+        return new TemperatureScheduleDto
+        {
+            Id = row.Id,
+            ShopId = row.ShopId,
+            TemperatureMonitoringUnitId = row.TemperatureMonitoringUnitId,
+            Label = row.Label,
+            ExpectedTime = row.ExpectedTime,
+            ToleranceMinutes = row.ToleranceMinutes,
+            IsActive = row.IsActive
+        };
     }
 
     public async Task<IReadOnlyCollection<TemperatureMonitoringUnitDto>> ListUnitsAsync(Guid shopId, CancellationToken cancellationToken = default)

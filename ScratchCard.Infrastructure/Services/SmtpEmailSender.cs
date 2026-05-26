@@ -72,6 +72,14 @@ public class SmtpEmailSender : IEmailSender
 
             email.Subject = message.Subject;
 
+            if (message.IsPriority)
+            {
+                // Standard high-priority headers recognised by most clients (Outlook, Gmail).
+                email.Priority = MessagePriority.Urgent;
+                email.XPriority = XMessagePriority.Highest;
+                email.Headers.Add("Importance", "High");
+            }
+
             var bodyBuilder = new BodyBuilder();
 
             if (message.IsBodyHtml)

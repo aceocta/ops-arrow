@@ -14,7 +14,7 @@ export type EntitlementFeature =
   | "refusal_log.basic" | "refusal_log.attachments" | "refusal_log.multi_manager_review"
   | "refusal_log.analytics" | "refusal_log.staff_reports"
   | "compliance.basic" | "compliance.daily_weekly_monthly" | "compliance.advanced" | "compliance.photo_evidence"
-  | "safe_drop.basic" | "safe_drop.canister_limit_alerts" | "safe_drop.advanced"
+  | "safe_drop.basic" | "safe_drop.canister_limit_alerts"
   | "safe_drop.approval_workflow" | "safe_drop.cash_variance"
   | "notifications.email" | "notifications.push" | "notifications.whatsapp" | "notifications.priority"
   | "dashboard.basic" | "dashboard.advanced" | "dashboard.multi_shop"

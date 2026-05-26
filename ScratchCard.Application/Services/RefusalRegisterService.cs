@@ -181,6 +181,33 @@ public class RefusalRegisterService : IRefusalRegisterService
         return entries.Select(x => x.ToDto()).ToArray();
     }
 
+    public async Task<IReadOnlyCollection<StaffRefusalSummaryDto>> GetStaffSummaryAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
+    {
+        if (to < from)
+        {
+            throw new AppException("refusal_invalid_date_range", "To date must be the same or after from date.");
+        }
+
+        var entries = await _entryRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId && x.RefusalDate >= from && x.RefusalDate <= to)
+            .Select(x => new { x.StaffMemberInitials, x.ReviewedOn, x.RecordedOn })
+            .ToListAsync(cancellationToken);
+
+        return entries
+            .GroupBy(x => string.IsNullOrWhiteSpace(x.StaffMemberInitials) ? "—" : x.StaffMemberInitials.Trim().ToUpperInvariant())
+            .Select(g => new StaffRefusalSummaryDto
+            {
+                StaffInitials = g.Key,
+                TotalEntries = g.Count(),
+                ReviewedEntries = g.Count(e => e.ReviewedOn.HasValue),
+                PendingEntries = g.Count(e => !e.ReviewedOn.HasValue),
+                LastEntryOn = g.Max(e => (DateTimeOffset?)e.RecordedOn)
+            })
+            .OrderByDescending(x => x.TotalEntries)
+            .ToArray();
+    }
+
     public async Task<RefusalRegisterDailyLogDto> GetDailyLogAsync(Guid shopId, DateOnly date, CancellationToken cancellationToken = default)
     {
         var entries = await _entryRepository.Query()

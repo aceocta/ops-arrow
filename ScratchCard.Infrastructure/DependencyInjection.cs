@@ -63,6 +63,7 @@ public static class DependencyInjection
         services.AddSingleton<IDayCloseNotificationDispatcher>(provider => provider.GetRequiredService<DayCloseNotificationBackgroundQueue>());
         services.AddHostedService<DayCloseNotificationBackgroundService>();
         services.AddHostedService<ShopTrialExpiryBackgroundService>();
+        services.AddHostedService<TemperatureMissedAlertsBackgroundService>();
 
         // Replace the Noop IAP verifier (registered in Application) with the RevenueCat-backed one.
         // The HttpClient is configured here so timeouts and headers live alongside other infra config.

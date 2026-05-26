@@ -1,5 +1,14 @@
 namespace ScratchCard.Application.DTOs.RefusalRegister;
 
+public class StaffRefusalSummaryDto
+{
+    public string StaffInitials { get; set; } = string.Empty;
+    public int TotalEntries { get; set; }
+    public int ReviewedEntries { get; set; }
+    public int PendingEntries { get; set; }
+    public DateTimeOffset? LastEntryOn { get; set; }
+}
+
 public class CreateRefusalRegisterEntryRequest
 {
     public Guid ShopId { get; set; }

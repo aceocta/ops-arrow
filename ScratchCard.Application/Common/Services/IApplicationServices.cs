@@ -208,6 +208,7 @@ public interface IBusinessDayService
     Task<IReadOnlyCollection<CanisterDto>> ListCanistersAsync(Guid businessDayId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<CanisterDropDto>> ListCanisterDropsAsync(Guid businessDayId, CancellationToken cancellationToken = default);
     Task<CanisterDropDto> AddCanisterDropAsync(Guid businessDayId, CreateCanisterDropRequest request, CancellationToken cancellationToken = default);
+    Task<CanisterDropDto> ApproveCanisterDropAsync(Guid canisterDropId, string? notes, CancellationToken cancellationToken = default);
     Task<BusinessDayDto> CloseAsync(Guid id, CloseBusinessDayRequest request, CancellationToken cancellationToken = default);
     Task<BusinessDayDto> ReopenAsync(Guid id, ReopenBusinessDayRequest request, CancellationToken cancellationToken = default);
     Task<string?> GetCloseAttachmentDataUrlAsync(Guid attachmentId, CancellationToken cancellationToken = default);
@@ -278,6 +279,10 @@ public interface ITemperatureLogService
     Task<IReadOnlyCollection<TemperatureReadingDto>> ListReadingsAsync(Guid shopId, DateOnly from, DateOnly to, Guid? unitId = null, CancellationToken cancellationToken = default);
     Task<TemperatureDailyLogDto> GetDailyLogAsync(Guid shopId, DateOnly date, CancellationToken cancellationToken = default);
     Task<TemperatureDailySignoffDto> SignOffDailyAsync(SignOffTemperatureDailyLogRequest request, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<TemperatureScheduleDto>> ListSchedulesAsync(Guid shopId, CancellationToken cancellationToken = default);
+    Task<TemperatureScheduleDto> CreateScheduleAsync(UpsertTemperatureScheduleRequest request, CancellationToken cancellationToken = default);
+    Task<TemperatureScheduleDto> UpdateScheduleAsync(Guid id, UpsertTemperatureScheduleRequest request, CancellationToken cancellationToken = default);
+    Task DeleteScheduleAsync(Guid id, CancellationToken cancellationToken = default);
 }
 
 public interface IRefusalRegisterService
@@ -289,6 +294,7 @@ public interface IRefusalRegisterService
     Task<RefusalRegisterEntryDto> UpdateEntryAsync(Guid id, UpdateRefusalRegisterEntryRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<RefusalRegisterEntryDto>> ListEntriesAsync(Guid shopId, DateOnly date, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<RefusalRegisterEntryDto>> ListEntriesByRangeAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<StaffRefusalSummaryDto>> GetStaffSummaryAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
     Task<RefusalRegisterDailyLogDto> GetDailyLogAsync(Guid shopId, DateOnly date, CancellationToken cancellationToken = default);
     Task<RefusalRegisterEntryDto> ReviewEntryAsync(Guid id, ReviewRefusalRegisterEntryRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<RefusalRegisterEntryDto>> ReviewEntriesAsync(ReviewRefusalRegisterEntriesRequest request, CancellationToken cancellationToken = default);

@@ -905,7 +905,7 @@ public static class SeedDataInitializer
             FeatureKeys.TemperatureLogScheduledChecks, FeatureKeys.TemperatureLogFullHistory,
             FeatureKeys.RefusalLogAnalytics, FeatureKeys.RefusalLogStaffReports,
             FeatureKeys.ComplianceAdvanced, FeatureKeys.CompliancePhotoEvidence,
-            FeatureKeys.SafeDropAdvanced, FeatureKeys.SafeDropApprovalWorkflow, FeatureKeys.SafeDropCashVariance,
+            FeatureKeys.SafeDropApprovalWorkflow, FeatureKeys.SafeDropCashVariance,
             FeatureKeys.NotificationsPriority,
             FeatureKeys.DashboardAdvanced, FeatureKeys.DashboardMultiShop,
             FeatureKeys.ApprovalWorkflow,

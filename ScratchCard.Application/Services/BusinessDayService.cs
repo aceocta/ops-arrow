@@ -309,6 +309,11 @@ public class BusinessDayService : IBusinessDayService
             _canisterRepository.Update(canister);
         }
 
+        // safe_drop.approval_workflow: Pro plans hold drops in Pending until a manager approves.
+        // Below Pro, drops are auto-approved on creation.
+        var requiresApproval = await _featureGateService.HasFeatureAsync(
+            day.ShopId, FeatureKeys.SafeDropApprovalWorkflow, cancellationToken);
+
         var entity = new CanisterDrop
         {
             ShopId = day.ShopId,
@@ -319,6 +324,9 @@ public class BusinessDayService : IBusinessDayService
             DroppedByUserId = _currentUserService.UserId,
             DroppedByName = droppedByName,
             DroppedOn = now,
+            ApprovalStatus = requiresApproval ? ApprovalStatus.Pending : ApprovalStatus.Approved,
+            ApprovedByUserId = requiresApproval ? null : _currentUserService.UserId,
+            ApprovedOn = requiresApproval ? null : now,
             CreatedOn = now,
             CreatedBy = _currentUserService.UserId
         };
@@ -331,7 +339,7 @@ public class BusinessDayService : IBusinessDayService
             entity.Id,
             "CanisterDropAdded",
             day.ShopId,
-            reason: $"Canister {canister.CanisterNumber} amount {entity.Amount:0.00}",
+            reason: $"Canister {canister.CanisterNumber} amount {entity.Amount:0.00} status={entity.ApprovalStatus}",
             cancellationToken: cancellationToken);
 
         await SendSafeDropOwnerNotificationsAsync(
@@ -341,9 +349,108 @@ public class BusinessDayService : IBusinessDayService
             entity,
             cancellationToken);
 
+        await SendCanisterLimitAlertIfBreachedAsync(day.ShopId, canister, cancellationToken);
+
         entity.Canister = canister;
         entity.Shift = activeShift;
         return entity.ToDto();
+    }
+
+    public async Task<CanisterDropDto> ApproveCanisterDropAsync(Guid canisterDropId, string? notes, CancellationToken cancellationToken = default)
+    {
+        var drop = await _canisterDropRepository.Query()
+            .Include(x => x.Canister)
+            .Include(x => x.Shift)
+            .FirstOrDefaultAsync(x => x.Id == canisterDropId, cancellationToken)
+            ?? throw new AppException("canister_drop_not_found", "Canister drop not found.", 404);
+
+        await _featureGateService.EnsureFeatureAsync(drop.ShopId, FeatureKeys.SafeDropApprovalWorkflow, cancellationToken);
+
+        if (drop.ApprovalStatus == ApprovalStatus.Approved)
+        {
+            return drop.ToDto();
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        drop.ApprovalStatus = ApprovalStatus.Approved;
+        drop.ApprovedByUserId = _currentUserService.UserId;
+        drop.ApprovedOn = now;
+        drop.ApprovalNotes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+        drop.ModifiedOn = now;
+        drop.ModifiedBy = _currentUserService.UserId;
+        _canisterDropRepository.Update(drop);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _auditService.LogAsync(
+            nameof(CanisterDrop),
+            drop.Id,
+            "CanisterDropApproved",
+            drop.ShopId,
+            reason: notes,
+            cancellationToken: cancellationToken);
+
+        return drop.ToDto();
+    }
+
+    private async Task SendCanisterLimitAlertIfBreachedAsync(
+        Guid shopId,
+        Canister canister,
+        CancellationToken cancellationToken)
+    {
+        // Alert dispatch is a Growth+ feature.
+        if (!await _featureGateService.HasFeatureAsync(shopId, FeatureKeys.SafeDropCanisterLimitAlerts, cancellationToken))
+        {
+            return;
+        }
+        if (!canister.MaxAmount.HasValue || canister.MaxAmount.Value <= 0)
+        {
+            return;
+        }
+
+        // Sum amounts on drops that haven't been reconciled (Pending or Approved, both count as
+        // "live" cash in the canister). We treat the canister-level total naively as the running
+        // balance; a future enhancement would reset on reconciliation.
+        var liveTotal = await _canisterDropRepository.Query()
+            .Where(d => d.CanisterId == canister.Id && d.ApprovalStatus != ApprovalStatus.Rejected)
+            .SumAsync(d => (decimal?)d.Amount, cancellationToken) ?? 0m;
+
+        if (liveTotal <= canister.MaxAmount.Value) return;
+
+        var recipients = await _shopUserRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId && x.IsActive && (x.Role.Name == "CompanyOwner" || x.Role.Name == "Manager"))
+            .Include(x => x.Role).Include(x => x.User)
+            .Select(x => x.User.Email).Distinct()
+            .ToListAsync(cancellationToken);
+        if (recipients.Count == 0) return;
+
+        var shopName = await _shopRepository.Query()
+            .AsNoTracking().Where(x => x.Id == shopId).Select(x => x.ShopName)
+            .FirstOrDefaultAsync(cancellationToken) ?? "Unknown Shop";
+
+        var body = $"Shop: {shopName}\nCanister: {canister.CanisterNumber}\nCurrent total: {liveTotal:0.00}\nConfigured limit: {canister.MaxAmount.Value:0.00}\n\nPlease collect the canister and reset.";
+
+        foreach (var recipient in recipients)
+        {
+            try
+            {
+                await _notificationService.SendAsync(new NotificationMessage
+                {
+                    ShopId = shopId,
+                    NotificationType = NotificationType.CanisterLimitExceeded,
+                    Channel = NotificationChannel.Email,
+                    Recipient = recipient,
+                    Subject = $"Safe-drop canister {canister.CanisterNumber} over limit",
+                    Body = body,
+                    RelatedEntityName = nameof(Canister),
+                    RelatedEntityId = canister.Id
+                }, cancellationToken);
+            }
+            catch
+            {
+                // Alert failures must not block the safe-drop record.
+            }
+        }
     }
 
     public async Task<string?> GetCloseAttachmentDataUrlAsync(Guid attachmentId, CancellationToken cancellationToken = default)
@@ -519,6 +626,25 @@ public class BusinessDayService : IBusinessDayService
         var existingSummary = await _dayCloseSummaryRepository.Query()
             .FirstOrDefaultAsync(x => x.BusinessDayId == day.Id, cancellationToken);
 
+        // safe_drop.cash_variance (Pro): include canister-drop variance on the day-close
+        // summary. Variance = sum of recorded drops - (TotalSalesAmount - TotalPrizePayout - LottoPayout - ScratchCardPayout - TillPayout).
+        // Positive => more cash dropped than expected (over); negative => shortfall.
+        decimal? totalDropAmount = null;
+        decimal? cashVariance = null;
+        if (await _featureGateService.HasFeatureAsync(day.ShopId, FeatureKeys.SafeDropCashVariance, cancellationToken))
+        {
+            totalDropAmount = await _canisterDropRepository.Query()
+                .Where(d => d.BusinessDayId == day.Id && d.ApprovalStatus != ApprovalStatus.Rejected)
+                .SumAsync(d => (decimal?)d.Amount, cancellationToken) ?? 0m;
+
+            var expectedDrop = day.TotalSalesAmount
+                - day.TotalPrizePayout
+                - request.LottoPayout
+                - request.ScratchCardPayout
+                - request.TillPayout;
+            cashVariance = totalDropAmount.Value - expectedDrop;
+        }
+
         if (existingSummary is null)
         {
             var createdSummary = new ScratchCardDayCloseSummary
@@ -527,6 +653,8 @@ public class BusinessDayService : IBusinessDayService
                 LottoPayout = request.LottoPayout,
                 ScratchCardPayout = request.ScratchCardPayout,
                 TillPayout = request.TillPayout,
+                TotalCanisterDropAmount = totalDropAmount,
+                CashVariance = cashVariance,
                 CreatedOn = DateTimeOffset.UtcNow,
                 CreatedBy = _currentUserService.UserId
             };
@@ -538,6 +666,8 @@ public class BusinessDayService : IBusinessDayService
             existingSummary.LottoPayout = request.LottoPayout;
             existingSummary.ScratchCardPayout = request.ScratchCardPayout;
             existingSummary.TillPayout = request.TillPayout;
+            existingSummary.TotalCanisterDropAmount = totalDropAmount;
+            existingSummary.CashVariance = cashVariance;
             existingSummary.ModifiedOn = DateTimeOffset.UtcNow;
             existingSummary.ModifiedBy = _currentUserService.UserId;
             _dayCloseSummaryRepository.Update(existingSummary);

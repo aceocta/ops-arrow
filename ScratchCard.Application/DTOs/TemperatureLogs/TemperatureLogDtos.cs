@@ -15,6 +15,27 @@ public class TemperatureMonitoringUnitDto
     public string? Notes { get; set; }
 }
 
+public class TemperatureScheduleDto
+{
+    public Guid Id { get; set; }
+    public Guid ShopId { get; set; }
+    public Guid? TemperatureMonitoringUnitId { get; set; }
+    public string Label { get; set; } = string.Empty;
+    public TimeOnly ExpectedTime { get; set; }
+    public int ToleranceMinutes { get; set; }
+    public bool IsActive { get; set; }
+}
+
+public class UpsertTemperatureScheduleRequest
+{
+    public Guid ShopId { get; set; }
+    public Guid? TemperatureMonitoringUnitId { get; set; }
+    public string Label { get; set; } = string.Empty;
+    public TimeOnly ExpectedTime { get; set; }
+    public int ToleranceMinutes { get; set; } = 30;
+    public bool IsActive { get; set; } = true;
+}
+
 public class CreateTemperatureMonitoringUnitRequest
 {
     public Guid ShopId { get; set; }
