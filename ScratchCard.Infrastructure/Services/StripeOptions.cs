@@ -28,8 +28,8 @@ public class StripeOptions
     /// Where Stripe redirects after a successful checkout. We append a query string so the user
     /// lands on a page that nudges them back to the mobile app.
     /// </summary>
-    public string SuccessUrl { get; set; } = "https://opsarrow.co.uk/billing/success?session_id={CHECKOUT_SESSION_ID}";
+    public string SuccessUrl { get; set; } = "https://opsarrow.com/billing/success?session_id={CHECKOUT_SESSION_ID}";
 
     /// <summary>Where Stripe redirects when the user cancels.</summary>
-    public string CancelUrl { get; set; } = "https://opsarrow.co.uk/billing/cancel";
+    public string CancelUrl { get; set; } = "https://opsarrow.com/billing/cancel";
 }

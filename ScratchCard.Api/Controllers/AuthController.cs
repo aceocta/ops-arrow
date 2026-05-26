@@ -103,7 +103,7 @@ public class AuthController : BaseApiController
         var deepLink = $"scratchcard://reset-password?token={encodedToken}";
         const string androidStoreUrl = "https://play.google.com/store/apps/details?id=com.aceocta.opsarrow";
         const string iosStoreUrl = "https://apps.apple.com/us/search?term=Ops%20Arrow";
-        const string desktopFallbackUrl = "https://opsarrow.co.uk";
+        const string desktopFallbackUrl = "https://opsarrow.com";
 
         var html = """
             <!doctype html>
