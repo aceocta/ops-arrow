@@ -611,7 +611,9 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
         })),
     [computedRows, entries]
   );
-  const canFinalize = computedRows.length > 0 && pendingRows === 0 && errorRows === 0 && !isSubmitting;
+  // A shift with zero active packs is finalisable as a no-sales close — there's nothing for
+  // the shopkeeper to scan or enter, so blocking them would leave the shift in limbo.
+  const canFinalize = errorRows === 0 && pendingRows === 0 && !isSubmitting;
   const isOnline = Boolean(netInfo.isConnected);
   const readinessMessage = errorRows > 0
     ? "Resolve serial errors before finalising the shift."
@@ -627,9 +629,21 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
     }
 
     const packs = packsQuery.data ?? [];
+    // A zero-pack shift is allowed — it submits with an empty entries list (no-sales close).
+    // Confirm with the shopkeeper first so they don't finalise by mistake when packs are
+    // genuinely missing (e.g. they forgot to activate them).
     if (packs.length === 0) {
-      Alert.alert("No active packs", "No active packs are available for shift close.");
-      return;
+      const proceed = await new Promise<boolean>((resolve) => {
+        Alert.alert(
+          "Close shift with no sales?",
+          "There are no active packs for this shift. Finalising will close it with zero sales recorded. Continue?",
+          [
+            { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+            { text: "Close shift", style: "destructive", onPress: () => resolve(true) },
+          ],
+        );
+      });
+      if (!proceed) return;
     }
 
     for (const row of computedRows) {
@@ -753,14 +767,40 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
     }
   }
 
+  // Up to three pack numbers shown inline; the rest collapsed into "+N more" so the footer
+  // doesn't grow unbounded if the shopkeeper has many active packs.
+  const pendingPackList = pendingPackHints.slice(0, 3).map((p) => `#${p.packNumber}`).join(", ");
+  const pendingPackOverflow = pendingPackHints.length > 3 ? ` +${pendingPackHints.length - 3} more` : "";
+  const blockingReason: string = !isSubmitting
+    ? (errorRows > 0
+        ? `${errorRows} pack${errorRows === 1 ? "" : "s"} have a serial error — tap each red row to fix.`
+        : pendingRows > 0
+          ? `${pendingRows} pack${pendingRows === 1 ? "" : "s"} still need a closing serial${pendingPackList ? ` (${pendingPackList}${pendingPackOverflow})` : ""}.`
+          : "")
+    : "";
+  const readyProgress = computedRows.length > 0
+    ? `${completedRows} of ${computedRows.length} pack${computedRows.length === 1 ? "" : "s"} ready`
+    : "No active packs — this will be a zero-sales close.";
+
   const finalizeFooter = (
     <View style={[ui.card, styles.fixedFooterCard]}>
-      <View >
-        {!canFinalize ? (
-          <Text style={styles.meta}>
-            {isManualClosingSerialEnabled
-              ? "Enter valid closing serials for all packs before finalising."
-              : "Scan all packs and resolve serial errors before finalising."}
+      <View style={styles.finalizeFooterContent}>
+        {readyProgress ? (
+          <View style={styles.finalizeProgressRow}>
+            <Text style={styles.finalizeProgressText}>{readyProgress}</Text>
+            {errorRows > 0 ? (
+              <Text style={[styles.finalizeProgressText, styles.finalizeProgressTextError]}>
+                {errorRows} error{errorRows === 1 ? "" : "s"}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+        {!canFinalize && blockingReason ? (
+          <Text
+            style={[styles.meta, errorRows > 0 ? styles.finalizeProgressTextError : null]}
+            accessibilityLiveRegion="polite"
+          >
+            {blockingReason}
           </Text>
         ) : null}
 
@@ -833,8 +873,10 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
         {computedRows.length === 0 ? (
           <View style={[ui.card, styles.compactCard]}>
             <Text style={styles.cardTitle}>No Active Packs</Text>
-            <Text style={styles.meta}>No packs are currently active for this shift's shop.</Text>
-            <Text style={styles.meta}>Activate packs from Scratch Card Packs before closing the shift.</Text>
+            <Text style={styles.meta}>
+              No packs are currently active for this shift's shop. You can still finalise the shift
+              as a zero-sales close, or activate packs first.
+            </Text>
             <PrimaryButton
               label="Go To Packs"
               tone="neutral"
@@ -1087,6 +1129,24 @@ const styles = StyleSheet.create({
   fixedFooterCard: {
     paddingVertical: appTheme.spacing.sm,
     marginBottom: Platform.OS === "android" ? appTheme.spacing.sm : 0,
+  },
+  finalizeFooterContent: {
+    gap: 6,
+  },
+  finalizeProgressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.xs,
+  },
+  finalizeProgressText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 16,
+  },
+  finalizeProgressTextError: {
+    color: appTheme.colors.danger,
   },
   compactCard: {
     gap: appTheme.spacing.sm,
