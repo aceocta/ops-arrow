@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Ionicons } from "@expo/vector-icons";
 import {
   getTemperatureDailyLog,
   listTemperatureUnits,
@@ -278,7 +279,7 @@ export function TemperatureLogScreen() {
               accessibilityRole="button"
               accessibilityLabel="Previous day"
             >
-              <Text style={styles.dateNavButtonText}>{"<"}</Text>
+              <Ionicons name="chevron-back" size={18} color={appTheme.colors.text} />
             </Pressable>
             <DateTimeField
               style={{ flex: 1 }}
@@ -300,7 +301,7 @@ export function TemperatureLogScreen() {
               accessibilityRole="button"
               accessibilityLabel="Next day"
             >
-              <Text style={styles.dateNavButtonText}>{">"}</Text>
+              <Ionicons name="chevron-forward" size={18} color={appTheme.colors.text} />
             </Pressable>
           </View>
 

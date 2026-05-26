@@ -1493,7 +1493,7 @@ export function ComplianceChecksScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Previous day"
                 >
-                  <Text style={styles.dailyDateNavButtonText}>{"<"}</Text>
+                  <Ionicons name="chevron-back" size={18} color={appTheme.colors.text} />
                 </Pressable>
                 <DateTimeField style={{ flex: 1 }} mode="date" value={selectedDate} onChange={setSelectedDate} />
                 <Pressable
@@ -1502,7 +1502,7 @@ export function ComplianceChecksScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Next day"
                 >
-                  <Text style={styles.dailyDateNavButtonText}>{">"}</Text>
+                  <Ionicons name="chevron-forward" size={18} color={appTheme.colors.text} />
                 </Pressable>
               </View>
               {/* <Text style={styles.meta}>Selected date: {formatDay(selectedDate)}</Text> */}

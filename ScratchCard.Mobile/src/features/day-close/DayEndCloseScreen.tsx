@@ -1657,7 +1657,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
         <View style={[ui.card, styles.sectionCard]}>
           <View style={styles.sectionTitleRow}>
             <View style={styles.sectionTitleBlock}>
-              <Text style={styles.sectionTitle}>Shift Operations</Text>
+              <Text style={styles.sectionTitle}>Shifts</Text>
               {/* <Text style={styles.meta}>Manage shifts, review times, and close active shifts.</Text> */}
             </View>
             <View style={styles.shiftHeaderActions}>
@@ -1834,7 +1834,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
         {isSafeDropManagementVisible ? (
           <View style={[ui.card, styles.sectionCard]}>
             <View style={styles.sectionTitleRow}>
-              <Text style={styles.sectionTitle}>Safe Drop List</Text>
+              <Text style={styles.sectionTitle}>Safe Drops</Text>
               <StatusBadge
                 label={pendingDropCount > 0 ? `${pendingDropCount} pending` : `${visibleCanisterDrops.length}`}
                 tone={pendingDropCount > 0 ? "warning" : visibleCanisterDrops.length > 0 ? "success" : "neutral"}

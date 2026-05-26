@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -460,7 +461,7 @@ export function RefusalRegisterScreen() {
             accessibilityRole="button"
             accessibilityLabel="Previous day"
           >
-            <Text style={styles.dateNavButtonText}>{"<"}</Text>
+            <Ionicons name="chevron-back" size={18} color={appTheme.colors.text} />
           </Pressable>
           <DateTimeField
             style={{ flex: 1 }}
@@ -482,7 +483,7 @@ export function RefusalRegisterScreen() {
             accessibilityRole="button"
             accessibilityLabel="Next day"
           >
-            <Text style={styles.dateNavButtonText}>{">"}</Text>
+            <Ionicons name="chevron-forward" size={18} color={appTheme.colors.text} />
           </Pressable>
         </View>
 
