@@ -8,6 +8,7 @@ type ScreenContainerProps = PropsWithChildren<{
   footer?: React.ReactNode;
   keyboardScrollOffset?: number;
   refreshControl?: React.ReactElement<RefreshControlProps>;
+  scrollable?: boolean;
 }>;
 
 export function ScreenContainer({
@@ -16,6 +17,7 @@ export function ScreenContainer({
   footer,
   keyboardScrollOffset = 100,
   refreshControl,
+  scrollable = true,
 }: ScreenContainerProps) {
   const entrance = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
@@ -82,26 +84,37 @@ export function ScreenContainer({
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["left", "right", "bottom"]}>
-      <ScrollView
-        ref={scrollViewRef}
-        contentContainerStyle={contentStyle}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-        automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
-        contentInsetAdjustmentBehavior="automatic"
-        nestedScrollEnabled
-        refreshControl={refreshControl}
-      >
+      {scrollable ? (
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={contentStyle}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+          automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
+          contentInsetAdjustmentBehavior="automatic"
+          nestedScrollEnabled
+          refreshControl={refreshControl}
+        >
+          <Animated.View
+            style={[
+              styles.body,
+              centerContent ? styles.bodyCentered : null,
+              { opacity: entrance, transform: [{ translateY }] },
+            ]}
+          >
+            {children}
+          </Animated.View>
+        </ScrollView>
+      ) : (
         <Animated.View
           style={[
-            styles.body,
-            centerContent ? styles.bodyCentered : null,
-            { opacity: entrance, transform: [{ translateY }] },
+            styles.bodyNoScroll,
+            { paddingBottom: keyboardInset + footerReserve, opacity: entrance, transform: [{ translateY }] },
           ]}
         >
           {children}
         </Animated.View>
-      </ScrollView>
+      )}
       {footer ? (
         <View style={styles.footerShell}>
           {footer}
@@ -120,6 +133,11 @@ const styles = StyleSheet.create({
   },
   body: {
     gap: 16,
+  },
+  bodyNoScroll: {
+    flex: 1,
+    paddingHorizontal: appTheme.spacing.md,
+    paddingTop: appTheme.spacing.xs,
   },
   bodyCentered: {
     flexGrow: 1,

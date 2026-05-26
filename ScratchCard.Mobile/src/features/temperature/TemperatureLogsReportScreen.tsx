@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useMemo, useState } from "react";
+import { Alert, FlatList, StyleSheet, Text, View } from "react-native";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
@@ -45,6 +45,27 @@ function formatTemperature(value: number) {
   return `${value.toFixed(1)} C`;
 }
 
+type FlatReadingRow =
+  | { kind: "date"; key: string; date: string; totalReadings: number }
+  | { kind: "unit"; key: string; date: string; unitName: string; readingCount: number }
+  | {
+      kind: "reading";
+      key: string;
+      reading: {
+        id: string;
+        equipmentType: string;
+        isOutOfRange: boolean;
+        readingTime?: string;
+        temperatureCelsius: number;
+        minTemperatureCelsius: number;
+        maxTemperatureCelsius: number;
+        recordedByName?: string;
+        checkedByInitials?: string;
+        actionTaken?: string;
+        notes?: string;
+      };
+    };
+
 export function TemperatureLogsReportScreen() {
   const { activeShopId, activeShop, profile } = useAuth();
   const shopId = activeShopId;
@@ -65,6 +86,26 @@ export function TemperatureLogsReportScreen() {
     [readingsQuery.data]
   );
   const groups = useMemo(() => groupTemperatureReadingsByDateAndUnit(readings), [readings]);
+  const flatRows = useMemo<FlatReadingRow[]>(() => {
+    const rows: FlatReadingRow[] = [];
+    for (const group of groups) {
+      const totalReadings = group.units.reduce((sum, unit) => sum + unit.entries.length, 0);
+      rows.push({ kind: "date", key: `date:${group.date}`, date: group.date, totalReadings });
+      for (const unit of group.units) {
+        rows.push({
+          kind: "unit",
+          key: `unit:${group.date}:${unit.unitName}`,
+          date: group.date,
+          unitName: unit.unitName,
+          readingCount: unit.entries.length,
+        });
+        for (const reading of unit.entries) {
+          rows.push({ kind: "reading", key: `reading:${reading.id}`, reading: reading as any });
+        }
+      }
+    }
+    return rows;
+  }, [groups]);
   const outOfRangeCount = useMemo(
     () => readings.filter((reading) => reading.isOutOfRange).length,
     [readings]
@@ -161,108 +202,139 @@ export function TemperatureLogsReportScreen() {
     }
   };
 
-  return (
-    <ScreenContainer>
-      <View style={ui.card}>
-        <Text style={styles.sectionTitle}>Temperature Logs Range Report</Text>
-        <Text style={styles.subtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
-        <Text style={styles.meta}>Report Date Time: {reportDateTime}</Text>
-        <View style={styles.rangeRow}>
-          <DateTimeField style={{ flex: 1 }} mode="date" value={fromDate} onChange={setFromDate} />
-          <DateTimeField style={{ flex: 1 }} mode="date" value={toDate} onChange={setToDate} />
-        </View>
-        {!rangeIsValid ? <Text style={styles.warning}>From date must be earlier than or equal to To date.</Text> : null}
-        <View style={styles.metricsRow}>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricValue}>{readings.length}</Text>
-            <Text style={styles.metricLabel}>Total</Text>
-          </View>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricValue}>{inRangeCount}</Text>
-            <Text style={styles.metricLabel}>In range</Text>
-          </View>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricValue}>{outOfRangeCount}</Text>
-            <Text style={styles.metricLabel}>Out of range</Text>
-          </View>
-        </View>
-        <View style={styles.actionRow}>
-          <ReportActionButton
-            icon="print-outline"
-            label="Print"
-            onPress={() => void printReport()}
-            disabled={!rangeIsValid || readingsQuery.isLoading || readings.length === 0}
-          />
-          <ReportActionButton
-            icon="mail-outline"
-            label={emailReportMutation.isPending ? "Sending..." : "Email"}
-            onPress={() => void emailReport()}
-            disabled={!rangeIsValid || readingsQuery.isLoading || readings.length === 0 || emailReportMutation.isPending}
-          />
-          <ReportActionButton
-            icon="share-social-outline"
-            label="Share"
-            onPress={() => void shareReport()}
-            disabled={!rangeIsValid || readingsQuery.isLoading || readings.length === 0}
+  const keyExtractor = useCallback((row: FlatReadingRow) => row.key, []);
+  const renderItem = useCallback(({ item }: { item: FlatReadingRow }) => {
+    if (item.kind === "date") {
+      return (
+        <View style={styles.groupHeader}>
+          <Text style={styles.groupTitle}>Date: {item.date}</Text>
+          <StatusBadge
+            label={`${item.totalReadings} reading${item.totalReadings === 1 ? "" : "s"}`}
+            tone="neutral"
           />
         </View>
+      );
+    }
+    if (item.kind === "unit") {
+      return (
+        <View style={styles.unitHeader}>
+          <Text style={styles.unitTitle}>{item.unitName}</Text>
+          <StatusBadge
+            label={`${item.readingCount} reading${item.readingCount === 1 ? "" : "s"}`}
+            tone="neutral"
+          />
+        </View>
+      );
+    }
+    const reading = item.reading;
+    return (
+      <View style={styles.entryCard}>
+        <View style={styles.entryHeader}>
+          <Text style={styles.entryUnit}>{reading.equipmentType}</Text>
+          <StatusBadge
+            label={reading.isOutOfRange ? "Out of range" : "In range"}
+            tone={reading.isOutOfRange ? "danger" : "success"}
+          />
+        </View>
+        <Text style={styles.entryMeta}>{reading.readingTime || "--:--"}</Text>
+        <Text style={styles.entryTemp}>
+          {formatTemperature(Number(reading.temperatureCelsius))} (Range{" "}
+          {formatTemperature(reading.minTemperatureCelsius)} to{" "}
+          {formatTemperature(reading.maxTemperatureCelsius)})
+        </Text>
+        <Text style={styles.meta}>
+          Checked by: {reading.recordedByName ?? reading.checkedByInitials ?? "-"}
+        </Text>
+        {reading.actionTaken ? <Text style={styles.meta}>Action: {reading.actionTaken}</Text> : null}
+        {reading.notes ? <Text style={styles.meta}>Notes: {reading.notes}</Text> : null}
       </View>
+    );
+  }, []);
 
-      <View style={ui.card}>
-        <Text style={styles.sectionTitle}>Loaded Logs ({fromDate} to {toDate})</Text>
-        {readingsQuery.isLoading ? <Text style={styles.meta}>Loading logs...</Text> : null}
-        {!readingsQuery.isLoading && readings.length === 0 ? (
-          <Text style={styles.meta}>No temperature logs found for this date range.</Text>
-        ) : null}
-        {groups.map((group) => {
-          const totalReadings = group.units.reduce((sum, unit) => sum + unit.entries.length, 0);
-
-          return (
-            <View key={group.date} style={styles.groupBlock}>
-              <View style={styles.groupHeader}>
-                <Text style={styles.groupTitle}>Date: {group.date}</Text>
-                <StatusBadge
-                  label={`${totalReadings} reading${totalReadings === 1 ? "" : "s"}`}
-                  tone="neutral"
-                />
-              </View>
-              {group.units.map((unit) => (
-                <View key={`${group.date}-${unit.unitName}`} style={styles.unitBlock}>
-                  <View style={styles.unitHeader}>
-                    <Text style={styles.unitTitle}>{unit.unitName}</Text>
-                    <StatusBadge
-                      label={`${unit.entries.length} reading${unit.entries.length === 1 ? "" : "s"}`}
-                      tone="neutral"
-                    />
-                  </View>
-                  {unit.entries.map((reading) => (
-                    <View key={reading.id} style={styles.entryCard}>
-                      <View style={styles.entryHeader}>
-                        <Text style={styles.entryUnit}>{reading.equipmentType}</Text>
-                        <StatusBadge
-                          label={reading.isOutOfRange ? "Out of range" : "In range"}
-                          tone={reading.isOutOfRange ? "danger" : "success"}
-                        />
-                      </View>
-                      <Text style={styles.entryMeta}>{reading.readingTime || "--:--"}</Text>
-                      <Text style={styles.entryTemp}>
-                        {formatTemperature(Number(reading.temperatureCelsius))} (Range{" "}
-                        {formatTemperature(reading.minTemperatureCelsius)} to{" "}
-                        {formatTemperature(reading.maxTemperatureCelsius)})
-                      </Text>
-                      <Text style={styles.meta}>
-                        Checked by: {reading.recordedByName ?? reading.checkedByInitials ?? "-"}
-                      </Text>
-                      {reading.actionTaken ? <Text style={styles.meta}>Action: {reading.actionTaken}</Text> : null}
-                      {reading.notes ? <Text style={styles.meta}>Notes: {reading.notes}</Text> : null}
-                    </View>
-                  ))}
-                </View>
-              ))}
+  const ListHeader = useMemo(
+    () => (
+      <View>
+        <View style={ui.card}>
+          <Text style={styles.sectionTitle}>Temperature Logs Range Report</Text>
+          <Text style={styles.subtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
+          <Text style={styles.meta}>Report Date Time: {reportDateTime}</Text>
+          <View style={styles.rangeRow}>
+            <DateTimeField style={{ flex: 1 }} mode="date" value={fromDate} onChange={setFromDate} />
+            <DateTimeField style={{ flex: 1 }} mode="date" value={toDate} onChange={setToDate} />
+          </View>
+          {!rangeIsValid ? <Text style={styles.warning}>From date must be earlier than or equal to To date.</Text> : null}
+          <View style={styles.metricsRow}>
+            <View style={styles.metricCard}>
+              <Text style={styles.metricValue}>{readings.length}</Text>
+              <Text style={styles.metricLabel}>Total</Text>
             </View>
-          );
-        })}
+            <View style={styles.metricCard}>
+              <Text style={styles.metricValue}>{inRangeCount}</Text>
+              <Text style={styles.metricLabel}>In range</Text>
+            </View>
+            <View style={styles.metricCard}>
+              <Text style={styles.metricValue}>{outOfRangeCount}</Text>
+              <Text style={styles.metricLabel}>Out of range</Text>
+            </View>
+          </View>
+          <View style={styles.actionRow}>
+            <ReportActionButton
+              icon="print-outline"
+              label="Print"
+              onPress={() => void printReport()}
+              disabled={!rangeIsValid || readingsQuery.isLoading || readings.length === 0}
+            />
+            <ReportActionButton
+              icon="mail-outline"
+              label={emailReportMutation.isPending ? "Sending..." : "Email"}
+              onPress={() => void emailReport()}
+              disabled={!rangeIsValid || readingsQuery.isLoading || readings.length === 0 || emailReportMutation.isPending}
+            />
+            <ReportActionButton
+              icon="share-social-outline"
+              label="Share"
+              onPress={() => void shareReport()}
+              disabled={!rangeIsValid || readingsQuery.isLoading || readings.length === 0}
+            />
+          </View>
+        </View>
+
+        <View style={[ui.card, { marginTop: 16 }]}>
+          <Text style={styles.sectionTitle}>Loaded Logs ({fromDate} to {toDate})</Text>
+          {readingsQuery.isLoading ? <Text style={styles.meta}>Loading logs...</Text> : null}
+          {!readingsQuery.isLoading && readings.length === 0 ? (
+            <Text style={styles.meta}>No temperature logs found for this date range.</Text>
+          ) : null}
+        </View>
       </View>
+    ),
+    [
+      activeShop?.shopName,
+      reportDateTime,
+      fromDate,
+      toDate,
+      rangeIsValid,
+      readings.length,
+      inRangeCount,
+      outOfRangeCount,
+      readingsQuery.isLoading,
+      emailReportMutation.isPending,
+    ]
+  );
+
+  return (
+    <ScreenContainer scrollable={false}>
+      <FlatList
+        data={flatRows}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
+        ListHeaderComponent={ListHeader}
+        contentContainerStyle={{ paddingBottom: 32 }}
+        removeClippedSubviews
+        initialNumToRender={15}
+        maxToRenderPerBatch={20}
+        windowSize={9}
+      />
     </ScreenContainer>
   );
 }

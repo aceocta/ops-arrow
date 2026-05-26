@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useMemo, useState } from "react";
+import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -551,6 +551,46 @@ export function DailySalesReportScreen() {
   );
 }
 
+type ShiftSalesRow = {
+  businessDate: string;
+  shiftName: string;
+  salesAmount?: number;
+  soldQuantity?: number;
+  difference?: number;
+};
+
+const ShiftSalesRowItem = React.memo(function ShiftSalesRowItem({ row }: { row: ShiftSalesRow }) {
+  const positive = isPositiveVariance(row);
+  const negative = isNegativeVariance(row);
+  return (
+    <View
+      style={[
+        styles.item,
+        positive ? styles.itemVariancePositive : null,
+        negative ? styles.itemVarianceNegative : null,
+      ]}
+    >
+      <View style={styles.itemHeader}>
+        <Text style={styles.itemTitle}>{row.businessDate} | {row.shiftName}</Text>
+        {positive ? <StatusBadge label="Over" tone="warning" /> : null}
+        {negative ? <StatusBadge label="Short" tone="danger" /> : null}
+        {!hasVariance(row) ? <StatusBadge label="Balanced" tone="success" /> : null}
+      </View>
+      <Text style={styles.meta}>Total Sales: {formatCurrency(Number(row.salesAmount))}</Text>
+      <Text style={styles.meta}>Qty: {Number(row.soldQuantity ?? 0)}</Text>
+      <Text
+        style={[
+          styles.meta,
+          positive ? styles.varianceTextPositive : null,
+          negative ? styles.varianceTextNegative : null,
+        ]}
+      >
+        Difference: {formatCurrency(getDifferenceValue(row))}
+      </Text>
+    </View>
+  );
+});
+
 export function ShiftSalesReportScreen() {
   const { activeShopId, activeShop } = useAuth();
   const shopId = activeShopId;
@@ -562,42 +602,38 @@ export function ShiftSalesReportScreen() {
     enabled: Boolean(shopId) && from.length === 10 && to.length === 10,
   });
 
+  const data = (query.data ?? []) as ShiftSalesRow[];
+  const renderItem = useCallback(
+    ({ item }: { item: ShiftSalesRow }) => <ShiftSalesRowItem row={item} />,
+    []
+  );
+  const keyExtractor = useCallback(
+    (row: ShiftSalesRow, index: number) => `${row.businessDate}-${row.shiftName}-${index}`,
+    []
+  );
+  const ListHeader = useMemo(
+    () => (
+      <View style={[ui.card, { marginBottom: 12 }]}>
+        <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
+        <DateRangeInputs from={from} to={to} setFrom={setFrom} setTo={setTo} />
+      </View>
+    ),
+    [activeShop?.shopName, from, to]
+  );
+
   return (
-    <ScreenContainer>
-      <ScrollView contentContainerStyle={{ gap: 12 }}>
-        <View style={ui.card}>
-          <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
-          <DateRangeInputs from={from} to={to} setFrom={setFrom} setTo={setTo} />
-          {(query.data ?? []).map((row, index) => (
-            <View
-              style={[
-                styles.item,
-                isPositiveVariance(row) ? styles.itemVariancePositive : null,
-                isNegativeVariance(row) ? styles.itemVarianceNegative : null,
-              ]}
-              key={`${row.businessDate}-${row.shiftName}-${index}`}
-            >
-              <View style={styles.itemHeader}>
-                <Text style={styles.itemTitle}>{row.businessDate} | {row.shiftName}</Text>
-                {isPositiveVariance(row) ? <StatusBadge label="Over" tone="warning" /> : null}
-                {isNegativeVariance(row) ? <StatusBadge label="Short" tone="danger" /> : null}
-                {!hasVariance(row) ? <StatusBadge label="Balanced" tone="success" /> : null}
-              </View>
-              <Text style={styles.meta}>Total Sales: {formatCurrency(Number(row.salesAmount))}</Text>
-              <Text style={styles.meta}>Qty: {Number(row.soldQuantity ?? 0)}</Text>
-              <Text
-                style={[
-                  styles.meta,
-                  isPositiveVariance(row) ? styles.varianceTextPositive : null,
-                  isNegativeVariance(row) ? styles.varianceTextNegative : null,
-                ]}
-              >
-                Difference: {formatCurrency(getDifferenceValue(row))}
-              </Text>
-            </View>
-          ))}
-        </View>
-      </ScrollView>
+    <ScreenContainer scrollable={false}>
+      <FlatList
+        data={data}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
+        ListHeaderComponent={ListHeader}
+        contentContainerStyle={{ paddingBottom: 32 }}
+        removeClippedSubviews
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={7}
+      />
     </ScreenContainer>
   );
 }

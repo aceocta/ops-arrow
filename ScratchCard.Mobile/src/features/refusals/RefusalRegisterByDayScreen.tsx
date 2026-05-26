@@ -33,6 +33,7 @@ export function RefusalRegisterByDayScreen() {
     queryKey: ["refusal-daily-log-view", shopId, selectedDate],
     queryFn: () => getRefusalDailyLog(shopId as string, selectedDate),
     enabled: Boolean(shopId) && selectedDate.length === 10,
+    staleTime: 2 * 60 * 1000,
   });
 
   const entries = dailyLogQuery.data?.entries ?? [];

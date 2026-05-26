@@ -34,6 +34,7 @@ export function SubscriptionSummaryScreen() {
     queryKey: ["shop-subscription-summary", shopId],
     queryFn: () => getShopSubscriptionSummary(shopId as string),
     enabled: Boolean(shopId),
+    staleTime: 5 * 60 * 1000,
   });
 
   const summary = summaryQuery.data;

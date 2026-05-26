@@ -49,6 +49,7 @@ export function TemperatureUnitsScreen() {
     queryKey: ["temperature-units", shopId],
     queryFn: () => listTemperatureUnits(shopId as string),
     enabled: Boolean(shopId),
+    staleTime: 10 * 60 * 1000,
   });
 
   const createUnitMutation = useMutation({

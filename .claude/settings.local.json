@@ -7,7 +7,9 @@
       "Bash(git log *)",
       "Bash(sort -t: -k2 -n -r)",
       "Bash(grep -v \"RoleNames\\\\.\\\\\\(OperationalRoles\\\\|OwnerAndManager\\\\|ManagementAndAbove\\\\|OwnerAndPlatform\\\\|AllAuthenticated\\\\|PlatformAdmin\\\\\\)$\")",
-      "Bash(grep -v \"RequireShopRole\\\\|^--$\")"
+      "Bash(grep -v \"RequireShopRole\\\\|^--$\")",
+      "Bash(cd /j:/ScratchCard/ScratchCard.Mobile/src && find . -type f -name \"*.tsx\" -o -name \"*.ts\" | head -30)",
+      "Read(//j:/ScratchCard/ScratchCard.Mobile/**)"
     ]
   }
 }

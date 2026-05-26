@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -73,6 +73,25 @@ export function RefusalReportScreen() {
 
   const entries = useMemo(() => sortRefusalEntriesForReport(rangeQuery.data ?? []), [rangeQuery.data]);
   const groupedEntries = useMemo(() => groupEntriesByReviewedDateTime(entries), [entries]);
+  type FlatRow =
+    | { kind: "group"; key: string; title: string; count: number; pending: boolean }
+    | { kind: "entry"; key: string; entry: any };
+  const flatRows = useMemo<FlatRow[]>(() => {
+    const rows: FlatRow[] = [];
+    for (const group of groupedEntries) {
+      rows.push({
+        kind: "group",
+        key: `group:${group.key}`,
+        title: group.title,
+        count: group.entries.length,
+        pending: group.pending,
+      });
+      for (const entry of group.entries) {
+        rows.push({ kind: "entry", key: `entry:${entry.id}`, entry });
+      }
+    }
+    return rows;
+  }, [groupedEntries]);
   const reviewedCount = useMemo(() => entries.filter((entry) => Boolean(entry.reviewedOn)).length, [entries]);
   const pendingCount = entries.length - reviewedCount;
   const reviewRate = entries.length > 0 ? Math.round((reviewedCount / entries.length) * 100) : 0;
@@ -103,13 +122,31 @@ export function RefusalReportScreen() {
     },
   });
 
+  const signatureCacheRef = useRef(new Map<string, string | undefined>());
+
+  useEffect(() => {
+    signatureCacheRef.current.clear();
+  }, [shopId, fromDate, toDate]);
+
+  const fetchSignatureCached = useCallback(async (cacheKey: string, fetcher: () => Promise<string | undefined>) => {
+    const cache = signatureCacheRef.current;
+    if (cache.has(cacheKey)) {
+      return cache.get(cacheKey);
+    }
+    const value = await fetcher().catch(() => undefined);
+    cache.set(cacheKey, value);
+    return value;
+  }, []);
+
   const buildReportHtml = async () => {
     const pdfEntries = await Promise.all(
       entries.map(async (entry) => {
         const [staffSignatureDataUrl, managerSignatureDataUrl] = await Promise.all([
-          entry.signatureImagePath ? getRefusalEntrySignature(entry.id).catch(() => undefined) : Promise.resolve(undefined),
+          entry.signatureImagePath
+            ? fetchSignatureCached(`staff:${entry.id}`, () => getRefusalEntrySignature(entry.id))
+            : Promise.resolve(undefined),
           entry.reviewSignatureImagePath
-            ? getRefusalEntryReviewSignature(entry.id).catch(() => undefined)
+            ? fetchSignatureCached(`review:${entry.id}`, () => getRefusalEntryReviewSignature(entry.id))
             : Promise.resolve(undefined),
         ]);
 
@@ -196,120 +233,158 @@ export function RefusalReportScreen() {
     );
   }
 
-  return (
-    <ScreenContainer>
-      <View style={styles.screenHeaderCard}>
-        <View style={styles.screenHeaderTop}>
-          <View style={styles.screenHeaderTitleWrap}>
-            {/* <Text style={styles.screenHeaderEyebrow}>No ID / No Sale</Text> */}
-            <Text style={styles.screenHeaderTitle}>Refusal Report</Text>
-            <Text style={styles.subtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
+  const keyExtractor = useCallback((row: FlatRow) => row.key, []);
+  const renderItem = useCallback(
+    ({ item }: { item: FlatRow }) => {
+      if (item.kind === "group") {
+        return (
+          <View style={styles.groupHeader}>
+            <Text style={styles.groupTitle}>{item.title}</Text>
+            <StatusBadge
+              label={`${item.count} entr${item.count === 1 ? "y" : "ies"}`}
+              tone={item.pending ? "warning" : "success"}
+            />
           </View>
-          <StatusBadge label={pendingCount > 0 ? "Attention Needed" : "Healthy"} tone={pendingCount > 0 ? "warning" : "success"} />
-        </View>
-        <View style={styles.metricsRow}>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricValue}>{entries.length}</Text>
-            <Text style={styles.metricLabel}>Total</Text>
+        );
+      }
+      const entry = item.entry;
+      return (
+        <View style={styles.entryItem}>
+          <View style={styles.entryHeader}>
+            <Text style={styles.entryNo}>No. {entry.sequenceNo}</Text>
+            <StatusBadge label={entry.reviewedOn ? "Reviewed" : "Pending"} tone={entry.reviewedOn ? "success" : "warning"} />
           </View>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricValue}>{reviewedCount}</Text>
-            <Text style={styles.metricLabel}>Reviewed</Text>
+          <Text style={styles.entryProduct}>{entry.product}</Text>
+          <Text style={styles.entryTime}>{entry.refusalDate} {entry.refusalTime || "--:--"}</Text>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Person</Text>
+            <Text style={styles.detailValue}>{entry.personDescription}</Text>
           </View>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricValue}>{reviewRate}%</Text>
-            <Text style={styles.metricLabel}>Reviewed</Text>
-          </View>
-        </View>
-      </View>
-
-      <View style={ui.card}>
-        <Text style={styles.sectionTitle}>Report Filters</Text>
-        <Text style={styles.sectionSubtitle}>Choose the date range and generate printable output.</Text>
-        <Text style={styles.meta}>Report Date Time: {reportDateTime}</Text>
-        <View style={styles.rangeRow}>
-          <DateTimeField style={{ flex: 1 }} mode="date" value={fromDate} onChange={setFromDate} />
-          <DateTimeField style={{ flex: 1 }} mode="date" value={toDate} onChange={setToDate} />
-        </View>
-        {!rangeIsValid ? <Text style={styles.warning}>From date must be earlier than or equal to To date.</Text> : null}
-        <View style={styles.reportActionRow}>
-          <ReportActionButton
-            icon="print-outline"
-            label="Print"
-            onPress={() => void printReport()}
-            disabled={!rangeIsValid || rangeQuery.isLoading || entries.length === 0}
-          />
-          <ReportActionButton
-            icon="mail-outline"
-            label={emailReportMutation.isPending ? "Sending..." : "Email"}
-            onPress={() => void emailReport()}
-            disabled={!rangeIsValid || rangeQuery.isLoading || entries.length === 0 || emailReportMutation.isPending}
-          />
-          <ReportActionButton
-            icon="share-social-outline"
-            label="Share"
-            onPress={() => void shareReport()}
-            disabled={!rangeIsValid || rangeQuery.isLoading || entries.length === 0}
-          />
-        </View>
-      </View>
-
-      <View style={ui.card}>
-        <Text style={styles.sectionTitle}>Refusal Entries ({fromDate} to {toDate})</Text>
-        <Text style={styles.sectionSubtitle}>Grouped by review completion timestamp.</Text>
-        {rangeQuery.isLoading ? <Text style={styles.meta}>Loading entries...</Text> : null}
-        {!rangeQuery.isLoading && entries.length === 0 ? (
-          <Text style={styles.meta}>No refusal entries found for this date range.</Text>
-        ) : null}
-        {groupedEntries.map((group) => (
-          <View key={group.key} style={styles.groupBlock}>
-            <View style={styles.groupHeader}>
-              <Text style={styles.groupTitle}>{group.title}</Text>
-              <StatusBadge
-                label={`${group.entries.length} entr${group.entries.length === 1 ? "y" : "ies"}`}
-                tone={group.pending ? "warning" : "success"}
-              />
+          {entry.observations ? (
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Observations</Text>
+              <Text style={styles.detailValue}>{entry.observations}</Text>
             </View>
-            {group.entries.map((entry) => (
-              <View key={entry.id} style={styles.entryItem}>
-                <View style={styles.entryHeader}>
-                  <Text style={styles.entryNo}>No. {entry.sequenceNo}</Text>
-                  <StatusBadge label={entry.reviewedOn ? "Reviewed" : "Pending"} tone={entry.reviewedOn ? "success" : "warning"} />
-                </View>
-                <Text style={styles.entryProduct}>{entry.product}</Text>
-                <Text style={styles.entryTime}>{entry.refusalDate} {entry.refusalTime || "--:--"}</Text>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Person</Text>
-                  <Text style={styles.detailValue}>{entry.personDescription}</Text>
-                </View>
-                {entry.observations ? (
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Observations</Text>
-                    <Text style={styles.detailValue}>{entry.observations}</Text>
-                  </View>
-                ) : null}
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Staff</Text>
-                  <Text style={styles.detailValue}>{getStaffDisplayName(entry)}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Manager</Text>
-                  <Text style={styles.detailValue}>{entry.reviewedOn ? `Reviewed by ${entry.reviewedByName ?? "-"}` : "Pending"}</Text>
-                </View>
-                <View style={styles.entryFooterRow}>
-                  <StatusBadge label={entry.signatureImagePath ? "Signed" : "No Signature"} tone={entry.signatureImagePath ? "success" : "danger"} />
-                  <Pressable
-                    style={styles.rowActionButton}
-                    onPress={() => navigation.navigate("RefusalEntryDetails", { entryId: entry.id })}
-                  >
-                    <Text style={styles.rowActionButtonText}>View Details</Text>
-                  </Pressable>
-                </View>
-              </View>
-            ))}
+          ) : null}
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Staff</Text>
+            <Text style={styles.detailValue}>{getStaffDisplayName(entry)}</Text>
           </View>
-        ))}
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Manager</Text>
+            <Text style={styles.detailValue}>{entry.reviewedOn ? `Reviewed by ${entry.reviewedByName ?? "-"}` : "Pending"}</Text>
+          </View>
+          <View style={styles.entryFooterRow}>
+            <StatusBadge label={entry.signatureImagePath ? "Signed" : "No Signature"} tone={entry.signatureImagePath ? "success" : "danger"} />
+            <Pressable
+              style={styles.rowActionButton}
+              onPress={() => navigation.navigate("RefusalEntryDetails", { entryId: entry.id })}
+            >
+              <Text style={styles.rowActionButtonText}>View Details</Text>
+            </Pressable>
+          </View>
+        </View>
+      );
+    },
+    [navigation]
+  );
+
+  const ListHeader = useMemo(
+    () => (
+      <View>
+        <View style={styles.screenHeaderCard}>
+          <View style={styles.screenHeaderTop}>
+            <View style={styles.screenHeaderTitleWrap}>
+              <Text style={styles.screenHeaderTitle}>Refusal Report</Text>
+              <Text style={styles.subtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
+            </View>
+            <StatusBadge label={pendingCount > 0 ? "Attention Needed" : "Healthy"} tone={pendingCount > 0 ? "warning" : "success"} />
+          </View>
+          <View style={styles.metricsRow}>
+            <View style={styles.metricCard}>
+              <Text style={styles.metricValue}>{entries.length}</Text>
+              <Text style={styles.metricLabel}>Total</Text>
+            </View>
+            <View style={styles.metricCard}>
+              <Text style={styles.metricValue}>{reviewedCount}</Text>
+              <Text style={styles.metricLabel}>Reviewed</Text>
+            </View>
+            <View style={styles.metricCard}>
+              <Text style={styles.metricValue}>{reviewRate}%</Text>
+              <Text style={styles.metricLabel}>Reviewed</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={[ui.card, { marginTop: 16 }]}>
+          <Text style={styles.sectionTitle}>Report Filters</Text>
+          <Text style={styles.sectionSubtitle}>Choose the date range and generate printable output.</Text>
+          <Text style={styles.meta}>Report Date Time: {reportDateTime}</Text>
+          <View style={styles.rangeRow}>
+            <DateTimeField style={{ flex: 1 }} mode="date" value={fromDate} onChange={setFromDate} />
+            <DateTimeField style={{ flex: 1 }} mode="date" value={toDate} onChange={setToDate} />
+          </View>
+          {!rangeIsValid ? <Text style={styles.warning}>From date must be earlier than or equal to To date.</Text> : null}
+          <View style={styles.reportActionRow}>
+            <ReportActionButton
+              icon="print-outline"
+              label="Print"
+              onPress={() => void printReport()}
+              disabled={!rangeIsValid || rangeQuery.isLoading || entries.length === 0}
+            />
+            <ReportActionButton
+              icon="mail-outline"
+              label={emailReportMutation.isPending ? "Sending..." : "Email"}
+              onPress={() => void emailReport()}
+              disabled={!rangeIsValid || rangeQuery.isLoading || entries.length === 0 || emailReportMutation.isPending}
+            />
+            <ReportActionButton
+              icon="share-social-outline"
+              label="Share"
+              onPress={() => void shareReport()}
+              disabled={!rangeIsValid || rangeQuery.isLoading || entries.length === 0}
+            />
+          </View>
+        </View>
+
+        <View style={[ui.card, { marginTop: 16 }]}>
+          <Text style={styles.sectionTitle}>Refusal Entries ({fromDate} to {toDate})</Text>
+          <Text style={styles.sectionSubtitle}>Grouped by review completion timestamp.</Text>
+          {rangeQuery.isLoading ? <Text style={styles.meta}>Loading entries...</Text> : null}
+          {!rangeQuery.isLoading && entries.length === 0 ? (
+            <Text style={styles.meta}>No refusal entries found for this date range.</Text>
+          ) : null}
+        </View>
       </View>
+    ),
+    [
+      activeShop?.shopName,
+      pendingCount,
+      entries.length,
+      reviewedCount,
+      reviewRate,
+      reportDateTime,
+      fromDate,
+      toDate,
+      rangeIsValid,
+      rangeQuery.isLoading,
+      emailReportMutation.isPending,
+    ]
+  );
+
+  return (
+    <ScreenContainer scrollable={false}>
+      <FlatList
+        data={flatRows}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
+        ListHeaderComponent={ListHeader}
+        contentContainerStyle={{ paddingBottom: 32 }}
+        removeClippedSubviews
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={7}
+      />
     </ScreenContainer>
   );
 }
