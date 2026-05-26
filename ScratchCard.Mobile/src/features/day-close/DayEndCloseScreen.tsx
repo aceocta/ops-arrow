@@ -1473,14 +1473,6 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     (dayQuery.isLoading && !dayQuery.data) ||
     (Boolean(day?.shopId) && shiftsQuery.isLoading && !shiftsQuery.data);
 
-  if (isDayManagementInitialLoading) {
-    return (
-      <ScreenContainer>
-        <DayManagementLoadingState />
-      </ScreenContainer>
-    );
-  }
-
   const onRefresh = useCallback(async () => {
     await Promise.all([
       dayQuery.refetch(),
@@ -1490,6 +1482,14 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     ]);
   }, [dayQuery, shiftsQuery, isSafeDropManagementVisible, canisterDropsQuery, subscriptionShopId, subscriptionSummaryQuery]);
   const isRefreshing = dayQuery.isRefetching || shiftsQuery.isRefetching;
+
+  if (isDayManagementInitialLoading) {
+    return (
+      <ScreenContainer>
+        <DayManagementLoadingState />
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer
