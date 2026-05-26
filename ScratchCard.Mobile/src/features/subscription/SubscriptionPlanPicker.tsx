@@ -1,10 +1,16 @@
 import React, { useMemo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { listSubscriptionPlans } from "../../api/subscriptionApi";
 import { Skeleton } from "../../components/Skeleton";
 import { BillingCycle } from "../../types/enums";
 import { appTheme } from "../../ui/theme";
+
+// Apple Guideline 3.1.3(c): a free B2B companion app billing on the web cannot make
+// "calls to action for purchase outside the app." Showing a £ price in-app is the riskiest line
+// to cross. We hide prices on iOS only; Android (Google Play permits this pattern openly)
+// keeps the price for a clearer UX.
+const SHOULD_HIDE_PRICES = Platform.OS === "ios";
 
 function formatFeatureLabel(key: string) {
   // Convert a feature key (e.g. "scratch_card.attachments") into a readable label
@@ -79,7 +85,11 @@ export function SubscriptionPlanPicker({ value, onChange, disabled, label = "Sub
                 ) : null}
               </View>
               <Text style={styles.meta}>Cycle: {plan.billingCycle}</Text>
-              <Text style={styles.priceLine}>GBP {plan.pricePerShop.toFixed(2)} per shop</Text>
+              {SHOULD_HIDE_PRICES ? (
+                <Text style={styles.priceLine}>See pricing in the billing portal</Text>
+              ) : (
+                <Text style={styles.priceLine}>GBP {plan.pricePerShop.toFixed(2)} per shop</Text>
+              )}
               {plan.description ? <Text style={styles.meta}>{plan.description}</Text> : null}
 
               <View style={styles.limitsRow}>

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -17,6 +17,12 @@ import { appTheme } from "../../ui/theme";
 import { track } from "../../utils/analytics";
 import { haptics } from "../../utils/haptics";
 import { startBillingCheckout } from "./purchaseService";
+
+// On iOS we must not show pricing or purchase CTAs in-app (Apple Guideline 3.1.3(c)).
+// The button reads as account management; the price grid is rendered in the web billing portal.
+const IS_IOS = Platform.OS === "ios";
+const CHECKOUT_BUTTON_LABEL = IS_IOS ? "Open billing portal" : "Continue to Checkout";
+const CHECKOUT_BUTTON_PENDING = IS_IOS ? "Opening portal..." : "Opening checkout...";
 
 const TERMS_URL = "https://opsarrow.com/terms";
 const PRIVACY_URL = "https://opsarrow.com/privacy";
@@ -102,7 +108,7 @@ export function ChoosePlanScreen() {
   return (
     <ScreenContainer>
       <View style={ui.card}>
-        <Text style={styles.title}>Choose Subscription Plan</Text>
+        <Text style={styles.title}>{IS_IOS ? "Subscription plans" : "Choose Subscription Plan"}</Text>
         <Text style={styles.meta}>Company: {activeShop?.companyName ?? "-"}</Text>
 
         {plansQuery.isLoading ? (
@@ -140,7 +146,9 @@ export function ChoosePlanScreen() {
                   ) : null}
                 </View>
                 <Text style={styles.meta}>Cycle: {plan.billingCycle}</Text>
-                <Text style={styles.meta}>Price per shop: GBP {plan.pricePerShop.toFixed(2)}</Text>
+                {!IS_IOS ? (
+                  <Text style={styles.meta}>Price per shop: GBP {plan.pricePerShop.toFixed(2)}</Text>
+                ) : null}
                 {plan.description ? <Text style={styles.meta}>{plan.description}</Text> : null}
                 {plan.includedFeatures && plan.includedFeatures.length > 0 ? (
                   <View style={styles.featuresWrap}>
@@ -158,15 +166,22 @@ export function ChoosePlanScreen() {
 
         {selectedPlan ? (
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryTitle}>Billing Summary</Text>
+            <Text style={styles.summaryTitle}>Selected plan</Text>
             <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
+            <Text style={styles.meta}>Plan: {selectedPlan.name}</Text>
             <Text style={styles.meta}>Cycle: {selectedPlan.billingCycle}</Text>
-            <Text style={styles.summaryTotal}>Price: GBP {selectedPlan.pricePerShop.toFixed(2)} / {String(selectedPlan.billingCycle).toLowerCase().includes("annual") ? "year" : "month"}</Text>
+            {IS_IOS ? (
+              <Text style={styles.meta}>Pricing and payment are shown in the billing portal.</Text>
+            ) : (
+              <Text style={styles.summaryTotal}>
+                Price: GBP {selectedPlan.pricePerShop.toFixed(2)} / {String(selectedPlan.billingCycle).toLowerCase().includes("annual") ? "year" : "month"}
+              </Text>
+            )}
           </View>
         ) : null}
 
         <PrimaryButton
-          label={selectPlanMutation.isPending ? "Opening checkout..." : "Continue to Checkout"}
+          label={selectPlanMutation.isPending ? CHECKOUT_BUTTON_PENDING : CHECKOUT_BUTTON_LABEL}
           onPress={() => selectPlanMutation.mutate()}
           disabled={!shopId || !selectedPlanId || selectPlanMutation.isPending}
         />

@@ -876,21 +876,26 @@ public static class SeedDataInitializer
         // MaxUsers / ReportExportsPerMonth: null means unlimited.
         // Monthly-only catalogue. Annual SKUs are intentionally not seeded; see deactivation below
         // for any historical Annual rows that may still exist in older databases.
+        //
+        // Trial length: each tier owns its own TrialDays. ShopSubscriptionService.EnsureTrialAsync
+        // reads the picked plan's TrialDays at shop-creation time, so changing a value below and
+        // restarting the API is all you need to adjust the trial length for new shops going forward.
+        //
         // TODO: Replace AppleProductId / GoogleProductId placeholders with the real product IDs
         // registered in App Store Connect and Google Play Console before launching IAP.
         var templates = new[]
         {
             new PlanTemplate("1 Month Free Trial", BillingCycle.Trial,    0m,   30, string.Empty, null, null,
-                "Default free trial for new shops.",
+                "Generic fallback trial. Only used if a shop is created without a picked plan, which the UI prevents today.",
                 AppleProductId: null, GoogleProductId: null),
-            new PlanTemplate("Starter Monthly",    BillingCycle.Monthly, 19.99m, 0, starterCsv,  3,    30,
-                "Starter: basic Scratch Card, Temperature Log, Refusals, Compliance and Safe Drop. Limited users.",
+            new PlanTemplate("Starter Monthly",    BillingCycle.Monthly, 19.99m, 14, starterCsv,  3,    30,
+                "Starter: basic Scratch Card, Temperature Log, Refusals, Compliance and Safe Drop. Limited users. 14-day trial.",
                 AppleProductId: "com.opsarrow.starter.monthly", GoogleProductId: "opsarrow_starter_monthly"),
-            new PlanTemplate("Growth Monthly",     BillingCycle.Monthly, 39.99m, 0, growthCsv,  10,   100,
-                "Growth: attachments, missed-log alerts, advanced compliance schedules, dashboard, audit log.",
+            new PlanTemplate("Growth Monthly",     BillingCycle.Monthly, 39.99m, 30, growthCsv,  10,   100,
+                "Growth: attachments, missed-log alerts, advanced compliance schedules, dashboard, audit log. 30-day trial.",
                 AppleProductId: "com.opsarrow.growth.monthly", GoogleProductId: "opsarrow_growth_monthly"),
-            new PlanTemplate("Pro Monthly",        BillingCycle.Monthly, 79.99m, 0, proCsv,     null, 500,
-                "Pro: advanced validation, approval workflows, multi-shop dashboards, unlimited users.",
+            new PlanTemplate("Pro Monthly",        BillingCycle.Monthly, 79.99m, 30, proCsv,     null, 500,
+                "Pro: advanced validation, approval workflows, multi-shop dashboards, unlimited users. 30-day trial.",
                 AppleProductId: "com.opsarrow.pro.monthly", GoogleProductId: "opsarrow_pro_monthly"),
         };
 
@@ -923,41 +928,12 @@ public static class SeedDataInitializer
                 continue;
             }
 
-            // Keep existing rows aligned with the template (idempotent re-seed).
-            if (!string.Equals(current.IncludedFeatures ?? string.Empty, template.FeaturesCsv, StringComparison.OrdinalIgnoreCase))
-            {
-                current.IncludedFeatures = template.FeaturesCsv;
-                changed = true;
-            }
-            if (current.MaxUsers != template.MaxUsers)
-            {
-                current.MaxUsers = template.MaxUsers;
-                changed = true;
-            }
-            if (current.ReportExportsPerMonth != template.ReportExportsPerMonth)
-            {
-                current.ReportExportsPerMonth = template.ReportExportsPerMonth;
-                changed = true;
-            }
-            if (current.AppleProductId != template.AppleProductId)
-            {
-                current.AppleProductId = template.AppleProductId;
-                changed = true;
-            }
-            if (current.GoogleProductId != template.GoogleProductId)
-            {
-                current.GoogleProductId = template.GoogleProductId;
-                changed = true;
-            }
-            if (!string.Equals(current.Description, template.Description, StringComparison.Ordinal))
-            {
-                current.Description = template.Description;
-                changed = true;
-            }
-            if (changed)
-            {
-                current.ModifiedOn = now;
-            }
+            // Plan already exists. The admin endpoint (/api/admin/subscription-plans/{id}) is now
+            // the source of truth for plan config (trial days, price, features, store IDs, etc.).
+            // Re-seeding must NOT overwrite admin edits, so we leave existing rows untouched.
+            //
+            // If you need to force the templates back into the DB (e.g. catastrophic recovery),
+            // delete the plan rows or hit the admin update endpoint explicitly.
         }
 
         // Defensive: deactivate any historical Annual SKUs so they no longer appear in the picker.

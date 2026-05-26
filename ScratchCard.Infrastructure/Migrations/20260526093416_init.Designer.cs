@@ -12,8 +12,8 @@ using ScratchCard.Infrastructure.Persistence;
 namespace ScratchCard.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260525232221_AddProductIdsAndReportExportLog")]
-    partial class AddProductIdsAndReportExportLog
+    [Migration("20260526093416_init")]
+    partial class init
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

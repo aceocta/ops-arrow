@@ -104,6 +104,12 @@ public interface IShopSubscriptionService
     Task ApplyRevenueCatEventAsync(RevenueCatWebhookEvent webhookEvent, CancellationToken cancellationToken = default);
 }
 
+public interface ISubscriptionPlanAdminService
+{
+    Task<IReadOnlyCollection<SubscriptionPlanDto>> ListAllAsync(CancellationToken cancellationToken = default);
+    Task<SubscriptionPlanDto> UpdateAsync(Guid planId, UpdateSubscriptionPlanRequest request, CancellationToken cancellationToken = default);
+}
+
 public interface ISubscriptionCalculationService
 {
     Task<SubscriptionCalculationResultDto> CalculateAsync(Guid companyId, Guid planId, CancellationToken cancellationToken = default);

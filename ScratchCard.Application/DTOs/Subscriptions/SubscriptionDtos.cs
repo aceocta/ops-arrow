@@ -191,6 +191,22 @@ public class RevenueCatWebhookEvent
     public string? NewProductId { get; set; }
 }
 
+public class UpdateSubscriptionPlanRequest
+{
+    public string? Name { get; set; }
+    public decimal? PricePerShop { get; set; }
+    public int? TrialDays { get; set; }
+    public string? Description { get; set; }
+    public IReadOnlyCollection<string>? IncludedFeatures { get; set; }
+    /// <summary>Pass null to leave unchanged, or an int / -1 to set to unlimited.</summary>
+    public int? MaxUsers { get; set; }
+    /// <summary>Pass null to leave unchanged, or -1 to set to unlimited.</summary>
+    public int? ReportExportsPerMonth { get; set; }
+    public string? AppleProductId { get; set; }
+    public string? GoogleProductId { get; set; }
+    public bool? IsActive { get; set; }
+}
+
 public class CreateBillingCheckoutRequest
 {
     public Guid ShopId { get; set; }
