@@ -43,8 +43,8 @@
     "expo-file-system": "~55.0.19",
     "expo-font": "~55.0.7",
     "expo-haptics": "~55.0.7",
-    "expo-image": "~3.0.10",
-    "expo-splash-screen": "~31.0.10",
+    "expo-image": "~55.0.11",
+    "expo-splash-screen": "~55.0.21",
     "expo-image-manipulator": "~55.0.17",
     "expo-image-picker": "~55.0.19",
     "expo-print": "~55.0.14",
@@ -72,5 +72,8 @@
     "@types/react": "~19.2.10",
     "patch-package": "^8.0.1",
     "typescript": "~5.9.2"
+  },
+  "overrides": {
+    "expo-image": "~55.0.11"
   }
 }
