@@ -28,7 +28,7 @@ public class CompaniesController : BaseApiController
     }
 
     [HttpPost]
-    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.OwnerRoles}")]
+    [Authorize(Roles = RoleNames.OwnerAndPlatform)]
     public async Task<IActionResult> Create([FromBody] CreateCompanyRequest request, CancellationToken cancellationToken)
     {
         var result = await _companyService.CreateAsync(request, cancellationToken);
@@ -36,7 +36,7 @@ public class CompaniesController : BaseApiController
     }
 
     [HttpPut("{id:guid}")]
-    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.OwnerRoles}")]
+    [Authorize(Roles = RoleNames.OwnerAndPlatform)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateCompanyRequest request, CancellationToken cancellationToken)
     {
         var result = await _companyService.UpdateAsync(id, request, cancellationToken);

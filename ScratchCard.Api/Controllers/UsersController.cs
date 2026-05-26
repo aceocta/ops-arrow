@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ScratchCard.Api.Authorization;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Users;
 using ScratchCard.Domain.Constants;
@@ -7,7 +8,10 @@ using ScratchCard.Domain.Constants;
 namespace ScratchCard.Api.Controllers;
 
 [Route("api/users")]
-[Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+[Authorize(Roles = RoleNames.ManagementAndAbove)]
+// Every endpoint on this controller resolves a specific shop via query/body. Class-level
+// RequireShopRole closes the per-shop bypass without per-action repetition.
+[RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
 public class UsersController : BaseApiController
 {
     private readonly IUserService _userService;

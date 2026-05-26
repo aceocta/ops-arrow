@@ -36,6 +36,7 @@ public class BusinessDayService : IBusinessDayService
     private readonly IDayCloseNotificationDispatcher _dayCloseNotificationDispatcher;
     private readonly IAttachmentStorageService _attachmentStorageService;
     private readonly IFeatureGateService _featureGateService;
+    private readonly IShopMembershipService _shopMembershipService;
     private readonly IUnitOfWork _unitOfWork;
 
     public BusinessDayService(
@@ -60,6 +61,7 @@ public class BusinessDayService : IBusinessDayService
         IDayCloseNotificationDispatcher dayCloseNotificationDispatcher,
         IAttachmentStorageService attachmentStorageService,
         IFeatureGateService featureGateService,
+        IShopMembershipService shopMembershipService,
         IUnitOfWork unitOfWork)
     {
         _businessDayRepository = businessDayRepository;
@@ -83,6 +85,7 @@ public class BusinessDayService : IBusinessDayService
         _dayCloseNotificationDispatcher = dayCloseNotificationDispatcher;
         _attachmentStorageService = attachmentStorageService;
         _featureGateService = featureGateService;
+        _shopMembershipService = shopMembershipService;
         _unitOfWork = unitOfWork;
     }
 
@@ -364,6 +367,14 @@ public class BusinessDayService : IBusinessDayService
             .FirstOrDefaultAsync(x => x.Id == canisterDropId, cancellationToken)
             ?? throw new AppException("canister_drop_not_found", "Canister drop not found.", 404);
 
+        // Per-shop role gate. The controller-level [Authorize] only checks the global role
+        // claim; this prevents a Manager at Shop A from approving a drop at Shop B they're
+        // only a Cashier at.
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(
+            drop.ShopId,
+            new[] { RoleNames.CompanyOwner, RoleNames.Manager },
+            cancellationToken);
+
         await _featureGateService.EnsureFeatureAsync(drop.ShopId, FeatureKeys.SafeDropApprovalWorkflow, cancellationToken);
 
         if (drop.ApprovalStatus == ApprovalStatus.Approved)
@@ -542,6 +553,13 @@ public class BusinessDayService : IBusinessDayService
     {
         var day = await _businessDayRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new AppException("business_day_not_found", "Business day not found.", 404);
+
+        // Per-shop role gate — closes the cross-shop privilege loophole described in
+        // ShopMembershipService.
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(
+            day.ShopId,
+            new[] { RoleNames.CompanyOwner, RoleNames.Manager },
+            cancellationToken);
 
         var shifts = await _shiftRepository.Query()
             .Where(x => x.BusinessDayId == id)
@@ -743,6 +761,11 @@ public class BusinessDayService : IBusinessDayService
     {
         var day = await _businessDayRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new AppException("business_day_not_found", "Business day not found.", 404);
+
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(
+            day.ShopId,
+            new[] { RoleNames.CompanyOwner, RoleNames.Manager },
+            cancellationToken);
 
         day.Status = BusinessDayStatus.Reopened;
         day.ClosedByUserId = null;

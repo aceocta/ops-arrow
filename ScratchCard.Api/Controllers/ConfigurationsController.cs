@@ -7,7 +7,7 @@ using ScratchCard.Domain.Constants;
 namespace ScratchCard.Api.Controllers;
 
 [Route("api/configurations")]
-[Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager},{RoleNames.Cashier},{RoleNames.SalesAssistant}")]
+[Authorize(Roles = RoleNames.OperationalRoles)]
 public class ConfigurationsController : BaseApiController
 {
     private readonly IConfigurationService _configurationService;

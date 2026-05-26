@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ScratchCard.Api.Authorization;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.TemperatureLogs;
@@ -9,7 +10,7 @@ using ScratchCard.Domain.Constants;
 namespace ScratchCard.Api.Controllers;
 
 [Route("api/temperature-logs")]
-[Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager},{RoleNames.Cashier},{RoleNames.SalesAssistant}")]
+[Authorize(Roles = RoleNames.OperationalRoles)]
 public class TemperatureLogsController : BaseApiController
 {
     // Plans without temperature_log.full_history may only query a recent window of readings.
@@ -32,7 +33,8 @@ public class TemperatureLogsController : BaseApiController
     }
 
     [HttpPost("units")]
-    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
     public async Task<IActionResult> CreateUnit([FromBody] CreateTemperatureMonitoringUnitRequest request, CancellationToken cancellationToken)
     {
         var result = await _temperatureLogService.CreateUnitAsync(request, cancellationToken);
@@ -40,7 +42,7 @@ public class TemperatureLogsController : BaseApiController
     }
 
     [HttpPut("units/{id:guid}")]
-    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
     public async Task<IActionResult> UpdateUnit(Guid id, [FromBody] UpdateTemperatureMonitoringUnitRequest request, CancellationToken cancellationToken)
     {
         var result = await _temperatureLogService.UpdateUnitAsync(id, request, cancellationToken);
@@ -88,7 +90,8 @@ public class TemperatureLogsController : BaseApiController
     }
 
     [HttpPost("signoff")]
-    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
     public async Task<IActionResult> SignOff([FromBody] SignOffTemperatureDailyLogRequest request, CancellationToken cancellationToken)
     {
         var result = await _temperatureLogService.SignOffDailyAsync(request, cancellationToken);
@@ -105,7 +108,8 @@ public class TemperatureLogsController : BaseApiController
     }
 
     [HttpPost("schedules")]
-    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
     public async Task<IActionResult> CreateSchedule([FromBody] UpsertTemperatureScheduleRequest request, CancellationToken cancellationToken)
     {
         var result = await _temperatureLogService.CreateScheduleAsync(request, cancellationToken);
@@ -113,7 +117,7 @@ public class TemperatureLogsController : BaseApiController
     }
 
     [HttpPut("schedules/{id:guid}")]
-    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
     public async Task<IActionResult> UpdateSchedule(Guid id, [FromBody] UpsertTemperatureScheduleRequest request, CancellationToken cancellationToken)
     {
         var result = await _temperatureLogService.UpdateScheduleAsync(id, request, cancellationToken);
@@ -121,7 +125,7 @@ public class TemperatureLogsController : BaseApiController
     }
 
     [HttpDelete("schedules/{id:guid}")]
-    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
     public async Task<IActionResult> DeleteSchedule(Guid id, CancellationToken cancellationToken)
     {
         await _temperatureLogService.DeleteScheduleAsync(id, cancellationToken);

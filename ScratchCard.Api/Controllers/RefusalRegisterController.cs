@@ -9,7 +9,7 @@ using ScratchCard.Domain.Constants;
 namespace ScratchCard.Api.Controllers;
 
 [Route("api/refusal-register")]
-[Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager},{RoleNames.Cashier},{RoleNames.SalesAssistant}")]
+[Authorize(Roles = RoleNames.OperationalRoles)]
 public class RefusalRegisterController : BaseApiController
 {
     private readonly IRefusalRegisterService _refusalRegisterService;
@@ -36,7 +36,7 @@ public class RefusalRegisterController : BaseApiController
     }
 
     [HttpGet("entries/range")]
-    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
     [RequireFeature(FeatureKeys.RefusalLogAnalytics)]
     public async Task<IActionResult> ListEntriesByRange([FromQuery] Guid shopId, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken cancellationToken)
     {
@@ -46,7 +46,7 @@ public class RefusalRegisterController : BaseApiController
 
     // Pro-only staff-grouped slice of the range report.
     [HttpGet("entries/staff-summary")]
-    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
     [RequireFeature(FeatureKeys.RefusalLogStaffReports)]
     public async Task<IActionResult> StaffSummary([FromQuery] Guid shopId, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken cancellationToken)
     {
@@ -83,7 +83,7 @@ public class RefusalRegisterController : BaseApiController
     }
 
     [HttpPost("entries/{id:guid}/review")]
-    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
     public async Task<IActionResult> ReviewEntry(Guid id, [FromBody] ReviewRefusalRegisterEntryRequest request, CancellationToken cancellationToken)
     {
         var result = await _refusalRegisterService.ReviewEntryAsync(id, request, cancellationToken);
@@ -91,7 +91,8 @@ public class RefusalRegisterController : BaseApiController
     }
 
     [HttpPost("entries/review")]
-    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
     public async Task<IActionResult> ReviewEntries([FromBody] ReviewRefusalRegisterEntriesRequest request, CancellationToken cancellationToken)
     {
         // Reviewing multiple refusal entries in one go is a Growth+ feature.
@@ -108,7 +109,8 @@ public class RefusalRegisterController : BaseApiController
     }
 
     [HttpPost("signoff")]
-    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
     public async Task<IActionResult> SignOff([FromBody] SignOffRefusalRegisterDailyRequest request, CancellationToken cancellationToken)
     {
         var result = await _refusalRegisterService.SignOffDailyAsync(request, cancellationToken);
@@ -116,7 +118,8 @@ public class RefusalRegisterController : BaseApiController
     }
 
     [HttpPost("reopen")]
-    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
     public async Task<IActionResult> Reopen([FromBody] ReopenRefusalRegisterDailyRequest request, CancellationToken cancellationToken)
     {
         await _refusalRegisterService.ReopenDailyAsync(request, cancellationToken);

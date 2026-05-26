@@ -4,7 +4,10 @@
       "Bash(Get-ChildItem -Path src -Recurse -Directory)",
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(grep -r \"Promise.*\\\\\\\\.catch\\\\|unhandledRejection\\\\|addEventListener.*error\" \"J:\\\\ScratchCard\\\\ScratchCard.Mobile\\\\src\" --include=\"*.tsx\" --include=\"*.ts\")",
-      "Bash(git log *)"
+      "Bash(git log *)",
+      "Bash(sort -t: -k2 -n -r)",
+      "Bash(grep -v \"RoleNames\\\\.\\\\\\(OperationalRoles\\\\|OwnerAndManager\\\\|ManagementAndAbove\\\\|OwnerAndPlatform\\\\|AllAuthenticated\\\\|PlatformAdmin\\\\\\)$\")",
+      "Bash(grep -v \"RequireShopRole\\\\|^--$\")"
     ]
   }
 }

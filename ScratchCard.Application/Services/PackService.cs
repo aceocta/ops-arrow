@@ -16,9 +16,12 @@ public class PackService : IPackService
         @"(?<game>[0-9A-Za-z]{2,20})\s*[-]\s*(?<pack>[0-9A-Za-z]{3,16})",
         RegexOptions.Compiled);
 
+    private static readonly string[] PackManagementRoles = [RoleNames.CompanyOwner, RoleNames.Manager];
+
     private readonly IRepository<ScratchCardPack> _packRepository;
     private readonly IRepository<ShopScratchCardGame> _shopGameRepository;
     private readonly IShopConfigurationService _shopConfigurationService;
+    private readonly IShopMembershipService _shopMembershipService;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
@@ -27,6 +30,7 @@ public class PackService : IPackService
         IRepository<ScratchCardPack> packRepository,
         IRepository<ShopScratchCardGame> shopGameRepository,
         IShopConfigurationService shopConfigurationService,
+        IShopMembershipService shopMembershipService,
         IAuditService auditService,
         ICurrentUserService currentUserService,
         IUnitOfWork unitOfWork)
@@ -34,6 +38,7 @@ public class PackService : IPackService
         _packRepository = packRepository;
         _shopGameRepository = shopGameRepository;
         _shopConfigurationService = shopConfigurationService;
+        _shopMembershipService = shopMembershipService;
         _auditService = auditService;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
@@ -142,7 +147,7 @@ public class PackService : IPackService
 
     public async Task<PackDto> UpdateDetailsAsync(Guid id, UpdatePackDetailsRequest request, CancellationToken cancellationToken = default)
     {
-        var pack = await GetPackEntityAsync(id, cancellationToken);
+        var pack = await GetPackForManagementAsync(id, cancellationToken);
 
         if (pack.Status is not (PackStatus.InStock or PackStatus.Paused))
         {
@@ -181,7 +186,7 @@ public class PackService : IPackService
 
     public async Task<PackDto> ActivateAsync(Guid id, ActivatePackRequest request, CancellationToken cancellationToken = default)
     {
-        var pack = await GetPackEntityAsync(id, cancellationToken);
+        var pack = await GetPackForManagementAsync(id, cancellationToken);
 
         if (pack.Status is not (PackStatus.InStock or PackStatus.Paused))
         {
@@ -219,7 +224,7 @@ public class PackService : IPackService
 
     private async Task<PackDto> SetStatusAsync(Guid id, PackStatus status, string auditAction, UpdatePackStatusRequest request, CancellationToken cancellationToken)
     {
-        var pack = await GetPackEntityAsync(id, cancellationToken);
+        var pack = await GetPackForManagementAsync(id, cancellationToken);
 
         pack.Status = status;
         pack.Notes = request.Notes;
@@ -249,6 +254,15 @@ public class PackService : IPackService
             .Include(x => x.Game)
             .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken)
             ?? throw new AppException(ErrorCodes.PackNotFound, "Pack not found.", 404);
+    }
+
+    // Same lookup as GetPackEntityAsync but also verifies the caller has an Owner/Manager
+    // role at the pack's shop. Use this for all write operations on packs.
+    private async Task<ScratchCardPack> GetPackForManagementAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var pack = await GetPackEntityAsync(id, cancellationToken);
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(pack.ShopId, PackManagementRoles, cancellationToken);
+        return pack;
     }
 
     private static void ValidateSerialInRange(string serial, string start, string end)

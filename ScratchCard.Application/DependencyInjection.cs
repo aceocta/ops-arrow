@@ -31,6 +31,7 @@ public static class DependencyInjection
         // Store Server API / Google Play Developer API / RevenueCat) before production.
         services.AddScoped<IIapReceiptVerifier, NoopIapReceiptVerifier>();
         services.AddScoped<ISubscriptionAccessService, SubscriptionAccessService>();
+        services.AddScoped<IShopMembershipService, ShopMembershipService>();
         services.AddScoped<IConfigurationService, ConfigurationService>();
         services.AddScoped<IShopConfigurationService, ShopConfigurationService>();
         services.AddScoped<IGameService, GameService>();

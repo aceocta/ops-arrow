@@ -7,7 +7,7 @@ using ScratchCard.Domain.Constants;
 namespace ScratchCard.Api.Controllers;
 
 [Route("api/packs")]
-[Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager},{RoleNames.Cashier},{RoleNames.SalesAssistant}")]
+[Authorize(Roles = RoleNames.OperationalRoles)]
 public class PacksController : BaseApiController
 {
     private readonly IPackService _packService;
@@ -39,7 +39,7 @@ public class PacksController : BaseApiController
     }
 
     [HttpPut("{id:guid}")]
-    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
     public async Task<IActionResult> UpdateDetails(Guid id, [FromBody] UpdatePackDetailsRequest request, CancellationToken cancellationToken)
     {
         var result = await _packService.UpdateDetailsAsync(id, request, cancellationToken);
@@ -47,7 +47,7 @@ public class PacksController : BaseApiController
     }
 
     [HttpPost("{id:guid}/activate")]
-    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
     public async Task<IActionResult> Activate(Guid id, [FromBody] ActivatePackRequest request, CancellationToken cancellationToken)
     {
         var result = await _packService.ActivateAsync(id, request, cancellationToken);
@@ -55,7 +55,7 @@ public class PacksController : BaseApiController
     }
 
     [HttpPost("{id:guid}/pause")]
-    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
     public async Task<IActionResult> Pause(Guid id, [FromBody] UpdatePackStatusRequest request, CancellationToken cancellationToken)
     {
         var result = await _packService.PauseAsync(id, request, cancellationToken);
@@ -63,7 +63,7 @@ public class PacksController : BaseApiController
     }
 
     [HttpPost("{id:guid}/return")]
-    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
     public async Task<IActionResult> Return(Guid id, [FromBody] UpdatePackStatusRequest request, CancellationToken cancellationToken)
     {
         var result = await _packService.ReturnAsync(id, request, cancellationToken);
@@ -71,7 +71,7 @@ public class PacksController : BaseApiController
     }
 
     [HttpPost("{id:guid}/issue")]
-    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
     public async Task<IActionResult> MarkIssue(Guid id, [FromBody] UpdatePackStatusRequest request, CancellationToken cancellationToken)
     {
         var result = await _packService.MarkIssueAsync(id, request, cancellationToken);
@@ -79,7 +79,7 @@ public class PacksController : BaseApiController
     }
 
     [HttpPost("{id:guid}/complete")]
-    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
     public async Task<IActionResult> Complete(Guid id, [FromBody] UpdatePackStatusRequest request, CancellationToken cancellationToken)
     {
         var result = await _packService.CompleteAsync(id, request, cancellationToken);

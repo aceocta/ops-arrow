@@ -17,6 +17,8 @@ public class ShiftService : IShiftService
 {
     private const string DefaultShiftName = "Main Shift";
 
+    private static readonly string[] ShiftManagementRoles = [RoleNames.CompanyOwner, RoleNames.Manager];
+
     private readonly IRepository<Shift> _shiftRepository;
     private readonly IRepository<BusinessDay> _businessDayRepository;
     private readonly IRepository<ScratchCardPack> _packRepository;
@@ -24,6 +26,7 @@ public class ShiftService : IShiftService
     private readonly IRepository<ShiftCloseAttachment> _shiftCloseAttachmentRepository;
     private readonly IShopConfigurationService _shopConfigurationService;
     private readonly IShiftSalesService _shiftSalesService;
+    private readonly IShopMembershipService _shopMembershipService;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IAttachmentStorageService _attachmentStorageService;
@@ -37,6 +40,7 @@ public class ShiftService : IShiftService
         IRepository<ShiftCloseAttachment> shiftCloseAttachmentRepository,
         IShopConfigurationService shopConfigurationService,
         IShiftSalesService shiftSalesService,
+        IShopMembershipService shopMembershipService,
         IAuditService auditService,
         ICurrentUserService currentUserService,
         IAttachmentStorageService attachmentStorageService,
@@ -49,6 +53,7 @@ public class ShiftService : IShiftService
         _shiftCloseAttachmentRepository = shiftCloseAttachmentRepository;
         _shopConfigurationService = shopConfigurationService;
         _shiftSalesService = shiftSalesService;
+        _shopMembershipService = shopMembershipService;
         _auditService = auditService;
         _currentUserService = currentUserService;
         _attachmentStorageService = attachmentStorageService;
@@ -374,6 +379,8 @@ public class ShiftService : IShiftService
         var shift = await _shiftRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new AppException("shift_not_found", "Shift not found.", 404);
 
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(shift.ShopId, ShiftManagementRoles, cancellationToken);
+
         if (!ShiftMetadata.IsAutoCreated(shift.Notes))
         {
             throw new AppException("shift_delete_not_allowed", "Only auto-created shifts can be deleted from this screen.", 409);
@@ -445,6 +452,8 @@ public class ShiftService : IShiftService
     {
         var shift = await _shiftRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new AppException("shift_not_found", "Shift not found.", 404);
+
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(shift.ShopId, ShiftManagementRoles, cancellationToken);
 
         // Reopening older shifts can corrupt pack serial continuity with later shifts.
         var hasLaterShift = await _shiftRepository.Query()

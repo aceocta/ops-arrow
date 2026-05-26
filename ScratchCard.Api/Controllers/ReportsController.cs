@@ -9,7 +9,8 @@ using ScratchCard.Domain.Constants;
 namespace ScratchCard.Api.Controllers;
 
 [Route("api/reports")]
-[Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+[Authorize(Roles = RoleNames.OwnerAndManager)]
+[RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
 public class ReportsController : BaseApiController
 {
     private readonly IReportService _reportService;

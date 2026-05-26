@@ -3,16 +3,20 @@ using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Checklists;
+using ScratchCard.Domain.Constants;
 using ScratchCard.Domain.Entities;
 
 namespace ScratchCard.Application.Services;
 
 public class ShopChecklistService : IShopChecklistService
 {
+    private static readonly string[] ChecklistManagementRoles = [RoleNames.CompanyOwner, RoleNames.Manager];
+
     private readonly IRepository<ShopChecklistGroup> _groupRepository;
     private readonly IRepository<ShopChecklistTask> _taskRepository;
     private readonly IRepository<ShopChecklistTaskCompletion> _completionRepository;
     private readonly IRepository<Shop> _shopRepository;
+    private readonly IShopMembershipService _shopMembershipService;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
@@ -22,6 +26,7 @@ public class ShopChecklistService : IShopChecklistService
         IRepository<ShopChecklistTask> taskRepository,
         IRepository<ShopChecklistTaskCompletion> completionRepository,
         IRepository<Shop> shopRepository,
+        IShopMembershipService shopMembershipService,
         IAuditService auditService,
         ICurrentUserService currentUserService,
         IUnitOfWork unitOfWork)
@@ -30,6 +35,7 @@ public class ShopChecklistService : IShopChecklistService
         _taskRepository = taskRepository;
         _completionRepository = completionRepository;
         _shopRepository = shopRepository;
+        _shopMembershipService = shopMembershipService;
         _auditService = auditService;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
@@ -102,6 +108,8 @@ public class ShopChecklistService : IShopChecklistService
             .Include(x => x.Tasks.Where(t => !t.IsDeleted))
             .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken)
             ?? throw new AppException("checklist_group_not_found", "Checklist group not found.", 404);
+
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(group.ShopId, ChecklistManagementRoles, cancellationToken);
 
         var groupName = NormalizeRequiredText(request.GroupName, "Checklist group name is required.");
         var duplicate = await _groupRepository.Query()
@@ -235,6 +243,8 @@ public class ShopChecklistService : IShopChecklistService
         var task = await _taskRepository.Query()
             .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken)
             ?? throw new AppException("checklist_task_not_found", "Checklist task not found.", 404);
+
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(task.ShopId, ChecklistManagementRoles, cancellationToken);
 
         var taskName = NormalizeRequiredText(request.TaskName, "Checklist task name is required.");
         var duplicate = await _taskRepository.Query()

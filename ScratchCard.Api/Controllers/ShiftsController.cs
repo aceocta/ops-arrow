@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ScratchCard.Api.Authorization;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Shifts;
 using ScratchCard.Application.DTOs.ShiftSales;
@@ -8,7 +9,7 @@ using ScratchCard.Domain.Constants;
 namespace ScratchCard.Api.Controllers;
 
 [Route("api/shifts")]
-[Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager},{RoleNames.Cashier},{RoleNames.SalesAssistant}")]
+[Authorize(Roles = RoleNames.OperationalRoles)]
 public class ShiftsController : BaseApiController
 {
     private readonly IShiftService _shiftService;
@@ -19,6 +20,7 @@ public class ShiftsController : BaseApiController
     }
 
     [HttpPost("open")]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant)]
     public async Task<IActionResult> Open([FromBody] OpenShiftRequest request, CancellationToken cancellationToken)
     {
         var result = await _shiftService.OpenAsync(request, cancellationToken);
@@ -61,7 +63,7 @@ public class ShiftsController : BaseApiController
     }
 
     [HttpPost("{id:guid}/reopen")]
-    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
     public async Task<IActionResult> Reopen(Guid id, [FromBody] ReopenShiftRequest request, CancellationToken cancellationToken)
     {
         var result = await _shiftService.ReopenAsync(id, request, cancellationToken);
@@ -69,7 +71,7 @@ public class ShiftsController : BaseApiController
     }
 
     [HttpDelete("{id:guid}")]
-    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
     public async Task<IActionResult> Delete(Guid id, [FromBody] DeleteShiftRequest? request, CancellationToken cancellationToken)
     {
         await _shiftService.DeleteAsync(id, request ?? new DeleteShiftRequest(), cancellationToken);

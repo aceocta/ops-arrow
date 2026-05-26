@@ -8,7 +8,7 @@ using ScratchCard.Domain.Constants;
 namespace ScratchCard.Api.Controllers;
 
 [Route("api/notifications")]
-[Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+[Authorize(Roles = RoleNames.OwnerAndManager)]
 public class NotificationsController : BaseApiController
 {
     private readonly INotificationLogService _notificationLogService;
@@ -19,6 +19,7 @@ public class NotificationsController : BaseApiController
     }
 
     [HttpGet]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
     public async Task<IActionResult> GetLogs([FromQuery] Guid shopId, CancellationToken cancellationToken)
     {
         var result = await _notificationLogService.GetLogsAsync(shopId, cancellationToken);

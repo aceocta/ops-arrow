@@ -18,7 +18,7 @@ public class ShopsController : BaseApiController
     }
 
     [HttpPost]
-    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.OwnerRoles}")]
+    [Authorize(Roles = RoleNames.OwnerAndPlatform)]
     public async Task<IActionResult> Create([FromBody] CreateShopRequest request, CancellationToken cancellationToken)
     {
         var result = await _shopService.CreateAsync(request, cancellationToken);
@@ -26,7 +26,7 @@ public class ShopsController : BaseApiController
     }
 
     [HttpPut("{id:guid}")]
-    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.ManagementAndAbove)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateShopRequest request, CancellationToken cancellationToken)
     {
         var result = await _shopService.UpdateAsync(id, request, cancellationToken);

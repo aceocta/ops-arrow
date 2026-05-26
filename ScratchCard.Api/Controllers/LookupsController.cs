@@ -6,7 +6,7 @@ using ScratchCard.Domain.Constants;
 namespace ScratchCard.Api.Controllers;
 
 [Route("api/lookups")]
-[Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+[Authorize(Roles = RoleNames.ManagementAndAbove)]
 public class LookupsController : BaseApiController
 {
     private readonly ILookupService _lookupService;

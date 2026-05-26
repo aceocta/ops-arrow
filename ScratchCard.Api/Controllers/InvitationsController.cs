@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ScratchCard.Api.Authorization;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Invitations;
 using ScratchCard.Domain.Constants;
@@ -17,7 +18,8 @@ public class InvitationsController : BaseApiController
     }
 
     [HttpPost]
-    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.ManagementAndAbove)]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
     public async Task<IActionResult> Send([FromBody] CreateInvitationRequest request, CancellationToken cancellationToken)
     {
         var invitation = await _invitationService.SendInvitationAsync(request, cancellationToken);
@@ -113,7 +115,7 @@ public class InvitationsController : BaseApiController
     }
 
     [HttpPost("{invitationId:guid}/resend")]
-    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.ManagementAndAbove)]
     public async Task<IActionResult> Resend(Guid invitationId, CancellationToken cancellationToken)
     {
         var invitation = await _invitationService.ResendInvitationAsync(invitationId, cancellationToken);
@@ -121,7 +123,7 @@ public class InvitationsController : BaseApiController
     }
 
     [HttpDelete("{invitationId:guid}")]
-    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.ManagementAndAbove)]
     public async Task<IActionResult> Cancel(Guid invitationId, CancellationToken cancellationToken)
     {
         await _invitationService.CancelInvitationAsync(invitationId, cancellationToken);
@@ -129,7 +131,7 @@ public class InvitationsController : BaseApiController
     }
 
     [HttpGet]
-    [Authorize(Roles = $"{RoleNames.PlatformAdmin},{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.ManagementAndAbove)]
     public async Task<IActionResult> List([FromQuery] Guid shopId, CancellationToken cancellationToken)
     {
         var invitations = await _invitationService.ListInvitationsAsync(shopId, cancellationToken);

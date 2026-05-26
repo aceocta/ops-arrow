@@ -15,12 +15,15 @@ namespace ScratchCard.Application.Services;
 
 public class ComplianceCheckService : IComplianceCheckService
 {
+    private static readonly string[] ComplianceManagementRoles = [RoleNames.CompanyOwner, RoleNames.Manager];
+
     private readonly IRepository<ComplianceCheckGroup> _groupRepository;
     private readonly IRepository<ComplianceCheckItem> _itemRepository;
     private readonly IRepository<ComplianceCheckEntry> _entryRepository;
     private readonly IRepository<ComplianceCheckAttachment> _attachmentRepository;
     private readonly IRepository<Shop> _shopRepository;
     private readonly IAttachmentStorageService _attachmentStorageService;
+    private readonly IShopMembershipService _shopMembershipService;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
@@ -32,6 +35,7 @@ public class ComplianceCheckService : IComplianceCheckService
         IRepository<ComplianceCheckAttachment> attachmentRepository,
         IRepository<Shop> shopRepository,
         IAttachmentStorageService attachmentStorageService,
+        IShopMembershipService shopMembershipService,
         IAuditService auditService,
         ICurrentUserService currentUserService,
         IUnitOfWork unitOfWork)
@@ -42,6 +46,7 @@ public class ComplianceCheckService : IComplianceCheckService
         _attachmentRepository = attachmentRepository;
         _shopRepository = shopRepository;
         _attachmentStorageService = attachmentStorageService;
+        _shopMembershipService = shopMembershipService;
         _auditService = auditService;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
@@ -144,6 +149,8 @@ public class ComplianceCheckService : IComplianceCheckService
             .Include(x => x.Items.Where(item => !item.IsDeleted))
             .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken)
             ?? throw new AppException("compliance_group_not_found", "Compliance check group not found.", 404);
+
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(group.ShopId, ComplianceManagementRoles, cancellationToken);
 
         var frequency = NormalizeFrequency(request.Frequency);
         var groupName = NormalizeRequiredText(request.GroupName, "Group name is required.");
@@ -347,6 +354,8 @@ public class ComplianceCheckService : IComplianceCheckService
             .Include(x => x.ComplianceCheckGroup)
             .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken)
             ?? throw new AppException("compliance_item_not_found", "Compliance check item not found.", 404);
+
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(item.ShopId, ComplianceManagementRoles, cancellationToken);
 
         var targetGroup = await _groupRepository.Query()
             .AsNoTracking()

@@ -12,11 +12,14 @@ namespace ScratchCard.Application.Services;
 
 public class TemperatureLogService : ITemperatureLogService
 {
+    private static readonly string[] TemperatureManagementRoles = [RoleNames.CompanyOwner, RoleNames.Manager];
+
     private readonly IRepository<TemperatureMonitoringUnit> _unitRepository;
     private readonly IRepository<TemperatureReading> _readingRepository;
     private readonly IRepository<TemperatureDailySignoff> _signoffRepository;
     private readonly IRepository<CfgTemperatureSchedule> _scheduleRepository;
     private readonly IFeatureGateService _featureGateService;
+    private readonly IShopMembershipService _shopMembershipService;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
@@ -27,6 +30,7 @@ public class TemperatureLogService : ITemperatureLogService
         IRepository<TemperatureDailySignoff> signoffRepository,
         IRepository<CfgTemperatureSchedule> scheduleRepository,
         IFeatureGateService featureGateService,
+        IShopMembershipService shopMembershipService,
         IAuditService auditService,
         ICurrentUserService currentUserService,
         IUnitOfWork unitOfWork)
@@ -36,6 +40,7 @@ public class TemperatureLogService : ITemperatureLogService
         _signoffRepository = signoffRepository;
         _scheduleRepository = scheduleRepository;
         _featureGateService = featureGateService;
+        _shopMembershipService = shopMembershipService;
         _auditService = auditService;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
@@ -84,6 +89,7 @@ public class TemperatureLogService : ITemperatureLogService
     {
         var row = await _scheduleRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new AppException("temperature_schedule_not_found", "Temperature schedule not found.", 404);
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(row.ShopId, TemperatureManagementRoles, cancellationToken);
         await _featureGateService.EnsureFeatureAsync(row.ShopId, FeatureKeys.TemperatureLogScheduledChecks, cancellationToken);
         ValidateSchedule(request);
         row.TemperatureMonitoringUnitId = request.TemperatureMonitoringUnitId;
@@ -102,6 +108,7 @@ public class TemperatureLogService : ITemperatureLogService
     {
         var row = await _scheduleRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new AppException("temperature_schedule_not_found", "Temperature schedule not found.", 404);
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(row.ShopId, TemperatureManagementRoles, cancellationToken);
         await _featureGateService.EnsureFeatureAsync(row.ShopId, FeatureKeys.TemperatureLogScheduledChecks, cancellationToken);
         _scheduleRepository.Remove(row);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -195,6 +202,8 @@ public class TemperatureLogService : ITemperatureLogService
         var unit = await _unitRepository.Query()
             .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken)
             ?? throw new AppException("temperature_unit_not_found", "Temperature unit not found.", 404);
+
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(unit.ShopId, TemperatureManagementRoles, cancellationToken);
 
         var unitName = request.UnitName.Trim();
         var duplicateName = await _unitRepository.Query().AnyAsync(

@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ScratchCard.Api.Authorization;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.BusinessDays;
 using ScratchCard.Domain.Constants;
@@ -7,7 +8,7 @@ using ScratchCard.Domain.Constants;
 namespace ScratchCard.Api.Controllers;
 
 [Route("api/business-days")]
-[Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager},{RoleNames.Cashier},{RoleNames.SalesAssistant}")]
+[Authorize(Roles = RoleNames.OperationalRoles)]
 public class BusinessDaysController : BaseApiController
 {
     private readonly IBusinessDayService _businessDayService;
@@ -18,7 +19,8 @@ public class BusinessDaysController : BaseApiController
     }
 
     [HttpPost("open")]
-    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
     public async Task<IActionResult> Open([FromBody] OpenBusinessDayRequest request, CancellationToken cancellationToken)
     {
         var result = await _businessDayService.OpenAsync(request, cancellationToken);
@@ -64,7 +66,7 @@ public class BusinessDaysController : BaseApiController
     // route just exposes it. The 'id' route param is the businessDayId for path consistency,
     // but routing here uses the drop id directly.
     [HttpPost("safe-drop/canister-drops/{canisterDropId:guid}/approve")]
-    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
     public async Task<IActionResult> ApproveCanisterDrop(Guid canisterDropId, [FromBody] ApproveCanisterDropRequest request, CancellationToken cancellationToken)
     {
         var result = await _businessDayService.ApproveCanisterDropAsync(canisterDropId, request?.Notes, cancellationToken);
@@ -72,7 +74,7 @@ public class BusinessDaysController : BaseApiController
     }
 
     [HttpPost("{id:guid}/close")]
-    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
     public async Task<IActionResult> Close(Guid id, [FromBody] CloseBusinessDayRequest request, CancellationToken cancellationToken)
     {
         var result = await _businessDayService.CloseAsync(id, request, cancellationToken);
@@ -80,7 +82,7 @@ public class BusinessDaysController : BaseApiController
     }
 
     [HttpPost("{id:guid}/reopen")]
-    [Authorize(Roles = $"{RoleNames.OwnerRoles},{RoleNames.Manager}")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
     public async Task<IActionResult> Reopen(Guid id, [FromBody] ReopenBusinessDayRequest request, CancellationToken cancellationToken)
     {
         var result = await _businessDayService.ReopenAsync(id, request, cancellationToken);
