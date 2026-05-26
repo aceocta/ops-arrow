@@ -14,7 +14,6 @@ import { AuthProfile } from "../types/models";
 import { reportError } from "../utils/crashReporter";
 import { identifyUser, resetAnalytics } from "../utils/analytics";
 import { setCrashReporterUser } from "../utils/crashReporter";
-import { setActiveShop as setRevenueCatActiveShop } from "../features/subscription/revenueCat";
 import {
   clearAccessToken,
   clearAuthProfile,
@@ -83,12 +82,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       resetAnalytics();
     }
   }, [profile?.userId, profile?.email]);
-
-  // Keep RevenueCat's appUserId in sync with the active shop so subscriber state, purchases,
-  // and webhook events all key by shopId.
-  useEffect(() => {
-    void setRevenueCatActiveShop(activeShopId);
-  }, [activeShopId]);
 
   useEffect(() => {
     if (!profile?.userId || !activeShopId) {

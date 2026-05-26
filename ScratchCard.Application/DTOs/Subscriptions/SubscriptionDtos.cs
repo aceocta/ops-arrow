@@ -191,6 +191,18 @@ public class RevenueCatWebhookEvent
     public string? NewProductId { get; set; }
 }
 
+public class CreateBillingCheckoutRequest
+{
+    public Guid ShopId { get; set; }
+    public Guid PlanId { get; set; }
+}
+
+public class BillingCheckoutResponse
+{
+    public string Url { get; set; } = string.Empty;
+    public string Provider { get; set; } = "stripe";
+}
+
 public class CancelShopSubscriptionRequest
 {
     public Guid ShopId { get; set; }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { AppState, type AppStateStatus } from "react-native";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getShopEntitlements } from "../../api/subscriptionApi";
 import { useAuth } from "../../auth/AuthContext";
 import {
@@ -22,8 +23,24 @@ type UseEntitlementsResult = {
 export function useEntitlements(): UseEntitlementsResult {
   const { activeShopId, isAuthenticated } = useAuth();
   const shopId = activeShopId;
+  const queryClient = useQueryClient();
   const [cached, setCached] = useState<Entitlements | null>(null);
   const [cacheLoaded, setCacheLoaded] = useState(false);
+
+  // Whenever the app returns to the foreground (e.g. after the user finishes Stripe Checkout
+  // in the external browser and switches back) we invalidate the entitlement query so the gate
+  // flips as soon as the webhook lands on the backend.
+  useEffect(() => {
+    const handleAppStateChange = (state: AppStateStatus) => {
+      if (state === "active") {
+        void queryClient.invalidateQueries({ queryKey: ["shop-entitlements"] });
+        void queryClient.invalidateQueries({ queryKey: ["shop-subscription-summary"] });
+        void queryClient.invalidateQueries({ queryKey: ["shop-subscription-summary-root"] });
+      }
+    };
+    const subscription = AppState.addEventListener("change", handleAppStateChange);
+    return () => subscription.remove();
+  }, [queryClient]);
 
   useEffect(() => {
     let cancelled = false;

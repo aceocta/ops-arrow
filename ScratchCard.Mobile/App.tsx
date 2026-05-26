@@ -12,7 +12,6 @@ import type { RootStackParamList } from "./src/types/navigation";
 import { bootstrapThemeModePreference } from "./src/ui/themePreference";
 import { initCrashReporter, reportError } from "./src/utils/crashReporter";
 import { initAnalytics, track } from "./src/utils/analytics";
-import { configureRevenueCat } from "./src/features/subscription/revenueCat";
 
 type SplashScreenModule = {
   preventAutoHideAsync?: () => Promise<unknown>;
@@ -47,7 +46,6 @@ const queryClient = new QueryClient({
 
 void initCrashReporter();
 void initAnalytics();
-configureRevenueCat();
 
 const linking: LinkingOptions<RootStackParamList> = {
   prefixes: [Linking.createURL("/"), "scratchcard://"],

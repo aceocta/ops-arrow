@@ -12,19 +12,28 @@ import { appTheme } from "../../ui/theme";
 type BillingRequiredRouteProps = NativeStackScreenProps<RootStackParamList, "BillingRequired">["route"];
 
 export function BillingRequiredScreen() {
-  const { signOut } = useAuth();
+  const { signOut, activeShop } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<BillingRequiredRouteProps>();
-  const message = route.params?.message ?? "Your trial has ended. Please choose a subscription plan to continue using the app.";
+  const message =
+    route.params?.message ??
+    "This shop profile requires an active operational license. Activate this shop via your account billing portal to continue.";
 
   return (
     <ScreenContainer>
       <View style={ui.card}>
-        <Text style={styles.title}>Billing Required</Text>
+        <Text style={styles.title}>Activation required</Text>
+        {activeShop?.shopName ? <Text style={styles.shop}>{activeShop.shopName}</Text> : null}
         <Text style={styles.message}>{message}</Text>
-        <PrimaryButton label="Choose Plan" onPress={() => navigation.navigate("ChoosePlan")} />
-        <PrimaryButton label="View Subscription Summary" tone="neutral" onPress={() => navigation.navigate("SubscriptionSummary")} />
-        <PrimaryButton label="Logout" tone="neutral" onPress={() => void signOut()} />
+
+        <PrimaryButton label="Activate via billing portal" onPress={() => navigation.navigate("ChoosePlan")} />
+        <PrimaryButton label="View Subscription" tone="neutral" onPress={() => navigation.navigate("SubscriptionSummary")} />
+        <PrimaryButton label="Log out" tone="neutral" onPress={() => void signOut()} />
+
+        <Text style={styles.help}>
+          Payment is processed securely on the web. Switch back to this shop in the app once payment is confirmed —
+          usually within a minute.
+        </Text>
       </View>
     </ScreenContainer>
   );
@@ -32,15 +41,20 @@ export function BillingRequiredScreen() {
 
 const styles = StyleSheet.create({
   title: {
+    ...appTheme.typography.title,
     color: appTheme.colors.text,
-    fontSize: 22,
-    lineHeight: 26,
-    fontFamily: appTheme.fonts.heading,
+  },
+  shop: {
+    ...appTheme.typography.subtitle,
+    color: appTheme.colors.textBrandStrong,
   },
   message: {
+    ...appTheme.typography.body,
     color: appTheme.colors.textMuted,
-    fontSize: 14,
-    lineHeight: 20,
-    fontFamily: appTheme.fonts.body,
+  },
+  help: {
+    ...appTheme.typography.caption,
+    color: appTheme.colors.textSubtle,
+    marginTop: appTheme.spacing.xs,
   },
 });

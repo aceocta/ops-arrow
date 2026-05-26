@@ -29,6 +29,8 @@ public static class DependencyInjection
         services.Configure<AttachmentStorageOptions>(configuration.GetSection("AttachmentStorage"));
         services.Configure<FirebasePushOptions>(configuration.GetSection("FirebasePush"));
         services.Configure<RevenueCatOptions>(configuration.GetSection("RevenueCat"));
+        services.Configure<StripeOptions>(configuration.GetSection("Stripe"));
+        services.AddScoped<IBillingCheckoutService, StripeBillingCheckoutService>();
 
         services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
         services.AddScoped<IPasswordHashService, PasswordHashService>();

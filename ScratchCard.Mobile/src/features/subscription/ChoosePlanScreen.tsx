@@ -3,7 +3,7 @@ import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { listSubscriptionPlans, selectShopSubscriptionPlan } from "../../api/subscriptionApi";
+import { listSubscriptionPlans } from "../../api/subscriptionApi";
 import { useAuth } from "../../auth/AuthContext";
 import { EmptyState } from "../../components/EmptyState";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -16,7 +16,7 @@ import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 import { track } from "../../utils/analytics";
 import { haptics } from "../../utils/haptics";
-import { isIapAvailable, purchaseSubscription, restorePurchases } from "./purchaseService";
+import { startBillingCheckout } from "./purchaseService";
 
 const TERMS_URL = "https://opsarrow.com/terms";
 const PRIVACY_URL = "https://opsarrow.com/privacy";
@@ -54,51 +54,49 @@ export function ChoosePlanScreen() {
     mutationFn: async () => {
       track("plan_selected", { planId: selectedPlanId, shopId });
 
-      // If react-native-iap is available, trigger the native purchase flow first; the backend
-      // /shop-subscription/iap-receipt then resolves the receipt to a plan and activates the
-      // subscription. If the IAP SDK isn't installed (e.g. running in Expo Go), fall back to the
-      // server-side select-plan which keeps the shop on its trial referencing the chosen plan.
-      if (isIapAvailable() && selectedPlan) {
-        const result = await purchaseSubscription({
-          shopId: shopId as string,
-          appleProductId: selectedPlan.appleProductId ?? null,
-          googleProductId: selectedPlan.googleProductId ?? null,
-        });
-        if (!result.ok) {
-          throw new Error(result.message ?? "Purchase failed.");
-        }
-        return result.summary;
+      // App-to-Web model: open Stripe Checkout in the external browser. Payment processing,
+      // VAT invoicing, and store-commission avoidance all live on the web side. When the user
+      // returns to the app, useEntitlements + the foreground refetch unlock the shop.
+      const result = await startBillingCheckout({
+        shopId: shopId as string,
+        planId: selectedPlanId,
+      });
+      if (!result.ok) {
+        throw new Error(result.message ?? "Unable to open checkout.");
       }
-
-      return selectShopSubscriptionPlan(shopId as string, selectedPlanId);
+      if (result.cancelled) {
+        // User dismissed the browser. Don't navigate away — they may want to try again.
+        return null;
+      }
+      return null;
     },
-    onSuccess: async () => {
+    onSuccess: async (data) => {
       haptics.success();
-      toastSuccess("Plan selected successfully.");
+      // Whether the user completed checkout or just dismissed, refresh state so the UI catches up
+      // as soon as the webhook lands.
       await queryClient.invalidateQueries({ queryKey: ["shop-subscription-summary", shopId] });
       await queryClient.invalidateQueries({ queryKey: ["shop-subscription-summary-root", shopId] });
       await queryClient.invalidateQueries({ queryKey: ["shop-entitlements", shopId] });
-      navigation.navigate("SubscriptionSummary");
+      if (data !== null) {
+        toastSuccess("Checkout opened. Your shop will unlock once payment is confirmed.");
+        navigation.navigate("SubscriptionSummary");
+      }
     },
     onError: (error: any) => {
       haptics.error();
-      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to select plan.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to start checkout.");
     },
   });
 
   async function handleRestore() {
     if (!shopId) return;
     setRestorePending(true);
-    const result = await restorePurchases(shopId);
+    // In the App-to-Web model "restore" just means re-asking the backend for current entitlement
+    // state — the subscription lives on the web, not in the device's IAP wallet.
+    await queryClient.invalidateQueries({ queryKey: ["shop-subscription-summary-root", shopId] });
+    await queryClient.invalidateQueries({ queryKey: ["shop-entitlements", shopId] });
     setRestorePending(false);
-    if (result.ok) {
-      toastSuccess("Subscription restored.");
-      await queryClient.invalidateQueries({ queryKey: ["shop-subscription-summary-root", shopId] });
-      await queryClient.invalidateQueries({ queryKey: ["shop-entitlements", shopId] });
-      navigation.navigate("SubscriptionSummary");
-    } else {
-      toastError(result.message ?? "Unable to restore subscription.");
-    }
+    toastSuccess("Subscription status refreshed.");
   }
 
   return (
@@ -168,7 +166,7 @@ export function ChoosePlanScreen() {
         ) : null}
 
         <PrimaryButton
-          label={selectPlanMutation.isPending ? "Selecting..." : "Select Plan"}
+          label={selectPlanMutation.isPending ? "Opening checkout..." : "Continue to Checkout"}
           onPress={() => selectPlanMutation.mutate()}
           disabled={!shopId || !selectedPlanId || selectPlanMutation.isPending}
         />
@@ -178,10 +176,10 @@ export function ChoosePlanScreen() {
           disabled={restorePending}
           style={styles.restoreLink}
           accessibilityRole="button"
-          accessibilityLabel="Restore previous purchases"
+          accessibilityLabel="Refresh subscription status"
         >
           <Text style={styles.restoreLinkText}>
-            {restorePending ? "Restoring..." : "Restore previous purchases"}
+            {restorePending ? "Refreshing..." : "Refresh subscription status"}
           </Text>
         </Pressable>
 

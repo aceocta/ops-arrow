@@ -93,3 +93,11 @@ export async function reactivateShopSubscription(shopId: string) {
   });
   return response.data.data;
 }
+
+export async function createBillingCheckoutSession(shopId: string, planId: string) {
+  const response = await apiClient.post<ApiResponse<{ url: string; provider: string }>>(
+    "/shop-subscription/checkout-session",
+    { shopId, planId }
+  );
+  return response.data.data;
+}

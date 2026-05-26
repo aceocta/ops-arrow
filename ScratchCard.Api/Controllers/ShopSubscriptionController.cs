@@ -12,11 +12,16 @@ namespace ScratchCard.Api.Controllers;
 public class ShopSubscriptionController : BaseApiController
 {
     private readonly IShopSubscriptionService _shopSubscriptionService;
+    private readonly IBillingCheckoutService _billingCheckoutService;
     private readonly RevenueCatOptions _revenueCatOptions;
 
-    public ShopSubscriptionController(IShopSubscriptionService shopSubscriptionService, IOptions<RevenueCatOptions> revenueCatOptions)
+    public ShopSubscriptionController(
+        IShopSubscriptionService shopSubscriptionService,
+        IBillingCheckoutService billingCheckoutService,
+        IOptions<RevenueCatOptions> revenueCatOptions)
     {
         _shopSubscriptionService = shopSubscriptionService;
+        _billingCheckoutService = billingCheckoutService;
         _revenueCatOptions = revenueCatOptions.Value;
     }
 
@@ -46,6 +51,23 @@ public class ShopSubscriptionController : BaseApiController
     {
         var result = await _shopSubscriptionService.RecordIapReceiptAsync(request, cancellationToken);
         return Success(result);
+    }
+
+    /// <summary>
+    /// Creates a Stripe Checkout Session for the chosen shop + plan. The mobile app opens the
+    /// returned URL in the external browser; payment happens on stripe.com, and Stripe → RevenueCat
+    /// → /revenuecat-webhook activates the subscription.
+    /// </summary>
+    [HttpPost("checkout-session")]
+    public async Task<IActionResult> CreateCheckoutSession([FromBody] CreateBillingCheckoutRequest request, CancellationToken cancellationToken)
+    {
+        var session = await _billingCheckoutService.CreateCheckoutSessionAsync(new BillingCheckoutRequest
+        {
+            ShopId = request.ShopId,
+            PlanId = request.PlanId,
+        }, cancellationToken);
+
+        return Success(new BillingCheckoutResponse { Url = session.Url, Provider = session.Provider });
     }
 
     [HttpPost("cancel")]
