@@ -9,6 +9,7 @@ import { getConfigurations } from "../../api/configurationsApi";
 import { getShopSubscriptionSummary } from "../../api/subscriptionApi";
 import { useAuth } from "../../auth/AuthContext";
 import { getShift, getShiftCloseAttachmentContent, getShiftSales } from "../../api/shiftsApi";
+import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ShiftStatus } from "../../types/enums";
@@ -445,32 +446,24 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
                 ? "Record safe drops during this active shift."
                 : "Safe drops can be added only while this shift is open or reopened."}
             </Text>
-            <Text style={styles.fieldLabel}>Canister Number</Text>
-            <TextInput
-              style={styles.input}
+            <FloatingLabelInput
+              label="Canister number"
               value={safeDropCanisterNumber}
               onChangeText={setSafeDropCanisterNumber}
-              placeholder="Canister number"
-              placeholderTextColor={appTheme.colors.textSubtle}
               editable={canRecordSafeDrop && !addCanisterDropMutation.isPending}
             />
-            <Text style={styles.fieldLabel}>Amount</Text>
-            <TextInput
-              style={styles.input}
+            <FloatingLabelInput
+              label="Amount"
+              prefix="£"
               value={safeDropAmount}
               onChangeText={setSafeDropAmount}
-              placeholder="Amount"
-              placeholderTextColor={appTheme.colors.textSubtle}
               keyboardType="decimal-pad"
               editable={canRecordSafeDrop && !addCanisterDropMutation.isPending}
             />
-            <Text style={styles.fieldLabel}>Dropped By</Text>
-            <TextInput
-              style={styles.input}
+            <FloatingLabelInput
+              label={safeDropDefaultByName ? `Dropped by (default: ${safeDropDefaultByName})` : "Dropped by"}
               value={safeDropByName}
               onChangeText={setSafeDropByName}
-              placeholder={safeDropDefaultByName || "Dropped by"}
-              placeholderTextColor={appTheme.colors.textSubtle}
               editable={canRecordSafeDrop && !addCanisterDropMutation.isPending}
             />
             <Pressable

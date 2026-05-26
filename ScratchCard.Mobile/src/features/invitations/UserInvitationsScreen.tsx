@@ -1,5 +1,6 @@
 ﻿import React, { useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import { listInvitations, sendInvitation, cancelInvitation } from "../../api/invitationsApi";
@@ -143,24 +144,18 @@ export function UserInvitationsScreen() {
             </View>
           ) : null}
 
-          <Text style={styles.fieldLabel}>Invitee Email</Text>
-          <TextInput
-            style={[ui.input, styles.input]}
+          <FloatingLabelInput
+            label="Invitee email"
             value={email}
-            placeholder="Invitee email"
-            placeholderTextColor={appTheme.colors.textSubtle}
             autoCapitalize="none"
             keyboardType="email-address"
             onChangeText={setEmail}
             editable={canSendInvitations}
           />
 
-          <Text style={styles.fieldLabel}>Expiry Hours</Text>
-          <TextInput
-            style={[ui.input, styles.input]}
+          <FloatingLabelInput
+            label="Expiry hours (e.g. 72)"
             value={expiryHours}
-            placeholder="Expiry hours (e.g. 72)"
-            placeholderTextColor={appTheme.colors.textSubtle}
             keyboardType="number-pad"
             onChangeText={setExpiryHours}
             editable={canSendInvitations}

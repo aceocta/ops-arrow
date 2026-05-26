@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import { createCompany } from "../api/companiesApi";
 import { useAuth } from "./AuthContext";
+import { FloatingLabelInput } from "../components/FloatingLabelInput";
 import { ScreenContainer } from "../components/ScreenContainer";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { ui } from "../ui/primitives";
@@ -47,22 +48,18 @@ export function CompanySetupScreen() {
           {/* <Text style={styles.subtitle}>Set up your company details to continue.</Text> */}
         </View>
 
-        <Text style={styles.fieldLabel}>Company Name</Text>
-        <TextInput
-          style={styles.input}
+        <FloatingLabelInput
+          label="Company name"
           value={companyName}
           onChangeText={setCompanyName}
-          placeholder="e.g. Sunrise Retail Ltd"
           underlineColorAndroid="transparent"
           editable={!busy}
         />
 
-        <Text style={styles.fieldLabel}>Registration Number (optional)</Text>
-        <TextInput
-          style={styles.input}
+        <FloatingLabelInput
+          label="Registration number (optional)"
           value={registrationNumber}
           onChangeText={setRegistrationNumber}
-          placeholder="e.g. 12345678"
           underlineColorAndroid="transparent"
           editable={!busy}
         />

@@ -16,6 +16,7 @@ import { deactivateUser, listUsers, reactivateUser, updateUserRole } from "../..
 import { useAuth } from "../../auth/AuthContext";
 import { LabeledValue } from "../../components/LabeledValue";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { SkeletonList } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { SubscriptionPlanPicker } from "../subscription/SubscriptionPlanPicker";
 import { SellingOrder } from "../../types/enums";
@@ -504,7 +505,7 @@ export function UserManagementScreen() {
           autoCapitalize="none"
           autoCorrect={false}
         />
-        {usersQuery.isLoading ? <Text style={styles.meta}>Loading users...</Text> : null}
+        {usersQuery.isLoading ? <SkeletonList count={4} rowHeight={88} /> : null}
         {!usersQuery.isLoading && filteredUsers.length === 0 ? (
           <Text style={styles.meta}>
             {searchTerm ? "No users match your search." : "No users assigned to this shop."}

@@ -9,6 +9,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { ReportActionButton } from "../../components/ReportActionButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { SkeletonList } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -301,7 +302,7 @@ export function TemperatureLogsReportScreen() {
 
         <View style={[ui.card, { marginTop: 16 }]}>
           <Text style={styles.sectionTitle}>Loaded Logs ({fromDate} to {toDate})</Text>
-          {readingsQuery.isLoading ? <Text style={styles.meta}>Loading logs...</Text> : null}
+          {readingsQuery.isLoading ? <SkeletonList count={4} rowHeight={92} /> : null}
           {!readingsQuery.isLoading && readings.length === 0 ? (
             <Text style={styles.meta}>No temperature logs found for this date range.</Text>
           ) : null}

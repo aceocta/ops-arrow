@@ -5,15 +5,17 @@ export const ui = StyleSheet.create({
   card: {
     backgroundColor: appTheme.colors.surface,
     borderRadius: appTheme.radius.md,
-    borderWidth: 0,
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderSoft,
     padding: appTheme.spacing.lg,
     gap: appTheme.spacing.sm,
     ...surfaceShadow,
   },
   cardMuted: {
-    backgroundColor: appTheme.colors.surfaceMuted,
+    backgroundColor: appTheme.colors.surfaceTint,
     borderRadius: appTheme.radius.md,
-    borderWidth: 0,
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderSoft,
     padding: appTheme.spacing.lg,
     gap: appTheme.spacing.sm,
   },
@@ -42,7 +44,8 @@ export const ui = StyleSheet.create({
     fontFamily: appTheme.fonts.body,
   },
   input: {
-    borderWidth: 0,
+    borderWidth: 1.5,
+    borderColor: "transparent",
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceMuted,
     color: appTheme.colors.text,
@@ -51,11 +54,21 @@ export const ui = StyleSheet.create({
     fontSize: 14,
     fontFamily: appTheme.fonts.body,
   },
+  inputFocused: {
+    borderColor: appTheme.colors.primary,
+    backgroundColor: appTheme.colors.surface,
+  },
   listItem: {
     borderWidth: 0,
     borderRadius: appTheme.radius.sm,
-    padding: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.sm,
+    paddingHorizontal: appTheme.spacing.sm,
     gap: appTheme.spacing.xs,
     backgroundColor: appTheme.colors.surface,
+  },
+  listItemDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: appTheme.colors.borderSoft,
+    borderRadius: 0,
   },
 });

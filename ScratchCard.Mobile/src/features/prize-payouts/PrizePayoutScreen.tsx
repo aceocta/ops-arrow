@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ThemedTextInput } from "../../components/ThemedTextInput";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
@@ -117,13 +118,13 @@ export function PrizePayoutScreen({ route }: Props) {
             placeholderTextColor={appTheme.colors.textSubtle}
           />
           <Text style={styles.fieldLabel}>Prize Amount</Text>
-          <TextInput
-            style={[ui.input, styles.input]}
+          <ThemedTextInput
+            prefix="£"
             value={prizeAmount}
             onChangeText={setPrizeAmount}
             keyboardType="decimal-pad"
-            placeholder="Prize amount"
-            placeholderTextColor={appTheme.colors.textSubtle}
+            placeholder="0.00"
+            accessibilityLabel="Prize amount in pounds"
           />
           <Text style={styles.fieldLabel}>Payment Method</Text>
           <TextInput

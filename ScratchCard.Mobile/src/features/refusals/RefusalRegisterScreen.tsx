@@ -12,6 +12,7 @@ import { DateTimeField, formatDateValue, formatTimeValue, parseDateTimeValue } f
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { SkeletonList } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
@@ -573,7 +574,7 @@ export function RefusalRegisterScreen() {
       <View style={ui.card}>
         <Text style={styles.sectionTitle}>Entries ({selectedDate})</Text>
         <Text style={styles.sectionSubtitle}>Latest refusal records for this date.</Text>
-        {dailyLogQuery.isLoading ? <Text style={styles.meta}>Loading entries...</Text> : null}
+        {dailyLogQuery.isLoading ? <SkeletonList count={3} rowHeight={84} /> : null}
         {entries.length === 0 && !dailyLogQuery.isLoading ? <Text style={styles.meta}>No entries for this date.</Text> : null}
         {entries.map((entry) => (
           <View key={entry.id} style={styles.entryItem}>

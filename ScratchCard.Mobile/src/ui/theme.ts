@@ -212,9 +212,9 @@ export const appTheme = {
     xl: 28,
   },
   radius: {
-    sm: 14,
-    md: 20,
-    lg: 28,
+    sm: 12,
+    md: 16,
+    lg: 24,
     pill: 999,
   },
   fonts: fontFamilies,
@@ -222,12 +222,14 @@ export const appTheme = {
     display: {
       fontFamily: fontFamilies.heading,
       fontSize: 28,
-      lineHeight: 34,
+      lineHeight: 32,
+      letterSpacing: -0.2,
     },
     title: {
       fontFamily: fontFamilies.heading,
       fontSize: 20,
-      lineHeight: 26,
+      lineHeight: 24,
+      letterSpacing: -0.1,
     },
     subtitle: {
       fontFamily: fontFamilies.bodyMedium,

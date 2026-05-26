@@ -5,6 +5,7 @@ import { getTemperatureDailyLog } from "../../api/temperatureLogsApi";
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { SkeletonList } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -84,6 +85,7 @@ export function TemperatureLogsByDayScreen() {
 
       <View style={ui.card}>
         <Text style={styles.sectionTitle}>Daily Logs</Text>
+        {dailyLogQuery.isLoading ? <SkeletonList count={3} rowHeight={80} /> : null}
         {!dailyLogQuery.isLoading && dailyUnitLogs.length === 0 ? (
           <Text style={styles.meta}>No temperature logs found for this date.</Text>
         ) : null}

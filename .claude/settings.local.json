@@ -10,7 +10,12 @@
       "Bash(grep -v \"RequireShopRole\\\\|^--$\")",
       "Bash(cd /j:/ScratchCard/ScratchCard.Mobile/src && find . -type f -name \"*.tsx\" -o -name \"*.ts\" | head -30)",
       "Read(//j:/ScratchCard/ScratchCard.Mobile/**)",
-      "Bash(echo \"EXIT $?\")"
+      "Bash(echo \"EXIT $?\")",
+      "PowerShell(Get-ChildItem -Path \"j:\\\\ScratchCard\\\\ScratchCard.Mobile\" -Recurse -Directory | Select-Object -First 20 | ForEach-Object { $_.FullName })",
+      "PowerShell(Get-ChildItem -Path \"j:\\\\ScratchCard\\\\ScratchCard.Mobile\\\\src\" -Recurse | Select-Object -First 50 | ForEach-Object { $_.FullName })",
+      "PowerShell(Get-ChildItem -Path \"j:\\\\ScratchCard\\\\ScratchCard.Mobile\\\\src\\\\components\" -File | ForEach-Object { $_.FullName })",
+      "PowerShell(Get-ChildItem -Path \"j:\\\\ScratchCard\\\\ScratchCard.Mobile\\\\src\\\\navigation\" -File | ForEach-Object { $_.FullName })",
+      "PowerShell(Get-ChildItem -Path \"j:\\\\ScratchCard\\\\ScratchCard.Mobile\\\\src\\\\features\" -Directory | ForEach-Object { $_.FullName })"
     ]
   }
 }

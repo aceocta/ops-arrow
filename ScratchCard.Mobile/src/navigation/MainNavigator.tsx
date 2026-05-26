@@ -458,7 +458,10 @@ function MainBottomDock() {
               accessibilityRole="button"
               accessibilityLabel={`Open ${item.label}`}
             >
-              <Ionicons name={item.icon} size={18} color={isActive ? appTheme.colors.primary : appTheme.colors.textSubtle} />
+              <View style={styles.bottomDockIconWrap}>
+                <Ionicons name={item.icon} size={20} color={isActive ? appTheme.colors.primary : appTheme.colors.textSubtle} />
+                {isActive ? <View style={styles.bottomDockActiveDot} /> : null}
+              </View>
               <Text style={[styles.bottomDockItemLabel, isActive ? styles.bottomDockItemLabelActive : null]}>{item.label}</Text>
             </Pressable>
           );
@@ -1149,15 +1152,40 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#0E1A2A",
+        shadowOpacity: 0.1,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 6 },
+      },
+      android: {
+        elevation: 6,
+      },
+      default: {},
+    }),
   },
   bottomDockItem: {
-    gap: 3,
+    gap: 2,
     alignItems: "center",
     justifyContent: "center",
     flex: 1,
-    minHeight: 44,
+    minHeight: 48,
     borderRadius: appTheme.radius.pill,
-    paddingVertical: 5,
+    paddingVertical: 4,
+  },
+  bottomDockIconWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    height: 22,
+  },
+  bottomDockActiveDot: {
+    position: "absolute",
+    bottom: -3,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: appTheme.colors.primary,
   },
   bottomDockItemActive: {
     backgroundColor: appTheme.colors.surfaceBrandSoft,

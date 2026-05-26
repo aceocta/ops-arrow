@@ -1,8 +1,9 @@
 import React from "react";
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Controller, useForm } from "react-hook-form";
 import { requestSignupVerificationCode } from "../api/authApi";
+import { FloatingLabelInput } from "../components/FloatingLabelInput";
 import { ScreenContainer } from "../components/ScreenContainer";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { ui } from "../ui/primitives";
@@ -151,45 +152,40 @@ export function CompanySignupScreen() {
           <Text style={styles.subtitle}>Step 1 of 3: enter details and verify your email before company setup.</Text>
         </View>
 
-        <Text style={styles.fieldLabel}>First Name</Text>
         <Controller
           control={control}
           name="firstName"
           render={({ field: { value, onChange } }) => (
-            <TextInput
-              style={styles.input}
+            <FloatingLabelInput
+              label="First name"
               value={value}
               onChangeText={onChange}
-              placeholder="e.g. John"
               underlineColorAndroid="transparent"
               editable={!busy}
             />
           )}
         />
 
-        <Text style={styles.fieldLabel}>Last Name</Text>
         <Controller
           control={control}
           name="lastName"
           render={({ field: { value, onChange } }) => (
-            <TextInput
-              style={styles.input}
+            <FloatingLabelInput
+              label="Last name"
               value={value}
               onChangeText={onChange}
-              placeholder="e.g. Smith"
               underlineColorAndroid="transparent"
               editable={!busy}
             />
           )}
         />
 
-        <Text style={styles.fieldLabel}>Email Address</Text>
         <Controller
           control={control}
           name="email"
           render={({ field: { value, onChange } }) => (
-            <TextInput
-              style={styles.input}
+            <FloatingLabelInput
+              label="Email address"
               value={value}
               onChangeText={(nextValue) => {
                 onChange(nextValue);
@@ -202,7 +198,6 @@ export function CompanySignupScreen() {
                   resetVerificationState();
                 }
               }}
-              placeholder="e.g. john@company.com"
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -212,19 +207,17 @@ export function CompanySignupScreen() {
           )}
         />
 
-        <Text style={styles.fieldLabel}>Password</Text>
-        <Text style={styles.hint}>Minimum 8 characters</Text>
+        <Text style={styles.hint}>Password: minimum 8 characters</Text>
         <Controller
           control={control}
           name="password"
           render={({ field: { value, onChange } }) => (
             <View style={styles.passwordRow}>
               <View style={styles.passwordInputContainer}>
-                <TextInput
-                  style={styles.passwordInput}
+                <FloatingLabelInput
+                  label="Password"
                   value={value}
                   onChangeText={onChange}
-                  placeholder="Enter a secure password"
                   secureTextEntry={!showPassword}
                   underlineColorAndroid="transparent"
                   editable={!busy}
@@ -246,18 +239,16 @@ export function CompanySignupScreen() {
           )}
         />
 
-        <Text style={styles.fieldLabel}>Confirm Password</Text>
         <Controller
           control={control}
           name="confirmPassword"
           render={({ field: { value, onChange } }) => (
             <View style={styles.passwordRow}>
               <View style={styles.passwordInputContainer}>
-                <TextInput
-                  style={styles.passwordInput}
+                <FloatingLabelInput
+                  label="Confirm password"
                   value={value}
                   onChangeText={onChange}
-                  placeholder="Re-enter your password"
                   secureTextEntry={!showConfirmPassword}
                   underlineColorAndroid="transparent"
                   editable={!busy}
@@ -287,17 +278,15 @@ export function CompanySignupScreen() {
           />
         ) : (
           <>
-            <Text style={styles.fieldLabel}>Verification Code</Text>
             <Text style={styles.hint}>{expiresHint}</Text>
             <Controller
               control={control}
               name="verificationCode"
               render={({ field: { value, onChange } }) => (
-                <TextInput
-                  style={styles.input}
+                <FloatingLabelInput
+                  label="6-digit verification code"
                   value={value}
                   onChangeText={(nextValue) => onChange(nextValue.replace(/\D+/g, ""))}
-                  placeholder="Enter 6-digit code"
                   keyboardType="number-pad"
                   maxLength={VERIFICATION_CODE_LENGTH}
                   underlineColorAndroid="transparent"
@@ -379,9 +368,6 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   passwordInputContainer: {
-    borderWidth: 0,
-    borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surfaceMuted,
     position: "relative",
   },
   passwordInput: {

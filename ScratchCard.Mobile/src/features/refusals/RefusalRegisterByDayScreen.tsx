@@ -7,6 +7,7 @@ import { getRefusalDailyLog } from "../../api/refusalRegisterApi";
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { SkeletonList } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
@@ -93,7 +94,7 @@ export function RefusalRegisterByDayScreen() {
       <View style={ui.card}>
         <Text style={styles.sectionTitle}>Register Entries</Text>
         <Text style={styles.sectionSubtitle}>Tap each item to inspect or edit the record.</Text>
-        {dailyLogQuery.isLoading ? <Text style={styles.meta}>Loading entries...</Text> : null}
+        {dailyLogQuery.isLoading ? <SkeletonList count={3} rowHeight={72} /> : null}
         {!dailyLogQuery.isLoading && entries.length === 0 ? <Text style={styles.meta}>No refusals recorded for this date.</Text> : null}
         {entries.map((entry) => (
           <View key={entry.id} style={styles.entryItem}>

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { resetPassword } from "../api/authApi";
+import { FloatingLabelInput } from "../components/FloatingLabelInput";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { ScreenContainer } from "../components/ScreenContainer";
 import type { RootStackParamList } from "../types/navigation";
@@ -59,33 +60,27 @@ export function ResetPasswordScreen({ route, navigation }: Props) {
       <View style={[ui.card, styles.card]}>
         <Text style={styles.title}>Reset Password</Text>
         <Text style={styles.subtitle}>Use the token from your email to set a new password.</Text>
-        <Text style={styles.label}>Reset Token</Text>
-        <TextInput
-          style={ui.input}
+        <FloatingLabelInput
+          label="Reset token"
           value={token}
           onChangeText={setToken}
-          placeholder="Reset token"
           autoCapitalize="none"
           autoCorrect={false}
           editable={!isBusy}
           underlineColorAndroid="transparent"
         />
-        <Text style={styles.label}>New Password</Text>
-        <TextInput
-          style={ui.input}
+        <FloatingLabelInput
+          label="New password (min 8 characters)"
           value={newPassword}
           onChangeText={setNewPassword}
-          placeholder="New password (min 8 characters)"
           secureTextEntry
           editable={!isBusy}
           underlineColorAndroid="transparent"
         />
-        <Text style={styles.label}>Confirm Password</Text>
-        <TextInput
-          style={ui.input}
+        <FloatingLabelInput
+          label="Confirm new password"
           value={confirmPassword}
           onChangeText={setConfirmPassword}
-          placeholder="Confirm new password"
           secureTextEntry
           editable={!isBusy}
           underlineColorAndroid="transparent"

@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { requestPasswordReset } from "../api/authApi";
+import { FloatingLabelInput } from "../components/FloatingLabelInput";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { ScreenContainer } from "../components/ScreenContainer";
 import type { RootStackParamList } from "../types/navigation";
@@ -40,12 +41,10 @@ export function ForgotPasswordScreen() {
       <View style={[ui.card, styles.card]}>
         <Text style={styles.title}>Forgot Password</Text>
         <Text style={styles.subtitle}>Enter your account email to receive a reset link and token.</Text>
-        <Text style={styles.label}>Email Address</Text>
-        <TextInput
-          style={ui.input}
+        <FloatingLabelInput
+          label="Email address"
           value={email}
           onChangeText={setEmail}
-          placeholder="Email address"
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}

@@ -16,6 +16,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { ReportActionButton } from "../../components/ReportActionButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { SkeletonList } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
@@ -350,7 +351,7 @@ export function RefusalReportScreen() {
         <View style={[ui.card, { marginTop: 16 }]}>
           <Text style={styles.sectionTitle}>Refusal Entries ({fromDate} to {toDate})</Text>
           <Text style={styles.sectionSubtitle}>Grouped by review completion timestamp.</Text>
-          {rangeQuery.isLoading ? <Text style={styles.meta}>Loading entries...</Text> : null}
+          {rangeQuery.isLoading ? <SkeletonList count={4} rowHeight={92} /> : null}
           {!rangeQuery.isLoading && entries.length === 0 ? (
             <Text style={styles.meta}>No refusal entries found for this date range.</Text>
           ) : null}

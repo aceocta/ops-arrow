@@ -2326,7 +2326,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             <View style={styles.modalCard}>
               <Text style={styles.sectionTitle}>Close Day</Text>
               <Text style={styles.meta}>Enter payouts, then close this business day.</Text>
-              <Text style={styles.fieldLabel}>Lotto Payout</Text>
+              <Text style={styles.fieldLabel}>Lotto Payout (£)</Text>
               <TextInput
                 ref={lottoInputRef}
                 style={[styles.input, payoutFieldError?.key === "lotto" ? styles.inputError : null]}
@@ -2345,15 +2345,15 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     setLottoPayoutAmount(DEFAULT_CLOSE_DAY_PAYOUT);
                   }
                 }}
-                placeholder="Lotto payout"
+                placeholder="£ 0.00"
                 placeholderTextColor={appTheme.colors.textSubtle}
                 keyboardType="decimal-pad"
-                accessibilityLabel="Lotto payout amount"
+                accessibilityLabel="Lotto payout amount in pounds"
               />
               {payoutFieldError?.key === "lotto" ? (
                 <Text style={styles.fieldErrorText}>{payoutFieldError.message}</Text>
               ) : null}
-              <Text style={styles.fieldLabel}>Scratch Card Payout</Text>
+              <Text style={styles.fieldLabel}>Scratch Card Payout (£)</Text>
               <TextInput
                 ref={scratchInputRef}
                 style={[styles.input, payoutFieldError?.key === "scratch" ? styles.inputError : null]}
@@ -2372,15 +2372,15 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     setScratchCardPayoutAmount(DEFAULT_CLOSE_DAY_PAYOUT);
                   }
                 }}
-                placeholder="Scratch card payout"
+                placeholder="£ 0.00"
                 placeholderTextColor={appTheme.colors.textSubtle}
                 keyboardType="decimal-pad"
-                accessibilityLabel="Scratch card payout amount"
+                accessibilityLabel="Scratch card payout amount in pounds"
               />
               {payoutFieldError?.key === "scratch" ? (
                 <Text style={styles.fieldErrorText}>{payoutFieldError.message}</Text>
               ) : null}
-              <Text style={styles.fieldLabel}>Till Payout</Text>
+              <Text style={styles.fieldLabel}>Till Payout (£)</Text>
               <TextInput
                 ref={tillInputRef}
                 style={[styles.input, payoutFieldError?.key === "till" ? styles.inputError : null]}
@@ -2399,10 +2399,10 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     setTillPayoutAmount(DEFAULT_CLOSE_DAY_PAYOUT);
                   }
                 }}
-                placeholder="Till payout"
+                placeholder="£ 0.00"
                 placeholderTextColor={appTheme.colors.textSubtle}
                 keyboardType="decimal-pad"
-                accessibilityLabel="Till payout amount"
+                accessibilityLabel="Till payout amount in pounds"
               />
               {payoutFieldError?.key === "till" ? (
                 <Text style={styles.fieldErrorText}>{payoutFieldError.message}</Text>

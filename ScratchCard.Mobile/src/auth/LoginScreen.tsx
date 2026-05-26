@@ -7,6 +7,7 @@ import Constants from "expo-constants";
 import { useMemo } from "react";
 import { ScreenContainer } from "../components/ScreenContainer";
 import { PrimaryButton } from "../components/PrimaryButton";
+import { FloatingLabelInput } from "../components/FloatingLabelInput";
 import type { RootStackParamList } from "../types/navigation";
 import { ui } from "../ui/primitives";
 import { appTheme } from "../ui/theme";
@@ -90,27 +91,22 @@ export function LoginScreen() {
       </View>
       <View style={[ui.card, styles.contentBlock]}>
         <Text style={styles.title}>Sign In</Text>
-        {/* <Text style={styles.subtitle}>Sign in to continue with {appInfo.name}.</Text> */}
-        <Text style={styles.fieldLabel}>Email Address</Text>
-        <TextInput
-          style={ui.input}
+        <FloatingLabelInput
+          label="Email address"
           value={email}
           onChangeText={setEmail}
-          placeholder="Email address"
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
           underlineColorAndroid="transparent"
           editable={!busy}
         />
-        <Text style={styles.fieldLabel}>Password</Text>
         <View style={styles.passwordRow}>
           <View style={styles.passwordInputContainer}>
-            <TextInput
-              style={styles.passwordInput}
+            <FloatingLabelInput
+              label="Password"
               value={password}
               onChangeText={setPassword}
-              placeholder="Password"
               secureTextEntry={!showPassword}
               underlineColorAndroid="transparent"
               editable={!busy}
@@ -245,9 +241,6 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   passwordInputContainer: {
-    borderWidth: 0,
-    borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surfaceMuted,
     position: "relative",
   },
   passwordInput: {

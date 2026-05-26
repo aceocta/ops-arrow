@@ -8,6 +8,7 @@ import { DateTimeField, formatDateValue, parseDateValue } from "../../components
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { SkeletonList } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { useFeature } from "../subscription/useFeature";
 import { UpgradeNotice } from "../subscription/FeatureGate";
@@ -210,7 +211,7 @@ export function RefusalManagerReviewScreen() {
       <View style={ui.card}>
         <Text style={styles.sectionTitle}>Entries</Text>
         <Text style={styles.sectionSubtitle}>Tap an entry to toggle selection for batch review.</Text>
-        {entriesQuery.isLoading ? <Text style={styles.meta}>Loading entries...</Text> : null}
+        {entriesQuery.isLoading ? <SkeletonList count={4} rowHeight={84} /> : null}
         {!entriesQuery.isLoading && entries.length === 0 ? <Text style={styles.meta}>No entries in selected range.</Text> : null}
         <ScrollView style={styles.listScroll} contentContainerStyle={styles.listContent}>
           {entries.map((entry) => {

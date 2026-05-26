@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import { createShop } from "../api/shopsApi";
 import { useAuth } from "./AuthContext";
+import { FloatingLabelInput } from "../components/FloatingLabelInput";
 import { ScreenContainer } from "../components/ScreenContainer";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { SubscriptionPlanPicker } from "../features/subscription/SubscriptionPlanPicker";
@@ -78,63 +79,51 @@ export function ShopSetupScreen() {
           <Text style={styles.subtitle}>Create your first shop to finish onboarding.</Text>
         </View>
 
-        <Text style={styles.fieldLabel}>Shop Name</Text>
-        <TextInput
-          style={styles.input}
+        <FloatingLabelInput
+          label="Shop name"
           value={shopName}
           onChangeText={setShopName}
-          placeholder="e.g. Main Street Shop"
           underlineColorAndroid="transparent"
           editable={!busy}
         />
 
-        <Text style={styles.fieldLabel}>Address Line 1</Text>
-        <TextInput
-          style={styles.input}
+        <FloatingLabelInput
+          label="Address line 1"
           value={addressLine1}
           onChangeText={setAddressLine1}
-          placeholder="e.g. 12 High Street"
           underlineColorAndroid="transparent"
           editable={!busy}
         />
 
-        <Text style={styles.fieldLabel}>Address Line 2 (optional)</Text>
-        <TextInput
-          style={styles.input}
+        <FloatingLabelInput
+          label="Address line 2 (optional)"
           value={addressLine2}
           onChangeText={setAddressLine2}
-          placeholder="e.g. Unit A"
           underlineColorAndroid="transparent"
           editable={!busy}
         />
 
-        <Text style={styles.fieldLabel}>City</Text>
-        <TextInput
-          style={styles.input}
+        <FloatingLabelInput
+          label="City"
           value={city}
           onChangeText={setCity}
-          placeholder="e.g. London"
           underlineColorAndroid="transparent"
           editable={!busy}
         />
 
-        <Text style={styles.fieldLabel}>Post Code</Text>
-        <TextInput
-          style={styles.input}
+        <FloatingLabelInput
+          label="Post code"
           value={postCode}
           onChangeText={setPostCode}
-          placeholder="e.g. SW1A 1AA"
           autoCapitalize="characters"
           underlineColorAndroid="transparent"
           editable={!busy}
         />
 
-        <Text style={styles.fieldLabel}>Country</Text>
-        <TextInput
-          style={styles.input}
+        <FloatingLabelInput
+          label="Country"
           value={country}
           onChangeText={setCountry}
-          placeholder="e.g. UK"
           underlineColorAndroid="transparent"
           editable={!busy}
         />
@@ -143,12 +132,10 @@ export function ShopSetupScreen() {
           <Text style={styles.configTitle}>Pack Configuration</Text>
           <Text style={styles.configSubtitle}>Set the initial selling order and display capacity for this shop.</Text>
 
-          <Text style={styles.fieldLabel}>Scratch Card Display Count</Text>
-          <TextInput
-            style={styles.input}
+          <FloatingLabelInput
+            label="Scratch card display count"
             value={scratchCardDisplayCount}
             onChangeText={setScratchCardDisplayCount}
-            placeholder="e.g. 24"
             keyboardType="number-pad"
             underlineColorAndroid="transparent"
             editable={!busy}

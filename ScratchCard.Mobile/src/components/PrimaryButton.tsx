@@ -1,5 +1,7 @@
-import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useCallback } from "react";
+import { Pressable, StyleSheet, Text } from "react-native";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
+import * as Haptics from "expo-haptics";
 import { appTheme } from "../ui/theme";
 
 type Props = {
@@ -8,25 +10,50 @@ type Props = {
   disabled?: boolean;
   tone?: "primary" | "neutral" | "danger" | "success";
   size?: "sm" | "md";
+  /** Disable haptic feedback (defaults to enabled on press-in). */
+  haptic?: boolean;
 };
 
-export function PrimaryButton({ label, onPress, disabled, tone = "primary", size = "md" }: Props) {
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+const PRESS_SPRING = { damping: 14, stiffness: 280, mass: 0.6 } as const;
+
+export function PrimaryButton({ label, onPress, disabled, tone = "primary", size = "md", haptic = true }: Props) {
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePressIn = useCallback(() => {
+    scale.value = withSpring(0.96, PRESS_SPRING);
+    if (haptic && !disabled) {
+      void Haptics.selectionAsync().catch(() => undefined);
+    }
+  }, [scale, haptic, disabled]);
+
+  const handlePressOut = useCallback(() => {
+    scale.value = withSpring(1, PRESS_SPRING);
+  }, [scale]);
+
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
       disabled={disabled}
-      style={({ pressed }) => [
+      style={[
         styles.button,
         tone === "neutral" && styles.buttonNeutral,
         tone === "danger" && styles.buttonDanger,
         tone === "success" && styles.buttonSuccess,
         size === "sm" && styles.buttonSmall,
-        pressed && !disabled && styles.pressed,
         disabled && styles.disabled,
+        animatedStyle,
       ]}
     >
       <Text style={[styles.text, tone === "neutral" && styles.textAlt, size === "sm" && styles.textSmall]}>{label}</Text>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -56,7 +83,6 @@ const styles = StyleSheet.create({
   buttonSuccess: {
     backgroundColor: appTheme.colors.success,
   },
-  pressed: { opacity: 0.92, transform: [{ scale: 0.995 }] },
   disabled: { backgroundColor: appTheme.colors.borderStrong },
   text: {
     color: appTheme.colors.onPrimary,
