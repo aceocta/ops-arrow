@@ -16,6 +16,7 @@ import { deactivateUser, listUsers, reactivateUser, updateUserRole } from "../..
 import { useAuth } from "../../auth/AuthContext";
 import { LabeledValue } from "../../components/LabeledValue";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { StatusBadge } from "../../components/StatusBadge";
 import { SubscriptionPlanPicker } from "../subscription/SubscriptionPlanPicker";
 import { SellingOrder } from "../../types/enums";
 import { Company, ConfigurationItem, Shop } from "../../types/models";
@@ -391,6 +392,22 @@ function mergeCommaSeparatedValues(values: string[]) {
   return deduped.join(",");
 }
 
+function formatRelativeTime(value: string | null | undefined) {
+  if (!value) return "Never";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "Never";
+  const diffMs = Date.now() - parsed.getTime();
+  if (diffMs < 0) return parsed.toLocaleDateString();
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return parsed.toLocaleDateString();
+}
+
 function toggleCommaSeparatedValue(current: string, value: string) {
   const currentValues = parseCommaSeparatedValues(current);
   const key = value.trim().toLowerCase();
@@ -407,6 +424,8 @@ export function UserManagementScreen() {
   const queryClient = useQueryClient();
   const { activeShopId, activeShop } = useAuth();
   const shopId = activeShopId;
+  const [searchTerm, setSearchTerm] = useState("");
+  const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
 
   const usersQuery = useQuery({
     queryKey: ["users", shopId],
@@ -425,7 +444,10 @@ export function UserManagementScreen() {
       if (!shopId) throw new Error("Shop context missing.");
       return updateUserRole(userId, { shopId, roleId });
     },
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["users", shopId] }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["users", shopId] });
+      setExpandedUserId(null);
+    },
     onError: (error: any) => Alert.alert("Failed", error?.response?.data?.message ?? "Unable to update role."),
   });
 
@@ -439,45 +461,119 @@ export function UserManagementScreen() {
     onError: (error: any) => Alert.alert("Failed", error?.response?.data?.message ?? "Unable to change user status."),
   });
 
+  function confirmToggleActive(user: { id: string; isActive: boolean }, displayName: string) {
+    if (user.isActive) {
+      Alert.alert(
+        "Deactivate user?",
+        `${displayName} will lose access to ${activeShop?.shopName ?? "this shop"} immediately.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Deactivate",
+            style: "destructive",
+            onPress: () => toggleActiveMutation.mutate({ userId: user.id, isActive: true }),
+          },
+        ],
+      );
+    } else {
+      toggleActiveMutation.mutate({ userId: user.id, isActive: false });
+    }
+  }
+
+  const filteredUsers = useMemo(() => {
+    const all = usersQuery.data ?? [];
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return all;
+    return all.filter((user) => {
+      const name = buildDisplayName(user).toLowerCase();
+      const email = (user.email ?? "").toLowerCase();
+      const role = (user.roleName ?? "").toLowerCase();
+      return name.includes(term) || email.includes(term) || role.includes(term);
+    });
+  }, [usersQuery.data, searchTerm]);
+
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={{ gap: 12 }}>
-        <View style={ui.card}>
-          <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
-          {(usersQuery.data ?? []).map((user) => (
+      <View style={ui.card}>
+        <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
+        <TextInput
+          style={[styles.input, { marginTop: 8 }]}
+          value={searchTerm}
+          onChangeText={setSearchTerm}
+          placeholder="Search by name, email, or role"
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        {usersQuery.isLoading ? <Text style={styles.meta}>Loading users...</Text> : null}
+        {!usersQuery.isLoading && filteredUsers.length === 0 ? (
+          <Text style={styles.meta}>
+            {searchTerm ? "No users match your search." : "No users assigned to this shop."}
+          </Text>
+        ) : null}
+        {filteredUsers.map((user) => {
+          const displayName = buildDisplayName(user);
+          const isExpanded = expandedUserId === user.id;
+          return (
             <View key={user.id} style={styles.item}>
-              <Text style={styles.itemTitle}>{buildDisplayName(user)} ({user.email})</Text>
-              <Text style={styles.meta}>Current Role: {getRoleDisplayName(user.roleName)}</Text>
-              <Text style={styles.meta}>Status: {user.isActive ? "Active" : "Inactive"}</Text>
-              <Text style={styles.meta}>Last Login: {user.lastLoginOn ? new Date(user.lastLoginOn).toLocaleString() : "-"}</Text>
+              <View style={styles.userManagementHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.itemTitle}>{displayName}</Text>
+                  <Text style={styles.meta}>{user.email}</Text>
+                </View>
+                <StatusBadge label={user.isActive ? "Active" : "Inactive"} tone={user.isActive ? "success" : "neutral"} />
+              </View>
+              <Text style={styles.meta}>Role: {getRoleDisplayName(user.roleName)}</Text>
+              <Text style={styles.meta}>Last login: {formatRelativeTime(user.lastLoginOn)}</Text>
 
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-                {(rolesQuery.data ?? []).map((role) => (
-                  <Pressable
-                    key={role.id}
-                    style={styles.smallButton}
-                    onPress={() => updateRoleMutation.mutate({ userId: user.id, roleId: role.id })}
-                  >
-                    <Text style={styles.smallButtonText}>Set {getRoleDisplayName(role.name)}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
+              <View style={[styles.row, { marginTop: 8 }]}>
+                <Pressable
+                  style={[styles.smallButton, styles.smallButtonSecondary]}
+                  onPress={() => setExpandedUserId(isExpanded ? null : user.id)}
+                >
+                  <Text style={[styles.smallButtonText, styles.smallButtonTextSecondary]}>
+                    {isExpanded ? "Cancel" : "Change Role"}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.smallButton, user.isActive ? styles.smallButtonDanger : styles.smallButtonSuccess]}
+                  onPress={() => confirmToggleActive(user, displayName)}
+                >
+                  <Text style={styles.smallButtonText}>{user.isActive ? "Deactivate" : "Reactivate"}</Text>
+                </Pressable>
+              </View>
 
-              <Pressable
-                style={[styles.smallButton, user.isActive ? styles.smallButtonDanger : styles.smallButtonSuccess]}
-                onPress={() => toggleActiveMutation.mutate({ userId: user.id, isActive: user.isActive })}
-              >
-                <Text style={styles.smallButtonText}>{user.isActive ? "Deactivate" : "Reactivate"}</Text>
-              </Pressable>
+              {isExpanded ? (
+                <View style={{ marginTop: 8, gap: 6 }}>
+                  <Text style={styles.caption}>Select a new role:</Text>
+                  <View style={styles.choiceChipWrap}>
+                    {(rolesQuery.data ?? []).map((role) => {
+                      const selected = role.name === user.roleName;
+                      return (
+                        <Pressable
+                          key={role.id}
+                          style={[styles.choiceChip, selected ? styles.choiceChipSelected : null]}
+                          disabled={selected || updateRoleMutation.isPending}
+                          onPress={() => updateRoleMutation.mutate({ userId: user.id, roleId: role.id })}
+                        >
+                          <Text style={[styles.choiceChipText, selected ? styles.choiceChipTextSelected : null]}>
+                            {getRoleDisplayName(role.name)}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
             </View>
-          ))}
-        </View>
-      </ScrollView>
+          );
+        })}
+      </View>
     </ScreenContainer>
   );
 }
 
 function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const { activeShopId, activeShop } = useAuth();
   const queryClient = useQueryClient();
   const shopId = activeShopId;
@@ -537,12 +633,34 @@ function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
       output.set(item.groupName, arr);
     }
 
+    const groupSortOrder = [
+      "General Settings",
+      "Pack Settings",
+      "Shift Settings",
+      "Day Close Settings",
+      "Sales Settings",
+      "Prize Payout Settings",
+      "Barcode Settings",
+      "Notification Settings",
+      "Offline Settings",
+      "Subscription Settings",
+    ];
+    const groupRank = (groupName: string) => {
+      const idx = groupSortOrder.indexOf(groupName);
+      return idx === -1 ? groupSortOrder.length : idx;
+    };
+
     return [...output.entries()]
       .map(([groupName, items]) => ([
         groupName,
         items.slice().sort((a, b) => a.configKey.localeCompare(b.configKey)),
       ] as const))
-      .sort(([groupA], [groupB]) => groupA.localeCompare(groupB));
+      .sort(([groupA], [groupB]) => {
+        const ra = groupRank(groupA);
+        const rb = groupRank(groupB);
+        if (ra !== rb) return ra - rb;
+        return groupA.localeCompare(groupB);
+      });
   }, [configurationsQuery.data, scopeMeta.groups]);
   const draftChangeCount = Object.keys(draftValues).length;
   const hasDraftChanges = draftChangeCount > 0;
@@ -633,9 +751,11 @@ function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
               <Text style={styles.configHeroTitle}>{scopeMeta.title}</Text>
               <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
             </View>
-            <View style={styles.configCountPill}>
-              <Text style={styles.configCountPillText}>{totalVisibleConfigurationCount} fields</Text>
-            </View>
+            {grouped.length > 0 ? (
+              <View style={styles.configCountPill}>
+                <Text style={styles.configCountPillText}>{grouped.length} groups · {totalVisibleConfigurationCount} fields</Text>
+              </View>
+            ) : null}
           </View>
           <Text style={styles.configHeroSubtitle}>{scopeMeta.subtitle}</Text>
           <View style={styles.configHeroStatusRow}>
@@ -649,6 +769,28 @@ function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
                 {hasDraftChanges ? `${draftChangeCount} unsaved change${draftChangeCount > 1 ? "s" : ""}` : "All changes saved"}
               </Text>
             </View>
+          </View>
+          <View style={styles.configScopeToggleRow}>
+            <Pressable
+              style={[styles.choiceChip, scope === "shop" ? styles.choiceChipSelected : null]}
+              onPress={() => {
+                if (scope !== "shop") navigation.navigate("ShopConfiguration");
+              }}
+              accessibilityRole="button"
+              accessibilityState={{ selected: scope === "shop" }}
+            >
+              <Text style={[styles.choiceChipText, scope === "shop" ? styles.choiceChipTextSelected : null]}>Shop</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.choiceChip, scope === "app" ? styles.choiceChipSelected : null]}
+              onPress={() => {
+                if (scope !== "app") navigation.navigate("AppConfiguration");
+              }}
+              accessibilityRole="button"
+              accessibilityState={{ selected: scope === "app" }}
+            >
+              <Text style={[styles.choiceChipText, scope === "app" ? styles.choiceChipTextSelected : null]}>App</Text>
+            </Pressable>
           </View>
         </View>
 
@@ -673,6 +815,17 @@ function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
             >
               <Text style={styles.secondaryActionButtonText}>Retry</Text>
             </Pressable>
+          </View>
+        ) : null}
+
+        {!configurationsQuery.isLoading && !configurationsQuery.isError && grouped.length === 0 ? (
+          <View style={[ui.card, styles.configStateCard]}>
+            <Text style={styles.itemTitle}>No settings available</Text>
+            <Text style={styles.meta}>
+              {scope === "app"
+                ? "No app-level settings are visible for your account. Contact your platform administrator."
+                : "No shop-level settings are available for this shop yet."}
+            </Text>
           </View>
         ) : null}
 
@@ -864,6 +1017,7 @@ function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
                         />
                       ) : isRoleSelectionConfiguration(item.configKey) ? (
                         <View style={styles.notificationRoleSelectionWrap}>
+                          <Text style={styles.caption}>Tap roles below to choose who receives this notification or can perform this action.</Text>
                           {notificationRolesQuery.isLoading ? <Text style={styles.caption}>Loading roles...</Text> : null}
                           <View style={styles.choiceChipWrap}>
                             {notificationRoleChoices.map((roleName) => {
@@ -888,6 +1042,11 @@ function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
                           </View>
                           {!notificationRolesQuery.isLoading && notificationRoleChoices.length === 0 ? (
                             <Text style={styles.caption}>No roles available.</Text>
+                          ) : null}
+                          {selectedNotificationRoles.length > 0 ? (
+                            <Text style={styles.caption}>
+                              Selected: {selectedNotificationRoles.map((roleName) => getRoleDisplayName(roleName)).join(", ")}
+                            </Text>
                           ) : null}
                         </View>
                       ) : isSellingOrderConfiguration(item.configKey) ? (
@@ -945,6 +1104,14 @@ function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
 
         {!configurationsQuery.isLoading && !configurationsQuery.isError ? (
           <View style={[ui.card, styles.configFooterCard]}>
+            {scope === "app" ? (
+              <Text style={styles.caption}>
+                Some advanced settings are managed by your platform administrator and not shown here.
+              </Text>
+            ) : null}
+            {!hasDraftChanges ? (
+              <Text style={styles.caption}>No changes to save.</Text>
+            ) : null}
             <View style={styles.configFooterActionRow}>
               <Pressable
                 style={[
@@ -1090,68 +1257,92 @@ export function CompanyManagementScreen() {
     },
   });
 
+  function confirmToggleCompany() {
+    if (!ownedCompany) return;
+    if (ownedCompany.isActive) {
+      Alert.alert(
+        "Deactivate company?",
+        `${ownedCompany.companyName} will be marked inactive. Shops and users may lose access.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Deactivate", style: "destructive", onPress: () => toggleCompanyMutation.mutate() },
+        ],
+      );
+    } else {
+      toggleCompanyMutation.mutate();
+    }
+  }
+
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={{ gap: 12 }}>
-        {canCreateCompany ? (
-          <View style={ui.card}>
-            <Text style={styles.sectionTitle}>Create Company</Text>
-            <Text style={styles.meta}>One owner can have only one company.</Text>
-            <Text style={styles.fieldLabel}>Company Name</Text>
-            <TextInput style={styles.input} value={companyName} onChangeText={setCompanyName} placeholder="Company name" />
-            <Text style={styles.fieldLabel}>Registration Number</Text>
-            <TextInput
-              style={styles.input}
-              value={registrationNumber}
-              onChangeText={setRegistrationNumber}
-              placeholder="Registration number (optional)"
-            />
-            <Pressable style={styles.actionButton} onPress={() => createCompanyMutation.mutate()}>
-              <Text style={styles.actionButtonText}>{createCompanyMutation.isPending ? "Creating..." : "Create Company"}</Text>
+      <View style={[ui.card, styles.companyHeroCard]}>
+        <View style={styles.companyHeroHeaderRow}>
+          <Text style={styles.sectionTitle}>{ownedCompany ? "My Company" : "Set Up Your Company"}</Text>
+          {ownedCompany ? (
+            <StatusBadge label={ownedCompany.isActive ? "Active" : "Inactive"} tone={ownedCompany.isActive ? "success" : "neutral"} />
+          ) : (
+            <StatusBadge label="New" tone="warning" />
+          )}
+        </View>
+        <Text style={styles.meta}>
+          {ownedCompany
+            ? `Editing: ${ownedCompany.companyName}. One owner can have only one company.`
+            : "Create your company record. One owner can have only one company."}
+        </Text>
+      </View>
+
+      {canCreateCompany ? (
+        <View style={ui.card}>
+          <Text style={styles.sectionTitle}>Company Details</Text>
+          <Text style={styles.fieldLabel}>Company Name</Text>
+          <TextInput style={styles.input} value={companyName} onChangeText={setCompanyName} placeholder="Company name" />
+          <Text style={styles.fieldLabel}>Registration Number</Text>
+          <TextInput
+            style={styles.input}
+            value={registrationNumber}
+            onChangeText={setRegistrationNumber}
+            placeholder="Registration number (optional)"
+          />
+          <Pressable style={styles.actionButton} onPress={() => createCompanyMutation.mutate()}>
+            <Text style={styles.actionButtonText}>{createCompanyMutation.isPending ? "Creating..." : "Create Company"}</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={ui.card}>
+          <Text style={styles.sectionTitle}>Company Details</Text>
+          <Text style={styles.fieldLabel}>Company Name</Text>
+          <TextInput style={styles.input} value={companyName} onChangeText={setCompanyName} placeholder="Company name" />
+          <Text style={styles.fieldLabel}>Registration Number</Text>
+          <TextInput
+            style={styles.input}
+            value={registrationNumber}
+            onChangeText={setRegistrationNumber}
+            placeholder="Registration number (optional)"
+          />
+          <View style={styles.configFooterActionRow}>
+            <Pressable style={styles.actionButton} onPress={() => updateCompanyMutation.mutate()}>
+              <Text style={styles.actionButtonText}>{updateCompanyMutation.isPending ? "Saving..." : "Save Changes"}</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.secondaryActionButton, toggleCompanyMutation.isPending ? styles.dateActionButtonDisabled : null]}
+              onPress={confirmToggleCompany}
+              disabled={toggleCompanyMutation.isPending}
+            >
+              <Text style={styles.secondaryActionButtonText}>
+                {toggleCompanyMutation.isPending ? "Updating..." : ownedCompany?.isActive ? "Deactivate" : "Activate"}
+              </Text>
             </Pressable>
           </View>
-        ) : (
-          <View style={ui.card}>
-            <Text style={styles.sectionTitle}>Company Settings</Text>
-            <Text style={styles.meta}>One owner can have only one company. Update your company details below.</Text>
-            <Text style={styles.fieldLabel}>Company Name</Text>
-            <TextInput style={styles.input} value={companyName} onChangeText={setCompanyName} placeholder="Company name" />
-            <Text style={styles.fieldLabel}>Registration Number</Text>
-            <TextInput
-              style={styles.input}
-              value={registrationNumber}
-              onChangeText={setRegistrationNumber}
-              placeholder="Registration number (optional)"
-            />
-            <View style={styles.configFooterActionRow}>
-              <Pressable style={styles.actionButton} onPress={() => updateCompanyMutation.mutate()}>
-                <Text style={styles.actionButtonText}>{updateCompanyMutation.isPending ? "Saving..." : "Save Changes"}</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.secondaryActionButton, toggleCompanyMutation.isPending ? styles.dateActionButtonDisabled : null]}
-                onPress={() => toggleCompanyMutation.mutate()}
-                disabled={toggleCompanyMutation.isPending}
-              >
-                <Text style={styles.secondaryActionButtonText}>
-                  {toggleCompanyMutation.isPending ? "Updating..." : ownedCompany?.isActive ? "Deactivate" : "Activate"}
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        )}
-
-        <View style={ui.card}>
-          <Text style={styles.sectionTitle}>{ownedCompany ? "My Company" : "My Companies"}</Text>
-          {(ownedCompany ? [ownedCompany] : companies).map((company) => (
-            <View key={company.id} style={styles.item}>
-              <Text style={styles.itemTitle}>{company.companyName}</Text>
-              <Text style={styles.meta}>Reg No: {company.registrationNumber || "-"}</Text>
-              <Text style={styles.meta}>Status: {company.isActive ? "Active" : "Inactive"}</Text>
-              <Text style={styles.meta}>Owner Email: {company.email}</Text>
-            </View>
-          ))}
         </View>
-      </ScrollView>
+      )}
+
+      {ownedCompany ? (
+        <View style={ui.card}>
+          <Text style={styles.sectionTitle}>Overview</Text>
+          <LabeledValue label="Owner email" value={ownedCompany.email ?? "-"} />
+          <LabeledValue label="Registration No." value={ownedCompany.registrationNumber || "-"} />
+        </View>
+      ) : null}
     </ScreenContainer>
   );
 }
@@ -1163,6 +1354,7 @@ export function ShopManagementScreen() {
   const canCreateShop = userRoles.some((role) => role === "PlatformAdmin" || role === "CompanyOwner");
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(activeShop?.companyId ?? "");
   const [editingShopId, setEditingShopId] = useState<string | null>(null);
+  const [shopSearch, setShopSearch] = useState("");
   const [editingIsActive, setEditingIsActive] = useState(true);
   const [shopName, setShopName] = useState("");
   const [addressLine1, setAddressLine1] = useState("");
@@ -1315,11 +1507,48 @@ export function ShopManagementScreen() {
     (!editingShopId && !subscriptionPlanId) ||
     (Boolean(editingShopId) && editingShopConfigurationsQuery.isLoading);
 
+  const currentEditShop = editingShopId
+    ? (shopsQuery.data ?? []).find((s) => s.id === editingShopId)
+    : null;
+
+  function attemptToggleActive(nextIsActive: boolean) {
+    if (!editingShopId) {
+      setEditingIsActive(nextIsActive);
+      return;
+    }
+    if (!nextIsActive && editingIsActive) {
+      Alert.alert(
+        "Deactivate shop?",
+        "Staff assigned to this shop will lose access. You can reactivate it later.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Deactivate", style: "destructive", onPress: () => setEditingIsActive(false) },
+        ],
+      );
+      return;
+    }
+    setEditingIsActive(nextIsActive);
+  }
+
+  const filteredShops = useMemo(() => {
+    const all = shopsQuery.data ?? [];
+    const term = shopSearch.trim().toLowerCase();
+    if (!term) return all;
+    return all.filter((shop) => {
+      return (
+        shop.shopName.toLowerCase().includes(term) ||
+        shop.city.toLowerCase().includes(term) ||
+        shop.postCode.toLowerCase().includes(term)
+      );
+    });
+  }, [shopsQuery.data, shopSearch]);
+
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={{ gap: 12 }}>
+      {companies.length > 1 ? (
         <View style={ui.card}>
-          <Text style={styles.meta}>Select Company</Text>
+          <Text style={styles.sectionTitle}>Company</Text>
+          <Text style={styles.caption}>Choose the company whose shops you want to manage.</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
             {companies.map((company) => {
               const selected = company.id === resolvedCompanyId;
@@ -1334,127 +1563,182 @@ export function ShopManagementScreen() {
               );
             })}
           </ScrollView>
-          {!canCreateShop && !editingShopId ? (
-            <Text style={styles.meta}>Managers can edit assigned shops only. Creating new shops is owner-only.</Text>
-          ) : null}
+        </View>
+      ) : null}
 
-          <Text style={styles.fieldLabel}>Shop Name</Text>
-          <TextInput style={styles.input} value={shopName} onChangeText={setShopName} placeholder="Shop name" />
-          <Text style={styles.fieldLabel}>Address Line 1</Text>
-          <TextInput style={styles.input} value={addressLine1} onChangeText={setAddressLine1} placeholder="Address line 1" />
-          <Text style={styles.fieldLabel}>Address Line 2</Text>
-          <TextInput style={styles.input} value={addressLine2} onChangeText={setAddressLine2} placeholder="Address line 2 (optional)" />
-          <Text style={styles.fieldLabel}>City</Text>
-          <TextInput style={styles.input} value={city} onChangeText={setCity} placeholder="City" />
-          <Text style={styles.fieldLabel}>Post Code</Text>
-          <TextInput style={styles.input} value={postCode} onChangeText={setPostCode} placeholder="Post code" />
-          <Text style={styles.fieldLabel}>Country</Text>
-          <TextInput style={styles.input} value={country} onChangeText={setCountry} placeholder="Country" />
-          <View style={styles.subSectionCard}>
-            <Text style={styles.subSectionTitle}>Pack Settings</Text>
-            {editingShopId && editingShopConfigurationsQuery.isLoading ? (
-              <Text style={styles.meta}>Loading current pack settings...</Text>
-            ) : null}
-            {editingShopId && editingShopConfigurationsQuery.isError ? (
-              <Text style={styles.error}>Unable to load current pack settings. You can still set them manually.</Text>
-            ) : null}
-            <Text style={styles.fieldLabel}>Scratch Card Display Count</Text>
-            <TextInput
-              style={styles.input}
-              value={scratchCardDisplayCount}
-              onChangeText={(value) => {
-                setScratchCardDisplayCount(value);
-                setHasEditedPackSettings(true);
-              }}
-              placeholder="e.g. 24"
-              keyboardType="number-pad"
-            />
-            <Text style={styles.fieldLabel}>Pack Selling Order</Text>
-            <View style={styles.row}>
-              <Pressable
-                style={[styles.choiceChip, packSellingOrder === SellingOrder.Ascending ? styles.choiceChipSelected : null]}
-                onPress={() => {
-                  setPackSellingOrder(SellingOrder.Ascending);
-                  setHasEditedPackSettings(true);
-                }}
-              >
-                <Text style={[styles.choiceChipText, packSellingOrder === SellingOrder.Ascending ? styles.choiceChipTextSelected : null]}>Start From 0</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.choiceChip, packSellingOrder === SellingOrder.Descending ? styles.choiceChipSelected : null]}
-                onPress={() => {
-                  setPackSellingOrder(SellingOrder.Descending);
-                  setHasEditedPackSettings(true);
-                }}
-              >
-                <Text style={[styles.choiceChipText, packSellingOrder === SellingOrder.Descending ? styles.choiceChipTextSelected : null]}>End To 0</Text>
+      {editingShopId ? (
+        <View style={[ui.card, styles.editingBanner]}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.editingBannerTitle}>Editing: {currentEditShop?.shopName ?? shopName}</Text>
+            <Text style={styles.caption}>Save below or cancel to discard changes.</Text>
+          </View>
+          <Pressable style={[styles.smallButton, styles.smallButtonSecondary]} onPress={cancelEditShop}>
+            <Text style={[styles.smallButtonText, styles.smallButtonTextSecondary]}>Cancel</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      <View style={ui.card}>
+        <Text style={styles.sectionTitle}>{editingShopId ? "Shop Details" : "Create New Shop"}</Text>
+        {!canCreateShop && !editingShopId ? (
+          <Text style={styles.meta}>Managers can edit assigned shops only. Creating new shops is owner-only.</Text>
+        ) : null}
+
+        <Text style={styles.fieldLabel}>Shop Name</Text>
+        <TextInput style={styles.input} value={shopName} onChangeText={setShopName} placeholder="Shop name" />
+        <Text style={styles.fieldLabel}>Address Line 1</Text>
+        <TextInput style={styles.input} value={addressLine1} onChangeText={setAddressLine1} placeholder="Address line 1" />
+        <Text style={styles.fieldLabel}>Address Line 2</Text>
+        <TextInput style={styles.input} value={addressLine2} onChangeText={setAddressLine2} placeholder="Address line 2 (optional)" />
+        <Text style={styles.fieldLabel}>City</Text>
+        <TextInput style={styles.input} value={city} onChangeText={setCity} placeholder="City" />
+        <Text style={styles.fieldLabel}>Post Code</Text>
+        <TextInput style={styles.input} value={postCode} onChangeText={setPostCode} placeholder="Post code" />
+        <Text style={styles.fieldLabel}>Country</Text>
+        <TextInput style={styles.input} value={country} onChangeText={setCountry} placeholder="Country" />
+
+        {editingShopId ? (
+          <View style={[styles.row, { marginTop: 8 }]}>
+            <Pressable
+              style={[styles.choiceChip, editingIsActive ? styles.choiceChipSelected : null]}
+              onPress={() => attemptToggleActive(true)}
+            >
+              <Text style={[styles.choiceChipText, editingIsActive ? styles.choiceChipTextSelected : null]}>Active</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.choiceChip, !editingIsActive ? styles.choiceChipSelected : null]}
+              onPress={() => attemptToggleActive(false)}
+            >
+              <Text style={[styles.choiceChipText, !editingIsActive ? styles.choiceChipTextSelected : null]}>Inactive</Text>
+            </Pressable>
+          </View>
+        ) : null}
+      </View>
+
+      <View style={ui.card}>
+        <Text style={styles.sectionTitle}>Pack Settings</Text>
+        <Text style={styles.caption}>
+          {editingShopId
+            ? "Optional. Update only if you want to change pack defaults for this shop."
+            : "Pack defaults applied to this shop."}
+        </Text>
+        {editingShopId && editingShopConfigurationsQuery.isLoading ? (
+          <Text style={styles.meta}>Loading current pack settings...</Text>
+        ) : null}
+        {editingShopId && editingShopConfigurationsQuery.isError ? (
+          <Text style={styles.error}>Unable to load current pack settings. You can still set them manually.</Text>
+        ) : null}
+        <Text style={styles.fieldLabel}>Scratch Card Display Count</Text>
+        <TextInput
+          style={styles.input}
+          value={scratchCardDisplayCount}
+          onChangeText={(value) => {
+            setScratchCardDisplayCount(value);
+            setHasEditedPackSettings(true);
+          }}
+          placeholder="e.g. 24"
+          keyboardType="number-pad"
+        />
+        <Text style={styles.fieldLabel}>Pack Selling Order</Text>
+        <View style={styles.row}>
+          <Pressable
+            style={[styles.choiceChip, packSellingOrder === SellingOrder.Ascending ? styles.choiceChipSelected : null]}
+            onPress={() => {
+              setPackSellingOrder(SellingOrder.Ascending);
+              setHasEditedPackSettings(true);
+            }}
+          >
+            <Text style={[styles.choiceChipText, packSellingOrder === SellingOrder.Ascending ? styles.choiceChipTextSelected : null]}>Start From 0</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.choiceChip, packSellingOrder === SellingOrder.Descending ? styles.choiceChipSelected : null]}
+            onPress={() => {
+              setPackSellingOrder(SellingOrder.Descending);
+              setHasEditedPackSettings(true);
+            }}
+          >
+            <Text style={[styles.choiceChipText, packSellingOrder === SellingOrder.Descending ? styles.choiceChipTextSelected : null]}>End To 0</Text>
+          </Pressable>
+        </View>
+      </View>
+
+      {!editingShopId && canCreateShop ? (
+        <View style={ui.card}>
+          <Text style={styles.sectionTitle}>Subscription Plan</Text>
+          <Text style={styles.caption}>Choose the plan for the new shop. You can upgrade or downgrade later from Subscription.</Text>
+          <SubscriptionPlanPicker
+            value={subscriptionPlanId}
+            onChange={setSubscriptionPlanId}
+            disabled={saveShopMutation.isPending}
+          />
+        </View>
+      ) : null}
+
+      {editingShopId ? (
+        <View style={ui.card}>
+          <Text style={styles.caption}>
+            To change this shop's subscription plan, go to Settings → Account → Subscription &amp; Billing.
+          </Text>
+        </View>
+      ) : null}
+
+      <View style={ui.card}>
+        <Pressable
+          style={[
+            styles.actionButton,
+            isSavingDisabled ? styles.dateActionButtonDisabled : null,
+          ]}
+          onPress={() => saveShopMutation.mutate()}
+          disabled={isSavingDisabled}
+        >
+          <Text style={styles.actionButtonText}>
+            {saveShopMutation.isPending
+              ? (editingShopId ? "Updating..." : "Creating...")
+              : (editingShopId ? "Update Shop" : (canCreateShop ? "Create Shop" : "Create Shop (Owner only)"))}
+          </Text>
+        </Pressable>
+        {editingShopId ? (
+          <Pressable style={[styles.actionButton, styles.smallButtonDanger, { marginTop: 8 }]} onPress={cancelEditShop}>
+            <Text style={styles.actionButtonText}>Cancel Edit</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      <View style={ui.card}>
+        <Text style={styles.sectionTitle}>Company Shops</Text>
+        {(shopsQuery.data ?? []).length > 5 ? (
+          <TextInput
+            style={[styles.input, { marginTop: 8 }]}
+            value={shopSearch}
+            onChangeText={setShopSearch}
+            placeholder="Search shops by name, city, or postcode"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        ) : null}
+        {filteredShops.length === 0 ? (
+          <Text style={styles.meta}>
+            {shopSearch ? "No shops match your search." : "No shops in this company yet."}
+          </Text>
+        ) : null}
+        {filteredShops.map((shop) => (
+          <View key={shop.id} style={styles.item}>
+            <View style={styles.userManagementHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.itemTitle}>{shop.shopName}</Text>
+                <Text style={styles.meta}>{shop.addressLine1}, {shop.city}</Text>
+                <Text style={styles.meta}>{shop.postCode}, {shop.country}</Text>
+              </View>
+              <StatusBadge label={shop.isActive ? "Active" : "Inactive"} tone={shop.isActive ? "success" : "neutral"} />
+            </View>
+            <View style={[styles.row, { marginTop: 8 }]}>
+              <Pressable style={[styles.smallButton, styles.smallButtonSecondary]} onPress={() => beginEditShop(shop)}>
+                <Text style={[styles.smallButtonText, styles.smallButtonTextSecondary]}>Edit</Text>
               </Pressable>
             </View>
           </View>
-
-          {editingShopId ? (
-            <View style={styles.row}>
-              <Pressable
-                style={[styles.choiceChip, editingIsActive ? styles.choiceChipSelected : null]}
-                onPress={() => setEditingIsActive(true)}
-              >
-                <Text style={[styles.choiceChipText, editingIsActive ? styles.choiceChipTextSelected : null]}>Active</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.choiceChip, !editingIsActive ? styles.choiceChipSelected : null]}
-                onPress={() => setEditingIsActive(false)}
-              >
-                <Text style={[styles.choiceChipText, !editingIsActive ? styles.choiceChipTextSelected : null]}>Inactive</Text>
-              </Pressable>
-            </View>
-          ) : null}
-
-          {!editingShopId && canCreateShop ? (
-            <SubscriptionPlanPicker
-              value={subscriptionPlanId}
-              onChange={setSubscriptionPlanId}
-              disabled={saveShopMutation.isPending}
-            />
-          ) : null}
-
-          <Pressable
-            style={[
-              styles.actionButton,
-              isSavingDisabled ? styles.dateActionButtonDisabled : null,
-            ]}
-            onPress={() => saveShopMutation.mutate()}
-            disabled={isSavingDisabled}
-          >
-            <Text style={styles.actionButtonText}>
-              {saveShopMutation.isPending
-                ? (editingShopId ? "Updating..." : "Creating...")
-                : (editingShopId ? "Update Shop" : (canCreateShop ? "Create Shop" : "Create Shop (Owner only)"))}
-            </Text>
-          </Pressable>
-          {editingShopId ? (
-            <Pressable style={[styles.actionButton, styles.smallButtonDanger]} onPress={cancelEditShop}>
-              <Text style={styles.actionButtonText}>Cancel Edit</Text>
-            </Pressable>
-          ) : null}
-        </View>
-
-        <View style={ui.card}>
-          <Text style={styles.sectionTitle}>Company Shops</Text>
-          {(shopsQuery.data ?? []).map((shop) => (
-            <View key={shop.id} style={styles.item}>
-              <Text style={styles.itemTitle}>{shop.shopName}</Text>
-              <Text style={styles.meta}>{shop.addressLine1}, {shop.city}</Text>
-              <Text style={styles.meta}>{shop.postCode}, {shop.country}</Text>
-              <Text style={styles.meta}>Status: {shop.isActive ? "Active" : "Inactive"}</Text>
-              <View style={styles.row}>
-                <Pressable style={styles.smallButton} onPress={() => beginEditShop(shop)}>
-                  <Text style={styles.smallButtonText}>Edit</Text>
-                </Pressable>
-              </View>
-            </View>
-          ))}
-        </View>
-      </ScrollView>
+        ))}
+      </View>
     </ScreenContainer>
   );
 }
@@ -1487,7 +1771,7 @@ function SettingsNavRow({
       </View>
       <View style={styles.settingsNavTextWrap}>
         <Text style={[styles.settingsNavTitle, isDanger ? styles.settingsNavTitleDanger : null]}>{title}</Text>
-        {/* <Text style={styles.settingsNavDescription}>{description}</Text> */}
+        {description ? <Text style={styles.settingsNavDescription}>{description}</Text> : null}
       </View>
       <Ionicons name="chevron-forward" size={15} color={appTheme.colors.textSubtle} />
     </Pressable>
@@ -1528,7 +1812,7 @@ export function SettingsScreen() {
     tone?: "default" | "danger";
   };
 
-  const managementActions: SettingsAction[] = [
+  const accountActions: SettingsAction[] = [
     {
       key: "switch-shop",
       title: "Switch Shop",
@@ -1537,23 +1821,27 @@ export function SettingsScreen() {
       onPress: () => (navigation.getParent() as any)?.navigate("ShopSelector"),
     },
     {
-      key: "app-configuration",
-      title: "App Configuration",
-      description: "Control app runtime behavior and advanced rules.",
-      icon: "construct-outline",
-      onPress: () => navigation.navigate("AppConfiguration"),
-    },
-    {
-      key: "shop-configuration",
-      title: "Shop Configuration",
-      description: "Manage shop-specific general, pack, and shift setup.",
-      icon: "storefront-outline",
-      onPress: () => navigation.navigate("ShopConfiguration"),
+      key: "notifications",
+      title: "Notifications",
+      description: "Choose how you receive alerts on this device.",
+      icon: "notifications-outline",
+      onPress: () => navigation.navigate("NotificationPreferences"),
     },
   ];
 
+  if (isCompanyOwner || isPlatformAdmin) {
+    accountActions.push({
+      key: "subscription",
+      title: "Subscription & Billing",
+      description: "View plan, usage, and manage your subscription.",
+      icon: "card-outline",
+      onPress: () => (navigation.getParent() as any)?.navigate("SubscriptionSummary"),
+    });
+  }
+
+  const teamActions: SettingsAction[] = [];
   if (canManageInvitations) {
-    managementActions.splice(1, 0, {
+    teamActions.push({
       key: "user-invitations",
       title: "User Invitations",
       description: "Invite team members and manage invitation requests.",
@@ -1561,9 +1849,28 @@ export function SettingsScreen() {
       onPress: () => navigation.navigate("UserInvitations"),
     });
   }
+  if (canManageUsersAndShops) {
+    teamActions.push({
+      key: "user-management",
+      title: "User Management",
+      description: "Change user roles and active states.",
+      icon: "people-outline",
+      onPress: () => navigation.navigate("UserManagement"),
+    });
+  }
 
+  const organizationActions: SettingsAction[] = [];
+  if (canManageUsersAndShops) {
+    organizationActions.push({
+      key: "shop-management",
+      title: "Shop Management",
+      description: isManager ? "Edit assigned shop details." : "Create or edit shops and maintain store details.",
+      icon: "storefront-outline",
+      onPress: () => navigation.navigate("ShopManagement"),
+    });
+  }
   if (isCompanyOwner) {
-    managementActions.push({
+    organizationActions.push({
       key: "company-management",
       title: "Company Management",
       description: "Update company records and activation status.",
@@ -1572,23 +1879,24 @@ export function SettingsScreen() {
     });
   }
 
+  const systemActions: SettingsAction[] = [];
   if (canManageUsersAndShops) {
-    managementActions.push(
-      {
-        key: "shop-management",
-        title: "Shop Management",
-        description: isManager ? "Edit assigned shop details." : "Create or edit shops and maintain store details.",
-        icon: "storefront-outline",
-        onPress: () => navigation.navigate("ShopManagement"),
-      },
-      {
-        key: "user-management",
-        title: "User Management",
-        description: "Change user roles and active states.",
-        icon: "people-outline",
-        onPress: () => navigation.navigate("UserManagement"),
-      },
-    );
+    systemActions.push({
+      key: "shop-configuration",
+      title: "Shop Configuration",
+      description: "Manage shop-specific general, pack, and shift setup.",
+      icon: "storefront-outline",
+      onPress: () => navigation.navigate("ShopConfiguration"),
+    });
+  }
+  if (isCompanyOwner || isPlatformAdmin) {
+    systemActions.push({
+      key: "app-configuration",
+      title: "App Configuration",
+      description: "Control app runtime behavior and advanced rules.",
+      icon: "construct-outline",
+      onPress: () => navigation.navigate("AppConfiguration"),
+    });
   }
 
   async function onSignOut() {
@@ -1597,6 +1905,17 @@ export function SettingsScreen() {
     } catch {
       Alert.alert("Sign out failed", "Unable to complete sign out. Please try again.");
     }
+  }
+
+  function confirmSignOut() {
+    Alert.alert(
+      "Sign out?",
+      "You'll need to sign back in with your account.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Sign Out", style: "destructive", onPress: () => void onSignOut() },
+      ],
+    );
   }
 
   async function onChangeThemeMode(nextMode: ThemeMode) {
@@ -1648,10 +1967,10 @@ export function SettingsScreen() {
       </View>
 
       <View style={ui.card}>
-        <Text style={styles.sectionTitle}>Management</Text>
-        <Text style={styles.settingsSectionMeta}>Admin tools for teams, stores, and platform behavior.</Text>
+        <Text style={styles.sectionTitle}>Account</Text>
+        <Text style={styles.settingsSectionMeta}>Your active context, alerts, and subscription.</Text>
         <View style={styles.settingsSectionRows}>
-          {managementActions.map((action) => (
+          {accountActions.map((action) => (
             <SettingsNavRow
               key={action.key}
               icon={action.icon}
@@ -1663,6 +1982,63 @@ export function SettingsScreen() {
           ))}
         </View>
       </View>
+
+      {teamActions.length > 0 ? (
+        <View style={ui.card}>
+          <Text style={styles.sectionTitle}>Team</Text>
+          <Text style={styles.settingsSectionMeta}>Invite people and manage user roles.</Text>
+          <View style={styles.settingsSectionRows}>
+            {teamActions.map((action) => (
+              <SettingsNavRow
+                key={action.key}
+                icon={action.icon}
+                title={action.title}
+                description={action.description}
+                onPress={action.onPress}
+                tone={action.tone}
+              />
+            ))}
+          </View>
+        </View>
+      ) : null}
+
+      {organizationActions.length > 0 ? (
+        <View style={ui.card}>
+          <Text style={styles.sectionTitle}>Organization</Text>
+          <Text style={styles.settingsSectionMeta}>Manage shops and companies in your account.</Text>
+          <View style={styles.settingsSectionRows}>
+            {organizationActions.map((action) => (
+              <SettingsNavRow
+                key={action.key}
+                icon={action.icon}
+                title={action.title}
+                description={action.description}
+                onPress={action.onPress}
+                tone={action.tone}
+              />
+            ))}
+          </View>
+        </View>
+      ) : null}
+
+      {systemActions.length > 0 ? (
+        <View style={ui.card}>
+          <Text style={styles.sectionTitle}>System</Text>
+          <Text style={styles.settingsSectionMeta}>Advanced configuration for app and shop behavior.</Text>
+          <View style={styles.settingsSectionRows}>
+            {systemActions.map((action) => (
+              <SettingsNavRow
+                key={action.key}
+                icon={action.icon}
+                title={action.title}
+                description={action.description}
+                onPress={action.onPress}
+                tone={action.tone}
+              />
+            ))}
+          </View>
+        </View>
+      ) : null}
 
       <View style={ui.card}>
         <Text style={styles.sectionTitle}>Appearance</Text>
@@ -1701,13 +2077,16 @@ export function SettingsScreen() {
       </View> */}
 
       <View style={ui.card}>
-        {/* <Text style={styles.sectionTitle}>Session</Text> */}
-        {/* <Text style={styles.settingsSectionMeta}>End your current authenticated session on this device.</Text> */}
+        <Text style={styles.sectionTitle}>About</Text>
+        <LabeledValue label="App version" value={appVersion} />
+      </View>
+
+      <View style={ui.card}>
         <SettingsNavRow
           icon="log-out-outline"
           title="Sign Out"
           description="You can sign back in with your company account."
-          onPress={onSignOut}
+          onPress={confirmSignOut}
           tone="danger"
         />
       </View>
@@ -1767,6 +2146,12 @@ const styles = StyleSheet.create({
   configHeroStatusRow: {
     flexDirection: "row",
     alignItems: "center",
+  },
+  configScopeToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: appTheme.spacing.xs,
   },
   configStatusChip: {
     flexDirection: "row",
@@ -2163,6 +2548,34 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.surfaceBrandMuted,
     borderWidth: 0,
     borderColor: appTheme.colors.borderBrandSoft,
+  },
+  userManagementHeaderRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  companyHeroCard: {
+    gap: appTheme.spacing.xs,
+  },
+  companyHeroHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  editingBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.sm,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+    borderColor: appTheme.colors.borderBrandSoft,
+  },
+  editingBannerTitle: {
+    color: appTheme.colors.textBrandStrong,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
   },
   smallButtonDanger: { backgroundColor: appTheme.colors.danger },
   smallButtonSuccess: { backgroundColor: appTheme.colors.success },
