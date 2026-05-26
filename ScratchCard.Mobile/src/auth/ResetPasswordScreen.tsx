@@ -46,8 +46,21 @@ export function ResetPasswordScreen({ route, navigation }: Props) {
         newPassword,
       });
 
-      Alert.alert("Password reset", "Your password has been updated. Please sign in.");
-      navigation.navigate("Login");
+      Alert.alert(
+        "Password reset",
+        "Your password has been updated. Please sign in with your new password.",
+        [
+          {
+            text: "Go to Sign In",
+            onPress: () =>
+              navigation.reset({
+                index: 0,
+                routes: [{ name: "Login" }],
+              }),
+          },
+        ],
+        { cancelable: false },
+      );
     } catch (error: any) {
       Alert.alert("Reset failed", error?.response?.data?.message ?? "Unable to reset password.");
     } finally {

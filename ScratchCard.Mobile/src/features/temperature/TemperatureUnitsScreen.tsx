@@ -13,6 +13,15 @@ import { TemperatureMonitoringUnit } from "../../types/models";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
+function sanitizeSignedDecimal(raw: string): string {
+  if (!raw) return "";
+  const negative = raw.trim().startsWith("-");
+  const digits = raw.replace(/[^0-9.]/g, "");
+  const parts = digits.split(".");
+  const cleaned = parts.length > 1 ? `${parts[0]}.${parts.slice(1).join("")}` : digits;
+  return negative ? `-${cleaned}` : cleaned;
+}
+
 const equipmentTypeOptions: TemperatureEquipmentType[] = [
   TemperatureEquipmentType.Fridge,
   TemperatureEquipmentType.Freezer,
@@ -223,16 +232,16 @@ export function TemperatureUnitsScreen() {
                 <FloatingLabelInput
                   label="Min °C"
                   value={newMinTemp}
-                  onChangeText={setNewMinTemp}
-                  keyboardType="decimal-pad"
+                  onChangeText={(value) => setNewMinTemp(sanitizeSignedDecimal(value))}
+                  keyboardType="numbers-and-punctuation"
                 />
               </View>
               <View style={{ flex: 1 }}>
                 <FloatingLabelInput
                   label="Max °C"
                   value={newMaxTemp}
-                  onChangeText={setNewMaxTemp}
-                  keyboardType="decimal-pad"
+                  onChangeText={(value) => setNewMaxTemp(sanitizeSignedDecimal(value))}
+                  keyboardType="numbers-and-punctuation"
                 />
               </View>
             </View>
@@ -296,16 +305,16 @@ export function TemperatureUnitsScreen() {
                 <FloatingLabelInput
                   label="Min °C"
                   value={editMinTemp}
-                  onChangeText={setEditMinTemp}
-                  keyboardType="decimal-pad"
+                  onChangeText={(value) => setEditMinTemp(sanitizeSignedDecimal(value))}
+                  keyboardType="numbers-and-punctuation"
                 />
               </View>
               <View style={{ flex: 1 }}>
                 <FloatingLabelInput
                   label="Max °C"
                   value={editMaxTemp}
-                  onChangeText={setEditMaxTemp}
-                  keyboardType="decimal-pad"
+                  onChangeText={(value) => setEditMaxTemp(sanitizeSignedDecimal(value))}
+                  keyboardType="numbers-and-punctuation"
                 />
               </View>
             </View>

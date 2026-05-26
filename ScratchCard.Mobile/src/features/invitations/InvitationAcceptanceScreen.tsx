@@ -56,11 +56,21 @@ export function InvitationAcceptanceScreen({ route, navigation }: Props) {
         lastName: lastName.trim(),
         password
       });
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "Login" }],
-      });
-      Alert.alert("Invitation accepted", "You can now sign in with your email and password.");
+      Alert.alert(
+        "Invitation accepted",
+        "Your account is ready. Please sign in with your email and the password you just set.",
+        [
+          {
+            text: "Go to Sign In",
+            onPress: () =>
+              navigation.reset({
+                index: 0,
+                routes: [{ name: "Login" }],
+              }),
+          },
+        ],
+        { cancelable: false },
+      );
     } catch (error: any) {
       Alert.alert("Failed", error?.response?.data?.message ?? "Could not accept invitation.");
     } finally {

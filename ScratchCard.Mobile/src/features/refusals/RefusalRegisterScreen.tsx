@@ -1,15 +1,14 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
-import SignatureScreen, { SignatureViewRef } from "react-native-signature-canvas";
+import { LandscapeSignatureModal } from "../../components/LandscapeSignatureModal";
 import { getRefusalDailyLog, getRefusalEntryReviewSignature, getRefusalEntrySignature, recordRefusalEntry } from "../../api/refusalRegisterApi";
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, formatTimeValue, parseDateTimeValue } from "../../components/DateTimeField";
-import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -269,7 +268,6 @@ function buildRefusalReportHtml(input: {
 export function RefusalRegisterScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const queryClient = useQueryClient();
-  const signatureRef = useRef<SignatureViewRef>(null);
   const { activeShopId, activeShop, profile } = useAuth();
   const shopId = activeShopId;
   const [selectedDate, setSelectedDate] = useState(formatDateValue(new Date()));
@@ -344,10 +342,6 @@ export function RefusalRegisterScreen() {
 
   const closeSignatureModal = () => {
     setIsSignatureModalVisible(false);
-  };
-
-  const saveSignatureFromPad = () => {
-    signatureRef.current?.readSignature();
   };
   const moveSelectedDate = (days: number) => {
     setSelectedDate((current) => shiftDateByDays(current, days));
@@ -609,57 +603,16 @@ export function RefusalRegisterScreen() {
         ))}
       </View>
 
-      <Modal
+      <LandscapeSignatureModal
         visible={isSignatureModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={closeSignatureModal}
-      >
-        <View style={styles.modalBackdrop}>
-          <ModalBackdropBlur />
-          <View style={styles.signatureModalCard}>
-            <Text style={styles.sectionTitle}>Capture Signature</Text>
-            <Text style={styles.meta}>Sign in the box, then press Save.</Text>
-            <View style={styles.signaturePadWrap}>
-              <SignatureScreen
-                ref={signatureRef}
-                onOK={(value) => {
-                  setSignatureDataUrl(value);
-                  setIsSignatureModalVisible(false);
-                }}
-                onEmpty={() => Alert.alert("Signature required", "Please sign before saving.")}
-                autoClear={false}
-                descriptionText="Staff signature"
-                webStyle={`
-                  .m-signature-pad--footer {display: none; margin: 0;}
-                  .m-signature-pad {box-shadow: none; border: none;}
-                  body, html {width: 100%; height: 100%;}
-                `}
-              />
-            </View>
-            <View style={styles.modalActionRow}>
-              <Pressable
-                style={[styles.modalActionButton, styles.modalActionSecondary]}
-                onPress={() => signatureRef.current?.clearSignature()}
-              >
-                <Text style={styles.modalActionSecondaryText}>Clear</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.modalActionButton, styles.modalActionPrimary]}
-                onPress={saveSignatureFromPad}
-              >
-                <Text style={styles.modalActionPrimaryText}>Save</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.modalActionButton, styles.modalActionSecondary]}
-                onPress={closeSignatureModal}
-              >
-                <Text style={styles.modalActionSecondaryText}>Cancel</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        title="Staff Signature"
+        description="Sign with your finger, then press Save."
+        onClose={closeSignatureModal}
+        onSave={(value) => {
+          setSignatureDataUrl(value);
+          setIsSignatureModalVisible(false);
+        }}
+      />
     </ScreenContainer>
   );
 }
