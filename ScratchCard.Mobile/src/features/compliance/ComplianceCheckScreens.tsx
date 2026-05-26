@@ -1158,29 +1158,17 @@ export function ComplianceChecksScreen() {
     });
   }
 
-  async function selectAttachmentsForItem(item: ComplianceCheckItem, draft: EntryDraft) {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert("Permission required", "Photo access is required to add attachments.");
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: "images",
-      quality: 1,
-      allowsEditing: false,
-      allowsMultipleSelection: true,
-      selectionLimit: MAX_COMPLIANCE_ATTACHMENTS,
-    });
-
-    if (result.canceled || result.assets.length === 0) {
-      return;
-    }
-
+  // Optimise + ingest assets for a compliance item — runs the same compression/limit logic
+  // regardless of whether the source was the camera or the photo library.
+  async function ingestComplianceAssets(
+    item: ComplianceCheckItem,
+    draft: EntryDraft,
+    assets: ImagePicker.ImagePickerAsset[],
+  ) {
     let oversizedCount = 0;
     let failedCount = 0;
     const optimizedAssets = await Promise.all(
-      result.assets.map(async (asset) => {
+      assets.map(async (asset) => {
         try {
           const optimized = await optimizeImage(asset.uri, { maxDimension: 1600, compress: 0.7 });
           if (optimized.byteSize > MAX_COMPLIANCE_ATTACHMENT_BYTES) {
@@ -1229,6 +1217,59 @@ export function ComplianceChecksScreen() {
     }));
 
     saveDraftForItem(item, draft, nextAttachments);
+  }
+
+  async function selectAttachmentsForItem(item: ComplianceCheckItem, draft: EntryDraft) {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permission required", "Photo access is required to add attachments from your library.");
+      return;
+    }
+
+    const remainingSlots = Math.max(0, MAX_COMPLIANCE_ATTACHMENTS - getAttachments(item.id).length);
+    if (remainingSlots === 0) {
+      Alert.alert("Attachment limit", "A maximum of 10 attachments can be added.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: "images",
+      quality: 1,
+      allowsEditing: false,
+      allowsMultipleSelection: true,
+      selectionLimit: remainingSlots,
+    });
+
+    if (result.canceled || result.assets.length === 0) {
+      return;
+    }
+
+    await ingestComplianceAssets(item, draft, result.assets);
+  }
+
+  async function captureAttachmentForItem(item: ComplianceCheckItem, draft: EntryDraft) {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permission required", "Camera access is required to add a photo to this check.");
+      return;
+    }
+
+    if (getAttachments(item.id).length >= MAX_COMPLIANCE_ATTACHMENTS) {
+      Alert.alert("Attachment limit", "A maximum of 10 attachments can be added.");
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: "images",
+      quality: 1,
+      allowsEditing: false,
+    });
+
+    if (result.canceled || result.assets.length === 0) {
+      return;
+    }
+
+    await ingestComplianceAssets(item, draft, result.assets);
   }
 
   function applyEditor() {
@@ -1744,17 +1785,45 @@ export function ComplianceChecksScreen() {
                           </View>
                         ) : null}
 
-                        <View style={styles.complianceAttachmentActionRow}>
-                          {canAttachPhotos ? (
-                            <Pressable
-                              style={styles.complianceAttachmentActionButton}
-                              onPress={() => void selectAttachmentsForItem(row.item, draft)}
-                            >
-                              <Text style={styles.complianceAttachmentActionButtonText}>
-                                {attachmentCount > 0 ? "Add More Attachments" : "Add Attachments"}
-                              </Text>
-                            </Pressable>
-                          ) : (
+                        {canAttachPhotos ? (
+                          <>
+                            <View style={styles.complianceAttachmentActionRow}>
+                              <Pressable
+                                style={styles.complianceAttachmentActionButton}
+                                accessibilityRole="button"
+                                accessibilityLabel="Take a photo for this check"
+                                onPress={() => void captureAttachmentForItem(row.item, draft)}
+                              >
+                                <Ionicons name="camera-outline" size={16} color={appTheme.colors.text} />
+                                <Text style={styles.complianceAttachmentActionButtonText}>Take Photo</Text>
+                              </Pressable>
+                              <Pressable
+                                style={styles.complianceAttachmentActionButton}
+                                accessibilityRole="button"
+                                accessibilityLabel="Pick attachments from gallery"
+                                onPress={() => void selectAttachmentsForItem(row.item, draft)}
+                              >
+                                <Ionicons name="images-outline" size={16} color={appTheme.colors.text} />
+                                <Text style={styles.complianceAttachmentActionButtonText}>From Gallery</Text>
+                              </Pressable>
+                            </View>
+                            {pendingAttachments.length > 0 ? (
+                              <View style={styles.complianceAttachmentActionRow}>
+                                <Pressable
+                                  style={[styles.complianceAttachmentActionButton, styles.complianceAttachmentActionButtonDanger]}
+                                  accessibilityRole="button"
+                                  accessibilityLabel="Clear all pending attachments"
+                                  onPress={() => clearAttachments(row.item.id)}
+                                >
+                                  <Text style={[styles.complianceAttachmentActionButtonText, styles.complianceAttachmentActionButtonTextDanger]}>
+                                    Clear All
+                                  </Text>
+                                </Pressable>
+                              </View>
+                            ) : null}
+                          </>
+                        ) : (
+                          <View style={styles.complianceAttachmentActionRow}>
                             <View style={{ flex: 1 }}>
                               <UpgradeNotice
                                 feature="compliance.photo_evidence"
@@ -1763,18 +1832,8 @@ export function ComplianceChecksScreen() {
                                 compact
                               />
                             </View>
-                          )}
-                          {pendingAttachments.length > 0 ? (
-                            <Pressable
-                              style={[styles.complianceAttachmentActionButton, styles.complianceAttachmentActionButtonDanger]}
-                              onPress={() => clearAttachments(row.item.id)}
-                            >
-                              <Text style={[styles.complianceAttachmentActionButtonText, styles.complianceAttachmentActionButtonTextDanger]}>
-                                Clear All
-                              </Text>
-                            </Pressable>
-                          ) : null}
-                        </View>
+                          </View>
+                        )}
                       </View>
                     ) : null}
 
@@ -2983,11 +3042,13 @@ const styles = StyleSheet.create({
   },
   complianceAttachmentActionButton: {
     flex: 1,
+    flexDirection: "row",
     minHeight: 38,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceTintSoft,
     alignItems: "center",
     justifyContent: "center",
+    gap: 6,
     paddingHorizontal: appTheme.spacing.sm,
   },
   complianceAttachmentActionButtonDanger: {

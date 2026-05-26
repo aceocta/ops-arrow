@@ -37,6 +37,7 @@ import { appTheme } from "../../ui/theme";
 import { useAuth } from "../../auth/AuthContext";
 import { useFeature } from "../subscription/useFeature";
 import { UpgradeNotice } from "../subscription/FeatureGate";
+import { haptics } from "../../utils/haptics";
 
 type Props = NativeStackScreenProps<MainStackParamList, "DayEndClose">;
 
@@ -457,6 +458,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   const [attachmentPreviewId, setAttachmentPreviewId] = useState<string | null>(null);
   const [newShiftName, setNewShiftName] = useState("");
   const [closeDayAttachments, setCloseDayAttachments] = useState<CloseAttachmentState[]>([]);
+  // Opt-in: when set, success handler will open the next business day and navigate to it.
+  // Default off so a misdial does not roll the user onto an unexpected day.
+  const [shouldAutoOpenNextDay, setShouldAutoOpenNextDay] = useState(false);
   // scratch_card.attachments is Growth+. Starter shops see a compact upgrade notice in place
   // of the attachment uploader so they can still complete the close.
   const attachmentsFeature = useFeature("scratch_card.attachments");
@@ -520,6 +524,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       })),
     }),
     onSuccess: async (closedDay) => {
+      haptics.success();
       setIsCloseDayModalVisible(false);
       setLottoPayoutAmount(DEFAULT_CLOSE_DAY_PAYOUT);
       setScratchCardPayoutAmount(DEFAULT_CLOSE_DAY_PAYOUT);
@@ -528,9 +533,12 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       setCloseDayAttachments([]);
 
       const shopId = closedDay?.shopId ?? day?.shopId;
-      if (!shopId || !closedDay?.businessDate) {
+      // Only roll forward when the shopkeeper opted in via the close-day modal. Otherwise we
+      // leave them on the closed day so they can review the saved totals.
+      if (!shouldAutoOpenNextDay || !shopId || !closedDay?.businessDate) {
         Alert.alert("Closed", "Business day closed successfully.");
         void dayQuery.refetch();
+        setShouldAutoOpenNextDay(false);
         return;
       }
 
@@ -538,7 +546,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       try {
         const openedDay = await openBusinessDay({ shopId, businessDate: nextDate });
         Alert.alert("Closed", `Business day closed. Opened ${openedDay.businessDate}.`);
-        navigation.replace("DayEndClose", { businessDayId: openedDay.id });
+        // Use navigate (not replace) so back gesture returns to the just-closed day.
+        navigation.navigate("DayEndClose", { businessDayId: openedDay.id });
+        setShouldAutoOpenNextDay(false);
         return;
       } catch {
         try {
@@ -552,7 +562,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
 
           if (fallbackDay) {
             Alert.alert("Closed", `Business day closed. Opened ${fallbackDay.businessDate}.`);
-            navigation.replace("DayEndClose", { businessDayId: fallbackDay.id });
+            navigation.navigate("DayEndClose", { businessDayId: fallbackDay.id });
+            setShouldAutoOpenNextDay(false);
             return;
           }
         } catch {
@@ -562,6 +573,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
 
       Alert.alert("Closed", "Business day closed successfully.");
       void dayQuery.refetch();
+      setShouldAutoOpenNextDay(false);
     },
     onError: (error: unknown) => {
       Alert.alert("Couldn't close the day", getApiErrorMessage(error, "Unable to close business day."));
@@ -569,13 +581,18 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   });
 
   const reopenMutation = useMutation({
-    mutationFn: async () => reopenBusinessDay(businessDayId, { reason: reopenReason || undefined }),
+    // Server requires a non-empty reason; we also enforce trimmed length on the client at
+    // the button's disabled state so the audit log isn't muddied with empty reasons.
+    mutationFn: async () => reopenBusinessDay(businessDayId, { reason: reopenReason.trim() }),
     onSuccess: () => {
+      haptics.success();
       setIsReopenDayModalVisible(false);
+      setReopenReason("");
       Alert.alert("Reopened", "Business day reopened successfully.");
       void dayQuery.refetch();
     },
     onError: (error: unknown) => {
+      haptics.error();
       Alert.alert("Couldn't reopen the day", getApiErrorMessage(error, "Unable to reopen business day."));
     },
   });
@@ -774,6 +791,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   }
 
   function confirmAllOpeningSerials() {
+    haptics.success();
     setConfirmedOpeningSerialByPackId(() => {
       const next: Record<string, boolean> = {};
       for (const pack of activePacksForOpening) {
@@ -877,9 +895,14 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               onPress={confirmAllOpeningSerials}
               disabled={!hasUnconfirmedOpeningSerials}
             >
-              <Text style={[styles.serialConfirmButtonText, !hasUnconfirmedOpeningSerials ? styles.serialConfirmButtonTextSelected : null]}>
-                {hasUnconfirmedOpeningSerials ? "Confirm All" : "All Confirmed"}
-              </Text>
+              <View style={styles.serialConfirmAllInner}>
+                {!hasUnconfirmedOpeningSerials ? (
+                  <Ionicons name="checkmark" size={14} color={appTheme.colors.onPrimary} />
+                ) : null}
+                <Text style={[styles.serialConfirmButtonText, !hasUnconfirmedOpeningSerials ? styles.serialConfirmButtonTextSelected : null]}>
+                  {hasUnconfirmedOpeningSerials ? "Confirm All" : "All Confirmed"}
+                </Text>
+              </View>
             </Pressable>
           </View>
         ) : null}
@@ -916,7 +939,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     value={enteredOpeningSerial}
                     placeholder="Starting serial"
                     placeholderTextColor={appTheme.colors.textSubtle}
-                    keyboardType="numeric"
+                    keyboardType="number-pad"
                     onChangeText={(value) => {
                       setOpeningSerialNumberByPackId((previous) => ({
                         ...previous,
@@ -1383,28 +1406,12 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     );
   };
 
-  const selectCloseDayAttachments = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert("Permission required", "Photo access is required to add an attachment.");
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: "images",
-      quality: 0.85,
-      allowsEditing: false,
-      allowsMultipleSelection: true,
-      selectionLimit: MAX_CLOSE_ATTACHMENTS,
-      base64: true,
-    });
-
-    if (result.canceled || result.assets.length === 0) {
-      return;
-    }
-
+  // Shared sink for both library-picked and camera-captured assets. Filters oversized files,
+  // builds CloseAttachmentState entries, and appends to closeDayAttachments while honouring
+  // MAX_CLOSE_ATTACHMENTS.
+  const ingestCloseDayAssets = (assets: ImagePicker.ImagePickerAsset[]) => {
     let oversizedCount = 0;
-    const selected = result.assets
+    const selected = assets
       .filter((asset) => Boolean(asset.base64))
       .flatMap((asset) => {
         if (typeof asset.fileSize === "number" && asset.fileSize > MAX_CLOSE_ATTACHMENT_BYTES) {
@@ -1427,7 +1434,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     }
 
     if (selected.length === 0) {
-      Alert.alert("Attachment failed", "Unable to read selected attachment(s).");
+      Alert.alert("Attachment failed", "Unable to read the selected file(s).");
       return;
     }
 
@@ -1440,6 +1447,61 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       Alert.alert("Attachment limit", "A maximum of 10 attachments can be added.");
       return combined.slice(0, MAX_CLOSE_ATTACHMENTS);
     });
+  };
+
+  const selectCloseDayAttachments = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permission required", "Photo access is required to add an attachment from your library.");
+      return;
+    }
+
+    const remainingSlots = Math.max(0, MAX_CLOSE_ATTACHMENTS - closeDayAttachments.length);
+    if (remainingSlots === 0) {
+      Alert.alert("Attachment limit", "A maximum of 10 attachments can be added.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: "images",
+      quality: 0.85,
+      allowsEditing: false,
+      allowsMultipleSelection: true,
+      selectionLimit: remainingSlots,
+      base64: true,
+    });
+
+    if (result.canceled || result.assets.length === 0) {
+      return;
+    }
+
+    ingestCloseDayAssets(result.assets);
+  };
+
+  const captureCloseDayAttachment = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permission required", "Camera access is required to take a photo for this close.");
+      return;
+    }
+
+    if (closeDayAttachments.length >= MAX_CLOSE_ATTACHMENTS) {
+      Alert.alert("Attachment limit", "A maximum of 10 attachments can be added.");
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: "images",
+      quality: 0.85,
+      allowsEditing: false,
+      base64: true,
+    });
+
+    if (result.canceled || result.assets.length === 0) {
+      return;
+    }
+
+    ingestCloseDayAssets(result.assets);
   };
 
   const validateCloseDayInputs = () => {
@@ -1681,6 +1743,12 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               compactEnd ? `end ${compactEnd}` : null,
               compactSales ? `sales ${compactSales}` : null,
             ].filter(Boolean);
+            const isScheduledShift = shift.status === ShiftStatus.Scheduled;
+            const accentStyle = isOpenShift
+              ? styles.shiftCardAccentOpen
+              : isScheduledShift
+                ? styles.shiftCardAccentScheduled
+                : styles.shiftCardAccentClosed;
             return (
               <View
                 key={shift.id}
@@ -1688,62 +1756,76 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   styles.shiftItem,
                   isOpenShift ? styles.shiftItemOpen : null,
                   isClosedShift ? styles.shiftItemClosed : null,
+                  isScheduledShift ? styles.shiftItemScheduled : null,
                 ]}
               >
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={a11yParts.join(", ")}
-                  accessibilityHint="Opens the shift details screen"
-                  style={({ pressed }) => [
-                    styles.shiftDetailsTapArea,
-                    pressed ? styles.shiftDetailsTapAreaPressed : null,
-                  ]}
-                  android_ripple={{ color: appTheme.colors.borderBrandSoft, borderless: false }}
-                  onPress={() => navigation.navigate("ShiftDetails", { shiftId: shift.id, shopId: shift.shopId })}
-                >
-                  <View style={styles.shiftBody}>
-                    <View style={styles.shiftHeader}>
-                      <View style={styles.shiftNameBlock}>
-                        {isOpenShift ? <View style={styles.shiftLiveDot} /> : null}
-                        <Text style={styles.shiftName} numberOfLines={1}>{shift.shiftName}</Text>
+                <View style={[styles.shiftCardAccent, accentStyle]} />
+                <View style={styles.shiftCardContent}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={a11yParts.join(", ")}
+                    accessibilityHint="Opens the shift details screen"
+                    style={({ pressed }) => [
+                      styles.shiftDetailsTapArea,
+                      pressed ? styles.shiftDetailsTapAreaPressed : null,
+                    ]}
+                    android_ripple={{ color: appTheme.colors.borderBrandSoft, borderless: false }}
+                    onPress={() => navigation.navigate("ShiftDetails", { shiftId: shift.id, shopId: shift.shopId })}
+                  >
+                    <View style={styles.shiftBody}>
+                      <View style={styles.shiftHeader}>
+                        <View style={styles.shiftNameBlock}>
+                          {isOpenShift ? <View style={styles.shiftLiveDot} /> : null}
+                          <Text style={styles.shiftName} numberOfLines={1}>{shift.shiftName}</Text>
+                        </View>
+                        {compactSales ? (
+                          <Text style={styles.shiftSalesAmount}>{compactSales}</Text>
+                        ) : salesIsLoading ? (
+                          <View style={styles.shiftSalesSkeleton} accessibilityLabel="Loading sales total" />
+                        ) : null}
                       </View>
-                      <StatusBadge label={shift.status} tone={getShiftTone(shift.status)} />
+                      <View style={styles.shiftMetaRow}>
+                        <StatusBadge label={shift.status} tone={getShiftTone(shift.status)} />
+                        <View style={styles.shiftTimeBlock}>
+                          <Ionicons
+                            name="time-outline"
+                            size={12}
+                            color={appTheme.colors.textSubtle}
+                          />
+                          <Text style={styles.shiftCompactMeta} numberOfLines={1}>
+                            {compactStart}
+                            {compactEnd ? ` – ${compactEnd}` : ""}
+                            {durationLabel ? ` · ${durationLabel}` : ""}
+                          </Text>
+                        </View>
+                      </View>
                     </View>
-                    <Text style={styles.shiftCompactMeta}>
-                      Start {compactStart}{compactEnd ? ` · End ${compactEnd}` : ""}
-                      {durationLabel ? ` · ${durationLabel}` : ""}
-                    </Text>
-                    {compactSales ? (
-                      <Text style={styles.shiftSalesValue}>Sales {compactSales}</Text>
-                    ) : salesIsLoading ? (
-                      <View style={styles.shiftSalesSkeleton} accessibilityLabel="Loading sales total" />
-                    ) : null}
-                  </View>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={20}
-                    color={appTheme.colors.textSubtle}
-                    style={styles.shiftChevron}
-                  />
-                </Pressable>
-                {canCloseShift ? (
-                  <View style={styles.shiftActionRow}>
-                    <PrimaryButton
-                      label="Close Shift"
-                      tone="success"
-                      onPress={() => navigation.navigate("ShiftClose", { shiftId: shift.id, shopId: shift.shopId })}
-                      disabled={!canManageShifts}
+                    <Ionicons
+                      name="chevron-forward"
+                      size={20}
+                      color={appTheme.colors.textSubtle}
+                      style={styles.shiftChevron}
                     />
-                  </View>
-                ) : canStartScheduledShift ? (
-                  <View style={styles.shiftActionRow}>
-                    <PrimaryButton
-                      label={startScheduledShiftMutation.isPending ? "Starting..." : "Start Shift"}
-                      onPress={() => openStartScheduledShiftConfirmation(shift.id, shift.shiftName)}
-                      disabled={!canManageShifts || startScheduledShiftMutation.isPending}
-                    />
-                  </View>
-                ) : null}
+                  </Pressable>
+                  {canCloseShift ? (
+                    <View style={styles.shiftActionRow}>
+                      <PrimaryButton
+                        label="Close Shift"
+                        tone="success"
+                        onPress={() => navigation.navigate("ShiftClose", { shiftId: shift.id, shopId: shift.shopId })}
+                        disabled={!canManageShifts}
+                      />
+                    </View>
+                  ) : canStartScheduledShift ? (
+                    <View style={styles.shiftActionRow}>
+                      <PrimaryButton
+                        label={startScheduledShiftMutation.isPending ? "Starting..." : "Start Shift"}
+                        onPress={() => openStartScheduledShiftConfirmation(shift.id, shift.shiftName)}
+                        disabled={!canManageShifts || startScheduledShiftMutation.isPending}
+                      />
+                    </View>
+                  ) : null}
+                </View>
               </View>
             );
           }) : null}
@@ -1765,50 +1847,106 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               <View style={styles.safeDropList}>
                 {visibleCanisterDrops.map((drop) => {
                   const isPending = drop.approvalStatus === "Pending";
+                  const isApproved = drop.approvalStatus === "Approved";
                   const isRejected = drop.approvalStatus === "Rejected";
+                  const droppedTime = new Date(drop.droppedOn);
+                  const droppedTimeLabel = Number.isNaN(droppedTime.getTime())
+                    ? "—"
+                    : formatShiftDateTimeCompact(droppedTime);
+                  const accentStyle = isPending
+                    ? styles.safeDropCardAccentPending
+                    : isRejected
+                      ? styles.safeDropCardAccentRejected
+                      : styles.safeDropCardAccentApproved;
+                  const cardStateStyle = isPending
+                    ? styles.safeDropCardPending
+                    : isRejected
+                      ? styles.safeDropCardRejected
+                      : styles.safeDropCardApproved;
                   return (
-                    <View
-                      key={drop.id}
-                      style={[
-                        styles.safeDropCard,
-                        isPending ? styles.safeDropCardPending : null,
-                        isRejected ? styles.safeDropCardRejected : null,
-                      ]}
-                    >
-                      <View style={styles.safeDropCardHeader}>
-                        <View style={styles.safeDropCardCanisterBlock}>
-                          <Text style={styles.safeDropCardCanisterLabel}>Canister</Text>
-                          <Text style={styles.safeDropCardCanisterValue} numberOfLines={1}>
-                            {drop.canisterNumber}
-                          </Text>
+                    <View key={drop.id} style={[styles.safeDropCard, cardStateStyle]}>
+                      <View style={[styles.safeDropCardAccent, accentStyle]} />
+                      <View style={styles.safeDropCardContent}>
+                        <View style={styles.safeDropCardHeader}>
+                          <View style={styles.safeDropCardCanisterBlock}>
+                            <View style={styles.safeDropCanisterIconRow}>
+                              <Ionicons
+                                name="lock-closed-outline"
+                                size={14}
+                                color={appTheme.colors.textMuted}
+                              />
+                              <Text style={styles.safeDropCardCanisterLabel}>
+                                CANISTER · {droppedTimeLabel}
+                              </Text>
+                            </View>
+                            <Text style={styles.safeDropCardCanisterValue} numberOfLines={1}>
+                              {drop.canisterNumber}
+                            </Text>
+                          </View>
+                          <View style={styles.safeDropAmountBlock}>
+                            <Text style={styles.safeDropCardAmount}>{formatCurrency(drop.amount)}</Text>
+                            <StatusBadge
+                              label={drop.approvalStatus}
+                              tone={isPending ? "warning" : isRejected ? "danger" : "success"}
+                            />
+                          </View>
                         </View>
-                        <Text style={styles.safeDropCardAmount}>{formatCurrency(drop.amount)}</Text>
-                      </View>
-                      <View style={styles.safeDropCardMetaRow}>
-                        <StatusBadge
-                          label={drop.approvalStatus}
-                          tone={isPending ? "warning" : isRejected ? "danger" : "success"}
-                        />
-                        <Text style={styles.safeDropCardMetaText} numberOfLines={1}>
-                          {drop.shiftName || "—"}
-                        </Text>
-                      </View>
-                      <Text style={styles.safeDropCardMetaText} numberOfLines={1}>
-                        By {drop.droppedByName} · {new Date(drop.droppedOn).toLocaleString()}
-                      </Text>
-                      {isPending && canViewAllSafeDrops ? (
-                        <Pressable
-                          style={styles.safeDropApproveButton}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Approve safe drop ${drop.canisterNumber} for ${formatCurrency(drop.amount)}`}
-                          onPress={() => approveDropMutation.mutate(drop.id)}
-                          disabled={approveDropMutation.isPending}
-                        >
-                          <Text style={styles.safeDropApproveButtonText}>
-                            {approveDropMutation.isPending ? "Approving..." : "Approve drop"}
+
+                        <View style={styles.safeDropMetaLine}>
+                          <Ionicons name="person-outline" size={12} color={appTheme.colors.textSubtle} />
+                          <Text style={styles.safeDropCardMetaText} numberOfLines={1}>
+                            {drop.droppedByName}
                           </Text>
-                        </Pressable>
-                      ) : null}
+                          {drop.shiftName ? (
+                            <>
+                              <Text style={styles.safeDropMetaSep}>·</Text>
+                              <Ionicons name="time-outline" size={12} color={appTheme.colors.textSubtle} />
+                              <Text style={styles.safeDropCardMetaText} numberOfLines={1}>
+                                {drop.shiftName}
+                              </Text>
+                            </>
+                          ) : null}
+                        </View>
+
+                        {!isPending && drop.approvalNotes ? (
+                          <View style={styles.safeDropNotesRow}>
+                            <Ionicons
+                              name={isRejected ? "alert-circle-outline" : "chatbubble-ellipses-outline"}
+                              size={12}
+                              color={isRejected ? appTheme.colors.danger : appTheme.colors.textSubtle}
+                            />
+                            <Text style={styles.safeDropCardMetaText} numberOfLines={2}>
+                              {drop.approvalNotes}
+                            </Text>
+                          </View>
+                        ) : null}
+
+                        {isPending && canViewAllSafeDrops ? (
+                          <Pressable
+                            style={({ pressed }) => [
+                              styles.safeDropApproveButton,
+                              pressed ? styles.safeDropApproveButtonPressed : null,
+                              approveDropMutation.isPending ? styles.safeDropApproveButtonDisabled : null,
+                            ]}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Approve safe drop ${drop.canisterNumber} for ${formatCurrency(drop.amount)}`}
+                            onPress={() => {
+                              haptics.success();
+                              approveDropMutation.mutate(drop.id);
+                            }}
+                            disabled={approveDropMutation.isPending}
+                          >
+                            <Ionicons
+                              name="checkmark-circle-outline"
+                              size={16}
+                              color={appTheme.colors.primary}
+                            />
+                            <Text style={styles.safeDropApproveButtonText}>
+                              {approveDropMutation.isPending ? "Approving…" : "Approve"}
+                            </Text>
+                          </Pressable>
+                        ) : null}
+                      </View>
                     </View>
                   );
                 })}
@@ -2319,9 +2457,53 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
         >
           <View style={styles.modalBackdrop}>
             <ModalBackdropBlur />
+            <ScrollView
+              style={styles.closeDayModalScroll}
+              contentContainerStyle={styles.closeDayModalScrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
             <View style={styles.modalCard}>
               <Text style={styles.sectionTitle}>Close Day</Text>
-              <Text style={styles.meta}>Enter payouts, then close this business day.</Text>
+              <Text style={styles.meta}>Review the recap below, then close this business day.</Text>
+
+              {/* Recap card — shows the figures the close will commit so the shopkeeper can
+                  spot a fat-finger before triggering the irreversible action. */}
+              <View style={styles.recapCard}>
+                <View style={styles.recapHeaderRow}>
+                  <Text style={styles.recapTitle}>Recap</Text>
+                  <Text style={styles.recapDate}>{day?.businessDate ?? "-"}</Text>
+                </View>
+                <View style={styles.recapRow}>
+                  <Text style={styles.recapLabel}>Closed shifts</Text>
+                  <Text style={styles.recapValue}>{closedShiftCount}</Text>
+                </View>
+                <View style={styles.recapRow}>
+                  <Text style={styles.recapLabel}>Total sales</Text>
+                  <Text style={styles.recapValue}>{formatCurrency(summaryTotalSales)}</Text>
+                </View>
+                <View style={styles.recapRow}>
+                  <Text style={styles.recapLabel}>Lotto payout</Text>
+                  <Text style={styles.recapValue}>{formatCurrency(displayLottoPayout)}</Text>
+                </View>
+                <View style={styles.recapRow}>
+                  <Text style={styles.recapLabel}>Scratch card payout</Text>
+                  <Text style={styles.recapValue}>{formatCurrency(displayScratchCardPayout)}</Text>
+                </View>
+                <View style={styles.recapRow}>
+                  <Text style={styles.recapLabel}>Till payout</Text>
+                  <Text style={styles.recapValue}>{formatCurrency(displayTillPayout)}</Text>
+                </View>
+                {hasTillPayoutVariance ? (
+                  <View style={[styles.recapVarianceRow, (tillPayoutVariance ?? 0) < 0 ? styles.recapVarianceRowNegative : styles.recapVarianceRowPositive]}>
+                    <Text style={styles.recapVarianceLabel}>
+                      {(tillPayoutVariance ?? 0) < 0 ? "Cash short" : "Cash over"}
+                    </Text>
+                    <Text style={styles.recapVarianceValue}>{tillPayoutVarianceText}</Text>
+                  </View>
+                ) : null}
+              </View>
+
               <FloatingLabelInput
                 ref={lottoInputRef}
                 label="Lotto payout"
@@ -2470,21 +2652,32 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   })}
                 </View>
               ) : null}
-              <View style={styles.attachmentActionRow}>
-                {attachmentsFeature.isAllowed ? (
+              {attachmentsFeature.isAllowed ? (
+                <View style={styles.attachmentActionRow}>
                   <Pressable
                     style={styles.attachmentActionButton}
                     accessibilityRole="button"
-                    accessibilityLabel={closeDayAttachments.length > 0 ? "Add more close day attachments" : "Add close day attachments"}
+                    accessibilityLabel="Take a photo for this close"
+                    onPress={() => void captureCloseDayAttachment()}
+                    disabled={closeMutation.isPending}
+                  >
+                    <Ionicons name="camera-outline" size={16} color={appTheme.colors.text} />
+                    <Text style={styles.attachmentActionButtonText}>Take Photo</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.attachmentActionButton}
+                    accessibilityRole="button"
+                    accessibilityLabel="Pick attachments from gallery"
                     onPress={() => void selectCloseDayAttachments()}
                     disabled={closeMutation.isPending}
                   >
-                    <Text style={styles.attachmentActionButtonText}>
-                      {closeDayAttachments.length > 0 ? "Add More Attachments" : "Add Attachments"}
-                    </Text>
+                    <Ionicons name="images-outline" size={16} color={appTheme.colors.text} />
+                    <Text style={styles.attachmentActionButtonText}>From Gallery</Text>
                   </Pressable>
-                ) : null}
-                {closeDayAttachments.length > 0 ? (
+                </View>
+              ) : null}
+              {closeDayAttachments.length > 0 ? (
+                <View style={styles.attachmentActionRow}>
                   <Pressable
                     style={[styles.attachmentActionButton, styles.attachmentActionButtonDanger]}
                     accessibilityRole="button"
@@ -2503,8 +2696,23 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   >
                     <Text style={[styles.attachmentActionButtonText, styles.attachmentActionButtonTextDanger]}>Clear All</Text>
                   </Pressable>
-                ) : null}
-              </View>
+                </View>
+              ) : null}
+              <Pressable
+                style={styles.optInRow}
+                onPress={() => {
+                  haptics.selection();
+                  setShouldAutoOpenNextDay((v) => !v);
+                }}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: shouldAutoOpenNextDay }}
+                accessibilityLabel="Open next business day automatically after closing"
+              >
+                <View style={[styles.optInCheckbox, shouldAutoOpenNextDay ? styles.optInCheckboxOn : null]}>
+                  {shouldAutoOpenNextDay ? <Ionicons name="checkmark" size={14} color={appTheme.colors.onPrimary} /> : null}
+                </View>
+                <Text style={styles.optInLabel}>Open next business day after closing</Text>
+              </Pressable>
               <View style={styles.modalActionRow}>
                 <Pressable
                   style={[
@@ -2516,6 +2724,22 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   onPress={() => {
                     normalizeAllPayoutInputs();
                     if (!validateCloseDayInputs()) {
+                      return;
+                    }
+                    // When the till payout doesn't reconcile with lotto + scratch payouts we
+                    // make the shopkeeper acknowledge the cash variance explicitly. This is
+                    // the most common cause of "I didn't mean to close that".
+                    if (hasTillPayoutVariance) {
+                      haptics.warning();
+                      const direction = (tillPayoutVariance ?? 0) < 0 ? "short" : "over";
+                      Alert.alert(
+                        "Confirm cash variance",
+                        `Till is ${direction} by ${tillPayoutVarianceText}. Closing the day will commit this variance. Continue?`,
+                        [
+                          { text: "Review", style: "cancel" },
+                          { text: "Close anyway", style: "destructive", onPress: () => closeMutation.mutate() },
+                        ],
+                      );
                       return;
                     }
                     closeMutation.mutate();
@@ -2544,6 +2768,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 </Pressable>
               </View>
             </View>
+            </ScrollView>
           </View>
         </Modal>
 
@@ -3062,23 +3287,44 @@ const styles = StyleSheet.create({
     gap: appTheme.spacing.xs,
   },
   shiftItem: {
+    flexDirection: "row",
+    overflow: "hidden",
     borderWidth: 1,
-    borderColor: "transparent",
+    borderColor: appTheme.colors.borderSoft,
     borderRadius: appTheme.radius.md,
     backgroundColor: appTheme.colors.surfaceTintAlt,
-    paddingHorizontal: appTheme.spacing.sm,
-    paddingVertical: appTheme.spacing.sm,
-    gap: appTheme.spacing.xs,
-    overflow: "hidden",
+    gap: 0,
   },
   // Highlight currently-open shift so the user can spot it instantly in a list of closed ones.
   shiftItemOpen: {
-    borderColor: appTheme.colors.primary,
+    borderColor: appTheme.colors.borderSuccessSoft,
     backgroundColor: appTheme.colors.surfaceSuccessAlt,
   },
   // Dim closed shifts a touch so the active one stands out without being shouty.
   shiftItemClosed: {
     backgroundColor: appTheme.colors.surfaceMuted,
+  },
+  shiftItemScheduled: {
+    backgroundColor: appTheme.colors.surface,
+    borderColor: appTheme.colors.borderWarningSoft,
+  },
+  shiftCardAccent: {
+    width: 4,
+  },
+  shiftCardAccentOpen: {
+    backgroundColor: appTheme.colors.primary,
+  },
+  shiftCardAccentClosed: {
+    backgroundColor: appTheme.colors.borderSoft,
+  },
+  shiftCardAccentScheduled: {
+    backgroundColor: appTheme.colors.warning,
+  },
+  shiftCardContent: {
+    flex: 1,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.sm,
+    gap: appTheme.spacing.xs,
   },
   shiftDetailsTapArea: {
     flexDirection: "row",
@@ -3106,6 +3352,10 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: appTheme.colors.primary,
+    shadowColor: appTheme.colors.primary,
+    shadowOpacity: 0.6,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 0 },
   },
   shiftChevron: {
     marginLeft: 4,
@@ -3124,6 +3374,24 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     gap: appTheme.spacing.xs,
+  },
+  shiftMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: appTheme.spacing.xs,
+  },
+  shiftTimeBlock: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    flexShrink: 1,
+  },
+  shiftSalesAmount: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.heading,
+    fontSize: 17,
+    lineHeight: 21,
   },
   shiftName: {
     color: appTheme.colors.text,
@@ -3228,6 +3496,11 @@ const styles = StyleSheet.create({
   },
   serialConfirmInput: {
     flex: 1,
+  },
+  serialConfirmAllInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   serialConfirmButton: {
     borderWidth: 0,
@@ -3724,11 +3997,13 @@ const styles = StyleSheet.create({
   },
   attachmentActionButton: {
     flex: 1,
+    flexDirection: "row",
     minHeight: 38,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceTintSoft,
     alignItems: "center",
     justifyContent: "center",
+    gap: 6,
     paddingHorizontal: appTheme.spacing.sm,
   },
   attachmentActionButtonDanger: {
@@ -3894,22 +4169,46 @@ const styles = StyleSheet.create({
     gap: appTheme.spacing.xs,
   },
   safeDropCard: {
+    flexDirection: "row",
     borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surfaceMuted,
+    backgroundColor: appTheme.colors.surface,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderSoft,
+  },
+  safeDropCardPending: {
+    backgroundColor: appTheme.colors.surfaceWarningSoft,
+    borderColor: appTheme.colors.borderWarningSoft,
+  },
+  safeDropCardApproved: {
+    backgroundColor: appTheme.colors.surface,
+    borderColor: appTheme.colors.borderSuccessSoft,
+  },
+  safeDropCardRejected: {
+    backgroundColor: appTheme.colors.surfaceDangerSoft,
+    borderColor: appTheme.colors.danger,
+  },
+  safeDropCardAccent: {
+    width: 4,
+  },
+  safeDropCardAccentPending: {
+    backgroundColor: appTheme.colors.warning ?? appTheme.colors.danger,
+  },
+  safeDropCardAccentApproved: {
+    backgroundColor: appTheme.colors.primary,
+  },
+  safeDropCardAccentRejected: {
+    backgroundColor: appTheme.colors.danger,
+  },
+  safeDropCardContent: {
+    flex: 1,
     paddingHorizontal: appTheme.spacing.sm,
     paddingVertical: appTheme.spacing.sm,
     gap: 6,
   },
-  safeDropCardPending: {
-    backgroundColor: appTheme.colors.surfaceDangerSoft,
-  },
-  safeDropCardRejected: {
-    backgroundColor: appTheme.colors.surfaceDangerSoft,
-    opacity: 0.65,
-  },
   safeDropCardHeader: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
     gap: appTheme.spacing.sm,
   },
@@ -3917,18 +4216,28 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
+  safeDropCanisterIconRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
   safeDropCardCanisterLabel: {
     fontFamily: appTheme.fonts.bodyMedium,
     color: appTheme.colors.textMuted,
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 10,
+    lineHeight: 13,
     textTransform: "uppercase",
+    letterSpacing: 0.4,
   },
   safeDropCardCanisterValue: {
     fontFamily: appTheme.fonts.bodyMedium,
     color: appTheme.colors.text,
     fontSize: 15,
-    lineHeight: 18,
+    lineHeight: 19,
+  },
+  safeDropAmountBlock: {
+    alignItems: "flex-end",
+    gap: 4,
   },
   safeDropCardAmount: {
     fontFamily: appTheme.fonts.heading,
@@ -3936,32 +4245,162 @@ const styles = StyleSheet.create({
     fontSize: 20,
     lineHeight: 24,
   },
-  safeDropCardMetaRow: {
+  safeDropMetaLine: {
     flexDirection: "row",
     alignItems: "center",
-    gap: appTheme.spacing.xs,
+    flexWrap: "wrap",
+    gap: 4,
+  },
+  safeDropMetaSep: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
+    marginHorizontal: 2,
+  },
+  safeDropNotesRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 4,
+    paddingTop: 2,
   },
   safeDropCardMetaText: {
     fontFamily: appTheme.fonts.body,
     color: appTheme.colors.textMuted,
     fontSize: 12,
     lineHeight: 16,
-    flex: 1,
+    flexShrink: 1,
   },
   safeDropApproveButton: {
-    marginTop: 2,
-    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 4,
+    minHeight: 36,
     paddingHorizontal: appTheme.spacing.md,
-    backgroundColor: appTheme.colors.primary,
+    backgroundColor: appTheme.colors.surfaceSuccessMuted,
+    borderRadius: appTheme.radius.pill,
+    borderWidth: 1,
+    borderColor: appTheme.colors.primary,
+  },
+  safeDropApproveButtonPressed: {
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+  },
+  safeDropApproveButtonDisabled: {
+    opacity: 0.55,
+  },
+  safeDropApproveButtonText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 16,
+  },
+  closeDayModalScroll: {
+    maxHeight: "92%",
+  },
+  closeDayModalScrollContent: {
+    flexGrow: 1,
+  },
+  recapCard: {
     borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceTint,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.sm,
+    gap: 4,
+  },
+  recapHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 2,
+  },
+  recapTitle: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 16,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  recapDate: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 16,
+  },
+  recapRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  recapLabel: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  recapValue: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  recapVarianceRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 4,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: 6,
+    borderRadius: appTheme.radius.sm,
+  },
+  recapVarianceRowNegative: {
+    backgroundColor: appTheme.colors.surfaceWarningSoft,
+  },
+  recapVarianceRowPositive: {
+    backgroundColor: appTheme.colors.surfaceSuccessMuted,
+  },
+  recapVarianceLabel: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 18,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  recapVarianceValue: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.heading,
+    fontSize: 15,
+    lineHeight: 19,
+  },
+  optInRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+    paddingVertical: 6,
+  },
+  optInCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surface,
     alignItems: "center",
     justifyContent: "center",
   },
-  safeDropApproveButtonText: {
-    color: appTheme.colors.onPrimary,
+  optInCheckboxOn: {
+    backgroundColor: appTheme.colors.primary,
+    borderColor: appTheme.colors.primary,
+  },
+  optInLabel: {
+    color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 14,
-    lineHeight: 18,
+    fontSize: 13,
+    lineHeight: 17,
+    flex: 1,
   },
 });
 

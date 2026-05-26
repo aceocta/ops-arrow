@@ -162,6 +162,16 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
   const [safeDropCanisterNumber, setSafeDropCanisterNumber] = useState("");
   const [safeDropAmount, setSafeDropAmount] = useState("");
   const [safeDropByName, setSafeDropByName] = useState("");
+  // Inline validation for the amount field — surfaces under the input as the user types so
+  // they don't have to submit just to discover an invalid amount.
+  const safeDropAmountError = useMemo(() => {
+    const raw = safeDropAmount.trim();
+    if (raw.length === 0) return null;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return "Enter a valid number.";
+    if (parsed <= 0) return "Amount must be greater than zero.";
+    return null;
+  }, [safeDropAmount]);
 
   const shiftQuery = useQuery({
     queryKey: ["shift", shiftId],
@@ -367,8 +377,21 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
     );
   };
 
+  // Close Shift footer dock — keeps the primary action reachable on long entry lists.
+  const shiftActionsFooter = canCloseShift ? (
+    <View style={[ui.card, styles.footerDock]}>
+      <Pressable
+        style={[styles.actionButton, !closeShiftShopId ? styles.actionButtonDisabled : null]}
+        onPress={() => navigation.navigate("ShiftClose", { shiftId, shopId: closeShiftShopId })}
+        disabled={!closeShiftShopId}
+      >
+        <Text style={styles.actionButtonText}>Close Shift</Text>
+      </Pressable>
+    </View>
+  ) : null;
+
   return (
-    <ScreenContainer>
+    <ScreenContainer footer={shiftActionsFooter}>
       <ScrollView contentContainerStyle={styles.pageContent}>
         <View style={[ui.card, styles.summaryCard]}>
           <View style={styles.headerRow}>
@@ -459,6 +482,7 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
               onChangeText={setSafeDropAmount}
               keyboardType="decimal-pad"
               editable={canRecordSafeDrop && !addCanisterDropMutation.isPending}
+              error={safeDropAmountError}
             />
             <FloatingLabelInput
               label={safeDropDefaultByName ? `Dropped by (default: ${safeDropDefaultByName})` : "Dropped by"}
@@ -682,7 +706,7 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
 
         <View style={[ui.card, styles.summaryCard]}>
           <View style={styles.actionHeader}>
-            <Text style={styles.sectionTitle}>Actions</Text>
+            <Text style={styles.sectionTitle}>Refresh</Text>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={salesQuery.isFetching ? "Refreshing sales entries" : "Refresh shift details"}
@@ -700,13 +724,6 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
               <Text style={styles.iconGlyph}>{salesQuery.isFetching ? "*" : "\u21BB"}</Text>
             </Pressable>
           </View>
-          <Pressable
-            style={[styles.actionButton, (!canCloseShift || !closeShiftShopId) ? styles.actionButtonDisabled : null]}
-            onPress={() => navigation.navigate("ShiftClose", { shiftId, shopId: closeShiftShopId })}
-            disabled={!canCloseShift || !closeShiftShopId}
-          >
-            <Text style={styles.actionButtonText}>Close Shift</Text>
-          </Pressable>
         </View>
       </ScrollView>
     </ScreenContainer>
@@ -1093,6 +1110,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     gap: appTheme.spacing.sm,
+  },
+  footerDock: {
+    paddingVertical: appTheme.spacing.sm,
   },
   actionButton: {
     borderWidth: 0,

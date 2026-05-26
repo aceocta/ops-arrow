@@ -4,6 +4,7 @@ import NetInfo, { useNetInfo } from "@react-native-community/netinfo";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker";
+import { Ionicons } from "@expo/vector-icons";
 import { getBusinessDay, listBusinessDays } from "../../api/businessDaysApi";
 import { getConfigurations } from "../../api/configurationsApi";
 import { getActivePacksForShift, finalizeShift, getShift } from "../../api/shiftsApi";
@@ -305,28 +306,11 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
     (rootLikeNavigation as any).navigate("BarcodeScanner", params);
   }
 
-  async function selectCloseAttachments() {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert("Permission required", "Photo access is required to add an attachment.");
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: "images",
-      quality: 0.85,
-      allowsEditing: false,
-      allowsMultipleSelection: true,
-      selectionLimit: MAX_CLOSE_ATTACHMENTS,
-      base64: true,
-    });
-
-    if (result.canceled || result.assets.length === 0) {
-      return;
-    }
-
+  // Shared sink for both library-picked and camera-captured assets so size guard / dedupe /
+  // 10-cap behaviour stays identical regardless of source.
+  function ingestCloseAttachmentAssets(assets: ImagePicker.ImagePickerAsset[]) {
     let oversizedCount = 0;
-    const selected = result.assets
+    const selected = assets
       .filter((asset) => Boolean(asset.base64))
       .flatMap((asset) => {
         if (typeof asset.fileSize === "number" && asset.fileSize > MAX_CLOSE_ATTACHMENT_BYTES) {
@@ -349,7 +333,7 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
     }
 
     if (selected.length === 0) {
-      Alert.alert("Attachment failed", "Unable to read selected attachment(s).");
+      Alert.alert("Attachment failed", "Unable to read the selected file(s).");
       return;
     }
 
@@ -362,6 +346,61 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
       Alert.alert("Attachment limit", "A maximum of 10 attachments can be added.");
       return combined.slice(0, MAX_CLOSE_ATTACHMENTS);
     });
+  }
+
+  async function selectCloseAttachments() {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permission required", "Photo access is required to add an attachment from your library.");
+      return;
+    }
+
+    const remainingSlots = Math.max(0, MAX_CLOSE_ATTACHMENTS - closeAttachments.length);
+    if (remainingSlots === 0) {
+      Alert.alert("Attachment limit", "A maximum of 10 attachments can be added.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: "images",
+      quality: 0.85,
+      allowsEditing: false,
+      allowsMultipleSelection: true,
+      selectionLimit: remainingSlots,
+      base64: true,
+    });
+
+    if (result.canceled || result.assets.length === 0) {
+      return;
+    }
+
+    ingestCloseAttachmentAssets(result.assets);
+  }
+
+  async function captureCloseAttachment() {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permission required", "Camera access is required to take a photo for this close.");
+      return;
+    }
+
+    if (closeAttachments.length >= MAX_CLOSE_ATTACHMENTS) {
+      Alert.alert("Attachment limit", "A maximum of 10 attachments can be added.");
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: "images",
+      quality: 0.85,
+      allowsEditing: false,
+      base64: true,
+    });
+
+    if (result.canceled || result.assets.length === 0) {
+      return;
+    }
+
+    ingestCloseAttachmentAssets(result.assets);
   }
 
   const packsQuery = useQuery({
@@ -967,18 +1006,36 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
                     accessibilityLabel={`Mark pack ${row.pack.packNumber} as sold out`}
                     disabled={!isManualClosingSerialEnabled || isSubmitting}
                     onPress={() => {
+                      // Marking sold-out sets the closing serial to the end of the pack which
+                      // cannot be undone short of editing the textbox — confirm first so a
+                      // mis-tap doesn't silently empty the inventory.
                       const soldOutSerial = normalizeClosingSerialInput(getLastSerialForPack(row.pack));
-                      setEntries((previous) => ({
-                        ...previous,
-                        [row.pack.id]: {
-                          closingSerialNumber: soldOutSerial,
-                          originalScannedSerialNumber: previous[row.pack.id]?.originalScannedSerialNumber,
-                          entryMethod: previous[row.pack.id]?.originalScannedSerialNumber
-                            ? EntryMethod.ScannedEdited
-                            : EntryMethod.Manual,
-                          manualEntryReason: previous[row.pack.id]?.manualEntryReason,
-                        },
-                      }));
+                      haptics.warning();
+                      Alert.alert(
+                        "Mark pack as sold out?",
+                        `Pack ${row.pack.packNumber} closing serial will be set to ${soldOutSerial}.`,
+                        [
+                          { text: "Cancel", style: "cancel" },
+                          {
+                            text: "Mark sold out",
+                            style: "destructive",
+                            onPress: () => {
+                              haptics.success();
+                              setEntries((previous) => ({
+                                ...previous,
+                                [row.pack.id]: {
+                                  closingSerialNumber: soldOutSerial,
+                                  originalScannedSerialNumber: previous[row.pack.id]?.originalScannedSerialNumber,
+                                  entryMethod: previous[row.pack.id]?.originalScannedSerialNumber
+                                    ? EntryMethod.ScannedEdited
+                                    : EntryMethod.Manual,
+                                  manualEntryReason: previous[row.pack.id]?.manualEntryReason,
+                                },
+                              }));
+                            },
+                          },
+                        ],
+                      );
                     }}
                   >
                     <Text style={styles.soldOutButtonText}>Sold Out</Text>
@@ -1095,26 +1152,46 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
             <Pressable
               style={styles.attachmentActionButton}
               accessibilityRole="button"
-              accessibilityLabel={closeAttachments.length > 0 ? "Add more attachments" : "Add attachments"}
+              accessibilityLabel="Take a photo for this close"
+              onPress={() => void captureCloseAttachment()}
+              disabled={isSubmitting}
+            >
+              <Ionicons name="camera-outline" size={16} color={appTheme.colors.text} />
+              <Text style={styles.attachmentActionButtonText}>Take Photo</Text>
+            </Pressable>
+            <Pressable
+              style={styles.attachmentActionButton}
+              accessibilityRole="button"
+              accessibilityLabel="Pick attachments from gallery"
               onPress={() => void selectCloseAttachments()}
               disabled={isSubmitting}
             >
-              <Text style={styles.attachmentActionButtonText}>
-                {closeAttachments.length > 0 ? "Add More Attachments" : "Add Attachments"}
-              </Text>
+              <Ionicons name="images-outline" size={16} color={appTheme.colors.text} />
+              <Text style={styles.attachmentActionButtonText}>From Gallery</Text>
             </Pressable>
-            {closeAttachments.length > 0 ? (
+          </View>
+          {closeAttachments.length > 0 ? (
+            <View style={styles.attachmentActionRow}>
               <Pressable
                 style={[styles.attachmentActionButton, styles.attachmentActionButtonDanger]}
                 accessibilityRole="button"
                 accessibilityLabel="Clear all attachments"
-                onPress={() => setCloseAttachments([])}
+                onPress={() => {
+                  Alert.alert(
+                    "Clear all attachments?",
+                    `This will remove all ${closeAttachments.length} attachment(s).`,
+                    [
+                      { text: "Cancel", style: "cancel" },
+                      { text: "Clear all", style: "destructive", onPress: () => setCloseAttachments([]) },
+                    ],
+                  );
+                }}
                 disabled={isSubmitting}
               >
                 <Text style={[styles.attachmentActionButtonText, styles.attachmentActionButtonTextDanger]}>Clear All</Text>
               </Pressable>
-            ) : null}
-          </View>
+            </View>
+          ) : null}
         </View>
 
       </View>
@@ -1552,11 +1629,13 @@ const styles = StyleSheet.create({
   },
   attachmentActionButton: {
     flex: 1,
+    flexDirection: "row",
     minHeight: 38,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceTintSoft,
     alignItems: "center",
     justifyContent: "center",
+    gap: 6,
     paddingHorizontal: appTheme.spacing.sm,
   },
   attachmentActionButtonDanger: {
