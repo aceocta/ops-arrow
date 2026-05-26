@@ -217,6 +217,19 @@ function formatShiftDateTimeCompact(value: Date) {
   return value.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+// Renders a Date span as a compact duration like "4h 20m" or "45m". Used on closed shifts
+// in the day-management screen so the shopkeeper can see how long the shift actually ran
+// without doing the maths in their head.
+function formatShiftDuration(start: Date, end: Date): string {
+  const totalMinutes = Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
+  if (totalMinutes === 0) return "";
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours === 0) return `${minutes}m`;
+  if (minutes === 0) return `${hours}h`;
+  return `${hours}h ${minutes}m`;
+}
+
 function formatFileSize(size?: number) {
   if (!size || size <= 0) {
     return "";
@@ -1642,33 +1655,75 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             const canCloseShift = closableStatuses.has(shift.status);
             const canStartScheduledShift = shift.status === ShiftStatus.Scheduled;
             const isClosedShift = closedSummaryStatuses.has(shift.status);
+            const isOpenShift = shift.status === ShiftStatus.Open || shift.status === ShiftStatus.Reopened;
             const shiftSalesTotal = shiftSalesTotalsQuery.data?.[shift.id];
+            const salesIsLoading = isClosedShift && shiftSalesTotal == null;
             const displayWindow = shiftDisplayWindowById[shift.id];
             const displayStart = displayWindow?.start ?? new Date(shift.startTime);
             const displayEnd = displayWindow?.end;
             const compactStart = formatShiftDateTimeCompact(displayStart);
             const compactEnd = displayEnd ? formatShiftDateTimeCompact(displayEnd) : "";
-            const compactSales = isClosedShift
-              ? (shiftSalesTotal != null ? formatCurrency(shiftSalesTotal) : "Loading...")
+            // Duration shown for closed shifts so the user can see at-a-glance how long the
+            // shift ran. Skipped for active shifts because "running for 4h 20m" updates over
+            // time and we don't have a tick refresh hook in this tree.
+            const durationLabel = isClosedShift && displayEnd
+              ? formatShiftDuration(displayStart, displayEnd)
               : "";
+            const compactSales = isClosedShift
+              ? (shiftSalesTotal != null ? formatCurrency(shiftSalesTotal) : "")
+              : "";
+            // Build a single accessibility label so VoiceOver reads everything coherently.
+            const a11yParts = [
+              shift.shiftName,
+              `status ${shift.status}`,
+              `start ${compactStart}`,
+              compactEnd ? `end ${compactEnd}` : null,
+              compactSales ? `sales ${compactSales}` : null,
+            ].filter(Boolean);
             return (
-              <View key={shift.id} style={styles.shiftItem}>
+              <View
+                key={shift.id}
+                style={[
+                  styles.shiftItem,
+                  isOpenShift ? styles.shiftItemOpen : null,
+                  isClosedShift ? styles.shiftItemClosed : null,
+                ]}
+              >
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`Open ${shift.shiftName} shift details`}
-                  style={styles.shiftDetailsTapArea}
+                  accessibilityLabel={a11yParts.join(", ")}
+                  accessibilityHint="Opens the shift details screen"
+                  style={({ pressed }) => [
+                    styles.shiftDetailsTapArea,
+                    pressed ? styles.shiftDetailsTapAreaPressed : null,
+                  ]}
+                  android_ripple={{ color: appTheme.colors.borderBrandSoft, borderless: false }}
                   onPress={() => navigation.navigate("ShiftDetails", { shiftId: shift.id, shopId: shift.shopId })}
                 >
-                  <View style={styles.shiftHeader}>
-                    <Text style={styles.shiftName}>{shift.shiftName}</Text>
-                    <StatusBadge label={shift.status} tone={getShiftTone(shift.status)} />
+                  <View style={styles.shiftBody}>
+                    <View style={styles.shiftHeader}>
+                      <View style={styles.shiftNameBlock}>
+                        {isOpenShift ? <View style={styles.shiftLiveDot} /> : null}
+                        <Text style={styles.shiftName} numberOfLines={1}>{shift.shiftName}</Text>
+                      </View>
+                      <StatusBadge label={shift.status} tone={getShiftTone(shift.status)} />
+                    </View>
+                    <Text style={styles.shiftCompactMeta}>
+                      Start {compactStart}{compactEnd ? ` · End ${compactEnd}` : ""}
+                      {durationLabel ? ` · ${durationLabel}` : ""}
+                    </Text>
+                    {compactSales ? (
+                      <Text style={styles.shiftSalesValue}>Sales {compactSales}</Text>
+                    ) : salesIsLoading ? (
+                      <View style={styles.shiftSalesSkeleton} accessibilityLabel="Loading sales total" />
+                    ) : null}
                   </View>
-                  <Text style={styles.shiftCompactMeta}>
-                    Start {compactStart}{compactEnd ? ` · End ${compactEnd}` : ""}
-                  </Text>
-                  {compactSales ? (
-                    <Text style={styles.shiftSalesValue}>Sales {compactSales}</Text>
-                  ) : null}
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={appTheme.colors.textSubtle}
+                    style={styles.shiftChevron}
+                  />
                 </Pressable>
                 {canCloseShift ? (
                   <View style={styles.shiftActionRow}>
@@ -3023,20 +3078,67 @@ const styles = StyleSheet.create({
     gap: appTheme.spacing.xs,
   },
   shiftItem: {
-    borderWidth: 0,
-    borderRadius: appTheme.radius.sm,
+    borderWidth: 1,
+    borderColor: "transparent",
+    borderRadius: appTheme.radius.md,
     backgroundColor: appTheme.colors.surfaceTintAlt,
-    paddingHorizontal: appTheme.spacing.xs,
-    paddingVertical: appTheme.spacing.xs,
-    gap: 4,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.sm,
+    gap: appTheme.spacing.xs,
+    overflow: "hidden",
+  },
+  // Highlight currently-open shift so the user can spot it instantly in a list of closed ones.
+  shiftItemOpen: {
+    borderColor: appTheme.colors.primary,
+    backgroundColor: appTheme.colors.surfaceSuccessAlt,
+  },
+  // Dim closed shifts a touch so the active one stands out without being shouty.
+  shiftItemClosed: {
+    backgroundColor: appTheme.colors.surfaceMuted,
   },
   shiftDetailsTapArea: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+    minHeight: 56,
+  },
+  shiftDetailsTapAreaPressed: {
+    opacity: 0.7,
+  },
+  shiftBody: {
+    flex: 1,
     gap: 4,
+  },
+  shiftNameBlock: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  // Small green dot rendered before the shift name when the shift is currently open. Cheap
+  // visual signal for "this one is live" without an extra row.
+  shiftLiveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: appTheme.colors.primary,
+  },
+  shiftChevron: {
+    marginLeft: 4,
+  },
+  // Bar-shaped skeleton placeholder shown in the Sales row while shift totals are loading.
+  shiftSalesSkeleton: {
+    height: 14,
+    width: 110,
+    borderRadius: 4,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    marginTop: 2,
+    opacity: 0.7,
   },
   shiftHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
     gap: appTheme.spacing.xs,
   },
   shiftName: {
