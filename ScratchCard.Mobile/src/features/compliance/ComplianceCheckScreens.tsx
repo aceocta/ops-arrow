@@ -29,6 +29,7 @@ import {
 import { sendReportEmail } from "../../api/reportsApi";
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
+import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ReportActionButton } from "../../components/ReportActionButton";
@@ -2172,12 +2173,10 @@ export function ComplianceChecksConfigScreen() {
                   );
                 })}
               </View>
-              <TextInput
-                style={styles.input}
+              <FloatingLabelInput
+                label="Group name"
                 value={groupForm.groupName}
                 onChangeText={(value) => setGroupForm((previous) => ({ ...previous, groupName: value }))}
-                placeholder="Group name"
-                placeholderTextColor={appTheme.colors.textSubtle}
               />
               <TextInput
                 style={[styles.input, styles.textArea]}
@@ -2225,12 +2224,10 @@ export function ComplianceChecksConfigScreen() {
                   );
                 })}
               </View>
-              <TextInput
-                style={styles.input}
+              <FloatingLabelInput
+                label="Item name"
                 value={itemForm.itemName}
                 onChangeText={(value) => setItemForm((previous) => ({ ...previous, itemName: value }))}
-                placeholder="Item name"
-                placeholderTextColor={appTheme.colors.textSubtle}
               />
               <TextInput
                 style={[styles.input, styles.textArea]}

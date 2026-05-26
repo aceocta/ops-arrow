@@ -8,6 +8,7 @@ import {
 } from "../../api/temperatureLogsApi";
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, formatTimeValue, parseDateTimeValue } from "../../components/DateTimeField";
+import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -481,24 +482,18 @@ export function TemperatureLogScreen() {
               <View style={styles.entryRow}>
 
                    <View style={styles.entryColumn}>
-                  <Text style={styles.fieldLabel}>Initials</Text>
-                  <TextInput
-                    style={styles.input}
+                  <FloatingLabelInput
+                    label="Initials"
                     value={checkedByInitials}
                     onChangeText={setCheckedByInitials}
-                    placeholder="Initials"
-                    placeholderTextColor={appTheme.colors.textSubtle}
                     autoCapitalize="characters"
                   />
                 </View>
                 <View style={styles.entryColumn}>
-                  <Text style={styles.fieldLabel}>Temperature (C)</Text>
-                  <TextInput
-                    style={styles.input}
+                  <FloatingLabelInput
+                    label="Temperature (°C)"
                     value={temperatureCelsius}
                     onChangeText={setTemperatureCelsius}
-                    placeholder="Temperature"
-                    placeholderTextColor={appTheme.colors.textSubtle}
                     keyboardType="decimal-pad"
                   />
                 </View>

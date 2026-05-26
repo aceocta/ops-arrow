@@ -20,6 +20,7 @@ import {
 } from "../../api/checklistsApi";
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
+import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -773,20 +774,15 @@ export function ChecklistConfigurationScreen() {
           <ModalBackdropBlur />
           <View style={styles.modalCard}>
             <Text style={styles.groupTitle}>{groupForm.id ? "Edit Group" : "New Group"}</Text>
-            <TextInput
-              style={styles.input}
+            <FloatingLabelInput
+              label="Group name"
               value={groupForm.groupName}
               onChangeText={(value) => setGroupForm((prev) => ({ ...prev, groupName: value }))}
-              placeholder="Group name"
-              placeholderTextColor={appTheme.colors.textSubtle}
             />
-            <TextInput
-              style={styles.input}
+            <FloatingLabelInput
+              label="Description"
               value={groupForm.description}
               onChangeText={(value) => setGroupForm((prev) => ({ ...prev, description: value }))}
-              placeholder="Description"
-              placeholderTextColor={appTheme.colors.textSubtle}
-              multiline
             />
             <Pressable
               style={styles.toggleRow}
@@ -813,20 +809,15 @@ export function ChecklistConfigurationScreen() {
           <View style={styles.modalCard}>
             <ScrollView contentContainerStyle={{ gap: appTheme.spacing.xs }}>
               <Text style={styles.groupTitle}>{taskForm.id ? "Edit Task" : "New Task"}</Text>
-              <TextInput
-                style={styles.input}
+              <FloatingLabelInput
+                label="Task name"
                 value={taskForm.taskName}
                 onChangeText={(value) => setTaskForm((prev) => ({ ...prev, taskName: value }))}
-                placeholder="Task name"
-                placeholderTextColor={appTheme.colors.textSubtle}
               />
-              <TextInput
-                style={styles.input}
+              <FloatingLabelInput
+                label="Description"
                 value={taskForm.description}
                 onChangeText={(value) => setTaskForm((prev) => ({ ...prev, description: value }))}
-                placeholder="Description"
-                placeholderTextColor={appTheme.colors.textSubtle}
-                multiline
               />
 
               {taskBooleanToggleOptions.map(({ key, label }) => (

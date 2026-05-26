@@ -6,6 +6,7 @@ import SignatureScreen, { SignatureViewRef } from "react-native-signature-canvas
 import { getRefusalEntry, getRefusalEntrySignature, updateRefusalEntry } from "../../api/refusalRegisterApi";
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField } from "../../components/DateTimeField";
+import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -137,13 +138,10 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
             </View>
             <DateTimeField mode="time" value={refusalTime} onChange={setRefusalTime} />
 
-            <Text style={styles.fieldLabel}>Product</Text>
-            <TextInput
-              style={styles.input}
+            <FloatingLabelInput
+              label="Refused product"
               value={product}
               onChangeText={setProduct}
-              placeholder="Enter refused product"
-              placeholderTextColor={appTheme.colors.textSubtle}
             />
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
               {productSuggestions.map((item) => (
@@ -179,13 +177,10 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
               textAlignVertical="top"
             />
 
-            <Text style={styles.fieldLabel}>Staff Member Name</Text>
-            <TextInput
-              style={styles.input}
+            <FloatingLabelInput
+              label="Staff member full name"
               value={staffMemberInitials}
               onChangeText={setStaffMemberInitials}
-              placeholder="Full name"
-              placeholderTextColor={appTheme.colors.textSubtle}
               autoCapitalize="words"
             />
 

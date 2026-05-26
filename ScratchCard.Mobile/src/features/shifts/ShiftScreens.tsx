@@ -7,6 +7,7 @@ import { listBusinessDays } from "../../api/businessDaysApi";
 import { getConfigurations } from "../../api/configurationsApi";
 import { listPacks } from "../../api/packsApi";
 import { deleteShift, getShift, getShiftSales, listShiftCloseCandidates, listShifts, openShift, startScheduledShift } from "../../api/shiftsApi";
+import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { deriveShopOperationalSetup } from "../settings/shopConfiguration";
@@ -451,10 +452,11 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
                 Use this only for exceptions. Anyone with shift access can create a manual shift.
               </Text>
             {shopOperationalSetup.allowCustomShiftName ? (
-              <>
-                <Text style={styles.fieldLabel}>Shift Name</Text>
-                <TextInput style={styles.input} value={shiftName} onChangeText={setShiftName} placeholder="Shift name" />
-              </>
+              <FloatingLabelInput
+                label="Shift name"
+                value={shiftName}
+                onChangeText={setShiftName}
+              />
             ) : (
               <View style={styles.item}>
                 <Text style={styles.fieldLabel}>Shift Name</Text>

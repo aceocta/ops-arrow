@@ -11,6 +11,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, formatTimeValue, parseDateTimeValue } from "../../components/DateTimeField";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
+import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SkeletonList } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -491,13 +492,10 @@ export function RefusalRegisterScreen() {
           </Pressable>
         </View>
 
-        <Text style={styles.fieldLabel}>Product</Text>
-        <TextInput
-          style={styles.input}
+        <FloatingLabelInput
+          label="Refused product"
           value={product}
           onChangeText={setProduct}
-          placeholder="Enter refused product"
-          placeholderTextColor={appTheme.colors.textSubtle}
         />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
           {productSuggestions.map((item) => (
@@ -533,13 +531,10 @@ export function RefusalRegisterScreen() {
           textAlignVertical="top"
         />
 
-        <Text style={styles.fieldLabel}>Staff Member Name</Text>
-        <TextInput
-          style={styles.input}
+        <FloatingLabelInput
+          label="Staff member full name"
           value={staffMemberInitials}
           onChangeText={setStaffMemberInitials}
-          placeholder="Full name"
-          placeholderTextColor={appTheme.colors.textSubtle}
           autoCapitalize="words"
         />
 

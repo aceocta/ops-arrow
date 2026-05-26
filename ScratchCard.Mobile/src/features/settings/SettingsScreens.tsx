@@ -15,6 +15,7 @@ import { createShop, listShops, updateShop } from "../../api/shopsApi";
 import { deactivateUser, listUsers, reactivateUser, updateUserRole } from "../../api/usersApi";
 import { useAuth } from "../../auth/AuthContext";
 import { LabeledValue } from "../../components/LabeledValue";
+import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SkeletonList } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -1295,14 +1296,11 @@ export function CompanyManagementScreen() {
       {canCreateCompany ? (
         <View style={ui.card}>
           <Text style={styles.sectionTitle}>Company Details</Text>
-          <Text style={styles.fieldLabel}>Company Name</Text>
-          <TextInput style={styles.input} value={companyName} onChangeText={setCompanyName} placeholder="Company name" />
-          <Text style={styles.fieldLabel}>Registration Number</Text>
-          <TextInput
-            style={styles.input}
+          <FloatingLabelInput label="Company name" value={companyName} onChangeText={setCompanyName} />
+          <FloatingLabelInput
+            label="Registration number (optional)"
             value={registrationNumber}
             onChangeText={setRegistrationNumber}
-            placeholder="Registration number (optional)"
           />
           <Pressable style={styles.actionButton} onPress={() => createCompanyMutation.mutate()}>
             <Text style={styles.actionButtonText}>{createCompanyMutation.isPending ? "Creating..." : "Create Company"}</Text>
@@ -1311,14 +1309,11 @@ export function CompanyManagementScreen() {
       ) : (
         <View style={ui.card}>
           <Text style={styles.sectionTitle}>Company Details</Text>
-          <Text style={styles.fieldLabel}>Company Name</Text>
-          <TextInput style={styles.input} value={companyName} onChangeText={setCompanyName} placeholder="Company name" />
-          <Text style={styles.fieldLabel}>Registration Number</Text>
-          <TextInput
-            style={styles.input}
+          <FloatingLabelInput label="Company name" value={companyName} onChangeText={setCompanyName} />
+          <FloatingLabelInput
+            label="Registration number (optional)"
             value={registrationNumber}
             onChangeText={setRegistrationNumber}
-            placeholder="Registration number (optional)"
           />
           <View style={styles.configFooterActionRow}>
             <Pressable style={styles.actionButton} onPress={() => updateCompanyMutation.mutate()}>
@@ -1585,18 +1580,12 @@ export function ShopManagementScreen() {
           <Text style={styles.meta}>Managers can edit assigned shops only. Creating new shops is owner-only.</Text>
         ) : null}
 
-        <Text style={styles.fieldLabel}>Shop Name</Text>
-        <TextInput style={styles.input} value={shopName} onChangeText={setShopName} placeholder="Shop name" />
-        <Text style={styles.fieldLabel}>Address Line 1</Text>
-        <TextInput style={styles.input} value={addressLine1} onChangeText={setAddressLine1} placeholder="Address line 1" />
-        <Text style={styles.fieldLabel}>Address Line 2</Text>
-        <TextInput style={styles.input} value={addressLine2} onChangeText={setAddressLine2} placeholder="Address line 2 (optional)" />
-        <Text style={styles.fieldLabel}>City</Text>
-        <TextInput style={styles.input} value={city} onChangeText={setCity} placeholder="City" />
-        <Text style={styles.fieldLabel}>Post Code</Text>
-        <TextInput style={styles.input} value={postCode} onChangeText={setPostCode} placeholder="Post code" />
-        <Text style={styles.fieldLabel}>Country</Text>
-        <TextInput style={styles.input} value={country} onChangeText={setCountry} placeholder="Country" />
+        <FloatingLabelInput label="Shop name" value={shopName} onChangeText={setShopName} />
+        <FloatingLabelInput label="Address line 1" value={addressLine1} onChangeText={setAddressLine1} />
+        <FloatingLabelInput label="Address line 2 (optional)" value={addressLine2} onChangeText={setAddressLine2} />
+        <FloatingLabelInput label="City" value={city} onChangeText={setCity} />
+        <FloatingLabelInput label="Post code" value={postCode} onChangeText={setPostCode} autoCapitalize="characters" />
+        <FloatingLabelInput label="Country" value={country} onChangeText={setCountry} />
 
         {editingShopId ? (
           <View style={[styles.row, { marginTop: 8 }]}>
@@ -1629,15 +1618,13 @@ export function ShopManagementScreen() {
         {editingShopId && editingShopConfigurationsQuery.isError ? (
           <Text style={styles.error}>Unable to load current pack settings. You can still set them manually.</Text>
         ) : null}
-        <Text style={styles.fieldLabel}>Scratch Card Display Count</Text>
-        <TextInput
-          style={styles.input}
+        <FloatingLabelInput
+          label="Scratch card display count (e.g. 24)"
           value={scratchCardDisplayCount}
           onChangeText={(value) => {
             setScratchCardDisplayCount(value);
             setHasEditedPackSettings(true);
           }}
-          placeholder="e.g. 24"
           keyboardType="number-pad"
         />
         <Text style={styles.fieldLabel}>Pack Selling Order</Text>

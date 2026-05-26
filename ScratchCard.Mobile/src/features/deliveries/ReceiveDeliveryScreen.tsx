@@ -18,6 +18,7 @@ import { createDelivery, parseDeliveryNote } from "../../api/deliveriesApi";
 import { getConfigurations } from "../../api/configurationsApi";
 import { listGames } from "../../api/gamesApi";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
+import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -464,12 +465,9 @@ export function ReceiveDeliveryScreen() {
           <Text style={styles.meta}>Pack Selling Order: {configuredPackSellingOrder}</Text>
           <Text style={styles.fieldLabel}>Delivery Date</Text>
           <DateTimeField mode="date" value={deliveryDate} onChange={setDeliveryDate} />
-          <Text style={styles.fieldLabel}>Supplier Name</Text>
-          <TextInput style={styles.input} value={supplierName} onChangeText={setSupplierName} placeholder="Supplier name" />
-          <Text style={styles.fieldLabel}>Delivery Reference</Text>
-          <TextInput style={styles.input} value={deliveryReference} onChangeText={setDeliveryReference} placeholder="Delivery reference" />
-          <Text style={styles.fieldLabel}>Notes</Text>
-          <TextInput style={styles.input} value={notes} onChangeText={setNotes} placeholder="Notes (optional)" />
+          <FloatingLabelInput label="Supplier name" value={supplierName} onChangeText={setSupplierName} />
+          <FloatingLabelInput label="Delivery reference" value={deliveryReference} onChangeText={setDeliveryReference} />
+          <FloatingLabelInput label="Notes (optional)" value={notes} onChangeText={setNotes} />
           <View style={styles.rowActions}>
             <Pressable
               style={styles.actionButton}
@@ -624,50 +622,39 @@ export function ReceiveDeliveryScreen() {
                 </View>
               ) : null}
 
-              <Text style={styles.fieldLabel}>Pack Number</Text>
-              <TextInput
-                style={styles.input}
+              <FloatingLabelInput
+                label="Pack number"
                 value={editingRow?.packNumber ?? ""}
                 onChangeText={(v) => updateEditingRow((current) => ({ ...current, packNumber: v }))}
-                placeholder="Pack number"
               />
-              <Text style={styles.fieldLabel}>Display Number (Optional)</Text>
-              <TextInput
-                style={styles.input}
+              <FloatingLabelInput
+                label="Display number (optional)"
                 value={editingRow?.displayNumber ?? ""}
                 keyboardType="number-pad"
                 onChangeText={(v) => updateEditingRow((current) => ({ ...current, displayNumber: v }))}
-                placeholder="Display number"
               />
-              <Text style={styles.fieldLabel}>Ticket Price</Text>
-              <TextInput
-                style={styles.input}
+              <FloatingLabelInput
+                label="Ticket price"
+                prefix="£"
                 value={editingRow?.ticketPrice ?? ""}
                 keyboardType="decimal-pad"
                 onChangeText={(v) => updateEditingRow((current) => ({ ...current, ticketPrice: v }))}
-                placeholder="Ticket price"
               />
-              <Text style={styles.fieldLabel}>Total Tickets</Text>
-              <TextInput
-                style={styles.input}
+              <FloatingLabelInput
+                label="Total tickets"
                 value={editingRow?.totalTickets ?? ""}
                 keyboardType="number-pad"
                 onChangeText={(v) => updateEditingRow((current) => ({ ...current, totalTickets: v }))}
-                placeholder="Total tickets"
               />
-              <Text style={styles.fieldLabel}>Start Serial</Text>
-              <TextInput
-                style={styles.input}
+              <FloatingLabelInput
+                label="Start serial"
                 value={editingRow?.startSerialNumber ?? ""}
                 onChangeText={(v) => updateEditingRow((current) => ({ ...current, startSerialNumber: v }))}
-                placeholder="Start serial"
               />
-              <Text style={styles.fieldLabel}>End Serial</Text>
-              <TextInput
-                style={styles.input}
+              <FloatingLabelInput
+                label="End serial"
                 value={editingRow?.endSerialNumber ?? ""}
                 onChangeText={(v) => updateEditingRow((current) => ({ ...current, endSerialNumber: v }))}
-                placeholder="End serial"
               />
 
               <PrimaryButton label="Save Row" onPress={saveRowEditor} />

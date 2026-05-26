@@ -21,6 +21,7 @@ import { getConfigurations } from "../../api/configurationsApi";
 import { getShopSubscriptionSummary } from "../../api/subscriptionApi";
 import { listPacks } from "../../api/packsApi";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
+import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { getShiftSales, listShifts, openShift, reopenShift, startScheduledShift } from "../../api/shiftsApi";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -2215,16 +2216,11 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
 
               <View style={styles.shiftStartModalBody}>
                 {shopOperationalSetup.allowCustomShiftName ? (
-                  <>
-                    <Text style={styles.fieldLabel}>Shift Name</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={newShiftName}
-                      onChangeText={setNewShiftName}
-                      placeholder="Shift name"
-                      placeholderTextColor={appTheme.colors.textSubtle}
-                    />
-                  </>
+                  <FloatingLabelInput
+                    label="Shift name"
+                    value={newShiftName}
+                    onChangeText={setNewShiftName}
+                  />
                 ) : (
                   <View style={styles.reviewSnapshotCard}>
                     <Text style={styles.reviewSnapshotTitle}>Shift Name</Text>
@@ -2326,10 +2322,10 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             <View style={styles.modalCard}>
               <Text style={styles.sectionTitle}>Close Day</Text>
               <Text style={styles.meta}>Enter payouts, then close this business day.</Text>
-              <Text style={styles.fieldLabel}>Lotto Payout (£)</Text>
-              <TextInput
+              <FloatingLabelInput
                 ref={lottoInputRef}
-                style={[styles.input, payoutFieldError?.key === "lotto" ? styles.inputError : null]}
+                label="Lotto payout"
+                prefix="£"
                 value={lottoPayoutAmount}
                 onChangeText={(t) => {
                   setLottoPayoutAmount(sanitizeMoneyInput(t));
@@ -2345,18 +2341,14 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     setLottoPayoutAmount(DEFAULT_CLOSE_DAY_PAYOUT);
                   }
                 }}
-                placeholder="£ 0.00"
-                placeholderTextColor={appTheme.colors.textSubtle}
                 keyboardType="decimal-pad"
                 accessibilityLabel="Lotto payout amount in pounds"
+                error={payoutFieldError?.key === "lotto" ? payoutFieldError.message : null}
               />
-              {payoutFieldError?.key === "lotto" ? (
-                <Text style={styles.fieldErrorText}>{payoutFieldError.message}</Text>
-              ) : null}
-              <Text style={styles.fieldLabel}>Scratch Card Payout (£)</Text>
-              <TextInput
+              <FloatingLabelInput
                 ref={scratchInputRef}
-                style={[styles.input, payoutFieldError?.key === "scratch" ? styles.inputError : null]}
+                label="Scratch card payout"
+                prefix="£"
                 value={scratchCardPayoutAmount}
                 onChangeText={(t) => {
                   setScratchCardPayoutAmount(sanitizeMoneyInput(t));
@@ -2372,18 +2364,14 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     setScratchCardPayoutAmount(DEFAULT_CLOSE_DAY_PAYOUT);
                   }
                 }}
-                placeholder="£ 0.00"
-                placeholderTextColor={appTheme.colors.textSubtle}
                 keyboardType="decimal-pad"
                 accessibilityLabel="Scratch card payout amount in pounds"
+                error={payoutFieldError?.key === "scratch" ? payoutFieldError.message : null}
               />
-              {payoutFieldError?.key === "scratch" ? (
-                <Text style={styles.fieldErrorText}>{payoutFieldError.message}</Text>
-              ) : null}
-              <Text style={styles.fieldLabel}>Till Payout (£)</Text>
-              <TextInput
+              <FloatingLabelInput
                 ref={tillInputRef}
-                style={[styles.input, payoutFieldError?.key === "till" ? styles.inputError : null]}
+                label="Till payout"
+                prefix="£"
                 value={tillPayoutAmount}
                 onChangeText={(t) => {
                   setTillPayoutAmount(sanitizeMoneyInput(t));
@@ -2399,14 +2387,10 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     setTillPayoutAmount(DEFAULT_CLOSE_DAY_PAYOUT);
                   }
                 }}
-                placeholder="£ 0.00"
-                placeholderTextColor={appTheme.colors.textSubtle}
                 keyboardType="decimal-pad"
                 accessibilityLabel="Till payout amount in pounds"
+                error={payoutFieldError?.key === "till" ? payoutFieldError.message : null}
               />
-              {payoutFieldError?.key === "till" ? (
-                <Text style={styles.fieldErrorText}>{payoutFieldError.message}</Text>
-              ) : null}
               <Text style={styles.fieldLabel}>Additional Close Notes</Text>
               <TextInput
                 style={[styles.input, styles.multilineInput]}

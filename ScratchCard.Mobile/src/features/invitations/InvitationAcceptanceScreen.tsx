@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { acceptInvitation } from "../../api/authApi";
@@ -72,27 +73,20 @@ export function InvitationAcceptanceScreen({ route, navigation }: Props) {
       <View style={ui.card}>
         <Text style={styles.title}>Accept Invitation</Text>
         <Text style={styles.subtitle}>Enter your details to set up your account and join the shop.</Text>
-        <Text style={styles.label}>Invitation Token</Text>
-        <TextInput style={styles.input} value={token} onChangeText={setToken} placeholder="Invitation token" editable={!isBusy} />
-        <Text style={styles.label}>First Name</Text>
-        <TextInput style={styles.input} value={firstName} onChangeText={setFirstName} placeholder="Your first name" editable={!isBusy} />
-        <Text style={styles.label}>Last Name</Text>
-        <TextInput style={styles.input} value={lastName} onChangeText={setLastName} placeholder="Your last name" editable={!isBusy} />
-        <Text style={styles.label}>Password</Text>
-        <TextInput
-          style={styles.input}
+        <FloatingLabelInput label="Invitation token" value={token} onChangeText={setToken} editable={!isBusy} />
+        <FloatingLabelInput label="First name" value={firstName} onChangeText={setFirstName} editable={!isBusy} />
+        <FloatingLabelInput label="Last name" value={lastName} onChangeText={setLastName} editable={!isBusy} />
+        <FloatingLabelInput
+          label="Password (min 8 characters)"
           value={password}
           onChangeText={setPassword}
-          placeholder="Password (min 8 characters)"
           secureTextEntry
           editable={!isBusy}
         />
-        <Text style={styles.label}>Confirm Password</Text>
-        <TextInput
-          style={styles.input}
+        <FloatingLabelInput
+          label="Confirm password"
           value={confirmPassword}
           onChangeText={setConfirmPassword}
-          placeholder="Confirm password"
           secureTextEntry
           editable={!isBusy}
         />

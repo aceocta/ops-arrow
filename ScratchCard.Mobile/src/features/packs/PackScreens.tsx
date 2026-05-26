@@ -5,6 +5,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
+import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -207,60 +208,42 @@ function GameEditorFields({
 }) {
   return (
     <>
-      <Text style={styles.fieldLabel}>Game Name (Master)</Text>
-      <TextInput
-        style={[styles.input, readOnlyMasterFields && styles.inputReadOnly]}
+      <FloatingLabelInput
+        label="Game name (master)"
         value={state.gameName}
-        placeholder="Game name"
-        placeholderTextColor={appTheme.colors.textSubtle}
         onChangeText={(value) => onChange({ ...state, gameName: value })}
         editable={!readOnlyMasterFields}
       />
-      <Text style={styles.fieldLabel}>Game Code (Master)</Text>
-      <TextInput
-        style={[styles.input, readOnlyMasterFields && styles.inputReadOnly]}
+      <FloatingLabelInput
+        label="Game code (master)"
         value={state.gameCode}
-        placeholder="Game code"
-        placeholderTextColor={appTheme.colors.textSubtle}
         onChangeText={(value) => onChange({ ...state, gameCode: value })}
         autoCapitalize="characters"
         editable={!readOnlyMasterFields}
       />
-      {/* <Text style={styles.meta}>Only letters and numbers are used (2-20 chars).</Text> */}
-      <Text style={styles.fieldLabel}>Ticket Price (Master)</Text>
-      <TextInput
-        style={[styles.input, readOnlyMasterFields && styles.inputReadOnly]}
+      <FloatingLabelInput
+        label="Ticket price (master)"
+        prefix="£"
         value={state.ticketPrice}
-        placeholder="Ticket price"
-        placeholderTextColor={appTheme.colors.textSubtle}
         keyboardType="decimal-pad"
         onChangeText={(value) => onChange({ ...state, ticketPrice: value })}
         editable={!readOnlyMasterFields}
       />
-      <Text style={styles.fieldLabel}>Tickets Per Pack (Master)</Text>
-      <TextInput
-        style={[styles.input, readOnlyMasterFields && styles.inputReadOnly]}
+      <FloatingLabelInput
+        label="Tickets per pack (master)"
         value={state.ticketsPerPack}
-        placeholder="Tickets per pack"
-        placeholderTextColor={appTheme.colors.textSubtle}
         keyboardType="number-pad"
         onChangeText={(value) => onChange({ ...state, ticketsPerPack: value })}
         editable={!readOnlyMasterFields}
       />
-      <Text style={styles.fieldLabel}>Default Start Serial</Text>
-      <TextInput
-        style={styles.input}
+      <FloatingLabelInput
+        label="Default start serial"
         value={state.startSerial}
-        placeholder="Default start serial"
-        placeholderTextColor={appTheme.colors.textSubtle}
         onChangeText={(value) => onChange({ ...state, startSerial: value })}
       />
-      <Text style={styles.fieldLabel}>Default End Serial</Text>
-      <TextInput
-        style={styles.input}
+      <FloatingLabelInput
+        label="Default end serial"
         value={state.endSerial}
-        placeholder="Default end serial"
-        placeholderTextColor={appTheme.colors.textSubtle}
         onChangeText={(value) => onChange({ ...state, endSerial: value })}
       />
       <Text style={styles.fieldLabel}>Selling Order</Text>
@@ -1152,25 +1135,19 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
           />
           <View style={styles.splitFieldRow}>
             <View style={styles.splitFieldCell}>
-              <Text style={styles.fieldLabel}>Display Number</Text>
-              <TextInput
-                style={styles.input}
+              <FloatingLabelInput
+                label={maxDisplayCount > 0 ? `Display number (1-${maxDisplayCount})` : "Display number"}
                 value={displayNumber}
                 onChangeText={setDisplayNumber}
                 keyboardType="number-pad"
-                placeholder={maxDisplayCount > 0 ? `Display number (1-${maxDisplayCount})` : "Display number"}
-                placeholderTextColor={appTheme.colors.textSubtle}
               />
             </View>
             <View style={styles.splitFieldCell}>
-              <Text style={styles.fieldLabel}>Total Tickets</Text>
-              <TextInput
-                style={styles.input}
+              <FloatingLabelInput
+                label="Total tickets"
                 value={totalTickets}
                 onChangeText={setTotalTickets}
                 keyboardType="number-pad"
-                placeholder="Total tickets"
-                placeholderTextColor={appTheme.colors.textSubtle}
               />
             </View>
           </View>
@@ -1182,23 +1159,17 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
 
           <View style={styles.splitFieldRow}>
             <View style={styles.splitFieldCell}>
-              <Text style={styles.fieldLabel}>Start Serial Number</Text>
-              <TextInput
-                style={styles.input}
+              <FloatingLabelInput
+                label="Start serial number"
                 value={startSerialNumber}
                 onChangeText={setStartSerialNumber}
-                placeholder="Start serial number"
-                placeholderTextColor={appTheme.colors.textSubtle}
               />
             </View>
             <View style={styles.splitFieldCell}>
-              <Text style={styles.fieldLabel}>End Serial Number</Text>
-              <TextInput
-                style={styles.input}
+              <FloatingLabelInput
+                label="End serial number"
                 value={endSerialNumber}
                 onChangeText={setEndSerialNumber}
-                placeholder="End serial number"
-                placeholderTextColor={appTheme.colors.textSubtle}
               />
             </View>
           </View>
@@ -1238,13 +1209,10 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
           ) : null}
           {/* <Text style={styles.meta}>Default is Inactive. You can activate later from pack details.</Text> */}
 
-          <Text style={styles.fieldLabel}>Notes (Optional)</Text>
-          <TextInput
-            style={styles.input}
+          <FloatingLabelInput
+            label="Notes (optional)"
             value={notes}
             onChangeText={setNotes}
-            placeholder="Notes"
-            placeholderTextColor={appTheme.colors.textSubtle}
           />
 
           <PrimaryButton
@@ -1418,25 +1386,17 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
 
           {isEditingDetails ? (
             <>
-              <Text style={styles.fieldLabel}>Pack Number</Text>
-              <TextInput style={styles.input} value={editPackNumber} onChangeText={setEditPackNumber} placeholder="Pack number" placeholderTextColor={appTheme.colors.textSubtle} />
-              <Text style={styles.fieldLabel}>Display Number (Optional)</Text>
-              <TextInput
-                style={styles.input}
+              <FloatingLabelInput label="Pack number" value={editPackNumber} onChangeText={setEditPackNumber} />
+              <FloatingLabelInput
+                label="Display number (optional)"
                 value={editDisplayNumber}
                 onChangeText={setEditDisplayNumber}
                 keyboardType="number-pad"
-                placeholder="Display number"
-                placeholderTextColor={appTheme.colors.textSubtle}
               />
-              <Text style={styles.fieldLabel}>Ticket Price</Text>
-              <TextInput style={styles.input} value={editTicketPrice} onChangeText={setEditTicketPrice} keyboardType="decimal-pad" placeholder="Ticket price" placeholderTextColor={appTheme.colors.textSubtle} />
-              <Text style={styles.fieldLabel}>Total Tickets</Text>
-              <TextInput style={styles.input} value={editTotalTickets} onChangeText={setEditTotalTickets} keyboardType="number-pad" placeholder="Total tickets" placeholderTextColor={appTheme.colors.textSubtle} />
-              <Text style={styles.fieldLabel}>Start Serial</Text>
-              <TextInput style={styles.input} value={editStartSerial} onChangeText={setEditStartSerial} placeholder="Start serial" placeholderTextColor={appTheme.colors.textSubtle} />
-              <Text style={styles.fieldLabel}>End Serial</Text>
-              <TextInput style={styles.input} value={editEndSerial} onChangeText={setEditEndSerial} placeholder="End serial" placeholderTextColor={appTheme.colors.textSubtle} />
+              <FloatingLabelInput label="Ticket price" prefix="£" value={editTicketPrice} onChangeText={setEditTicketPrice} keyboardType="decimal-pad" />
+              <FloatingLabelInput label="Total tickets" value={editTotalTickets} onChangeText={setEditTotalTickets} keyboardType="number-pad" />
+              <FloatingLabelInput label="Start serial" value={editStartSerial} onChangeText={setEditStartSerial} />
+              <FloatingLabelInput label="End serial" value={editEndSerial} onChangeText={setEditEndSerial} />
               <PrimaryButton
                 label={updateDetailsMutation.isPending ? "Saving..." : "Save Pack Details"}
                 onPress={() => updateDetailsMutation.mutate()}
@@ -1460,8 +1420,7 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
               ) : (
                 <Text style={styles.meta}>Activation requires status InStock or Paused.</Text>
               )}
-              <Text style={styles.fieldLabel}>Status Change Notes</Text>
-              <TextInput style={styles.input} value={notes} onChangeText={setNotes} placeholder="Notes for status change" placeholderTextColor={appTheme.colors.textSubtle} />
+              <FloatingLabelInput label="Status change notes" value={notes} onChangeText={setNotes} />
 
               <View style={styles.rowWrap}>
                 {allowPackPause ? (
@@ -1538,9 +1497,8 @@ export function ActivatePackScreen({ route, navigation }: ActivatePackProps) {
           <Text style={styles.heroNote}>Allowed serial range: {pack?.startSerialNumber ?? "-"} {"->"} {pack?.endSerialNumber ?? "-"}</Text>
         </View>
         <View style={ui.card}>
-          <Text style={styles.fieldLabel}>Opening Serial Number</Text>
-          <TextInput
-            style={styles.input}
+          <FloatingLabelInput
+            label="Opening serial number"
             value={openingSerialNumber}
             onChangeText={setOpeningSerialNumber}
             onFocus={() => {
@@ -1550,8 +1508,6 @@ export function ActivatePackScreen({ route, navigation }: ActivatePackProps) {
 
               setOpeningSerialNumber("");
             }}
-            placeholder="Opening serial number"
-            placeholderTextColor={appTheme.colors.textSubtle}
             keyboardType="number-pad"
             editable={!activateMutation.isPending}
           />

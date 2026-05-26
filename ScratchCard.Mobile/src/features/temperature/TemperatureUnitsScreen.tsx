@@ -3,6 +3,7 @@ import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInpu
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createTemperatureUnit, listTemperatureUnits, updateTemperatureUnit } from "../../api/temperatureLogsApi";
 import { useAuth } from "../../auth/AuthContext";
+import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -197,12 +198,10 @@ export function TemperatureUnitsScreen() {
           <ModalBackdropBlur />
           <View style={styles.modalCard}>
             <Text style={styles.sectionTitle}>Add New Unit</Text>
-            <TextInput
-              style={styles.input}
+            <FloatingLabelInput
+              label="Unit name (e.g. Front Fridge)"
               value={newUnitName}
               onChangeText={setNewUnitName}
-              placeholder="Unit name (example: Front Fridge)"
-              placeholderTextColor={appTheme.colors.textSubtle}
             />
             <Text style={styles.fieldLabel}>Equipment Type</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.choiceRow}>
@@ -220,30 +219,28 @@ export function TemperatureUnitsScreen() {
             </ScrollView>
 
             <View style={styles.row}>
-              <TextInput
-                style={[styles.input, { flex: 1 }]}
-                value={newMinTemp}
-                onChangeText={setNewMinTemp}
-                placeholder="Min C"
-                placeholderTextColor={appTheme.colors.textSubtle}
-                keyboardType="decimal-pad"
-              />
-              <TextInput
-                style={[styles.input, { flex: 1 }]}
-                value={newMaxTemp}
-                onChangeText={setNewMaxTemp}
-                placeholder="Max C"
-                placeholderTextColor={appTheme.colors.textSubtle}
-                keyboardType="decimal-pad"
-              />
+              <View style={{ flex: 1 }}>
+                <FloatingLabelInput
+                  label="Min °C"
+                  value={newMinTemp}
+                  onChangeText={setNewMinTemp}
+                  keyboardType="decimal-pad"
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <FloatingLabelInput
+                  label="Max °C"
+                  value={newMaxTemp}
+                  onChangeText={setNewMaxTemp}
+                  keyboardType="decimal-pad"
+                />
+              </View>
             </View>
 
-            <TextInput
-              style={styles.input}
+            <FloatingLabelInput
+              label="Location (optional)"
               value={newLocation}
               onChangeText={setNewLocation}
-              placeholder="Location (optional)"
-              placeholderTextColor={appTheme.colors.textSubtle}
             />
             <View style={styles.modalActions}>
               <PrimaryButton
@@ -274,12 +271,10 @@ export function TemperatureUnitsScreen() {
           <ModalBackdropBlur />
           <View style={styles.modalCard}>
             <Text style={styles.sectionTitle}>Edit Unit</Text>
-            <TextInput
-              style={styles.input}
+            <FloatingLabelInput
+              label="Unit name"
               value={editUnitName}
               onChangeText={setEditUnitName}
-              placeholder="Unit name"
-              placeholderTextColor={appTheme.colors.textSubtle}
             />
             <Text style={styles.fieldLabel}>Equipment Type</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.choiceRow}>
@@ -297,30 +292,28 @@ export function TemperatureUnitsScreen() {
             </ScrollView>
 
             <View style={styles.row}>
-              <TextInput
-                style={[styles.input, { flex: 1 }]}
-                value={editMinTemp}
-                onChangeText={setEditMinTemp}
-                placeholder="Min C"
-                placeholderTextColor={appTheme.colors.textSubtle}
-                keyboardType="decimal-pad"
-              />
-              <TextInput
-                style={[styles.input, { flex: 1 }]}
-                value={editMaxTemp}
-                onChangeText={setEditMaxTemp}
-                placeholder="Max C"
-                placeholderTextColor={appTheme.colors.textSubtle}
-                keyboardType="decimal-pad"
-              />
+              <View style={{ flex: 1 }}>
+                <FloatingLabelInput
+                  label="Min °C"
+                  value={editMinTemp}
+                  onChangeText={setEditMinTemp}
+                  keyboardType="decimal-pad"
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <FloatingLabelInput
+                  label="Max °C"
+                  value={editMaxTemp}
+                  onChangeText={setEditMaxTemp}
+                  keyboardType="decimal-pad"
+                />
+              </View>
             </View>
 
-            <TextInput
-              style={styles.input}
+            <FloatingLabelInput
+              label="Location (optional)"
               value={editLocation}
               onChangeText={setEditLocation}
-              placeholder="Location (optional)"
-              placeholderTextColor={appTheme.colors.textSubtle}
             />
 
             <Text style={styles.fieldLabel}>Status</Text>

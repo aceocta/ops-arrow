@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { ThemedTextInput } from "../../components/ThemedTextInput";
+import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
@@ -109,38 +109,28 @@ export function PrizePayoutScreen({ route }: Props) {
             })}
           </ScrollView>
 
-          <Text style={styles.fieldLabel}>Ticket Number</Text>
-          <TextInput
-            style={[ui.input, styles.input]}
+          <FloatingLabelInput
+            label="Ticket number"
             value={ticketNumber}
             onChangeText={setTicketNumber}
-            placeholder="Ticket number"
-            placeholderTextColor={appTheme.colors.textSubtle}
           />
-          <Text style={styles.fieldLabel}>Prize Amount</Text>
-          <ThemedTextInput
+          <FloatingLabelInput
+            label="Prize amount"
             prefix="£"
             value={prizeAmount}
             onChangeText={setPrizeAmount}
             keyboardType="decimal-pad"
-            placeholder="0.00"
             accessibilityLabel="Prize amount in pounds"
           />
-          <Text style={styles.fieldLabel}>Payment Method</Text>
-          <TextInput
-            style={[ui.input, styles.input]}
+          <FloatingLabelInput
+            label="Payment method (Cash / Card / Transfer)"
             value={paymentMethod}
             onChangeText={setPaymentMethod}
-            placeholder="Payment method (Cash/Card/Transfer)"
-            placeholderTextColor={appTheme.colors.textSubtle}
           />
-          <Text style={styles.fieldLabel}>Notes</Text>
-          <TextInput
-            style={[ui.input, styles.input]}
+          <FloatingLabelInput
+            label="Notes (optional)"
             value={notes}
             onChangeText={setNotes}
-            placeholder="Notes (optional)"
-            placeholderTextColor={appTheme.colors.textSubtle}
           />
 
           <PrimaryButton
