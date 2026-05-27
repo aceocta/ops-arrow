@@ -1601,86 +1601,105 @@ export function ComplianceChecksScreen() {
                 const attachmentCount = uploadedAttachments.length + pendingAttachments.length;
                 const isAttachmentPanelOpen = expandedAttachmentItemId === row.item.id;
                 const checkedByDisplayName = draft.checkedByName.trim() || defaultCheckedByName;
+                const hasNotes = draft.notes.trim().length > 0;
+                const hasAction = draft.actionRequired.trim().length > 0;
+                const accentStyle =
+                  draft.result === "Compliant"
+                    ? styles.itemCardAccentCompliant
+                    : draft.result === "NonCompliant"
+                      ? styles.itemCardAccentNonCompliant
+                      : draft.result === "NotApplicable"
+                        ? styles.itemCardAccentNotApplicable
+                        : styles.itemCardAccentPending;
                 return (
                   <View key={row.item.id} style={styles.itemCard}>
-                    <View style={[styles.rowBetween, styles.itemHeaderRow]}>
-                      <Text style={styles.itemTitle}>{row.item.itemName}</Text>
-                      {/* <StatusBadge label={formatResultLabel(draft.result)} tone={resolveResultTone(draft.result)} /> */}
-                    </View>
+                    <View style={[styles.itemCardAccent, accentStyle]} />
+                    <View style={styles.itemCardContent}>
+                      <Text style={styles.itemTitle} numberOfLines={2}>{row.item.itemName}</Text>
 
-                    <View style={styles.resultChoiceRow}>
-                      {resultOptions.map((resultOption) => {
-                        const selected = draft.result === resultOption;
-                        return (
-                          <Pressable
-                            key={resultOption}
-                            style={[
-                              styles.choiceChip,
-                              styles.resultChoiceChip,
-                              getResultChoiceChipBaseStyle(resultOption),
-                              selected ? getResultChoiceChipSelectedStyle(resultOption) : null,
-                            ]}
-                            onPress={() => onSelectResult(row, resultOption)}
-                          >
-                            <Text
+                      <View style={styles.resultChoiceRow}>
+                        {resultOptions.map((resultOption) => {
+                          const selected = draft.result === resultOption;
+                          return (
+                            <Pressable
+                              key={resultOption}
                               style={[
-                                styles.choiceChipText,
-                                styles.resultChoiceChipText,
-                                getResultChoiceChipTextBaseStyle(resultOption),
-                                selected ? getResultChoiceChipTextSelectedStyle(resultOption) : null,
+                                styles.choiceChip,
+                                styles.resultChoiceChip,
+                                getResultChoiceChipBaseStyle(resultOption),
+                                selected ? getResultChoiceChipSelectedStyle(resultOption) : null,
                               ]}
-                              numberOfLines={1}
-                              adjustsFontSizeToFit
-                              minimumFontScale={0.75}
+                              onPress={() => onSelectResult(row, resultOption)}
                             >
-                              {formatResultButtonLabel(resultOption)}
+                              <Text
+                                style={[
+                                  styles.choiceChipText,
+                                  styles.resultChoiceChipText,
+                                  getResultChoiceChipTextBaseStyle(resultOption),
+                                  selected ? getResultChoiceChipTextSelectedStyle(resultOption) : null,
+                                ]}
+                                numberOfLines={1}
+                                adjustsFontSizeToFit
+                                minimumFontScale={0.75}
+                              >
+                                {formatResultButtonLabel(resultOption)}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+
+                      <View style={styles.itemActionIconRow}>
+                        <Pressable
+                          style={[styles.iconActionButton, hasNotes ? styles.iconActionButtonFilled : null]}
+                          accessibilityRole="button"
+                          accessibilityLabel={hasNotes ? "Edit notes" : "Add notes"}
+                          onPress={() => openEditor(row.item.id, "notes", row.item.itemName)}
+                        >
+                          <Ionicons name="create-outline" size={16} color={appTheme.colors.primary} />
+                          {hasNotes ? <View style={styles.iconActionDot} /> : null}
+                        </Pressable>
+                        <Pressable
+                          style={[
+                            styles.iconActionButton,
+                            hasAction ? styles.iconActionButtonWarningFilled : null,
+                          ]}
+                          accessibilityRole="button"
+                          accessibilityLabel={hasAction ? "Edit action required" : "Add action required"}
+                          onPress={() => openEditor(row.item.id, "actionRequired", row.item.itemName)}
+                        >
+                          <Ionicons name="warning-outline" size={16} color={appTheme.colors.warning} />
+                          {hasAction ? <View style={[styles.iconActionDot, styles.iconActionDotWarning]} /> : null}
+                        </Pressable>
+                        <Pressable
+                          style={[styles.iconActionButton, attachmentCount > 0 ? styles.iconActionButtonInfoFilled : null]}
+                          accessibilityRole="button"
+                          accessibilityLabel={attachmentCount > 0 ? `Manage ${attachmentCount} attachment${attachmentCount === 1 ? "" : "s"}` : "Add attachments"}
+                          onPress={() => toggleAttachmentPanel(row.item.id)}
+                        >
+                          <Ionicons name="attach-outline" size={16} color={appTheme.colors.info} />
+                          {attachmentCount > 0 ? (
+                            <View style={styles.iconActionCountBadge}>
+                              <Text style={styles.iconActionCountBadgeText}>{attachmentCount}</Text>
+                            </View>
+                          ) : null}
+                        </Pressable>
+                        {/* Only surface the checker when the item has been answered; tapping
+                            opens the inline editor — keeps the card uncluttered while pending. */}
+                        {draft.result ? (
+                          <Pressable
+                            style={styles.checkedByPill}
+                            accessibilityRole="button"
+                            accessibilityLabel="Edit checker name"
+                            onPress={() => openEditor(row.item.id, "checkedByName", row.item.itemName)}
+                          >
+                            <Ionicons name="person-circle-outline" size={14} color={appTheme.colors.textSubtle} />
+                            <Text style={styles.checkedByPillText} numberOfLines={1}>
+                              {checkedByDisplayName || "Set name"}
                             </Text>
                           </Pressable>
-                        );
-                      })}
-                    </View>
-
-                    <View style={styles.row}>
-                      <Pressable
-                        style={[styles.noteButton, styles.noteActionButton]}
-                        onPress={() => openEditor(row.item.id, "notes", row.item.itemName)}
-                      >
-                        <Ionicons name="create-outline" size={16} color={appTheme.colors.primary} />
-                        <Text style={[styles.noteButtonText, styles.noteActionButtonText]}>Notes</Text>
-                      </Pressable>
-                      <Pressable
-                        style={[
-                          styles.noteButton,
-                          styles.noteActionButton,
-                          draft.result === "NonCompliant" ? styles.noteButtonWarning : null,
-                        ]}
-                        onPress={() => openEditor(row.item.id, "actionRequired", row.item.itemName)}
-                      >
-                        <Ionicons
-                          name="warning-outline"
-                          size={16}
-                          color={appTheme.colors.warning}
-                        />
-                        <Text style={[styles.noteButtonText, styles.noteActionButtonText]}>Action</Text>
-                      </Pressable>
-                      <Pressable style={styles.noteButton} onPress={() => toggleAttachmentPanel(row.item.id)}>
-                        <Ionicons name="attach-outline" size={14} color={appTheme.colors.info} />
-                        <Text style={styles.noteButtonText}>{attachmentCount > 0 ? `Upload (${attachmentCount})` : "Upload"}</Text>
-                      </Pressable>
-                    </View>
-
-                    <View style={styles.checkedByInlineRow}>
-                      <Text style={[styles.meta, styles.checkedByInlineMetaText]} numberOfLines={1}>
-                        Checked by: {checkedByDisplayName || "-"}
-                        {row.entry?.checkedOn ? ` | ${formatDateTime(row.entry.checkedOn)}` : ""}
-                      </Text>
-                      <Pressable
-                        style={styles.checkedByInlineEditButton}
-                        onPress={() => openEditor(row.item.id, "checkedByName", row.item.itemName)}
-                      >
-                        <Text style={styles.checkedByInlineEditButtonText}>Edit</Text>
-                      </Pressable>
-                    </View>
+                        ) : null}
+                      </View>
 
                     {isAttachmentPanelOpen ? (
                       <View style={styles.inlineAttachmentPanel}>
@@ -1836,7 +1855,7 @@ export function ComplianceChecksScreen() {
                         )}
                       </View>
                     ) : null}
-
+                    </View>
                   </View>
                 );
               })}
@@ -2548,11 +2567,105 @@ const styles = StyleSheet.create({
     gap: appTheme.spacing.xs,
   },
   itemCard: {
+    flexDirection: "row",
+    overflow: "hidden",
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceMuted,
-    paddingHorizontal: appTheme.spacing.xs,
+  },
+  itemCardAccent: {
+    width: 4,
+  },
+  itemCardAccentPending: {
+    backgroundColor: appTheme.colors.borderSoft,
+  },
+  itemCardAccentCompliant: {
+    backgroundColor: appTheme.colors.primary,
+  },
+  itemCardAccentNonCompliant: {
+    backgroundColor: appTheme.colors.danger,
+  },
+  itemCardAccentNotApplicable: {
+    backgroundColor: appTheme.colors.textSubtle,
+  },
+  itemCardContent: {
+    flex: 1,
+    paddingHorizontal: appTheme.spacing.sm,
     paddingVertical: 10,
-    gap: 6,
+    gap: 8,
+  },
+  itemActionIconRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  iconActionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  iconActionButtonFilled: {
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+  },
+  iconActionButtonWarningFilled: {
+    backgroundColor: appTheme.colors.surfaceWarningSoft,
+  },
+  iconActionButtonInfoFilled: {
+    backgroundColor: appTheme.colors.surfaceInfoSoft,
+  },
+  // Tiny coloured dot in the top-right corner of an action button to show that content
+  // has been entered without taking up another row of text.
+  iconActionDot: {
+    position: "absolute",
+    top: 5,
+    right: 5,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: appTheme.colors.primary,
+  },
+  iconActionDotWarning: {
+    backgroundColor: appTheme.colors.warning,
+  },
+  iconActionCountBadge: {
+    position: "absolute",
+    top: 2,
+    right: 2,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    backgroundColor: appTheme.colors.info,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconActionCountBadgeText: {
+    color: appTheme.colors.onPrimary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 10,
+    lineHeight: 12,
+  },
+  checkedByPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginLeft: "auto",
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surface,
+    maxWidth: 160,
+  },
+  checkedByPillText: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 11,
+    lineHeight: 13,
+    flexShrink: 1,
   },
   row: {
     flexDirection: "row",
