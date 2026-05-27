@@ -699,8 +699,6 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.Name).HasMaxLength(120).IsRequired();
             entity.Property(x => x.PricePerShop).HasPrecision(18, 2);
             entity.Property(x => x.Description).HasMaxLength(500);
-            entity.Property(x => x.AppleProductId).HasMaxLength(200);
-            entity.Property(x => x.GoogleProductId).HasMaxLength(200);
             entity.Property(x => x.StripePriceId).HasMaxLength(200);
             // MaxUsers and ReportExportsPerMonth are nullable — null means unlimited.
         });

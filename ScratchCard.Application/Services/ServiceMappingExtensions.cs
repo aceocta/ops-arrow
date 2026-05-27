@@ -75,8 +75,8 @@ internal static class ServiceMappingExtensions
         IncludedFeatures = ExtractEnabledFeatureKeys(plan.PlanFeatures),
         MaxUsers = plan.MaxUsers,
         ReportExportsPerMonth = plan.ReportExportsPerMonth,
-        AppleProductId = plan.AppleProductId,
-        GoogleProductId = plan.GoogleProductId,
+        StripePriceId = plan.StripePriceId,
+        DisplayOrder = plan.DisplayOrder,
         IsActive = plan.IsActive
     };
 

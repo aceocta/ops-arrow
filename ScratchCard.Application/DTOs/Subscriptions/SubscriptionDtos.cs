@@ -13,8 +13,8 @@ public class SubscriptionPlanDto
     public IReadOnlyCollection<string> IncludedFeatures { get; set; } = [];
     public int? MaxUsers { get; set; }
     public int? ReportExportsPerMonth { get; set; }
-    public string? AppleProductId { get; set; }
-    public string? GoogleProductId { get; set; }
+    public string? StripePriceId { get; set; }
+    public int DisplayOrder { get; set; }
     public bool IsActive { get; set; }
 }
 
@@ -228,8 +228,9 @@ public class UpdateSubscriptionPlanRequest
     public int? MaxUsers { get; set; }
     /// <summary>Pass null to leave unchanged, or -1 to set to unlimited.</summary>
     public int? ReportExportsPerMonth { get; set; }
-    public string? AppleProductId { get; set; }
-    public string? GoogleProductId { get; set; }
+    /// <summary>Stripe Price ID (price_...) for this plan. Test and live modes have separate IDs.</summary>
+    public string? StripePriceId { get; set; }
+    public int? DisplayOrder { get; set; }
     public bool? IsActive { get; set; }
 }
 

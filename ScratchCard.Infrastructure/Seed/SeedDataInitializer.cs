@@ -913,31 +913,27 @@ public static class SeedDataInitializer
             FeatureKeys.SupportPriority,
         }).ToArray();
 
-        // Pricing here is placeholder — adjust to your commercial terms before launch.
-        // MaxUsers / ReportExportsPerMonth: null means unlimited.
-        // Monthly-only catalogue. Annual SKUs are intentionally not seeded; see deactivation below
-        // for any historical Annual rows that may still exist in older databases.
+        // Monthly-only catalogue. MaxUsers / ReportExportsPerMonth: null means unlimited.
         //
         // Trial length: each tier owns its own TrialDays. ShopSubscriptionService.EnsureTrialAsync
-        // reads the picked plan's TrialDays at shop-creation time, so changing a value below and
-        // restarting the API is all you need to adjust the trial length for new shops going forward.
+        // reads the picked plan's TrialDays at shop-creation time. Change a value below and the
+        // next new shop created against that plan picks up the new length immediately (existing
+        // shops keep their TrialEndsOn from when they were created).
         //
-        // TODO: Replace AppleProductId / GoogleProductId placeholders with the real product IDs
-        // registered in App Store Connect and Google Play Console before launching IAP.
+        // Stripe Price IDs are baked in here for the launch catalogue. These are the LIVE-mode
+        // IDs from the Stripe Dashboard. For local/dev environments hitting Stripe test mode,
+        // override per-row via the admin endpoint (PUT /api/admin/subscription-plans/{id}).
         var templates = new[]
         {
-            new PlanTemplate("1 Month Free Trial", BillingCycle.Trial,    0m,   30, Array.Empty<string>(), null, null,
-                "Generic fallback trial. Only used if a shop is created without a picked plan, which the UI prevents today.",
-                AppleProductId: null, GoogleProductId: null),
-            new PlanTemplate("Starter Monthly",    BillingCycle.Monthly, 19.99m, 14, starterFeatures,  3,    30,
-                "Starter: basic Scratch Card, Temperature Log, Refusals, Compliance and Safe Drop. Limited users. 14-day trial.",
-                AppleProductId: "com.opsarrow.starter.monthly", GoogleProductId: "opsarrow_starter_monthly"),
-            new PlanTemplate("Growth Monthly",     BillingCycle.Monthly, 39.99m, 30, growthFeatures,  10,   100,
+            new PlanTemplate("Starter Monthly", BillingCycle.Monthly, 19.99m, 14, starterFeatures, 3,    30,
+                "Starter: Scratch Card, Temperature Log, Refusals, Compliance, Safe Drop. 3 users. 14-day trial.",
+                DisplayOrder: 10, StripePriceId: "price_1TbQCJRgwX1Uk75r1ERWd3ry"),
+            new PlanTemplate("Growth Monthly",  BillingCycle.Monthly, 39.99m, 30, growthFeatures, 10,   100,
                 "Growth: attachments, missed-log alerts, advanced compliance schedules, dashboard, audit log. 30-day trial.",
-                AppleProductId: "com.opsarrow.growth.monthly", GoogleProductId: "opsarrow_growth_monthly"),
-            new PlanTemplate("Pro Monthly",        BillingCycle.Monthly, 79.99m, 30, proFeatures,     null, 500,
+                DisplayOrder: 20, StripePriceId: "price_1TbQESRgwX1Uk75r8MMqzMpX"),
+            new PlanTemplate("Pro Monthly",     BillingCycle.Monthly, 79.99m, 30, proFeatures,    null, 500,
                 "Pro: advanced validation, approval workflows, multi-shop dashboards, unlimited users. 30-day trial.",
-                AppleProductId: "com.opsarrow.pro.monthly", GoogleProductId: "opsarrow_pro_monthly"),
+                DisplayOrder: 30, StripePriceId: "price_1TbQG2RgwX1Uk75rgbfigobj"),
         };
 
         var existing = await dbContext.SubscriptionPlans.ToListAsync(cancellationToken);
@@ -961,8 +957,8 @@ public static class SeedDataInitializer
                     Description = template.Description,
                     MaxUsers = template.MaxUsers,
                     ReportExportsPerMonth = template.ReportExportsPerMonth,
-                    AppleProductId = template.AppleProductId,
-                    GoogleProductId = template.GoogleProductId,
+                    StripePriceId = template.StripePriceId,
+                    DisplayOrder = template.DisplayOrder,
                     IsActive = true,
                     CreatedOn = now,
                 };
@@ -1020,8 +1016,8 @@ public static class SeedDataInitializer
         int? MaxUsers,
         int? ReportExportsPerMonth,
         string Description,
-        string? AppleProductId = null,
-        string? GoogleProductId = null);
+        int DisplayOrder = 0,
+        string? StripePriceId = null);
 
     private static async Task SeedSubscriptionDiscountRulesAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)
     {

@@ -73,20 +73,19 @@ public sealed class StripeBillingCheckoutService : IBillingCheckoutService
         var plan = await _planRepository.GetByIdAsync(request.PlanId, cancellationToken)
             ?? throw new AppException("plan_not_found", "Plan not found.", 404);
 
-        // Prefer the price ID stored on the plan entity — DB-driven mapping survives plan renames
-        // and admin edits. Fall back to the appsettings dictionary keyed by plan.Name for any
-        // legacy plans whose row hasn't been backfilled yet.
-        var priceId = !string.IsNullOrWhiteSpace(plan.StripePriceId)
-            ? plan.StripePriceId
-            : (_options.PriceIds.TryGetValue(plan.Name, out var legacyPriceId) ? legacyPriceId : null);
-
-        if (string.IsNullOrWhiteSpace(priceId))
+        // Stripe Price ID lives on the plan row. The seeder populates it for the standard
+        // catalogue; for new plans the admin endpoint sets it. There is no config fallback —
+        // we want this misconfiguration to surface immediately, not silently route through a
+        // stale env var.
+        if (string.IsNullOrWhiteSpace(plan.StripePriceId))
         {
             throw new AppException(
                 "stripe_price_not_configured",
-                $"Stripe Price ID for plan '{plan.Name}' is not configured. Set SubscriptionPlan.StripePriceId in the database.",
+                $"Stripe Price ID for plan '{plan.Name}' is not configured. Set SubscriptionPlan.StripePriceId via the admin endpoint.",
                 500);
         }
+
+        var priceId = plan.StripePriceId;
 
         // Customer-per-Company model: every shop subscription under this company is billed
         // against the same Stripe Customer (one card on file). Lazy-create on first checkout.

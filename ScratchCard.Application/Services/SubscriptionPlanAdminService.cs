@@ -121,16 +121,16 @@ public class SubscriptionPlanAdminService : ISubscriptionPlanAdminService
             }
         }
 
-        if (request.AppleProductId is not null && plan.AppleProductId != request.AppleProductId)
+        if (request.StripePriceId is not null && plan.StripePriceId != request.StripePriceId)
         {
-            plan.AppleProductId = string.IsNullOrWhiteSpace(request.AppleProductId) ? null : request.AppleProductId.Trim();
-            changes.Add($"appleProductId -> {plan.AppleProductId ?? "<null>"}");
+            plan.StripePriceId = string.IsNullOrWhiteSpace(request.StripePriceId) ? null : request.StripePriceId.Trim();
+            changes.Add($"stripePriceId -> {plan.StripePriceId ?? "<null>"}");
         }
 
-        if (request.GoogleProductId is not null && plan.GoogleProductId != request.GoogleProductId)
+        if (request.DisplayOrder.HasValue && plan.DisplayOrder != request.DisplayOrder.Value)
         {
-            plan.GoogleProductId = string.IsNullOrWhiteSpace(request.GoogleProductId) ? null : request.GoogleProductId.Trim();
-            changes.Add($"googleProductId -> {plan.GoogleProductId ?? "<null>"}");
+            changes.Add($"displayOrder {plan.DisplayOrder} -> {request.DisplayOrder.Value}");
+            plan.DisplayOrder = request.DisplayOrder.Value;
         }
 
         if (request.IsActive.HasValue && plan.IsActive != request.IsActive.Value)

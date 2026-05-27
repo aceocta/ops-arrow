@@ -17,13 +17,6 @@ public class StripeOptions
     public string? WebhookSecret { get; set; }
 
     /// <summary>
-    /// Legacy plan-name → Price ID mapping. Kept as a fallback for any plan whose row does not
-    /// yet have <c>SubscriptionPlan.StripePriceId</c> set. New deployments should leave this
-    /// empty and configure price IDs on the plan rows instead.
-    /// </summary>
-    public Dictionary<string, string> PriceIds { get; set; } = new();
-
-    /// <summary>
     /// Where Stripe redirects after a successful checkout. We append a query string so the user
     /// lands on a page that nudges them back to the mobile app.
     /// </summary>
