@@ -142,6 +142,8 @@ namespace ScratchCard.Infrastructure.Migrations
                     ReportExportsPerMonth = table.Column<int>(type: "int", nullable: true),
                     AppleProductId = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
                     GoogleProductId = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    StripePriceId = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
                     CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
@@ -253,6 +255,7 @@ namespace ScratchCard.Infrastructure.Migrations
                     Status = table.Column<int>(type: "int", nullable: false, defaultValue: 1),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     IsDeleted = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    StripeCustomerId = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
                     CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
                     CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
@@ -1083,10 +1086,15 @@ namespace ScratchCard.Infrastructure.Migrations
                     CurrentPeriodEndsOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
                     CancelledOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
                     CancelAtPeriodEnd = table.Column<bool>(type: "bit", nullable: false),
+                    PausedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ResumedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    PauseCapWarningSentOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
                     PaymentProvider = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
                     ProviderProductId = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
                     ProviderSubscriptionId = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
                     ProviderOriginalTransactionId = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    StripeCustomerId = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    StripeSubscriptionId = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
                     CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
                     CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
@@ -2230,6 +2238,11 @@ namespace ScratchCard.Infrastructure.Migrations
                 column: "OwnerUserId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Companies_StripeCustomerId",
+                table: "Companies",
+                column: "StripeCustomerId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_CompanySubscriptions_CompanyId_Status",
                 table: "CompanySubscriptions",
                 columns: new[] { "CompanyId", "Status" });
@@ -2619,6 +2632,21 @@ namespace ScratchCard.Infrastructure.Migrations
                 columns: new[] { "ShopId", "Status" });
 
             migrationBuilder.CreateIndex(
+                name: "IX_ShopSubscriptions_Status_PausedOn",
+                table: "ShopSubscriptions",
+                columns: new[] { "Status", "PausedOn" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ShopSubscriptions_StripeCustomerId",
+                table: "ShopSubscriptions",
+                column: "StripeCustomerId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ShopSubscriptions_StripeSubscriptionId",
+                table: "ShopSubscriptions",
+                column: "StripeSubscriptionId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_ShopSubscriptions_SubscriptionPlanId",
                 table: "ShopSubscriptions",
                 column: "SubscriptionPlanId");
@@ -2686,6 +2714,11 @@ namespace ScratchCard.Infrastructure.Migrations
                 name: "IX_SubscriptionPlans_BillingCycle_IsActive",
                 table: "SubscriptionPlans",
                 columns: new[] { "BillingCycle", "IsActive" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SubscriptionPlans_StripePriceId",
+                table: "SubscriptionPlans",
+                column: "StripePriceId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_TemperatureDailySignoffs_ShopId_SignoffDate",
