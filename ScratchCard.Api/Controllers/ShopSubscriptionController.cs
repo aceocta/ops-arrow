@@ -167,7 +167,17 @@ public class ShopSubscriptionController : BaseApiController
         try
         {
             var signature = Request.Headers["Stripe-Signature"].ToString();
-            stripeEvent = EventUtility.ConstructEvent(body, signature, _stripeOptions.WebhookSecret);
+            // throwOnApiVersionMismatch:false — Stripe defaults new webhook destinations to the
+            // latest API version (e.g. "2026-04-22.dahlia"), but the installed Stripe.NET
+            // package pins to its own version (e.g. "2025-05-28.basil"). The events we read
+            // (customer.subscription.*, invoice.payment_*) have been stable for years across
+            // those versions, so silencing the mismatch is the pragmatic choice. Bumping the
+            // Stripe.NET NuGet later will keep the strict default automatically.
+            stripeEvent = EventUtility.ConstructEvent(
+                body,
+                signature,
+                _stripeOptions.WebhookSecret,
+                throwOnApiVersionMismatch: false);
         }
         catch (StripeException ex)
         {
