@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as FileSystem from "expo-file-system/legacy";
@@ -501,16 +502,32 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
 
         {isSafeDropManagementVisible ? (
           <View style={[ui.card, styles.summaryCard]}>
-            <SectionHeader
-              title="Safe Drop"
-              icon="lock-closed-outline"
-              right={
-                <StatusBadge
-                  label={`${safeDropsForShift.length}`}
-                  tone={safeDropsForShift.length > 0 ? "success" : "neutral"}
-                />
-              }
-            />
+            <Pressable
+              onPress={() => {
+                const businessDayId = shift?.businessDayId;
+                const businessDate = businessDayQuery.data?.businessDate;
+                const targetShopId = shift?.shopId ?? routeShopId;
+                if (!businessDayId || !businessDate || !targetShopId) return;
+                navigation.navigate("SafeDrop", { businessDayId, businessDate, shopId: targetShopId });
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Open safe drops detail and add new"
+              style={({ pressed }) => [styles.safeDropHeaderTap, pressed ? styles.safeDropHeaderTapPressed : null]}
+            >
+              <SectionHeader
+                title="Safe Drop"
+                icon="lock-closed-outline"
+                right={
+                  <>
+                    <StatusBadge
+                      label={`${safeDropsForShift.length}`}
+                      tone={safeDropsForShift.length > 0 ? "success" : "neutral"}
+                    />
+                    <Ionicons name="chevron-forward" size={18} color={appTheme.colors.textSubtle} />
+                  </>
+                }
+              />
+            </Pressable>
             {/* <Text style={styles.meta}>
               {canCloseShift
                 ? "Record safe drops during this active shift."
@@ -828,6 +845,12 @@ const styles = StyleSheet.create({
     paddingVertical: appTheme.spacing.sm,
     fontFamily: appTheme.fonts.body,
     fontSize: 14,
+  },
+  safeDropHeaderTap: {
+    borderRadius: appTheme.radius.sm,
+  },
+  safeDropHeaderTapPressed: {
+    opacity: 0.94,
   },
   safeDropCompactList: {
     gap: 6,
