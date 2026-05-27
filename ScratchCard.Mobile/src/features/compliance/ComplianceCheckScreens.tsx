@@ -1,6 +1,6 @@
 ﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Image, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
@@ -795,6 +795,8 @@ const complianceLoadingStyles = StyleSheet.create({
 
 export function ComplianceChecksScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const route = useRoute<RouteProp<MainStackParamList, "ComplianceChecks">>();
+  const initialDate = route.params?.date ?? formatDateValue(new Date());
   const queryClient = useQueryClient();
   const { activeShopId, activeShop, profile } = useAuth();
   const shopId = activeShopId;
@@ -809,7 +811,7 @@ export function ComplianceChecksScreen() {
   );
 
   const [frequency, setFrequency] = useState<ComplianceCheckFrequency>("Daily");
-  const [selectedDate, setSelectedDate] = useState(formatDateValue(new Date()));
+  const [selectedDate, setSelectedDate] = useState(initialDate);
   const [showPendingOnly, setShowPendingOnly] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, EntryDraft>>({});
   const [editorState, setEditorState] = useState<NoteEditorState>(null);

@@ -29,7 +29,7 @@ export type RootStackParamList = {
 export type MainStackParamList = {
   BestEntry: undefined;
   ShopChecklist: undefined;
-  ComplianceChecks: undefined;
+  ComplianceChecks: { date?: string } | undefined;
   ComplianceConfig: undefined;
   ComplianceActions: undefined;
   ChecklistConfiguration: undefined;
@@ -47,7 +47,7 @@ export type MainStackParamList = {
   ScratchCardGameEdit: { gameId: string };
   Deliveries: undefined;
   ReceiveDelivery: undefined;
-  TemperatureLogs: undefined;
+  TemperatureLogs: { date?: string } | undefined;
   TemperatureLogsByDay: undefined;
   TemperatureLogsReport: undefined;
   TemperatureLogsDateRangeReport: undefined;
@@ -71,7 +71,7 @@ export type MainStackParamList = {
   SafeDrop: { businessDayId: string; businessDate: string; shopId: string };
   ShiftReconciliation: { shiftId: string };
   DayEndClose: { businessDayId: string };
-  DailySalesReport: undefined;
+  DailySalesReport: { date?: string } | undefined;
   ShiftSalesReport: undefined;
   ManualClosingReview: undefined;
   StockReport: undefined;

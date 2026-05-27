@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { RouteProp, useRoute } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -17,6 +18,7 @@ import { SectionHeader } from "../../components/SectionHeader";
 import { KpiGrid, KpiTile } from "../../components/KpiTile";
 import { Skeleton } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
+import type { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -168,10 +170,12 @@ function shiftDateByDays(dateValue: string, days: number) {
 }
 
 export function TemperatureLogScreen() {
+  const route = useRoute<RouteProp<MainStackParamList, "TemperatureLogs">>();
+  const initialDate = route.params?.date ?? formatDateValue(new Date());
   const queryClient = useQueryClient();
   const { activeShopId, profile } = useAuth();
   const shopId = activeShopId;
-  const [selectedDate, setSelectedDate] = useState(formatDateValue(new Date()));
+  const [selectedDate, setSelectedDate] = useState(initialDate);
   const [entryDate, setEntryDate] = useState(formatDateValue(new Date()));
   const [readingTime, setReadingTime] = useState(formatTimeValue(new Date()));
   const [selectedUnitId, setSelectedUnitId] = useState("");

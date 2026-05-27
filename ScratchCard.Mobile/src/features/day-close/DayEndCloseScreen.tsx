@@ -20,6 +20,7 @@ import {
 import { getConfigurations } from "../../api/configurationsApi";
 import { getShopSubscriptionSummary } from "../../api/subscriptionApi";
 import { getTemperatureDailyLog } from "../../api/temperatureLogsApi";
+import { getComplianceCheckPeriodLog } from "../../api/complianceChecksApi";
 import { listPacks } from "../../api/packsApi";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
@@ -59,6 +60,7 @@ const DEFAULT_CLOSE_DAY_PAYOUT = "0";
 const SAFE_DROP_FEATURE_KEY = "SafeDropManagement";
 const SAFE_DROP_CONFIG_KEY = "EnableSafeDropManagement";
 const TEMPERATURE_LOG_FEATURE_KEY = "TemperatureLog";
+const COMPLIANCE_CHECK_FEATURE_KEY = "ComplianceChecklist";
 
 // Maps common axios/fetch errors into a single actionable message for the shopkeeper.
 // `fallback` is shown when the server didn't return anything more specific.
@@ -798,6 +800,33 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       outOfRange,
     };
   }, [temperatureLogQuery.data?.units]);
+
+  // Compliance Check summary on the Day Management screen — same plan-gate + business-date
+  // pattern as Temperature Log. We fetch the Daily-frequency period log because the Day
+  // Management card is scoped to one business day. Weekly/Monthly counters live inside the
+  // Compliance Checks screen itself.
+  const hasComplianceCheckFeature = subscriptionIncludedFeatures.some(
+    (feature) => feature.toLowerCase() === COMPLIANCE_CHECK_FEATURE_KEY.toLowerCase(),
+  );
+  const complianceLogQuery = useQuery({
+    queryKey: ["compliance-period-log", day?.shopId, "Daily", day?.businessDate],
+    queryFn: () => getComplianceCheckPeriodLog(day?.shopId as string, "Daily", day?.businessDate as string),
+    enabled: hasComplianceCheckFeature && Boolean(day?.shopId) && Boolean(day?.businessDate),
+    staleTime: 60 * 1000,
+  });
+  const complianceSummary = useMemo(() => {
+    const data = complianceLogQuery.data;
+    const total = data?.totalCount ?? 0;
+    const completed = data?.completedCount ?? 0;
+    const nonCompliant = data?.nonCompliantCount ?? 0;
+    return {
+      total,
+      completed,
+      pending: Math.max(total - completed, 0),
+      nonCompliant,
+    };
+  }, [complianceLogQuery.data]);
+
   const businessDayTiming = useMemo(() => {
     const startRaw = getConfigurationValue(
       configurationQuery.data,
@@ -1634,9 +1663,10 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       shiftsQuery.refetch(),
       isSafeDropManagementVisible ? canisterDropsQuery.refetch() : Promise.resolve(),
       hasTemperatureLogFeature ? temperatureLogQuery.refetch() : Promise.resolve(),
+      hasComplianceCheckFeature ? complianceLogQuery.refetch() : Promise.resolve(),
       subscriptionShopId ? subscriptionSummaryQuery.refetch() : Promise.resolve(),
     ]);
-  }, [dayQuery, shiftsQuery, isSafeDropManagementVisible, canisterDropsQuery, hasTemperatureLogFeature, temperatureLogQuery, subscriptionShopId, subscriptionSummaryQuery]);
+  }, [dayQuery, shiftsQuery, isSafeDropManagementVisible, canisterDropsQuery, hasTemperatureLogFeature, temperatureLogQuery, hasComplianceCheckFeature, complianceLogQuery, subscriptionShopId, subscriptionSummaryQuery]);
   const isRefreshing = dayQuery.isRefetching || shiftsQuery.isRefetching;
 
   if (isDayManagementInitialLoading) {
@@ -1931,8 +1961,21 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           }) : null}
         </View>
 
-                <View style={[ui.card, styles.sectionCard]}>
-          <SectionHeader title="Scratch Card Summary" icon="albums-outline" />
+                <Pressable
+          onPress={() => navigation.navigate("DailySalesReport", { date: day?.businessDate })}
+          accessibilityRole="button"
+          accessibilityLabel="Open Daily Sales Report"
+          style={({ pressed }) => [
+            ui.card,
+            styles.sectionCard,
+            pressed ? styles.sectionCardPressed : null,
+          ]}
+        >
+          <SectionHeader
+            title="Scratch Card Summary"
+            icon="albums-outline"
+            right={<Ionicons name="chevron-forward" size={18} color={appTheme.colors.textSubtle} />}
+          />
           {hasTillPayoutVariance ? (
             <View
               style={[
@@ -1967,7 +2010,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               ))}
             </View>
           ) : null}
-        </View>
+        </Pressable>
 
         {isSafeDropManagementVisible ? (
           <Pressable
@@ -2022,7 +2065,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
 
         {hasTemperatureLogFeature ? (
           <Pressable
-            onPress={() => navigation.navigate("TemperatureLogs")}
+            onPress={() => navigation.navigate("TemperatureLogs", { date: day?.businessDate })}
             accessibilityRole="button"
             accessibilityLabel="Open Temperature Logs"
             style={({ pressed }) => [
@@ -2036,7 +2079,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               icon="thermometer-outline"
               right={
                 <>
-                  {/* <StatusBadge
+                  <StatusBadge
                     label={
                       temperatureSummary.outOfRange > 0
                         ? `${temperatureSummary.outOfRange} out of range`
@@ -2056,7 +2099,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                             : "neutral"
                     }
                   />
-                  <Ionicons name="chevron-forward" size={18} color={appTheme.colors.textSubtle} /> */}
+                  <Ionicons name="chevron-forward" size={18} color={appTheme.colors.textSubtle} />
                 </>
               }
             />
@@ -2085,6 +2128,79 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     temperatureSummary.outOfRange > 0
                       ? "danger"
                       : temperatureSummary.pending > 0
+                        ? "warning"
+                        : "default"
+                  }
+                />
+              </KpiGrid>
+            )}
+          </Pressable>
+        ) : null}
+
+        {hasComplianceCheckFeature ? (
+          <Pressable
+            onPress={() => navigation.navigate("ComplianceChecks", { date: day?.businessDate })}
+            accessibilityRole="button"
+            accessibilityLabel="Open Compliance Checks"
+            style={({ pressed }) => [
+              ui.card,
+              styles.sectionCard,
+              pressed ? styles.sectionCardPressed : null,
+            ]}
+          >
+            <SectionHeader
+              title="Compliance Check"
+              icon="clipboard-outline"
+              right={
+                <>
+                  <StatusBadge
+                    label={
+                      complianceSummary.nonCompliant > 0
+                        ? `${complianceSummary.nonCompliant} non-compliant`
+                        : complianceSummary.pending > 0
+                          ? `${complianceSummary.pending} pending`
+                          : complianceSummary.total > 0
+                            ? "All checked"
+                            : "No items"
+                    }
+                    tone={
+                      complianceSummary.nonCompliant > 0
+                        ? "danger"
+                        : complianceSummary.pending > 0
+                          ? "warning"
+                          : complianceSummary.total > 0
+                            ? "success"
+                            : "neutral"
+                    }
+                  />
+                  <Ionicons name="chevron-forward" size={18} color={appTheme.colors.textSubtle} />
+                </>
+              }
+            />
+            {complianceLogQuery.isLoading ? (
+              <Text style={styles.meta}>Loading today's compliance checks...</Text>
+            ) : complianceSummary.total === 0 ? (
+              <Text style={styles.meta}>
+                No daily checks configured. Tap to set them up in Compliance Setup.
+              </Text>
+            ) : (
+              <KpiGrid columns={2}>
+                <KpiTile
+                  label="Completed"
+                  value={complianceSummary.completed}
+                  tone={complianceSummary.completed === complianceSummary.total ? "success" : "default"}
+                />
+                <KpiTile
+                  label={complianceSummary.nonCompliant > 0 ? "Non-compliant" : "Pending"}
+                  value={
+                    complianceSummary.nonCompliant > 0
+                      ? complianceSummary.nonCompliant
+                      : complianceSummary.pending
+                  }
+                  tone={
+                    complianceSummary.nonCompliant > 0
+                      ? "danger"
+                      : complianceSummary.pending > 0
                         ? "warning"
                         : "default"
                   }

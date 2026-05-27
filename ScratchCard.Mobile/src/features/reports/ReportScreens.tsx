@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import * as Print from "expo-print";
@@ -104,10 +104,12 @@ function normalizeShiftName(shiftName: string) {
 
 export function DailySalesReportScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const route = useRoute<RouteProp<MainStackParamList, "DailySalesReport">>();
+  const initialDate = route.params?.date ?? formatDateValue(new Date());
   const { activeShopId, activeShop, profile } = useAuth();
   const shopId = activeShopId;
-  const [from, setFrom] = useState(formatDateValue(new Date()));
-  const [to, setTo] = useState(formatDateValue(new Date()));
+  const [from, setFrom] = useState(initialDate);
+  const [to, setTo] = useState(initialDate);
 
   const query = useQuery({
     queryKey: ["report-daily-sales", shopId, from, to],
