@@ -1682,16 +1682,18 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
         </View>
 
         <View style={[ui.card, styles.sectionCard]}>
-          <View style={styles.sectionTitleRow}>
-            <View style={styles.sectionTitleBlock}>
-              <Text style={styles.sectionTitle}>Shifts</Text>
-              {/* <Text style={styles.meta}>Manage shifts, review times, and close active shifts.</Text> */}
-            </View>
-            <View style={styles.shiftHeaderActions}>
+          <SectionHeader
+            title="Shifts"
+            icon="time-outline"
+            right={
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Open new shift"
-                style={[styles.shiftOpenButton, !canManageShifts ? styles.shiftOpenButtonDisabled : null]}
+                style={({ pressed }) => [
+                  styles.shiftOpenButton,
+                  pressed ? styles.shiftOpenButtonPressed : null,
+                  !canManageShifts ? styles.shiftOpenButtonDisabled : null,
+                ]}
                 onPress={() => {
                   if (!ensureNoExistingOpenShiftsBeforeSerialConfirmation()) {
                     return;
@@ -1701,19 +1703,11 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 }}
                 disabled={!canManageShifts}
               >
+                <Ionicons name="add" size={14} color={appTheme.colors.onPrimary} />
                 <Text style={styles.shiftOpenButtonText}>Open Shift</Text>
               </Pressable>
-              {/* <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={shiftsQuery.isFetching ? "Refreshing shifts" : "Refresh shifts"}
-                style={[styles.iconButton, (!day?.shopId || shiftsQuery.isFetching) ? styles.iconButtonDisabled : null]}
-                onPress={() => void shiftsQuery.refetch()}
-                disabled={!day?.shopId || shiftsQuery.isFetching}
-              >
-                <Text style={styles.iconGlyph}>{shiftsQuery.isFetching ? "*" : "\u21BB"}</Text>
-              </Pressable> */}
-            </View>
-          </View>
+            }
+          />
           {/* <View style={styles.summaryDivider} /> */}
           {shiftsQuery.isFetching ? (
             <ShiftOperationsLoadingState />
@@ -1847,6 +1841,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                       <PrimaryButton
                         label="Close Shift"
                         tone="success"
+                        size="sm"
+                        icon="checkmark-circle-outline"
                         onPress={() => navigation.navigate("ShiftClose", { shiftId: shift.id, shopId: shift.shopId })}
                         disabled={!canManageShifts}
                       />
@@ -1855,6 +1851,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     <View style={styles.shiftActionRow}>
                       <PrimaryButton
                         label={startScheduledShiftMutation.isPending ? "Starting..." : "Start Shift"}
+                        size="sm"
+                        icon="play-circle-outline"
                         onPress={() => openStartScheduledShiftConfirmation(shift.id, shift.shiftName)}
                         disabled={!canManageShifts || startScheduledShiftMutation.isPending}
                       />
@@ -3063,24 +3061,25 @@ const styles = StyleSheet.create({
     gap: appTheme.spacing.xs,
   },
   shiftOpenButton: {
-    borderWidth: 0,
-    borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surfaceSuccessMuted,
-    minHeight: 44,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 4,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  shiftOpenButtonPressed: {
+    backgroundColor: appTheme.colors.primaryPressed,
   },
   shiftOpenButtonDisabled: {
-    opacity: 0.55,
+    opacity: 0.5,
   },
   shiftOpenButtonText: {
-    color: appTheme.colors.primary,
+    color: appTheme.colors.onPrimary,
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 13,
     lineHeight: 16,
-    textAlign: "center",
   },
   sectionTitle: {
     fontSize: 18,
@@ -3275,30 +3274,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: appTheme.spacing.xs,
   },
+  // Uniform white-on-surface card so the list reads as a single rhythm; status is conveyed
+  // by the accent stripe + badge instead of three different background fills. Open shift
+  // gets a faint primary-tinted background so the live one still pops without being shouty.
   shiftItem: {
     flexDirection: "row",
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: appTheme.colors.borderSoft,
     borderRadius: appTheme.radius.md,
-    backgroundColor: appTheme.colors.surfaceTintAlt,
+    backgroundColor: appTheme.colors.surface,
     gap: 0,
   },
-  // Highlight currently-open shift so the user can spot it instantly in a list of closed ones.
   shiftItemOpen: {
-    borderColor: appTheme.colors.borderSuccessSoft,
-    backgroundColor: appTheme.colors.surfaceSuccessAlt,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
   },
-  // Dim closed shifts a touch so the active one stands out without being shouty.
-  shiftItemClosed: {
-    backgroundColor: appTheme.colors.surfaceMuted,
-  },
-  shiftItemScheduled: {
-    backgroundColor: appTheme.colors.surface,
-    borderColor: appTheme.colors.borderWarningSoft,
-  },
+  shiftItemClosed: {},
+  shiftItemScheduled: {},
   shiftCardAccent: {
-    width: 4,
+    width: 3,
   },
   shiftCardAccentOpen: {
     backgroundColor: appTheme.colors.primary,
@@ -3334,17 +3326,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-  // Small green dot rendered before the shift name when the shift is currently open. Cheap
-  // visual signal for "this one is live" without an extra row.
+  // Small dot rendered before the shift name when the shift is currently open. Subtle,
+  // since the open-state already has a tinted background — the dot just reinforces it.
   shiftLiveDot: {
-    width: 8,
-    height: 8,
+    width: 7,
+    height: 7,
     borderRadius: 4,
     backgroundColor: appTheme.colors.primary,
-    shadowColor: appTheme.colors.primary,
-    shadowOpacity: 0.6,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 0 },
   },
   shiftChevron: {
     marginLeft: 4,
@@ -3402,7 +3390,7 @@ const styles = StyleSheet.create({
     lineHeight: 15,
   },
   shiftActionRow: {
-    marginTop: 2,
+    marginTop: 4,
   },
   missingTicketList: {
     gap: appTheme.spacing.xs,

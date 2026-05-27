@@ -1,7 +1,8 @@
 import React, { useCallback } from "react";
-import { Pressable, StyleSheet, Text } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
+import { Ionicons } from "@expo/vector-icons";
 import { appTheme } from "../ui/theme";
 
 type Props = {
@@ -10,6 +11,8 @@ type Props = {
   disabled?: boolean;
   tone?: "primary" | "neutral" | "danger" | "success";
   size?: "sm" | "md";
+  /** Optional Ionicons name rendered before the label. */
+  icon?: keyof typeof Ionicons.glyphMap;
   /** Disable haptic feedback (defaults to enabled on press-in). */
   haptic?: boolean;
 };
@@ -18,7 +21,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const PRESS_SPRING = { damping: 14, stiffness: 280, mass: 0.6 } as const;
 
-export function PrimaryButton({ label, onPress, disabled, tone = "primary", size = "md", haptic = true }: Props) {
+export function PrimaryButton({ label, onPress, disabled, tone = "primary", size = "md", icon, haptic = true }: Props) {
   const scale = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -52,7 +55,17 @@ export function PrimaryButton({ label, onPress, disabled, tone = "primary", size
         animatedStyle,
       ]}
     >
-      <Text style={[styles.text, tone === "neutral" && styles.textAlt, size === "sm" && styles.textSmall]}>{label}</Text>
+      <View style={styles.content}>
+        {icon ? (
+          <Ionicons
+            name={icon}
+            size={size === "sm" ? 14 : 16}
+            color={tone === "neutral" ? appTheme.colors.text : appTheme.colors.onPrimary}
+            style={styles.icon}
+          />
+        ) : null}
+        <Text style={[styles.text, tone === "neutral" && styles.textAlt, size === "sm" && styles.textSmall]}>{label}</Text>
+      </View>
     </AnimatedPressable>
   );
 }
@@ -84,6 +97,15 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.success,
   },
   disabled: { backgroundColor: appTheme.colors.borderStrong },
+  content: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  icon: {
+    marginLeft: -2,
+  },
   text: {
     color: appTheme.colors.onPrimary,
     fontFamily: appTheme.fonts.bodyMedium,
