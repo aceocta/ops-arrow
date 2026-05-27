@@ -1865,121 +1865,84 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
         </View>
 
         {isSafeDropManagementVisible ? (
-          <View style={[ui.card, styles.sectionCard]}>
+          <Pressable
+            onPress={() => {
+              if (!day?.id || !day.shopId) return;
+              navigation.navigate("SafeDrop", {
+                businessDayId: day.id,
+                businessDate: day.businessDate,
+                shopId: day.shopId,
+              });
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Open safe drops detail and add new"
+            style={({ pressed }) => [
+              ui.card,
+              styles.sectionCard,
+              pressed ? styles.sectionCardPressed : null,
+            ]}
+          >
             <View style={styles.sectionTitleRow}>
               <Text style={styles.sectionTitle}>Safe Drops</Text>
-              <StatusBadge
-                label={pendingDropCount > 0 ? `${pendingDropCount} pending` : `${visibleCanisterDrops.length}`}
-                tone={pendingDropCount > 0 ? "warning" : visibleCanisterDrops.length > 0 ? "success" : "neutral"}
-              />
+              <View style={styles.sectionTitleRight}>
+                <StatusBadge
+                  label={pendingDropCount > 0 ? `${pendingDropCount} pending` : `${visibleCanisterDrops.length}`}
+                  tone={pendingDropCount > 0 ? "warning" : visibleCanisterDrops.length > 0 ? "success" : "neutral"}
+                />
+                <Ionicons name="chevron-forward" size={18} color={appTheme.colors.textSubtle} />
+              </View>
             </View>
-            <Text style={styles.meta}>{safeDropSectionMessage}</Text>
             {canisterDropsQuery.isFetching ? (
               <Text style={styles.meta}>Loading safe drops...</Text>
             ) : visibleCanisterDrops.length > 0 ? (
-              <View style={styles.safeDropList}>
+              <View style={styles.safeDropCompactList}>
                 {visibleCanisterDrops.map((drop) => {
                   const isPending = drop.approvalStatus === "Pending";
-                  const isApproved = drop.approvalStatus === "Approved";
                   const isRejected = drop.approvalStatus === "Rejected";
                   const droppedTime = new Date(drop.droppedOn);
                   const droppedTimeLabel = Number.isNaN(droppedTime.getTime())
                     ? "—"
                     : formatShiftDateTimeCompact(droppedTime);
-                  const accentStyle = isPending
-                    ? styles.safeDropCardAccentPending
+                  const accentColor = isPending
+                    ? appTheme.colors.warning
                     : isRejected
-                      ? styles.safeDropCardAccentRejected
-                      : styles.safeDropCardAccentApproved;
-                  const cardStateStyle = isPending
-                    ? styles.safeDropCardPending
-                    : isRejected
-                      ? styles.safeDropCardRejected
-                      : styles.safeDropCardApproved;
+                      ? appTheme.colors.danger
+                      : appTheme.colors.success;
                   return (
-                    <View key={drop.id} style={[styles.safeDropCard, cardStateStyle]}>
-                      <View style={[styles.safeDropCardAccent, accentStyle]} />
-                      <View style={styles.safeDropCardContent}>
-                        <View style={styles.safeDropCardHeader}>
-                          <View style={styles.safeDropCardCanisterBlock}>
-                            <View style={styles.safeDropCanisterIconRow}>
-                              <Ionicons
-                                name="lock-closed-outline"
-                                size={14}
-                                color={appTheme.colors.textMuted}
-                              />
-                              <Text style={styles.safeDropCardCanisterLabel}>
-                                CANISTER · {droppedTimeLabel}
-                              </Text>
-                            </View>
-                            <Text style={styles.safeDropCardCanisterValue} numberOfLines={1}>
-                              {drop.canisterNumber}
-                            </Text>
-                          </View>
-                          <View style={styles.safeDropAmountBlock}>
-                            <Text style={styles.safeDropCardAmount}>{formatCurrency(drop.amount)}</Text>
-                            <StatusBadge
-                              label={drop.approvalStatus}
-                              tone={isPending ? "warning" : isRejected ? "danger" : "success"}
-                            />
-                          </View>
-                        </View>
-
-                        <View style={styles.safeDropMetaLine}>
-                          <Ionicons name="person-outline" size={12} color={appTheme.colors.textSubtle} />
-                          <Text style={styles.safeDropCardMetaText} numberOfLines={1}>
-                            {drop.droppedByName}
+                    <View key={drop.id} style={styles.safeDropCompactRow}>
+                      <View style={[styles.safeDropCompactAccent, { backgroundColor: accentColor }]} />
+                      <View style={styles.safeDropCompactBody}>
+                        <View style={styles.safeDropCompactLine}>
+                          <Text style={styles.safeDropCompactPrimary} numberOfLines={1}>
+                            {droppedTimeLabel} · #{drop.canisterNumber}
                           </Text>
-                          {drop.shiftName ? (
-                            <>
-                              <Text style={styles.safeDropMetaSep}>·</Text>
-                              <Ionicons name="time-outline" size={12} color={appTheme.colors.textSubtle} />
-                              <Text style={styles.safeDropCardMetaText} numberOfLines={1}>
-                                {drop.shiftName}
-                              </Text>
-                            </>
-                          ) : null}
+                          <Text style={styles.safeDropCompactAmount}>{formatCurrency(drop.amount)}</Text>
                         </View>
-
-                        {!isPending && drop.approvalNotes ? (
-                          <View style={styles.safeDropNotesRow}>
-                            <Ionicons
-                              name={isRejected ? "alert-circle-outline" : "chatbubble-ellipses-outline"}
-                              size={12}
-                              color={isRejected ? appTheme.colors.danger : appTheme.colors.textSubtle}
-                            />
-                            <Text style={styles.safeDropCardMetaText} numberOfLines={2}>
-                              {drop.approvalNotes}
-                            </Text>
-                          </View>
-                        ) : null}
-
-                        {isPending && canViewAllSafeDrops ? (
-                          <Pressable
-                            style={({ pressed }) => [
-                              styles.safeDropApproveButton,
-                              pressed ? styles.safeDropApproveButtonPressed : null,
-                              approveDropMutation.isPending ? styles.safeDropApproveButtonDisabled : null,
-                            ]}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Approve safe drop ${drop.canisterNumber} for ${formatCurrency(drop.amount)}`}
-                            onPress={() => {
-                              haptics.success();
-                              approveDropMutation.mutate(drop.id);
-                            }}
-                            disabled={approveDropMutation.isPending}
-                          >
-                            <Ionicons
-                              name="checkmark-circle-outline"
-                              size={16}
-                              color={appTheme.colors.primary}
-                            />
-                            <Text style={styles.safeDropApproveButtonText}>
-                              {approveDropMutation.isPending ? "Approving…" : "Approve"}
-                            </Text>
-                          </Pressable>
+                        {isRejected && drop.approvalNotes ? (
+                          <Text style={styles.safeDropCompactReason} numberOfLines={1}>
+                            Rejected: {drop.approvalNotes}
+                          </Text>
                         ) : null}
                       </View>
+                      {isPending && canViewAllSafeDrops ? (
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.safeDropCompactApprove,
+                            pressed ? styles.safeDropApproveButtonPressed : null,
+                            approveDropMutation.isPending ? styles.safeDropApproveButtonDisabled : null,
+                          ]}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Approve safe drop ${drop.canisterNumber} for ${formatCurrency(drop.amount)}`}
+                          onPress={() => {
+                            haptics.success();
+                            approveDropMutation.mutate(drop.id);
+                          }}
+                          disabled={approveDropMutation.isPending}
+                        >
+                          <Ionicons name="checkmark" size={14} color={appTheme.colors.primary} />
+                          <Text style={styles.safeDropCompactApproveText}>Approve</Text>
+                        </Pressable>
+                      ) : null}
                     </View>
                   );
                 })}
@@ -1991,7 +1954,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   : "No safe drops recorded by you for this day."}
               </Text>
             )}
-          </View>
+          </Pressable>
         ) : null}
 
         {missingOpeningTicketDetails.length > 0 ? (
@@ -4194,6 +4157,75 @@ const styles = StyleSheet.create({
   },
   safeDropList: {
     gap: appTheme.spacing.xs,
+  },
+  safeDropCompactList: {
+    gap: 6,
+  },
+  sectionCardPressed: {
+    opacity: 0.94,
+  },
+  sectionTitleRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  safeDropCompactRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: appTheme.colors.borderSoft,
+  },
+  safeDropCompactAccent: {
+    width: 3,
+    alignSelf: "stretch",
+    borderRadius: 2,
+  },
+  safeDropCompactBody: {
+    flex: 1,
+    gap: 2,
+  },
+  safeDropCompactLine: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+  },
+  safeDropCompactPrimary: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 16,
+    flex: 1,
+  },
+  safeDropCompactAmount: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 17,
+  },
+  safeDropCompactReason: {
+    color: appTheme.colors.danger,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  safeDropCompactApprove: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+  },
+  safeDropCompactApproveText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 14,
   },
   safeDropCard: {
     flexDirection: "row",

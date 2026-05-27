@@ -49,6 +49,7 @@ import {
 import { UserManagementScreen, ShopConfigurationScreen, AppConfigurationScreen, CompanyManagementScreen, ShopManagementScreen, SettingsScreen } from "../features/settings/SettingsScreens";
 import { NotificationPreferencesScreen } from "../features/settings/NotificationPreferencesScreen";
 import { ShopFeatureTogglesScreen } from "../features/settings/ShopFeatureTogglesScreen";
+import { SafeDropScreen } from "../features/safe-drop/SafeDropScreen";
 import { BestEntryProvider, EntryOperation, useBestEntry } from "./BestEntryContext";
 import { useEntitlements } from "../features/subscription/useEntitlements";
 import { MainStackParamList, RootStackParamList } from "../types/navigation";
@@ -418,6 +419,7 @@ function MainStackScreens() {
         component={PrizePayoutScreen}
         options={{ presentation: "modal", title: "Prize Payout" }}
       />
+      <Stack.Screen name="SafeDrop" component={SafeDropScreen} options={{ title: "Safe Drops" }} />
       <Stack.Screen
         name="ShiftReconciliation"
         component={ShiftReconciliationScreen}

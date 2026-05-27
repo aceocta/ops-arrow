@@ -68,6 +68,7 @@ export type MainStackParamList = {
   ShiftDetails: { shiftId: string; shopId: string };
   ShiftClose: { shiftId: string; shopId: string };
   PrizePayout: { shiftId: string };
+  SafeDrop: { businessDayId: string; businessDate: string; shopId: string };
   ShiftReconciliation: { shiftId: string };
   DayEndClose: { businessDayId: string };
   DailySalesReport: undefined;
