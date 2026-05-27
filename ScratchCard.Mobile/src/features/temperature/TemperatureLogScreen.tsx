@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -13,6 +13,7 @@ import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { Skeleton } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -49,6 +50,90 @@ function isSameDateValue(a: string, b: string) {
 }
 
 type DailyFilter = "all" | "pending" | "outOfRange";
+
+// Pulsing skeleton placeholder rendered while the day's units + readings load for the first
+// time. Mirrors the Day Management initial-load pattern so the two screens feel like the same
+// app while the network call is in flight.
+function TemperatureLogLoadingState() {
+  return (
+    <View style={loadingStyles.shell}>
+      <View style={[ui.card, loadingStyles.card]}>
+        <View style={loadingStyles.dateRow}>
+          <Skeleton width={32} height={32} radius={appTheme.radius.sm} />
+          <Skeleton height={42} radius={appTheme.radius.sm} style={{ flex: 1 }} />
+          <Skeleton width={32} height={32} radius={appTheme.radius.sm} />
+        </View>
+        <View style={loadingStyles.chipRow}>
+          <Skeleton width={90} height={26} radius={appTheme.radius.pill} />
+          <Skeleton width={100} height={26} radius={appTheme.radius.pill} />
+          <Skeleton width={120} height={26} radius={appTheme.radius.pill} />
+        </View>
+        <View style={loadingStyles.chipRow}>
+          <Skeleton width={60} height={28} radius={appTheme.radius.pill} />
+          <Skeleton width={80} height={28} radius={appTheme.radius.pill} />
+          <Skeleton width={110} height={28} radius={appTheme.radius.pill} />
+        </View>
+      </View>
+
+      <View style={loadingStyles.unitList}>
+        {[0, 1, 2].map((idx) => (
+          <View key={idx} style={loadingStyles.unitCard}>
+            <View style={loadingStyles.unitCardTop}>
+              <View style={{ flex: 1, gap: 6 }}>
+                <Skeleton width="55%" height={16} />
+                <Skeleton width="40%" height={12} />
+              </View>
+              <Skeleton width={80} height={22} radius={appTheme.radius.pill} />
+            </View>
+            <View style={loadingStyles.unitCardBottom}>
+              <Skeleton width="50%" height={12} />
+              <Skeleton width="35%" height={12} />
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+const loadingStyles = StyleSheet.create({
+  shell: {
+    gap: appTheme.spacing.sm,
+    paddingBottom: appTheme.spacing.sm,
+  },
+  card: {
+    gap: appTheme.spacing.sm,
+  },
+  dateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+  },
+  chipRow: {
+    flexDirection: "row",
+    gap: appTheme.spacing.xs,
+  },
+  unitList: {
+    gap: appTheme.spacing.xs,
+  },
+  unitCard: {
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceTintAlt,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.sm,
+    gap: 8,
+  },
+  unitCardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+  },
+  unitCardBottom: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.xs,
+  },
+});
 
 function buildDefaultInitials(firstName?: string, lastName?: string, email?: string, displayName?: string) {
   const resolvedName = (displayName ?? `${firstName ?? ""} ${lastName ?? ""}`).trim();
@@ -129,6 +214,11 @@ export function TemperatureLogScreen() {
     queryFn: () => getTemperatureDailyLog(shopId as string, selectedDate),
     enabled: Boolean(shopId) && selectedDate.length === 10,
   });
+
+  const onPullRefresh = useCallback(async () => {
+    await Promise.all([unitsQuery.refetch(), dailyLogQuery.refetch()]);
+  }, [unitsQuery, dailyLogQuery]);
+  const isRefreshing = unitsQuery.isRefetching || dailyLogQuery.isRefetching;
 
   const recordMutation = useMutation({
     mutationFn: async () => {
@@ -313,9 +403,28 @@ export function TemperatureLogScreen() {
   const selectedDateTimeValue = `${selectedDate} ${readingTime}`;
   const entryDateTimeValue = `${entryDate} ${readingTime}`;
 
+  // First-load only — refetches use the pull-to-refresh spinner, not the skeleton.
+  const isInitialLoading = unitsQuery.isLoading || (Boolean(shopId) && dailyLogQuery.isLoading);
+  if (isInitialLoading) {
+    return (
+      <ScreenContainer>
+        <TemperatureLogLoadingState />
+      </ScreenContainer>
+    );
+  }
+
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.screenContent}>
+      <ScrollView
+        contentContainerStyle={styles.screenContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onPullRefresh}
+            tintColor={appTheme.colors.primary}
+          />
+        }
+      >
         {/* <View style={styles.heroCard}>
           <Text style={styles.heroSubtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
           <Text style={styles.heroNote}>Digitize daily checks with quick entry, alerts, and supervisor signoff.</Text>

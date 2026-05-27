@@ -1,5 +1,5 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert, Image, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -34,6 +34,7 @@ import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ReportActionButton } from "../../components/ReportActionButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { Skeleton } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
 import {
@@ -727,6 +728,71 @@ function buildComplianceMatrixReportHtml(input: {
   `;
 }
 
+// Pulsing skeleton placeholder rendered while the period log loads for the first time.
+// Mirrors the Day Management initial-load pattern.
+function ComplianceChecksLoadingState() {
+  return (
+    <View style={complianceLoadingStyles.shell}>
+      <View style={[ui.card, complianceLoadingStyles.card]}>
+        <View style={complianceLoadingStyles.headerRow}>
+          <Skeleton width={160} height={22} radius={appTheme.radius.sm} />
+          <Skeleton width={80} height={24} radius={appTheme.radius.pill} />
+        </View>
+        <View style={complianceLoadingStyles.tabsRow}>
+          <Skeleton width={72} height={32} radius={appTheme.radius.pill} />
+          <Skeleton width={72} height={32} radius={appTheme.radius.pill} />
+          <Skeleton width={72} height={32} radius={appTheme.radius.pill} />
+        </View>
+        <Skeleton height={42} radius={appTheme.radius.sm} />
+      </View>
+
+      {[0, 1].map((groupIdx) => (
+        <View key={groupIdx} style={[ui.card, complianceLoadingStyles.card]}>
+          <View style={complianceLoadingStyles.headerRow}>
+            <Skeleton width="50%" height={18} radius={appTheme.radius.sm} />
+            <Skeleton width={64} height={22} radius={appTheme.radius.pill} />
+          </View>
+          {[0, 1, 2].map((rowIdx) => (
+            <View key={rowIdx} style={complianceLoadingStyles.itemRow}>
+              <View style={{ flex: 1, gap: 6 }}>
+                <Skeleton width="80%" height={14} />
+                <Skeleton width="55%" height={12} />
+              </View>
+              <Skeleton width={72} height={28} radius={appTheme.radius.pill} />
+            </View>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+const complianceLoadingStyles = StyleSheet.create({
+  shell: {
+    gap: appTheme.spacing.sm,
+    paddingBottom: appTheme.spacing.sm,
+  },
+  card: {
+    gap: appTheme.spacing.sm,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.xs,
+  },
+  tabsRow: {
+    flexDirection: "row",
+    gap: appTheme.spacing.xs,
+  },
+  itemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+    paddingVertical: 6,
+  },
+});
+
 export function ComplianceChecksScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const queryClient = useQueryClient();
@@ -776,6 +842,11 @@ export function ComplianceChecksScreen() {
     queryFn: () => getComplianceCheckPeriodLog(shopId as string, frequency, effectivePeriodDate),
     enabled: Boolean(shopId),
   });
+
+  const onPullRefresh = useCallback(async () => {
+    await logQuery.refetch();
+  }, [logQuery]);
+  const isRefreshing = logQuery.isRefetching;
 
   const periodGroups = logQuery.data?.groups;
   const allRows = useMemo(() => flattenRows(periodGroups ?? []), [periodGroups]);
@@ -1396,9 +1467,27 @@ export function ComplianceChecksScreen() {
     );
   }
 
+  if (logQuery.isLoading) {
+    return (
+      <ScreenContainer>
+        <ComplianceChecksLoadingState />
+      </ScreenContainer>
+    );
+  }
+
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.content} stickyHeaderIndices={[0]}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        stickyHeaderIndices={[0]}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onPullRefresh}
+            tintColor={appTheme.colors.primary}
+          />
+        }
+      >
         {/* <View style={styles.heroCard}>
           <View style={styles.heroHead}>
             <View style={{ flex: 1 }}>
