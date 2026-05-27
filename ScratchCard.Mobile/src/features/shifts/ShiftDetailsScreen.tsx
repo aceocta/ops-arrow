@@ -447,10 +447,10 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
             {/* <KpiTile label="Remaining" value={totals.totalRemainingTickets} /> */}
           </KpiGrid>
           {salesQuery.isFetching ? <Text style={styles.meta}>Loading...</Text> : null}
-        </View>
+        {/* </View>
 
-           <View style={[ui.card, styles.summaryCard]}>
-          <Text style={styles.sectionTitle}>Scratch CardSales</Text>
+           <View style={[ui.card, styles.summaryCard]}> */}
+          {/* <Text style={styles.sectionTitle}>Scratch CardSales</Text> */}
           {!salesQuery.isFetching && entries.length === 0 ? (
             <Text style={styles.meta}>No entries for this shift.</Text>
           ) : null}

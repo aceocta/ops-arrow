@@ -620,10 +620,6 @@ public class ComplianceCheckService : IComplianceCheckService
         var result = NormalizeResult(request.Result);
         var notes = NormalizeOptionalText(request.Notes);
         var actionRequired = NormalizeOptionalText(request.ActionRequired);
-        if (result == ComplianceCheckResult.NonCompliant && string.IsNullOrWhiteSpace(actionRequired))
-        {
-            throw new AppException("compliance_action_required", "Action required is mandatory for non-compliant checks.");
-        }
 
         var period = NormalizePeriod(request.Date, item.Frequency);
         var entry = await QueryEntriesForPeriod(request.ShopId, item.Frequency, period)
