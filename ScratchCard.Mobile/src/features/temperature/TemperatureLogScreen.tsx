@@ -13,6 +13,8 @@ import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { SectionHeader } from "../../components/SectionHeader";
+import { KpiGrid, KpiTile } from "../../components/KpiTile";
 import { Skeleton } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ui } from "../../ui/primitives";
@@ -477,34 +479,25 @@ export function TemperatureLogScreen() {
             ) : null}
           </View>
 
-          <View style={styles.summaryChipRow}>
-            <View style={[styles.summaryChip, styles.summaryChipDone]}>
-              <Ionicons name="checkmark-circle" size={14} color={appTheme.colors.success} />
-              <Text style={styles.summaryChipText}>{summary.recorded} done</Text>
-            </View>
-            <View style={[styles.summaryChip, summary.pending > 0 ? styles.summaryChipPending : styles.summaryChipMuted]}>
-              <Ionicons
-                name="time-outline"
-                size={14}
-                color={summary.pending > 0 ? appTheme.colors.warning : appTheme.colors.textSubtle}
-              />
-              <Text style={styles.summaryChipText}>{summary.pending} pending</Text>
-            </View>
-            <View style={[styles.summaryChip, summary.outOfRange > 0 ? styles.summaryChipDanger : styles.summaryChipMuted]}>
-              <Ionicons
-                name="warning-outline"
-                size={14}
-                color={summary.outOfRange > 0 ? appTheme.colors.danger : appTheme.colors.textSubtle}
-              />
-              <Text style={styles.summaryChipText}>{summary.outOfRange} out of range</Text>
-            </View>
-          </View>
+          <KpiGrid columns={2}>
+            <KpiTile
+              label="Done"
+              value={summary.recorded}
+              tone={summary.total > 0 && summary.recorded === summary.total ? "success" : "default"}
+            />
+            
+            <KpiTile
+              label="Out of range"
+              value={summary.outOfRange}
+              tone={summary.outOfRange > 0 ? "danger" : "default"}
+            />
+          </KpiGrid>
 
           <View style={styles.filterRow}>
             {(
               [
                 { key: "all", label: "All" },
-                { key: "pending", label: "Pending" },
+                // { key: "pending", label: "Pending" },
                 { key: "outOfRange", label: "Out of range" },
               ] as Array<{ key: DailyFilter; label: string }>
             ).map((option) => {
@@ -525,7 +518,17 @@ export function TemperatureLogScreen() {
             })}
           </View>
         </View>
-<View>
+<View style={[ui.card, styles.unitsCard]}>
+          <SectionHeader
+            title="Monitoring Units"
+            icon="thermometer-outline"
+            right={
+              <StatusBadge
+                label={`${filteredUnitLogs.length} of ${dailyUnitLogs.length}`}
+                tone="neutral"
+              />
+            }
+          />
           {dailyLogQuery.isLoading ? <Text style={styles.meta}>Loading units...</Text> : null}
           <View style={styles.unitList}>
             {filteredUnitLogs.map((unitLog) => {
@@ -598,8 +601,12 @@ export function TemperatureLogScreen() {
           </View>
         </View>
 
-        {/* <View style={[ui.card, styles.readingsCard]}> */}
-          <Text style={styles.sectionTitle}>Readings · {selectedDate}</Text>
+        <View style={[ui.card, styles.readingsCard]}>
+          <SectionHeader
+            title="Daily Readings"
+            subtitle={selectedDate}
+            icon="list-outline"
+          />
           {dailyLogQuery.isLoading ? <Text style={styles.meta}>Loading daily readings...</Text> : null}
           {dailyUnitLogs.map((unitLog) => (
             <View key={unitLog.unit.id} style={styles.unitSheet}>
@@ -664,7 +671,7 @@ export function TemperatureLogScreen() {
           {!dailyLogQuery.isLoading && dailyUnitLogs.length === 0 ? (
             <Text style={styles.meta}>No units configured for this shop.</Text>
           ) : null}
-        {/* </View> */}
+        </View>
 
         {/* <View style={ui.card}>
           <Text style={styles.sectionTitle}>Recent History</Text>
@@ -858,6 +865,9 @@ const styles = StyleSheet.create({
   screenContent: {
     gap: appTheme.spacing.sm,
     paddingBottom: appTheme.spacing.sm,
+  },
+  unitsCard: {
+    gap: appTheme.spacing.sm,
   },
   quickEntryCard: {
     gap: appTheme.spacing.sm,
