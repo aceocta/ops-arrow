@@ -94,14 +94,48 @@ public interface ISubscriptionService
 public interface IShopSubscriptionService
 {
     Task<ShopSubscriptionSummaryDto> EnsureTrialAsync(Guid shopId, Guid? intendedPlanId = null, CancellationToken cancellationToken = default);
-    Task<ShopSubscriptionSummaryDto> GetSummaryAsync(Guid shopId, CancellationToken cancellationToken = default);
+    Task<ShopSubscriptionSummaryDto?> GetSummaryAsync(Guid shopId, CancellationToken cancellationToken = default);
     Task<ShopEntitlementsDto> GetEntitlementsAsync(Guid shopId, CancellationToken cancellationToken = default);
     Task<ShopSubscriptionSummaryDto> SelectPlanAsync(SelectShopSubscriptionPlanRequest request, CancellationToken cancellationToken = default);
-    Task<ShopSubscriptionSummaryDto> RecordIapReceiptAsync(ShopIapReceiptRequest request, CancellationToken cancellationToken = default);
     Task<ShopSubscriptionSummaryDto> CancelAsync(Guid shopId, bool cancelAtPeriodEnd, CancellationToken cancellationToken = default);
     Task<ShopSubscriptionSummaryDto> ReactivateAsync(Guid shopId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Temporarily pauses a shop's subscription. Stripe is told to stop collecting via
+    /// pause_collection, the local ShopSubscription flips to Suspended, Shop.IsActive=false,
+    /// and a PausedOn timestamp is set so the 1-year cap can be enforced by a background job.
+    /// Owner can resume any time within the cap window.
+    /// </summary>
+    Task<ShopSubscriptionSummaryDto> PauseAsync(Guid shopId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Resumes a paused shop. Clears Stripe's pause_collection, restores Status to Active (or
+    /// TrialActive if the trial would still be valid), flips Shop.IsActive=true. If Stripe says
+    /// the subscription no longer exists (e.g. auto-cancelled by the 1-year cap) the caller is
+    /// expected to redirect the owner to the Choose Plan flow.
+    /// </summary>
+    Task<ShopSubscriptionSummaryDto> ResumeAsync(Guid shopId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Forces a re-sync of the shop's subscription state by retrieving the current subscription
+    /// from Stripe directly. Used when a webhook was lost and the user taps "Refresh
+    /// subscription status" in the mobile app.
+    /// </summary>
+    Task<ShopSubscriptionSummaryDto> RefreshFromProviderAsync(Guid shopId, CancellationToken cancellationToken = default);
     Task ProcessTrialExpiriesAsync(CancellationToken cancellationToken = default);
-    Task ApplyRevenueCatEventAsync(RevenueCatWebhookEvent webhookEvent, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Background sweep that enforces the 1-year pause cap. Auto-cancels shops paused longer
+    /// than the cap and sends a heads-up email to those approaching it.
+    /// </summary>
+    Task ProcessPauseCapAsync(CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Applies a normalised Stripe subscription event to the matching ShopSubscription. Called
+    /// by the Stripe webhook controller after signature verification.
+    /// </summary>
+    Task ApplyStripeSubscriptionEventAsync(string eventType, StripeSubscriptionSnapshot snapshot, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Returns the Stripe Customer Portal URL for the company that owns this shop. Mobile opens
+    /// it in an external browser so the owner can update card / cancel / view invoices for
+    /// every shop subscription in one place.
+    /// </summary>
+    Task<string> CreatePortalSessionAsync(Guid shopId, CancellationToken cancellationToken = default);
 }
 
 public interface ISubscriptionPlanAdminService
@@ -112,6 +146,17 @@ public interface ISubscriptionPlanAdminService
     Task<SubscriptionPlanFeatureDto> UpsertPlanFeatureAsync(Guid planId, UpsertPlanFeatureRequest request, CancellationToken cancellationToken = default);
     Task RemovePlanFeatureAsync(Guid planId, Guid featureId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<SubscriptionPlanFeatureDto>> SetPlanFeaturesAsync(Guid planId, SetPlanFeaturesRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads the global subscription settings (ShopId = null) — drives the fallback trial length
+    /// used when a plan has no per-plan TrialDays set.
+    /// </summary>
+    Task<GlobalSubscriptionSettingsDto> GetGlobalSettingsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates the global subscription settings. Send only the fields you want to change.
+    /// </summary>
+    Task<GlobalSubscriptionSettingsDto> UpdateGlobalSettingsAsync(UpdateGlobalSubscriptionSettingsRequest request, CancellationToken cancellationToken = default);
 }
 
 public interface IFeatureAdminService
@@ -125,15 +170,6 @@ public interface IFeatureAdminService
 public interface ISubscriptionCalculationService
 {
     Task<SubscriptionCalculationResultDto> CalculateAsync(Guid companyId, Guid planId, CancellationToken cancellationToken = default);
-}
-
-public interface IPaymentProviderService
-{
-    Task<string> CreateCustomerAsync(Guid companyId, string email, string name, CancellationToken cancellationToken = default);
-    Task<string> CreateCheckoutSessionAsync(Guid companySubscriptionId, decimal amount, string currency, CancellationToken cancellationToken = default);
-    Task<PaymentStatus> GetPaymentStatusAsync(string providerTransactionId, CancellationToken cancellationToken = default);
-    Task CancelSubscriptionAsync(string providerSubscriptionId, CancellationToken cancellationToken = default);
-    Task HandleWebhookAsync(string payload, CancellationToken cancellationToken = default);
 }
 
 public interface ISubscriptionBillingService

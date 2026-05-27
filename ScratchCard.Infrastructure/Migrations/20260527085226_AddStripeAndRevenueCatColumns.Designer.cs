@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ScratchCard.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using ScratchCard.Infrastructure.Persistence;
 namespace ScratchCard.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260527085226_AddStripeAndRevenueCatColumns")]
+    partial class AddStripeAndRevenueCatColumns
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1056,18 +1059,12 @@ namespace ScratchCard.Infrastructure.Migrations
                         .HasColumnType("int")
                         .HasDefaultValue(1);
 
-                    b.Property<string>("StripeCustomerId")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
                     b.HasKey("Id");
 
                     b.HasIndex("CompanyName")
                         .IsUnique();
 
                     b.HasIndex("OwnerUserId");
-
-                    b.HasIndex("StripeCustomerId");
 
                     b.ToTable("Companies");
                 });
@@ -2931,12 +2928,6 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Property<DateTimeOffset?>("ModifiedOn")
                         .HasColumnType("datetimeoffset");
 
-                    b.Property<DateTimeOffset?>("PauseCapWarningSentOn")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<DateTimeOffset?>("PausedOn")
-                        .HasColumnType("datetimeoffset");
-
                     b.Property<string>("PaymentProvider")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
@@ -2956,9 +2947,6 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Property<string>("ProviderSubscriptionId")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
-
-                    b.Property<DateTimeOffset?>("ResumedOn")
-                        .HasColumnType("datetimeoffset");
 
                     b.Property<Guid>("ShopId")
                         .HasColumnType("uniqueidentifier");
@@ -2994,8 +2982,6 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.HasIndex("SubscriptionPlanId");
 
                     b.HasIndex("ShopId", "Status");
-
-                    b.HasIndex("Status", "PausedOn");
 
                     b.ToTable("ShopSubscriptions");
                 });
@@ -3322,6 +3308,10 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Property<int?>("ReportExportsPerMonth")
                         .HasColumnType("int");
 
+                    b.Property<string>("RevenueCatProductId")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<string>("StripePriceId")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
@@ -3330,6 +3320,8 @@ namespace ScratchCard.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("RevenueCatProductId");
 
                     b.HasIndex("StripePriceId");
 

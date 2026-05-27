@@ -17,6 +17,7 @@ public class SubscriptionPlanAdminService : ISubscriptionPlanAdminService
     private readonly IRepository<SubscriptionPlan> _planRepository;
     private readonly IRepository<Feature> _featureRepository;
     private readonly IRepository<SubscriptionPlanFeature> _planFeatureRepository;
+    private readonly IRepository<CfgSubscriptionSettings> _subscriptionSettingsRepository;
     private readonly ICurrentUserService _currentUserService;
     private readonly IAuditService _auditService;
     private readonly IUnitOfWork _unitOfWork;
@@ -25,6 +26,7 @@ public class SubscriptionPlanAdminService : ISubscriptionPlanAdminService
         IRepository<SubscriptionPlan> planRepository,
         IRepository<Feature> featureRepository,
         IRepository<SubscriptionPlanFeature> planFeatureRepository,
+        IRepository<CfgSubscriptionSettings> subscriptionSettingsRepository,
         ICurrentUserService currentUserService,
         IAuditService auditService,
         IUnitOfWork unitOfWork)
@@ -32,6 +34,7 @@ public class SubscriptionPlanAdminService : ISubscriptionPlanAdminService
         _planRepository = planRepository;
         _featureRepository = featureRepository;
         _planFeatureRepository = planFeatureRepository;
+        _subscriptionSettingsRepository = subscriptionSettingsRepository;
         _currentUserService = currentUserService;
         _auditService = auditService;
         _unitOfWork = unitOfWork;
@@ -377,4 +380,101 @@ public class SubscriptionPlanAdminService : ISubscriptionPlanAdminService
 
         return $"includedFeatures -> {string.Join(",", features.Select(f => f.Key))}";
     }
+
+    public async Task<GlobalSubscriptionSettingsDto> GetGlobalSettingsAsync(CancellationToken cancellationToken = default)
+    {
+        var settings = await LoadOrCreateGlobalSettingsAsync(cancellationToken);
+        return MapGlobalSettings(settings);
+    }
+
+    public async Task<GlobalSubscriptionSettingsDto> UpdateGlobalSettingsAsync(UpdateGlobalSubscriptionSettingsRequest request, CancellationToken cancellationToken = default)
+    {
+        var settings = await LoadOrCreateGlobalSettingsAsync(cancellationToken);
+        var changes = new List<string>();
+
+        if (request.DefaultTrialDays.HasValue && settings.DefaultTrialDays != request.DefaultTrialDays.Value)
+        {
+            if (request.DefaultTrialDays.Value < 0)
+            {
+                throw new AppException("validation_failed", "DefaultTrialDays cannot be negative.", 400);
+            }
+            changes.Add($"defaultTrialDays {settings.DefaultTrialDays} -> {request.DefaultTrialDays.Value}");
+            settings.DefaultTrialDays = request.DefaultTrialDays.Value;
+        }
+
+        if (request.TrialEndingReminderDays.HasValue && settings.TrialEndingReminderDays != request.TrialEndingReminderDays.Value)
+        {
+            if (request.TrialEndingReminderDays.Value < 0)
+            {
+                throw new AppException("validation_failed", "TrialEndingReminderDays cannot be negative.", 400);
+            }
+            changes.Add($"trialEndingReminderDays {settings.TrialEndingReminderDays} -> {request.TrialEndingReminderDays.Value}");
+            settings.TrialEndingReminderDays = request.TrialEndingReminderDays.Value;
+        }
+
+        if (request.PaymentGracePeriodDays.HasValue && settings.PaymentGracePeriodDays != request.PaymentGracePeriodDays.Value)
+        {
+            if (request.PaymentGracePeriodDays.Value < 0)
+            {
+                throw new AppException("validation_failed", "PaymentGracePeriodDays cannot be negative.", 400);
+            }
+            changes.Add($"paymentGracePeriodDays {settings.PaymentGracePeriodDays} -> {request.PaymentGracePeriodDays.Value}");
+            settings.PaymentGracePeriodDays = request.PaymentGracePeriodDays.Value;
+        }
+
+        if (request.BulkDiscountEnabled.HasValue && settings.BulkDiscountEnabled != request.BulkDiscountEnabled.Value)
+        {
+            changes.Add($"bulkDiscountEnabled {settings.BulkDiscountEnabled} -> {request.BulkDiscountEnabled.Value}");
+            settings.BulkDiscountEnabled = request.BulkDiscountEnabled.Value;
+        }
+
+        if (changes.Count == 0)
+        {
+            return MapGlobalSettings(settings);
+        }
+
+        settings.ModifiedOn = DateTimeOffset.UtcNow;
+        settings.ModifiedBy = _currentUserService.UserId;
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _auditService.LogAsync(
+            entityName: nameof(CfgSubscriptionSettings),
+            entityId: settings.Id,
+            actionType: "GlobalSubscriptionSettingsUpdated",
+            newValue: string.Join("; ", changes),
+            cancellationToken: cancellationToken);
+
+        return MapGlobalSettings(settings);
+    }
+
+    private async Task<CfgSubscriptionSettings> LoadOrCreateGlobalSettingsAsync(CancellationToken cancellationToken)
+    {
+        var existing = await _subscriptionSettingsRepository.Query()
+            .Where(x => x.ShopId == null)
+            .OrderByDescending(x => x.CreatedOn)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (existing is not null) return existing;
+
+        // First-time access on an old DB without a global record — seed with sensible defaults.
+        var created = new CfgSubscriptionSettings
+        {
+            ShopId = null,
+            DefaultTrialDays = 14,
+            TrialEndingReminderDays = 3,
+            PaymentGracePeriodDays = 7,
+            BulkDiscountEnabled = false,
+            CreatedOn = DateTimeOffset.UtcNow,
+            CreatedBy = _currentUserService.UserId,
+        };
+        await _subscriptionSettingsRepository.AddAsync(created, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return created;
+    }
+
+    private static GlobalSubscriptionSettingsDto MapGlobalSettings(CfgSubscriptionSettings settings) => new()
+    {
+        DefaultTrialDays = settings.DefaultTrialDays,
+        TrialEndingReminderDays = settings.TrialEndingReminderDays,
+        PaymentGracePeriodDays = settings.PaymentGracePeriodDays,
+        BulkDiscountEnabled = settings.BulkDiscountEnabled,
+    };
 }

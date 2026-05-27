@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ScratchCard.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using ScratchCard.Infrastructure.Persistence;
 namespace ScratchCard.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260527101149_StripeDirectAndCompanyCustomer")]
+    partial class StripeDirectAndCompanyCustomer
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2931,12 +2934,6 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Property<DateTimeOffset?>("ModifiedOn")
                         .HasColumnType("datetimeoffset");
 
-                    b.Property<DateTimeOffset?>("PauseCapWarningSentOn")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<DateTimeOffset?>("PausedOn")
-                        .HasColumnType("datetimeoffset");
-
                     b.Property<string>("PaymentProvider")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
@@ -2956,9 +2953,6 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Property<string>("ProviderSubscriptionId")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
-
-                    b.Property<DateTimeOffset?>("ResumedOn")
-                        .HasColumnType("datetimeoffset");
 
                     b.Property<Guid>("ShopId")
                         .HasColumnType("uniqueidentifier");
@@ -2994,8 +2988,6 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.HasIndex("SubscriptionPlanId");
 
                     b.HasIndex("ShopId", "Status");
-
-                    b.HasIndex("Status", "PausedOn");
 
                     b.ToTable("ShopSubscriptions");
                 });

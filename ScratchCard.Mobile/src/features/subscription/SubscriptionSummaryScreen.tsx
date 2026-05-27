@@ -6,7 +6,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   cancelShopSubscription,
   getShopSubscriptionSummary,
+  pauseShopSubscription,
   reactivateShopSubscription,
+  resumeShopSubscription,
 } from "../../api/subscriptionApi";
 import { useAuth } from "../../auth/AuthContext";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -38,8 +40,15 @@ export function SubscriptionSummaryScreen() {
   });
 
   const summary = summaryQuery.data;
-  const isCancelledAtPeriodEnd = Boolean(summary?.status?.toLowerCase() === "active" && (summary as any)?.cancelAtPeriodEnd);
-  const isCancelled = summary?.status?.toLowerCase() === "cancelled";
+  const status = summary?.status?.toLowerCase();
+  const isCancelledAtPeriodEnd = Boolean(status === "active" && (summary as any)?.cancelAtPeriodEnd);
+  const isCancelled = status === "cancelled";
+  const isPaused = status === "suspended";
+  // 11-month heads-up: when fewer than 31 days remain before the 1-year auto-cancel, surface
+  // a banner so the owner knows to resume or accept the cancellation.
+  const showPauseCapBanner = isPaused
+    && summary?.pauseDaysRemaining != null
+    && summary.pauseDaysRemaining <= 30;
 
   const cancelMutation = useMutation({
     mutationFn: (cancelAtPeriodEnd: boolean) => cancelShopSubscription(shopId as string, cancelAtPeriodEnd),
@@ -61,6 +70,54 @@ export function SubscriptionSummaryScreen() {
     onError: (error: any) => toastError(error?.response?.data?.message ?? "Unable to reactivate."),
   });
 
+  const pauseMutation = useMutation({
+    mutationFn: () => pauseShopSubscription(shopId as string),
+    onSuccess: async () => {
+      toastSuccess("Shop paused. Resume any time within 1 year.");
+      await queryClient.invalidateQueries({ queryKey: ["shop-subscription-summary", shopId] });
+      await queryClient.invalidateQueries({ queryKey: ["shop-entitlements", shopId] });
+    },
+    onError: (error: any) => toastError(error?.response?.data?.message ?? "Unable to pause."),
+  });
+
+  const resumeMutation = useMutation({
+    mutationFn: () => resumeShopSubscription(shopId as string),
+    onSuccess: async () => {
+      toastSuccess("Shop resumed.");
+      await queryClient.invalidateQueries({ queryKey: ["shop-subscription-summary", shopId] });
+      await queryClient.invalidateQueries({ queryKey: ["shop-entitlements", shopId] });
+    },
+    onError: (error: any) => {
+      const code = error?.response?.data?.code;
+      const message = error?.response?.data?.message ?? "Unable to resume.";
+      if (code === "subscription_expired") {
+        // The Stripe sub was auto-cancelled by the 1-year cap (or admin action) — fresh
+        // checkout is the only path forward. Surface clearly and route to plan picker.
+        Alert.alert(
+          "Subscription expired",
+          message,
+          [
+            { text: "Close", style: "cancel" },
+            { text: "Choose Plan", onPress: () => navigation.navigate("ChoosePlan") },
+          ],
+        );
+        return;
+      }
+      toastError(message);
+    },
+  });
+
+  function confirmPause() {
+    Alert.alert(
+      "Pause shop?",
+      "Billing stops immediately. You can resume any time within 1 year. After 1 year, the subscription is automatically cancelled.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Pause shop", onPress: () => pauseMutation.mutate() },
+      ],
+    );
+  }
+
   function confirmCancel() {
     Alert.alert(
       "Cancel subscription?",
@@ -77,6 +134,19 @@ export function SubscriptionSummaryScreen() {
       <View style={ui.card}>
         <Text style={styles.title}>Subscription Summary</Text>
         <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
+
+        {showPauseCapBanner ? (
+          <View style={styles.capBanner}>
+            <Text style={styles.capBannerTitle}>
+              Paused — auto-cancel in {summary?.pauseDaysRemaining} day{summary?.pauseDaysRemaining === 1 ? "" : "s"}
+            </Text>
+            <Text style={styles.capBannerBody}>
+              Resume to keep this shop's subscription on the saved card. After auto-cancel, the
+              subscription must be re-created from scratch.
+            </Text>
+          </View>
+        ) : null}
+
         {summaryQuery.isLoading ? <Skeleton height={20} width="80%" /> : null}
         {summary ? (
           <>
@@ -115,7 +185,25 @@ export function SubscriptionSummaryScreen() {
         ) : null}
         <PrimaryButton label="Choose Plan" onPress={() => navigation.navigate("ChoosePlan")} disabled={!shopId} />
 
-        {summary && !isCancelled && !isCancelledAtPeriodEnd ? (
+        {summary && isPaused ? (
+          <PrimaryButton
+            label={resumeMutation.isPending ? "Resuming..." : "Resume Shop"}
+            tone="success"
+            onPress={() => resumeMutation.mutate()}
+            disabled={resumeMutation.isPending}
+          />
+        ) : null}
+
+        {summary && !isPaused && !isCancelled && !isCancelledAtPeriodEnd ? (
+          <PrimaryButton
+            label={pauseMutation.isPending ? "Pausing..." : "Pause Shop"}
+            tone="neutral"
+            onPress={confirmPause}
+            disabled={pauseMutation.isPending}
+          />
+        ) : null}
+
+        {summary && !isPaused && !isCancelled && !isCancelledAtPeriodEnd ? (
           <PrimaryButton
             label={cancelMutation.isPending ? "Cancelling..." : "Cancel Subscription"}
             tone="danger"
@@ -172,6 +260,23 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   featureBullet: {
+    ...appTheme.typography.caption,
+    color: appTheme.colors.textMuted,
+  },
+  capBanner: {
+    backgroundColor: appTheme.colors.surfaceWarningSoft,
+    borderRadius: appTheme.radius.sm,
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderWarningSoft,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.sm,
+    gap: 4,
+  },
+  capBannerTitle: {
+    ...appTheme.typography.bodyEmphasis,
+    color: appTheme.colors.text,
+  },
+  capBannerBody: {
     ...appTheme.typography.caption,
     color: appTheme.colors.textMuted,
   },

@@ -16,7 +16,7 @@ import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 import { track } from "../../utils/analytics";
 import { haptics } from "../../utils/haptics";
-import { startBillingCheckout } from "./purchaseService";
+import { refreshEntitlementsFromBackend, startBillingCheckout } from "./purchaseService";
 
 // On iOS we must not show pricing or purchase CTAs in-app (Apple Guideline 3.1.3(c)).
 // The button reads as account management; the price grid is rendered in the web billing portal.
@@ -97,12 +97,19 @@ export function ChoosePlanScreen() {
   async function handleRestore() {
     if (!shopId) return;
     setRestorePending(true);
-    // In the App-to-Web model "restore" just means re-asking the backend for current entitlement
-    // state — the subscription lives on the web, not in the device's IAP wallet.
+    // Force the backend to re-pull subscription state from RevenueCat (recovery for lost
+    // webhooks / post-checkout reconciliation), then invalidate so React Query picks up the
+    // new server state.
+    const result = await refreshEntitlementsFromBackend({ shopId });
+    await queryClient.invalidateQueries({ queryKey: ["shop-subscription-summary", shopId] });
     await queryClient.invalidateQueries({ queryKey: ["shop-subscription-summary-root", shopId] });
     await queryClient.invalidateQueries({ queryKey: ["shop-entitlements", shopId] });
     setRestorePending(false);
-    toastSuccess("Subscription status refreshed.");
+    if (result.ok) {
+      toastSuccess("Subscription status refreshed.");
+    } else {
+      toastError(result.message ?? "Couldn't refresh subscription. Please try again.");
+    }
   }
 
   return (

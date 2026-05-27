@@ -148,47 +148,19 @@ public class ShopSubscriptionSummaryDto
     public IReadOnlyCollection<string> IncludedFeatures { get; set; } = [];
     public int? MaxUsers { get; set; }
     public int? ReportExportsPerMonth { get; set; }
+    /// <summary>UTC instant the shop was paused (null unless Status = Suspended).</summary>
+    public DateTimeOffset? PausedOn { get; set; }
+    /// <summary>
+    /// Days left before the 1-year auto-cancel kicks in. Mobile renders a banner from day 330+
+    /// using this value. Null when not paused.
+    /// </summary>
+    public int? PauseDaysRemaining { get; set; }
 }
 
 public class SelectShopSubscriptionPlanRequest
 {
     public Guid ShopId { get; set; }
     public Guid PlanId { get; set; }
-}
-
-public class ShopIapReceiptRequest
-{
-    public Guid ShopId { get; set; }
-    public string Platform { get; set; } = string.Empty;
-    public string ProductId { get; set; } = string.Empty;
-    public string TransactionId { get; set; } = string.Empty;
-    public string? PurchaseToken { get; set; }
-    public string? OriginalTransactionId { get; set; }
-    public string? ReceiptData { get; set; }
-}
-
-public class RevenueCatWebhookPayload
-{
-    public RevenueCatWebhookEvent? Event { get; set; }
-    public string? ApiVersion { get; set; }
-}
-
-public class RevenueCatWebhookEvent
-{
-    public string? Id { get; set; }
-    public string? Type { get; set; }
-    public string? AppUserId { get; set; }
-    public string? OriginalAppUserId { get; set; }
-    public string? ProductId { get; set; }
-    public string? PeriodType { get; set; }
-    public string? Store { get; set; }
-    public string? Environment { get; set; }
-    public long? PurchasedAtMs { get; set; }
-    public long? ExpirationAtMs { get; set; }
-    public long? EventTimestampMs { get; set; }
-    public IReadOnlyCollection<string>? EntitlementIds { get; set; }
-    public string? CancelReason { get; set; }
-    public string? NewProductId { get; set; }
 }
 
 public class FeatureDto
@@ -282,6 +254,49 @@ public class CancelShopSubscriptionRequest
 public class ReactivateShopSubscriptionRequest
 {
     public Guid ShopId { get; set; }
+}
+
+public class PauseShopSubscriptionRequest
+{
+    public Guid ShopId { get; set; }
+}
+
+public class ResumeShopSubscriptionRequest
+{
+    public Guid ShopId { get; set; }
+}
+
+public class EnsureShopTrialRequest
+{
+    public Guid ShopId { get; set; }
+    /// <summary>Optional plan the user has indicated they intend to subscribe to. Drives trial length.</summary>
+    public Guid? IntendedPlanId { get; set; }
+}
+
+public class RefreshFromProviderRequest
+{
+    public Guid ShopId { get; set; }
+}
+
+public class PortalSessionRequest
+{
+    public Guid ShopId { get; set; }
+}
+
+public class GlobalSubscriptionSettingsDto
+{
+    public int? DefaultTrialDays { get; set; }
+    public int? TrialEndingReminderDays { get; set; }
+    public int? PaymentGracePeriodDays { get; set; }
+    public bool? BulkDiscountEnabled { get; set; }
+}
+
+public class UpdateGlobalSubscriptionSettingsRequest
+{
+    public int? DefaultTrialDays { get; set; }
+    public int? TrialEndingReminderDays { get; set; }
+    public int? PaymentGracePeriodDays { get; set; }
+    public bool? BulkDiscountEnabled { get; set; }
 }
 
 public class ShopEntitlementsDto

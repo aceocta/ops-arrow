@@ -80,4 +80,27 @@ public class AdminSubscriptionPlansController : BaseApiController
         await _planAdminService.RemovePlanFeatureAsync(id, featureId, cancellationToken);
         return Success(new { ok = true });
     }
+
+    /// <summary>
+    /// Reads the global subscription settings — drives the fallback trial length used when a
+    /// plan has no per-plan TrialDays set, plus reminder/grace defaults.
+    /// </summary>
+    [HttpGet("global-settings")]
+    public async Task<IActionResult> GetGlobalSettings(CancellationToken cancellationToken)
+    {
+        var result = await _planAdminService.GetGlobalSettingsAsync(cancellationToken);
+        return Success(result);
+    }
+
+    /// <summary>
+    /// Updates the global subscription settings. Send only the fields you want to change.
+    /// </summary>
+    [HttpPut("global-settings")]
+    public async Task<IActionResult> UpdateGlobalSettings(
+        [FromBody] UpdateGlobalSubscriptionSettingsRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _planAdminService.UpdateGlobalSettingsAsync(request, cancellationToken);
+        return Success(result);
+    }
 }

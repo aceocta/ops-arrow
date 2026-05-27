@@ -119,8 +119,10 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Company>(entity =>
         {
             entity.HasIndex(x => x.CompanyName).IsUnique();
+            entity.HasIndex(x => x.StripeCustomerId);
             entity.Property(x => x.CompanyName).HasMaxLength(200).IsRequired();
             entity.Property(x => x.RegistrationNumber).HasMaxLength(100);
+            entity.Property(x => x.StripeCustomerId).HasMaxLength(200);
             entity.Property(x => x.Email).HasMaxLength(320).IsRequired();
             entity.Property(x => x.PhoneNumber).HasMaxLength(40);
             entity.Property(x => x.AddressLine1).HasMaxLength(200);
@@ -693,11 +695,13 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<SubscriptionPlan>(entity =>
         {
             entity.HasIndex(x => new { x.BillingCycle, x.IsActive });
+            entity.HasIndex(x => x.StripePriceId);
             entity.Property(x => x.Name).HasMaxLength(120).IsRequired();
             entity.Property(x => x.PricePerShop).HasPrecision(18, 2);
             entity.Property(x => x.Description).HasMaxLength(500);
             entity.Property(x => x.AppleProductId).HasMaxLength(200);
             entity.Property(x => x.GoogleProductId).HasMaxLength(200);
+            entity.Property(x => x.StripePriceId).HasMaxLength(200);
             // MaxUsers and ReportExportsPerMonth are nullable — null means unlimited.
         });
 
@@ -759,11 +763,17 @@ public class ApplicationDbContext : DbContext
         {
             entity.HasIndex(x => new { x.ShopId, x.Status });
             entity.HasIndex(x => x.CompanyId);
+            entity.HasIndex(x => x.StripeSubscriptionId);
+            entity.HasIndex(x => x.StripeCustomerId);
+            // Background job for the 1-year pause cap scans by (Status, PausedOn).
+            entity.HasIndex(x => new { x.Status, x.PausedOn });
             entity.Property(x => x.Price).HasPrecision(18, 2);
             entity.Property(x => x.PaymentProvider).HasMaxLength(50);
             entity.Property(x => x.ProviderProductId).HasMaxLength(200);
             entity.Property(x => x.ProviderSubscriptionId).HasMaxLength(200);
             entity.Property(x => x.ProviderOriginalTransactionId).HasMaxLength(200);
+            entity.Property(x => x.StripeCustomerId).HasMaxLength(200);
+            entity.Property(x => x.StripeSubscriptionId).HasMaxLength(200);
             entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.Company).WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.SubscriptionPlan).WithMany().HasForeignKey(x => x.SubscriptionPlanId).OnDelete(DeleteBehavior.SetNull);

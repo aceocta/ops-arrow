@@ -12,10 +12,19 @@ public class SubscriptionPlan : AuditableEntity
     public string? Description { get; set; }
     public int? MaxUsers { get; set; }
     public int? ReportExportsPerMonth { get; set; }
-    // Store-side product IDs for IAP receipt mapping. Apple StoreKit and Google Play use
-    // separate IDs; leave null if the plan is admin-only.
+
+    // Legacy store-side product IDs from the original IAP integration. Kept on the schema so
+    // existing rows don't break, but no code path reads them in the Stripe-direct model.
     public string? AppleProductId { get; set; }
     public string? GoogleProductId { get; set; }
+
+    // Stripe Price ID for the App-to-Web Checkout flow (e.g. "price_1Abc..."). Required for
+    // any plan that should be purchasable via the web checkout. Live and test modes have
+    // different IDs — keep environment overrides via user-secrets / env vars, not source.
+    public string? StripePriceId { get; set; }
+
+    public int DisplayOrder { get; set; }
+
     public bool IsActive { get; set; } = true;
 
     public ICollection<CompanySubscription> CompanySubscriptions { get; set; } = new List<CompanySubscription>();

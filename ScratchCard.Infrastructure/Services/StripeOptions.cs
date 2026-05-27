@@ -4,23 +4,22 @@ public class StripeOptions
 {
     /// <summary>
     /// Stripe secret API key (`sk_live_...` in production, `sk_test_...` for testing). Used to
-    /// create Checkout Sessions and look up customers. Never expose this to the mobile client.
+    /// create Checkout Sessions, manage subscriptions, and look up customers. Never expose this
+    /// to the mobile client.
     /// </summary>
     public string? SecretKey { get; set; }
 
     /// <summary>
-    /// Mapping from internal plan identifier (Starter / Growth / Pro) to the Stripe Price ID.
-    /// Stripe Checkout takes a Price ID, not a Product ID. Configure prices in the Stripe Dashboard
-    /// → Products, then paste their `price_...` IDs here.
-    ///
-    /// Example appsettings:
-    ///   "Stripe": {
-    ///     "PriceIds": {
-    ///       "Starter Monthly": "price_1Abc...",
-    ///       "Growth Monthly": "price_1Def...",
-    ///       "Pro Monthly": "price_1Ghi..."
-    ///     }
-    ///   }
+    /// Stripe webhook signing secret (`whsec_...`) from Stripe Dashboard → Developers → Webhooks →
+    /// click the endpoint → "Reveal" the signing secret. Required to verify that incoming webhook
+    /// events were genuinely sent by Stripe and not forged.
+    /// </summary>
+    public string? WebhookSecret { get; set; }
+
+    /// <summary>
+    /// Legacy plan-name → Price ID mapping. Kept as a fallback for any plan whose row does not
+    /// yet have <c>SubscriptionPlan.StripePriceId</c> set. New deployments should leave this
+    /// empty and configure price IDs on the plan rows instead.
     /// </summary>
     public Dictionary<string, string> PriceIds { get; set; } = new();
 
@@ -32,4 +31,10 @@ public class StripeOptions
 
     /// <summary>Where Stripe redirects when the user cancels.</summary>
     public string CancelUrl { get; set; } = "https://opsarrow.com/billing/cancel";
+
+    /// <summary>
+    /// Where Stripe redirects users after they finish managing billing in the Customer Portal.
+    /// Typically a small landing page that bounces them back to the mobile app via a deep link.
+    /// </summary>
+    public string PortalReturnUrl { get; set; } = "https://opsarrow.com/billing/portal-return";
 }

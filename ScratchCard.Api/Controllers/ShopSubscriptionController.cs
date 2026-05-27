@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Subscriptions;
 using ScratchCard.Infrastructure.Services;
+using Stripe;
 
 namespace ScratchCard.Api.Controllers;
 
@@ -13,16 +14,19 @@ public class ShopSubscriptionController : BaseApiController
 {
     private readonly IShopSubscriptionService _shopSubscriptionService;
     private readonly IBillingCheckoutService _billingCheckoutService;
-    private readonly RevenueCatOptions _revenueCatOptions;
+    private readonly StripeOptions _stripeOptions;
+    private readonly Microsoft.Extensions.Logging.ILogger<ShopSubscriptionController> _logger;
 
     public ShopSubscriptionController(
         IShopSubscriptionService shopSubscriptionService,
         IBillingCheckoutService billingCheckoutService,
-        IOptions<RevenueCatOptions> revenueCatOptions)
+        IOptions<StripeOptions> stripeOptions,
+        Microsoft.Extensions.Logging.ILogger<ShopSubscriptionController> logger)
     {
         _shopSubscriptionService = shopSubscriptionService;
         _billingCheckoutService = billingCheckoutService;
-        _revenueCatOptions = revenueCatOptions.Value;
+        _stripeOptions = stripeOptions.Value;
+        _logger = logger;
     }
 
     [HttpGet("summary")]
@@ -39,6 +43,29 @@ public class ShopSubscriptionController : BaseApiController
         return Success(result);
     }
 
+    /// <summary>
+    /// Idempotently creates the initial trial row for a shop. Mobile / shop-create flows call
+    /// this explicitly so a pure summary GET stays side-effect free.
+    /// </summary>
+    [HttpPost("ensure-trial")]
+    public async Task<IActionResult> EnsureTrial([FromBody] EnsureShopTrialRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _shopSubscriptionService.EnsureTrialAsync(request.ShopId, request.IntendedPlanId, cancellationToken);
+        return Success(result);
+    }
+
+    /// <summary>
+    /// Pulls the current subscription state from Stripe directly and applies it locally. Used
+    /// when a webhook was lost or when the user just completed checkout — the "Refresh
+    /// subscription status" button calls this so the local state catches up.
+    /// </summary>
+    [HttpPost("refresh-from-provider")]
+    public async Task<IActionResult> RefreshFromProvider([FromBody] RefreshFromProviderRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _shopSubscriptionService.RefreshFromProviderAsync(request.ShopId, cancellationToken);
+        return Success(result);
+    }
+
     [HttpPost("select-plan")]
     public async Task<IActionResult> SelectPlan([FromBody] SelectShopSubscriptionPlanRequest request, CancellationToken cancellationToken)
     {
@@ -46,17 +73,10 @@ public class ShopSubscriptionController : BaseApiController
         return Success(result);
     }
 
-    [HttpPost("iap-receipt")]
-    public async Task<IActionResult> RecordIapReceipt([FromBody] ShopIapReceiptRequest request, CancellationToken cancellationToken)
-    {
-        var result = await _shopSubscriptionService.RecordIapReceiptAsync(request, cancellationToken);
-        return Success(result);
-    }
-
     /// <summary>
     /// Creates a Stripe Checkout Session for the chosen shop + plan. The mobile app opens the
-    /// returned URL in the external browser; payment happens on stripe.com, and Stripe → RevenueCat
-    /// → /revenuecat-webhook activates the subscription.
+    /// returned URL in the external browser; payment happens on stripe.com, and a direct
+    /// Stripe webhook activates the subscription.
     /// </summary>
     [HttpPost("checkout-session")]
     public async Task<IActionResult> CreateCheckoutSession([FromBody] CreateBillingCheckoutRequest request, CancellationToken cancellationToken)
@@ -68,6 +88,18 @@ public class ShopSubscriptionController : BaseApiController
         }, cancellationToken);
 
         return Success(new BillingCheckoutResponse { Url = session.Url, Provider = session.Provider });
+    }
+
+    /// <summary>
+    /// Creates a Stripe Customer Portal session URL for the company that owns this shop. Mobile
+    /// opens it in the external browser so the owner can update card, cancel individual shop
+    /// subscriptions, view invoices, etc.
+    /// </summary>
+    [HttpPost("portal-session")]
+    public async Task<IActionResult> CreatePortalSession([FromBody] PortalSessionRequest request, CancellationToken cancellationToken)
+    {
+        var url = await _shopSubscriptionService.CreatePortalSessionAsync(request.ShopId, cancellationToken);
+        return Success(new BillingCheckoutResponse { Url = url, Provider = "stripe" });
     }
 
     [HttpPost("cancel")]
@@ -85,41 +117,131 @@ public class ShopSubscriptionController : BaseApiController
     }
 
     /// <summary>
-    /// Anonymous endpoint that RevenueCat calls when a subscription lifecycle event occurs.
-    /// Verifies the fixed Authorization header (configured in the RevenueCat dashboard) before
-    /// applying the event to the matching ShopSubscription.
+    /// Temporarily pauses a shop. Stripe is told to stop collecting (invoices marked
+    /// uncollectible during the pause). Shop is flagged inactive and gated to read-only access.
+    /// Owner can resume any time within 1 year; after that a background job auto-cancels.
     /// </summary>
-    [HttpPost("revenuecat-webhook")]
-    [AllowAnonymous]
-    public async Task<IActionResult> RevenueCatWebhook([FromBody] RevenueCatWebhookPayload payload, CancellationToken cancellationToken)
+    [HttpPost("pause")]
+    public async Task<IActionResult> Pause([FromBody] PauseShopSubscriptionRequest request, CancellationToken cancellationToken)
     {
-        var expected = _revenueCatOptions.WebhookAuthorization;
-        if (string.IsNullOrWhiteSpace(expected))
+        var result = await _shopSubscriptionService.PauseAsync(request.ShopId, cancellationToken);
+        return Success(result);
+    }
+
+    /// <summary>
+    /// Resumes a paused shop. Stripe billing picks back up on the next renewal date. If the
+    /// underlying Stripe subscription no longer exists (e.g. auto-cancelled by the 1-year
+    /// cap), this returns 409 with code subscription_expired and the mobile app should send
+    /// the owner to Choose Plan.
+    /// </summary>
+    [HttpPost("resume")]
+    public async Task<IActionResult> Resume([FromBody] ResumeShopSubscriptionRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _shopSubscriptionService.ResumeAsync(request.ShopId, cancellationToken);
+        return Success(result);
+    }
+
+    /// <summary>
+    /// Direct Stripe webhook endpoint. Verifies the Stripe-Signature header with the configured
+    /// WebhookSecret, then applies subscription / invoice events to the matching ShopSubscription.
+    /// Always returns 200 (or 401 on signature failure) — non-handled events are intentionally
+    /// ack'd so Stripe doesn't retry them indefinitely.
+    /// </summary>
+    [HttpPost("stripe-webhook")]
+    [AllowAnonymous]
+    public async Task<IActionResult> StripeWebhook(CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(_stripeOptions.WebhookSecret))
         {
-            // Refuse to accept webhooks when no secret is configured — fail closed.
+            _logger.LogWarning("Stripe webhook called but Stripe:WebhookSecret is not configured — refusing.");
             return Unauthorized();
         }
 
-        var provided = Request.Headers["Authorization"].ToString();
-        if (!CryptographicallyEqual(provided, expected))
+        string body;
+        using (var reader = new StreamReader(Request.Body))
         {
+            body = await reader.ReadToEndAsync(cancellationToken);
+        }
+
+        Event stripeEvent;
+        try
+        {
+            var signature = Request.Headers["Stripe-Signature"].ToString();
+            stripeEvent = EventUtility.ConstructEvent(body, signature, _stripeOptions.WebhookSecret);
+        }
+        catch (StripeException ex)
+        {
+            _logger.LogWarning(ex, "Stripe webhook signature verification failed.");
             return Unauthorized();
         }
 
-        if (payload.Event is null)
+        var handledTypes = new HashSet<string>
         {
+            "customer.subscription.created",
+            "customer.subscription.updated",
+            "customer.subscription.deleted",
+            "customer.subscription.paused",
+            "customer.subscription.resumed",
+            "invoice.payment_succeeded",
+            "invoice.payment_failed",
+        };
+
+        if (!handledTypes.Contains(stripeEvent.Type))
+        {
+            // Acknowledge but don't act; lots of unrelated events flow on the same endpoint.
+            _logger.LogDebug("Stripe webhook: ignoring event {EventType} ({EventId}).", stripeEvent.Type, stripeEvent.Id);
             return Success(true);
         }
 
-        await _shopSubscriptionService.ApplyRevenueCatEventAsync(payload.Event, cancellationToken);
+        // For invoice.* events the relevant subscription id lives on the Invoice; for
+        // subscription.* events the object IS the subscription. Either way we re-fetch by id
+        // so we get a consistent canonical snapshot rather than relying on partial event data.
+        var subscriptionId = ExtractSubscriptionId(stripeEvent.Data.Object);
+
+        if (string.IsNullOrWhiteSpace(subscriptionId))
+        {
+            _logger.LogWarning(
+                "Stripe webhook {EventType} ({EventId}) had no resolvable subscription id; ignoring.",
+                stripeEvent.Type, stripeEvent.Id);
+            return Success(true);
+        }
+
+        var snapshot = await _billingCheckoutService.GetSubscriptionAsync(subscriptionId, cancellationToken);
+        if (snapshot is null)
+        {
+            _logger.LogWarning(
+                "Stripe webhook {EventType} ({EventId}): GetSubscriptionAsync returned null for {SubId}.",
+                stripeEvent.Type, stripeEvent.Id, subscriptionId);
+            return Success(true);
+        }
+
+        await _shopSubscriptionService.ApplyStripeSubscriptionEventAsync(stripeEvent.Type, snapshot, cancellationToken);
         return Success(true);
     }
 
-    private static bool CryptographicallyEqual(string a, string b)
+    /// <summary>
+    /// Pulls the Stripe subscription id out of whichever event payload shape Stripe used. For
+    /// `customer.subscription.*` the data object IS the subscription. For `invoice.*` the
+    /// subscription id is exposed on the invoice's line items in newer Stripe.net versions.
+    /// </summary>
+    private static string? ExtractSubscriptionId(object? data)
     {
-        if (a is null || b is null) return false;
-        var bytesA = System.Text.Encoding.UTF8.GetBytes(a);
-        var bytesB = System.Text.Encoding.UTF8.GetBytes(b);
-        return System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(bytesA, bytesB);
+        switch (data)
+        {
+            case Stripe.Subscription sub:
+                return sub.Id;
+            case Stripe.Invoice inv:
+                // Newer Stripe.net surfaces the subscription id via the line item's parent.
+                // Walk the lines defensively — different invoice shapes (one-off, subscription
+                // renewal, prorated) carry the id in slightly different places.
+                foreach (var line in inv.Lines?.Data ?? [])
+                {
+                    var subId = line.Parent?.SubscriptionItemDetails?.Subscription;
+                    if (!string.IsNullOrWhiteSpace(subId)) return subId;
+                }
+                return null;
+            default:
+                return null;
+        }
     }
 }

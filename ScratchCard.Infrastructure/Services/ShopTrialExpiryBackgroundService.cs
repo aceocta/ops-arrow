@@ -6,12 +6,19 @@ using ScratchCard.Application.Common.Services;
 namespace ScratchCard.Infrastructure.Services;
 
 /// <summary>
-/// Periodically flips ShopSubscription rows whose trial has ended from TrialActive to TrialExpired.
-/// Runs on a fixed interval (default 15 minutes) so a shop is gated within minutes of trial end.
+/// Periodic subscription state sweeps:
+/// <list type="bullet">
+///   <item>Flip ShopSubscription rows whose trial has ended from TrialActive to TrialExpired.</item>
+///   <item>Send the 11-month heads-up email and auto-cancel paused shops past the 1-year cap.</item>
+/// </list>
+/// Trial sweep runs every 15 minutes so gating kicks in promptly. Pause-cap sweep runs once
+/// every 24h — its job is daily-grained anyway and we don't want to spam owner inboxes with
+/// retries if a single transient email failure happens.
 /// </summary>
 public sealed class ShopTrialExpiryBackgroundService : BackgroundService
 {
-    private static readonly TimeSpan Interval = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan TrialInterval = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan PauseCapInterval = TimeSpan.FromHours(24);
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<ShopTrialExpiryBackgroundService> _logger;
@@ -28,6 +35,8 @@ public sealed class ShopTrialExpiryBackgroundService : BackgroundService
         try { await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken); }
         catch (OperationCanceledException) { return; }
 
+        var lastPauseCapSweep = DateTimeOffset.MinValue;
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -35,14 +44,20 @@ public sealed class ShopTrialExpiryBackgroundService : BackgroundService
                 using var scope = _scopeFactory.CreateScope();
                 var service = scope.ServiceProvider.GetRequiredService<IShopSubscriptionService>();
                 await service.ProcessTrialExpiriesAsync(stoppingToken);
+
+                if (DateTimeOffset.UtcNow - lastPauseCapSweep >= PauseCapInterval)
+                {
+                    await service.ProcessPauseCapAsync(stoppingToken);
+                    lastPauseCapSweep = DateTimeOffset.UtcNow;
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Shop trial expiry sweep failed.");
+                _logger.LogError(ex, "Shop subscription sweep failed.");
             }
 
-            try { await Task.Delay(Interval, stoppingToken); }
+            try { await Task.Delay(TrialInterval, stoppingToken); }
             catch (OperationCanceledException) { break; }
         }
     }

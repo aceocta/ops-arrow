@@ -1,5 +1,5 @@
 import * as WebBrowser from "expo-web-browser";
-import { createBillingCheckoutSession } from "../../api/subscriptionApi";
+import { createBillingCheckoutSession, refreshShopSubscriptionFromProvider } from "../../api/subscriptionApi";
 import { reportError } from "../../utils/crashReporter";
 import { track } from "../../utils/analytics";
 
@@ -57,15 +57,23 @@ export async function startBillingCheckout(args: { shopId: string; planId: strin
 }
 
 /**
- * "Restore" in the App-to-Web model means asking the backend to recheck entitlements. The actual
- * subscription is on the web; there's nothing to restore from the device's IAP wallet.
+ * "Restore" in the App-to-Web model: ask the backend to re-pull this shop's subscription state
+ * from RevenueCat REST and reconcile it locally. Used by the "Refresh subscription status"
+ * link as a recovery path when a webhook was missed, or just after the user returns from
+ * Stripe Checkout in the external browser and the entitlement isn't visible yet.
  *
- * Callers should also invalidate ["shop-subscription-summary"] and ["shop-entitlements"]
- * queries so the UI flips immediately.
+ * Callers should still invalidate ["shop-subscription-summary"] and ["shop-entitlements"]
+ * after this resolves so React Query picks up the new state.
  */
-export async function refreshEntitlementsFromBackend(): Promise<StartCheckoutResult> {
-  // No-op on this layer. Entitlement freshness is owned by React Query (useEntitlements) and
-  // the foreground-refresh effect on mobile. Kept here so existing callers can stay symmetrical
-  // with previous "restore" call sites.
-  return { ok: true };
+export async function refreshEntitlementsFromBackend(args: { shopId: string }): Promise<StartCheckoutResult> {
+  try {
+    await refreshShopSubscriptionFromProvider(args.shopId);
+    return { ok: true };
+  } catch (error: any) {
+    reportError(error, { phase: "refresh-entitlements", shopId: args.shopId });
+    return {
+      ok: false,
+      message: error?.response?.data?.message ?? error?.message ?? "Unable to refresh subscription.",
+    };
+  }
 }

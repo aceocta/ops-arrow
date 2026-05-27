@@ -19,6 +19,11 @@ public class Company : AuditableEntity
     public bool IsActive { get; set; } = true;
     public bool IsDeleted { get; set; }
 
+    // One Stripe Customer per company; all of this company's shop subscriptions are billed
+    // against the same saved card. Lazy-created on the first checkout, persisted so subsequent
+    // shops reuse it without forcing the owner to re-enter card details.
+    public string? StripeCustomerId { get; set; }
+
     public User? OwnerUser { get; set; }
     public ICollection<Shop> Shops { get; set; } = new List<Shop>();
     public ICollection<CompanySubscription> Subscriptions { get; set; } = new List<CompanySubscription>();

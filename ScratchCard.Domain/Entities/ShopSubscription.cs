@@ -17,10 +17,31 @@ public class ShopSubscription : AuditableEntity
     public DateTimeOffset? CurrentPeriodEndsOn { get; set; }
     public DateTimeOffset? CancelledOn { get; set; }
     public bool CancelAtPeriodEnd { get; set; }
+
+    // Pause / resume metadata. Owner-triggered pause (Stripe pause_collection); resumes can be
+    // either owner-triggered or background-auto-cancel after the 1-year cap. PausedOn drives
+    // both the cap calculation and the "11-month heads-up" notification window.
+    public DateTimeOffset? PausedOn { get; set; }
+    public DateTimeOffset? ResumedOn { get; set; }
+    /// <summary>
+    /// Set when we've emailed the company owner about the pending 1-year auto-cancel. Null
+    /// while no warning is needed (either not paused or still well inside the cap). Resets to
+    /// null on resume so a subsequent pause cycle gets a fresh warning.
+    /// </summary>
+    public DateTimeOffset? PauseCapWarningSentOn { get; set; }
+
+    // Generic provider fields kept for backwards compatibility with the IAP code path.
     public string? PaymentProvider { get; set; }
     public string? ProviderProductId { get; set; }
     public string? ProviderSubscriptionId { get; set; }
     public string? ProviderOriginalTransactionId { get; set; }
+
+    // Dedicated Stripe identifiers so we can reconcile webhook events and call Stripe's
+    // management APIs (cancel / reactivate / portal) without depending on RevenueCat
+    // metadata. Populated when the RevenueCat webhook surfaces them or by a direct
+    // Stripe webhook in future.
+    public string? StripeCustomerId { get; set; }
+    public string? StripeSubscriptionId { get; set; }
 
     public Shop Shop { get; set; } = null!;
     public Company Company { get; set; } = null!;
