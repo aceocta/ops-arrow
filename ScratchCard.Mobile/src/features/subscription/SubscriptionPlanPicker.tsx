@@ -109,12 +109,9 @@ export function SubscriptionPlanPicker({ value, onChange, disabled, label = "Sub
 
               {plan.includedFeatures && plan.includedFeatures.length > 0 ? (
                 <View style={styles.featuresList}>
-                  {plan.includedFeatures.slice(0, 8).map((feature) => (
+                  {plan.includedFeatures.map((feature) => (
                     <Text key={feature} style={styles.featureBullet}>• {formatFeatureLabel(feature)}</Text>
                   ))}
-                  {plan.includedFeatures.length > 8 ? (
-                    <Text style={styles.featureBullet}>• and {plan.includedFeatures.length - 8} more...</Text>
-                  ) : null}
                 </View>
               ) : null}
             </Pressable>
