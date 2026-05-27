@@ -57,8 +57,6 @@ public class ComplianceCheckService : IComplianceCheckService
         ComplianceCheckFrequency? frequency = null,
         CancellationToken cancellationToken = default)
     {
-        await EnsureDefaultTemplateAsync(shopId, cancellationToken);
-
         var query = _groupRepository.Query()
             .AsNoTracking()
             .Include(x => x.Items)
@@ -260,8 +258,6 @@ public class ComplianceCheckService : IComplianceCheckService
         ComplianceCheckFrequency? frequency = null,
         CancellationToken cancellationToken = default)
     {
-        await EnsureDefaultTemplateAsync(shopId, cancellationToken);
-
         var query = _itemRepository.Query()
             .AsNoTracking()
             .Include(x => x.ComplianceCheckGroup)
@@ -469,8 +465,6 @@ public class ComplianceCheckService : IComplianceCheckService
         DateOnly date,
         CancellationToken cancellationToken = default)
     {
-        await EnsureDefaultTemplateAsync(shopId, cancellationToken);
-
         var normalizedFrequency = NormalizeFrequency(frequency);
         var period = NormalizePeriod(date, normalizedFrequency);
 
@@ -895,240 +889,6 @@ public class ComplianceCheckService : IComplianceCheckService
             .ToArray();
     }
 
-    private async Task EnsureDefaultTemplateAsync(Guid shopId, CancellationToken cancellationToken)
-    {
-        var defaults = BuildDefaultTemplateDefinitions();
-        if (defaults.Length == 0)
-        {
-            return;
-        }
-
-        var existingGroups = await _groupRepository.Query()
-            .Where(x => x.ShopId == shopId && !x.IsDeleted)
-            .ToListAsync(cancellationToken);
-
-        var existingItems = await _itemRepository.Query()
-            .Where(x => x.ShopId == shopId && !x.IsDeleted)
-            .ToListAsync(cancellationToken);
-
-        var now = DateTimeOffset.UtcNow;
-        var createdBy = _currentUserService.UserId;
-
-        if (existingGroups.Count == 0 && existingItems.Count == 0)
-        {
-            var template = BuildTemplate(shopId, defaults, now, createdBy);
-            await _groupRepository.AddRangeAsync(template.Groups, cancellationToken);
-            await _itemRepository.AddRangeAsync(template.Items, cancellationToken);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return;
-        }
-
-        var groupKeys = existingGroups
-            .Select(x => BuildGroupKey(x.Frequency, x.GroupName))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var defaultsByGroup = defaults
-            .GroupBy(x => BuildGroupKey(x.Frequency, x.GroupName))
-            .ToDictionary(x => x.Key, x => x.First(), StringComparer.OrdinalIgnoreCase);
-
-        var nextOrderByFrequency = existingGroups
-            .GroupBy(x => x.Frequency)
-            .ToDictionary(x => x.Key, x => x.Max(group => group.DisplayOrder) + 1);
-
-        var groupsToCreate = new List<ComplianceCheckGroup>();
-        foreach (var defaultGroup in defaultsByGroup.Values.OrderBy(x => x.Frequency).ThenBy(x => x.GroupSeedOrder))
-        {
-            var key = BuildGroupKey(defaultGroup.Frequency, defaultGroup.GroupName);
-            if (groupKeys.Contains(key))
-            {
-                continue;
-            }
-
-            var nextOrder = nextOrderByFrequency.TryGetValue(defaultGroup.Frequency, out var value) ? value : 1;
-            nextOrderByFrequency[defaultGroup.Frequency] = nextOrder + 1;
-
-            var newGroup = new ComplianceCheckGroup
-            {
-                ShopId = shopId,
-                Frequency = defaultGroup.Frequency,
-                GroupName = defaultGroup.GroupName,
-                DisplayOrder = nextOrder,
-                IsActive = true,
-                IsSystemDefault = true,
-                CreatedOn = now,
-                CreatedBy = createdBy
-            };
-
-            groupsToCreate.Add(newGroup);
-            groupKeys.Add(key);
-        }
-
-        if (groupsToCreate.Count > 0)
-        {
-            await _groupRepository.AddRangeAsync(groupsToCreate, cancellationToken);
-            existingGroups.AddRange(groupsToCreate);
-        }
-
-        var groupLookup = existingGroups
-            .GroupBy(x => BuildGroupKey(x.Frequency, x.GroupName), StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(x => x.Key, x => x.First(), StringComparer.OrdinalIgnoreCase);
-
-        var groupById = existingGroups.ToDictionary(x => x.Id, x => x);
-        var itemKeys = existingItems
-            .Select(x =>
-            {
-                if (!groupById.TryGetValue(x.ComplianceCheckGroupId, out var group))
-                {
-                    return string.Empty;
-                }
-
-                return BuildItemKey(group.Frequency, group.GroupName, x.ItemName);
-            })
-            .Where(x => x.Length > 0)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var nextOrderByGroup = existingItems
-            .GroupBy(x => x.ComplianceCheckGroupId)
-            .ToDictionary(x => x.Key, x => x.Max(item => item.DisplayOrder) + 1);
-
-        var itemsToCreate = new List<ComplianceCheckItem>();
-        foreach (var definition in defaults.OrderBy(x => x.Frequency).ThenBy(x => x.GroupSeedOrder).ThenBy(x => x.ItemSeedOrder))
-        {
-            var key = BuildItemKey(definition.Frequency, definition.GroupName, definition.ItemName);
-            if (itemKeys.Contains(key))
-            {
-                continue;
-            }
-
-            var groupKey = BuildGroupKey(definition.Frequency, definition.GroupName);
-            if (!groupLookup.TryGetValue(groupKey, out var group))
-            {
-                continue;
-            }
-
-            var nextOrder = nextOrderByGroup.TryGetValue(group.Id, out var value) ? value : 1;
-            nextOrderByGroup[group.Id] = nextOrder + 1;
-
-            itemsToCreate.Add(new ComplianceCheckItem
-            {
-                ShopId = shopId,
-                ComplianceCheckGroupId = group.Id,
-                Frequency = definition.Frequency,
-                ItemName = definition.ItemName,
-                Description = definition.Description,
-                DisplayOrder = nextOrder,
-                IsRequired = definition.IsRequired,
-                IsActive = true,
-                IsSystemDefault = true,
-                CreatedOn = now,
-                CreatedBy = createdBy
-            });
-        }
-
-        if (itemsToCreate.Count == 0 && groupsToCreate.Count == 0)
-        {
-            return;
-        }
-
-        if (itemsToCreate.Count > 0)
-        {
-            await _itemRepository.AddRangeAsync(itemsToCreate, cancellationToken);
-        }
-
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-    }
-
-    private static ComplianceTemplate BuildTemplate(
-        Guid shopId,
-        IReadOnlyCollection<ComplianceTemplateItem> definitions,
-        DateTimeOffset now,
-        Guid? createdBy)
-    {
-        var groups = new List<ComplianceCheckGroup>();
-        var items = new List<ComplianceCheckItem>();
-        var groupOrderByFrequency = new Dictionary<ComplianceCheckFrequency, int>();
-        var groupLookup = new Dictionary<string, ComplianceCheckGroup>(StringComparer.OrdinalIgnoreCase);
-        var itemOrderByGroup = new Dictionary<Guid, int>();
-
-        foreach (var definition in definitions.OrderBy(x => x.Frequency).ThenBy(x => x.GroupSeedOrder).ThenBy(x => x.ItemSeedOrder))
-        {
-            var groupKey = BuildGroupKey(definition.Frequency, definition.GroupName);
-            if (!groupLookup.TryGetValue(groupKey, out var group))
-            {
-                var nextGroupOrder = groupOrderByFrequency.TryGetValue(definition.Frequency, out var value) ? value : 1;
-                groupOrderByFrequency[definition.Frequency] = nextGroupOrder + 1;
-
-                group = new ComplianceCheckGroup
-                {
-                    ShopId = shopId,
-                    Frequency = definition.Frequency,
-                    GroupName = definition.GroupName,
-                    DisplayOrder = nextGroupOrder,
-                    IsActive = true,
-                    IsSystemDefault = true,
-                    CreatedOn = now,
-                    CreatedBy = createdBy
-                };
-                groups.Add(group);
-                groupLookup[groupKey] = group;
-            }
-
-            var nextItemOrder = itemOrderByGroup.TryGetValue(group.Id, out var itemOrder) ? itemOrder : 1;
-            itemOrderByGroup[group.Id] = nextItemOrder + 1;
-
-            items.Add(new ComplianceCheckItem
-            {
-                ShopId = shopId,
-                ComplianceCheckGroupId = group.Id,
-                Frequency = definition.Frequency,
-                ItemName = definition.ItemName,
-                Description = definition.Description,
-                DisplayOrder = nextItemOrder,
-                IsRequired = definition.IsRequired,
-                IsActive = true,
-                IsSystemDefault = true,
-                CreatedOn = now,
-                CreatedBy = createdBy
-            });
-        }
-
-        return new ComplianceTemplate(groups.ToArray(), items.ToArray());
-    }
-
-    private static ComplianceTemplateItem[] BuildDefaultTemplateDefinitions()
-    {
-        var groupOrderByKey = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        var nextGroupOrderByFrequency = new Dictionary<ComplianceCheckFrequency, int>();
-        var itemOrderByGroupKey = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-
-        var result = new List<ComplianceTemplateItem>(ComplianceCheckSeedDefaults.Definitions.Count);
-        foreach (var definition in ComplianceCheckSeedDefaults.Definitions)
-        {
-            var groupKey = BuildGroupKey(definition.Frequency, definition.GroupName);
-            if (!groupOrderByKey.TryGetValue(groupKey, out var groupOrder))
-            {
-                var nextOrder = nextGroupOrderByFrequency.TryGetValue(definition.Frequency, out var value) ? value : 1;
-                nextGroupOrderByFrequency[definition.Frequency] = nextOrder + 1;
-                groupOrder = nextOrder;
-                groupOrderByKey[groupKey] = groupOrder;
-            }
-
-            var itemOrder = itemOrderByGroupKey.TryGetValue(groupKey, out var valueOrder) ? valueOrder : 1;
-            itemOrderByGroupKey[groupKey] = itemOrder + 1;
-
-            result.Add(new ComplianceTemplateItem(
-                definition.Frequency,
-                definition.GroupName,
-                definition.ItemName,
-                definition.Description,
-                definition.IsRequired,
-                groupOrder,
-                itemOrder));
-        }
-
-        return result.ToArray();
-    }
-
     private static ComplianceCheckFrequency NormalizeFrequency(ComplianceCheckFrequency frequency)
     {
         if (!Enum.IsDefined(frequency))
@@ -1253,16 +1013,6 @@ public class ComplianceCheckService : IComplianceCheckService
     private static int GetMondayOffset(DayOfWeek dayOfWeek)
     {
         return dayOfWeek == DayOfWeek.Sunday ? 6 : (int)dayOfWeek - 1;
-    }
-
-    private static string BuildGroupKey(ComplianceCheckFrequency frequency, string groupName)
-    {
-        return $"{frequency}:{groupName.Trim()}";
-    }
-
-    private static string BuildItemKey(ComplianceCheckFrequency frequency, string groupName, string itemName)
-    {
-        return $"{frequency}:{groupName.Trim()}:{itemName.Trim()}";
     }
 
     private static ComplianceCheckEntry CreateEntryEntity(ComplianceCheckFrequency frequency)
@@ -1467,18 +1217,6 @@ public class ComplianceCheckService : IComplianceCheckService
         };
     }
 
-    private sealed record ComplianceTemplate(
-        ComplianceCheckGroup[] Groups,
-        ComplianceCheckItem[] Items);
-
-    private sealed record ComplianceTemplateItem(
-        ComplianceCheckFrequency Frequency,
-        string GroupName,
-        string ItemName,
-        string? Description,
-        bool IsRequired,
-        int GroupSeedOrder,
-        int ItemSeedOrder);
 }
 
 
