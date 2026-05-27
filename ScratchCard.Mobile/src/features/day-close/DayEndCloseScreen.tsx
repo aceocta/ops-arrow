@@ -1154,17 +1154,23 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     queryKey: ["day-shift-sales-totals", businessDayId, shiftIdsKey],
     queryFn: async () => {
       if (shiftIds.length === 0) {
-        return {} as Record<string, number>;
+        return {} as Record<string, { amount: number; soldQuantity: number }>;
       }
 
       const entries = await Promise.all(
         shifts.map(async (shift) => {
           try {
             const sales = await getShiftSales(shift.id);
-            const total = sales.reduce((sum, entry) => sum + Number(entry.salesAmount ?? 0), 0);
-            return [shift.id, total] as const;
+            const totals = sales.reduce(
+              (acc, entry) => ({
+                amount: acc.amount + Number(entry.salesAmount ?? 0),
+                soldQuantity: acc.soldQuantity + Number(entry.soldQuantity ?? 0),
+              }),
+              { amount: 0, soldQuantity: 0 },
+            );
+            return [shift.id, totals] as const;
           } catch {
-            return [shift.id, 0] as const;
+            return [shift.id, { amount: 0, soldQuantity: 0 }] as const;
           }
         }),
       );
@@ -1201,6 +1207,29 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   const scratchCardPayout = displayScratchCardPayout;
   const tillPayout = displayTillPayout;
   const summaryTotalSales = closedShiftIds.length === 0 ? 0 : Number(closedShiftSalesQuery.data ?? 0);
+  // Aggregate scratch-card sales across every shift on this business day for the new Scratch
+  // Card Summary section. Pulled from the shift-level totals query so the numbers always
+  // match the per-shift cards in the list above.
+  const scratchCardShiftBreakdown = useMemo(() => {
+    return shifts.map((shift) => {
+      const totals = shiftSalesTotalsQuery.data?.[shift.id];
+      return {
+        shiftId: shift.id,
+        shiftName: shift.shiftName,
+        soldQuantity: totals?.soldQuantity ?? 0,
+        amount: totals?.amount ?? 0,
+      };
+    });
+  }, [shifts, shiftSalesTotalsQuery.data]);
+  const scratchCardDayTotals = useMemo(() => {
+    return scratchCardShiftBreakdown.reduce(
+      (acc, row) => ({
+        soldQuantity: acc.soldQuantity + row.soldQuantity,
+        amount: acc.amount + row.amount,
+      }),
+      { soldQuantity: 0, amount: 0 },
+    );
+  }, [scratchCardShiftBreakdown]);
   const tillPayoutVariance =
     tillPayout != null && lotteryMachinePayout != null && scratchCardPayout != null
       ? tillPayout - (lotteryMachinePayout + scratchCardPayout)
@@ -1777,8 +1806,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             const canStartScheduledShift = shift.status === ShiftStatus.Scheduled;
             const isClosedShift = closedSummaryStatuses.has(shift.status);
             const isOpenShift = shift.status === ShiftStatus.Open || shift.status === ShiftStatus.Reopened;
-            const shiftSalesTotal = shiftSalesTotalsQuery.data?.[shift.id];
-            const salesIsLoading = isClosedShift && shiftSalesTotal == null;
+            const shiftSalesTotals = shiftSalesTotalsQuery.data?.[shift.id];
+            const shiftSalesTotal = shiftSalesTotals?.amount;
+            const salesIsLoading = isClosedShift && shiftSalesTotals == null;
             const displayWindow = shiftDisplayWindowById[shift.id];
             const displayStart = displayWindow?.start ?? new Date(shift.startTime);
             const displayEnd = displayWindow?.end;
@@ -1901,6 +1931,44 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           }) : null}
         </View>
 
+                <View style={[ui.card, styles.sectionCard]}>
+          <SectionHeader title="Scratch Card Summary" icon="albums-outline" />
+          {hasTillPayoutVariance ? (
+            <View
+              style={[
+                styles.varianceHeroTile,
+                (tillPayoutVariance ?? 0) < 0 ? styles.varianceHeroTileNegative : styles.varianceHeroTilePositive,
+              ]}
+              accessibilityRole="summary"
+              accessibilityLabel={`Cash ${(tillPayoutVariance ?? 0) < 0 ? "short" : "over"} by ${tillPayoutVarianceText}`}
+            >
+              <Text style={styles.varianceHeroLabel}>
+                {(tillPayoutVariance ?? 0) < 0 ? "CASH SHORT" : "CASH OVER"}
+              </Text>
+              <Text style={styles.varianceHeroValue}>{tillPayoutVarianceText}</Text>
+              <Text style={styles.varianceHeroHint}>
+                Till payout vs. lotto + scratch-card payouts.
+              </Text>
+            </View>
+          ) : null}
+          <KpiGrid columns={2}>
+            <KpiTile label="Sold Qty" value={scratchCardDayTotals.soldQuantity} />
+            <KpiTile label="Sales Amount" value={formatCurrency(scratchCardDayTotals.amount)} />
+          </KpiGrid>
+          {scratchCardShiftBreakdown.length > 0 ? (
+            <View style={styles.shiftBreakdownList}>
+              {scratchCardShiftBreakdown.map((row) => (
+                <View key={row.shiftId} style={styles.shiftBreakdownRow}>
+                  <Text style={styles.shiftBreakdownName} numberOfLines={1}>{row.shiftName}</Text>
+                  <Text style={styles.shiftBreakdownMeta} numberOfLines={1}>
+                    {row.soldQuantity} sold · {formatCurrency(row.amount)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </View>
+
         {isSafeDropManagementVisible ? (
           <Pressable
             onPress={() => {
@@ -1919,6 +1987,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               pressed ? styles.sectionCardPressed : null,
             ]}
           >
+
+            
             <SectionHeader
               title="Safe Drops"
               icon="lock-closed-outline"
@@ -1932,68 +2002,21 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 </>
               }
             />
-            {canisterDropsQuery.isFetching ? (
+            {visibleCanisterDrops.length > 0 ? (
+              <KpiGrid columns={2}>
+                <KpiTile label="Drops" value={visibleCanisterDrops.length} />
+                <KpiTile label="Total" value={formatCurrency(safeDropTotal)} />
+              </KpiGrid>
+            ) : null}
+            {canisterDropsQuery.isFetching && visibleCanisterDrops.length === 0 ? (
               <Text style={styles.meta}>Loading safe drops...</Text>
-            ) : visibleCanisterDrops.length > 0 ? (
-              <View style={styles.safeDropCompactList}>
-                {visibleCanisterDrops.map((drop) => {
-                  const isPending = drop.approvalStatus === "Pending";
-                  const isRejected = drop.approvalStatus === "Rejected";
-                  const droppedTime = new Date(drop.droppedOn);
-                  const droppedTimeLabel = Number.isNaN(droppedTime.getTime())
-                    ? "—"
-                    : formatShiftDateTimeCompact(droppedTime);
-                  const accentColor = isPending
-                    ? appTheme.colors.warning
-                    : isRejected
-                      ? appTheme.colors.danger
-                      : appTheme.colors.success;
-                  return (
-                    <View key={drop.id} style={styles.safeDropCompactRow}>
-                      <View style={[styles.safeDropCompactAccent, { backgroundColor: accentColor }]} />
-                      <View style={styles.safeDropCompactBody}>
-                        <View style={styles.safeDropCompactLine}>
-                          <Text style={styles.safeDropCompactPrimary} numberOfLines={1}>
-                            {droppedTimeLabel} · #{drop.canisterNumber}
-                          </Text>
-                          <Text style={styles.safeDropCompactAmount}>{formatCurrency(drop.amount)}</Text>
-                        </View>
-                        {isRejected && drop.approvalNotes ? (
-                          <Text style={styles.safeDropCompactReason} numberOfLines={1}>
-                            Rejected: {drop.approvalNotes}
-                          </Text>
-                        ) : null}
-                      </View>
-                      {isPending && canViewAllSafeDrops ? (
-                        <Pressable
-                          style={({ pressed }) => [
-                            styles.safeDropCompactApprove,
-                            pressed ? styles.safeDropApproveButtonPressed : null,
-                            approveDropMutation.isPending ? styles.safeDropApproveButtonDisabled : null,
-                          ]}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Approve safe drop ${drop.canisterNumber} for ${formatCurrency(drop.amount)}`}
-                          onPress={() => {
-                            haptics.success();
-                            approveDropMutation.mutate(drop.id);
-                          }}
-                          disabled={approveDropMutation.isPending}
-                        >
-                          <Ionicons name="checkmark" size={14} color={appTheme.colors.primary} />
-                          <Text style={styles.safeDropCompactApproveText}>Approve</Text>
-                        </Pressable>
-                      ) : null}
-                    </View>
-                  );
-                })}
-              </View>
-            ) : (
+            ) : visibleCanisterDrops.length === 0 ? (
               <Text style={styles.meta}>
                 {canViewAllSafeDrops
                   ? "No safe drops recorded for this day."
                   : "No safe drops recorded by you for this day."}
               </Text>
-            )}
+            ) : null}
           </Pressable>
         ) : null}
 
@@ -2013,7 +2036,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               icon="thermometer-outline"
               right={
                 <>
-                  <StatusBadge
+                  {/* <StatusBadge
                     label={
                       temperatureSummary.outOfRange > 0
                         ? `${temperatureSummary.outOfRange} out of range`
@@ -2033,7 +2056,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                             : "neutral"
                     }
                   />
-                  <Ionicons name="chevron-forward" size={18} color={appTheme.colors.textSubtle} />
+                  <Ionicons name="chevron-forward" size={18} color={appTheme.colors.textSubtle} /> */}
                 </>
               }
             />
@@ -2102,33 +2125,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           </View>
         ) : null}
 
-        <View style={[ui.card, styles.sectionCard]}>
-          <SectionHeader title="Financial Summary" icon="stats-chart-outline" />
-          {hasTillPayoutVariance ? (
-            <View
-              style={[
-                styles.varianceHeroTile,
-                (tillPayoutVariance ?? 0) < 0 ? styles.varianceHeroTileNegative : styles.varianceHeroTilePositive,
-              ]}
-              accessibilityRole="summary"
-              accessibilityLabel={`Cash ${(tillPayoutVariance ?? 0) < 0 ? "short" : "over"} by ${tillPayoutVarianceText}`}
-            >
-              <Text style={styles.varianceHeroLabel}>
-                {(tillPayoutVariance ?? 0) < 0 ? "CASH SHORT" : "CASH OVER"}
-              </Text>
-              <Text style={styles.varianceHeroValue}>{tillPayoutVarianceText}</Text>
-              <Text style={styles.varianceHeroHint}>
-                Till payout vs. lotto + scratch-card payouts.
-              </Text>
-            </View>
-          ) : null}
-          <KpiGrid columns={2}>
-            <KpiTile label="Scratch Card Sales" value={formatCurrency(summaryTotalSales)} />
-            {isSafeDropManagementVisible ? (
-              <KpiTile label="Safe Drop Total" value={formatCurrency(safeDropTotal)} />
-            ) : null}
-          </KpiGrid>
-        </View>
+
 
         {persistedDayAttachments.length > 0 ? (
           <View style={[ui.card, styles.sectionCard]}>
@@ -4177,6 +4174,32 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.body,
     fontSize: 13,
     lineHeight: 17,
+  },
+  shiftBreakdownList: {
+    gap: 6,
+    marginTop: 2,
+  },
+  shiftBreakdownRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: appTheme.colors.borderSoft,
+  },
+  shiftBreakdownName: {
+    flex: 1,
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 17,
+  },
+  shiftBreakdownMeta: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
   },
   varianceHeroTile: {
     borderRadius: appTheme.radius.md,
