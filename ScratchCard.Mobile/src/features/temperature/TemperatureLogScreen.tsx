@@ -18,7 +18,7 @@ import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
 function formatTemperature(value: number) {
-  return `${value.toFixed(1)} C`;
+  return `${value.toFixed(1)}°C`;
 }
 
 function readingStatusTone(isOutOfRange: boolean): "success" | "danger" {
@@ -28,6 +28,27 @@ function readingStatusTone(isOutOfRange: boolean): "success" | "danger" {
 function isOutOfRangeTemperature(temperature: number, min: number, max: number) {
   return temperature < min || temperature > max;
 }
+
+// Produces "+4.4° over" or "−1.2° below" so a glance at a row tells the reader how far
+// outside the safe band the reading actually was — the raw "Out of range" badge alone
+// doesn't communicate severity.
+function formatOutOfRangeDelta(temperature: number, min: number, max: number): string {
+  if (temperature > max) {
+    const diff = temperature - max;
+    return `+${diff.toFixed(1)}° over`;
+  }
+  if (temperature < min) {
+    const diff = min - temperature;
+    return `−${diff.toFixed(1)}° below`;
+  }
+  return "";
+}
+
+function isSameDateValue(a: string, b: string) {
+  return a === b;
+}
+
+type DailyFilter = "all" | "pending" | "outOfRange";
 
 function buildDefaultInitials(firstName?: string, lastName?: string, email?: string, displayName?: string) {
   const resolvedName = (displayName ?? `${firstName ?? ""} ${lastName ?? ""}`).trim();
@@ -74,6 +95,10 @@ export function TemperatureLogScreen() {
   const [textEditorField, setTextEditorField] = useState<"notes" | "action" | null>(null);
   const [textEditorValue, setTextEditorValue] = useState("");
   const [isLogEntryModalVisible, setIsLogEntryModalVisible] = useState(false);
+  const [dailyFilter, setDailyFilter] = useState<DailyFilter>("all");
+
+  const today = formatDateValue(new Date());
+  const isToday = isSameDateValue(selectedDate, today);
 
   const defaultInitials = useMemo(
     () => buildDefaultInitials(profile?.firstName, profile?.lastName, profile?.email, profile?.displayName),
@@ -194,6 +219,39 @@ export function TemperatureLogScreen() {
       outOfRange,
     };
   }, [dailyUnitLogs]);
+
+  // Live in-range / out-of-range hint shown while the user types into the modal so they
+  // can see the verdict before saving — and the corrective-action prompt feels less abrupt.
+  const liveStatus = useMemo(() => {
+    if (!selectedUnit) return null;
+    const trimmed = temperatureCelsius.trim();
+    if (!trimmed) return null;
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed)) return null;
+    const outOfRange = isOutOfRangeTemperature(
+      parsed,
+      selectedUnit.minTemperatureCelsius,
+      selectedUnit.maxTemperatureCelsius
+    );
+    return {
+      outOfRange,
+      deltaLabel: outOfRange
+        ? formatOutOfRangeDelta(parsed, selectedUnit.minTemperatureCelsius, selectedUnit.maxTemperatureCelsius)
+        : "",
+    };
+  }, [selectedUnit, temperatureCelsius]);
+
+  const filteredUnitLogs = useMemo(() => {
+    if (dailyFilter === "all") return dailyUnitLogs;
+    return dailyUnitLogs.filter((unitLog) => {
+      const latest = unitLog.readings.length > 0
+        ? unitLog.readings[unitLog.readings.length - 1]
+        : undefined;
+      if (dailyFilter === "pending") return !latest;
+      // outOfRange: only units whose latest reading is flagged.
+      return !!latest && latest.isOutOfRange;
+    });
+  }, [dailyFilter, dailyUnitLogs]);
   useEffect(() => {
     if (!selectedUnit) {
       return;
@@ -264,14 +322,6 @@ export function TemperatureLogScreen() {
         </View> */}
 
         <View style={[ui.card, styles.quickEntryCard]}>
-          {/* <View style={styles.quickEntryHeader}>
-            <Text style={styles.sectionTitle}>Temperature Log</Text>
-            {summary.outOfRange > 0 ? (
-              <StatusBadge label={`${summary.outOfRange} out of range`} tone="danger" />
-            ) : (
-              <StatusBadge label="In range" tone="success" />
-            )}
-          </View> */}
           <View style={styles.dateNavRow}>
             <Pressable
               style={styles.dateNavButton}
@@ -303,19 +353,82 @@ export function TemperatureLogScreen() {
             >
               <Ionicons name="chevron-forward" size={18} color={appTheme.colors.text} />
             </Pressable>
+            {!isToday ? (
+              <Pressable
+                style={styles.todayButton}
+                onPress={() => {
+                  setSelectedDate(today);
+                  setReadingTime(formatTimeValue(new Date()));
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Jump to today"
+              >
+                <Text style={styles.todayButtonText}>Today</Text>
+              </Pressable>
+            ) : null}
           </View>
 
-         </View>
-<View >
-          {/* <Text style={styles.fieldLabel}>Monitoring Units</Text> */}
+          <View style={styles.summaryChipRow}>
+            <View style={[styles.summaryChip, styles.summaryChipDone]}>
+              <Ionicons name="checkmark-circle" size={14} color={appTheme.colors.success} />
+              <Text style={styles.summaryChipText}>{summary.recorded} done</Text>
+            </View>
+            <View style={[styles.summaryChip, summary.pending > 0 ? styles.summaryChipPending : styles.summaryChipMuted]}>
+              <Ionicons
+                name="time-outline"
+                size={14}
+                color={summary.pending > 0 ? appTheme.colors.warning : appTheme.colors.textSubtle}
+              />
+              <Text style={styles.summaryChipText}>{summary.pending} pending</Text>
+            </View>
+            <View style={[styles.summaryChip, summary.outOfRange > 0 ? styles.summaryChipDanger : styles.summaryChipMuted]}>
+              <Ionicons
+                name="warning-outline"
+                size={14}
+                color={summary.outOfRange > 0 ? appTheme.colors.danger : appTheme.colors.textSubtle}
+              />
+              <Text style={styles.summaryChipText}>{summary.outOfRange} out of range</Text>
+            </View>
+          </View>
+
+          <View style={styles.filterRow}>
+            {(
+              [
+                { key: "all", label: "All" },
+                { key: "pending", label: "Pending" },
+                { key: "outOfRange", label: "Out of range" },
+              ] as Array<{ key: DailyFilter; label: string }>
+            ).map((option) => {
+              const selected = dailyFilter === option.key;
+              return (
+                <Pressable
+                  key={option.key}
+                  onPress={() => setDailyFilter(option.key)}
+                  style={[styles.filterChip, selected ? styles.filterChipSelected : null]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                >
+                  <Text style={[styles.filterChipText, selected ? styles.filterChipTextSelected : null]}>
+                    {option.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+<View>
           {dailyLogQuery.isLoading ? <Text style={styles.meta}>Loading units...</Text> : null}
           <View style={styles.unitList}>
-            {dailyUnitLogs.map((unitLog) => {
+            {filteredUnitLogs.map((unitLog) => {
               const unit = unitLog.unit;
               const latestReading =
                 unitLog.readings.length > 0
                   ? unitLog.readings[unitLog.readings.length - 1]
                   : undefined;
+              const latestTemp = latestReading ? Number(latestReading.temperatureCelsius) : null;
+              const deltaLabel = latestReading && latestReading.isOutOfRange && latestTemp != null
+                ? formatOutOfRangeDelta(latestTemp, unit.minTemperatureCelsius, unit.maxTemperatureCelsius)
+                : "";
 
               return (
                 <Pressable
@@ -323,6 +436,7 @@ export function TemperatureLogScreen() {
                   style={styles.unitRow}
                   onPress={() => openLogEntryModal(unit.id)}
                   accessibilityRole="button"
+                  accessibilityHint="Opens the reading entry modal"
                 >
                   <View style={styles.unitRowTop}>
                     <View style={styles.unitRowIdentity}>
@@ -337,24 +451,40 @@ export function TemperatureLogScreen() {
                         tone={readingStatusTone(latestReading.isOutOfRange)}
                       />
                     ) : (
-                      <Text style={styles.unitRowPending}>Pending</Text>
+                      <View style={styles.pendingBadge}>
+                        <Ionicons name="time-outline" size={11} color={appTheme.colors.warning} />
+                        <Text style={styles.pendingBadgeText}>Pending</Text>
+                      </View>
                     )}
                   </View>
                   <View style={styles.unitRowBottom}>
                     <Text style={styles.unitRowRange} numberOfLines={1}>
-                      Range: {formatTemperature(unit.minTemperatureCelsius)} to {formatTemperature(unit.maxTemperatureCelsius)}
+                      Range: {formatTemperature(unit.minTemperatureCelsius)} – {formatTemperature(unit.maxTemperatureCelsius)}
                     </Text>
-                    <Text style={styles.unitRowLast} numberOfLines={1}>
-                      {latestReading
-                        ? `Last: ${latestReading.readingTime} | ${formatTemperature(Number(latestReading.temperatureCelsius))}`
-                        : "Last: No reading"}
-                    </Text>
+                    <View style={styles.unitRowLastWrap}>
+                      <Text style={styles.unitRowLast} numberOfLines={1}>
+                        {latestReading
+                          ? `${latestReading.readingTime} · ${formatTemperature(Number(latestReading.temperatureCelsius))}`
+                          : "No reading"}
+                      </Text>
+                      <Ionicons name="chevron-forward" size={14} color={appTheme.colors.textSubtle} />
+                    </View>
                   </View>
+                  {deltaLabel ? (
+                    <Text style={styles.unitRowDelta}>{deltaLabel}</Text>
+                  ) : null}
                 </Pressable>
               );
             })}
             {!dailyLogQuery.isLoading && dailyUnitLogs.length === 0 ? (
               <Text style={styles.meta}>No active units available.</Text>
+            ) : null}
+            {!dailyLogQuery.isLoading && dailyUnitLogs.length > 0 && filteredUnitLogs.length === 0 ? (
+              <Text style={styles.meta}>
+                {dailyFilter === "pending"
+                  ? "Nothing pending — every unit has a reading."
+                  : "No out-of-range units."}
+              </Text>
             ) : null}
           </View>
         </View>
@@ -386,28 +516,39 @@ export function TemperatureLogScreen() {
               {unitLog.readings.length === 0 ? (
                 <Text style={styles.meta}>No readings for this date.</Text>
               ) : (
-                unitLog.readings.map((reading) => (
-                  <View key={reading.id} style={styles.logRowBlock}>
-                    <View style={styles.logRow}>
-                      <Text style={[styles.logCell, styles.logColTime]}>{reading.readingTime || "--:--"}</Text>
-                      <Text style={[styles.logCellStrong, styles.logColTemp]}>
-                        {formatTemperature(Number(reading.temperatureCelsius))}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.logCell,
-                          styles.logColStatus,
-                          reading.isOutOfRange ? styles.logStatusOutOfRange : styles.logStatusInRange,
-                        ]}
-                      >
-                        {reading.isOutOfRange ? "Out of range " : "In range"}
-                      </Text>
-                      <Text style={[styles.logCell, styles.logColBy]}>{reading.checkedByInitials || "-"}</Text>
+                unitLog.readings.map((reading) => {
+                  const tempValue = Number(reading.temperatureCelsius);
+                  const deltaLabel = reading.isOutOfRange && Number.isFinite(tempValue)
+                    ? formatOutOfRangeDelta(
+                        tempValue,
+                        unitLog.unit.minTemperatureCelsius,
+                        unitLog.unit.maxTemperatureCelsius
+                      )
+                    : "";
+                  return (
+                    <View key={reading.id} style={styles.logRowBlock}>
+                      <View style={styles.logRow}>
+                        <Text style={[styles.logCell, styles.logColTime]}>{reading.readingTime || "--:--"}</Text>
+                        <Text style={[styles.logCellStrong, styles.logColTemp]}>
+                          {formatTemperature(tempValue)}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.logCell,
+                            styles.logColStatus,
+                            reading.isOutOfRange ? styles.logStatusOutOfRange : styles.logStatusInRange,
+                          ]}
+                        >
+                          {reading.isOutOfRange ? "Out of range" : "In range"}
+                        </Text>
+                        <Text style={[styles.logCell, styles.logColBy]}>{reading.checkedByInitials || "-"}</Text>
+                      </View>
+                      {deltaLabel ? <Text style={styles.logDetail}>{deltaLabel}</Text> : null}
+                      {reading.actionTaken ? <Text style={styles.logDetail}>Action: {reading.actionTaken}</Text> : null}
+                      {reading.notes ? <Text style={styles.logDetail}>Notes: {reading.notes}</Text> : null}
                     </View>
-                    {reading.actionTaken ? <Text style={styles.logDetail}>Action: {reading.actionTaken}</Text> : null}
-                    {reading.notes ? <Text style={styles.logDetail}>Notes: {reading.notes}</Text> : null}
-                  </View>
-                ))
+                  );
+                })
               )}
             </View>
           ))}
@@ -481,15 +622,6 @@ export function TemperatureLogScreen() {
               </View>
 
               <View style={styles.entryRow}>
-
-                   <View style={styles.entryColumn}>
-                  <FloatingLabelInput
-                    label="Initials"
-                    value={checkedByInitials}
-                    onChangeText={setCheckedByInitials}
-                    autoCapitalize="characters"
-                  />
-                </View>
                 <View style={styles.entryColumn}>
                   <FloatingLabelInput
                     label="Temperature (°C)"
@@ -498,8 +630,40 @@ export function TemperatureLogScreen() {
                     keyboardType="decimal-pad"
                   />
                 </View>
-             
+                <View style={styles.entryColumn}>
+                  <FloatingLabelInput
+                    label="Initials"
+                    value={checkedByInitials}
+                    onChangeText={setCheckedByInitials}
+                    autoCapitalize="characters"
+                  />
+                </View>
               </View>
+
+              {liveStatus ? (
+                <View
+                  style={[
+                    styles.liveStatusBanner,
+                    liveStatus.outOfRange ? styles.liveStatusBannerDanger : styles.liveStatusBannerOk,
+                  ]}
+                >
+                  <Ionicons
+                    name={liveStatus.outOfRange ? "warning" : "checkmark-circle"}
+                    size={16}
+                    color={liveStatus.outOfRange ? appTheme.colors.danger : appTheme.colors.success}
+                  />
+                  <Text
+                    style={[
+                      styles.liveStatusText,
+                      liveStatus.outOfRange ? styles.liveStatusTextDanger : styles.liveStatusTextOk,
+                    ]}
+                  >
+                    {liveStatus.outOfRange
+                      ? `Out of range · ${liveStatus.deltaLabel}`
+                      : "In range"}
+                  </Text>
+                </View>
+              ) : null}
 
               <View style={styles.entryRow}>
                 <Pressable
@@ -799,6 +963,71 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  todayButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+  },
+  todayButtonText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 14,
+  },
+  summaryChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: appTheme.spacing.xs,
+  },
+  summaryChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: appTheme.radius.pill,
+  },
+  summaryChipDone: {
+    backgroundColor: appTheme.colors.surfaceTintSoft,
+  },
+  summaryChipPending: {
+    backgroundColor: appTheme.colors.surfaceWarningSoft,
+  },
+  summaryChipDanger: {
+    backgroundColor: appTheme.colors.surfaceWarningSoft,
+  },
+  summaryChipMuted: {
+    backgroundColor: appTheme.colors.surfaceTint,
+  },
+  summaryChipText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  filterRow: {
+    flexDirection: "row",
+    gap: appTheme.spacing.xs,
+  },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surfaceMuted,
+  },
+  filterChipSelected: {
+    backgroundColor: appTheme.colors.primary,
+  },
+  filterChipText: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  filterChipTextSelected: {
+    color: appTheme.colors.onPrimary,
+  },
   dateNavButtonText: {
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
@@ -860,6 +1089,58 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 12,
     lineHeight: 16,
+  },
+  pendingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surfaceWarningSoft,
+  },
+  pendingBadgeText: {
+    color: appTheme.colors.warning,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  unitRowLastWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  unitRowDelta: {
+    color: appTheme.colors.danger,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  liveStatusBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: appTheme.radius.sm,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: 8,
+  },
+  liveStatusBannerOk: {
+    backgroundColor: appTheme.colors.surfaceTintSoft,
+  },
+  liveStatusBannerDanger: {
+    backgroundColor: appTheme.colors.surfaceWarningSoft,
+  },
+  liveStatusText: {
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 17,
+    flex: 1,
+  },
+  liveStatusTextOk: {
+    color: appTheme.colors.success,
+  },
+  liveStatusTextDanger: {
+    color: appTheme.colors.danger,
   },
   unitRowBottom: {
     flexDirection: "row",
