@@ -76,34 +76,51 @@ type MenuItem = {
   requiredFeature?: string;
 };
 
-type DrawerSectionKey = "operations" | "setup" | "reports" | "management";
+type DrawerSectionKey = "scratchCard" | "temperature" | "refusals" | "compliance" | "shop" | "admin";
 
 const Drawer = createDrawerNavigator<MainDrawerParamList>();
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
-// Daily Operations: things shop staff do every shift. requiredFeature uses the top-level
-// module key so the entry hides both when the shop's plan does not include the module AND
-// when the shop owner has toggled it off in Settings → Feature Toggles.
-const operationsItems: MenuItem[] = [
+// Menu is now organised by feature module. Each item keeps its own `requiredFeature` so the
+// usual plan/shop-toggle gate still applies — but items are no longer hidden based on the
+// active home-screen operation chip. Everything in scope shows under its feature group.
+
+// --- Scratch Card ---
+const scratchCardItems: MenuItem[] = [
   { label: "Day Management", screen: "Dashboard", icon: "calendar-outline", mode: "scratchCard" },
-  { label: "Shop Checklist", screen: "ShopChecklist", icon: "checkmark-done-outline", mode: "checklist" },
-  { label: "Compliance Checks", screen: "ComplianceChecks", icon: "clipboard-outline", mode: "compliance", requiredFeature: "ComplianceChecklist" },
-  { label: "Deliveries", screen: "Deliveries", icon: "cube-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
-  { label: "Temperature Logs", screen: "TemperatureLogs", icon: "thermometer-outline", mode: "temperature", requiredFeature: "TemperatureLog" },
-  { label: "No ID / No Sale", screen: "RefusalRegister", icon: "shield-checkmark-outline", mode: "refusals", requiredFeature: "RefusalNoIdNoSale" },
   { label: "Card Packs", screen: "ScratchCardPacks", icon: "albums-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
   { label: "Card Games", screen: "ScratchCardGames", icon: "game-controller-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
+  { label: "Deliveries", screen: "Deliveries", icon: "cube-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
+  { label: "Daily Sales Report", screen: "DailySalesReport", icon: "stats-chart-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
+  { label: "Stock Report", screen: "StockReport", icon: "archive-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
 ];
 
-// Setup: admin-only configuration templates that drive Daily Operations.
-const setupItems: MenuItem[] = [
+// --- Temperature Log ---
+const temperatureItems: MenuItem[] = [
+  { label: "Temperature Logs", screen: "TemperatureLogs", icon: "thermometer-outline", mode: "temperature", requiredFeature: "TemperatureLog" },
   {
-    label: "Checklist Setup",
-    screen: "ChecklistConfiguration",
-    icon: "construct-outline",
-    mode: "checklist",
+    label: "Temperature Units",
+    screen: "TemperatureUnits",
+    icon: "options-outline",
+    mode: "temperature",
     allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
+    requiredFeature: "TemperatureLog",
   },
+  { label: "Temperature Logs by Day", screen: "TemperatureLogsByDay", icon: "calendar-number-outline", mode: "temperature", requiredFeature: "TemperatureLog" },
+  { label: "Temperature Logs Report", screen: "TemperatureLogsReport", icon: "bar-chart-outline", mode: "temperature", requiredFeature: "TemperatureLog" },
+  { label: "Temperature Date Range Report", screen: "TemperatureLogsDateRangeReport", icon: "document-text-outline", mode: "temperature", requiredFeature: "TemperatureLog" },
+];
+
+// --- Refusal Log ---
+const refusalItems: MenuItem[] = [
+  { label: "No ID / No Sale", screen: "RefusalRegister", icon: "shield-checkmark-outline", mode: "refusals", requiredFeature: "RefusalNoIdNoSale" },
+  { label: "Refusal Report", screen: "RefusalReport", icon: "document-text-outline", mode: "refusals", requiredFeature: "RefusalNoIdNoSale" },
+  { label: "Refusal Manager Review", screen: "RefusalManagerReview", icon: "clipboard-outline", mode: "refusals", requiredFeature: "refusal_log.multi_manager_review" },
+];
+
+// --- Compliance ---
+const complianceItems: MenuItem[] = [
+  { label: "Compliance Checks", screen: "ComplianceChecks", icon: "clipboard-outline", mode: "compliance", requiredFeature: "ComplianceChecklist" },
   {
     label: "Compliance Setup",
     screen: "ComplianceConfig",
@@ -113,27 +130,6 @@ const setupItems: MenuItem[] = [
     requiredFeature: "ComplianceChecklist",
   },
   {
-    label: "Temperature Units",
-    screen: "TemperatureUnits",
-    icon: "options-outline",
-    mode: "temperature",
-    allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
-    requiredFeature: "TemperatureLog",
-  },
-];
-
-// Reports: history, analytics and review surfaces.
-const reportItems: MenuItem[] = [
-  { label: "Daily Sales Report", screen: "DailySalesReport", icon: "stats-chart-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
-  { label: "Stock Report", screen: "StockReport", icon: "archive-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
-  {
-    label: "Checklist History",
-    screen: "ChecklistHistory",
-    icon: "document-text-outline",
-    mode: "checklist",
-    allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
-  },
-  {
     label: "Compliance Action Report",
     screen: "ComplianceActions",
     icon: "warning-outline",
@@ -141,17 +137,31 @@ const reportItems: MenuItem[] = [
     allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
     requiredFeature: "ComplianceChecklist",
   },
-  { label: "Temperature Logs by Day", screen: "TemperatureLogsByDay", icon: "calendar-number-outline", mode: "temperature", requiredFeature: "TemperatureLog" },
-  { label: "Temperature Logs Report", screen: "TemperatureLogsReport", icon: "bar-chart-outline", mode: "temperature", requiredFeature: "TemperatureLog" },
-  { label: "Temperature Logs Date Range Report", screen: "TemperatureLogsDateRangeReport", icon: "document-text-outline", mode: "temperature", requiredFeature: "TemperatureLog" },
-  { label: "Refusal Report", screen: "RefusalReport", icon: "document-text-outline", mode: "refusals", requiredFeature: "RefusalNoIdNoSale" },
-  { label: "Refusal Manager Review", screen: "RefusalManagerReview", icon: "clipboard-outline", mode: "refusals", requiredFeature: "refusal_log.multi_manager_review" },
-  { label: "Audit Log", screen: "AuditLog", icon: "document-text-outline", mode: "scratchCard", requiredFeature: "audit_log.basic" },
-  { label: "Notification Log", screen: "NotificationLog", icon: "notifications-outline", mode: "scratchCard" },
 ];
 
-// Management: people and organization administration.
-const managementItems: MenuItem[] = [
+// --- Shop (cross-cutting items not tied to a single feature module) ---
+const shopItems: MenuItem[] = [
+  { label: "Shop Checklist", screen: "ShopChecklist", icon: "checkmark-done-outline", mode: "checklist" },
+  {
+    label: "Checklist Setup",
+    screen: "ChecklistConfiguration",
+    icon: "construct-outline",
+    mode: "checklist",
+    allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
+  },
+  {
+    label: "Checklist History",
+    screen: "ChecklistHistory",
+    icon: "document-text-outline",
+    mode: "checklist",
+    allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
+  },
+  { label: "Audit Log", screen: "AuditLog", icon: "document-text-outline", requiredFeature: "audit_log.basic" },
+  { label: "Notification Log", screen: "NotificationLog", icon: "notifications-outline" },
+];
+
+// --- Administration ---
+const adminItems: MenuItem[] = [
   { label: "User Invitations", screen: "UserInvitations", icon: "mail-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"] },
   { label: "User Management", screen: "UserManagement", icon: "people-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"] },
   { label: "Shop Management", screen: "ShopManagement", icon: "storefront-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"] },
@@ -497,10 +507,13 @@ type DrawerSectionProps = {
   userRoles: string[];
   features: string[];
   onPress: (item: MenuItem) => void;
-  selectedOperation: EntryOperation | null;
   expanded: boolean;
   onToggle: (sectionKey: DrawerSectionKey) => void;
   activeScreen?: keyof MainStackParamList;
+  /** Visual identity for the group — coloured icon avatar + left-border accent. */
+  accentColor: string;
+  accentSoftBackground: string;
+  icon: keyof typeof Ionicons.glyphMap;
 };
 
 const DrawerSection = React.memo(function DrawerSection({
@@ -511,21 +524,24 @@ const DrawerSection = React.memo(function DrawerSection({
   userRoles,
   features,
   onPress,
-  selectedOperation,
   expanded,
   onToggle,
   activeScreen,
+  accentColor,
+  accentSoftBackground,
+  icon,
 }: DrawerSectionProps) {
+  // Menu is grouped by feature now — no longer filtered by the active operation chip.
+  // Items still respect role and feature gates.
   const visibleItems = useMemo(
     () =>
       items.filter(
         (item) =>
           (!item.shopOwnerOnly || isCompanyOwner) &&
           (!item.allowedRoles || item.allowedRoles.some((role) => userRoles.includes(role))) &&
-          (!selectedOperation || !item.mode || item.mode === selectedOperation) &&
           (!item.requiredFeature || features.includes(item.requiredFeature))
       ),
-    [items, isCompanyOwner, userRoles, features, selectedOperation]
+    [items, isCompanyOwner, userRoles, features]
   );
 
   const handleToggle = useCallback(() => onToggle(sectionKey), [onToggle, sectionKey]);
@@ -539,6 +555,7 @@ const DrawerSection = React.memo(function DrawerSection({
       <Pressable
         style={({ pressed }) => [
           styles.drawerSectionHeader,
+          { backgroundColor: accentSoftBackground, borderColor: accentSoftBackground },
           pressed ? styles.drawerSectionHeaderPressed : null,
         ]}
         onPress={handleToggle}
@@ -547,21 +564,21 @@ const DrawerSection = React.memo(function DrawerSection({
         accessibilityState={{ expanded }}
       >
         <View style={styles.drawerSectionHeaderMain}>
-          <Text style={styles.drawerSectionTitle}>{title}</Text>
-          {/* <View style={styles.drawerSectionCountBadge}>
-            <Text style={styles.drawerSectionCountText}>{visibleItems.length}</Text>
-          </View> */}
+          <View style={[styles.drawerSectionAvatar, { backgroundColor: accentColor }]}>
+            <Ionicons name={icon} size={13} color={appTheme.colors.onPrimary} />
+          </View>
+          <Text style={[styles.drawerSectionTitle, { color: accentColor }]}>{title}</Text>
         </View>
         <View style={styles.drawerSectionToggleIconWrap}>
           <Ionicons
             name={expanded ? "chevron-up-outline" : "chevron-down-outline"}
             size={14}
-            color={appTheme.colors.textSubtle}
+            color={accentColor}
           />
         </View>
       </Pressable>
       {expanded ? (
-        <View style={styles.drawerSectionItems}>
+        <View style={[styles.drawerSectionItems, styles.drawerSectionItemsAccented, { borderLeftColor: accentColor }]}>
           {visibleItems.map((item) => (
             <Pressable
               key={item.screen}
@@ -622,10 +639,12 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
   const operationLabel = getOperationLabel(selectedOperation);
   const currentUser = profile?.displayName ?? profile?.email ?? "Signed-in user";
   const [expandedSections, setExpandedSections] = useState<Record<DrawerSectionKey, boolean>>({
-    operations: true,
-    setup: false,
-    reports: false,
-    management: false,
+    scratchCard: true,
+    temperature: false,
+    refusals: false,
+    compliance: false,
+    shop: false,
+    admin: false,
   });
 
   const goTo = (item: MenuItem) => {
@@ -746,59 +765,100 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
         </View>
 
         <DrawerSection
-          sectionKey="operations"
-          title="Daily Operations"
-          items={operationsItems}
-        isCompanyOwner={isCompanyOwner}
-        userRoles={userRoles}
-        features={features}
-        onPress={goTo}
-        selectedOperation={selectedOperation}
-        expanded={expandedSections.operations}
-        onToggle={toggleSection}
-        activeScreen={activeScreen}
-      />
+          sectionKey="scratchCard"
+          title="Scratch Card"
+          icon="albums-outline"
+          accentColor={appTheme.colors.primary}
+          accentSoftBackground={appTheme.colors.surfaceBrandSoft}
+          items={scratchCardItems}
+          isCompanyOwner={isCompanyOwner}
+          userRoles={userRoles}
+          features={features}
+          onPress={goTo}
+          expanded={expandedSections.scratchCard}
+          onToggle={toggleSection}
+          activeScreen={activeScreen}
+        />
 
-      <DrawerSection
-        sectionKey="setup"
-        title="Setup"
-        items={setupItems}
-        isCompanyOwner={isCompanyOwner}
-        userRoles={userRoles}
-        features={features}
-        onPress={goTo}
-        selectedOperation={selectedOperation}
-        expanded={expandedSections.setup}
-        onToggle={toggleSection}
-        activeScreen={activeScreen}
-      />
+        <DrawerSection
+          sectionKey="temperature"
+          title="Temperature Log"
+          icon="thermometer-outline"
+          accentColor={appTheme.colors.info}
+          accentSoftBackground={appTheme.colors.surfaceInfoMuted}
+          items={temperatureItems}
+          isCompanyOwner={isCompanyOwner}
+          userRoles={userRoles}
+          features={features}
+          onPress={goTo}
+          expanded={expandedSections.temperature}
+          onToggle={toggleSection}
+          activeScreen={activeScreen}
+        />
 
-      <DrawerSection
-        sectionKey="reports"
-        title="Reports"
-        items={reportItems}
-        isCompanyOwner={isCompanyOwner}
-        userRoles={userRoles}
-        features={features}
-        onPress={goTo}
-        selectedOperation={selectedOperation}
-        expanded={expandedSections.reports}
-        onToggle={toggleSection}
-        activeScreen={activeScreen}
-      />
-      <DrawerSection
-        sectionKey="management"
-        title="Management"
-        items={managementItems}
-        isCompanyOwner={isCompanyOwner}
-        userRoles={userRoles}
-        features={features}
-        onPress={goTo}
-        selectedOperation={selectedOperation}
-        expanded={expandedSections.management}
-        onToggle={toggleSection}
-        activeScreen={activeScreen}
-      />
+        <DrawerSection
+          sectionKey="refusals"
+          title="Refusal Log"
+          icon="shield-checkmark-outline"
+          accentColor={appTheme.colors.warning}
+          accentSoftBackground={appTheme.colors.surfaceWarningSoft}
+          items={refusalItems}
+          isCompanyOwner={isCompanyOwner}
+          userRoles={userRoles}
+          features={features}
+          onPress={goTo}
+          expanded={expandedSections.refusals}
+          onToggle={toggleSection}
+          activeScreen={activeScreen}
+        />
+
+        <DrawerSection
+          sectionKey="compliance"
+          title="Compliance Check"
+          icon="clipboard-outline"
+          accentColor={appTheme.colors.success}
+          accentSoftBackground={appTheme.colors.badgeSuccessBg}
+          items={complianceItems}
+          isCompanyOwner={isCompanyOwner}
+          userRoles={userRoles}
+          features={features}
+          onPress={goTo}
+          expanded={expandedSections.compliance}
+          onToggle={toggleSection}
+          activeScreen={activeScreen}
+        />
+
+        <DrawerSection
+          sectionKey="shop"
+          title="Shop"
+          icon="storefront-outline"
+          accentColor={appTheme.colors.textBrandStrong}
+          accentSoftBackground={appTheme.colors.surfaceTintSoft}
+          items={shopItems}
+          isCompanyOwner={isCompanyOwner}
+          userRoles={userRoles}
+          features={features}
+          onPress={goTo}
+          expanded={expandedSections.shop}
+          onToggle={toggleSection}
+          activeScreen={activeScreen}
+        />
+
+        <DrawerSection
+          sectionKey="admin"
+          title="Administration"
+          icon="construct-outline"
+          accentColor={appTheme.colors.text}
+          accentSoftBackground={appTheme.colors.surfaceNeutralSoft}
+          items={adminItems}
+          isCompanyOwner={isCompanyOwner}
+          userRoles={userRoles}
+          features={features}
+          onPress={goTo}
+          expanded={expandedSections.admin}
+          onToggle={toggleSection}
+          activeScreen={activeScreen}
+        />
 
       <View style={styles.drawerFooter}>
         <Pressable
@@ -1039,6 +1099,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: appTheme.spacing.xs,
+  },
+  drawerSectionAvatar: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  drawerSectionItemsAccented: {
+    borderLeftWidth: 2,
+    paddingLeft: 8,
+    marginLeft: 11,
   },
   drawerSectionItems: {
     gap: appTheme.spacing.xs,
