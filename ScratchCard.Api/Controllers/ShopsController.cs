@@ -48,5 +48,29 @@ public class ShopsController : BaseApiController
         var result = await _shopService.ListAsync(companyId, cancellationToken);
         return Success(result);
     }
+
+    /// <summary>
+    /// Returns the per-shop feature-module toggles. Each module is independent; disabling one
+    /// does not block another. Whatever the shop's plan does not include is also reported.
+    /// </summary>
+    [HttpGet("{id:guid}/feature-toggles")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
+    public async Task<IActionResult> GetFeatureToggles(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _shopService.GetFeatureTogglesAsync(id, cancellationToken);
+        return Success(result);
+    }
+
+    /// <summary>
+    /// Replaces the per-shop disabled-feature list. Unknown / non-module keys are silently
+    /// dropped. CompanyOwner + Manager only — Cashier / SalesAssistant cannot toggle features.
+    /// </summary>
+    [HttpPut("{id:guid}/feature-toggles")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
+    public async Task<IActionResult> UpdateFeatureToggles(Guid id, [FromBody] UpdateShopFeatureTogglesRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _shopService.UpdateFeatureTogglesAsync(id, request, cancellationToken);
+        return Success(result);
+    }
 }
 

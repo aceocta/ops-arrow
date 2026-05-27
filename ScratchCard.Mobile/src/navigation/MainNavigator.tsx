@@ -48,6 +48,7 @@ import {
 } from "../features/reports/ReportScreens";
 import { UserManagementScreen, ShopConfigurationScreen, AppConfigurationScreen, CompanyManagementScreen, ShopManagementScreen, SettingsScreen } from "../features/settings/SettingsScreens";
 import { NotificationPreferencesScreen } from "../features/settings/NotificationPreferencesScreen";
+import { ShopFeatureTogglesScreen } from "../features/settings/ShopFeatureTogglesScreen";
 import { BestEntryProvider, EntryOperation, useBestEntry } from "./BestEntryContext";
 import { useEntitlements } from "../features/subscription/useEntitlements";
 import { MainStackParamList, RootStackParamList } from "../types/navigation";
@@ -282,6 +283,7 @@ function resolveActiveBottomDockScreen(routeName: string | undefined): keyof Mai
     routeName === "UserInvitations" ||
     routeName === "UserManagement" ||
     routeName === "ShopConfiguration" ||
+    routeName === "ShopFeatureToggles" ||
     routeName === "AppConfiguration" ||
     routeName === "CompanyManagement" ||
     routeName === "ShopManagement"
@@ -354,6 +356,7 @@ function MainStackScreens() {
       <Stack.Screen name="UserInvitations" component={UserInvitationsScreen} options={{ title: "User Invitations" }} />
       <Stack.Screen name="UserManagement" component={UserManagementScreen} options={{ title: "User Management" }} />
       <Stack.Screen name="ShopConfiguration" component={ShopConfigurationScreen} options={{ title: "Shop Configuration" }} />
+      <Stack.Screen name="ShopFeatureToggles" component={ShopFeatureTogglesScreen} options={{ title: "Feature Toggles" }} />
       <Stack.Screen name="AppConfiguration" component={AppConfigurationScreen} options={{ title: "App Configuration" }} />
       <Stack.Screen name="CompanyManagement" component={CompanyManagementScreen} options={{ title: "Company Management" }} />
       <Stack.Screen name="ShopManagement" component={ShopManagementScreen} options={{ title: "Shop Management" }} />

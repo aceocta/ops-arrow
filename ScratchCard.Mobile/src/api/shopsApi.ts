@@ -42,3 +42,29 @@ export async function updateShop(shopId: string, payload: UpdateShopPayload) {
   const response = await apiClient.put<ApiResponse<Shop>>(`/shops/${shopId}`, payload);
   return response.data.data;
 }
+
+export type ShopFeatureModule = {
+  key: string;
+  name: string;
+  description?: string | null;
+  isAvailableInPlan: boolean;
+  isDisabledByShop: boolean;
+};
+
+export type ShopFeatureToggles = {
+  shopId: string;
+  modules: ShopFeatureModule[];
+};
+
+export async function getShopFeatureToggles(shopId: string) {
+  const response = await apiClient.get<ApiResponse<ShopFeatureToggles>>(`/shops/${shopId}/feature-toggles`);
+  return response.data.data;
+}
+
+export async function updateShopFeatureToggles(shopId: string, disabledFeatureKeys: string[]) {
+  const response = await apiClient.put<ApiResponse<ShopFeatureToggles>>(
+    `/shops/${shopId}/feature-toggles`,
+    { disabledFeatureKeys }
+  );
+  return response.data.data;
+}

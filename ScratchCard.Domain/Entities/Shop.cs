@@ -14,6 +14,13 @@ public class Shop : AuditableEntity
     public bool IsActive { get; set; } = true;
     public bool IsDeleted { get; set; }
 
+    // Per-shop opt-out toggles for the top-level feature modules (ScratchCardManagement,
+    // TemperatureLog, RefusalNoIdNoSale, ComplianceChecklist, SafeDropManagement). Entries here
+    // override the subscription plan: even if the plan includes a module, a key listed here
+    // makes it (and all its sub-features) unavailable for this shop. Each module toggle is
+    // independent — disabling one does not affect the others.
+    public List<string> DisabledFeatureKeys { get; set; } = new();
+
     public Company? Company { get; set; }
     public ICollection<ShopUser> ShopUsers { get; set; } = new List<ShopUser>();
     public ICollection<UserInvitation> Invitations { get; set; } = new List<UserInvitation>();

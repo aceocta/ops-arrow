@@ -1876,6 +1876,13 @@ export function SettingsScreen() {
       icon: "storefront-outline",
       onPress: () => navigation.navigate("ShopConfiguration"),
     });
+    systemActions.push({
+      key: "shop-feature-toggles",
+      title: "Feature Toggles",
+      description: "Turn off modules this shop does not use (Safe Drop, Scratch Card, etc.).",
+      icon: "toggle-outline",
+      onPress: () => navigation.navigate("ShopFeatureToggles"),
+    });
   }
   if (isCompanyOwner || isPlatformAdmin) {
     systemActions.push({

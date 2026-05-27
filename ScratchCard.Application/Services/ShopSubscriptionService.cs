@@ -818,6 +818,19 @@ public class ShopSubscriptionService : IShopSubscriptionService
 
         var features = ServiceMappingExtensions.ExtractEnabledFeatureKeys(plan?.PlanFeatures);
 
+        // Per-shop opt-out: subtract any features that the shop owner has disabled in Settings.
+        // Module keys expand to all their children (e.g. disabling "ScratchCardManagement"
+        // also removes every "scratch_card.*" granular key).
+        var shop = await _shopRepository.Query()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == subscription.ShopId, cancellationToken);
+        if (shop is not null && shop.DisabledFeatureKeys.Count > 0)
+        {
+            features = features
+                .Where(f => !Domain.Constants.FeatureKeys.IsKeyDisabledByModules(f, shop.DisabledFeatureKeys))
+                .ToList();
+        }
+
         return new ShopSubscriptionSummaryDto
         {
             ShopId = subscription.ShopId,

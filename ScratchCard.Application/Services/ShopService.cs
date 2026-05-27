@@ -25,6 +25,7 @@ public class ShopService : IShopService
     private readonly IRepository<CfgDayCloseSettings> _dayCloseSettingsRepository;
     private readonly IRepository<SubscriptionPlan> _subscriptionPlanRepository;
     private readonly IRepository<CompanySubscription> _companySubscriptionRepository;
+    private readonly IRepository<ShopSubscription> _shopSubscriptionRepository;
     private readonly IRepository<BillingEvent> _billingEventRepository;
     private readonly ISubscriptionCalculationService _subscriptionCalculationService;
     private readonly ISubscriptionBillingService _subscriptionBillingService;
@@ -45,6 +46,7 @@ public class ShopService : IShopService
         IRepository<CfgDayCloseSettings> dayCloseSettingsRepository,
         IRepository<SubscriptionPlan> subscriptionPlanRepository,
         IRepository<CompanySubscription> companySubscriptionRepository,
+        IRepository<ShopSubscription> shopSubscriptionRepository,
         IRepository<BillingEvent> billingEventRepository,
         ISubscriptionCalculationService subscriptionCalculationService,
         ISubscriptionBillingService subscriptionBillingService,
@@ -64,6 +66,7 @@ public class ShopService : IShopService
         _dayCloseSettingsRepository = dayCloseSettingsRepository;
         _subscriptionPlanRepository = subscriptionPlanRepository;
         _companySubscriptionRepository = companySubscriptionRepository;
+        _shopSubscriptionRepository = shopSubscriptionRepository;
         _billingEventRepository = billingEventRepository;
         _subscriptionCalculationService = subscriptionCalculationService;
         _subscriptionBillingService = subscriptionBillingService;
@@ -207,6 +210,97 @@ public class ShopService : IShopService
         await EnsureShopAccessAsync(shop, cancellationToken);
 
         return shop.ToDto();
+    }
+
+    public async Task<ShopFeatureTogglesDto> GetFeatureTogglesAsync(Guid shopId, CancellationToken cancellationToken = default)
+    {
+        var shop = await _shopRepository.Query()
+            .FirstOrDefaultAsync(x => x.Id == shopId && !x.IsDeleted, cancellationToken)
+            ?? throw new AppException("shop_not_found", "Shop not found.", 404);
+
+        await EnsureShopAccessAsync(shop, cancellationToken);
+        return BuildFeatureTogglesDto(shop, await ResolveAvailableModuleKeysAsync(shop, cancellationToken));
+    }
+
+    public async Task<ShopFeatureTogglesDto> UpdateFeatureTogglesAsync(Guid shopId, UpdateShopFeatureTogglesRequest request, CancellationToken cancellationToken = default)
+    {
+        var shop = await _shopRepository.Query()
+            .FirstOrDefaultAsync(x => x.Id == shopId && !x.IsDeleted, cancellationToken)
+            ?? throw new AppException("shop_not_found", "Shop not found.", 404);
+
+        await EnsureShopAccessAsync(shop, cancellationToken);
+
+        // Only accept the canonical 5 module keys; anything else is silently dropped so a
+        // misconfigured client cannot poison the DB with arbitrary strings.
+        var allowed = FeatureKeys.ToggleableModules.Select(m => m.Key).ToHashSet(StringComparer.Ordinal);
+        var sanitized = (request.DisabledFeatureKeys ?? [])
+            .Where(k => !string.IsNullOrWhiteSpace(k) && allowed.Contains(k))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        shop.DisabledFeatureKeys = sanitized;
+        shop.ModifiedOn = DateTimeOffset.UtcNow;
+        shop.ModifiedBy = _currentUserService.UserId;
+
+        _shopRepository.Update(shop);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _auditService.LogAsync(nameof(Shop), shop.Id, "ShopFeatureTogglesUpdated",
+            newValue: string.Join(",", sanitized), cancellationToken: cancellationToken);
+
+        return BuildFeatureTogglesDto(shop, await ResolveAvailableModuleKeysAsync(shop, cancellationToken));
+    }
+
+    private async Task<HashSet<string>> ResolveAvailableModuleKeysAsync(Shop shop, CancellationToken cancellationToken)
+    {
+        // A module is "available" if any of the plan's enabled features falls under it. Trial
+        // shops with no plan yet — treat all modules as available so the owner can pre-toggle.
+        var subscription = await _shopSubscriptionRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shop.Id)
+            .OrderByDescending(x => x.CreatedOn)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (subscription?.SubscriptionPlanId is null)
+        {
+            return FeatureKeys.ToggleableModules.Select(m => m.Key).ToHashSet(StringComparer.Ordinal);
+        }
+
+        var planFeatureKeys = await _subscriptionPlanRepository.Query()
+            .AsNoTracking()
+            .Where(p => p.Id == subscription.SubscriptionPlanId.Value)
+            .SelectMany(p => p.PlanFeatures.Where(pf => pf.IsEnabled && pf.Feature.IsActive)
+                                           .Select(pf => pf.Feature.Key))
+            .ToListAsync(cancellationToken);
+
+        var planKeySet = planFeatureKeys.ToHashSet(StringComparer.Ordinal);
+        var result = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var module in FeatureKeys.ToggleableModules)
+        {
+            if (planKeySet.Contains(module.Key)) { result.Add(module.Key); continue; }
+            if (FeatureKeys.ModuleChildKeys.TryGetValue(module.Key, out var children)
+                && children.Any(planKeySet.Contains))
+            {
+                result.Add(module.Key);
+            }
+        }
+        return result;
+    }
+
+    private static ShopFeatureTogglesDto BuildFeatureTogglesDto(Shop shop, HashSet<string> availableModuleKeys)
+    {
+        var disabled = shop.DisabledFeatureKeys.ToHashSet(StringComparer.Ordinal);
+        return new ShopFeatureTogglesDto
+        {
+            ShopId = shop.Id,
+            Modules = FeatureKeys.ToggleableModules.Select(m => new ShopFeatureModuleDto
+            {
+                Key = m.Key,
+                Name = m.Name,
+                Description = m.Description,
+                IsAvailableInPlan = availableModuleKeys.Contains(m.Key),
+                IsDisabledByShop = disabled.Contains(m.Key),
+            }).ToArray(),
+        };
     }
 
     public async Task<IReadOnlyCollection<ShopDto>> ListAsync(Guid? companyId, CancellationToken cancellationToken = default)

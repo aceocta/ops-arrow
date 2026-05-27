@@ -38,6 +38,7 @@ export type MainStackParamList = {
   UserInvitations: undefined;
   UserManagement: undefined;
   ShopConfiguration: undefined;
+  ShopFeatureToggles: undefined;
   AppConfiguration: undefined;
   CompanyManagement: undefined;
   ShopManagement: undefined;

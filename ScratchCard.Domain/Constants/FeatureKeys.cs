@@ -130,4 +130,75 @@ public static class FeatureKeys
         new FeatureCatalogEntry(ReportsAdvanced, "Advanced reports", "Audit & Reports", null, 82),
         new FeatureCatalogEntry(SupportPriority, "Priority support", "Support", null, 90),
     };
+
+    // Top-level modules that can be toggled off per-shop in Shop Settings. Order = display
+    // order in the toggle UI.
+    public static readonly IReadOnlyList<FeatureCatalogEntry> ToggleableModules = new[]
+    {
+        new FeatureCatalogEntry(ScratchCardManagement, "Scratch Card", "Modules", "Pack tracking, sales, scratch-card workflow.", 1),
+        new FeatureCatalogEntry(SafeDropManagement,    "Safe Drop",    "Modules", "Canister drops, cash variance, approval workflow.", 2),
+        new FeatureCatalogEntry(TemperatureLog,        "Temperature Log", "Modules", "Fridge/freezer temperature logging and alerts.", 3),
+        new FeatureCatalogEntry(RefusalNoIdNoSale,     "Refusal Log",  "Modules", "Refusal / No-ID-No-Sale register.", 4),
+        new FeatureCatalogEntry(ComplianceChecklist,   "Compliance Check", "Modules", "Daily / weekly / monthly compliance checklists.", 5),
+    };
+
+    // Map each top-level module to the granular feature keys it covers. Disabling a module at
+    // the shop level should also disable every granular feature listed here.
+    public static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> ModuleChildKeys =
+        new Dictionary<string, IReadOnlyList<string>>
+        {
+            [ScratchCardManagement] = new[]
+            {
+                ScratchCardBasic, ScratchCardAttachments, ScratchCardManualEntryAlerts,
+                ScratchCardAdvancedValidation, ScratchCardManualCorrectionReasons, ScratchCardSuspiciousAlerts,
+            },
+            [TemperatureLog] = new[]
+            {
+                TemperatureLogBasic, TemperatureLogMissedAlerts, TemperatureLogScheduledChecks, TemperatureLogFullHistory,
+            },
+            [RefusalNoIdNoSale] = new[]
+            {
+                RefusalLogBasic, RefusalLogAttachments, RefusalLogMultiManagerReview, RefusalLogAnalytics, RefusalLogStaffReports,
+            },
+            [ComplianceChecklist] = new[]
+            {
+                ComplianceBasic, ComplianceDailyWeeklyMonthly, ComplianceAdvanced, CompliancePhotoEvidence,
+            },
+            [SafeDropManagement] = new[]
+            {
+                SafeDropBasic, SafeDropCanisterLimitAlerts, SafeDropApprovalWorkflow, SafeDropCashVariance,
+            },
+        };
+
+    /// <summary>
+    /// Returns the module key plus all of its granular child keys for an entry in
+    /// <see cref="ModuleChildKeys"/>; for any other key, just returns the key itself.
+    /// </summary>
+    public static IEnumerable<string> ExpandModuleKeys(string moduleKey)
+    {
+        yield return moduleKey;
+        if (ModuleChildKeys.TryGetValue(moduleKey, out var children))
+        {
+            foreach (var c in children) yield return c;
+        }
+    }
+
+    /// <summary>
+    /// True if the supplied feature key is covered by any of the disabled module keys (matches
+    /// the disabled key directly, or is a child of a disabled module).
+    /// </summary>
+    public static bool IsKeyDisabledByModules(string featureKey, IEnumerable<string>? disabledModuleKeys)
+    {
+        if (disabledModuleKeys is null) return false;
+        foreach (var disabled in disabledModuleKeys)
+        {
+            if (string.Equals(disabled, featureKey, StringComparison.Ordinal)) return true;
+            if (ModuleChildKeys.TryGetValue(disabled, out var children)
+                && children.Contains(featureKey, StringComparer.Ordinal))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
 }

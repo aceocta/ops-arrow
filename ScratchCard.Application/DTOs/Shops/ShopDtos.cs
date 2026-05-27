@@ -35,3 +35,23 @@ public class ShopDto
     public string Country { get; set; } = string.Empty;
     public bool IsActive { get; set; }
 }
+
+public class ShopFeatureModuleDto
+{
+    public string Key { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public bool IsAvailableInPlan { get; set; }
+    public bool IsDisabledByShop { get; set; }
+}
+
+public class ShopFeatureTogglesDto
+{
+    public Guid ShopId { get; set; }
+    public IReadOnlyCollection<ShopFeatureModuleDto> Modules { get; set; } = [];
+}
+
+public class UpdateShopFeatureTogglesRequest
+{
+    public IReadOnlyCollection<string> DisabledFeatureKeys { get; set; } = [];
+}

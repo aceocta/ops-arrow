@@ -15,7 +15,8 @@
       "PowerShell(Get-ChildItem -Path \"j:\\\\ScratchCard\\\\ScratchCard.Mobile\\\\src\" -Recurse | Select-Object -First 50 | ForEach-Object { $_.FullName })",
       "PowerShell(Get-ChildItem -Path \"j:\\\\ScratchCard\\\\ScratchCard.Mobile\\\\src\\\\components\" -File | ForEach-Object { $_.FullName })",
       "PowerShell(Get-ChildItem -Path \"j:\\\\ScratchCard\\\\ScratchCard.Mobile\\\\src\\\\navigation\" -File | ForEach-Object { $_.FullName })",
-      "PowerShell(Get-ChildItem -Path \"j:\\\\ScratchCard\\\\ScratchCard.Mobile\\\\src\\\\features\" -Directory | ForEach-Object { $_.FullName })"
+      "PowerShell(Get-ChildItem -Path \"j:\\\\ScratchCard\\\\ScratchCard.Mobile\\\\src\\\\features\" -Directory | ForEach-Object { $_.FullName })",
+      "Bash(echo \"EXIT=$?\")"
     ]
   }
 }

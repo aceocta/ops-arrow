@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Services;
+using ScratchCard.Domain.Constants;
 using ScratchCard.Domain.Entities;
 using ScratchCard.Domain.Enums;
 
@@ -22,6 +23,7 @@ public class FeatureGateService : IFeatureGateService
     private readonly IRepository<ShopSubscription> _shopSubscriptionRepository;
     private readonly IRepository<SubscriptionPlan> _planRepository;
     private readonly IRepository<SubscriptionPlanFeature> _planFeatureRepository;
+    private readonly IRepository<Shop> _shopRepository;
     private readonly IRepository<ShopUser> _shopUserRepository;
     private readonly IRepository<UserInvitation> _userInvitationRepository;
     private readonly IRepository<ReportExportLog> _reportExportLogRepository;
@@ -31,6 +33,7 @@ public class FeatureGateService : IFeatureGateService
         IRepository<ShopSubscription> shopSubscriptionRepository,
         IRepository<SubscriptionPlan> planRepository,
         IRepository<SubscriptionPlanFeature> planFeatureRepository,
+        IRepository<Shop> shopRepository,
         IRepository<ShopUser> shopUserRepository,
         IRepository<UserInvitation> userInvitationRepository,
         IRepository<ReportExportLog> reportExportLogRepository,
@@ -39,6 +42,7 @@ public class FeatureGateService : IFeatureGateService
         _shopSubscriptionRepository = shopSubscriptionRepository;
         _planRepository = planRepository;
         _planFeatureRepository = planFeatureRepository;
+        _shopRepository = shopRepository;
         _shopUserRepository = shopUserRepository;
         _userInvitationRepository = userInvitationRepository;
         _reportExportLogRepository = reportExportLogRepository;
@@ -51,13 +55,22 @@ public class FeatureGateService : IFeatureGateService
         var plan = await ResolveActivePlanAsync(shopId, cancellationToken);
         if (plan is null) return false;
 
-        return await _planFeatureRepository.Query()
+        var includedInPlan = await _planFeatureRepository.Query()
             .AsNoTracking()
             .AnyAsync(pf => pf.SubscriptionPlanId == plan.Id
                             && pf.IsEnabled
                             && pf.Feature.IsActive
                             && pf.Feature.Key == featureKey,
                 cancellationToken);
+        if (!includedInPlan) return false;
+
+        // Shop-level opt-out: owner may have disabled the parent module.
+        var disabled = await _shopRepository.Query()
+            .AsNoTracking()
+            .Where(s => s.Id == shopId)
+            .Select(s => s.DisabledFeatureKeys)
+            .FirstOrDefaultAsync(cancellationToken);
+        return !FeatureKeys.IsKeyDisabledByModules(featureKey, disabled);
     }
 
     public async Task EnsureFeatureAsync(Guid shopId, string featureKey, CancellationToken cancellationToken = default)

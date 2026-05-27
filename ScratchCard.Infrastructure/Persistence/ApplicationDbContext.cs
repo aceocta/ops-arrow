@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using ScratchCard.Domain.Entities;
 using ScratchCard.Domain.Enums;
+using System.Text.Json;
 
 namespace ScratchCard.Infrastructure.Persistence;
 
@@ -145,6 +147,16 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.PostCode).HasMaxLength(20).IsRequired();
             entity.Property(x => x.Country).HasMaxLength(100).IsRequired();
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.Property(x => x.DisabledFeatureKeys)
+                .HasConversion(
+                    v => JsonSerializer.Serialize(v ?? new List<string>(), (JsonSerializerOptions?)null),
+                    v => string.IsNullOrEmpty(v)
+                        ? new List<string>()
+                        : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null) ?? new List<string>())
+                .Metadata.SetValueComparer(new ValueComparer<List<string>>(
+                    (a, b) => (a ?? new List<string>()).SequenceEqual(b ?? new List<string>()),
+                    v => v == null ? 0 : v.Aggregate(0, (h, s) => HashCode.Combine(h, s.GetHashCode())),
+                    v => v == null ? new List<string>() : v.ToList()));
             entity.HasOne(x => x.Company).WithMany(x => x.Shops).HasForeignKey(x => x.CompanyId);
         });
 
