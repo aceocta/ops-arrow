@@ -1219,6 +1219,14 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     () => visibleCanisterDrops.filter((d) => d.approvalStatus === "Pending").length,
     [visibleCanisterDrops],
   );
+  // Cash committed to the safe so far today. Rejected drops are excluded — they represent
+  // reversed/abandoned drops, so they don't belong in a "money dropped" total.
+  const safeDropTotal = useMemo(
+    () => visibleCanisterDrops
+      .filter((d) => d.approvalStatus !== "Rejected")
+      .reduce((sum, d) => sum + Number(d.amount ?? 0), 0),
+    [visibleCanisterDrops],
+  );
 
   const approveDropMutation = useMutation({
     mutationFn: async (canisterDropId: string) => approveCanisterDrop(canisterDropId),
@@ -2039,21 +2047,15 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           ) : null}
           <View style={styles.kpiGrid}>
             <View style={styles.kpiTile}>
-              <Text style={styles.kpiLabel}>Total Sales</Text>
+              <Text style={styles.kpiLabel}>Total Scratch Card Sales</Text>
               <Text style={styles.kpiValue}>{formatCurrency(summaryTotalSales)}</Text>
             </View>
-            <View style={styles.kpiTile}>
-              <Text style={styles.kpiLabel}>Lotto Payout</Text>
-              <Text style={styles.kpiValue}>{formatCurrency(lotteryMachinePayout)}</Text>
-            </View>
-            <View style={styles.kpiTile}>
-              <Text style={styles.kpiLabel}>Scratch Card Payout</Text>
-              <Text style={styles.kpiValue}>{formatCurrency(scratchCardPayout)}</Text>
-            </View>
-            <View style={styles.kpiTile}>
-              <Text style={styles.kpiLabel}>Till Payout</Text>
-              <Text style={styles.kpiValue}>{formatCurrency(tillPayout)}</Text>
-            </View>
+            {isSafeDropManagementVisible ? (
+              <View style={styles.kpiTile}>
+                <Text style={styles.kpiLabel}>Safe Drop Total</Text>
+                <Text style={styles.kpiValue}>{formatCurrency(safeDropTotal)}</Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
