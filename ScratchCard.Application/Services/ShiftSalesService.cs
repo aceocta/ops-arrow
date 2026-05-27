@@ -25,6 +25,8 @@ public class ShiftSalesService : IShiftSalesService
     private readonly IRepository<ShiftReconciliation> _reconciliationRepository;
     private readonly IRepository<ShiftCloseAttachment> _shiftCloseAttachmentRepository;
     private readonly IRepository<CanisterDrop> _canisterDropRepository;
+    private readonly IRepository<TemperatureMonitoringUnit> _temperatureUnitRepository;
+    private readonly IRepository<TemperatureReading> _temperatureReadingRepository;
     private readonly IRepository<CfgDayCloseSettings> _dayCloseSettingsRepository;
     private readonly IRepository<CompanySubscription> _companySubscriptionRepository;
     private readonly IRepository<ShopUser> _shopUserRepository;
@@ -51,6 +53,8 @@ public class ShiftSalesService : IShiftSalesService
         IRepository<ShiftReconciliation> reconciliationRepository,
         IRepository<ShiftCloseAttachment> shiftCloseAttachmentRepository,
         IRepository<CanisterDrop> canisterDropRepository,
+        IRepository<TemperatureMonitoringUnit> temperatureUnitRepository,
+        IRepository<TemperatureReading> temperatureReadingRepository,
         IRepository<CfgDayCloseSettings> dayCloseSettingsRepository,
         IRepository<CompanySubscription> companySubscriptionRepository,
         IRepository<ShopUser> shopUserRepository,
@@ -76,6 +80,8 @@ public class ShiftSalesService : IShiftSalesService
         _reconciliationRepository = reconciliationRepository;
         _shiftCloseAttachmentRepository = shiftCloseAttachmentRepository;
         _canisterDropRepository = canisterDropRepository;
+        _temperatureUnitRepository = temperatureUnitRepository;
+        _temperatureReadingRepository = temperatureReadingRepository;
         _dayCloseSettingsRepository = dayCloseSettingsRepository;
         _companySubscriptionRepository = companySubscriptionRepository;
         _shopUserRepository = shopUserRepository;
@@ -718,6 +724,7 @@ public class ShiftSalesService : IShiftSalesService
             : [];
 
         var summaryRows = BuildShiftCloseSummaryRows(entries, packs);
+        var temperatureRows = await LoadTemperatureSummaryRowsAsync(shift.ShopId, businessDay.BusinessDate, cancellationToken);
         var reportGeneratedOnUtc = DateTimeOffset.UtcNow;
         var subject = $"Shift Close Summary - {shopName} - {businessDay.BusinessDate:yyyy-MM-dd} - {shift.ShiftName}";
         var body = BuildShiftCloseSummaryBodyHtml(
@@ -727,6 +734,7 @@ public class ShiftSalesService : IShiftSalesService
             summaryRows,
             safeDropRows,
             safeDropManagementEnabled,
+            temperatureRows,
             reportGeneratedOnUtc);
         var summaryPdf = BuildShiftCloseSummaryPdf(
             shopName,
@@ -735,6 +743,7 @@ public class ShiftSalesService : IShiftSalesService
             summaryRows,
             safeDropRows,
             safeDropManagementEnabled,
+            temperatureRows,
             reportGeneratedOnUtc);
         var summaryPdfFileName = BuildShiftCloseSummaryPdfFileName(shift, businessDay);
         var attachments = new EmailAttachment[]
@@ -1080,6 +1089,67 @@ public class ShiftSalesService : IShiftSalesService
         string DroppedByName,
         DateTimeOffset DroppedOn);
 
+    // Latest temperature reading snapshot per active monitoring unit on the shift's business
+    // day. Included in shift- and day-close reports so managers can see fridge / freezer
+    // checks alongside sales.
+    private sealed record TemperatureSummaryRow(
+        string UnitName,
+        string EquipmentType,
+        string? Location,
+        decimal MinTemperatureCelsius,
+        decimal MaxTemperatureCelsius,
+        decimal? LatestTemperatureCelsius,
+        TimeOnly? LatestReadingTime,
+        bool? IsOutOfRange);
+
+    // One row per active monitoring unit, with the latest reading recorded on the supplied
+    // business date (or no reading if nothing was logged yet). Used by both shift- and day-
+    // close summary reports.
+    private async Task<TemperatureSummaryRow[]> LoadTemperatureSummaryRowsAsync(
+        Guid shopId,
+        DateOnly businessDate,
+        CancellationToken cancellationToken)
+    {
+        var units = await _temperatureUnitRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId && x.IsActive && !x.IsDeleted)
+            .OrderBy(x => x.UnitName)
+            .ToArrayAsync(cancellationToken);
+
+        if (units.Length == 0)
+        {
+            return [];
+        }
+
+        var unitIds = units.Select(u => u.Id).ToArray();
+        var readings = await _temperatureReadingRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId
+                        && unitIds.Contains(x.TemperatureMonitoringUnitId)
+                        && x.ReadingDate == businessDate)
+            .ToArrayAsync(cancellationToken);
+
+        var latestByUnit = readings
+            .GroupBy(r => r.TemperatureMonitoringUnitId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.ReadingTime).First());
+
+        return units
+            .Select(unit =>
+            {
+                latestByUnit.TryGetValue(unit.Id, out var latest);
+                return new TemperatureSummaryRow(
+                    unit.UnitName,
+                    unit.EquipmentType.ToString(),
+                    unit.Location,
+                    unit.MinTemperatureCelsius,
+                    unit.MaxTemperatureCelsius,
+                    latest?.TemperatureCelsius,
+                    latest?.ReadingTime,
+                    latest?.IsOutOfRange);
+            })
+            .ToArray();
+    }
+
     private static ShiftCloseSummaryRow[] BuildShiftCloseSummaryRows(
         IReadOnlyCollection<ShiftScratchCardSale> entries,
         IReadOnlyDictionary<Guid, ScratchCardPack> packs)
@@ -1107,6 +1177,7 @@ public class ShiftSalesService : IShiftSalesService
         IReadOnlyCollection<ShiftCloseSummaryRow> rows,
         IReadOnlyCollection<SafeDropSummaryRow> safeDropRows,
         bool safeDropManagementEnabled,
+        IReadOnlyCollection<TemperatureSummaryRow> temperatureRows,
         DateTimeOffset reportGeneratedOnUtc)
     {
         var reportDateText = reportGeneratedOnUtc.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
@@ -1284,6 +1355,59 @@ if (safeDropManagementEnabled)
     sb.Append("</table>");
 }
 
+if (temperatureRows.Count > 0)
+{
+    var temperatureOutOfRangeCount = temperatureRows.Count(r => r.IsOutOfRange == true);
+    var temperaturePendingCount = temperatureRows.Count(r => r.LatestTemperatureCelsius is null);
+
+    sb.Append("<div class=\"section-header\">");
+    sb.Append("<h3 class=\"section-title\">Temperature Log</h3>");
+    sb.Append("</div>");
+
+    sb.Append("<table class=\"report-table\">");
+    sb.Append("<thead>");
+    sb.Append("<tr>");
+    sb.Append("<th>Unit</th>");
+    sb.Append("<th>Equipment</th>");
+    sb.Append("<th>Range</th>");
+    sb.Append("<th>Latest Reading</th>");
+    sb.Append("<th>Status</th>");
+    sb.Append("</tr>");
+    sb.Append("</thead>");
+    sb.Append("<tbody>");
+    foreach (var row in temperatureRows)
+    {
+        var unitLabel = string.IsNullOrWhiteSpace(row.Location)
+            ? row.UnitName
+            : $"{row.UnitName} ({row.Location})";
+        var rangeText = $"{row.MinTemperatureCelsius.ToString("0.0", CultureInfo.InvariantCulture)}–{row.MaxTemperatureCelsius.ToString("0.0", CultureInfo.InvariantCulture)} °C";
+        var readingText = row.LatestTemperatureCelsius is null
+            ? "—"
+            : $"{row.LatestTemperatureCelsius.Value.ToString("0.0", CultureInfo.InvariantCulture)} °C" +
+              (row.LatestReadingTime is null
+                  ? string.Empty
+                  : $" at {row.LatestReadingTime.Value.ToString("HH:mm", CultureInfo.InvariantCulture)}");
+        var statusText = row.LatestTemperatureCelsius is null
+            ? "Pending"
+            : row.IsOutOfRange == true ? "Out of range" : "In range";
+
+        sb.Append("<tr>");
+        sb.Append($"<td>{WebUtility.HtmlEncode(unitLabel)}</td>");
+        sb.Append($"<td>{WebUtility.HtmlEncode(row.EquipmentType)}</td>");
+        sb.Append($"<td>{WebUtility.HtmlEncode(rangeText)}</td>");
+        sb.Append($"<td>{WebUtility.HtmlEncode(readingText)}</td>");
+        sb.Append($"<td>{WebUtility.HtmlEncode(statusText)}</td>");
+        sb.Append("</tr>");
+    }
+    sb.Append("</tbody>");
+    sb.Append("<tfoot>");
+    sb.Append("<tr>");
+    sb.Append($"<td colspan=\"5\">Units: {temperatureRows.Count.ToString(CultureInfo.InvariantCulture)} · Out of range: {temperatureOutOfRangeCount.ToString(CultureInfo.InvariantCulture)} · Pending: {temperaturePendingCount.ToString(CultureInfo.InvariantCulture)}</td>");
+    sb.Append("</tr>");
+    sb.Append("</tfoot>");
+    sb.Append("</table>");
+}
+
 sb.Append("<div class=\"footer\">Generated by Ops Arrow</div>");
 
 sb.Append("</div>");
@@ -1300,8 +1424,14 @@ sb.Append("</html>");       return sb.ToString();
         IReadOnlyCollection<ShiftCloseSummaryRow> rows,
         IReadOnlyCollection<SafeDropSummaryRow> safeDropRows,
         bool safeDropManagementEnabled,
+        IReadOnlyCollection<TemperatureSummaryRow> temperatureRows,
         DateTimeOffset reportGeneratedOnUtc)
     {
+        // PDF view intentionally stays focused on the sales detail + safe-drop tables; the
+        // Temperature Log summary lives in the email HTML body only. Surfacing it in the PDF
+        // would require a new column layout block — keep parameter accepted for parity so
+        // callers don't drift. (No-op suppress to keep the analyzer happy.)
+        _ = temperatureRows;
         const float pageWidth = 842f;
         const float pageHeight = 595f;
         const float margin = 36f;

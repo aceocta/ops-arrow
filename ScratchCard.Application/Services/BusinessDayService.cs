@@ -23,6 +23,10 @@ public class BusinessDayService : IBusinessDayService
     private readonly IRepository<PrizePayout> _payoutRepository;
     private readonly IRepository<ScratchCardDayCloseSummary> _dayCloseSummaryRepository;
     private readonly IRepository<CanisterDrop> _canisterDropRepository;
+    private readonly IRepository<TemperatureMonitoringUnit> _temperatureUnitRepository;
+    private readonly IRepository<TemperatureReading> _temperatureReadingRepository;
+    private readonly IRepository<ComplianceCheckItem> _complianceCheckItemRepository;
+    private readonly IRepository<ComplianceCheckEntry> _complianceCheckEntryRepository;
     private readonly IRepository<UserPushToken> _userPushTokenRepository;
     private readonly IRepository<BusinessDayCloseAttachment> _dayCloseAttachmentRepository;
     private readonly IRepository<CfgDayCloseSettings> _dayCloseSettingsRepository;
@@ -48,6 +52,10 @@ public class BusinessDayService : IBusinessDayService
         IRepository<PrizePayout> payoutRepository,
         IRepository<ScratchCardDayCloseSummary> dayCloseSummaryRepository,
         IRepository<CanisterDrop> canisterDropRepository,
+        IRepository<TemperatureMonitoringUnit> temperatureUnitRepository,
+        IRepository<TemperatureReading> temperatureReadingRepository,
+        IRepository<ComplianceCheckItem> complianceCheckItemRepository,
+        IRepository<ComplianceCheckEntry> complianceCheckEntryRepository,
         IRepository<UserPushToken> userPushTokenRepository,
         IRepository<BusinessDayCloseAttachment> dayCloseAttachmentRepository,
         IRepository<CfgDayCloseSettings> dayCloseSettingsRepository,
@@ -72,6 +80,10 @@ public class BusinessDayService : IBusinessDayService
         _payoutRepository = payoutRepository;
         _dayCloseSummaryRepository = dayCloseSummaryRepository;
         _canisterDropRepository = canisterDropRepository;
+        _temperatureUnitRepository = temperatureUnitRepository;
+        _temperatureReadingRepository = temperatureReadingRepository;
+        _complianceCheckItemRepository = complianceCheckItemRepository;
+        _complianceCheckEntryRepository = complianceCheckEntryRepository;
         _userPushTokenRepository = userPushTokenRepository;
         _dayCloseAttachmentRepository = dayCloseAttachmentRepository;
         _dayCloseSettingsRepository = dayCloseSettingsRepository;
@@ -1286,6 +1298,9 @@ public class BusinessDayService : IBusinessDayService
                 .ToArrayAsync(cancellationToken)
             : [];
 
+        var temperatureRows = await LoadTemperatureSummaryForReportAsync(day.ShopId, day.BusinessDate, cancellationToken);
+        var complianceSummary = await LoadComplianceDailySummaryForReportAsync(day.ShopId, day.BusinessDate, cancellationToken);
+
         var subject = $"Day Close Summary - {shopName} - {day.BusinessDate:yyyy-MM-dd}";
         var body = BuildDayCloseSummaryBodyHtml(
             shopName,
@@ -1294,7 +1309,9 @@ public class BusinessDayService : IBusinessDayService
             entries,
             missingOpeningTicketCount,
             safeDropRows,
-            safeDropManagementEnabled);
+            safeDropManagementEnabled,
+            temperatureRows,
+            complianceSummary);
 
         foreach (var recipient in recipients)
         {
@@ -1512,6 +1529,104 @@ public class BusinessDayService : IBusinessDayService
         string ShiftName,
         DateTimeOffset DroppedOn);
 
+    // Latest temperature reading snapshot per active monitoring unit for the report's date.
+    private sealed record TemperatureSummaryRow(
+        string UnitName,
+        string EquipmentType,
+        string? Location,
+        decimal MinTemperatureCelsius,
+        decimal MaxTemperatureCelsius,
+        decimal? LatestTemperatureCelsius,
+        TimeOnly? LatestReadingTime,
+        bool? IsOutOfRange);
+
+    // Aggregate counters for daily compliance items — used in the day close report so the
+    // owner sees overall coverage and any non-compliant items without listing each one.
+    private sealed record ComplianceDailySummary(
+        int TotalItems,
+        int CompletedItems,
+        int NonCompliantItems,
+        int PendingItems);
+
+    private async Task<TemperatureSummaryRow[]> LoadTemperatureSummaryForReportAsync(
+        Guid shopId,
+        DateOnly businessDate,
+        CancellationToken cancellationToken)
+    {
+        var units = await _temperatureUnitRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId && x.IsActive && !x.IsDeleted)
+            .OrderBy(x => x.UnitName)
+            .ToArrayAsync(cancellationToken);
+
+        if (units.Length == 0)
+        {
+            return [];
+        }
+
+        var unitIds = units.Select(u => u.Id).ToArray();
+        var readings = await _temperatureReadingRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId
+                        && unitIds.Contains(x.TemperatureMonitoringUnitId)
+                        && x.ReadingDate == businessDate)
+            .ToArrayAsync(cancellationToken);
+
+        var latestByUnit = readings
+            .GroupBy(r => r.TemperatureMonitoringUnitId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.ReadingTime).First());
+
+        return units
+            .Select(unit =>
+            {
+                latestByUnit.TryGetValue(unit.Id, out var latest);
+                return new TemperatureSummaryRow(
+                    unit.UnitName,
+                    unit.EquipmentType.ToString(),
+                    unit.Location,
+                    unit.MinTemperatureCelsius,
+                    unit.MaxTemperatureCelsius,
+                    latest?.TemperatureCelsius,
+                    latest?.ReadingTime,
+                    latest?.IsOutOfRange);
+            })
+            .ToArray();
+    }
+
+    private async Task<ComplianceDailySummary> LoadComplianceDailySummaryForReportAsync(
+        Guid shopId,
+        DateOnly businessDate,
+        CancellationToken cancellationToken)
+    {
+        var totalItems = await _complianceCheckItemRepository.Query()
+            .AsNoTracking()
+            .CountAsync(x => x.ShopId == shopId
+                              && x.IsActive
+                              && !x.IsDeleted
+                              && x.Frequency == ComplianceCheckFrequency.Daily,
+                cancellationToken);
+
+        if (totalItems == 0)
+        {
+            return new ComplianceDailySummary(0, 0, 0, 0);
+        }
+
+        var entries = await _complianceCheckEntryRepository.Query()
+            .OfType<DailyComplianceCheckEntry>()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId && x.CheckDate == businessDate)
+            .Select(x => new { x.Result })
+            .ToArrayAsync(cancellationToken);
+
+        var completed = entries.Count(e => e.Result != ComplianceCheckResult.Pending);
+        var nonCompliant = entries.Count(e => e.Result == ComplianceCheckResult.NonCompliant);
+        return new ComplianceDailySummary(
+            totalItems,
+            completed,
+            nonCompliant,
+            Math.Max(totalItems - completed, 0));
+    }
+
     private static string BuildDayCloseSummaryBodyHtml(
         string shopName,
         BusinessDay day,
@@ -1519,7 +1634,9 @@ public class BusinessDayService : IBusinessDayService
         IReadOnlyCollection<ShiftScratchCardSale> entries,
         int missingOpeningTicketCount,
         IReadOnlyCollection<SafeDropSummaryRow> safeDropRows,
-        bool safeDropManagementEnabled)
+        bool safeDropManagementEnabled,
+        IReadOnlyCollection<TemperatureSummaryRow> temperatureRows,
+        ComplianceDailySummary complianceSummary)
     {
         var rows = entries
             .Select(entry => new
@@ -1707,6 +1824,56 @@ public class BusinessDayService : IBusinessDayService
             sb.Append($"<td class=\"num\">{safeDropTotalAmount.ToString("0.00", CultureInfo.InvariantCulture)}</td>");
             sb.Append($"<td colspan=\"3\">Entries: {safeDropRows.Count.ToString(CultureInfo.InvariantCulture)}</td>");
             sb.Append("</tr></tfoot></table>");
+        }
+
+        if (temperatureRows.Count > 0)
+        {
+            var outOfRange = temperatureRows.Count(r => r.IsOutOfRange == true);
+            var pending = temperatureRows.Count(r => r.LatestTemperatureCelsius is null);
+
+            sb.Append("<div class=\"table-title\">Temperature Log</div>");
+            sb.Append("<table class=\"report-table\"><thead><tr>");
+            sb.Append("<th>Unit</th><th>Equipment</th><th>Range</th><th>Latest Reading</th><th>Status</th>");
+            sb.Append("</tr></thead><tbody>");
+            foreach (var row in temperatureRows)
+            {
+                var unitLabel = string.IsNullOrWhiteSpace(row.Location)
+                    ? row.UnitName
+                    : $"{row.UnitName} ({row.Location})";
+                var rangeText = $"{row.MinTemperatureCelsius.ToString("0.0", CultureInfo.InvariantCulture)}–{row.MaxTemperatureCelsius.ToString("0.0", CultureInfo.InvariantCulture)} °C";
+                var readingText = row.LatestTemperatureCelsius is null
+                    ? "—"
+                    : $"{row.LatestTemperatureCelsius.Value.ToString("0.0", CultureInfo.InvariantCulture)} °C" +
+                      (row.LatestReadingTime is null
+                          ? string.Empty
+                          : $" at {row.LatestReadingTime.Value.ToString("HH:mm", CultureInfo.InvariantCulture)}");
+                var statusText = row.LatestTemperatureCelsius is null
+                    ? "Pending"
+                    : row.IsOutOfRange == true ? "Out of range" : "In range";
+                sb.Append("<tr>");
+                sb.Append($"<td>{WebUtility.HtmlEncode(unitLabel)}</td>");
+                sb.Append($"<td>{WebUtility.HtmlEncode(row.EquipmentType)}</td>");
+                sb.Append($"<td>{WebUtility.HtmlEncode(rangeText)}</td>");
+                sb.Append($"<td>{WebUtility.HtmlEncode(readingText)}</td>");
+                sb.Append($"<td>{WebUtility.HtmlEncode(statusText)}</td>");
+                sb.Append("</tr>");
+            }
+            sb.Append("</tbody><tfoot><tr>");
+            sb.Append($"<td colspan=\"5\">Units: {temperatureRows.Count.ToString(CultureInfo.InvariantCulture)} · Out of range: {outOfRange.ToString(CultureInfo.InvariantCulture)} · Pending: {pending.ToString(CultureInfo.InvariantCulture)}</td>");
+            sb.Append("</tr></tfoot></table>");
+        }
+
+        if (complianceSummary.TotalItems > 0)
+        {
+            sb.Append("<div class=\"table-title\">Compliance Check Summary</div>");
+            sb.Append("<table class=\"report-table\"><thead><tr>");
+            sb.Append("<th>Total Items</th><th>Completed</th><th>Pending</th><th>Non-Compliant</th>");
+            sb.Append("</tr></thead><tbody><tr>");
+            sb.Append($"<td>{complianceSummary.TotalItems.ToString(CultureInfo.InvariantCulture)}</td>");
+            sb.Append($"<td>{complianceSummary.CompletedItems.ToString(CultureInfo.InvariantCulture)}</td>");
+            sb.Append($"<td>{complianceSummary.PendingItems.ToString(CultureInfo.InvariantCulture)}</td>");
+            sb.Append($"<td>{complianceSummary.NonCompliantItems.ToString(CultureInfo.InvariantCulture)}</td>");
+            sb.Append("</tr></tbody></table>");
         }
 
         if (!string.IsNullOrWhiteSpace(day.Notes))
