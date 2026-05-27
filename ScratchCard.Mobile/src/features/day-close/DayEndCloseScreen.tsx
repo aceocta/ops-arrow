@@ -219,6 +219,23 @@ function formatShiftDateTimeCompact(value: Date) {
   return value.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+// Used when a shift's start and end land on different calendar days (e.g. opened before
+// midnight, closed after). Showing the date alongside the time stops "21:30 – 02:15" from
+// looking like a 19-hour gap on the same day.
+function formatShiftDateTimeWithDay(value: Date) {
+  const datePart = value.toLocaleDateString([], { month: "short", day: "numeric" });
+  const timePart = value.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return `${datePart}, ${timePart}`;
+}
+
+function isSameCalendarDay(a: Date, b: Date) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
 // Renders a Date span as a compact duration like "4h 20m" or "45m". Used on closed shifts
 // in the day-management screen so the shopkeeper can see how long the shift actually ran
 // without doing the maths in their head.
@@ -1724,8 +1741,16 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             const displayWindow = shiftDisplayWindowById[shift.id];
             const displayStart = displayWindow?.start ?? new Date(shift.startTime);
             const displayEnd = displayWindow?.end;
-            const compactStart = formatShiftDateTimeCompact(displayStart);
-            const compactEnd = displayEnd ? formatShiftDateTimeCompact(displayEnd) : "";
+            // When a shift crosses midnight, show the start's date alongside its time so the
+            // span ("Apr 12, 21:30 – 02:15") is unambiguous instead of looking like a same-day
+            // 19-hour gap.
+            const crossesMidnight = !!displayEnd && !isSameCalendarDay(displayStart, displayEnd);
+            const compactStart = crossesMidnight
+              ? formatShiftDateTimeWithDay(displayStart)
+              : formatShiftDateTimeCompact(displayStart);
+            const compactEnd = displayEnd
+              ? (crossesMidnight ? formatShiftDateTimeWithDay(displayEnd) : formatShiftDateTimeCompact(displayEnd))
+              : "";
             // Duration shown for closed shifts so the user can see at-a-glance how long the
             // shift ran. Skipped for active shifts because "running for 4h 20m" updates over
             // time and we don't have a tick refresh hook in this tree.
