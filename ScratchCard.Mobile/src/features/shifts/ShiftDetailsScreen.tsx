@@ -704,27 +704,7 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
           </View>
         </Modal>
 
-        <View style={[ui.card, styles.summaryCard]}>
-          <View style={styles.actionHeader}>
-            <Text style={styles.sectionTitle}>Refresh</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={salesQuery.isFetching ? "Refreshing sales entries" : "Refresh shift details"}
-              style={[styles.iconButton, salesQuery.isFetching ? styles.iconButtonDisabled : null]}
-              onPress={() => {
-                void shiftQuery.refetch();
-                void businessDayQuery.refetch();
-                void salesQuery.refetch();
-                void configurationQuery.refetch();
-                void subscriptionSummaryQuery.refetch();
-                void canisterDropsQuery.refetch();
-              }}
-              disabled={salesQuery.isFetching}
-            >
-              <Text style={styles.iconGlyph}>{salesQuery.isFetching ? "*" : "\u21BB"}</Text>
-            </Pressable>
-          </View>
-        </View>
+       
       </ScrollView>
     </ScreenContainer>
   );
