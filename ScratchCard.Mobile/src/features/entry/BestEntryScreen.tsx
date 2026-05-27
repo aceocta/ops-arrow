@@ -6,6 +6,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SubscriptionBanner } from "../subscription/SubscriptionBanner";
 import { useBestEntry } from "../../navigation/BestEntryContext";
+import { useEntitlements } from "../subscription/useEntitlements";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -18,10 +19,13 @@ type OperationOption = {
   iconColor: string;
   iconBg: string;
   operation?: "scratchCard" | "temperature" | "refusals" | "checklist" | "compliance";
+  /** Top-level module key. Tile hides if the shop's plan does not include it OR the owner
+   *  has toggled it off in Feature Toggles. */
+  requiredFeature?: string;
 };
 
 const operationOptions: OperationOption[] = [
-  
+
   {
     key: "scratchCard",
     title: "Scratch Card",
@@ -30,6 +34,7 @@ const operationOptions: OperationOption[] = [
     iconColor: appTheme.colors.primary,
     iconBg: appTheme.colors.surfaceBrandMuted,
     operation: "scratchCard",
+    requiredFeature: "ScratchCardManagement",
   },
   {
     key: "temperature",
@@ -39,6 +44,7 @@ const operationOptions: OperationOption[] = [
     iconColor: appTheme.colors.info,
     iconBg: appTheme.colors.surfaceInfoMuted,
     operation: "temperature",
+    requiredFeature: "TemperatureLog",
   },
   {
     key: "refusals",
@@ -48,6 +54,7 @@ const operationOptions: OperationOption[] = [
     iconColor: appTheme.colors.warning,
     iconBg: appTheme.colors.surfaceWarningSoft,
     operation: "refusals",
+    requiredFeature: "RefusalNoIdNoSale",
   },
   {
     key: "compliance",
@@ -57,18 +64,24 @@ const operationOptions: OperationOption[] = [
     iconColor: appTheme.colors.warning,
     iconBg: appTheme.colors.surfaceWarningSoft,
     operation: "compliance",
+    requiredFeature: "ComplianceChecklist",
   }
 ];
 
 export function BestEntryScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const { selectedOperation, setSelectedOperation } = useBestEntry();
+  const { entitlements } = useEntitlements();
+  const features = entitlements?.features ?? [];
+  const visibleOptions = operationOptions.filter(
+    (o) => !o.requiredFeature || features.includes(o.requiredFeature)
+  );
 
   return (
     <ScreenContainer>
       <SubscriptionBanner />
       <View style={styles.featureGrid}>
-        {operationOptions.map((option) => {
+        {visibleOptions.map((option) => {
           const selected = option.operation ? selectedOperation === option.operation : false;
           return (
             <Pressable

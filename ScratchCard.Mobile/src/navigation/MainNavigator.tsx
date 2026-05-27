@@ -80,16 +80,18 @@ type DrawerSectionKey = "operations" | "setup" | "reports" | "management";
 const Drawer = createDrawerNavigator<MainDrawerParamList>();
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
-// Daily Operations: things shop staff do every shift.
+// Daily Operations: things shop staff do every shift. requiredFeature uses the top-level
+// module key so the entry hides both when the shop's plan does not include the module AND
+// when the shop owner has toggled it off in Settings → Feature Toggles.
 const operationsItems: MenuItem[] = [
   { label: "Day Management", screen: "Dashboard", icon: "calendar-outline", mode: "scratchCard" },
   { label: "Shop Checklist", screen: "ShopChecklist", icon: "checkmark-done-outline", mode: "checklist" },
-  { label: "Compliance Checks", screen: "ComplianceChecks", icon: "clipboard-outline", mode: "compliance" },
-  { label: "Deliveries", screen: "Deliveries", icon: "cube-outline", mode: "scratchCard" },
-  { label: "Temperature Logs", screen: "TemperatureLogs", icon: "thermometer-outline", mode: "temperature" },
-  { label: "No ID / No Sale", screen: "RefusalRegister", icon: "shield-checkmark-outline", mode: "refusals" },
-  { label: "Card Packs", screen: "ScratchCardPacks", icon: "albums-outline", mode: "scratchCard" },
-  { label: "Card Games", screen: "ScratchCardGames", icon: "game-controller-outline", mode: "scratchCard" },
+  { label: "Compliance Checks", screen: "ComplianceChecks", icon: "clipboard-outline", mode: "compliance", requiredFeature: "ComplianceChecklist" },
+  { label: "Deliveries", screen: "Deliveries", icon: "cube-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
+  { label: "Temperature Logs", screen: "TemperatureLogs", icon: "thermometer-outline", mode: "temperature", requiredFeature: "TemperatureLog" },
+  { label: "No ID / No Sale", screen: "RefusalRegister", icon: "shield-checkmark-outline", mode: "refusals", requiredFeature: "RefusalNoIdNoSale" },
+  { label: "Card Packs", screen: "ScratchCardPacks", icon: "albums-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
+  { label: "Card Games", screen: "ScratchCardGames", icon: "game-controller-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
 ];
 
 // Setup: admin-only configuration templates that drive Daily Operations.
@@ -107,6 +109,7 @@ const setupItems: MenuItem[] = [
     icon: "build-outline",
     mode: "compliance",
     allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
+    requiredFeature: "ComplianceChecklist",
   },
   {
     label: "Temperature Units",
@@ -114,13 +117,14 @@ const setupItems: MenuItem[] = [
     icon: "options-outline",
     mode: "temperature",
     allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
+    requiredFeature: "TemperatureLog",
   },
 ];
 
 // Reports: history, analytics and review surfaces.
 const reportItems: MenuItem[] = [
-  { label: "Daily Sales Report", screen: "DailySalesReport", icon: "stats-chart-outline", mode: "scratchCard" },
-  { label: "Stock Report", screen: "StockReport", icon: "archive-outline", mode: "scratchCard" },
+  { label: "Daily Sales Report", screen: "DailySalesReport", icon: "stats-chart-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
+  { label: "Stock Report", screen: "StockReport", icon: "archive-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
   {
     label: "Checklist History",
     screen: "ChecklistHistory",
@@ -134,11 +138,12 @@ const reportItems: MenuItem[] = [
     icon: "warning-outline",
     mode: "compliance",
     allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
+    requiredFeature: "ComplianceChecklist",
   },
-  { label: "Temperature Logs by Day", screen: "TemperatureLogsByDay", icon: "calendar-number-outline", mode: "temperature" },
-  { label: "Temperature Logs Report", screen: "TemperatureLogsReport", icon: "bar-chart-outline", mode: "temperature" },
-  { label: "Temperature Logs Date Range Report", screen: "TemperatureLogsDateRangeReport", icon: "document-text-outline", mode: "temperature" },
-  { label: "Refusal Report", screen: "RefusalReport", icon: "document-text-outline", mode: "refusals" },
+  { label: "Temperature Logs by Day", screen: "TemperatureLogsByDay", icon: "calendar-number-outline", mode: "temperature", requiredFeature: "TemperatureLog" },
+  { label: "Temperature Logs Report", screen: "TemperatureLogsReport", icon: "bar-chart-outline", mode: "temperature", requiredFeature: "TemperatureLog" },
+  { label: "Temperature Logs Date Range Report", screen: "TemperatureLogsDateRangeReport", icon: "document-text-outline", mode: "temperature", requiredFeature: "TemperatureLog" },
+  { label: "Refusal Report", screen: "RefusalReport", icon: "document-text-outline", mode: "refusals", requiredFeature: "RefusalNoIdNoSale" },
   { label: "Refusal Manager Review", screen: "RefusalManagerReview", icon: "clipboard-outline", mode: "refusals", requiredFeature: "refusal_log.multi_manager_review" },
   { label: "Audit Log", screen: "AuditLog", icon: "document-text-outline", mode: "scratchCard", requiredFeature: "audit_log.basic" },
   { label: "Notification Log", screen: "NotificationLog", icon: "notifications-outline", mode: "scratchCard" },
@@ -164,10 +169,13 @@ const bottomDockItems: Array<{
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   screen: keyof MainStackParamList;
+  /** Optional top-level module key. Item is hidden when the active shop does not include
+   *  this feature (plan-excluded OR shop-toggled-off). */
+  requiredFeature?: string;
 }> = [
   { icon: "home-outline", label: "Home", screen: "BestEntry" },
-  { icon: "albums-outline", label: "Scratch Card", screen: "Dashboard" },
-  { icon: "thermometer-outline", label: "Temp", screen: "TemperatureLogs" },
+  { icon: "albums-outline", label: "Scratch Card", screen: "Dashboard", requiredFeature: "ScratchCardManagement" },
+  { icon: "thermometer-outline", label: "Temp", screen: "TemperatureLogs", requiredFeature: "TemperatureLog" },
   { icon: "settings-outline", label: "Settings", screen: "Settings" },
 ];
 
@@ -433,11 +441,16 @@ function MainBottomDock() {
   const { setSelectedOperation } = useBestEntry();
   const insets = useSafeAreaInsets();
   const navigationState = useNavigationState((state) => state);
+  const { entitlements } = useEntitlements();
+  const features = entitlements?.features ?? [];
   const currentRouteName = getDeepestRouteName(navigationState);
   if (!shouldShowBottomDock(currentRouteName)) {
     return null;
   }
 
+  const visibleDockItems = bottomDockItems.filter(
+    (item) => !item.requiredFeature || features.includes(item.requiredFeature)
+  );
   const activeScreen = resolveActiveBottomDockScreen(currentRouteName);
   const dockBottomInset = Math.max(insets.bottom, appTheme.spacing.xs);
   const dockVerticalOffset = Platform.OS === "android" ? -8 : 0;
@@ -445,7 +458,7 @@ function MainBottomDock() {
   return (
     <View style={[styles.bottomDockWrap, { paddingBottom: dockBottomInset, bottom: dockVerticalOffset }]}>
       <View style={styles.bottomDock}>
-        {bottomDockItems.map((item) => {
+        {visibleDockItems.map((item) => {
           const isActive = item.screen === activeScreen;
           return (
             <Pressable
