@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQuery } from "@tanstack/react-query";
@@ -8,6 +9,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { EmptyState } from "../../components/EmptyState";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { SectionHeader } from "../../components/SectionHeader";
 import { SkeletonList } from "../../components/Skeleton";
 import type { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
@@ -71,18 +73,21 @@ export function DeliveriesScreen() {
       </View>
 
       <View style={ui.card}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Recent Deliveries</Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={deliveriesQuery.isFetching ? "Refreshing deliveries" : "Refresh deliveries"}
-            style={[styles.iconButton, !shopId || deliveriesQuery.isFetching ? styles.iconButtonDisabled : null]}
-            onPress={handleRefresh}
-            disabled={!shopId || deliveriesQuery.isFetching}
-          >
-            <Text style={styles.iconGlyph}>{deliveriesQuery.isFetching ? "*" : "↻"}</Text>
-          </Pressable>
-        </View>
+        <SectionHeader
+          title="Recent Deliveries"
+          icon="cube-outline"
+          right={
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={deliveriesQuery.isFetching ? "Refreshing deliveries" : "Refresh deliveries"}
+              style={[styles.iconButton, !shopId || deliveriesQuery.isFetching ? styles.iconButtonDisabled : null]}
+              onPress={handleRefresh}
+              disabled={!shopId || deliveriesQuery.isFetching}
+            >
+              <Ionicons name="refresh" size={16} color={appTheme.colors.primary} />
+            </Pressable>
+          }
+        />
 
         {isInitialLoading ? (
           <SkeletonList count={4} rowHeight={68} />
@@ -112,17 +117,6 @@ export function DeliveriesScreen() {
 }
 
 const styles = StyleSheet.create({
-  sectionTitle: {
-    fontSize: 17,
-    lineHeight: 22,
-    color: appTheme.colors.text,
-    fontFamily: appTheme.fonts.bodyMedium,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
   iconButton: {
     width: 32,
     height: 32,
@@ -143,11 +137,10 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
   },
   item: {
-    borderWidth: 1,
-    borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surfaceMuted,
-    padding: 10,
+    backgroundColor: appTheme.colors.surfaceTint,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.sm,
     gap: 4,
   },
   itemTitle: {

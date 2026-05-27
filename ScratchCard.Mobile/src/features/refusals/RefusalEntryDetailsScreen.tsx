@@ -7,6 +7,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { SectionHeader } from "../../components/SectionHeader";
 import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
@@ -84,10 +85,12 @@ export function RefusalEntryDetailsScreen({ route, navigation }: Props) {
 
   return (
     <ScreenContainer>
-      <View style={styles.screenHeaderCard}>
-        <Text style={styles.screenHeaderEyebrow}>No ID / No Sale</Text>
-        <Text style={styles.screenHeaderTitle}>Refusal Details</Text>
-        <Text style={styles.screenHeaderMeta}>Review full refusal record and manager decision trail.</Text>
+      <View style={ui.card}>
+        <SectionHeader
+          title="Refusal Details"
+          subtitle="Review full refusal record and manager decision trail."
+          icon="shield-checkmark-outline"
+        />
       </View>
 
       <View style={ui.card}>
@@ -176,20 +179,21 @@ export function RefusalEntryDetailsScreen({ route, navigation }: Props) {
               textAlignVertical="top"
             />
             <View style={styles.modalActionRow}>
-              <Pressable
-                style={[styles.modalActionButton, styles.modalActionSecondary]}
-                onPress={() => setIsReviewModalVisible(false)}
-                disabled={reviewMutation.isPending}
-              >
-                <Text style={styles.modalActionSecondaryText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.modalActionButton, styles.modalActionPrimary]}
-                onPress={() => reviewMutation.mutate()}
-                disabled={reviewMutation.isPending}
-              >
-                <Text style={styles.modalActionPrimaryText}>{reviewMutation.isPending ? "Saving..." : "Save Review"}</Text>
-              </Pressable>
+              <View style={{ flex: 1 }}>
+                <PrimaryButton
+                  label="Cancel"
+                  tone="neutral"
+                  onPress={() => setIsReviewModalVisible(false)}
+                  disabled={reviewMutation.isPending}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <PrimaryButton
+                  label={reviewMutation.isPending ? "Saving..." : "Save Review"}
+                  onPress={() => reviewMutation.mutate()}
+                  disabled={reviewMutation.isPending}
+                />
+              </View>
             </View>
           </View>
         </View>
@@ -267,12 +271,10 @@ const styles = StyleSheet.create({
     height: 110,
   },
   reviewCard: {
-    borderWidth: 1,
-    borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surfaceMuted,
+    backgroundColor: appTheme.colors.surfaceTint,
     padding: appTheme.spacing.sm,
-    gap: 2,
+    gap: 4,
   },
   reviewSignatureCard: {
     borderWidth: 1,

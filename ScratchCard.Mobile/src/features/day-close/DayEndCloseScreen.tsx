@@ -23,6 +23,8 @@ import { listPacks } from "../../api/packsApi";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
+import { SectionHeader } from "../../components/SectionHeader";
+import { KpiGrid, KpiTile } from "../../components/KpiTile";
 import { getShiftSales, listShifts, openShift, reopenShift, startScheduledShift } from "../../api/shiftsApi";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -1882,16 +1884,19 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               pressed ? styles.sectionCardPressed : null,
             ]}
           >
-            <View style={styles.sectionTitleRow}>
-              <Text style={styles.sectionTitle}>Safe Drops</Text>
-              <View style={styles.sectionTitleRight}>
-                <StatusBadge
-                  label={pendingDropCount > 0 ? `${pendingDropCount} pending` : `${visibleCanisterDrops.length}`}
-                  tone={pendingDropCount > 0 ? "warning" : visibleCanisterDrops.length > 0 ? "success" : "neutral"}
-                />
-                <Ionicons name="chevron-forward" size={18} color={appTheme.colors.textSubtle} />
-              </View>
-            </View>
+            <SectionHeader
+              title="Safe Drops"
+              icon="lock-closed-outline"
+              right={
+                <>
+                  <StatusBadge
+                    label={pendingDropCount > 0 ? `${pendingDropCount} pending` : `${visibleCanisterDrops.length}`}
+                    tone={pendingDropCount > 0 ? "warning" : visibleCanisterDrops.length > 0 ? "success" : "neutral"}
+                  />
+                  <Ionicons name="chevron-forward" size={18} color={appTheme.colors.textSubtle} />
+                </>
+              }
+            />
             {canisterDropsQuery.isFetching ? (
               <Text style={styles.meta}>Loading safe drops...</Text>
             ) : visibleCanisterDrops.length > 0 ? (
@@ -1989,7 +1994,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
         ) : null}
 
         <View style={[ui.card, styles.sectionCard]}>
-          <Text style={styles.sectionTitle}>Financial Summary</Text>
+          <SectionHeader title="Financial Summary" icon="stats-chart-outline" />
           {hasTillPayoutVariance ? (
             <View
               style={[
@@ -2008,18 +2013,12 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               </Text>
             </View>
           ) : null}
-          <View style={styles.kpiGrid}>
-            <View style={styles.kpiTile}>
-              <Text style={styles.kpiLabel}>Total Scratch Card Sales</Text>
-              <Text style={styles.kpiValue}>{formatCurrency(summaryTotalSales)}</Text>
-            </View>
+          <KpiGrid columns={2}>
+            <KpiTile label="Scratch Card Sales" value={formatCurrency(summaryTotalSales)} />
             {isSafeDropManagementVisible ? (
-              <View style={styles.kpiTile}>
-                <Text style={styles.kpiLabel}>Safe Drop Total</Text>
-                <Text style={styles.kpiValue}>{formatCurrency(safeDropTotal)}</Text>
-              </View>
+              <KpiTile label="Safe Drop Total" value={formatCurrency(safeDropTotal)} />
             ) : null}
-          </View>
+          </KpiGrid>
         </View>
 
         {persistedDayAttachments.length > 0 ? (

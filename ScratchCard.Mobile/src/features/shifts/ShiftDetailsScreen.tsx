@@ -11,6 +11,8 @@ import { useAuth } from "../../auth/AuthContext";
 import { getShift, getShiftCloseAttachmentContent, getShiftSales } from "../../api/shiftsApi";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { SectionHeader } from "../../components/SectionHeader";
+import { KpiGrid, KpiTile } from "../../components/KpiTile";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ShiftStatus } from "../../types/enums";
 import { MainStackParamList } from "../../types/navigation";
@@ -401,12 +403,12 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
             </View>
             <StatusBadge label={shift?.status ?? "-"} tone={getShiftTone(shift?.status)} />
           </View>
-          <View style={styles.badgeRow}>
+          {/* <View style={styles.badgeRow}>
             <Text style={styles.businessDate}>{businessDay?.businessDate ?? "-"}</Text>
             {businessDay?.status ? (
               <StatusBadge label={`Day ${businessDay.status}`} tone={getBusinessDayTone(businessDay.status)} />
             ) : null}
-          </View>
+          </View> */}
           <View style={styles.infoGrid}>
             <View style={styles.infoTile}>
               <Text style={styles.infoLabel}>Start</Text>
@@ -416,59 +418,53 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
               <Text style={styles.infoLabel}>End</Text>
               <Text style={styles.infoValue}>{shift?.endTime ? new Date(shift.endTime).toLocaleString() : "Open"}</Text>
             </View>
-            <View style={styles.infoTile}>
+            {/* <View style={styles.infoTile}>
               <Text style={styles.infoLabel}>Duration</Text>
               <Text style={styles.infoValue}>{formatDuration(shift?.startTime, shift?.endTime)}</Text>
             </View>
             <View style={styles.infoTile}>
               <Text style={styles.infoLabel}>Sync</Text>
               <Text style={styles.infoValue}>{shift?.syncStatus ?? "-"}</Text>
-            </View>
+            </View> */}
           </View>
         </View>
 
         <View style={[ui.card, styles.summaryCard]}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Shift Summary</Text>
-            {totals.flaggedCount > 0 ? (
-              <StatusBadge label={`${totals.flaggedCount} flagged`} tone="warning" />
-            ) : null}
-          </View>
-          <View style={styles.kpiGrid}>
-            <View style={styles.kpiTile}>
-              <Text style={styles.kpiLabel}>Entries</Text>
-              <Text style={styles.kpiValue}>{entries.length}</Text>
-            </View>
-            <View style={styles.kpiTile}>
-              <Text style={styles.kpiLabel}>Sold Qty</Text>
-              <Text style={styles.kpiValue}>{totals.totalSoldQuantity}</Text>
-            </View>
-            <View style={styles.kpiTile}>
-              <Text style={styles.kpiLabel}>Sales</Text>
-              <Text style={styles.kpiValue}>{formatCurrency(totals.totalSalesAmount)}</Text>
-            </View>
-            <View style={styles.kpiTile}>
-              <Text style={styles.kpiLabel}>Remaining</Text>
-              <Text style={styles.kpiValue}>{totals.totalRemainingTickets}</Text>
-            </View>
-          </View>
+          <SectionHeader
+            title="Scratch Card Summary"
+            icon="stats-chart-outline"
+            right={
+              totals.flaggedCount > 0 ? (
+                <StatusBadge label={`${totals.flaggedCount} flagged`} tone="warning" />
+              ) : undefined
+            }
+          />
+          <KpiGrid columns={2}>
+            {/* <KpiTile label="Entries" value={entries.length} /> */}
+            <KpiTile label="Sold Qty" value={totals.totalSoldQuantity} />
+            <KpiTile label="Sales" value={formatCurrency(totals.totalSalesAmount)} />
+            {/* <KpiTile label="Remaining" value={totals.totalRemainingTickets} /> */}
+          </KpiGrid>
           {salesQuery.isFetching ? <Text style={styles.meta}>Loading...</Text> : null}
         </View>
 
         {isSafeDropManagementVisible ? (
           <View style={[ui.card, styles.summaryCard]}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Safe Drop</Text>
-              <StatusBadge
-                label={`${safeDropsForShift.length}`}
-                tone={safeDropsForShift.length > 0 ? "success" : "neutral"}
-              />
-            </View>
-            <Text style={styles.meta}>
+            <SectionHeader
+              title="Safe Drop"
+              icon="lock-closed-outline"
+              right={
+                <StatusBadge
+                  label={`${safeDropsForShift.length}`}
+                  tone={safeDropsForShift.length > 0 ? "success" : "neutral"}
+                />
+              }
+            />
+            {/* <Text style={styles.meta}>
               {canCloseShift
                 ? "Record safe drops during this active shift."
                 : "Safe drops can be added only while this shift is open or reopened."}
-            </Text>
+            </Text> */}
             <FloatingLabelInput
               label="Canister number"
               value={safeDropCanisterNumber}

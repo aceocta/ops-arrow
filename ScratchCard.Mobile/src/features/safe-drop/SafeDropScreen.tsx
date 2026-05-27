@@ -12,6 +12,8 @@ import { useAuth } from "../../auth/AuthContext";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { SectionHeader } from "../../components/SectionHeader";
+import { KpiGrid, KpiTile } from "../../components/KpiTile";
 import { Skeleton } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ui } from "../../ui/primitives";
@@ -132,33 +134,24 @@ export function SafeDropScreen() {
         }
       >
         <View style={[ui.card, styles.card]}>
-          <Text style={styles.headerLine}>Safe Drops · {businessDate}</Text>
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryTile}>
-              <Text style={styles.summaryLabel}>Total dropped</Text>
-              <Text style={styles.summaryValue}>{formatCurrencyGBP(totals.amount)}</Text>
-            </View>
-            <View style={styles.summaryTile}>
-              <Text style={styles.summaryLabel}>Drops</Text>
-              <Text style={styles.summaryValue}>{totals.count}</Text>
-            </View>
-            <View style={styles.summaryTile}>
-              <Text style={styles.summaryLabel}>Pending</Text>
-              <Text
-                style={[
-                  styles.summaryValue,
-                  totals.pending > 0 ? styles.summaryValueWarning : null,
-                ]}
-              >
-                {totals.pending}
-              </Text>
-            </View>
-          </View>
+          {/* <SectionHeader
+            title="Safe Drops"
+            subtitle={businessDate}
+            icon="lock-closed-outline"
+          /> */}
+          <KpiGrid columns={2}>
+            <KpiTile label="Total" value={formatCurrencyGBP(totals.amount)} />
+            <KpiTile label="No of drops" value={totals.count} />
+           
+          </KpiGrid>
         </View>
 
         <View style={[ui.card, styles.card]}>
-          <Text style={styles.sectionTitle}>Add Safe Drop</Text>
-          <Text style={styles.meta}>Records a new canister drop for {businessDate}.</Text>
+          <SectionHeader
+            title="Add Safe Drop"
+            subtitle={`Records a new canister drop for ${businessDate}.`}
+            icon="add-circle-outline"
+          />
           <FloatingLabelInput
             label="Canister number"
             value={canisterNumber}
@@ -191,13 +184,16 @@ export function SafeDropScreen() {
         </View>
 
         <View style={[ui.card, styles.card]}>
-          <View style={styles.sectionTitleRow}>
-            <Text style={styles.sectionTitle}>Drops on this date</Text>
-            <StatusBadge
-              label={totals.pending > 0 ? `${totals.pending} pending` : `${totals.count}`}
-              tone={totals.pending > 0 ? "warning" : totals.count > 0 ? "success" : "neutral"}
-            />
-          </View>
+          <SectionHeader
+            title="Drops on this date"
+            icon="list-outline"
+            right={
+              <StatusBadge
+                label={totals.pending > 0 ? `${totals.pending} pending` : `${totals.count}`}
+                tone={totals.pending > 0 ? "warning" : totals.count > 0 ? "success" : "neutral"}
+              />
+            }
+          />
 
           {dropsQuery.isLoading ? (
             <View style={{ gap: 8 }}>

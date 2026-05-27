@@ -17,7 +17,11 @@
       "PowerShell(Get-ChildItem -Path \"j:\\\\ScratchCard\\\\ScratchCard.Mobile\\\\src\\\\navigation\" -File | ForEach-Object { $_.FullName })",
       "PowerShell(Get-ChildItem -Path \"j:\\\\ScratchCard\\\\ScratchCard.Mobile\\\\src\\\\features\" -Directory | ForEach-Object { $_.FullName })",
       "Bash(echo \"EXIT=$?\")",
-      "Bash(awk 'NR==898 || /private/' \"j:/ScratchCard/ScratchCard.Application/Services/ComplianceCheckService.cs\")"
+      "Bash(awk 'NR==898 || /private/' \"j:/ScratchCard/ScratchCard.Application/Services/ComplianceCheckService.cs\")",
+      "Bash(Get-ChildItem -Path \"j:\\\\ScratchCard\\\\ScratchCard.Mobile\\\\src\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(Get-ChildItem -Directory features)",
+      "Bash(Select-Object -ExpandProperty Name)"
     ]
   }
 }
