@@ -19,6 +19,7 @@ import {
 } from "../../api/businessDaysApi";
 import { getConfigurations } from "../../api/configurationsApi";
 import { getShopSubscriptionSummary } from "../../api/subscriptionApi";
+import { getTemperatureDailyLog } from "../../api/temperatureLogsApi";
 import { listPacks } from "../../api/packsApi";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
@@ -57,6 +58,7 @@ const MAX_CLOSE_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const DEFAULT_CLOSE_DAY_PAYOUT = "0";
 const SAFE_DROP_FEATURE_KEY = "SafeDropManagement";
 const SAFE_DROP_CONFIG_KEY = "EnableSafeDropManagement";
+const TEMPERATURE_LOG_FEATURE_KEY = "TemperatureLog";
 
 // Maps common axios/fetch errors into a single actionable message for the shopkeeper.
 // `fallback` is shown when the server didn't return anything more specific.
@@ -762,6 +764,40 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     queryFn: () => listCanisterDrops(businessDayId),
     enabled: isSafeDropManagementVisible,
   });
+
+  // Temperature Log summary on the Day Management screen — same plan-gate pattern as Safe
+  // Drop. Daily log query is scoped to today's calendar date so the counts on the card match
+  // what the user sees on the Temperature Logs screen when they navigate in.
+  const hasTemperatureLogFeature = subscriptionIncludedFeatures.some(
+    (feature) => feature.toLowerCase() === TEMPERATURE_LOG_FEATURE_KEY.toLowerCase(),
+  );
+  const todayDateValue = formatDateValue(new Date());
+  const temperatureLogQuery = useQuery({
+    queryKey: ["temperature-daily-log", day?.shopId, todayDateValue],
+    queryFn: () => getTemperatureDailyLog(day?.shopId as string, todayDateValue),
+    enabled: hasTemperatureLogFeature && Boolean(day?.shopId),
+    staleTime: 60 * 1000,
+  });
+  const temperatureSummary = useMemo(() => {
+    const units = temperatureLogQuery.data?.units ?? [];
+    let recorded = 0;
+    let outOfRange = 0;
+    for (const unitLog of units) {
+      const latest = unitLog.readings.length > 0
+        ? unitLog.readings[unitLog.readings.length - 1]
+        : undefined;
+      if (latest) {
+        recorded += 1;
+        if (latest.isOutOfRange) outOfRange += 1;
+      }
+    }
+    return {
+      total: units.length,
+      recorded,
+      pending: Math.max(units.length - recorded, 0),
+      outOfRange,
+    };
+  }, [temperatureLogQuery.data?.units]);
   const businessDayTiming = useMemo(() => {
     const startRaw = getConfigurationValue(
       configurationQuery.data,
@@ -1568,9 +1604,10 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       dayQuery.refetch(),
       shiftsQuery.refetch(),
       isSafeDropManagementVisible ? canisterDropsQuery.refetch() : Promise.resolve(),
+      hasTemperatureLogFeature ? temperatureLogQuery.refetch() : Promise.resolve(),
       subscriptionShopId ? subscriptionSummaryQuery.refetch() : Promise.resolve(),
     ]);
-  }, [dayQuery, shiftsQuery, isSafeDropManagementVisible, canisterDropsQuery, subscriptionShopId, subscriptionSummaryQuery]);
+  }, [dayQuery, shiftsQuery, isSafeDropManagementVisible, canisterDropsQuery, hasTemperatureLogFeature, temperatureLogQuery, subscriptionShopId, subscriptionSummaryQuery]);
   const isRefreshing = dayQuery.isRefetching || shiftsQuery.isRefetching;
 
   if (isDayManagementInitialLoading) {
@@ -1956,6 +1993,80 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   ? "No safe drops recorded for this day."
                   : "No safe drops recorded by you for this day."}
               </Text>
+            )}
+          </Pressable>
+        ) : null}
+
+        {hasTemperatureLogFeature ? (
+          <Pressable
+            onPress={() => navigation.navigate("TemperatureLogs")}
+            accessibilityRole="button"
+            accessibilityLabel="Open Temperature Logs"
+            style={({ pressed }) => [
+              ui.card,
+              styles.sectionCard,
+              pressed ? styles.sectionCardPressed : null,
+            ]}
+          >
+            <SectionHeader
+              title="Temperature Log"
+              icon="thermometer-outline"
+              right={
+                <>
+                  <StatusBadge
+                    label={
+                      temperatureSummary.outOfRange > 0
+                        ? `${temperatureSummary.outOfRange} out of range`
+                        : temperatureSummary.pending > 0
+                          ? `${temperatureSummary.pending} pending`
+                          : temperatureSummary.total > 0
+                            ? "All checked"
+                            : "No units"
+                    }
+                    tone={
+                      temperatureSummary.outOfRange > 0
+                        ? "danger"
+                        : temperatureSummary.pending > 0
+                          ? "warning"
+                          : temperatureSummary.total > 0
+                            ? "success"
+                            : "neutral"
+                    }
+                  />
+                  <Ionicons name="chevron-forward" size={18} color={appTheme.colors.textSubtle} />
+                </>
+              }
+            />
+            {temperatureLogQuery.isLoading ? (
+              <Text style={styles.meta}>Loading today's temperature checks...</Text>
+            ) : temperatureSummary.total === 0 ? (
+              <Text style={styles.meta}>
+                No monitoring units configured. Tap to set them up in the Temperature Log.
+              </Text>
+            ) : (
+              <KpiGrid columns={2}>
+                {/* <KpiTile label="Units" value={temperatureSummary.total} /> */}
+                <KpiTile
+                  label="Recorded"
+                  value={temperatureSummary.recorded}
+                  tone={temperatureSummary.recorded === temperatureSummary.total ? "success" : "default"}
+                />
+                <KpiTile
+                  label={temperatureSummary.outOfRange > 0 ? "Out of range" : "Pending"}
+                  value={
+                    temperatureSummary.outOfRange > 0
+                      ? temperatureSummary.outOfRange
+                      : temperatureSummary.pending
+                  }
+                  tone={
+                    temperatureSummary.outOfRange > 0
+                      ? "danger"
+                      : temperatureSummary.pending > 0
+                        ? "warning"
+                        : "default"
+                  }
+                />
+              </KpiGrid>
             )}
           </Pressable>
         ) : null}
