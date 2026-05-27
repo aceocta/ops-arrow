@@ -548,32 +548,48 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
             {canisterDropsQuery.isFetching ? (
               <Text style={styles.meta}>Loading safe drops...</Text>
             ) : safeDropsForShift.length > 0 ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.safeDropTableScrollContent}>
-                <View style={styles.safeDropTable}>
-                  <View style={[styles.safeDropTableRow, styles.safeDropTableHeaderRow]}>
-                    <Text style={[styles.safeDropTableCell, styles.safeDropTableCellCanister, styles.safeDropTableHeaderText]}>Canister</Text>
-                    <Text style={[styles.safeDropTableCell, styles.safeDropTableCellAmount, styles.safeDropTableHeaderText]}>Amount</Text>
-                    <Text style={[styles.safeDropTableCell, styles.safeDropTableCellBy, styles.safeDropTableHeaderText]}>Dropped By</Text>
-                    <Text style={[styles.safeDropTableCell, styles.safeDropTableCellTime, styles.safeDropTableHeaderText]}>Time</Text>
-                  </View>
-                  {safeDropsForShift.map((drop) => (
-                    <View key={drop.id} style={styles.safeDropTableRow}>
-                      <Text style={[styles.safeDropTableCell, styles.safeDropTableCellCanister]} numberOfLines={1}>
-                        {drop.canisterNumber}
-                      </Text>
-                      <Text style={[styles.safeDropTableCell, styles.safeDropTableCellAmount, styles.safeDropAmount]} numberOfLines={1}>
-                        {formatCurrency(drop.amount)}
-                      </Text>
-                      <Text style={[styles.safeDropTableCell, styles.safeDropTableCellBy]} numberOfLines={1}>
-                        {drop.droppedByName}
-                      </Text>
-                      <Text style={[styles.safeDropTableCell, styles.safeDropTableCellTime]} numberOfLines={1}>
-                        {new Date(drop.droppedOn).toLocaleString()}
-                      </Text>
+              <View style={styles.safeDropCompactList}>
+                {safeDropsForShift.map((drop) => {
+                  const isPending = drop.approvalStatus === "Pending";
+                  const isRejected = drop.approvalStatus === "Rejected";
+                  const droppedTime = new Date(drop.droppedOn);
+                  const droppedTimeLabel = Number.isNaN(droppedTime.getTime())
+                    ? "—"
+                    : droppedTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                  const accentColor = isPending
+                    ? appTheme.colors.warning
+                    : isRejected
+                      ? appTheme.colors.danger
+                      : appTheme.colors.success;
+                  return (
+                    <View key={drop.id} style={styles.safeDropCompactRow}>
+                      <View style={[styles.safeDropCompactAccent, { backgroundColor: accentColor }]} />
+                      <View style={styles.safeDropCompactBody}>
+                        <View style={styles.safeDropCompactLine}>
+                          <Text style={styles.safeDropCompactPrimary} numberOfLines={1}>
+                            {droppedTimeLabel} · #{drop.canisterNumber}
+                          </Text>
+                          <Text style={styles.safeDropCompactAmount}>{formatCurrency(drop.amount)}</Text>
+                        </View>
+                        <View style={styles.safeDropCompactMetaRow}>
+                          <Text style={styles.safeDropCompactMetaText} numberOfLines={1}>
+                            {drop.droppedByName}
+                          </Text>
+                          <StatusBadge
+                            label={drop.approvalStatus}
+                            tone={isPending ? "warning" : isRejected ? "danger" : "success"}
+                          />
+                        </View>
+                        {isRejected && drop.approvalNotes ? (
+                          <Text style={styles.safeDropCompactReason} numberOfLines={2}>
+                            Rejected: {drop.approvalNotes}
+                          </Text>
+                        ) : null}
+                      </View>
                     </View>
-                  ))}
-                </View>
-              </ScrollView>
+                  );
+                })}
+              </View>
             ) : (
               <Text style={styles.meta}>No safe drops recorded for this shift.</Text>
             )}
@@ -813,56 +829,64 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.body,
     fontSize: 14,
   },
-  safeDropTableScrollContent: {
-    paddingBottom: 2,
+  safeDropCompactList: {
+    gap: 6,
   },
-  safeDropTable: {
-    minWidth: 560,
-    borderWidth: 0,
-    borderRadius: appTheme.radius.sm,
-    overflow: "hidden",
-    backgroundColor: appTheme.colors.surface,
+  safeDropCompactRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: appTheme.colors.borderSoft,
   },
-  safeDropTableRow: {
+  safeDropCompactAccent: {
+    width: 3,
+    alignSelf: "stretch",
+    borderRadius: 2,
+  },
+  safeDropCompactBody: {
+    flex: 1,
+    gap: 2,
+  },
+  safeDropCompactLine: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+  },
+  safeDropCompactPrimary: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 16,
+    flex: 1,
+  },
+  safeDropCompactAmount: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 17,
+  },
+  safeDropCompactMetaRow: {
     flexDirection: "row",
     alignItems: "center",
-    borderBottomWidth: 0,
-    borderBottomColor: appTheme.colors.border,
-    backgroundColor: appTheme.colors.surfaceMuted,
+    justifyContent: "space-between",
+    gap: 8,
   },
-  safeDropTableHeaderRow: {
-    backgroundColor: appTheme.colors.surfaceTintAlt,
-  },
-  safeDropTableCell: {
-    color: appTheme.colors.text,
+  safeDropCompactMetaText: {
+    color: appTheme.colors.textMuted,
     fontFamily: appTheme.fonts.body,
     fontSize: 12,
     lineHeight: 16,
-    paddingHorizontal: appTheme.spacing.xs,
-    paddingVertical: 9,
+    flex: 1,
   },
-  safeDropTableHeaderText: {
-    fontFamily: appTheme.fonts.bodyMedium,
-    color: appTheme.colors.textSubtle,
-    textTransform: "uppercase",
+  safeDropCompactReason: {
+    color: appTheme.colors.danger,
+    fontFamily: appTheme.fonts.body,
     fontSize: 11,
     lineHeight: 14,
-  },
-  safeDropTableCellCanister: {
-    width: 110,
-  },
-  safeDropTableCellAmount: {
-    width: 100,
-  },
-  safeDropTableCellBy: {
-    width: 140,
-  },
-  safeDropTableCellTime: {
-    width: 200,
-  },
-  safeDropAmount: {
-    fontFamily: appTheme.fonts.bodyMedium,
-    color: appTheme.colors.primary,
   },
   kpiGrid: {
     flexDirection: "row",
