@@ -555,7 +555,6 @@ const DrawerSection = React.memo(function DrawerSection({
       <Pressable
         style={({ pressed }) => [
           styles.drawerSectionHeader,
-          { backgroundColor: accentSoftBackground, borderColor: accentSoftBackground },
           pressed ? styles.drawerSectionHeaderPressed : null,
         ]}
         onPress={handleToggle}
@@ -564,16 +563,18 @@ const DrawerSection = React.memo(function DrawerSection({
         accessibilityState={{ expanded }}
       >
         <View style={styles.drawerSectionHeaderMain}>
-          <View style={[styles.drawerSectionAvatar, { backgroundColor: accentColor }]}>
-            <Ionicons name={icon} size={13} color={appTheme.colors.onPrimary} />
+          {/* Coloured tile is the only chromatic element in the header — keeps the drawer
+              palette restrained while still giving each group a recognisable identity. */}
+          <View style={[styles.drawerSectionAvatar, { backgroundColor: accentSoftBackground }]}>
+            <Ionicons name={icon} size={14} color={accentColor} />
           </View>
-          <Text style={[styles.drawerSectionTitle, { color: accentColor }]}>{title}</Text>
+          <Text style={styles.drawerSectionTitle}>{title}</Text>
         </View>
         <View style={styles.drawerSectionToggleIconWrap}>
           <Ionicons
             name={expanded ? "chevron-up-outline" : "chevron-down-outline"}
             size={14}
-            color={accentColor}
+            color={appTheme.colors.textSubtle}
           />
         </View>
       </Pressable>
@@ -1086,11 +1087,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: appTheme.spacing.sm,
-    paddingVertical: 9,
-    borderRadius: appTheme.radius.pill,
-    borderWidth: 1,
-    borderColor: appTheme.colors.borderSoft,
-    backgroundColor: appTheme.colors.surfaceNeutralSoft,
+    paddingVertical: 8,
+    borderRadius: appTheme.radius.md,
+    backgroundColor: appTheme.colors.surface,
   },
   drawerSectionHeaderPressed: {
     opacity: 0.94,
@@ -1101,28 +1100,28 @@ const styles = StyleSheet.create({
     gap: appTheme.spacing.xs,
   },
   drawerSectionAvatar: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 24,
+    height: 24,
+    borderRadius: 6,
     alignItems: "center",
     justifyContent: "center",
   },
   drawerSectionItemsAccented: {
     borderLeftWidth: 2,
-    paddingLeft: 8,
-    marginLeft: 11,
+    paddingLeft: 10,
+    marginLeft: 14,
+    opacity: 1,
   },
   drawerSectionItems: {
     gap: appTheme.spacing.xs,
     marginTop: appTheme.spacing.xs,
   },
   drawerSectionTitle: {
-    color: appTheme.colors.textMuted,
-    fontSize: 11,
-    lineHeight: 14,
-    textTransform: "uppercase",
+    color: appTheme.colors.text,
+    fontSize: 13,
+    lineHeight: 17,
     fontFamily: appTheme.fonts.bodyMedium,
-    letterSpacing: 0.4,
+    letterSpacing: 0.1,
   },
   drawerSectionCountBadge: {
     minWidth: 22,
@@ -1144,10 +1143,8 @@ const styles = StyleSheet.create({
   drawerSectionToggleIconWrap: {
     width: 22,
     height: 22,
-    borderRadius: appTheme.radius.pill,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: appTheme.colors.surface,
   },
   drawerItem: {
     paddingVertical: 11,
