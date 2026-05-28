@@ -431,11 +431,11 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
                 <KpiTile label="Pending" value={closingProgress.pending} tone={closingProgress.pending > 0 ? "warning" : "default"} />
                 <KpiTile label="Sales" value={formatCurrency(closingProgress.sales)} />
               </KpiGrid>
-              <Text style={styles.meta}>
+              {/* <Text style={styles.meta}>
                 {closingProgress.pending > 0
                   ? "Enter all closing numbers before closing the shift."
                   : "Closing numbers entered. Ready to close the shift."}
-              </Text>
+              </Text> */}
             </>
           ) : (
             <>
@@ -459,9 +459,9 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
 
            <View style={[ui.card, styles.summaryCard]}> */}
           {/* <Text style={styles.sectionTitle}>Scratch CardSales</Text> */}
-          {!salesQuery.isFetching && entries.length === 0 ? (
+          {/* {!salesQuery.isFetching && entries.length === 0 ? (
             <Text style={styles.meta}>No entries for this shift.</Text>
-          ) : null}
+          ) : null} */}
           {entries.map((entry) => (
             <View key={entry.id} style={[styles.entryCard, entry.isFlaggedForReview ? styles.entryCardFlagged : null]}>
               <View style={styles.entryHeader}>

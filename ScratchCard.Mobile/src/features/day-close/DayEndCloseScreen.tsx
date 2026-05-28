@@ -1336,6 +1336,23 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   const closableStatuses = new Set<ShiftStatus>([ShiftStatus.Open, ShiftStatus.Reopened]);
   const hasOpenShifts = shifts.some((shift) => closableStatuses.has(shift.status));
   const openShiftCount = shifts.filter((shift) => closableStatuses.has(shift.status)).length;
+
+  // On first load of the day-management detail, if a shift is already open jump straight into
+  // it so staff land on the live shift. Pushed (not replaced) so Back returns to this screen.
+  // The ref keeps it from re-firing when the user navigates back here.
+  const hasAutoOpenedShiftRef = useRef(false);
+  useEffect(() => {
+    if (hasAutoOpenedShiftRef.current || shiftsQuery.isLoading) {
+      return;
+    }
+    const openShift = shifts.find(
+      (shift) => shift.status === ShiftStatus.Open || shift.status === ShiftStatus.Reopened,
+    );
+    if (openShift) {
+      hasAutoOpenedShiftRef.current = true;
+      navigation.navigate("ShiftDetails", { shiftId: openShift.id, shopId: openShift.shopId });
+    }
+  }, [shifts, shiftsQuery.isLoading, navigation]);
   const safeDropSectionMessage = canViewAllSafeDrops
     ? "Showing all safe drops for this business day."
     : "Showing only safe drops recorded by you.";
