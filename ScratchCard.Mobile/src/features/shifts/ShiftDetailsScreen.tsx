@@ -5,12 +5,11 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
-import { addCanisterDrop, getBusinessDay, listCanisterDrops } from "../../api/businessDaysApi";
+import { getBusinessDay, listCanisterDrops } from "../../api/businessDaysApi";
 import { getConfigurations } from "../../api/configurationsApi";
 import { getShopSubscriptionSummary } from "../../api/subscriptionApi";
 import { useAuth } from "../../auth/AuthContext";
 import { getActivePacksForShift, getShift, getShiftCloseAttachmentContent, getShiftSales, listShiftClosingNumbers } from "../../api/shiftsApi";
-import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SectionHeader } from "../../components/SectionHeader";
 import { KpiGrid, KpiTile } from "../../components/KpiTile";
@@ -162,19 +161,6 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
   const [attachmentPreviewUri, setAttachmentPreviewUri] = useState<string>();
   const [loadingAttachmentId, setLoadingAttachmentId] = useState<string | null>(null);
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<string | null>(null);
-  const [safeDropCanisterNumber, setSafeDropCanisterNumber] = useState("");
-  const [safeDropAmount, setSafeDropAmount] = useState("");
-  const [safeDropByName, setSafeDropByName] = useState("");
-  // Inline validation for the amount field — surfaces under the input as the user types so
-  // they don't have to submit just to discover an invalid amount.
-  const safeDropAmountError = useMemo(() => {
-    const raw = safeDropAmount.trim();
-    if (raw.length === 0) return null;
-    const parsed = Number(raw);
-    if (!Number.isFinite(parsed)) return "Enter a valid number.";
-    if (parsed <= 0) return "Amount must be greater than zero.";
-    return null;
-  }, [safeDropAmount]);
 
   const shiftQuery = useQuery({
     queryKey: ["shift", shiftId],
@@ -307,16 +293,6 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
     );
   }, [entries]);
 
-  const safeDropDefaultByName = useMemo(() => {
-    const displayName = profile?.displayName?.trim();
-    if (displayName) return displayName;
-    const firstName = profile?.firstName?.trim() ?? "";
-    const lastName = profile?.lastName?.trim() ?? "";
-    const fullName = `${firstName} ${lastName}`.trim();
-    if (fullName) return fullName;
-    return profile?.email?.trim() ?? "";
-  }, [profile?.displayName, profile?.email, profile?.firstName, profile?.lastName]);
-
   const subscriptionIncludedFeatures = subscriptionSummaryQuery.data?.includedFeatures ?? [];
   const hasSafeDropSubscriptionFeature = subscriptionIncludedFeatures.some(
     (feature) => feature.toLowerCase() === SAFE_DROP_FEATURE_KEY.toLowerCase(),
@@ -343,45 +319,9 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
     [canisterDropsQuery.data, shiftId],
   );
 
-  const addCanisterDropMutation = useMutation({
-    mutationFn: async () => {
-      if (!shift?.businessDayId) {
-        throw new Error("Business day context is missing.");
-      }
-
-      const canisterNumber = safeDropCanisterNumber.trim();
-      if (!canisterNumber) {
-        throw new Error("Canister number is required.");
-      }
-
-      const parsedAmount = Number(safeDropAmount.trim());
-      if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-        throw new Error("Amount must be a valid number greater than zero.");
-      }
-
-      return addCanisterDrop(shift.businessDayId, {
-        canisterNumber,
-        amount: parsedAmount,
-        droppedByName: safeDropByName.trim() || safeDropDefaultByName || undefined,
-      });
-    },
-    onSuccess: async () => {
-      setSafeDropCanisterNumber("");
-      setSafeDropAmount("");
-      Alert.alert("Saved", "Safe drop recorded successfully.");
-      await queryClient.invalidateQueries({ queryKey: ["safe-drops", shift?.businessDayId] });
-      await queryClient.invalidateQueries({ queryKey: ["safe-drop-canisters", shift?.businessDayId] });
-    },
-    onError: (error: any) => {
-      const message = error?.response?.data?.message ?? error?.message ?? "Unable to record safe drop.";
-      Alert.alert("Failed", message);
-    },
-  });
-
   const closeAttachments = shift?.closeAttachments ?? [];
   const businessDay = businessDayQuery.data;
   const canCloseShift = shift?.status === ShiftStatus.Open || shift?.status === ShiftStatus.Reopened;
-  const canRecordSafeDrop = isSafeDropManagementVisible && canCloseShift;
   const closeShiftShopId = shift?.shopId ?? routeShopId;
 
   const previewAttachment = (attachmentId: string, fileName: string) => {
@@ -596,40 +536,6 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
                 }
               />
             </Pressable>
-            {/* <Text style={styles.meta}>
-              {canCloseShift
-                ? "Record safe drops during this active shift."
-                : "Safe drops can be added only while this shift is open or reopened."}
-            </Text> */}
-            <FloatingLabelInput
-              label="Canister number"
-              value={safeDropCanisterNumber}
-              onChangeText={setSafeDropCanisterNumber}
-              editable={canRecordSafeDrop && !addCanisterDropMutation.isPending}
-            />
-            <FloatingLabelInput
-              label="Amount"
-              prefix="£"
-              value={safeDropAmount}
-              onChangeText={setSafeDropAmount}
-              keyboardType="decimal-pad"
-              editable={canRecordSafeDrop && !addCanisterDropMutation.isPending}
-              error={safeDropAmountError}
-            />
-            <FloatingLabelInput
-              label={safeDropDefaultByName ? `Dropped by (default: ${safeDropDefaultByName})` : "Dropped by"}
-              value={safeDropByName}
-              onChangeText={setSafeDropByName}
-              editable={canRecordSafeDrop && !addCanisterDropMutation.isPending}
-            />
-            <Pressable
-              style={[styles.actionButton, (!canRecordSafeDrop || addCanisterDropMutation.isPending) ? styles.actionButtonDisabled : null]}
-              onPress={() => addCanisterDropMutation.mutate()}
-              disabled={!canRecordSafeDrop || addCanisterDropMutation.isPending}
-            >
-              <Text style={styles.actionButtonText}>{addCanisterDropMutation.isPending ? "Saving..." : "Add Safe Drop"}</Text>
-            </Pressable>
-
             {canisterDropsQuery.isFetching ? (
               <Text style={styles.meta}>Loading safe drops...</Text>
             ) : safeDropsForShift.length > 0 ? (
