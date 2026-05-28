@@ -78,7 +78,9 @@ export async function acceptInvitation(payload: {
   lastName: string;
   password: string;
 }) {
-  const response = await apiClient.post("/invitations/accept", payload);
+  // Accept is often the first call after a cold app open from the email link, so
+  // give the (possibly cold-starting) server more headroom than the global 15s.
+  const response = await apiClient.post("/invitations/accept", payload, { timeout: 45000 });
   return response.data;
 }
 

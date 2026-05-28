@@ -11,6 +11,19 @@ import { appTheme } from "../../ui/theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "InvitationAccept">;
 
+function describeAcceptError(error: any): string {
+  const data = error?.response?.data;
+  if (data) {
+    // Server responded with an error envelope ({ code, message }).
+    return data.message ?? data.Message ?? `Server error (${error.response.status}).`;
+  }
+  if (error?.code === "ECONNABORTED" || /timeout/i.test(error?.message ?? "")) {
+    return "The server took too long to respond. Please check your connection and try again.";
+  }
+  // No response at all (network failure, DNS, TLS, server unreachable).
+  return `Could not reach the server. ${error?.message ?? "Please check your connection and try again."}`;
+}
+
 export function InvitationAcceptanceScreen({ route, navigation }: Props) {
   const [token, setToken] = useState(route.params?.token ?? "");
   const [firstName, setFirstName] = useState("");
@@ -72,7 +85,7 @@ export function InvitationAcceptanceScreen({ route, navigation }: Props) {
         { cancelable: false },
       );
     } catch (error: any) {
-      Alert.alert("Failed", error?.response?.data?.message ?? "Could not accept invitation.");
+      Alert.alert("Failed", describeAcceptError(error));
     } finally {
       setIsBusy(false);
     }
