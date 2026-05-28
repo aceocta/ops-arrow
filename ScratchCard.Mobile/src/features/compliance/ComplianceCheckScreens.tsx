@@ -673,6 +673,7 @@ function buildComplianceMatrixReportHtml(input: {
           .checked-by-row td {
             background: #e8eef7;
             font-weight: 600;
+            white-space: pre-line;
           }
           .checked-by-title {
             text-align: left;
@@ -1099,7 +1100,7 @@ export function ComplianceChecksScreen() {
 
         const initials = [...initialsSet].slice(0, 3);
         const suffix = initialsSet.size > 3 ? "+" : "";
-        checkedByInitialsByColumn.set(column.key, `${initials.join(",")}${suffix}`);
+        checkedByInitialsByColumn.set(column.key, `${initials.join("\n")}${suffix}`);
       });
       const checkedByLegend = [...checkedByNamesByInitials.entries()]
         .map(([initials, names]) => ({
