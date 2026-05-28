@@ -78,6 +78,7 @@ public class ShiftSalesEntryDto
     public Guid Id { get; set; }
     public Guid PackId { get; set; }
     public string PackNumber { get; set; } = string.Empty;
+    public int? DisplayNumber { get; set; }
     public string OpeningSerialNumber { get; set; } = string.Empty;
     public string ClosingSerialNumber { get; set; } = string.Empty;
     public string? OriginalScannedSerialNumber { get; set; }

@@ -128,6 +128,7 @@ public class ShiftSalesService : IShiftSalesService
                 Id = x.Id,
                 PackId = x.PackId,
                 PackNumber = x.Pack.PackNumber,
+                DisplayNumber = x.Pack.DisplayNumber,
                 OpeningSerialNumber = x.OpeningSerialNumber,
                 ClosingSerialNumber = x.ClosingSerialNumber,
                 OriginalScannedSerialNumber = x.OriginalScannedSerialNumber,

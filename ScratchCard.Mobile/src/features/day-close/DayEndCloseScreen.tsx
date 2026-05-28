@@ -1957,7 +1957,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                         tone="success"
                         size="sm"
                         icon="checkmark-circle-outline"
-                        onPress={() => navigation.navigate("ShiftClose", { shiftId: shift.id, shopId: shift.shopId })}
+                        onPress={() => navigation.navigate("ShiftDetails", { shiftId: shift.id, shopId: shift.shopId })}
                         disabled={!canManageShifts}
                       />
                     </View>
@@ -1979,9 +1979,16 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
         </View>
 
                 <Pressable
-          onPress={() => navigation.navigate("DailySalesReport", { date: day?.businessDate })}
+          onPress={() => {
+            if (!day?.id || !day.shopId) return;
+            navigation.navigate("ScratchCardSummary", {
+              businessDayId: day.id,
+              businessDate: day.businessDate,
+              shopId: day.shopId,
+            });
+          }}
           accessibilityRole="button"
-          accessibilityLabel="Open Daily Sales Report"
+          accessibilityLabel="Open Scratch Card Summary"
           style={({ pressed }) => [
             ui.card,
             styles.sectionCard,

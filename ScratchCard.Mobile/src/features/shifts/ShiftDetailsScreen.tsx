@@ -1,15 +1,18 @@
 import React, { useMemo, useState } from "react";
 import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import NetInfo from "@react-native-community/netinfo";
 import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as FileSystem from "expo-file-system/legacy";
+import * as ImagePicker from "expo-image-picker";
 import * as Sharing from "expo-sharing";
-import { getBusinessDay, listCanisterDrops } from "../../api/businessDaysApi";
+import { getBusinessDay, listBusinessDays, listCanisterDrops } from "../../api/businessDaysApi";
 import { getConfigurations } from "../../api/configurationsApi";
 import { getShopSubscriptionSummary } from "../../api/subscriptionApi";
 import { useAuth } from "../../auth/AuthContext";
-import { getActivePacksForShift, getShift, getShiftCloseAttachmentContent, getShiftSales, listShiftClosingNumbers } from "../../api/shiftsApi";
+import { finalizeShift, getActivePacksForShift, getShift, getShiftCloseAttachmentContent, getShiftSales, listShiftClosingNumbers } from "../../api/shiftsApi";
+import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SectionHeader } from "../../components/SectionHeader";
 import { KpiGrid, KpiTile } from "../../components/KpiTile";
@@ -17,12 +20,25 @@ import { StatusBadge } from "../../components/StatusBadge";
 import { ShiftStatus } from "../../types/enums";
 import { MainStackParamList } from "../../types/navigation";
 import { formatGbp } from "../../utils/currency";
+import { haptics } from "../../utils/haptics";
+import { track } from "../../utils/analytics";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
 type Props = NativeStackScreenProps<MainStackParamList, "ShiftDetails">;
 const SAFE_DROP_FEATURE_KEY = "SafeDropManagement";
 const SAFE_DROP_CONFIG_KEY = "EnableSafeDropManagement";
+const MAX_CLOSE_ATTACHMENTS = 10;
+const MAX_CLOSE_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+
+type PendingCloseAttachment = {
+  id: string;
+  fileName: string;
+  base64: string;
+  contentType?: string;
+  uri?: string;
+  size?: number;
+};
 
 function getShiftTone(status?: ShiftStatus): "neutral" | "warning" | "danger" | "success" {
   if (!status) return "neutral";
@@ -161,6 +177,8 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
   const [attachmentPreviewUri, setAttachmentPreviewUri] = useState<string>();
   const [loadingAttachmentId, setLoadingAttachmentId] = useState<string | null>(null);
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<string | null>(null);
+  const [pendingCloseAttachments, setPendingCloseAttachments] = useState<PendingCloseAttachment[]>([]);
+  const [isFinalizing, setIsFinalizing] = useState(false);
 
   const shiftQuery = useQuery({
     queryKey: ["shift", shiftId],
@@ -322,7 +340,6 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
   const closeAttachments = shift?.closeAttachments ?? [];
   const businessDay = businessDayQuery.data;
   const canCloseShift = shift?.status === ShiftStatus.Open || shift?.status === ShiftStatus.Reopened;
-  const closeShiftShopId = shift?.shopId ?? routeShopId;
 
   const previewAttachment = (attachmentId: string, fileName: string) => {
     setLoadingAttachmentId(attachmentId);
@@ -348,16 +365,186 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
     );
   };
 
-  // Close Shift footer dock — keeps the primary action reachable on long entry lists.
+  function ingestCloseAttachmentAssets(assets: ImagePicker.ImagePickerAsset[]) {
+    let oversizedCount = 0;
+    const selected = assets
+      .filter((asset) => Boolean(asset.base64))
+      .flatMap((asset) => {
+        if (typeof asset.fileSize === "number" && asset.fileSize > MAX_CLOSE_ATTACHMENT_BYTES) {
+          oversizedCount++;
+          return [];
+        }
+        return [{
+          id: `${Date.now()}-${Math.random()}`,
+          fileName: asset.fileName ?? `shift-close-${Date.now()}.jpg`,
+          base64: asset.base64 as string,
+          contentType: asset.mimeType ?? "image/jpeg",
+          uri: asset.uri,
+          size: asset.fileSize,
+        }];
+      });
+
+    if (oversizedCount > 0) {
+      Alert.alert("File too large", `${oversizedCount} attachment(s) exceeded 10 MB and were skipped.`);
+    }
+    if (selected.length === 0) {
+      Alert.alert("Attachment failed", "Unable to read the selected file(s).");
+      return;
+    }
+
+    setPendingCloseAttachments((previous) => {
+      const combined = [...previous, ...selected];
+      if (combined.length <= MAX_CLOSE_ATTACHMENTS) return combined;
+      Alert.alert("Attachment limit", "A maximum of 10 attachments can be added.");
+      return combined.slice(0, MAX_CLOSE_ATTACHMENTS);
+    });
+  }
+
+  async function selectCloseAttachments() {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permission required", "Photo access is required to add an attachment from your library.");
+      return;
+    }
+    const remainingSlots = Math.max(0, MAX_CLOSE_ATTACHMENTS - pendingCloseAttachments.length);
+    if (remainingSlots === 0) {
+      Alert.alert("Attachment limit", "A maximum of 10 attachments can be added.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: "images",
+      quality: 0.85,
+      allowsEditing: false,
+      allowsMultipleSelection: true,
+      selectionLimit: remainingSlots,
+      base64: true,
+    });
+    if (result.canceled || result.assets.length === 0) return;
+    ingestCloseAttachmentAssets(result.assets);
+  }
+
+  async function captureCloseAttachment() {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permission required", "Camera access is required to take a photo for this close.");
+      return;
+    }
+    if (pendingCloseAttachments.length >= MAX_CLOSE_ATTACHMENTS) {
+      Alert.alert("Attachment limit", "A maximum of 10 attachments can be added.");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: "images",
+      quality: 0.85,
+      allowsEditing: false,
+      base64: true,
+    });
+    if (result.canceled || result.assets.length === 0) return;
+    ingestCloseAttachmentAssets(result.assets);
+  }
+
+  async function onCloseShift() {
+    if (isFinalizing) return;
+
+    const connection = await NetInfo.fetch();
+    if (!connection.isConnected) {
+      Alert.alert("You're offline", "Closing the shift needs a connection so it can read the closing numbers you saved. Reconnect and try again.");
+      return;
+    }
+
+    if (closingProgress.pending > 0) {
+      Alert.alert(
+        "Closing numbers missing",
+        `${closingProgress.pending} active pack${closingProgress.pending === 1 ? "" : "s"} still need a closing number. Enter them first.`
+      );
+      return;
+    }
+
+    if (closingProgress.active === 0) {
+      const proceed = await new Promise<boolean>((resolve) => {
+        Alert.alert(
+          "Close shift with no sales?",
+          "There are no active packs for this shift. Finalising will close it with zero sales recorded. Continue?",
+          [
+            { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+            { text: "Close shift", style: "destructive", onPress: () => resolve(true) },
+          ],
+        );
+      });
+      if (!proceed) return;
+    }
+
+    setIsFinalizing(true);
+    try {
+      // No entries payload — the server folds in the closing numbers from the staging store.
+      const payload = {
+        attachments: pendingCloseAttachments.map((attachment) => ({
+          fileName: attachment.fileName,
+          base64: attachment.base64,
+          contentType: attachment.contentType,
+        })),
+        entries: [] as unknown[],
+      };
+
+      const closeResult = await finalizeShift(shiftId, payload);
+      void Promise.allSettled([
+        queryClient.invalidateQueries({ queryKey: ["shift", shiftId] }),
+        queryClient.invalidateQueries({ queryKey: ["shift-sales", shiftId] }),
+        queryClient.invalidateQueries({ queryKey: ["shift-active-packs", shiftId] }),
+        queryClient.invalidateQueries({ queryKey: ["shift-closing-numbers", shiftId] }),
+        queryClient.invalidateQueries({ queryKey: ["shifts"] }),
+        queryClient.invalidateQueries({ queryKey: ["business-day"] }),
+        queryClient.invalidateQueries({ queryKey: ["business-days"] }),
+        queryClient.invalidateQueries({ queryKey: ["close-shift-candidates"] }),
+        queryClient.invalidateQueries({ queryKey: ["day-shift-sales-totals"] }),
+        queryClient.invalidateQueries({ queryKey: ["day-summary-closed-shift-sales"] }),
+      ]);
+
+      const relatedShopId = shift?.shopId ?? routeShopId;
+      if (closeResult.moveDayManagementToNextBusinessDate && closeResult.nextBusinessDate && relatedShopId) {
+        try {
+          const allDays = await listBusinessDays(relatedShopId);
+          const nextDay = allDays.find((day) => day.businessDate === closeResult.nextBusinessDate);
+          if (nextDay) {
+            haptics.success();
+            track("shift_closed", { shiftId, shopId: relatedShopId, nextBusinessDate: nextDay.businessDate });
+            Alert.alert("Shift finalised", `Shift close submitted. Day management moved to ${nextDay.businessDate}.`);
+            navigation.replace("DayEndClose", { businessDayId: nextDay.id });
+            return;
+          }
+        } catch {
+          // Shift close is already persisted; if the day lookup fails we still keep success flow.
+        }
+      }
+
+      haptics.success();
+      track("shift_closed", { shiftId, shopId: relatedShopId });
+      Alert.alert("Shift finalised", "Shift close submitted successfully.");
+      navigation.goBack();
+    } catch (error: any) {
+      haptics.error();
+      Alert.alert("Failed", error?.response?.data?.message ?? "Shift close failed.");
+    } finally {
+      setIsFinalizing(false);
+    }
+  }
+
+  // Close Shift footer dock — finalises directly from this screen using the closing numbers
+  // saved to the staging store.
   const shiftActionsFooter = canCloseShift ? (
     <View style={[ui.card, styles.footerDock]}>
-      <Pressable
-        style={[styles.actionButton, !closeShiftShopId ? styles.actionButtonDisabled : null]}
-        onPress={() => navigation.navigate("ShiftClose", { shiftId, shopId: closeShiftShopId })}
-        disabled={!closeShiftShopId}
-      >
-        <Text style={styles.actionButtonText}>Close Shift</Text>
-      </Pressable>
+      {closingProgress.pending > 0 ? (
+        <Text style={[styles.meta, styles.footerHint]}>
+          {closingProgress.pending} pack{closingProgress.pending === 1 ? "" : "s"} still need a closing number.
+        </Text>
+      ) : null}
+      <PrimaryButton
+        label={isFinalizing ? "Closing..." : "Close Shift"}
+        icon="checkmark-circle-outline"
+        tone="success"
+        onPress={onCloseShift}
+        disabled={isFinalizing || closingProgress.pending > 0}
+      />
     </View>
   ) : null;
 
@@ -592,7 +779,69 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
           </View>
         )}
 
-     
+        {canCloseShift ? (
+          <View style={[ui.card, styles.summaryCard]}>
+            <SectionHeader title="Close Attachments" subtitle="Optional — added to the shift-close report" icon="attach-outline" />
+            {pendingCloseAttachments.length > 0 ? (
+              <View style={styles.attachmentList}>
+                {pendingCloseAttachments.map((attachment) => {
+                  const canPreviewImage = Boolean(attachment.uri) && (attachment.contentType?.startsWith("image/") ?? false);
+                  return (
+                    <View key={attachment.id} style={styles.attachmentItem}>
+                      {canPreviewImage ? (
+                        <Image source={{ uri: attachment.uri }} style={styles.attachmentImageBadge} resizeMode="cover" />
+                      ) : (
+                        <View style={styles.attachmentFileIcon}>
+                          <Text style={styles.attachmentFileIconText}>FILE</Text>
+                        </View>
+                      )}
+                      <View style={styles.attachmentMeta}>
+                        <Text style={styles.attachmentFileName} numberOfLines={1}>{attachment.fileName}</Text>
+                        <Text style={styles.meta}>
+                          {(attachment.contentType ?? "application/octet-stream")}
+                          {attachment.size ? ` | ${formatFileSize(attachment.size)}` : ""}
+                        </Text>
+                      </View>
+                      <Pressable
+                        style={styles.attachmentActionButton}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove attachment ${attachment.fileName}`}
+                        onPress={() => setPendingCloseAttachments((prev) => prev.filter((a) => a.id !== attachment.id))}
+                        disabled={isFinalizing}
+                      >
+                        <Text style={styles.actionButtonText}>Remove</Text>
+                      </Pressable>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : null}
+            <View style={styles.attachmentButtonRow}>
+              <Pressable
+                style={[styles.attachmentActionButton, styles.attachmentActionButtonFlex]}
+                accessibilityRole="button"
+                accessibilityLabel="Take a photo for this close"
+                onPress={() => void captureCloseAttachment()}
+                disabled={isFinalizing}
+              >
+                <Ionicons name="camera-outline" size={16} color={appTheme.colors.text} />
+                <Text style={styles.actionButtonText}>Take Photo</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.attachmentActionButton, styles.attachmentActionButtonFlex]}
+                accessibilityRole="button"
+                accessibilityLabel="Pick attachments from gallery"
+                onPress={() => void selectCloseAttachments()}
+                disabled={isFinalizing}
+              >
+                <Ionicons name="images-outline" size={16} color={appTheme.colors.text} />
+                <Text style={styles.actionButtonText}>From Gallery</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+
+
            <View style={[ui.card, styles.summaryCard]}>
           <Text style={styles.sectionTitle}>Attachments</Text>
           {closeAttachments.length === 0 ? (
@@ -803,6 +1052,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
+  footerHint: {
+    textAlign: "center",
+    marginTop: appTheme.spacing.xs,
+  },
   fieldLabel: {
     color: appTheme.colors.text,
     fontSize: 13,
@@ -967,6 +1220,25 @@ const styles = StyleSheet.create({
   attachmentActionStack: {
     gap: 6,
     alignItems: "flex-end",
+  },
+  attachmentButtonRow: {
+    flexDirection: "row",
+    gap: appTheme.spacing.xs,
+  },
+  attachmentActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderStrong,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  attachmentActionButtonFlex: {
+    flex: 1,
   },
   attachmentDownloadButton: {
     borderWidth: 1,

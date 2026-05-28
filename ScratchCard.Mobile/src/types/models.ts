@@ -385,6 +385,7 @@ export type ShiftSalesEntry = {
   id: string;
   packId: string;
   packNumber: string;
+  displayNumber?: number | null;
   openingSerialNumber: string;
   closingSerialNumber: string;
   originalScannedSerialNumber?: string;

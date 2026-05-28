@@ -35,7 +35,6 @@ import {
 import { BusinessDayScreen } from "../features/business-days/BusinessDayScreen";
 import { CloseShiftScreen, OpenShiftScreen, ShiftReconciliationScreen } from "../features/shifts/ShiftScreens";
 import { ShiftDetailsScreen } from "../features/shifts/ShiftDetailsScreen";
-import { ShiftCloseScreen } from "../features/shift-close/ShiftCloseScreen";
 import { EnterClosingNumbersScreen } from "../features/scratch-card/EnterClosingNumbersScreen";
 import { PrizePayoutScreen } from "../features/prize-payouts/PrizePayoutScreen";
 import { DayEndCloseScreen } from "../features/day-close/DayEndCloseScreen";
@@ -51,6 +50,7 @@ import { UserManagementScreen, ShopConfigurationScreen, AppConfigurationScreen, 
 import { NotificationPreferencesScreen } from "../features/settings/NotificationPreferencesScreen";
 import { ShopFeatureTogglesScreen } from "../features/settings/ShopFeatureTogglesScreen";
 import { SafeDropScreen } from "../features/safe-drop/SafeDropScreen";
+import { ScratchCardSummaryScreen } from "../features/scratch-card/ScratchCardSummaryScreen";
 import { BestEntryProvider, EntryOperation, useBestEntry } from "./BestEntryContext";
 import { useEntitlements } from "../features/subscription/useEntitlements";
 import { MainStackParamList, RootStackParamList } from "../types/navigation";
@@ -201,7 +201,6 @@ function shouldShowBottomDock(routeName: string | undefined) {
     routeName === "RefusalRegister" ||
     routeName === "DayEndClose" ||
     routeName === "CloseShift" ||
-    routeName === "ShiftClose" ||
     routeName === "ShiftDetails" ||
     routeName === "EnterClosingNumbers"
   );
@@ -255,7 +254,6 @@ function resolveActiveBottomDockScreen(routeName: string | undefined): keyof Mai
     routeName === "OpenShift" ||
     routeName === "CloseShift" ||
     routeName === "ShiftDetails" ||
-    routeName === "ShiftClose" ||
     routeName === "ShiftReconciliation" ||
     routeName === "PrizePayout" ||
     routeName === "DayEndClose"
@@ -423,11 +421,6 @@ function MainStackScreens() {
       <Stack.Screen name="CloseShift" component={CloseShiftScreen} options={{ title: "Close Shift" }} />
       <Stack.Screen name="ShiftDetails" component={ShiftDetailsScreen} options={{ title: "Shift Details" }} />
       <Stack.Screen
-        name="ShiftClose"
-        component={ShiftCloseScreen}
-        options={{ title: "Shift Close", headerRight: () => null }}
-      />
-      <Stack.Screen
         name="EnterClosingNumbers"
         component={EnterClosingNumbersScreen}
         options={{ title: "Closing Numbers" }}
@@ -438,6 +431,7 @@ function MainStackScreens() {
         options={{ presentation: "modal", title: "Prize Payout" }}
       />
       <Stack.Screen name="SafeDrop" component={SafeDropScreen} options={{ title: "Safe Drops" }} />
+      <Stack.Screen name="ScratchCardSummary" component={ScratchCardSummaryScreen} options={{ title: "Scratch Card Summary" }} />
       <Stack.Screen
         name="ShiftReconciliation"
         component={ShiftReconciliationScreen}

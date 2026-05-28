@@ -251,6 +251,7 @@ internal static class ServiceMappingExtensions
         Id = sale.Id,
         PackId = sale.PackId,
         PackNumber = sale.Pack.PackNumber,
+        DisplayNumber = sale.Pack.DisplayNumber,
         OpeningSerialNumber = sale.OpeningSerialNumber,
         ClosingSerialNumber = sale.ClosingSerialNumber,
         OriginalScannedSerialNumber = sale.OriginalScannedSerialNumber,

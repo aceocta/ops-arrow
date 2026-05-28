@@ -537,7 +537,7 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
                     </Pressable>
                     <Pressable
                       style={styles.smallButton}
-                      onPress={() => navigation.navigate("ShiftClose", { shiftId: shift.id, shopId: shift.shopId })}
+                      onPress={() => navigation.navigate("ShiftDetails", { shiftId: shift.id, shopId: shift.shopId })}
                     >
                       <Text style={styles.smallButtonText}>Close Shift</Text>
                     </Pressable>
@@ -611,7 +611,7 @@ export function CloseShiftScreen({ navigation }: CloseShiftProps) {
     }
 
     autoOpenedShiftIdRef.current = singleShift.id;
-    navigation.navigate("ShiftClose", { shiftId: singleShift.id, shopId: singleShift.shopId });
+    navigation.navigate("ShiftDetails", { shiftId: singleShift.id, shopId: singleShift.shopId });
   }, [candidates, navigation]);
 
   return (
@@ -656,7 +656,7 @@ export function CloseShiftScreen({ navigation }: CloseShiftProps) {
               <View style={styles.row}>
                 <Pressable
                   style={styles.smallButton}
-                  onPress={() => navigation.navigate("ShiftClose", { shiftId: shift.id, shopId: shift.shopId })}
+                  onPress={() => navigation.navigate("ShiftDetails", { shiftId: shift.id, shopId: shift.shopId })}
                 >
                   <Text style={styles.smallButtonText}>Close Shift</Text>
                 </Pressable>

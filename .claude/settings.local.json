@@ -25,7 +25,9 @@
       "Read(//tmp/**)",
       "Bash(cp /tmp/old_shiftclose.tsx \"j:/ScratchCard/ScratchCard.Mobile/src/features/scratch-card/EnterClosingNumbersScreen.tsx\")",
       "Bash(sed -n '1,45p' \"j:/ScratchCard/ScratchCard.Mobile/src/features/scratch-card/EnterClosingNumbersScreen.tsx\")",
-      "Bash(grep -E \"\\\\.cs$\")"
+      "Bash(grep -E \"\\\\.cs$\")",
+      "Bash(cd /j/ScratchCard/ScratchCard.Mobile && grep -n \">Attachments<\\\\|sectionTitle}>Attachments\\\\|footerDock:\\\\|closeAttachments.length === 0\\\\|isOpenShift ?\" src/features/shifts/ShiftDetailsScreen.tsx | head)",
+      "Read(//j/j/ScratchCard/ScratchCard.Mobile/src/features/shifts/**)"
     ]
   }
 }

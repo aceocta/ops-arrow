@@ -66,10 +66,10 @@ export type MainStackParamList = {
   OpenShift: undefined;
   CloseShift: undefined;
   ShiftDetails: { shiftId: string; shopId: string };
-  ShiftClose: { shiftId: string; shopId: string };
   EnterClosingNumbers: { shiftId: string; shopId: string; shiftName?: string };
   PrizePayout: { shiftId: string };
   SafeDrop: { businessDayId: string; businessDate: string; shopId: string };
+  ScratchCardSummary: { businessDayId: string; businessDate: string; shopId: string };
   ShiftReconciliation: { shiftId: string };
   DayEndClose: { businessDayId: string };
   DailySalesReport: { date?: string } | undefined;
