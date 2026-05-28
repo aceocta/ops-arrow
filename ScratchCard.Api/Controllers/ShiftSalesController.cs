@@ -37,5 +37,28 @@ public class ShiftSalesController : BaseApiController
         var result = await _shiftSalesService.GetShiftSalesAsync(shiftId, cancellationToken);
         return Success(result);
     }
+
+    // --- Closing-number staging store (entered on the dedicated screen, consumed by finalize) ---
+
+    [HttpGet("{shiftId:guid}/closing-numbers")]
+    public async Task<IActionResult> ListClosingNumbers(Guid shiftId, CancellationToken cancellationToken)
+    {
+        var result = await _shiftSalesService.ListClosingNumbersAsync(shiftId, cancellationToken);
+        return Success(result);
+    }
+
+    [HttpPut("{shiftId:guid}/closing-numbers")]
+    public async Task<IActionResult> UpsertClosingNumber(Guid shiftId, [FromBody] UpsertShiftPackClosingRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _shiftSalesService.UpsertClosingNumberAsync(shiftId, request, cancellationToken);
+        return Success(result);
+    }
+
+    [HttpDelete("{shiftId:guid}/closing-numbers/{packId:guid}")]
+    public async Task<IActionResult> DeleteClosingNumber(Guid shiftId, Guid packId, CancellationToken cancellationToken)
+    {
+        await _shiftSalesService.DeleteClosingNumberAsync(shiftId, packId, cancellationToken);
+        return Success(true);
+    }
 }
 

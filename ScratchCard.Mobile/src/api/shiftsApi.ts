@@ -1,7 +1,36 @@
 import { apiClient } from "./client";
 import { ApiResponse } from "./types";
 import { ScratchCardPack, Shift, ShiftCloseCandidate, ShiftCloseResult, ShiftSalesEntry } from "../types/models";
+import { EntryMethod } from "../types/enums";
 import { parsePackStatus, parseSellingOrder } from "../utils/enumParsers";
+
+export type ShiftPackClosing = {
+  packId: string;
+  packNumber: string;
+  displayNumber?: number | null;
+  gameName: string;
+  openingSerialNumber: string;
+  closingSerialNumber: string;
+  originalScannedSerialNumber?: string | null;
+  entryMethod: EntryMethod;
+  manualEntryReason?: string | null;
+  notes?: string | null;
+  soldQuantity: number;
+  ticketPrice: number;
+  salesAmount: number;
+  remainingTickets: number;
+  enteredOn: string;
+};
+
+export type UpsertShiftPackClosingPayload = {
+  packId: string;
+  closingSerialNumber: string;
+  originalScannedSerialNumber?: string;
+  // Numeric EntryMethod (1=Scanned, 2=Manual, 3=ScannedEdited) to match the API enum binding.
+  entryMethod: number;
+  manualEntryReason?: string;
+  notes?: string;
+};
 
 function mapPack(pack: ScratchCardPack): ScratchCardPack {
   return {
@@ -85,4 +114,19 @@ export async function getShiftSales(shiftId: string) {
 export async function getShiftCloseAttachmentContent(attachmentId: string) {
   const response = await apiClient.get<ApiResponse<string | null>>(`/shifts/attachments/${attachmentId}/content`);
   return response.data.data ?? undefined;
+}
+
+export async function listShiftClosingNumbers(shiftId: string) {
+  const response = await apiClient.get<ApiResponse<ShiftPackClosing[]>>(`/shift-sales/${shiftId}/closing-numbers`);
+  return response.data.data;
+}
+
+export async function upsertShiftClosingNumber(shiftId: string, payload: UpsertShiftPackClosingPayload) {
+  const response = await apiClient.put<ApiResponse<ShiftPackClosing>>(`/shift-sales/${shiftId}/closing-numbers`, payload);
+  return response.data.data;
+}
+
+export async function deleteShiftClosingNumber(shiftId: string, packId: string) {
+  const response = await apiClient.delete<ApiResponse<boolean>>(`/shift-sales/${shiftId}/closing-numbers/${packId}`);
+  return response.data.data;
 }

@@ -1,37 +1,25 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useMemo, useState } from "react";
+import { Alert, Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import NetInfo, { useNetInfo } from "@react-native-community/netinfo";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { getBusinessDay, listBusinessDays } from "../../api/businessDaysApi";
-import { getConfigurations } from "../../api/configurationsApi";
-import { getActivePacksForShift, finalizeShift, getShift } from "../../api/shiftsApi";
+import { getActivePacksForShift, finalizeShift, getShift, listShiftClosingNumbers } from "../../api/shiftsApi";
 import { haptics } from "../../utils/haptics";
 import { track } from "../../utils/analytics";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
-import { enqueueOfflineShiftClose } from "../../offline/queueRepository";
-import { clearShiftDraft, getShiftDraft } from "../../offline/draftRepository";
-import { calculateShiftSales } from "../../utils/serialCalculation";
-import { toApiEntryMethod } from "../../utils/enumParsers";
+import { SectionHeader } from "../../components/SectionHeader";
+import { KpiGrid, KpiTile } from "../../components/KpiTile";
+import { SkeletonList } from "../../components/Skeleton";
 import { formatGbp } from "../../utils/currency";
-import { EntryMethod, SellingOrder, ShiftStatus } from "../../types/enums";
-import { ScratchCardPack } from "../../types/models";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
-import { subscribeScan } from "../barcode-scanner/scanBus";
 
 type Props = NativeStackScreenProps<MainStackParamList, "ShiftClose">;
-
-type EntryState = {
-  closingSerialNumber: string;
-  originalScannedSerialNumber?: string;
-  entryMethod: EntryMethod;
-  manualEntryReason?: string;
-};
 
 type CloseAttachmentState = {
   id: string;
@@ -44,270 +32,80 @@ type CloseAttachmentState = {
 
 const MAX_CLOSE_ATTACHMENTS = 10;
 const MAX_CLOSE_ATTACHMENT_BYTES = 10 * 1024 * 1024;
-const ENABLE_MOBILE_CAMERA_BARCODE_SCANNING_KEY = "EnableMobileCameraBarcodeScanning";
-const ALLOW_MANUAL_ENTRY_IF_SCAN_FAILS_KEY = "AllowManualEntryIfScanFails";
-
-function parseBooleanConfigValue(value: string | undefined, fallback: boolean) {
-  if (!value) {
-    return fallback;
-  }
-
-  const normalized = value.trim().toLowerCase();
-  if (normalized === "true" || normalized === "1" || normalized === "yes") {
-    return true;
-  }
-  if (normalized === "false" || normalized === "0" || normalized === "no") {
-    return false;
-  }
-
-  return fallback;
-}
-
-function normalizePackNumber(value: string) {
-  return value.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-}
-
-function normalizePackNumberWithoutLeadingZeros(value: string) {
-  const normalized = normalizePackNumber(value).replace(/^0+/, "");
-  return normalized.length > 0 ? normalized : "0";
-}
-
-function normalizeDashes(value: string) {
-  return value.replace(/[\u2010\u2011\u2012\u2013\u2014\u2212\uFE58\uFE63\uFF0D]/g, "-");
-}
-
-function getPackNumberSegments(value: string) {
-  return normalizeDashes(value)
-    .split("-")
-    .map((part) => normalizePackNumber(part))
-    .filter((part) => part.length > 0);
-}
-
-function matchesScannedPackNumber(storedPackNumber: string, scannedPackNumber: string) {
-  const storedNormalized = normalizePackNumber(storedPackNumber);
-  const scannedNormalized = normalizePackNumber(scannedPackNumber);
-
-  if (!storedNormalized || !scannedNormalized) {
-    return false;
-  }
-
-  const storedNoZeros = normalizePackNumberWithoutLeadingZeros(storedPackNumber);
-  const scannedNoZeros = normalizePackNumberWithoutLeadingZeros(scannedPackNumber);
-
-  if (storedNormalized === scannedNormalized || storedNoZeros === scannedNoZeros) {
-    return true;
-  }
-
-  const storedSegments = getPackNumberSegments(storedPackNumber);
-  const scannedSegments = getPackNumberSegments(scannedPackNumber);
-  const storedTail = storedSegments.length > 0 ? storedSegments[storedSegments.length - 1] : "";
-  const scannedTail = scannedSegments.length > 0 ? scannedSegments[scannedSegments.length - 1] : "";
-  const storedTailNoZeros = storedTail.replace(/^0+/, "") || "0";
-  const scannedTailNoZeros = scannedTail.replace(/^0+/, "") || "0";
-
-  if (storedTail.length >= 6 && (storedTail === scannedTail || storedTailNoZeros === scannedTailNoZeros)) {
-    return true;
-  }
-
-  if (scannedTail.length >= 6) {
-    const tailCandidates = [scannedTail, scannedTailNoZeros].filter((candidate) => candidate.length >= 6);
-    if (tailCandidates.some((candidate) => storedNormalized.endsWith(candidate) || storedNoZeros.endsWith(candidate))) {
-      return true;
-    }
-  }
-
-  if (storedTail.length >= 6) {
-    const tailCandidates = [storedTail, storedTailNoZeros].filter((candidate) => candidate.length >= 6);
-    if (tailCandidates.some((candidate) => scannedNormalized.endsWith(candidate) || scannedNoZeros.endsWith(candidate))) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-function pushUnique(target: string[], value?: string) {
-  if (!value) {
-    return;
-  }
-  if (!target.includes(value)) {
-    target.push(value);
-  }
-}
-
-function normalizeScannedSerial(value?: string) {
-  if (!value) {
-    return "";
-  }
-
-  const digitsOnly = value.replace(/\D/g, "");
-  if (digitsOnly.length > 0) {
-    const compact = digitsOnly.length <= 3 ? digitsOnly : digitsOnly.slice(-3);
-    const withoutLeadingZeros = compact.replace(/^0+/, "");
-    return withoutLeadingZeros.length > 0 ? withoutLeadingZeros : "0";
-  }
-
-  return value.trim();
-}
-
-function normalizeClosingSerialInput(value?: string) {
-  if (!value) {
-    return "";
-  }
-
-  const digitsOnly = value.replace(/\D/g, "");
-  if (!digitsOnly) {
-    return "";
-  }
-
-  const withoutLeadingZeros = digitsOnly.replace(/^0+/, "");
-  return withoutLeadingZeros.length > 0 ? withoutLeadingZeros : "0";
-}
-
-function getSerialCandidatesForPack(pack: ScratchCardPack, rawBarcode: string, parsedSerial: string) {
-  const candidates: string[] = [];
-  const compact = normalizeDashes(rawBarcode).replace(/\s+/g, "");
-  const lastHyphen = compact.lastIndexOf("-");
-  if (lastHyphen > -1 && lastHyphen < compact.length - 1) {
-    const suffixDigits = compact.slice(lastHyphen + 1).replace(/\D/g, "");
-    if (suffixDigits.length >= 3) {
-      // Prefer the serial nearest to the explicit ticket suffix first.
-      pushUnique(candidates, normalizeScannedSerial(suffixDigits.slice(0, 3)));
-      pushUnique(candidates, normalizeScannedSerial(suffixDigits.slice(-3)));
-    }
-  }
-
-  const digitsOnly = compact.replace(/\D/g, "");
-  const packDigits = pack.packNumber.replace(/\D/g, "");
-
-  if (packDigits && digitsOnly.includes(packDigits)) {
-    const index = digitsOnly.indexOf(packDigits);
-    const trailing = digitsOnly.slice(index + packDigits.length);
-
-    if (trailing.length >= 3) {
-      // Strongest signal: serial right after the target pack digits.
-      pushUnique(candidates, normalizeScannedSerial(trailing.slice(0, 3)));
-      pushUnique(candidates, normalizeScannedSerial(trailing.slice(-3)));
-    }
-
-    if (index >= 3) {
-      // Some print formats place serial before pack digits.
-      pushUnique(candidates, normalizeScannedSerial(digitsOnly.slice(index - 3, index)));
-    }
-  }
-
-  if (digitsOnly.length >= 3) {
-    pushUnique(candidates, normalizeScannedSerial(digitsOnly.slice(-3)));
-    pushUnique(candidates, normalizeScannedSerial(digitsOnly.slice(0, 3)));
-  }
-
-  // Lowest priority: parser-derived serial may be wrong when scanner reads noisy bars.
-  pushUnique(candidates, normalizeScannedSerial(parsedSerial));
-
-  return candidates.filter((value) => value.length > 0);
-}
-
-function isValidSerialForPack(pack: ScratchCardPack, serial: string) {
-  try {
-    calculateShiftSales(
-      pack.currentSerialNumber,
-      serial,
-      pack.startSerialNumber,
-      pack.endSerialNumber,
-      pack.sellingOrder,
-      pack.ticketPrice,
-      pack.totalTickets
-    );
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function pickBestSerialForPack(pack: ScratchCardPack, rawBarcode: string, parsedSerial: string) {
-  const candidates = getSerialCandidatesForPack(pack, rawBarcode, parsedSerial);
-  const validCandidate = candidates.find((value) => isValidSerialForPack(pack, value));
-  return validCandidate;
-}
-
-function getLastSerialForPack(pack: ScratchCardPack) {
-  return pack.sellingOrder === SellingOrder.Descending
-    ? pack.startSerialNumber
-    : pack.endSerialNumber;
-}
 
 function formatCurrency(value: number) {
   return formatGbp(value);
 }
 
 function formatFileSize(size?: number) {
-  if (!size || size <= 0) {
-    return "";
-  }
-
+  if (!size || size <= 0) return "";
   const units = ["B", "KB", "MB", "GB"];
   let value = size;
   let unitIndex = 0;
-
   while (value >= 1024 && unitIndex < units.length - 1) {
     value /= 1024;
     unitIndex++;
   }
-
   const fixed = unitIndex === 0 ? value.toFixed(0) : value.toFixed(1);
   return `${fixed} ${units[unitIndex]}`;
-}
-
-function comparePacksByDisplayOrder(a: ScratchCardPack, b: ScratchCardPack) {
-  const aDisplay = a.displayNumber;
-  const bDisplay = b.displayNumber;
-
-  if (aDisplay != null && bDisplay != null && aDisplay !== bDisplay) {
-    return aDisplay - bDisplay;
-  }
-  if (aDisplay != null && bDisplay == null) return -1;
-  if (aDisplay == null && bDisplay != null) return 1;
-
-  return a.packNumber.localeCompare(b.packNumber);
 }
 
 export function ShiftCloseScreen({ route, navigation }: Props) {
   const { shiftId, shopId } = route.params;
   const netInfo = useNetInfo();
   const queryClient = useQueryClient();
-  const [entries, setEntries] = useState<Record<string, EntryState>>({});
-  const [scanStatus, setScanStatus] = useState<string | null>(null);
   const [closeAttachments, setCloseAttachments] = useState<CloseAttachmentState[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [gameNameTooltipPackId, setGameNameTooltipPackId] = useState<string | null>(null);
-  const packsRef = useRef<ScratchCardPack[]>([]);
-  const entriesRef = useRef<Record<string, EntryState>>({});
-  const gameNameTooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  function openBarcodeScanner(params: {
-    mode: "single" | "auto";
-    packId?: string;
-    packNumber?: string;
-    pendingPacks?: Array<{ packId?: string; packNumber: string; label?: string }>;
-  }) {
-    if (!isCameraScanningEnabled) {
-      Alert.alert(
-        "Scanner disabled",
-        "Camera barcode scanning is disabled for this shop. Enter closing serials in the textbox."
-      );
-      return;
-    }
-    if (params.mode === "auto" && (params.pendingPacks?.length ?? 0) === 0) {
-      setScanStatus("All packs are already scanned.");
-      return;
-    }
+  const shiftQuery = useQuery({
+    queryKey: ["shift", shiftId],
+    queryFn: () => getShift(shiftId),
+  });
 
-    const rootLikeNavigation = navigation.getParent()?.getParent() ?? navigation.getParent() ?? navigation;
-    (rootLikeNavigation as any).navigate("BarcodeScanner", params);
-  }
+  const businessDayQuery = useQuery({
+    queryKey: ["business-day", shiftQuery.data?.businessDayId],
+    queryFn: () => getBusinessDay(shiftQuery.data?.businessDayId as string),
+    enabled: Boolean(shiftQuery.data?.businessDayId),
+  });
 
-  // Shared sink for both library-picked and camera-captured assets so size guard / dedupe /
-  // 10-cap behaviour stays identical regardless of source.
+  const packsQuery = useQuery({
+    queryKey: ["shift-active-packs", shiftId],
+    queryFn: () => getActivePacksForShift(shiftId),
+  });
+
+  const closingsQuery = useQuery({
+    queryKey: ["shift-closing-numbers", shiftId],
+    queryFn: () => listShiftClosingNumbers(shiftId),
+  });
+
+  const closings = useMemo(
+    () => [...(closingsQuery.data ?? [])].sort((a, b) => (a.displayNumber ?? Infinity) - (b.displayNumber ?? Infinity)),
+    [closingsQuery.data]
+  );
+
+  const closedPackIds = useMemo(() => new Set(closings.map((c) => c.packId)), [closings]);
+
+  const pendingPacks = useMemo(
+    () => (packsQuery.data ?? []).filter((pack) => !closedPackIds.has(pack.id)),
+    [packsQuery.data, closedPackIds]
+  );
+
+  const totals = useMemo(() => {
+    const activeCount = packsQuery.data?.length ?? 0;
+    return {
+      active: activeCount,
+      entered: closings.length,
+      pending: pendingPacks.length,
+      sales: closings.reduce((sum, c) => sum + Number(c.salesAmount ?? 0), 0),
+    };
+  }, [packsQuery.data?.length, closings, pendingPacks.length]);
+
+  const isInitialLoading = packsQuery.isLoading || closingsQuery.isLoading;
+  const isOnline = Boolean(netInfo.isConnected);
+  // Zero active packs is a valid no-sales close. Otherwise every active pack must have a stored
+  // closing number before finalising.
+  const canFinalize = !isSubmitting && isOnline && totals.pending === 0;
+
   function ingestCloseAttachmentAssets(assets: ImagePicker.ImagePickerAsset[]) {
     let oversizedCount = 0;
     const selected = assets
@@ -317,7 +115,6 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
           oversizedCount++;
           return [];
         }
-
         return [{
           id: `${Date.now()}-${Math.random()}`,
           fileName: asset.fileName ?? `shift-close-${Date.now()}.jpg`,
@@ -331,7 +128,6 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
     if (oversizedCount > 0) {
       Alert.alert("File too large", `${oversizedCount} attachment(s) exceeded 10 MB and were skipped.`);
     }
-
     if (selected.length === 0) {
       Alert.alert("Attachment failed", "Unable to read the selected file(s).");
       return;
@@ -339,10 +135,7 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
 
     setCloseAttachments((previous) => {
       const combined = [...previous, ...selected];
-      if (combined.length <= MAX_CLOSE_ATTACHMENTS) {
-        return combined;
-      }
-
+      if (combined.length <= MAX_CLOSE_ATTACHMENTS) return combined;
       Alert.alert("Attachment limit", "A maximum of 10 attachments can be added.");
       return combined.slice(0, MAX_CLOSE_ATTACHMENTS);
     });
@@ -354,13 +147,11 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
       Alert.alert("Permission required", "Photo access is required to add an attachment from your library.");
       return;
     }
-
     const remainingSlots = Math.max(0, MAX_CLOSE_ATTACHMENTS - closeAttachments.length);
     if (remainingSlots === 0) {
       Alert.alert("Attachment limit", "A maximum of 10 attachments can be added.");
       return;
     }
-
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: "images",
       quality: 0.85,
@@ -369,11 +160,7 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
       selectionLimit: remainingSlots,
       base64: true,
     });
-
-    if (result.canceled || result.assets.length === 0) {
-      return;
-    }
-
+    if (result.canceled || result.assets.length === 0) return;
     ingestCloseAttachmentAssets(result.assets);
   }
 
@@ -383,295 +170,37 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
       Alert.alert("Permission required", "Camera access is required to take a photo for this close.");
       return;
     }
-
     if (closeAttachments.length >= MAX_CLOSE_ATTACHMENTS) {
       Alert.alert("Attachment limit", "A maximum of 10 attachments can be added.");
       return;
     }
-
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: "images",
       quality: 0.85,
       allowsEditing: false,
       base64: true,
     });
-
-    if (result.canceled || result.assets.length === 0) {
-      return;
-    }
-
+    if (result.canceled || result.assets.length === 0) return;
     ingestCloseAttachmentAssets(result.assets);
   }
 
-  const packsQuery = useQuery({
-    queryKey: ["shift-active-packs", shiftId],
-    queryFn: () => getActivePacksForShift(shiftId),
-  });
-
-  const shiftQuery = useQuery({
-    queryKey: ["shift", shiftId],
-    queryFn: () => getShift(shiftId),
-  });
-
-  const businessDayQuery = useQuery({
-    queryKey: ["business-day", shiftQuery.data?.businessDayId],
-    queryFn: () => getBusinessDay(shiftQuery.data?.businessDayId as string),
-    enabled: Boolean(shiftQuery.data?.businessDayId),
-  });
-
-  const configurationsQuery = useQuery({
-    queryKey: ["configurations", shopId],
-    queryFn: () => getConfigurations(shopId ?? undefined),
-    enabled: Boolean(shopId),
-  });
-
-  const isCameraScanningEnabled = useMemo(() => {
-    const configuredValue = configurationsQuery.data?.find(
-      (item) => item.configKey.toLowerCase() === ENABLE_MOBILE_CAMERA_BARCODE_SCANNING_KEY.toLowerCase()
-    )?.configValue;
-    return parseBooleanConfigValue(configuredValue, true);
-  }, [configurationsQuery.data]);
-
-  const allowManualEntryIfScanFails = useMemo(() => {
-    const configuredValue = configurationsQuery.data?.find(
-      (item) => item.configKey.toLowerCase() === ALLOW_MANUAL_ENTRY_IF_SCAN_FAILS_KEY.toLowerCase()
-    )?.configValue;
-    return parseBooleanConfigValue(configuredValue, true);
-  }, [configurationsQuery.data]);
-
-  const isManualClosingSerialEnabled = isCameraScanningEnabled
-    ? allowManualEntryIfScanFails
-    : true;
-
-  useEffect(() => {
-    packsRef.current = [...(packsQuery.data ?? [])].sort(comparePacksByDisplayOrder);
-  }, [packsQuery.data]);
-
-  useEffect(() => {
-    entriesRef.current = entries;
-  }, [entries]);
-
-  useEffect(() => {
-    void (async () => {
-      const draft = await getShiftDraft<{ entries: Record<string, EntryState> }>(shiftId);
-      if (draft) {
-        setEntries(draft.entries);
-      }
-    })();
-  }, [shiftId]);
-
-  useEffect(() => () => {
-    if (gameNameTooltipTimerRef.current) {
-      clearTimeout(gameNameTooltipTimerRef.current);
-    }
-  }, []);
-
-  function showGameNameTooltip(packId: string) {
-    setGameNameTooltipPackId(packId);
-    if (gameNameTooltipTimerRef.current) {
-      clearTimeout(gameNameTooltipTimerRef.current);
-    }
-    gameNameTooltipTimerRef.current = setTimeout(() => {
-      setGameNameTooltipPackId((previous) => (previous === packId ? null : previous));
-    }, 1800);
-  }
-
-  useEffect(() => {
-    const unsubscribe = subscribeScan((payload) => {
-      const packs = packsRef.current;
-      const matchedPack = (() => {
-        if (payload.packId) {
-          return packs.find((pack) => pack.id === payload.packId) ?? null;
-        }
-
-        if (!payload.parsedPackNumber) {
-          return null;
-        }
-
-        const scannedPackNumber = payload.parsedPackNumber;
-        const matchingPacks = packs.filter((pack) => matchesScannedPackNumber(pack.packNumber, scannedPackNumber));
-        if (matchingPacks.length === 1) {
-          return matchingPacks[0];
-        }
-
-        if (matchingPacks.length > 1) {
-          setScanStatus(`Multiple active packs matched scanned code: ${payload.parsedPackNumber}. Scan from pack row to target one pack.`);
-          return null;
-        }
-
-        return null;
-      })();
-
-      if (!matchedPack) {
-        const fallbackSerial = normalizeScannedSerial(payload.parsedSerial || payload.rawBarcode);
-        const normalizedParsedSerial = normalizeScannedSerial(payload.parsedSerial);
-        if (payload.packId && fallbackSerial) {
-          const targetPackId = payload.packId;
-          const existingEntry = entriesRef.current[targetPackId];
-          if (existingEntry?.closingSerialNumber?.trim()) {
-            setScanStatus("Closing serial is already set. Clear the textbox first if you need to rescan.");
-            return;
-          }
-
-          setScanStatus(`Captured ${fallbackSerial}. Pack is loading, verify and finalise.`);
-          setEntries((previous) => ({
-            ...previous,
-            [targetPackId]: {
-              closingSerialNumber: fallbackSerial,
-              originalScannedSerialNumber: normalizedParsedSerial || fallbackSerial,
-              entryMethod: EntryMethod.ScannedEdited,
-              manualEntryReason: previous[targetPackId]?.manualEntryReason,
-            },
-          }));
-          return;
-        }
-
-        setScanStatus(`No active pack matched scanned code: ${payload.rawBarcode}`);
-        return;
-      }
-
-      const existingEntry = entriesRef.current[matchedPack.id];
-      if (existingEntry?.closingSerialNumber?.trim()) {
-        // setScanStatus(`Closing serial already set for pack ${matchedPack.packNumber}. Clear it first to scan again.`);
-        return;
-      }
-
-      const resolvedSerial = pickBestSerialForPack(matchedPack, payload.rawBarcode, payload.parsedSerial);
-      if (!resolvedSerial) {
-        const fallbackSerial = normalizeScannedSerial(payload.parsedSerial || payload.rawBarcode);
-        const normalizedParsedSerial = normalizeScannedSerial(payload.parsedSerial);
-        if (fallbackSerial && isValidSerialForPack(matchedPack, fallbackSerial)) {
-          setScanStatus(`Captured ${fallbackSerial} for pack ${matchedPack.packNumber}. Please verify before finalising.`);
-          setEntries((previous) => ({
-            ...previous,
-            [matchedPack.id]: {
-              closingSerialNumber: fallbackSerial,
-              originalScannedSerialNumber: normalizedParsedSerial || fallbackSerial,
-              entryMethod: EntryMethod.ScannedEdited,
-              manualEntryReason: previous[matchedPack.id]?.manualEntryReason,
-            },
-          }));
-          return;
-        }
-
-        setScanStatus(
-          `Scanned value could not be validated for pack ${matchedPack.packNumber}.${isManualClosingSerialEnabled ? " Please rescan or enter manually." : " Please rescan."}`
-        );
-        return;
-      }
-      const normalizedParsedSerial = normalizeScannedSerial(payload.parsedSerial);
-      const wasAdjusted = normalizedParsedSerial.length > 0 && resolvedSerial !== normalizedParsedSerial;
-
-      setScanStatus(
-        payload.parsedPackNumber
-          ? `Applied ${resolvedSerial} to pack ${matchedPack.packNumber}${wasAdjusted ? ` (from ${normalizedParsedSerial})` : ""}${payload.barcodeType ? ` [${payload.barcodeType}]` : ""}.`
-          : `Applied serial ${resolvedSerial}${wasAdjusted ? ` (from ${normalizedParsedSerial})` : ""}${payload.barcodeType ? ` [${payload.barcodeType}]` : ""}.`
-      );
-
-      setEntries((previous) => ({
-        ...previous,
-        [matchedPack.id]: {
-          closingSerialNumber: resolvedSerial,
-          originalScannedSerialNumber: normalizedParsedSerial || resolvedSerial,
-          entryMethod: EntryMethod.Scanned,
-          manualEntryReason: previous[matchedPack.id]?.manualEntryReason,
-        },
-      }));
-    });
-
-    return unsubscribe;
-  }, [isManualClosingSerialEnabled]);
-
-  const computedRows = useMemo(() => {
-    const packs = [...(packsQuery.data ?? [])].sort(comparePacksByDisplayOrder);
-    return packs.map((pack) => {
-      const entry = entries[pack.id];
-      if (!entry?.closingSerialNumber) {
-        return {
-          pack,
-          soldQuantity: 0,
-          salesAmount: 0,
-          remainingTickets: pack.totalTickets,
-          hasError: false,
-          message: "",
-        };
-      }
-
-      try {
-        const calc = calculateShiftSales(
-          pack.currentSerialNumber,
-          entry.closingSerialNumber,
-          pack.startSerialNumber,
-          pack.endSerialNumber,
-          pack.sellingOrder,
-          pack.ticketPrice,
-          pack.totalTickets
-        );
-
-        return {
-          pack,
-          soldQuantity: calc.soldQuantity,
-          salesAmount: calc.salesAmount,
-          remainingTickets: calc.remainingTickets,
-          hasError: false,
-          message: "",
-        };
-      } catch (error: any) {
-        return {
-          pack,
-          soldQuantity: 0,
-          salesAmount: 0,
-          remainingTickets: pack.totalTickets,
-          hasError: true,
-          message: error.message,
-        };
-      }
-    });
-  }, [entries, packsQuery.data]);
-
-  const totals = computedRows.reduce(
-    (acc, row) => {
-      acc.salesAmount += row.salesAmount;
-      return acc;
-    },
-    { salesAmount: 0 }
-  );
-  const completedRows = computedRows.filter((row) => Boolean(entries[row.pack.id]?.closingSerialNumber) && !row.hasError).length;
-  const errorRows = computedRows.filter((row) => row.hasError).length;
-  const pendingRows = computedRows.filter((row) => !entries[row.pack.id]?.closingSerialNumber).length;
-  const pendingPackHints = useMemo(
-    () =>
-      computedRows
-        .filter((row) => !entries[row.pack.id]?.closingSerialNumber)
-        .map((row) => ({
-          packId: row.pack.id,
-          packNumber: row.pack.packNumber,
-          label: `Display ${row.pack.displayNumber != null ? `#${row.pack.displayNumber}` : "-"} | Pack ${row.pack.packNumber}`,
-        })),
-    [computedRows, entries]
-  );
-  // A shift with zero active packs is finalisable as a no-sales close — there's nothing for
-  // the shopkeeper to scan or enter, so blocking them would leave the shift in limbo.
-  const canFinalize = errorRows === 0 && pendingRows === 0 && !isSubmitting;
-  const isOnline = Boolean(netInfo.isConnected);
-  const readinessMessage = errorRows > 0
-    ? "Resolve serial errors before finalising the shift."
-    : pendingRows > 0
-      ? isManualClosingSerialEnabled
-        ? "Enter closing serial numbers for all active packs."
-        : "Scan each pack to capture closing serial numbers for all active packs."
-      : "All active packs are ready. You can finalise this shift.";
-
   async function onFinalize() {
-    if (isSubmitting) {
+    if (isSubmitting) return;
+
+    if (!isOnline) {
+      Alert.alert("You're offline", "Finalising the shift needs a connection so it can read the closing numbers you saved. Reconnect and try again.");
       return;
     }
 
-    const packs = packsQuery.data ?? [];
-    // A zero-pack shift is allowed — it submits with an empty entries list (no-sales close).
-    // Confirm with the shopkeeper first so they don't finalise by mistake when packs are
-    // genuinely missing (e.g. they forgot to activate them).
-    if (packs.length === 0) {
+    if (totals.pending > 0) {
+      Alert.alert(
+        "Closing numbers missing",
+        `${totals.pending} active pack${totals.pending === 1 ? "" : "s"} still need a closing number. Enter them on the Closing Numbers screen first.`
+      );
+      return;
+    }
+
+    if ((packsQuery.data?.length ?? 0) === 0) {
       const proceed = await new Promise<boolean>((resolve) => {
         Alert.alert(
           "Close shift with no sales?",
@@ -685,69 +214,30 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
       if (!proceed) return;
     }
 
-    for (const row of computedRows) {
-      if (!entries[row.pack.id]?.closingSerialNumber || row.hasError) {
-        Alert.alert("Validation", `Fix closing serial for pack ${row.pack.packNumber}.`);
-        return;
-      }
-    }
-
-    if (!isManualClosingSerialEnabled) {
-      const manualEntryPack = computedRows.find((row) => entries[row.pack.id]?.entryMethod === EntryMethod.Manual);
-      if (manualEntryPack) {
-        Alert.alert("Validation", `Manual entry is disabled. Scan pack ${manualEntryPack.pack.packNumber} instead.`);
-        return;
-      }
-    }
-
     setIsSubmitting(true);
     try {
+      // No entries payload — the server folds in the closing numbers from the staging store.
       const payload = {
         attachments: closeAttachments.map((attachment) => ({
           fileName: attachment.fileName,
           base64: attachment.base64,
           contentType: attachment.contentType,
         })),
-        entries: packs.map((pack) => {
-          const entry = entries[pack.id];
-          const wasEdited =
-            entry.originalScannedSerialNumber &&
-            entry.originalScannedSerialNumber !== entry.closingSerialNumber;
-
-          return {
-            packId: pack.id,
-            closingSerialNumber: entry.closingSerialNumber,
-            originalScannedSerialNumber: entry.originalScannedSerialNumber,
-            entryMethod: toApiEntryMethod(
-              entry.entryMethod === EntryMethod.Scanned && wasEdited
-                ? EntryMethod.ScannedEdited
-                : entry.entryMethod
-            ),
-            manualEntryReason: entry.manualEntryReason,
-          };
-        }),
+        entries: [] as unknown[],
       };
 
       const connection = await NetInfo.fetch();
-
       if (!connection.isConnected) {
-        await enqueueOfflineShiftClose(shiftId, shopId, {
-          shiftId,
-          shopId,
-          localCreatedOn: new Date().toISOString(),
-          payload,
-        });
-        await clearShiftDraft(shiftId);
-        Alert.alert("Offline Mode", "Shift saved as Pending Sync.");
+        Alert.alert("You're offline", "Finalising needs a connection. Reconnect and try again.");
         return;
       }
 
       const closeResult = await finalizeShift(shiftId, payload);
-      await clearShiftDraft(shiftId);
       void Promise.allSettled([
         queryClient.invalidateQueries({ queryKey: ["shift", shiftId] }),
         queryClient.invalidateQueries({ queryKey: ["shift-sales", shiftId] }),
         queryClient.invalidateQueries({ queryKey: ["shift-active-packs", shiftId] }),
+        queryClient.invalidateQueries({ queryKey: ["shift-closing-numbers", shiftId] }),
         queryClient.invalidateQueries({ queryKey: ["shifts"] }),
         queryClient.invalidateQueries({ queryKey: ["business-day"] }),
         queryClient.invalidateQueries({ queryKey: ["business-days"] }),
@@ -756,36 +246,15 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
         queryClient.invalidateQueries({ queryKey: ["day-summary-closed-shift-sales"] }),
       ]);
 
-      const relatedBusinessDayId = shiftQuery.data?.businessDayId;
       const relatedShopId = shiftQuery.data?.shopId ?? shopId;
-
-      void Promise.allSettled([
-        relatedBusinessDayId
-          ? queryClient.refetchQueries({ queryKey: ["business-day", relatedBusinessDayId], type: "all" })
-          : Promise.resolve(),
-        relatedBusinessDayId && relatedShopId
-          ? queryClient.refetchQueries({ queryKey: ["shifts", relatedShopId, relatedBusinessDayId], type: "all" })
-          : Promise.resolve(),
-        relatedShopId
-          ? queryClient.refetchQueries({ queryKey: ["business-days", relatedShopId], type: "all" })
-          : Promise.resolve(),
-        relatedShopId
-          ? queryClient.refetchQueries({ queryKey: ["business-days-for-picker", relatedShopId], type: "all" })
-          : Promise.resolve(),
-      ]);
-
       if (closeResult.moveDayManagementToNextBusinessDate && closeResult.nextBusinessDate && relatedShopId) {
         try {
           const allDays = await listBusinessDays(relatedShopId);
           const nextDay = allDays.find((day) => day.businessDate === closeResult.nextBusinessDate);
-
           if (nextDay) {
             haptics.success();
             track("shift_closed", { shiftId, shopId, nextBusinessDate: nextDay.businessDate });
-            Alert.alert(
-              "Shift finalised",
-              `Shift close submitted. Day management moved to ${nextDay.businessDate}.`
-            );
+            Alert.alert("Shift finalised", `Shift close submitted. Day management moved to ${nextDay.businessDate}.`);
             navigation.replace("DayEndClose", { businessDayId: nextDay.id });
             return;
           }
@@ -806,45 +275,26 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
     }
   }
 
-  // Up to three pack numbers shown inline; the rest collapsed into "+N more" so the footer
-  // doesn't grow unbounded if the shopkeeper has many active packs.
-  const pendingPackList = pendingPackHints.slice(0, 3).map((p) => `#${p.packNumber}`).join(", ");
-  const pendingPackOverflow = pendingPackHints.length > 3 ? ` +${pendingPackHints.length - 3} more` : "";
-  const blockingReason: string = !isSubmitting
-    ? (errorRows > 0
-        ? `${errorRows} pack${errorRows === 1 ? "" : "s"} have a serial error — tap each red row to fix.`
-        : pendingRows > 0
-          ? `${pendingRows} pack${pendingRows === 1 ? "" : "s"} still need a closing serial${pendingPackList ? ` (${pendingPackList}${pendingPackOverflow})` : ""}.`
-          : "")
-    : "";
-  const readyProgress = computedRows.length > 0
-    ? `${completedRows} of ${computedRows.length} pack${computedRows.length === 1 ? "" : "s"} ready`
-    : "No active packs — this will be a zero-sales close.";
-
   const finalizeFooter = (
     <View style={[ui.card, styles.fixedFooterCard]}>
       <View style={styles.finalizeFooterContent}>
-        {readyProgress ? (
-          <View style={styles.finalizeProgressRow}>
-            <Text style={styles.finalizeProgressText}>{readyProgress}</Text>
-            {errorRows > 0 ? (
-              <Text style={[styles.finalizeProgressText, styles.finalizeProgressTextError]}>
-                {errorRows} error{errorRows === 1 ? "" : "s"}
-              </Text>
-            ) : null}
-          </View>
-        ) : null}
-        {!canFinalize && blockingReason ? (
-          <Text
-            style={[styles.meta, errorRows > 0 ? styles.finalizeProgressTextError : null]}
-            accessibilityLiveRegion="polite"
-          >
-            {blockingReason}
+        <Text style={styles.finalizeProgressText}>
+          {totals.active === 0
+            ? "No active packs — this will be a zero-sales close."
+            : `${totals.entered} of ${totals.active} pack${totals.active === 1 ? "" : "s"} entered`}
+        </Text>
+        {!isOnline ? (
+          <Text style={[styles.meta, styles.finalizeProgressTextError]}>
+            You're offline — reconnect to finalise.
+          </Text>
+        ) : totals.pending > 0 ? (
+          <Text style={[styles.meta, styles.finalizeProgressTextError]}>
+            {totals.pending} pack{totals.pending === 1 ? "" : "s"} still need a closing number.
           </Text>
         ) : null}
-
         <PrimaryButton
           label={isSubmitting ? "Finalising..." : "Finalise Shift"}
+          icon="checkmark-circle-outline"
           onPress={onFinalize}
           disabled={!canFinalize}
         />
@@ -853,355 +303,143 @@ export function ShiftCloseScreen({ route, navigation }: Props) {
   );
 
   return (
-    <ScreenContainer footer={finalizeFooter} keyboardScrollOffset={160}>
+    <ScreenContainer footer={finalizeFooter}>
       <View style={styles.content}>
-        <View style={[ui.card, styles.summaryCard]}>
+        <View style={[ui.card, styles.card]}>
           <View style={styles.summaryHeaderRow}>
-            <Text style={styles.summaryTitle} numberOfLines={1}>
-              {shiftQuery.data?.shiftName ?? "-"}
-            </Text>
-            <Text style={styles.summaryDate} numberOfLines={1}>
-              {businessDayQuery.data?.businessDate ?? "-"}
-            </Text>
+            <Text style={styles.summaryTitle} numberOfLines={1}>{shiftQuery.data?.shiftName ?? "-"}</Text>
+            <Text style={styles.summaryDate} numberOfLines={1}>{businessDayQuery.data?.businessDate ?? "-"}</Text>
           </View>
-          {/* <View style={styles.progressRow}> */}
-            {/* <View style={styles.progressTile}>
-              <Text style={styles.progressLabel}>Active Packs</Text>
-              <Text style={styles.progressValue}>{computedRows.length}</Text>
-            </View>
-            <View style={styles.progressTile}>
-              <Text style={styles.progressLabel}>Ready</Text>
-              <Text style={styles.progressValue}>{completedRows}</Text>
-            </View> */}
-            {/* <View style={styles.progressTile}>
-              <Text style={styles.progressLabel}>Pending</Text>
-              <Text style={styles.progressValue}>{pendingRows}</Text>
-            </View>
-            <View style={styles.progressTile}>
-              <Text style={styles.progressLabel}>Issues</Text>
-              <Text style={styles.progressValue}>{errorRows}</Text>
-            </View> */}
-          {/* </View> */}
-          {/* <Text style={styles.meta}>{readinessMessage}</Text> */}
-
-              {isCameraScanningEnabled ? (
-            <PrimaryButton
-              label="Scan Any Pack"
-              tone="neutral"
-              onPress={() =>
-                openBarcodeScanner({
-                  mode: "auto",
-                  pendingPacks: pendingPackHints,
-                })
-              }
-              disabled={isSubmitting}
-            />
-          ) : (
-            <Text style={styles.meta}>Camera scanning is disabled for this shop. Use the closing serial textbox.</Text>
-          )}
+          <KpiGrid columns={3}>
+            <KpiTile label="Entered" value={totals.entered} tone={totals.active > 0 && totals.pending === 0 ? "success" : "default"} />
+            <KpiTile label="Pending" value={totals.pending} tone={totals.pending > 0 ? "warning" : "default"} />
+            <KpiTile label="Sales" value={formatCurrency(totals.sales)} />
+          </KpiGrid>
+          <Pressable
+            style={styles.enterButton}
+            onPress={() => navigation.navigate("EnterClosingNumbers", { shiftId, shopId, shiftName: shiftQuery.data?.shiftName })}
+            accessibilityRole="button"
+            accessibilityLabel="Enter or edit closing numbers"
+          >
+            <Ionicons name="create-outline" size={16} color={appTheme.colors.primary} />
+            <Text style={styles.enterButtonText}>
+              {totals.pending > 0 ? "Enter Closing Numbers" : "Edit Closing Numbers"}
+            </Text>
+          </Pressable>
         </View>
 
-        {/* <View style={[ui.card, styles.quickScanCard]}> */}
-          {/* <Text style={styles.cardTitle}>Quick Scan</Text>
-          <Text style={styles.meta}>Scan continuously and auto-apply closing serials by pack.</Text> */}
-      
-          {/* <Text style={styles.meta}>{readinessMessage}</Text> */}
-          {/* {scanStatus ? <Text style={styles.scanStatus}>{scanStatus}</Text> : null} */}
-        {/* </View> */}
-
-        {computedRows.length === 0 ? (
-          <View style={[ui.card, styles.compactCard]}>
-            <Text style={styles.cardTitle}>No Active Packs</Text>
-            <Text style={styles.meta}>
-              No packs are currently active for this shift's shop. You can still finalise the shift
-              as a zero-sales close, or activate packs first.
-            </Text>
-            <PrimaryButton
-              label="Go To Packs"
-              tone="neutral"
-              onPress={() => navigation.navigate("ScratchCardPacks")}
-            />
-          </View>
-        ) : null}
-
-        {computedRows.map((row) => {
-          const entry = entries[row.pack.id];
-          const hasClosingSerial = Boolean(entry?.closingSerialNumber?.trim());
-          const isFlagged =
-            entry?.entryMethod === EntryMethod.Manual ||
-            (entry?.originalScannedSerialNumber &&
-              entry.originalScannedSerialNumber !== entry.closingSerialNumber);
-          const rowStatusLabel = row.hasError ? "Error" : entry?.closingSerialNumber ? "Ready" : "Pending";
-          const rowStatusTone: "danger" | "success" | "warning" = row.hasError ? "danger" : entry?.closingSerialNumber ? "success" : "warning";
-          const isPendingRow = rowStatusLabel === "Pending";
-          const isReadyRow = rowStatusLabel === "Ready";
-
-          return (
-            <View
-              style={[
-                ui.card,
-                styles.packCard,
-                isPendingRow ? styles.packCardPending : null,
-                isReadyRow ? styles.packCardReady : null,
-              ]}
-              key={row.pack.id}
-            >
-              <View style={styles.packHeaderRow}>
-                <Pressable
-                  style={styles.packTitlePressable}
-                  onPress={() => showGameNameTooltip(row.pack.id)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Show game name for pack ${row.pack.packNumber}`}
-                >
-                  <Text style={styles.packTitle} numberOfLines={1}>
-                    {row.pack.displayNumber != null ? `#${row.pack.displayNumber} | ` : ""}
-                    Pack - {row.pack.packNumber}
-                  </Text>
-                </Pressable>
-                <Text style={styles.packMeta}>Opening: {row.pack.currentSerialNumber}</Text>
-                {/* <StatusBadge label={rowStatusLabel} tone={rowStatusTone} /> */}
-              </View>
-              {gameNameTooltipPackId === row.pack.id ? (
-                <Text style={styles.packTooltip}>{row.pack.gameName}</Text>
-              ) : null}
-
-              {/* <Text style={styles.fieldLabel}>Closing Serial Number</Text> */}
-              <View style={styles.scanInputRow}>
-                <View style={styles.scanInputCell}>
-                  <TextInput
-                    style={[styles.input, styles.inlineSerialInput, !isManualClosingSerialEnabled ? styles.inputDisabled : null]}
-                    value={entry?.closingSerialNumber ?? ""}
-                    placeholder={isManualClosingSerialEnabled ? "Serial no" : "Scan required"}
-                    placeholderTextColor={appTheme.colors.textSubtle}
-                    keyboardType="numeric"
-                    editable={isManualClosingSerialEnabled}
-                    onChangeText={(value) => {
-                      if (!isManualClosingSerialEnabled) {
-                        return;
-                      }
-                      const normalizedValue = normalizeClosingSerialInput(value);
-
-                      setEntries((previous) => ({
-                        ...previous,
-                        [row.pack.id]: {
-                          closingSerialNumber: normalizedValue,
-                          originalScannedSerialNumber: previous[row.pack.id]?.originalScannedSerialNumber,
-                          entryMethod: previous[row.pack.id]?.originalScannedSerialNumber
-                            ? EntryMethod.ScannedEdited
-                            : EntryMethod.Manual,
-                          manualEntryReason: previous[row.pack.id]?.manualEntryReason,
-                        },
-                      }));
-                    }}
-                  />
-                </View>
-
-                <View style={styles.scanInputCell}>
-                  <Pressable
-                    style={[
-                      styles.soldOutButton,
-                      (!isManualClosingSerialEnabled || isSubmitting) ? styles.actionButtonDisabled : null,
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Mark pack ${row.pack.packNumber} as sold out`}
-                    disabled={!isManualClosingSerialEnabled || isSubmitting}
-                    onPress={() => {
-                      // Marking sold-out sets the closing serial to the end of the pack which
-                      // cannot be undone short of editing the textbox — confirm first so a
-                      // mis-tap doesn't silently empty the inventory.
-                      const soldOutSerial = normalizeClosingSerialInput(getLastSerialForPack(row.pack));
-                      haptics.warning();
-                      Alert.alert(
-                        "Mark pack as sold out?",
-                        `Pack ${row.pack.packNumber} closing serial will be set to ${soldOutSerial}.`,
-                        [
-                          { text: "Cancel", style: "cancel" },
-                          {
-                            text: "Mark sold out",
-                            style: "destructive",
-                            onPress: () => {
-                              haptics.success();
-                              setEntries((previous) => ({
-                                ...previous,
-                                [row.pack.id]: {
-                                  closingSerialNumber: soldOutSerial,
-                                  originalScannedSerialNumber: previous[row.pack.id]?.originalScannedSerialNumber,
-                                  entryMethod: previous[row.pack.id]?.originalScannedSerialNumber
-                                    ? EntryMethod.ScannedEdited
-                                    : EntryMethod.Manual,
-                                  manualEntryReason: previous[row.pack.id]?.manualEntryReason,
-                                },
-                              }));
-                            },
-                          },
-                        ],
-                      );
-                    }}
-                  >
-                    <Text style={styles.soldOutButtonText}>Sold Out</Text>
-                  </Pressable>
-                </View>
-
-                <View style={styles.scanInputCell}>
-                  <Pressable
-                    style={[
-                      styles.inlineScanButton,
-                      (!isCameraScanningEnabled || isSubmitting) ? styles.actionButtonDisabled : null,
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Scan barcode for pack ${row.pack.packNumber}`}
-                    disabled={!isCameraScanningEnabled || isSubmitting}
-                    onPress={() => openBarcodeScanner({ mode: "single", packId: row.pack.id, packNumber: row.pack.packNumber })}
-                  >
-                    <View style={styles.scanIconWrap}>
-                      <View style={[styles.scanCorner, styles.scanCornerTopLeft]} />
-                      <View style={[styles.scanCorner, styles.scanCornerTopRight]} />
-                      <View style={[styles.scanCorner, styles.scanCornerBottomLeft]} />
-                      <View style={[styles.scanCorner, styles.scanCornerBottomRight]} />
-
-                      <View style={styles.inlineScanGlyph}>
-                        <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
-                        <View style={[styles.barcodeBar, styles.barcodeBarWide]} />
-                        <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
-                        <View style={[styles.barcodeBar, styles.barcodeBarMedium]} />
-                        <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
-                        <View style={[styles.barcodeBar, styles.barcodeBarWide]} />
-                        <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
-                      </View>
-                    </View>
-                  </Pressable>
-                </View>
-              </View>
-
-              {entry?.originalScannedSerialNumber ? (
-                <Text style={styles.meta}>Original scanned serial: {entry.originalScannedSerialNumber}</Text>
-              ) : null}
-
-              {/* {isFlagged ? <StatusBadge label="Edited serial" tone="warning" /> : null} */}
-              {row.hasError ? <Text style={styles.error}>{row.message}</Text> : null}
-
-              {hasClosingSerial ? (
-                <View style={styles.metricsInlineRow}>
-                  <Text style={[styles.packMeta, styles.metricsInlineItem]}>
-                    Price {formatCurrency(row.pack.ticketPrice)}
-                  </Text>
-                  <Text style={[styles.packMeta, styles.metricsInlineItemCenter]}>
-                    Qty {row.soldQuantity}
-                  </Text>
-                  <Text style={[styles.packMeta, styles.metricsInlineItemRight]}>
-                    Sales {formatCurrency(row.salesAmount)}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-          );
-        })}
-
-        <View style={[ui.card, styles.compactCard]}>
-          {/* <Text style={styles.cardTitle}>Shift Totals</Text> */}
-          <Text style={styles.cardTitle}>Total sales: {formatCurrency(totals.salesAmount)}</Text>
-          {/* <Text style={styles.meta}>{pendingRows > 0 ? `Pending: ${pendingRows}` : ""}</Text> */}
-        </View>
-
-        <View style={[ui.card, styles.compactCard]}>
-          {/* <Text style={styles.fieldLabel}>Attachments (Optional)</Text> */}
-          {/* <Text style={styles.meta}>Up to 10 files. Images show a preview.</Text> */}
-          {closeAttachments.length === 0 ? (
-            <></>
-            // <Text style={styles.meta}>No attachments selected.</Text>
-          ) : (
-            <Text style={styles.meta}>{closeAttachments.length} attachment(s) selected.</Text>
-          )}
-          {closeAttachments.length > 0 ? (
-            <View style={styles.attachmentList}>
-              {closeAttachments.map((attachment) => {
-                const canPreviewImage = Boolean(attachment.uri) && (attachment.contentType?.startsWith("image/") ?? false);
-                return (
-                  <View key={attachment.id} style={styles.attachmentItem}>
-                    {canPreviewImage ? (
-                      <Image source={{ uri: attachment.uri }} style={styles.attachmentPreviewImage} resizeMode="cover" />
-                    ) : (
-                      <View style={styles.attachmentFileIcon}>
-                        <Text style={styles.attachmentFileIconText}>FILE</Text>
-                      </View>
-                    )}
-                    <View style={styles.attachmentMeta}>
-                      <Text style={styles.attachmentFileName} numberOfLines={1}>
-                        {attachment.fileName}
-                      </Text>
-                      <Text style={styles.meta}>
-                        {(attachment.contentType ?? "application/octet-stream")}
-                        {attachment.size ? ` | ${formatFileSize(attachment.size)}` : ""}
-                      </Text>
-                    </View>
-                    <Pressable
-                      style={styles.attachmentRemoveButton}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Remove attachment ${attachment.fileName}`}
-                      onPress={() => setCloseAttachments((previous) => previous.filter((item) => item.id !== attachment.id))}
-                      disabled={isSubmitting}
-                    >
-                      <Text style={styles.attachmentRemoveButtonText}>Remove</Text>
-                    </Pressable>
+        {isInitialLoading ? (
+          <SkeletonList count={4} rowHeight={64} />
+        ) : (
+          <>
+            {pendingPacks.length > 0 ? (
+              <View style={[ui.card, styles.card]}>
+                <SectionHeader title="Awaiting Closing Number" icon="alert-circle-outline" />
+                {pendingPacks.map((pack) => (
+                  <View key={pack.id} style={styles.pendingRow}>
+                    <Text style={styles.pendingText} numberOfLines={1}>
+                      {pack.displayNumber != null ? `#${pack.displayNumber} · ` : ""}{pack.gameName}
+                    </Text>
+                    <Text style={styles.pendingMeta}>Pack {pack.packNumber}</Text>
                   </View>
-                );
-              })}
-            </View>
-          ) : null}
-          <View style={styles.attachmentActionRow}>
-            <Pressable
-              style={styles.attachmentActionButton}
-              accessibilityRole="button"
-              accessibilityLabel="Take a photo for this close"
-              onPress={() => void captureCloseAttachment()}
-              disabled={isSubmitting}
-            >
-              <Ionicons name="camera-outline" size={16} color={appTheme.colors.text} />
-              <Text style={styles.attachmentActionButtonText}>Take Photo</Text>
-            </Pressable>
-            <Pressable
-              style={styles.attachmentActionButton}
-              accessibilityRole="button"
-              accessibilityLabel="Pick attachments from gallery"
-              onPress={() => void selectCloseAttachments()}
-              disabled={isSubmitting}
-            >
-              <Ionicons name="images-outline" size={16} color={appTheme.colors.text} />
-              <Text style={styles.attachmentActionButtonText}>From Gallery</Text>
-            </Pressable>
-          </View>
-          {closeAttachments.length > 0 ? (
-            <View style={styles.attachmentActionRow}>
-              <Pressable
-                style={[styles.attachmentActionButton, styles.attachmentActionButtonDanger]}
-                accessibilityRole="button"
-                accessibilityLabel="Clear all attachments"
-                onPress={() => {
-                  Alert.alert(
-                    "Clear all attachments?",
-                    `This will remove all ${closeAttachments.length} attachment(s).`,
-                    [
-                      { text: "Cancel", style: "cancel" },
-                      { text: "Clear all", style: "destructive", onPress: () => setCloseAttachments([]) },
-                    ],
-                  );
-                }}
-                disabled={isSubmitting}
-              >
-                <Text style={[styles.attachmentActionButtonText, styles.attachmentActionButtonTextDanger]}>Clear All</Text>
-              </Pressable>
-            </View>
-          ) : null}
-        </View>
+                ))}
+              </View>
+            ) : null}
 
+            <View style={[ui.card, styles.card]}>
+              <SectionHeader title="Closing Numbers" icon="list-outline" />
+              {closings.length === 0 ? (
+                <Text style={styles.meta}>No closing numbers entered yet.</Text>
+              ) : (
+                closings.map((row) => (
+                  <View key={row.packId} style={styles.reviewRow}>
+                    <View style={styles.reviewIdentity}>
+                      <Text style={styles.reviewTitle} numberOfLines={1}>
+                        {row.displayNumber != null ? `#${row.displayNumber} · ` : ""}{row.gameName}
+                      </Text>
+                      <Text style={styles.reviewMeta} numberOfLines={1}>
+                        {row.openingSerialNumber} → {row.closingSerialNumber} · {row.soldQuantity} sold
+                      </Text>
+                    </View>
+                    <Text style={styles.reviewAmount}>{formatCurrency(row.salesAmount)}</Text>
+                  </View>
+                ))
+              )}
+            </View>
+
+            <View style={[ui.card, styles.card]}>
+              <SectionHeader title="Attachments" subtitle="Optional — up to 10 files" icon="attach-outline" />
+              {closeAttachments.length > 0 ? (
+                <View style={styles.attachmentList}>
+                  {closeAttachments.map((attachment) => {
+                    const canPreviewImage = Boolean(attachment.uri) && (attachment.contentType?.startsWith("image/") ?? false);
+                    return (
+                      <View key={attachment.id} style={styles.attachmentItem}>
+                        {canPreviewImage ? (
+                          <Image source={{ uri: attachment.uri }} style={styles.attachmentPreviewImage} resizeMode="cover" />
+                        ) : (
+                          <View style={styles.attachmentFileIcon}>
+                            <Text style={styles.attachmentFileIconText}>FILE</Text>
+                          </View>
+                        )}
+                        <View style={styles.attachmentMeta}>
+                          <Text style={styles.attachmentFileName} numberOfLines={1}>{attachment.fileName}</Text>
+                          <Text style={styles.meta}>
+                            {(attachment.contentType ?? "application/octet-stream")}
+                            {attachment.size ? ` | ${formatFileSize(attachment.size)}` : ""}
+                          </Text>
+                        </View>
+                        <Pressable
+                          style={styles.attachmentRemoveButton}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Remove attachment ${attachment.fileName}`}
+                          onPress={() => setCloseAttachments((previous) => previous.filter((item) => item.id !== attachment.id))}
+                          disabled={isSubmitting}
+                        >
+                          <Text style={styles.attachmentRemoveButtonText}>Remove</Text>
+                        </Pressable>
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : null}
+              <View style={styles.attachmentActionRow}>
+                <Pressable
+                  style={styles.attachmentActionButton}
+                  accessibilityRole="button"
+                  accessibilityLabel="Take a photo for this close"
+                  onPress={() => void captureCloseAttachment()}
+                  disabled={isSubmitting}
+                >
+                  <Ionicons name="camera-outline" size={16} color={appTheme.colors.text} />
+                  <Text style={styles.attachmentActionButtonText}>Take Photo</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.attachmentActionButton}
+                  accessibilityRole="button"
+                  accessibilityLabel="Pick attachments from gallery"
+                  onPress={() => void selectCloseAttachments()}
+                  disabled={isSubmitting}
+                >
+                  <Ionicons name="images-outline" size={16} color={appTheme.colors.text} />
+                  <Text style={styles.attachmentActionButtonText}>From Gallery</Text>
+                </Pressable>
+              </View>
+            </View>
+          </>
+        )}
       </View>
     </ScreenContainer>
   );
 }
+
 const styles = StyleSheet.create({
   content: {
     gap: appTheme.spacing.sm,
     paddingBottom: appTheme.spacing.xl * 2 + appTheme.spacing.sm,
+  },
+  card: {
+    gap: appTheme.spacing.sm,
   },
   fixedFooterCard: {
     paddingVertical: appTheme.spacing.sm,
@@ -1209,12 +447,6 @@ const styles = StyleSheet.create({
   },
   finalizeFooterContent: {
     gap: 6,
-  },
-  finalizeProgressRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: appTheme.spacing.xs,
   },
   finalizeProgressText: {
     color: appTheme.colors.text,
@@ -1225,345 +457,87 @@ const styles = StyleSheet.create({
   finalizeProgressTextError: {
     color: appTheme.colors.danger,
   },
-  compactCard: {
-    gap: appTheme.spacing.sm,
-  },
-  summaryCard: {
-    gap: appTheme.spacing.xs,
-  },
   summaryHeaderRow: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: appTheme.spacing.sm,
-  },
-  summaryHeading: {
-    flex: 1,
-    gap: 2,
-  },
-  summaryEyebrow: {
-    color: appTheme.colors.textSubtle,
-    fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 12,
-    lineHeight: 15,
-    letterSpacing: 0.2,
-    textTransform: "uppercase",
+    gap: appTheme.spacing.xs,
   },
   summaryTitle: {
+    ...appTheme.typography.subtitle,
     color: appTheme.colors.text,
-    fontFamily: appTheme.fonts.heading,
-    fontSize: 18,
-    lineHeight: 22,
     flex: 1,
   },
   summaryDate: {
+    ...appTheme.typography.caption,
     color: appTheme.colors.textMuted,
-    fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 12,
-    lineHeight: 16,
-    textAlign: "right",
   },
-  summaryStatusRow: {
+  enterButton: {
     flexDirection: "row",
     alignItems: "center",
-    flexWrap: "wrap",
-    gap: appTheme.spacing.xs,
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+    paddingVertical: 10,
   },
-  progressRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: appTheme.spacing.xs,
-  },
-  progressTile: {
-    width: "48.8%",
-    borderWidth: 0,
-    borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surfaceTint,
-    paddingHorizontal: appTheme.spacing.sm,
-    paddingVertical: appTheme.spacing.sm,
-    gap: 2,
-  },
-  progressLabel: {
-    color: appTheme.colors.textSubtle,
+  enterButtonText: {
+    color: appTheme.colors.primary,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 11,
-    lineHeight: 14,
-    textTransform: "uppercase",
-  },
-  progressValue: {
-    color: appTheme.colors.text,
-    fontFamily: appTheme.fonts.heading,
-    fontSize: 17,
-    lineHeight: 21,
-  },
-  quickScanCard: {
-    gap: appTheme.spacing.sm,
-  },
-  packCard: {
-    gap: appTheme.spacing.xs,
-  },
-  packCardPending: {
-    backgroundColor: appTheme.colors.surface,
-    borderWidth: 0.8,
-    borderColor: appTheme.colors.borderWarningSoft,
-  },
-  packCardReady: {
-    backgroundColor: appTheme.colors.surface,
-    borderWidth: 0.8,
-    borderColor: appTheme.colors.borderSuccessSoft,
-  },
-  cardTitle: {
-    fontSize: 18,
-    lineHeight: 23,
-    color: appTheme.colors.text,
-    fontFamily: appTheme.fonts.bodyMedium,
-  },
-  fieldLabel: {
-    color: appTheme.colors.text,
-    fontSize: 13,
-    lineHeight: 16,
-    fontFamily: appTheme.fonts.bodyMedium,
-    marginTop: 2,
-  },
-  meta: {
-    color: appTheme.colors.textMuted,
-    fontFamily: appTheme.fonts.body,
-    lineHeight: 18,
-    fontSize: 13,
-  },
-  packTitle: {
-    fontSize: 15,
-    lineHeight: 19,
-    color: appTheme.colors.text,
-    fontFamily: appTheme.fonts.bodyMedium,
-    flex: 1,
-  },
-  packTitlePressable: {
-    flex: 1,
-  },
-  packTooltip: {
-    alignSelf: "flex-start",
-    color: appTheme.colors.text,
-    fontFamily: appTheme.fonts.body,
-    fontSize: 12,
-    lineHeight: 15,
-    backgroundColor: appTheme.colors.surfaceMuted,
-    borderRadius: appTheme.radius.sm,
-    paddingHorizontal: appTheme.spacing.xs,
-    paddingVertical: 4,
-  },
-  packHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: appTheme.spacing.sm,
-  },
-  packMeta: {
-    color: appTheme.colors.textMuted,
-    fontFamily: appTheme.fonts.body,
-    lineHeight: 16,
-    fontSize: 12,
-  },
-  packMetaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: appTheme.spacing.sm,
-  },
-  packMetaRight: {
-    color: appTheme.colors.text,
-    fontFamily: appTheme.fonts.bodyMedium,
-    lineHeight: 18,
-    fontSize: 13,
-  },
-  input: {
-    borderWidth: 0,
-    borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surfaceMuted,
-    color: appTheme.colors.text,
-    paddingHorizontal: appTheme.spacing.sm,
-    paddingVertical: appTheme.spacing.sm,
-    fontFamily: appTheme.fonts.body,
     fontSize: 14,
   },
-  inputDisabled: {
-    opacity: 0.6,
+  meta: {
+    ...appTheme.typography.caption,
+    color: appTheme.colors.textMuted,
   },
-  scanInputRow: {
+  pendingRow: {
     flexDirection: "row",
-    alignItems: "stretch",
-    gap: 6,
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.xs,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: appTheme.colors.borderSoft,
   },
-  scanInputCell: {
+  pendingText: {
     flex: 1,
-    flexBasis: 0,
-    minWidth: 0,
-  },
-  inlineScanButton: {
-    width: "100%",
-    height: 38,
-    borderWidth: 0,
-    borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surfaceInfoSoft,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  soldOutButton: {
-    width: "100%",
-    height: 38,
-    borderWidth: 0,
-    borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surfaceTintSoft,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 8,
-  },
-  soldOutButtonText: {
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 11,
-    lineHeight: 13,
+    fontSize: 13,
+    lineHeight: 17,
   },
-  actionButtonDisabled: {
-    opacity: 0.55,
+  pendingMeta: {
+    ...appTheme.typography.caption,
+    color: appTheme.colors.textMuted,
   },
-  scanIconWrap: {
-    width: 18,
-    height: 18,
-    position: "relative",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  scanCorner: {
-    position: "absolute",
-    width: 5,
-    height: 5,
-    borderColor: appTheme.colors.textSubtle,
-  },
-  scanCornerTopLeft: {
-    top: 0.5,
-    left: 0.5,
-    borderTopWidth: 1.5,
-    borderLeftWidth: 1.5,
-  },
-  scanCornerTopRight: {
-    top: 0.5,
-    right: 0.5,
-    borderTopWidth: 1.5,
-    borderRightWidth: 1.5,
-  },
-  scanCornerBottomLeft: {
-    bottom: 0.5,
-    left: 0.5,
-    borderBottomWidth: 1.5,
-    borderLeftWidth: 1.5,
-  },
-  scanCornerBottomRight: {
-    bottom: 0.5,
-    right: 0.5,
-    borderBottomWidth: 1.5,
-    borderRightWidth: 1.5,
-  },
-  inlineScanGlyph: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    height: 11,
-    gap: 1,
-  },
-  barcodeBar: {
-    backgroundColor: appTheme.colors.text,
-    borderRadius: 0.5,
-  },
-  barcodeBarThin: {
-    width: 1.5,
-    height: 7,
-  },
-  barcodeBarMedium: {
-    width: 2,
-    height: 9,
-  },
-  barcodeBarWide: {
-    width: 2.5,
-    height: 11,
-  },
-  inlineSerialInput: {
-    width: "100%",
-    height: 38,
-    paddingVertical: 6,
-  },
-  readonly: {
-    color: appTheme.colors.info,
-    fontFamily: appTheme.fonts.bodyMedium,
-    lineHeight: 20,
-    fontSize: 15,
-  },
-  metricsBlock: {
-    marginTop: 2,
-  },
-  metricsInlineRow: {
+  reviewRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: appTheme.spacing.sm,
-  },
-  metricsInlineItem: {
-    flex: 1,
-  },
-  metricsInlineItemCenter: {
-    flex: 1,
-    textAlign: "center",
-  },
-  metricsInlineItemRight: {
-    flex: 1,
-    textAlign: "right",
-  },
-  metricsRow: {
-    flexDirection: "row",
+    justifyContent: "space-between",
     gap: appTheme.spacing.xs,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: appTheme.colors.borderSoft,
   },
-  metricTile: {
+  reviewIdentity: {
     flex: 1,
-    backgroundColor: appTheme.colors.surfaceTint,
-    borderRadius: appTheme.radius.sm,
-    paddingHorizontal: appTheme.spacing.sm,
-    paddingVertical: appTheme.spacing.xs,
     gap: 2,
   },
-  metricLabel: {
-    color: appTheme.colors.textSubtle,
+  reviewTitle: {
+    color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 11,
-    lineHeight: 14,
-    textTransform: "uppercase",
-  },
-  metricValue: {
-    color: appTheme.colors.info,
-    fontFamily: appTheme.fonts.bodyMedium,
-    lineHeight: 18,
     fontSize: 13,
+    lineHeight: 17,
   },
-  metricValueRight: {
-    textAlign: "right",
+  reviewMeta: {
+    ...appTheme.typography.caption,
+    color: appTheme.colors.textMuted,
   },
-  error: {
-    color: appTheme.colors.danger,
+  reviewAmount: {
+    color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
     lineHeight: 18,
-    fontSize: 13,
-  },
-  scanStatus: {
-    color: appTheme.colors.info,
-    fontFamily: appTheme.fonts.bodyMedium,
-    lineHeight: 18,
-    fontSize: 13,
-    borderWidth: 0,
-    borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surfaceInfoMuted,
-    paddingHorizontal: appTheme.spacing.sm,
-    paddingVertical: appTheme.spacing.xs,
-  },
-  actionGroup: {
-    gap: appTheme.spacing.xs,
-    marginTop: 2,
   },
   attachmentList: {
     gap: appTheme.spacing.xs,
@@ -1571,33 +545,28 @@ const styles = StyleSheet.create({
   attachmentItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: appTheme.spacing.xs,
-    borderWidth: 1,
-    borderColor: appTheme.colors.border,
+    gap: appTheme.spacing.sm,
+    backgroundColor: appTheme.colors.surfaceTint,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surfaceMuted,
-    paddingHorizontal: appTheme.spacing.xs,
-    paddingVertical: appTheme.spacing.xs,
+    padding: appTheme.spacing.xs,
   },
   attachmentPreviewImage: {
     width: 44,
     height: 44,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surface,
   },
   attachmentFileIcon: {
     width: 44,
     height: 44,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surfaceTintAlt,
+    backgroundColor: appTheme.colors.surfaceMuted,
     alignItems: "center",
     justifyContent: "center",
   },
   attachmentFileIconText: {
     color: appTheme.colors.textSubtle,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 10,
-    lineHeight: 12,
+    fontSize: 11,
   },
   attachmentMeta: {
     flex: 1,
@@ -1606,22 +575,19 @@ const styles = StyleSheet.create({
   attachmentFileName: {
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 17,
   },
   attachmentRemoveButton: {
-    borderWidth: 1,
-    borderColor: appTheme.colors.borderStrong,
-    borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surface,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 6,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceDangerSoft,
   },
   attachmentRemoveButtonText: {
-    color: appTheme.colors.text,
+    color: appTheme.colors.danger,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 11,
-    lineHeight: 13,
+    fontSize: 12,
   },
   attachmentActionRow: {
     flexDirection: "row",
@@ -1630,26 +596,16 @@ const styles = StyleSheet.create({
   attachmentActionButton: {
     flex: 1,
     flexDirection: "row",
-    minHeight: 38,
-    borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surfaceTintSoft,
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    paddingHorizontal: appTheme.spacing.sm,
-  },
-  attachmentActionButtonDanger: {
-    backgroundColor: appTheme.colors.danger,
+    paddingVertical: 10,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceMuted,
   },
   attachmentActionButtonText: {
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 12,
-    lineHeight: 15,
-  },
-  attachmentActionButtonTextDanger: {
-    color: appTheme.colors.onPrimary,
+    fontSize: 13,
   },
 });
-
-

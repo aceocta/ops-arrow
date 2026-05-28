@@ -13,6 +13,37 @@ public class ShiftClosePackEntryRequest
     public string? Notes { get; set; }
 }
 
+/// <summary>Upsert of a single pack's closing serial for an open shift (staging store).</summary>
+public class UpsertShiftPackClosingRequest
+{
+    public Guid PackId { get; set; }
+    public string ClosingSerialNumber { get; set; } = string.Empty;
+    public string? OriginalScannedSerialNumber { get; set; }
+    public EntryMethod EntryMethod { get; set; }
+    public string? ManualEntryReason { get; set; }
+    public string? Notes { get; set; }
+}
+
+/// <summary>A stored closing-serial entry plus the computed sold qty / sales for that pack.</summary>
+public class ShiftPackClosingDto
+{
+    public Guid PackId { get; set; }
+    public string PackNumber { get; set; } = string.Empty;
+    public int? DisplayNumber { get; set; }
+    public string GameName { get; set; } = string.Empty;
+    public string OpeningSerialNumber { get; set; } = string.Empty;
+    public string ClosingSerialNumber { get; set; } = string.Empty;
+    public string? OriginalScannedSerialNumber { get; set; }
+    public EntryMethod EntryMethod { get; set; }
+    public string? ManualEntryReason { get; set; }
+    public string? Notes { get; set; }
+    public int SoldQuantity { get; set; }
+    public decimal TicketPrice { get; set; }
+    public decimal SalesAmount { get; set; }
+    public int RemainingTickets { get; set; }
+    public DateTimeOffset EnteredOn { get; set; }
+}
+
 public class FinalizeShiftRequest
 {
     public string? Notes { get; set; }

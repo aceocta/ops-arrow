@@ -40,6 +40,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Shift> Shifts => Set<Shift>();
     public DbSet<ShiftOpeningSerial> ShiftOpeningSerials => Set<ShiftOpeningSerial>();
     public DbSet<ShiftScratchCardSale> ShiftScratchCardSales => Set<ShiftScratchCardSale>();
+    public DbSet<ShiftPackClosing> ShiftPackClosings => Set<ShiftPackClosing>();
     public DbSet<CanisterDrop> CanisterDrops => Set<CanisterDrop>();
     public DbSet<PrizePayout> PrizePayouts => Set<PrizePayout>();
     public DbSet<ScratchCardDayCloseSummary> ScratchCardDayCloseSummaries => Set<ScratchCardDayCloseSummary>();
@@ -397,6 +398,18 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.Notes).HasMaxLength(1000);
             entity.HasOne(x => x.Shift).WithMany(x => x.ShiftSales).HasForeignKey(x => x.ShiftId);
             entity.HasOne(x => x.Pack).WithMany(x => x.ShiftSales).HasForeignKey(x => x.PackId);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId);
+        });
+
+        modelBuilder.Entity<ShiftPackClosing>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShiftId, x.PackId }).IsUnique();
+            entity.Property(x => x.ClosingSerialNumber).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.OriginalScannedSerialNumber).HasMaxLength(30);
+            entity.Property(x => x.ManualEntryReason).HasMaxLength(500);
+            entity.Property(x => x.Notes).HasMaxLength(1000);
+            entity.HasOne(x => x.Shift).WithMany().HasForeignKey(x => x.ShiftId);
+            entity.HasOne(x => x.Pack).WithMany().HasForeignKey(x => x.PackId);
             entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId);
         });
 

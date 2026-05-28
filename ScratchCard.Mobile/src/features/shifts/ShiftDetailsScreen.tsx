@@ -9,7 +9,7 @@ import { addCanisterDrop, getBusinessDay, listCanisterDrops } from "../../api/bu
 import { getConfigurations } from "../../api/configurationsApi";
 import { getShopSubscriptionSummary } from "../../api/subscriptionApi";
 import { useAuth } from "../../auth/AuthContext";
-import { getShift, getShiftCloseAttachmentContent, getShiftSales } from "../../api/shiftsApi";
+import { getActivePacksForShift, getShift, getShiftCloseAttachmentContent, getShiftSales, listShiftClosingNumbers } from "../../api/shiftsApi";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SectionHeader } from "../../components/SectionHeader";
@@ -206,6 +206,34 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
     queryKey: ["shift-sales", shiftId],
     queryFn: () => getShiftSales(shiftId),
   });
+
+  const isOpenShift = shift?.status === ShiftStatus.Open || shift?.status === ShiftStatus.Reopened;
+
+  // For an open shift, the scratch-card summary is driven by the closing-number staging store
+  // (sales rows only exist after finalise). Pull active packs + saved closing numbers to show
+  // entry progress and link straight to the entry screen.
+  const activePacksQuery = useQuery({
+    queryKey: ["shift-active-packs", shiftId],
+    queryFn: () => getActivePacksForShift(shiftId),
+    enabled: Boolean(isOpenShift),
+  });
+
+  const closingNumbersQuery = useQuery({
+    queryKey: ["shift-closing-numbers", shiftId],
+    queryFn: () => listShiftClosingNumbers(shiftId),
+    enabled: Boolean(isOpenShift),
+  });
+
+  const closingProgress = useMemo(() => {
+    const activeCount = activePacksQuery.data?.length ?? 0;
+    const closings = closingNumbersQuery.data ?? [];
+    return {
+      active: activeCount,
+      entered: closings.length,
+      pending: Math.max(activeCount - closings.length, 0),
+      sales: closings.reduce((sum, c) => sum + Number(c.salesAmount ?? 0), 0),
+    };
+  }, [activePacksQuery.data, closingNumbersQuery.data]);
 
   const previewAttachmentMutation = useMutation({
     mutationFn: async ({ attachmentId, fileName }: { attachmentId: string; fileName: string }) => {
@@ -431,21 +459,61 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
         </View>
 
         <View style={[ui.card, styles.summaryCard]}>
-          <SectionHeader
-            title="Scratch Card Summary"
-            icon="stats-chart-outline"
-            right={
-              totals.flaggedCount > 0 ? (
-                <StatusBadge label={`${totals.flaggedCount} flagged`} tone="warning" />
-              ) : undefined
-            }
-          />
-          <KpiGrid columns={2}>
-            {/* <KpiTile label="Entries" value={entries.length} /> */}
-            <KpiTile label="Sold Qty" value={totals.totalSoldQuantity} />
-            <KpiTile label="Sales" value={formatCurrency(totals.totalSalesAmount)} />
-            {/* <KpiTile label="Remaining" value={totals.totalRemainingTickets} /> */}
-          </KpiGrid>
+          {isOpenShift ? (
+            <>
+              <Pressable
+                onPress={() => navigation.navigate("EnterClosingNumbers", { shiftId, shopId: shiftShopId, shiftName: shift?.shiftName })}
+                accessibilityRole="button"
+                accessibilityLabel="Enter scratch card closing numbers"
+              >
+                <SectionHeader
+                  title="Scratch Card"
+                  icon="albums-outline"
+                  right={
+                    <>
+                      <StatusBadge
+                        label={
+                          closingProgress.pending > 0
+                            ? `${closingProgress.pending} pending`
+                            : closingProgress.active > 0
+                              ? "All entered"
+                              : "No packs"
+                        }
+                        tone={closingProgress.pending > 0 ? "warning" : closingProgress.active > 0 ? "success" : "neutral"}
+                      />
+                      <Ionicons name="chevron-forward" size={18} color={appTheme.colors.textSubtle} />
+                    </>
+                  }
+                />
+              </Pressable>
+              <KpiGrid columns={3}>
+                <KpiTile label="Entered" value={closingProgress.entered} tone={closingProgress.active > 0 && closingProgress.pending === 0 ? "success" : "default"} />
+                <KpiTile label="Pending" value={closingProgress.pending} tone={closingProgress.pending > 0 ? "warning" : "default"} />
+                <KpiTile label="Sales" value={formatCurrency(closingProgress.sales)} />
+              </KpiGrid>
+              <Text style={styles.meta}>
+                {closingProgress.pending > 0
+                  ? "Enter all closing numbers before closing the shift."
+                  : "Closing numbers entered. Ready to close the shift."}
+              </Text>
+            </>
+          ) : (
+            <>
+              <SectionHeader
+                title="Scratch Card Summary"
+                icon="stats-chart-outline"
+                right={
+                  totals.flaggedCount > 0 ? (
+                    <StatusBadge label={`${totals.flaggedCount} flagged`} tone="warning" />
+                  ) : undefined
+                }
+              />
+              <KpiGrid columns={2}>
+                <KpiTile label="Sold Qty" value={totals.totalSoldQuantity} />
+                <KpiTile label="Sales" value={formatCurrency(totals.totalSalesAmount)} />
+              </KpiGrid>
+            </>
+          )}
           {salesQuery.isFetching ? <Text style={styles.meta}>Loading...</Text> : null}
         {/* </View>
 

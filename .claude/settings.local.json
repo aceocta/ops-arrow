@@ -21,7 +21,11 @@
       "Bash(Get-ChildItem -Path \"j:\\\\ScratchCard\\\\ScratchCard.Mobile\\\\src\" -Directory)",
       "Bash(Select-Object Name)",
       "Bash(Get-ChildItem -Directory features)",
-      "Bash(Select-Object -ExpandProperty Name)"
+      "Bash(Select-Object -ExpandProperty Name)",
+      "Read(//tmp/**)",
+      "Bash(cp /tmp/old_shiftclose.tsx \"j:/ScratchCard/ScratchCard.Mobile/src/features/scratch-card/EnterClosingNumbersScreen.tsx\")",
+      "Bash(sed -n '1,45p' \"j:/ScratchCard/ScratchCard.Mobile/src/features/scratch-card/EnterClosingNumbersScreen.tsx\")",
+      "Bash(grep -E \"\\\\.cs$\")"
     ]
   }
 }

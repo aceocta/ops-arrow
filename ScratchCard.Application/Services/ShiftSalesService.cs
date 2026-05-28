@@ -22,6 +22,7 @@ public class ShiftSalesService : IShiftSalesService
     private readonly IRepository<ScratchCardPack> _packRepository;
     private readonly IRepository<ShiftOpeningSerial> _shiftOpeningSerialRepository;
     private readonly IRepository<ShiftScratchCardSale> _salesRepository;
+    private readonly IRepository<ShiftPackClosing> _packClosingRepository;
     private readonly IRepository<PrizePayout> _payoutRepository;
     private readonly IRepository<ShiftReconciliation> _reconciliationRepository;
     private readonly IRepository<ShiftCloseAttachment> _shiftCloseAttachmentRepository;
@@ -50,6 +51,7 @@ public class ShiftSalesService : IShiftSalesService
         IRepository<ScratchCardPack> packRepository,
         IRepository<ShiftOpeningSerial> shiftOpeningSerialRepository,
         IRepository<ShiftScratchCardSale> salesRepository,
+        IRepository<ShiftPackClosing> packClosingRepository,
         IRepository<PrizePayout> payoutRepository,
         IRepository<ShiftReconciliation> reconciliationRepository,
         IRepository<ShiftCloseAttachment> shiftCloseAttachmentRepository,
@@ -77,6 +79,7 @@ public class ShiftSalesService : IShiftSalesService
         _packRepository = packRepository;
         _shiftOpeningSerialRepository = shiftOpeningSerialRepository;
         _salesRepository = salesRepository;
+        _packClosingRepository = packClosingRepository;
         _payoutRepository = payoutRepository;
         _reconciliationRepository = reconciliationRepository;
         _shiftCloseAttachmentRepository = shiftCloseAttachmentRepository;
@@ -139,6 +142,185 @@ public class ShiftSalesService : IShiftSalesService
             .ToListAsync(cancellationToken);
 
         return entries;
+    }
+
+    public async Task<ShiftPackClosingDto> UpsertClosingNumberAsync(
+        Guid shiftId,
+        UpsertShiftPackClosingRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var shift = await _shiftRepository.Query()
+            .FirstOrDefaultAsync(x => x.Id == shiftId, cancellationToken)
+            ?? throw new AppException("shift_not_found", "Shift not found.", 404);
+
+        if (shift.Status is not (ShiftStatus.Open or ShiftStatus.Reopened))
+        {
+            throw new AppException(ErrorCodes.ShiftNotOpen, "Closing numbers can only be entered while the shift is open.");
+        }
+
+        var pack = await _packRepository.Query()
+            .Include(x => x.Game)
+            .FirstOrDefaultAsync(x => x.Id == request.PackId && x.ShopId == shift.ShopId && !x.IsDeleted, cancellationToken)
+            ?? throw new AppException(ErrorCodes.PackNotFound, "Pack not found.", 404);
+
+        if (pack.Status != PackStatus.Active)
+        {
+            throw new AppException(ErrorCodes.PackNotActive, $"Pack {pack.PackNumber} is not active.");
+        }
+
+        var closingSerial = (request.ClosingSerialNumber ?? string.Empty).Trim();
+        if (closingSerial.Length == 0)
+        {
+            throw new AppException("closing_serial_required", "Closing serial number is required.", 400);
+        }
+
+        var existing = await _packClosingRepository.Query()
+            .FirstOrDefaultAsync(x => x.ShiftId == shiftId && x.PackId == request.PackId, cancellationToken);
+
+        var now = DateTimeOffset.UtcNow;
+        if (existing is null)
+        {
+            existing = new ShiftPackClosing
+            {
+                ShiftId = shiftId,
+                ShopId = shift.ShopId,
+                PackId = request.PackId,
+                EnteredByUserId = _currentUserService.UserId,
+                EnteredOn = now,
+            };
+            existing.ClosingSerialNumber = closingSerial;
+            existing.OriginalScannedSerialNumber = request.OriginalScannedSerialNumber;
+            existing.EntryMethod = request.EntryMethod;
+            existing.ManualEntryReason = request.ManualEntryReason;
+            existing.Notes = request.Notes;
+            await _packClosingRepository.AddAsync(existing, cancellationToken);
+        }
+        else
+        {
+            existing.ClosingSerialNumber = closingSerial;
+            existing.OriginalScannedSerialNumber = request.OriginalScannedSerialNumber;
+            existing.EntryMethod = request.EntryMethod;
+            existing.ManualEntryReason = request.ManualEntryReason;
+            existing.Notes = request.Notes;
+            existing.ModifiedOn = now;
+            existing.ModifiedBy = _currentUserService.UserId;
+            _packClosingRepository.Update(existing);
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var openingSerial = await ResolveOpeningSerialAsync(shift, pack, cancellationToken);
+        var packSetup = await _shopConfigurationService.GetPackSetupAsync(shift.ShopId, cancellationToken);
+        return BuildClosingDto(existing, pack, openingSerial, packSetup.SellingOrder);
+    }
+
+    public async Task<IReadOnlyCollection<ShiftPackClosingDto>> ListClosingNumbersAsync(
+        Guid shiftId,
+        CancellationToken cancellationToken = default)
+    {
+        var shift = await _shiftRepository.Query()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == shiftId, cancellationToken)
+            ?? throw new AppException("shift_not_found", "Shift not found.", 404);
+
+        var closings = await _packClosingRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShiftId == shiftId)
+            .ToListAsync(cancellationToken);
+        if (closings.Count == 0)
+        {
+            return [];
+        }
+
+        var packIds = closings.Select(x => x.PackId).ToArray();
+        var packs = await _packRepository.Query()
+            .AsNoTracking()
+            .Include(x => x.Game)
+            .Where(x => packIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, cancellationToken);
+
+        var openingByPack = (await _shiftOpeningSerialRepository.Query()
+                .AsNoTracking()
+                .Where(x => x.ShiftId == shiftId && packIds.Contains(x.PackId))
+                .ToListAsync(cancellationToken))
+            .ToDictionary(x => x.PackId);
+
+        var packSetup = await _shopConfigurationService.GetPackSetupAsync(shift.ShopId, cancellationToken);
+
+        var result = new List<ShiftPackClosingDto>(closings.Count);
+        foreach (var closing in closings)
+        {
+            if (!packs.TryGetValue(closing.PackId, out var pack))
+            {
+                continue;
+            }
+
+            var openingSerial = openingByPack.TryGetValue(closing.PackId, out var snapshot)
+                ? snapshot.ActualOpeningSerialNumber
+                : pack.CurrentSerialNumber;
+            result.Add(BuildClosingDto(closing, pack, openingSerial, packSetup.SellingOrder));
+        }
+
+        return result
+            .OrderBy(x => x.DisplayNumber ?? int.MaxValue)
+            .ThenBy(x => x.GameName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    public async Task DeleteClosingNumberAsync(Guid shiftId, Guid packId, CancellationToken cancellationToken = default)
+    {
+        var existing = await _packClosingRepository.Query()
+            .FirstOrDefaultAsync(x => x.ShiftId == shiftId && x.PackId == packId, cancellationToken);
+        if (existing is null)
+        {
+            return;
+        }
+
+        _packClosingRepository.Remove(existing);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<string> ResolveOpeningSerialAsync(Shift shift, ScratchCardPack pack, CancellationToken cancellationToken)
+    {
+        var snapshot = await _shiftOpeningSerialRepository.Query()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.ShiftId == shift.Id && x.PackId == pack.Id, cancellationToken);
+        return snapshot?.ActualOpeningSerialNumber ?? pack.CurrentSerialNumber;
+    }
+
+    private ShiftPackClosingDto BuildClosingDto(
+        ShiftPackClosing closing,
+        ScratchCardPack pack,
+        string openingSerial,
+        SellingOrder sellingOrder)
+    {
+        var calc = _serialCalculationService.Calculate(
+            openingSerial,
+            closing.ClosingSerialNumber,
+            pack.StartSerialNumber,
+            pack.EndSerialNumber,
+            sellingOrder,
+            pack.TicketPrice,
+            pack.TotalTickets);
+
+        return new ShiftPackClosingDto
+        {
+            PackId = pack.Id,
+            PackNumber = pack.PackNumber,
+            DisplayNumber = pack.DisplayNumber,
+            GameName = pack.Game?.GameName ?? "Unknown",
+            OpeningSerialNumber = openingSerial,
+            ClosingSerialNumber = closing.ClosingSerialNumber,
+            OriginalScannedSerialNumber = closing.OriginalScannedSerialNumber,
+            EntryMethod = closing.EntryMethod,
+            ManualEntryReason = closing.ManualEntryReason,
+            Notes = closing.Notes,
+            SoldQuantity = calc.SoldQuantity,
+            TicketPrice = pack.TicketPrice,
+            SalesAmount = calc.SalesAmount,
+            RemainingTickets = calc.RemainingTickets,
+            EnteredOn = closing.EnteredOn,
+        };
     }
 
     public async Task SendShiftCloseNotificationsAsync(
@@ -272,7 +454,27 @@ public class ShiftSalesService : IShiftSalesService
         var closeActionOn = DateTimeOffset.UtcNow;
         var businessDaySetup = await _shopConfigurationService.GetBusinessDaySetupAsync(shift.ShopId, cancellationToken);
 
-        var packIds = request.Entries.Select(x => x.PackId).Distinct().ToArray();
+        // Closing numbers are entered on the dedicated screen and persisted to the staging
+        // store; finalize consumes whatever is stored. The offline-sync path still carries
+        // entries inline in its payload (the device couldn't reach the staging endpoint), so
+        // honour those when present.
+        var entries = request.Entries.Count > 0
+            ? request.Entries.ToList()
+            : (await _packClosingRepository.Query()
+                .Where(x => x.ShiftId == shift.Id)
+                .ToListAsync(cancellationToken))
+                .Select(closing => new ShiftClosePackEntryRequest
+                {
+                    PackId = closing.PackId,
+                    ClosingSerialNumber = closing.ClosingSerialNumber,
+                    OriginalScannedSerialNumber = closing.OriginalScannedSerialNumber,
+                    EntryMethod = closing.EntryMethod,
+                    ManualEntryReason = closing.ManualEntryReason,
+                    Notes = closing.Notes,
+                })
+                .ToList();
+
+        var packIds = entries.Select(x => x.PackId).Distinct().ToArray();
         var packs = await _packRepository.Query()
             .Where(x => packIds.Contains(x.Id) && x.ShopId == shift.ShopId && !x.IsDeleted)
             .Include(x => x.Game)
@@ -302,7 +504,7 @@ public class ShiftSalesService : IShiftSalesService
             cancellationToken);
         if (requireManualReason)
         {
-            foreach (var entry in request.Entries)
+            foreach (var entry in entries)
             {
                 var entryIsManualOrEdited = entry.EntryMethod == EntryMethod.Manual
                     || entry.EntryMethod == EntryMethod.ScannedEdited
@@ -343,7 +545,7 @@ public class ShiftSalesService : IShiftSalesService
         }
 
         var salesEntries = new List<ShiftScratchCardSale>();
-        foreach (var entry in request.Entries)
+        foreach (var entry in entries)
         {
             if (!packs.TryGetValue(entry.PackId, out var pack))
             {
@@ -474,6 +676,16 @@ public class ShiftSalesService : IShiftSalesService
         }
 
         await _salesRepository.AddRangeAsync(salesEntries, cancellationToken);
+
+        // Staging rows have been consumed into the final sales — clear them so a reopened
+        // shift starts fresh rather than replaying stale closing numbers.
+        var stagedClosings = await _packClosingRepository.Query()
+            .Where(x => x.ShiftId == shift.Id)
+            .ToListAsync(cancellationToken);
+        foreach (var staged in stagedClosings)
+        {
+            _packClosingRepository.Remove(staged);
+        }
 
         var totalSales = salesEntries.Sum(x => x.SalesAmount);
         var totalPrizePayout = await _payoutRepository.Query()

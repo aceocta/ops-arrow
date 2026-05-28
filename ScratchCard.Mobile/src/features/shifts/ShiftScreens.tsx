@@ -531,6 +531,12 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
                   <View style={styles.row}>
                     <Pressable
                       style={styles.smallButton}
+                      onPress={() => navigation.navigate("EnterClosingNumbers", { shiftId: shift.id, shopId: shift.shopId, shiftName: shift.shiftName })}
+                    >
+                      <Text style={styles.smallButtonText}>Closing Numbers</Text>
+                    </Pressable>
+                    <Pressable
+                      style={styles.smallButton}
                       onPress={() => navigation.navigate("ShiftClose", { shiftId: shift.id, shopId: shift.shopId })}
                     >
                       <Text style={styles.smallButtonText}>Close Shift</Text>

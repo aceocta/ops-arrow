@@ -36,6 +36,7 @@ import { BusinessDayScreen } from "../features/business-days/BusinessDayScreen";
 import { CloseShiftScreen, OpenShiftScreen, ShiftReconciliationScreen } from "../features/shifts/ShiftScreens";
 import { ShiftDetailsScreen } from "../features/shifts/ShiftDetailsScreen";
 import { ShiftCloseScreen } from "../features/shift-close/ShiftCloseScreen";
+import { EnterClosingNumbersScreen } from "../features/scratch-card/EnterClosingNumbersScreen";
 import { PrizePayoutScreen } from "../features/prize-payouts/PrizePayoutScreen";
 import { DayEndCloseScreen } from "../features/day-close/DayEndCloseScreen";
 import {
@@ -200,7 +201,9 @@ function shouldShowBottomDock(routeName: string | undefined) {
     routeName === "RefusalRegister" ||
     routeName === "DayEndClose" ||
     routeName === "CloseShift" ||
-    routeName === "ShiftClose"
+    routeName === "ShiftClose" ||
+    routeName === "ShiftDetails" ||
+    routeName === "EnterClosingNumbers"
   );
 }
 
@@ -423,6 +426,11 @@ function MainStackScreens() {
         name="ShiftClose"
         component={ShiftCloseScreen}
         options={{ title: "Shift Close", headerRight: () => null }}
+      />
+      <Stack.Screen
+        name="EnterClosingNumbers"
+        component={EnterClosingNumbersScreen}
+        options={{ title: "Closing Numbers" }}
       />
       <Stack.Screen
         name="PrizePayout"
