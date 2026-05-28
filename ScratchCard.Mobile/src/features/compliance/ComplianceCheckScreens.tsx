@@ -1098,9 +1098,7 @@ export function ComplianceChecksScreen() {
           return;
         }
 
-        const initials = [...initialsSet].slice(0, 3);
-        const suffix = initialsSet.size > 3 ? "+" : "";
-        checkedByInitialsByColumn.set(column.key, `${initials.join("\n")}${suffix}`);
+        checkedByInitialsByColumn.set(column.key, [...initialsSet].join("\n"));
       });
       const checkedByLegend = [...checkedByNamesByInitials.entries()]
         .map(([initials, names]) => ({
