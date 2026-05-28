@@ -6,6 +6,7 @@ using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Models;
 using ScratchCard.Application.Common.Services;
+using ScratchCard.Application.Services.Reporting;
 using ScratchCard.Application.DTOs.BusinessDays;
 using ScratchCard.Domain.Constants;
 using ScratchCard.Domain.Entities;
@@ -1313,6 +1314,17 @@ public class BusinessDayService : IBusinessDayService
             temperatureRows,
             complianceSummary);
 
+        // One PDF per report section attached separately (Scratch Card, Temperature, Safe
+        // Drop, Compliance summary). The HTML body still carries every section inline.
+        var attachments = BuildDayCloseAttachments(
+            shopName,
+            day,
+            entries,
+            safeDropRows,
+            safeDropManagementEnabled,
+            temperatureRows,
+            complianceSummary);
+
         foreach (var recipient in recipients)
         {
             try
@@ -1326,6 +1338,7 @@ public class BusinessDayService : IBusinessDayService
                     Subject = subject,
                     Body = body,
                     IsBodyHtml = true,
+                    Attachments = attachments,
                     RelatedEntityName = nameof(BusinessDay),
                     RelatedEntityId = day.Id
                 }, cancellationToken);
@@ -1625,6 +1638,189 @@ public class BusinessDayService : IBusinessDayService
             completed,
             nonCompliant,
             Math.Max(totalItems - completed, 0));
+    }
+
+    private static List<EmailAttachment> BuildDayCloseAttachments(
+        string shopName,
+        BusinessDay day,
+        IReadOnlyCollection<ShiftScratchCardSale> entries,
+        IReadOnlyCollection<SafeDropSummaryRow> safeDropRows,
+        bool safeDropManagementEnabled,
+        IReadOnlyCollection<TemperatureSummaryRow> temperatureRows,
+        ComplianceDailySummary complianceSummary)
+    {
+        var metaRows = new[]
+        {
+            new KeyValuePair<string, string>("Shop Name", shopName),
+            new KeyValuePair<string, string>("Business Date", day.BusinessDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
+            new KeyValuePair<string, string>("Report Date", $"{DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm:ss} UTC"),
+        };
+        var fileSuffix = day.BusinessDate.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+        var attachments = new List<EmailAttachment>();
+
+        // Scratch Card — aggregated by display + game + price.
+        var scratchRows = entries
+            .Select(entry => new
+            {
+                DisplayNumber = entry.Pack?.DisplayNumber,
+                GameName = entry.Pack?.Game?.GameName ?? "Unknown",
+                entry.TicketPrice,
+                entry.SoldQuantity,
+                entry.SalesAmount,
+            })
+            .GroupBy(x => new { x.DisplayNumber, x.GameName, x.TicketPrice })
+            .Select(group => new
+            {
+                group.Key.DisplayNumber,
+                group.Key.GameName,
+                group.Key.TicketPrice,
+                SoldQuantity = group.Sum(x => x.SoldQuantity),
+                SalesAmount = group.Sum(x => x.SalesAmount),
+            })
+            .OrderBy(x => x.DisplayNumber ?? int.MaxValue)
+            .ThenBy(x => x.GameName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var scratchTableRows = scratchRows
+            .Select(row => (IReadOnlyList<string>)new[]
+            {
+                row.DisplayNumber?.ToString(CultureInfo.InvariantCulture) ?? "-",
+                row.GameName,
+                row.TicketPrice.ToString("0.00", CultureInfo.InvariantCulture),
+                row.SoldQuantity.ToString(CultureInfo.InvariantCulture),
+                row.SalesAmount.ToString("0.00", CultureInfo.InvariantCulture),
+            })
+            .ToArray();
+        var scratchTotalQty = scratchRows.Sum(x => x.SoldQuantity);
+        var scratchTotalSales = scratchRows.Sum(x => x.SalesAmount);
+        attachments.Add(new EmailAttachment
+        {
+            FileName = $"scratch-card-{fileSuffix}.pdf",
+            ContentType = "application/pdf",
+            Content = ReportPdfBuilder.BuildTableReport(
+                "Scratch Card Sales",
+                metaRows,
+                new[]
+                {
+                    new ReportPdfBuilder.Column("Display", 90f),
+                    new ReportPdfBuilder.Column("Game Name", 230f),
+                    new ReportPdfBuilder.Column("Price", 90f, AlignRight: true),
+                    new ReportPdfBuilder.Column("Qty", 80f, AlignRight: true),
+                    new ReportPdfBuilder.Column("Sales", 110f, AlignRight: true),
+                },
+                scratchTableRows,
+                $"Total Qty: {scratchTotalQty.ToString(CultureInfo.InvariantCulture)}   Total Sales: £{scratchTotalSales.ToString("0.00", CultureInfo.InvariantCulture)}",
+                "No sales recorded for this day."),
+        });
+
+        // Temperature.
+        if (temperatureRows.Count > 0)
+        {
+            var tempTableRows = temperatureRows
+                .Select(row =>
+                {
+                    var unitLabel = string.IsNullOrWhiteSpace(row.Location) ? row.UnitName : $"{row.UnitName} ({row.Location})";
+                    var rangeText = $"{row.MinTemperatureCelsius.ToString("0.0", CultureInfo.InvariantCulture)}-{row.MaxTemperatureCelsius.ToString("0.0", CultureInfo.InvariantCulture)} C";
+                    var readingText = row.LatestTemperatureCelsius is null
+                        ? "-"
+                        : $"{row.LatestTemperatureCelsius.Value.ToString("0.0", CultureInfo.InvariantCulture)} C" +
+                          (row.LatestReadingTime is null ? string.Empty : $" at {row.LatestReadingTime.Value.ToString("HH:mm", CultureInfo.InvariantCulture)}");
+                    var statusText = row.LatestTemperatureCelsius is null
+                        ? "Pending"
+                        : row.IsOutOfRange == true ? "Out of range" : "In range";
+                    return (IReadOnlyList<string>)new[] { unitLabel, row.EquipmentType, rangeText, readingText, statusText };
+                })
+                .ToArray();
+            var outOfRange = temperatureRows.Count(r => r.IsOutOfRange == true);
+            var pending = temperatureRows.Count(r => r.LatestTemperatureCelsius is null);
+            attachments.Add(new EmailAttachment
+            {
+                FileName = $"temperature-{fileSuffix}.pdf",
+                ContentType = "application/pdf",
+                Content = ReportPdfBuilder.BuildTableReport(
+                    "Temperature Log",
+                    metaRows,
+                    new[]
+                    {
+                        new ReportPdfBuilder.Column("Unit", 200f),
+                        new ReportPdfBuilder.Column("Equipment", 150f),
+                        new ReportPdfBuilder.Column("Range", 120f),
+                        new ReportPdfBuilder.Column("Latest Reading", 160f),
+                        new ReportPdfBuilder.Column("Status", 110f),
+                    },
+                    tempTableRows,
+                    $"Units: {temperatureRows.Count.ToString(CultureInfo.InvariantCulture)}   Out of range: {outOfRange.ToString(CultureInfo.InvariantCulture)}   Pending: {pending.ToString(CultureInfo.InvariantCulture)}",
+                    "No monitoring units."),
+            });
+        }
+
+        // Safe Drop.
+        if (safeDropManagementEnabled)
+        {
+            var safeTableRows = safeDropRows
+                .Select(row => (IReadOnlyList<string>)new[]
+                {
+                    string.IsNullOrWhiteSpace(row.CanisterNumber) ? "-" : row.CanisterNumber,
+                    row.Amount.ToString("0.00", CultureInfo.InvariantCulture),
+                    string.IsNullOrWhiteSpace(row.DroppedByName) ? "-" : row.DroppedByName,
+                    string.IsNullOrWhiteSpace(row.ShiftName) ? "-" : row.ShiftName,
+                    row.DroppedOn.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+                })
+                .ToArray();
+            var safeTotal = safeDropRows.Sum(x => x.Amount);
+            attachments.Add(new EmailAttachment
+            {
+                FileName = $"safe-drop-{fileSuffix}.pdf",
+                ContentType = "application/pdf",
+                Content = ReportPdfBuilder.BuildTableReport(
+                    "Safe Drop Detail",
+                    metaRows,
+                    new[]
+                    {
+                        new ReportPdfBuilder.Column("Canister", 130f),
+                        new ReportPdfBuilder.Column("Amount", 100f, AlignRight: true),
+                        new ReportPdfBuilder.Column("Dropped By", 220f),
+                        new ReportPdfBuilder.Column("Shift", 160f),
+                        new ReportPdfBuilder.Column("Dropped On (UTC)", 190f),
+                    },
+                    safeTableRows,
+                    $"Total: £{safeTotal.ToString("0.00", CultureInfo.InvariantCulture)}   Entries: {safeDropRows.Count.ToString(CultureInfo.InvariantCulture)}",
+                    "No safe drops recorded for this day."),
+            });
+        }
+
+        // Compliance summary (counts only — not each record).
+        if (complianceSummary.TotalItems > 0)
+        {
+            attachments.Add(new EmailAttachment
+            {
+                FileName = $"compliance-{fileSuffix}.pdf",
+                ContentType = "application/pdf",
+                Content = ReportPdfBuilder.BuildTableReport(
+                    "Compliance Check Summary",
+                    metaRows,
+                    new[]
+                    {
+                        new ReportPdfBuilder.Column("Total Items", 150f, AlignRight: true),
+                        new ReportPdfBuilder.Column("Completed", 150f, AlignRight: true),
+                        new ReportPdfBuilder.Column("Pending", 150f, AlignRight: true),
+                        new ReportPdfBuilder.Column("Non-Compliant", 150f, AlignRight: true),
+                    },
+                    new[]
+                    {
+                        (IReadOnlyList<string>)new[]
+                        {
+                            complianceSummary.TotalItems.ToString(CultureInfo.InvariantCulture),
+                            complianceSummary.CompletedItems.ToString(CultureInfo.InvariantCulture),
+                            complianceSummary.PendingItems.ToString(CultureInfo.InvariantCulture),
+                            complianceSummary.NonCompliantItems.ToString(CultureInfo.InvariantCulture),
+                        },
+                    },
+                    footerNote: null,
+                    emptyMessage: null),
+            });
+        }
+
+        return attachments;
     }
 
     private static string BuildDayCloseSummaryBodyHtml(

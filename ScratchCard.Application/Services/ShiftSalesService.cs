@@ -7,6 +7,7 @@ using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Models;
 using ScratchCard.Application.Common.Services;
+using ScratchCard.Application.Services.Reporting;
 using ScratchCard.Application.DTOs.ShiftSales;
 using ScratchCard.Domain.Constants;
 using ScratchCard.Domain.Entities;
@@ -736,25 +737,45 @@ public class ShiftSalesService : IShiftSalesService
             safeDropManagementEnabled,
             temperatureRows,
             reportGeneratedOnUtc);
-        var summaryPdf = BuildShiftCloseSummaryPdf(
-            shopName,
-            shift,
-            businessDay,
-            summaryRows,
-            safeDropRows,
-            safeDropManagementEnabled,
-            temperatureRows,
-            reportGeneratedOnUtc);
-        var summaryPdfFileName = BuildShiftCloseSummaryPdfFileName(shift, businessDay);
-        var attachments = new EmailAttachment[]
+
+        // One PDF per report section, attached as separate files (Scratch Card, Temperature,
+        // Safe Drop). The HTML email body still carries every section inline.
+        var metaRows = new[]
+        {
+            new KeyValuePair<string, string>("Shop Name", shopName),
+            new KeyValuePair<string, string>("Shift Detail", $"{shift.ShiftName} ({businessDay.BusinessDate:yyyy-MM-dd})"),
+            new KeyValuePair<string, string>("Report Date", $"{reportGeneratedOnUtc:yyyy-MM-dd HH:mm:ss} UTC"),
+        };
+        var fileSuffix = BuildShiftReportFileSuffix(shift, businessDay);
+        var attachments = new List<EmailAttachment>
         {
             new()
             {
-                FileName = summaryPdfFileName,
+                FileName = $"scratch-card-{fileSuffix}.pdf",
                 ContentType = "application/pdf",
-                Content = summaryPdf
-            }
+                Content = BuildScratchCardSectionPdf(metaRows, summaryRows),
+            },
         };
+
+        if (temperatureRows.Length > 0)
+        {
+            attachments.Add(new EmailAttachment
+            {
+                FileName = $"temperature-{fileSuffix}.pdf",
+                ContentType = "application/pdf",
+                Content = BuildTemperatureSectionPdf(metaRows, temperatureRows),
+            });
+        }
+
+        if (safeDropManagementEnabled)
+        {
+            attachments.Add(new EmailAttachment
+            {
+                FileName = $"safe-drop-{fileSuffix}.pdf",
+                ContentType = "application/pdf",
+                Content = BuildSafeDropSectionPdf(metaRows, safeDropRows),
+            });
+        }
 
         foreach (var recipient in recipients)
         {
@@ -1149,6 +1170,123 @@ public class ShiftSalesService : IShiftSalesService
             })
             .ToArray();
     }
+    private static string BuildShiftReportFileSuffix(Shift shift, BusinessDay businessDay)
+    {
+        var shiftSegment = ReportPdfBuilder.SanitizeFileNameSegment(shift.ShiftName);
+        if (string.IsNullOrWhiteSpace(shiftSegment))
+        {
+            shiftSegment = "shift";
+        }
+
+        return $"{businessDay.BusinessDate:yyyyMMdd}-{shiftSegment}";
+    }
+
+    private static byte[] BuildScratchCardSectionPdf(
+        IReadOnlyList<KeyValuePair<string, string>> metaRows,
+        IReadOnlyCollection<ShiftCloseSummaryRow> rows)
+    {
+        var columns = new[]
+        {
+            new ReportPdfBuilder.Column("Display", 90f),
+            new ReportPdfBuilder.Column("Game Name", 230f),
+            new ReportPdfBuilder.Column("Price", 90f, AlignRight: true),
+            new ReportPdfBuilder.Column("Qty", 80f, AlignRight: true),
+            new ReportPdfBuilder.Column("Sales", 110f, AlignRight: true),
+        };
+        var tableRows = rows
+            .Select(row => (IReadOnlyList<string>)new[]
+            {
+                row.DisplayNumber?.ToString(CultureInfo.InvariantCulture) ?? "-",
+                row.GameName,
+                row.TicketPrice.ToString("0.00", CultureInfo.InvariantCulture),
+                row.SoldQuantity.ToString(CultureInfo.InvariantCulture),
+                row.SalesAmount.ToString("0.00", CultureInfo.InvariantCulture),
+            })
+            .ToArray();
+        var totalQty = rows.Sum(x => x.SoldQuantity);
+        var totalSales = rows.Sum(x => x.SalesAmount);
+        var footer = $"Total Qty: {totalQty.ToString(CultureInfo.InvariantCulture)}   Total Sales: £{totalSales.ToString("0.00", CultureInfo.InvariantCulture)}";
+
+        return ReportPdfBuilder.BuildTableReport(
+            "Scratch Card Sales",
+            metaRows,
+            columns,
+            tableRows,
+            footer,
+            "No shift entries.");
+    }
+
+    private static byte[] BuildTemperatureSectionPdf(
+        IReadOnlyList<KeyValuePair<string, string>> metaRows,
+        IReadOnlyCollection<TemperatureSummaryRow> rows)
+    {
+        var columns = new[]
+        {
+            new ReportPdfBuilder.Column("Unit", 200f),
+            new ReportPdfBuilder.Column("Equipment", 150f),
+            new ReportPdfBuilder.Column("Range", 120f),
+            new ReportPdfBuilder.Column("Latest Reading", 160f),
+            new ReportPdfBuilder.Column("Status", 110f),
+        };
+        var tableRows = rows
+            .Select(row =>
+            {
+                var unitLabel = string.IsNullOrWhiteSpace(row.Location) ? row.UnitName : $"{row.UnitName} ({row.Location})";
+                var rangeText = $"{row.MinTemperatureCelsius.ToString("0.0", CultureInfo.InvariantCulture)}-{row.MaxTemperatureCelsius.ToString("0.0", CultureInfo.InvariantCulture)} C";
+                var readingText = row.LatestTemperatureCelsius is null
+                    ? "-"
+                    : $"{row.LatestTemperatureCelsius.Value.ToString("0.0", CultureInfo.InvariantCulture)} C" +
+                      (row.LatestReadingTime is null ? string.Empty : $" at {row.LatestReadingTime.Value.ToString("HH:mm", CultureInfo.InvariantCulture)}");
+                var statusText = row.LatestTemperatureCelsius is null
+                    ? "Pending"
+                    : row.IsOutOfRange == true ? "Out of range" : "In range";
+                return (IReadOnlyList<string>)new[] { unitLabel, row.EquipmentType, rangeText, readingText, statusText };
+            })
+            .ToArray();
+        var outOfRange = rows.Count(r => r.IsOutOfRange == true);
+        var pending = rows.Count(r => r.LatestTemperatureCelsius is null);
+        var footer = $"Units: {rows.Count.ToString(CultureInfo.InvariantCulture)}   Out of range: {outOfRange.ToString(CultureInfo.InvariantCulture)}   Pending: {pending.ToString(CultureInfo.InvariantCulture)}";
+
+        return ReportPdfBuilder.BuildTableReport(
+            "Temperature Log",
+            metaRows,
+            columns,
+            tableRows,
+            footer,
+            "No monitoring units.");
+    }
+
+    private static byte[] BuildSafeDropSectionPdf(
+        IReadOnlyList<KeyValuePair<string, string>> metaRows,
+        IReadOnlyCollection<SafeDropSummaryRow> rows)
+    {
+        var columns = new[]
+        {
+            new ReportPdfBuilder.Column("Canister", 150f),
+            new ReportPdfBuilder.Column("Amount", 110f, AlignRight: true),
+            new ReportPdfBuilder.Column("Dropped By", 280f),
+            new ReportPdfBuilder.Column("Dropped On (UTC)", 200f),
+        };
+        var tableRows = rows
+            .Select(row => (IReadOnlyList<string>)new[]
+            {
+                string.IsNullOrWhiteSpace(row.CanisterNumber) ? "-" : row.CanisterNumber,
+                row.Amount.ToString("0.00", CultureInfo.InvariantCulture),
+                string.IsNullOrWhiteSpace(row.DroppedByName) ? "-" : row.DroppedByName,
+                row.DroppedOn.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+            })
+            .ToArray();
+        var total = rows.Sum(x => x.Amount);
+        var footer = $"Total: £{total.ToString("0.00", CultureInfo.InvariantCulture)}   Entries: {rows.Count.ToString(CultureInfo.InvariantCulture)}";
+
+        return ReportPdfBuilder.BuildTableReport(
+            "Safe Drop Detail",
+            metaRows,
+            columns,
+            tableRows,
+            footer,
+            "No safe drops recorded for this shift.");
+    }
 
     private static ShiftCloseSummaryRow[] BuildShiftCloseSummaryRows(
         IReadOnlyCollection<ShiftScratchCardSale> entries,
@@ -1417,547 +1555,4 @@ sb.Append("</body>");
 sb.Append("</html>");       return sb.ToString();
     }
 
-    private static byte[] BuildShiftCloseSummaryPdf(
-        string shopName,
-        Shift shift,
-        BusinessDay businessDay,
-        IReadOnlyCollection<ShiftCloseSummaryRow> rows,
-        IReadOnlyCollection<SafeDropSummaryRow> safeDropRows,
-        bool safeDropManagementEnabled,
-        IReadOnlyCollection<TemperatureSummaryRow> temperatureRows,
-        DateTimeOffset reportGeneratedOnUtc)
-    {
-        // PDF view intentionally stays focused on the sales detail + safe-drop tables; the
-        // Temperature Log summary lives in the email HTML body only. Surfacing it in the PDF
-        // would require a new column layout block — keep parameter accepted for parity so
-        // callers don't drift. (No-op suppress to keep the analyzer happy.)
-        _ = temperatureRows;
-        const float pageWidth = 842f;
-        const float pageHeight = 595f;
-        const float margin = 36f;
-        const float contentWidth = pageWidth - (margin * 2f);
-
-        var labelColumnWidth = 220f;
-        var valueColumnWidth = contentWidth - labelColumnWidth;
-        var displayColumnWidth = 140f;
-        var gameColumnWidth = 250f;
-        var priceColumnWidth = 90f;
-        var qtyColumnWidth = 74f;
-        var safeDropCanisterColumnWidth = 140f;
-        var safeDropAmountColumnWidth = 100f;
-        var safeDropDroppedByColumnWidth = 300f;
-
-        var headerFill = new PdfColor(0.80f, 0.84f, 0.90f);
-        var totalFill = new PdfColor(0.80f, 0.84f, 0.90f);
-        var cardFill = new PdfColor(0.85f, 0.88f, 0.93f);
-        var cellFill = new PdfColor(1f, 1f, 1f);
-        var stripeFill = new PdfColor(0.96f, 0.97f, 0.99f);
-        var borderColor = new PdfColor(0.77f, 0.81f, 0.87f);
-        var textColor = new PdfColor(0.12f, 0.20f, 0.30f);
-        var subtleTextColor = new PdfColor(0.33f, 0.44f, 0.56f);
-
-        var totalSoldQty = rows.Sum(x => x.SoldQuantity);
-        var totalSales = rows.Sum(x => x.SalesAmount);
-        var totalSafeDropAmount = safeDropRows.Sum(x => x.Amount);
-        var reportDateText = reportGeneratedOnUtc.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
-        var shiftDetail = $"{shift.ShiftName} ({businessDay.BusinessDate:yyyy-MM-dd})";
-
-        var pages = new List<StringBuilder>();
-        var currentPage = NewPage();
-        var cursorY = margin;
-
-        DrawInfoRow("Shop Name", shopName);
-        DrawInfoRow("Shift Detail", shiftDetail);
-        DrawInfoRow("Report Date", $"{reportDateText} UTC");
-        cursorY += 24f;
-
-        var cardHeight = 78f;
-        var cardWidth = 160f;
-        var cardGap = 10f;
-        EnsureSpace(cardHeight + 28f);
-        DrawRect(currentPage, pageHeight, margin, cursorY, cardWidth, cardHeight, cardFill, borderColor);
-        DrawRect(currentPage, pageHeight, margin + cardWidth + cardGap, cursorY, cardWidth, cardHeight, cardFill, borderColor);
-
-        DrawText(currentPage, pageHeight, "F1", 20f, subtleTextColor, margin + 16f, cursorY + 30f, "TOTAL QTY");
-        DrawText(currentPage, pageHeight, "F2", 28f, textColor, margin + 16f, cursorY + 60f, totalSoldQty.ToString(CultureInfo.InvariantCulture));
-
-        DrawText(currentPage, pageHeight, "F1", 20f, subtleTextColor, margin + cardWidth + cardGap + 16f, cursorY + 30f, "TOTAL SALES");
-        DrawText(currentPage, pageHeight, "F2", 28f, textColor, margin + cardWidth + cardGap + 16f, cursorY + 60f, totalSales.ToString("0.00", CultureInfo.InvariantCulture));
-        cursorY += cardHeight + 26f;
-
-        EnsureSpace(30f);
-        DrawText(currentPage, pageHeight, "F2", 24f, textColor, margin, cursorY + 22f, "Sales Detail");
-        cursorY += 34f;
-
-        DrawTableHeader();
-
-        if (rows.Count == 0)
-        {
-            var rowHeight = 34f;
-            EnsureSpace(rowHeight + 34f);
-            DrawRowBackground(cursorY, rowHeight, cellFill);
-            DrawCellText("No shift entries.", margin + displayColumnWidth + 8f, cursorY + 22f, "F1", 14f, textColor, false);
-            DrawRowBorders(cursorY, rowHeight);
-            cursorY += rowHeight;
-        }
-        else
-        {
-            var rowIndex = 0;
-            foreach (var row in rows)
-            {
-                var displayText = row.DisplayNumber?.ToString(CultureInfo.InvariantCulture) ?? "-";
-                var gameTextLines = WrapTextForPdf(row.GameName, gameColumnWidth - 16f, 14f);
-                var rowHeight = Math.Max(34f, 14f + (gameTextLines.Length * 18f));
-
-                EnsureSpace(rowHeight + 34f);
-                DrawRowBackground(cursorY, rowHeight, rowIndex % 2 == 0 ? cellFill : stripeFill);
-                DrawCellText(displayText, margin + 8f, cursorY + 22f, "F1", 14f, textColor, false);
-
-                for (var i = 0; i < gameTextLines.Length; i++)
-                {
-                    DrawCellText(gameTextLines[i], margin + displayColumnWidth + 8f, cursorY + 22f + (i * 18f), "F1", 14f, textColor, false);
-                }
-
-                DrawCellText(row.TicketPrice.ToString("0.00", CultureInfo.InvariantCulture), margin + displayColumnWidth + gameColumnWidth + priceColumnWidth - 8f, cursorY + 22f, "F1", 14f, textColor, true);
-                DrawCellText(row.SoldQuantity.ToString(CultureInfo.InvariantCulture), margin + displayColumnWidth + gameColumnWidth + priceColumnWidth + qtyColumnWidth - 8f, cursorY + 22f, "F1", 14f, textColor, true);
-                DrawCellText(row.SalesAmount.ToString("0.00", CultureInfo.InvariantCulture), margin + contentWidth - 8f, cursorY + 22f, "F1", 14f, textColor, true);
-                DrawRowBorders(cursorY, rowHeight);
-                cursorY += rowHeight;
-                rowIndex++;
-            }
-        }
-
-        var totalRowHeight = 38f;
-        EnsureSpace(totalRowHeight);
-        DrawRowBackground(cursorY, totalRowHeight, totalFill);
-        DrawCellText("Total", margin + displayColumnWidth + gameColumnWidth + priceColumnWidth - 8f, cursorY + 24f, "F2", 18f, textColor, true);
-        DrawCellText(totalSoldQty.ToString(CultureInfo.InvariantCulture), margin + displayColumnWidth + gameColumnWidth + priceColumnWidth + qtyColumnWidth - 8f, cursorY + 24f, "F2", 18f, textColor, true);
-        DrawCellText(totalSales.ToString("0.00", CultureInfo.InvariantCulture), margin + contentWidth - 8f, cursorY + 24f, "F2", 18f, textColor, true);
-        DrawRowBorders(cursorY, totalRowHeight);
-        cursorY += totalRowHeight;
-
-        if (safeDropManagementEnabled)
-        {
-            const float sectionTitleHeight = 28f;
-            const float safeDropHeaderHeight = 36f;
-            const float safeDropMinRowHeight = 30f;
-            const float safeDropTotalRowHeight = 34f;
-            var rowIndex = 0;
-
-            EnsureSpace(sectionTitleHeight + safeDropHeaderHeight + safeDropTotalRowHeight + 8f);
-            DrawText(currentPage, pageHeight, "F2", 18f, textColor, margin, cursorY + 20f, "Safe Drop Detail");
-            cursorY += sectionTitleHeight;
-
-            DrawRowBackground(cursorY, safeDropHeaderHeight, headerFill);
-            DrawCellText("Canister", margin + 8f, cursorY + 22f, "F2", 14f, textColor, false);
-            DrawCellText("Amount", margin + safeDropCanisterColumnWidth + 8f, cursorY + 22f, "F2", 14f, textColor, false);
-            DrawCellText("Dropped By", margin + safeDropCanisterColumnWidth + safeDropAmountColumnWidth + 8f, cursorY + 22f, "F2", 14f, textColor, false);
-            DrawCellText("Dropped On (UTC)", margin + safeDropCanisterColumnWidth + safeDropAmountColumnWidth + safeDropDroppedByColumnWidth + 8f, cursorY + 22f, "F2", 14f, textColor, false);
-            DrawSafeDropRowBorders(cursorY, safeDropHeaderHeight);
-            cursorY += safeDropHeaderHeight;
-
-            if (safeDropRows.Count == 0)
-            {
-                EnsureSpace(safeDropMinRowHeight + safeDropTotalRowHeight + 8f);
-                DrawRowBackground(cursorY, safeDropMinRowHeight, cellFill);
-                DrawCellText("No safe drops recorded for this shift.", margin + safeDropCanisterColumnWidth + safeDropAmountColumnWidth + 8f, cursorY + 20f, "F1", 12f, textColor, false);
-                DrawSafeDropRowBorders(cursorY, safeDropMinRowHeight);
-                cursorY += safeDropMinRowHeight;
-            }
-            else
-            {
-                foreach (var safeDropRow in safeDropRows)
-                {
-                    var droppedByText = string.IsNullOrWhiteSpace(safeDropRow.DroppedByName) ? "-" : safeDropRow.DroppedByName;
-                    var droppedByLines = WrapTextForPdf(droppedByText, safeDropDroppedByColumnWidth - 16f, 12f);
-                    var rowHeight = Math.Max(safeDropMinRowHeight, 12f + (droppedByLines.Length * 14f));
-
-                    EnsureSpace(rowHeight + safeDropTotalRowHeight + 8f);
-                    DrawRowBackground(cursorY, rowHeight, rowIndex % 2 == 0 ? cellFill : stripeFill);
-                    DrawCellText(string.IsNullOrWhiteSpace(safeDropRow.CanisterNumber) ? "-" : safeDropRow.CanisterNumber, margin + 8f, cursorY + 20f, "F1", 12f, textColor, false);
-                    DrawCellText(safeDropRow.Amount.ToString("0.00", CultureInfo.InvariantCulture), margin + safeDropCanisterColumnWidth + safeDropAmountColumnWidth - 8f, cursorY + 20f, "F1", 12f, textColor, true);
-                    for (var i = 0; i < droppedByLines.Length; i++)
-                    {
-                        DrawCellText(droppedByLines[i], margin + safeDropCanisterColumnWidth + safeDropAmountColumnWidth + 8f, cursorY + 20f + (i * 14f), "F1", 12f, textColor, false);
-                    }
-
-                    DrawCellText(
-                        safeDropRow.DroppedOn.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
-                        margin + safeDropCanisterColumnWidth + safeDropAmountColumnWidth + safeDropDroppedByColumnWidth + 8f,
-                        cursorY + 20f,
-                        "F1",
-                        12f,
-                        textColor,
-                        false);
-                    DrawSafeDropRowBorders(cursorY, rowHeight);
-                    cursorY += rowHeight;
-                    rowIndex++;
-                }
-            }
-
-            EnsureSpace(safeDropTotalRowHeight);
-            DrawRowBackground(cursorY, safeDropTotalRowHeight, totalFill);
-            DrawCellText("Total", margin + safeDropCanisterColumnWidth - 8f, cursorY + 22f, "F2", 14f, textColor, true);
-            DrawCellText(totalSafeDropAmount.ToString("0.00", CultureInfo.InvariantCulture), margin + safeDropCanisterColumnWidth + safeDropAmountColumnWidth - 8f, cursorY + 22f, "F2", 14f, textColor, true);
-            DrawCellText($"Entries: {safeDropRows.Count.ToString(CultureInfo.InvariantCulture)}", margin + safeDropCanisterColumnWidth + safeDropAmountColumnWidth + 8f, cursorY + 22f, "F2", 14f, textColor, false);
-            DrawSafeDropRowBorders(cursorY, safeDropTotalRowHeight);
-        }
-
-        return BuildPdfFromPageContents(
-            pages.Select(page => page.ToString()),
-            pageWidth,
-            pageHeight,
-            includeBoldFont: true);
-
-        void DrawInfoRow(string label, string value)
-        {
-            const float rowHeight = 42f;
-            EnsureSpace(rowHeight);
-            DrawRect(currentPage, pageHeight, margin, cursorY, labelColumnWidth, rowHeight, cellFill, borderColor);
-            DrawRect(currentPage, pageHeight, margin + labelColumnWidth, cursorY, valueColumnWidth, rowHeight, cellFill, borderColor);
-            DrawCellText(label, margin + 14f, cursorY + 27f, "F1", 22f, textColor, false);
-            DrawCellText(value, margin + labelColumnWidth + 14f, cursorY + 27f, "F1", 22f, textColor, false);
-            cursorY += rowHeight;
-        }
-
-        void DrawTableHeader()
-        {
-            const float headerHeight = 42f;
-            EnsureSpace(headerHeight + 38f);
-            DrawRowBackground(cursorY, headerHeight, headerFill);
-            DrawCellText("Display Number", margin + 8f, cursorY + 26f, "F2", 18f, textColor, false);
-            DrawCellText("Game Name", margin + displayColumnWidth + 8f, cursorY + 26f, "F2", 18f, textColor, false);
-            DrawCellText("Price", margin + displayColumnWidth + gameColumnWidth + 8f, cursorY + 26f, "F2", 18f, textColor, false);
-            DrawCellText("Qty", margin + displayColumnWidth + gameColumnWidth + priceColumnWidth + 8f, cursorY + 26f, "F2", 18f, textColor, false);
-            DrawCellText("Sales", margin + displayColumnWidth + gameColumnWidth + priceColumnWidth + qtyColumnWidth + 8f, cursorY + 26f, "F2", 18f, textColor, false);
-            DrawRowBorders(cursorY, headerHeight);
-            cursorY += headerHeight;
-        }
-
-        void DrawRowBackground(float rowY, float rowHeight, PdfColor fill)
-        {
-            DrawRect(currentPage, pageHeight, margin, rowY, contentWidth, rowHeight, fill, borderColor);
-        }
-
-        void DrawRowBorders(float rowY, float rowHeight)
-        {
-            DrawVerticalLine(margin + displayColumnWidth, rowY, rowHeight);
-            DrawVerticalLine(margin + displayColumnWidth + gameColumnWidth, rowY, rowHeight);
-            DrawVerticalLine(margin + displayColumnWidth + gameColumnWidth + priceColumnWidth, rowY, rowHeight);
-            DrawVerticalLine(margin + displayColumnWidth + gameColumnWidth + priceColumnWidth + qtyColumnWidth, rowY, rowHeight);
-        }
-
-        void DrawSafeDropRowBorders(float rowY, float rowHeight)
-        {
-            DrawVerticalLine(margin + safeDropCanisterColumnWidth, rowY, rowHeight);
-            DrawVerticalLine(margin + safeDropCanisterColumnWidth + safeDropAmountColumnWidth, rowY, rowHeight);
-            DrawVerticalLine(margin + safeDropCanisterColumnWidth + safeDropAmountColumnWidth + safeDropDroppedByColumnWidth, rowY, rowHeight);
-        }
-
-        void DrawCellText(
-            string text,
-            float x,
-            float yBaselineFromTop,
-            string fontName,
-            float fontSize,
-            PdfColor color,
-            bool alignRight)
-        {
-            if (!alignRight)
-            {
-                DrawText(currentPage, pageHeight, fontName, fontSize, color, x, yBaselineFromTop, text);
-                return;
-            }
-
-            var width = EstimatePdfTextWidth(text, fontSize);
-            DrawText(currentPage, pageHeight, fontName, fontSize, color, x - width, yBaselineFromTop, text);
-        }
-
-        void DrawVerticalLine(float x, float rowY, float rowHeight)
-        {
-            var y1 = pageHeight - rowY;
-            var y2 = pageHeight - rowY - rowHeight;
-            currentPage.AppendFormat(CultureInfo.InvariantCulture, "1 w\n{0:0.###} {1:0.###} {2:0.###} RG\n", borderColor.R, borderColor.G, borderColor.B);
-            currentPage.AppendFormat(CultureInfo.InvariantCulture, "{0:0.###} {1:0.###} m {0:0.###} {2:0.###} l S\n", x, y1, y2);
-        }
-
-        void EnsureSpace(float requiredHeight)
-        {
-            if (cursorY + requiredHeight <= pageHeight - margin)
-            {
-                return;
-            }
-
-            currentPage = NewPage();
-            cursorY = margin;
-        }
-
-        StringBuilder NewPage()
-        {
-            var page = new StringBuilder();
-            pages.Add(page);
-            return page;
-        }
-    }
-
-    private static string BuildShiftCloseSummaryPdfFileName(Shift shift, BusinessDay businessDay)
-    {
-        var shiftSegment = SanitizeFileNameSegment(shift.ShiftName);
-        if (string.IsNullOrWhiteSpace(shiftSegment))
-        {
-            shiftSegment = "shift";
-        }
-
-        return $"shift-close-summary-{businessDay.BusinessDate:yyyyMMdd}-{shiftSegment}.pdf";
-    }
-
-    private static byte[] BuildPdfFromPageContents(
-        IEnumerable<string> pageContents,
-        float pageWidth,
-        float pageHeight,
-        bool includeBoldFont)
-    {
-        var pages = pageContents.ToArray();
-        if (pages.Length == 0)
-        {
-            pages = [string.Empty];
-        }
-
-        var objectBodies = new Dictionary<int, string>
-        {
-            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
-            [3] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
-        };
-
-        if (includeBoldFont)
-        {
-            objectBodies[4] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>";
-        }
-
-        var pageObjectNumbers = new List<int>();
-        var nextObjectNumber = includeBoldFont ? 5 : 4;
-        foreach (var content in pages)
-        {
-            var pageObjectNumber = nextObjectNumber++;
-            var contentObjectNumber = nextObjectNumber++;
-            pageObjectNumbers.Add(pageObjectNumber);
-
-            var contentLength = Encoding.ASCII.GetByteCount(content);
-            objectBodies[contentObjectNumber] = $"<< /Length {contentLength} >>\nstream\n{content}\nendstream";
-
-            var fontResources = includeBoldFont
-                ? "/Font << /F1 3 0 R /F2 4 0 R >>"
-                : "/Font << /F1 3 0 R >>";
-
-            objectBodies[pageObjectNumber] =
-                $"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {pageWidth.ToString("0.###", CultureInfo.InvariantCulture)} {pageHeight.ToString("0.###", CultureInfo.InvariantCulture)}] " +
-                $"/Resources << {fontResources} >> /Contents {contentObjectNumber} 0 R >>";
-        }
-
-        var kids = string.Join(" ", pageObjectNumbers.Select(number => $"{number} 0 R"));
-        objectBodies[2] = $"<< /Type /Pages /Count {pageObjectNumbers.Count} /Kids [ {kids} ] >>";
-
-        var maxObjectNumber = objectBodies.Keys.Max();
-        var offsets = new long[maxObjectNumber + 1];
-
-        using var stream = new MemoryStream();
-        WriteAscii(stream, "%PDF-1.4\n");
-
-        for (var objectNumber = 1; objectNumber <= maxObjectNumber; objectNumber++)
-        {
-            offsets[objectNumber] = stream.Position;
-            WriteAscii(stream, $"{objectNumber} 0 obj\n{objectBodies[objectNumber]}\nendobj\n");
-        }
-
-        var xrefOffset = stream.Position;
-        WriteAscii(stream, $"xref\n0 {maxObjectNumber + 1}\n");
-        WriteAscii(stream, "0000000000 65535 f \n");
-
-        for (var objectNumber = 1; objectNumber <= maxObjectNumber; objectNumber++)
-        {
-            WriteAscii(stream, $"{offsets[objectNumber]:0000000000} 00000 n \n");
-        }
-
-        WriteAscii(stream, $"trailer\n<< /Size {maxObjectNumber + 1} /Root 1 0 R >>\n");
-        WriteAscii(stream, $"startxref\n{xrefOffset}\n%%EOF");
-        return stream.ToArray();
-    }
-
-    private static string[] WrapTextForPdf(string value, float maxWidth, float fontSize)
-    {
-        var text = string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
-        var maxChars = Math.Max(6, (int)Math.Floor(maxWidth / (fontSize * 0.53f)));
-        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var lines = new List<string>();
-        var current = new StringBuilder();
-
-        foreach (var word in words)
-        {
-            if (word.Length > maxChars)
-            {
-                if (current.Length > 0)
-                {
-                    lines.Add(current.ToString());
-                    current.Clear();
-                }
-
-                var start = 0;
-                while (start < word.Length)
-                {
-                    var take = Math.Min(maxChars, word.Length - start);
-                    lines.Add(word.Substring(start, take));
-                    start += take;
-                }
-
-                continue;
-            }
-
-            if (current.Length == 0)
-            {
-                current.Append(word);
-                continue;
-            }
-
-            if (current.Length + 1 + word.Length <= maxChars)
-            {
-                current.Append(' ').Append(word);
-            }
-            else
-            {
-                lines.Add(current.ToString());
-                current.Clear();
-                current.Append(word);
-            }
-        }
-
-        if (current.Length > 0)
-        {
-            lines.Add(current.ToString());
-        }
-
-        return lines.Count == 0 ? ["-"] : lines.ToArray();
-    }
-
-    private static void DrawRect(
-        StringBuilder sb,
-        float pageHeight,
-        float x,
-        float yTop,
-        float width,
-        float height,
-        PdfColor fill,
-        PdfColor stroke)
-    {
-        var yBottom = pageHeight - yTop - height;
-        sb.AppendFormat(CultureInfo.InvariantCulture, "1 w\n{0:0.###} {1:0.###} {2:0.###} RG\n", stroke.R, stroke.G, stroke.B);
-        sb.AppendFormat(CultureInfo.InvariantCulture, "{0:0.###} {1:0.###} {2:0.###} rg\n", fill.R, fill.G, fill.B);
-        sb.AppendFormat(CultureInfo.InvariantCulture, "{0:0.###} {1:0.###} {2:0.###} {3:0.###} re B\n", x, yBottom, width, height);
-    }
-
-    private static void DrawText(
-        StringBuilder sb,
-        float pageHeight,
-        string fontName,
-        float fontSize,
-        PdfColor color,
-        float x,
-        float yBaselineFromTop,
-        string text)
-    {
-        var y = pageHeight - yBaselineFromTop;
-        sb.Append("BT\n");
-        sb.AppendFormat(CultureInfo.InvariantCulture, "/{0} {1:0.###} Tf\n", fontName, fontSize);
-        sb.AppendFormat(CultureInfo.InvariantCulture, "{0:0.###} {1:0.###} {2:0.###} rg\n", color.R, color.G, color.B);
-        sb.AppendFormat(CultureInfo.InvariantCulture, "1 0 0 1 {0:0.###} {1:0.###} Tm\n", x, y);
-        sb.Append('(');
-        sb.Append(EscapePdfLiteralText(text));
-        sb.Append(") Tj\nET\n");
-    }
-
-    private static float EstimatePdfTextWidth(string text, float fontSize)
-        => (text?.Length ?? 0) * fontSize * 0.53f;
-
-    private static string EscapePdfLiteralText(string value)
-    {
-        if (string.IsNullOrEmpty(value))
-        {
-            return string.Empty;
-        }
-
-        var sb = new StringBuilder(value.Length);
-        foreach (var character in value)
-        {
-            switch (character)
-            {
-                case '\\':
-                    sb.Append("\\\\");
-                    break;
-                case '(':
-                    sb.Append("\\(");
-                    break;
-                case ')':
-                    sb.Append("\\)");
-                    break;
-                case '\u00A3':
-                    sb.Append("\\243");
-                    break;
-                default:
-                    if (character >= 32 && character <= 126)
-                    {
-                        sb.Append(character);
-                    }
-                    else
-                    {
-                        sb.Append('?');
-                    }
-
-                    break;
-            }
-        }
-
-        return sb.ToString();
-    }
-
-    private readonly record struct PdfColor(float R, float G, float B);
-
-    private static string SanitizeFileNameSegment(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return string.Empty;
-        }
-
-        var invalidCharacters = Path.GetInvalidFileNameChars();
-        var sb = new StringBuilder(value.Length);
-        var lastWasSeparator = false;
-
-        foreach (var character in value.Trim())
-        {
-            if (invalidCharacters.Contains(character) || char.IsControl(character))
-            {
-                continue;
-            }
-
-            if (char.IsLetterOrDigit(character))
-            {
-                sb.Append(character);
-                lastWasSeparator = false;
-                continue;
-            }
-
-            if (!lastWasSeparator)
-            {
-                sb.Append('-');
-                lastWasSeparator = true;
-            }
-        }
-
-        return sb.ToString().Trim('-');
-    }
-
-    private static void WriteAscii(Stream stream, string value)
-    {
-        var bytes = Encoding.ASCII.GetBytes(value);
-        stream.Write(bytes, 0, bytes.Length);
-    }
 }
