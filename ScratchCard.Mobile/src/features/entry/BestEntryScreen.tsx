@@ -28,7 +28,7 @@ const operationOptions: OperationOption[] = [
 
   {
     key: "scratchCard",
-    title: "Scratch Card",
+    title: "Day Management",
     route: "Dashboard",
     icon: "albums-outline",
     iconColor: appTheme.colors.primary,
