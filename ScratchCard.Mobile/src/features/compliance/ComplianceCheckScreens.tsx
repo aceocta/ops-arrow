@@ -1,5 +1,5 @@
 ﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Image, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Image, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -34,6 +34,7 @@ import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ReportActionButton } from "../../components/ReportActionButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { SectionHeader } from "../../components/SectionHeader";
 import { Skeleton } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
@@ -553,9 +554,10 @@ function buildComplianceMatrixReportHtml(input: {
   const checkedByLegendHtml = input.checkedByLegend.length > 0
     ? `
       <section class="checked-by-key">
-        <strong>Checked by key:</strong> ${input.checkedByLegend
-          .map((entry) => `${escapeHtml(entry.initials)} = ${escapeHtml(entry.names.join(" / "))}`)
-          .join("; ")}
+        <strong>Checked by key:</strong>
+        ${input.checkedByLegend
+          .map((entry) => `<div class="checked-by-key-item">${escapeHtml(entry.initials)} = ${escapeHtml(entry.names.join(" / "))}</div>`)
+          .join("")}
       </section>
     `
     : "";
@@ -685,6 +687,10 @@ function buildComplianceMatrixReportHtml(input: {
             color: #1e293b;
             font-size: 10px;
             line-height: 15px;
+          }
+          .checked-by-key-item {
+            display: block;
+            margin-top: 3px;
           }
         </style>
       </head>
@@ -2061,6 +2067,12 @@ export function ComplianceChecksConfigScreen() {
 
   const activeGroup = useMemo(() => groups.find((group) => group.id === selectedGroupId), [groups, selectedGroupId]);
 
+  const totals = useMemo(() => {
+    const items = groups.reduce((sum, group) => sum + group.items.length, 0);
+    const activeGroups = groups.filter((group) => group.isActive).length;
+    return { groups: groups.length, items, activeGroups };
+  }, [groups]);
+
   const groupSaveMutation = useMutation({
     mutationFn: async () => {
       if (!shopId) throw new Error("No shop selected.");
@@ -2214,112 +2226,207 @@ export function ComplianceChecksConfigScreen() {
   return (
     <ScreenContainer>
       <NestableScrollContainer contentContainerStyle={styles.content}>
-        <View style={ui.card}>
-          <View style={styles.rowBetween}>
-            <Text style={styles.pageTitle}>Compliance Setup</Text>
-            <View style={styles.row}>
-              <Pressable style={styles.secondaryButton} onPress={openCreateGroup}>
-                <Text style={styles.secondaryButtonText}>+ Group</Text>
-              </Pressable>
-              <Pressable style={styles.secondaryButton} onPress={() => openCreateItem()} disabled={!groups.length}>
-                <Text style={styles.secondaryButtonText}>+ Item</Text>
-              </Pressable>
+        <View style={[ui.card, styles.cfgHeroCard]}>
+          <View style={styles.cfgHeroTop}>
+            <View style={styles.cfgHeroIcon}>
+              <Ionicons name="shield-checkmark-outline" size={20} color={appTheme.colors.primary} />
+            </View>
+            <View style={styles.cfgHeroText}>
+              <Text style={styles.pageTitle}>Compliance Setup</Text>
+              <Text style={styles.cfgHeroSubtitle}>Organise your checks into groups for each schedule.</Text>
             </View>
           </View>
-          <Text style={styles.meta}>Long press drag handle to reorder groups and items.</Text>
-          <View style={styles.chipRow}>
+
+          <View style={styles.cfgStatRow}>
+            <View style={styles.cfgStatTile}>
+              <Text style={styles.cfgStatValue}>{totals.groups}</Text>
+              <Text style={styles.cfgStatLabel}>Groups</Text>
+            </View>
+            <View style={styles.cfgStatTile}>
+              <Text style={styles.cfgStatValue}>{totals.items}</Text>
+              <Text style={styles.cfgStatLabel}>Items</Text>
+            </View>
+            <View style={styles.cfgStatTile}>
+              <Text style={styles.cfgStatValue}>{totals.activeGroups}</Text>
+              <Text style={styles.cfgStatLabel}>Active</Text>
+            </View>
+          </View>
+
+          <View style={styles.cfgSegment}>
             {frequencyOptions.map((option) => {
               const selected = frequency === option;
               return (
                 <Pressable
                   key={option}
-                  style={[styles.choiceChip, selected ? styles.choiceChipSelected : null]}
+                  style={[styles.cfgSegmentItem, selected ? styles.cfgSegmentItemActive : null]}
                   onPress={() => setFrequency(option)}
                 >
-                  <Text style={[styles.choiceChipText, selected ? styles.choiceChipTextSelected : null]}>{option}</Text>
+                  <Text style={[styles.cfgSegmentText, selected ? styles.cfgSegmentTextActive : null]}>{option}</Text>
                 </Pressable>
               );
             })}
           </View>
         </View>
 
-        {configQuery.isLoading ? <Text style={styles.meta}>Loading groups...</Text> : null}
-        <NestableDraggableFlatList
-          data={groups}
-          keyExtractor={(group) => group.id}
-          scrollEnabled={false}
-          onDragEnd={({ data }) => {
-            void onReorderGroups(data);
-          }}
-          renderItem={({ item, drag, isActive }) => (
-            <View style={[ui.card, isActive ? styles.dragActiveCard : null]}>
-              <View style={styles.rowBetween}>
-                <Pressable style={{ flex: 1 }} onPress={() => setSelectedGroupId(item.id)}>
-                  <Text style={styles.groupTitle}>{item.groupName}</Text>
-                </Pressable>
-                <StatusBadge label={item.isActive ? "Active" : "Inactive"} tone={item.isActive ? "success" : "warning"} />
-              </View>
-              <Text style={styles.meta}>{item.items.length} items</Text>
-              <View style={styles.row}>
-                <Pressable style={styles.secondaryButton} onPress={() => openEditGroup(item)}>
-                  <Text style={styles.secondaryButtonText}>Edit</Text>
-                </Pressable>
-                <Pressable
-                  style={styles.secondaryButton}
-                  onPress={() => {
-                    setSelectedGroupId(item.id);
-                    openCreateItem(item.id);
-                  }}
-                >
-                  <Text style={styles.secondaryButtonText}>+ Item</Text>
-                </Pressable>
-                <Pressable style={styles.dragHandleButton} onLongPress={drag} delayLongPress={120}>
-                  <Ionicons name="reorder-three-outline" size={16} color={appTheme.colors.text} />
-                  <Text style={styles.secondaryButtonText}>Drag</Text>
-                </Pressable>
-              </View>
-            </View>
-          )}
-        />
+        <View style={styles.cfgActionRow}>
+          <Pressable style={styles.cfgPrimaryAction} onPress={openCreateGroup}>
+            <Ionicons name="add" size={18} color={appTheme.colors.onPrimary} />
+            <Text style={styles.cfgPrimaryActionText}>New Group</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.cfgGhostAction, !groups.length ? styles.cfgActionDisabled : null]}
+            onPress={() => openCreateItem()}
+            disabled={!groups.length}
+          >
+            <Ionicons name="add-circle-outline" size={18} color={appTheme.colors.primary} />
+            <Text style={styles.cfgGhostActionText}>New Item</Text>
+          </Pressable>
+        </View>
 
-        {activeGroup ? (
-          <View style={ui.card}>
-            <View style={styles.rowBetween}>
-              <Text style={styles.groupTitle}>Items: {activeGroup.groupName}</Text>
-              {/* <StatusBadge label={`${activeGroup.items.length}`} tone="neutral" /> */}
+        <View style={styles.cfgHintRow}>
+          <Ionicons name="reorder-three-outline" size={14} color={appTheme.colors.textSubtle} />
+          <Text style={styles.cfgHintText}>Long-press the drag handle to reorder groups and items.</Text>
+        </View>
+
+        {configQuery.isLoading ? (
+          <View style={{ gap: appTheme.spacing.xs }}>
+            <Skeleton height={92} radius={appTheme.radius.md} />
+            <Skeleton height={92} radius={appTheme.radius.md} />
+          </View>
+        ) : groups.length === 0 ? (
+          <View style={[ui.card, styles.cfgEmptyCard]}>
+            <View style={styles.cfgEmptyIcon}>
+              <Ionicons name="folder-open-outline" size={26} color={appTheme.colors.textSubtle} />
             </View>
-            <NestableDraggableFlatList
-              data={activeGroup.items}
-              keyExtractor={(item) => item.id}
-              scrollEnabled={false}
-              onDragEnd={({ data }) => {
-                void onReorderItems(data);
-              }}
-              renderItem={({ item, drag, isActive }) => (
-                <View style={[styles.itemCard, isActive ? styles.dragActiveCard : null]}>
-                  <View style={styles.rowBetween}>
-                    <Text style={styles.itemTitle}>{item.itemName}</Text>
-                    {/* <StatusBadge label={item.isActive ? "Active" : "Inactive"} tone={item.isActive ? "success" : "warning"} /> */}
-                  </View>
-                  {item.description ? <Text style={styles.meta}>{item.description}</Text> : null}
-                  <View style={styles.row}>
-                    <Pressable style={styles.secondaryButton} onPress={() => openEditItem(item)}>
-                      <Text style={styles.secondaryButtonText}>Edit</Text>
-                    </Pressable>
-                    <Pressable style={styles.dragHandleButton} onLongPress={drag} delayLongPress={120}>
-                      <Ionicons name="reorder-three-outline" size={16} color={appTheme.colors.text} />
-                      <Text style={styles.secondaryButtonText}>Drag</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              )}
-            />
+            <Text style={styles.cfgEmptyTitle}>No groups for {frequency.toLowerCase()} checks</Text>
+            <Text style={styles.cfgEmptySubtitle}>Create your first group to start adding compliance items.</Text>
+            <Pressable style={styles.cfgPrimaryAction} onPress={openCreateGroup}>
+              <Ionicons name="add" size={18} color={appTheme.colors.onPrimary} />
+              <Text style={styles.cfgPrimaryActionText}>New Group</Text>
+            </Pressable>
           </View>
         ) : (
-          <View style={ui.card}>
-            <Text style={styles.meta}>Create a group first, then add compliance items.</Text>
-          </View>
+          <NestableDraggableFlatList
+            data={groups}
+            keyExtractor={(group) => group.id}
+            scrollEnabled={false}
+            activationDistance={12}
+            containerStyle={styles.groupRows}
+            onDragEnd={({ data }) => {
+              void onReorderGroups(data);
+            }}
+            renderItem={({ item, drag, isActive }) => {
+              const selected = item.id === selectedGroupId;
+              return (
+                <Pressable
+                  onPress={() => setSelectedGroupId(item.id)}
+                  style={[
+                    styles.cfgGroupCard,
+                    selected ? styles.cfgGroupCardActive : null,
+                    isActive ? styles.dragActiveCard : null,
+                  ]}
+                >
+                  <View style={styles.cfgGroupHead}>
+                    <View style={[styles.cfgGroupIcon, selected ? styles.cfgGroupIconActive : null]}>
+                      <Ionicons
+                        name={selected ? "folder-open" : "folder-outline"}
+                        size={16}
+                        color={appTheme.colors.primary}
+                      />
+                    </View>
+                    <View style={styles.cfgGroupHeadText}>
+                      <Text style={styles.cfgGroupName} numberOfLines={1}>{item.groupName}</Text>
+                      <Text style={styles.cfgGroupMeta}>
+                        {item.items.length} {item.items.length === 1 ? "item" : "items"}
+                      </Text>
+                    </View>
+                    <StatusBadge label={item.isActive ? "Active" : "Inactive"} tone={item.isActive ? "success" : "warning"} />
+                  </View>
+
+                  {item.description ? <Text style={styles.cfgGroupDesc} numberOfLines={2}>{item.description}</Text> : null}
+
+                  <View style={styles.cfgGroupActions}>
+                    <Pressable style={styles.cfgIconChip} onPress={() => openEditGroup(item)} hitSlop={6}>
+                      <Ionicons name="create-outline" size={15} color={appTheme.colors.text} />
+                      <Text style={styles.cfgIconChipText}>Edit</Text>
+                    </Pressable>
+                    <Pressable
+                      style={styles.cfgIconChip}
+                      onPress={() => {
+                        setSelectedGroupId(item.id);
+                        openCreateItem(item.id);
+                      }}
+                      hitSlop={6}
+                    >
+                      <Ionicons name="add" size={15} color={appTheme.colors.primary} />
+                      <Text style={[styles.cfgIconChipText, styles.cfgIconChipTextBrand]}>Item</Text>
+                    </Pressable>
+                    <Pressable style={styles.cfgDragChip} onLongPress={drag} delayLongPress={120} hitSlop={6}>
+                      <Ionicons name="reorder-three-outline" size={16} color={appTheme.colors.textSubtle} />
+                    </Pressable>
+                  </View>
+                </Pressable>
+              );
+            }}
+          />
         )}
+
+        {activeGroup ? (
+          <View style={[ui.card, styles.cfgItemsCard]}>
+            <SectionHeader
+              title={activeGroup.groupName}
+              subtitle="Items in this group"
+              icon="list-outline"
+              right={<StatusBadge label={`${activeGroup.items.length}`} tone="neutral" />}
+            />
+            {activeGroup.items.length === 0 ? (
+              <View style={styles.cfgItemsEmpty}>
+                <Text style={styles.cfgEmptySubtitle}>No items yet. Add the first check for this group.</Text>
+                <Pressable style={styles.cfgGhostAction} onPress={() => openCreateItem(activeGroup.id)}>
+                  <Ionicons name="add-circle-outline" size={18} color={appTheme.colors.primary} />
+                  <Text style={styles.cfgGhostActionText}>New Item</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <NestableDraggableFlatList
+                data={activeGroup.items}
+                keyExtractor={(item) => item.id}
+                scrollEnabled={false}
+                activationDistance={12}
+                containerStyle={styles.groupRows}
+                onDragEnd={({ data }) => {
+                  void onReorderItems(data);
+                }}
+                renderItem={({ item, drag, isActive }) => (
+                  <View style={[styles.cfgItemRow, isActive ? styles.dragActiveCard : null]}>
+                    <View style={styles.cfgItemMain}>
+                      <View style={styles.cfgItemTitleRow}>
+                        <Text style={styles.itemTitle} numberOfLines={1}>{item.itemName}</Text>
+                        {item.isRequired ? (
+                          <View style={styles.cfgRequiredPill}>
+                            <Text style={styles.cfgRequiredPillText}>Required</Text>
+                          </View>
+                        ) : null}
+                        {!item.isActive ? (
+                          <View style={styles.cfgInactivePill}>
+                            <Text style={styles.cfgInactivePillText}>Inactive</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      {item.description ? <Text style={styles.cfgGroupMeta} numberOfLines={2}>{item.description}</Text> : null}
+                    </View>
+                    <Pressable style={styles.cfgItemIconButton} onPress={() => openEditItem(item)} hitSlop={6}>
+                      <Ionicons name="create-outline" size={16} color={appTheme.colors.text} />
+                    </Pressable>
+                    <Pressable style={styles.cfgItemIconButton} onLongPress={drag} delayLongPress={120} hitSlop={6}>
+                      <Ionicons name="reorder-three-outline" size={18} color={appTheme.colors.textSubtle} />
+                    </Pressable>
+                  </View>
+                )}
+              />
+            )}
+          </View>
+        ) : null}
       </NestableScrollContainer>
 
       <Modal visible={groupModalVisible} transparent animationType="fade" onRequestClose={() => setGroupModalVisible(false)}>
@@ -2327,17 +2434,22 @@ export function ComplianceChecksConfigScreen() {
           <ModalBackdropBlur />
           <View style={styles.modalCard}>
             <ScrollView contentContainerStyle={styles.content}>
-              <Text style={styles.itemTitle}>{groupForm.id ? "Edit Group" : "New Group"}</Text>
-              <View style={styles.chipRow}>
+              <SectionHeader
+                title={groupForm.id ? "Edit Group" : "New Group"}
+                subtitle="A group bundles related compliance checks."
+                icon="folder-outline"
+              />
+              <Text style={styles.cfgFormLabel}>Schedule</Text>
+              <View style={styles.cfgSegment}>
                 {frequencyOptions.map((option) => {
                   const selected = groupForm.frequency === option;
                   return (
                     <Pressable
                       key={option}
-                      style={[styles.choiceChip, selected ? styles.choiceChipSelected : null]}
+                      style={[styles.cfgSegmentItem, selected ? styles.cfgSegmentItemActive : null]}
                       onPress={() => setGroupForm((previous) => ({ ...previous, frequency: option }))}
                     >
-                      <Text style={[styles.choiceChipText, selected ? styles.choiceChipTextSelected : null]}>{option}</Text>
+                      <Text style={[styles.cfgSegmentText, selected ? styles.cfgSegmentTextActive : null]}>{option}</Text>
                     </Pressable>
                   );
                 })}
@@ -2351,22 +2463,34 @@ export function ComplianceChecksConfigScreen() {
                 style={[styles.input, styles.textArea]}
                 value={groupForm.description}
                 onChangeText={(value) => setGroupForm((previous) => ({ ...previous, description: value }))}
-                placeholder="Description"
+                placeholder="Description (optional)"
                 placeholderTextColor={appTheme.colors.textSubtle}
                 multiline
               />
-              <Pressable style={styles.toggleRow} onPress={() => setGroupForm((previous) => ({ ...previous, isActive: !previous.isActive }))}>
-                <Text style={styles.toggleLabel}>Active</Text>
-                <Text style={styles.toggleValue}>{groupForm.isActive ? "Yes" : "No"}</Text>
-              </Pressable>
-              <PrimaryButton
-                label={groupSaveMutation.isPending ? "Saving..." : "Save"}
-                onPress={() => groupSaveMutation.mutate()}
-                disabled={groupSaveMutation.isPending}
-              />
-              <Pressable style={styles.secondaryButton} onPress={() => setGroupModalVisible(false)}>
-                <Text style={styles.secondaryButtonText}>Close</Text>
-              </Pressable>
+              <View style={styles.cfgSwitchRow}>
+                <View style={styles.cfgSwitchText}>
+                  <Text style={styles.cfgSwitchLabel}>Active</Text>
+                  <Text style={styles.cfgSwitchHint}>Inactive groups are hidden from daily checks.</Text>
+                </View>
+                <Switch
+                  value={groupForm.isActive}
+                  onValueChange={(value) => setGroupForm((previous) => ({ ...previous, isActive: value }))}
+                  trackColor={{ false: appTheme.colors.borderStrong, true: appTheme.colors.primary }}
+                  thumbColor={appTheme.colors.onPrimary}
+                />
+              </View>
+              <View style={styles.cfgModalActions}>
+                <Pressable style={styles.cfgModalCancel} onPress={() => setGroupModalVisible(false)}>
+                  <Text style={styles.cfgModalCancelText}>Cancel</Text>
+                </Pressable>
+                <View style={styles.cfgModalSave}>
+                  <PrimaryButton
+                    label={groupSaveMutation.isPending ? "Saving..." : "Save Group"}
+                    onPress={() => groupSaveMutation.mutate()}
+                    disabled={groupSaveMutation.isPending}
+                  />
+                </View>
+              </View>
             </ScrollView>
           </View>
         </View>
@@ -2377,8 +2501,12 @@ export function ComplianceChecksConfigScreen() {
           <ModalBackdropBlur />
           <View style={styles.modalCard}>
             <ScrollView contentContainerStyle={styles.content}>
-              <Text style={styles.itemTitle}>{itemForm.id ? "Edit Item" : "New Item"}</Text>
-              <Text style={styles.fieldLabel}>Group</Text>
+              <SectionHeader
+                title={itemForm.id ? "Edit Item" : "New Item"}
+                subtitle="A single check staff complete during a shift."
+                icon="checkmark-circle-outline"
+              />
+              <Text style={styles.cfgFormLabel}>Group</Text>
               <View style={styles.chipRow}>
                 {groups.map((group) => {
                   const selected = itemForm.complianceCheckGroupId === group.id;
@@ -2402,26 +2530,46 @@ export function ComplianceChecksConfigScreen() {
                 style={[styles.input, styles.textArea]}
                 value={itemForm.description}
                 onChangeText={(value) => setItemForm((previous) => ({ ...previous, description: value }))}
-                placeholder="Description"
+                placeholder="Description (optional)"
                 placeholderTextColor={appTheme.colors.textSubtle}
                 multiline
               />
-              <Pressable style={styles.toggleRow} onPress={() => setItemForm((previous) => ({ ...previous, isRequired: !previous.isRequired }))}>
-                <Text style={styles.toggleLabel}>Required</Text>
-                <Text style={styles.toggleValue}>{itemForm.isRequired ? "Yes" : "No"}</Text>
-              </Pressable>
-              <Pressable style={styles.toggleRow} onPress={() => setItemForm((previous) => ({ ...previous, isActive: !previous.isActive }))}>
-                <Text style={styles.toggleLabel}>Active</Text>
-                <Text style={styles.toggleValue}>{itemForm.isActive ? "Yes" : "No"}</Text>
-              </Pressable>
-              <PrimaryButton
-                label={itemSaveMutation.isPending ? "Saving..." : "Save"}
-                onPress={() => itemSaveMutation.mutate()}
-                disabled={itemSaveMutation.isPending}
-              />
-              <Pressable style={styles.secondaryButton} onPress={() => setItemModalVisible(false)}>
-                <Text style={styles.secondaryButtonText}>Close</Text>
-              </Pressable>
+              <View style={styles.cfgSwitchRow}>
+                <View style={styles.cfgSwitchText}>
+                  <Text style={styles.cfgSwitchLabel}>Required</Text>
+                  <Text style={styles.cfgSwitchHint}>Staff must complete this check.</Text>
+                </View>
+                <Switch
+                  value={itemForm.isRequired}
+                  onValueChange={(value) => setItemForm((previous) => ({ ...previous, isRequired: value }))}
+                  trackColor={{ false: appTheme.colors.borderStrong, true: appTheme.colors.primary }}
+                  thumbColor={appTheme.colors.onPrimary}
+                />
+              </View>
+              <View style={styles.cfgSwitchRow}>
+                <View style={styles.cfgSwitchText}>
+                  <Text style={styles.cfgSwitchLabel}>Active</Text>
+                  <Text style={styles.cfgSwitchHint}>Inactive items are hidden from daily checks.</Text>
+                </View>
+                <Switch
+                  value={itemForm.isActive}
+                  onValueChange={(value) => setItemForm((previous) => ({ ...previous, isActive: value }))}
+                  trackColor={{ false: appTheme.colors.borderStrong, true: appTheme.colors.primary }}
+                  thumbColor={appTheme.colors.onPrimary}
+                />
+              </View>
+              <View style={styles.cfgModalActions}>
+                <Pressable style={styles.cfgModalCancel} onPress={() => setItemModalVisible(false)}>
+                  <Text style={styles.cfgModalCancelText}>Cancel</Text>
+                </Pressable>
+                <View style={styles.cfgModalSave}>
+                  <PrimaryButton
+                    label={itemSaveMutation.isPending ? "Saving..." : "Save Item"}
+                    onPress={() => itemSaveMutation.mutate()}
+                    disabled={itemSaveMutation.isPending}
+                  />
+                </View>
+              </View>
             </ScrollView>
           </View>
         </View>
@@ -3338,5 +3486,374 @@ const styles = StyleSheet.create({
   },
   dragActiveCard: {
     opacity: 0.94,
+  },
+
+  // --- Compliance Setup (config screen) ---
+  cfgHeroCard: {
+    gap: appTheme.spacing.sm,
+  },
+  cfgHeroTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.sm,
+  },
+  cfgHeroIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: appTheme.radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+  },
+  cfgHeroText: {
+    flex: 1,
+    gap: 2,
+  },
+  cfgHeroSubtitle: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 13,
+    lineHeight: 17,
+  },
+  cfgStatRow: {
+    flexDirection: "row",
+    gap: appTheme.spacing.xs,
+  },
+  cfgStatTile: {
+    flex: 1,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceTint,
+    paddingVertical: appTheme.spacing.sm,
+    alignItems: "center",
+    gap: 2,
+  },
+  cfgStatValue: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.heading,
+    fontSize: 20,
+    lineHeight: 24,
+  },
+  cfgStatLabel: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 14,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  cfgSegment: {
+    flexDirection: "row",
+    backgroundColor: appTheme.colors.surfaceMuted,
+    borderRadius: appTheme.radius.pill,
+    padding: 3,
+    gap: 2,
+  },
+  cfgSegmentItem: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: appTheme.radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cfgSegmentItemActive: {
+    backgroundColor: appTheme.colors.surface,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+  cfgSegmentText: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 16,
+  },
+  cfgSegmentTextActive: {
+    color: appTheme.colors.text,
+  },
+  cfgActionRow: {
+    flexDirection: "row",
+    gap: appTheme.spacing.xs,
+  },
+  cfgPrimaryAction: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.primary,
+  },
+  cfgPrimaryActionText: {
+    color: appTheme.colors.onPrimary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  cfgGhostAction: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: appTheme.radius.sm,
+    borderWidth: 1,
+    borderColor: appTheme.colors.primary,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+  },
+  cfgGhostActionText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  cfgActionDisabled: {
+    opacity: 0.45,
+  },
+  cfgHintRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 2,
+  },
+  cfgHintText: {
+    flex: 1,
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  cfgEmptyCard: {
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+    paddingVertical: appTheme.spacing.md,
+  },
+  cfgEmptyIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: appTheme.colors.surfaceMuted,
+    marginBottom: 2,
+  },
+  cfgEmptyTitle: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 15,
+    lineHeight: 19,
+    textAlign: "center",
+  },
+  cfgEmptySubtitle: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: "center",
+  },
+  cfgGroupCard: {
+    borderRadius: appTheme.radius.md,
+    backgroundColor: appTheme.colors.surface,
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderSoft,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.sm,
+    gap: 8,
+  },
+  cfgGroupCardActive: {
+    borderColor: appTheme.colors.primary,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+  },
+  cfgGroupHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+  },
+  cfgGroupIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: appTheme.radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: appTheme.colors.surfaceMuted,
+  },
+  cfgGroupIconActive: {
+    backgroundColor: appTheme.colors.surface,
+  },
+  cfgGroupHeadText: {
+    flex: 1,
+    gap: 1,
+  },
+  cfgGroupName: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 16,
+    lineHeight: 20,
+  },
+  cfgGroupMeta: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  cfgGroupDesc: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  cfgGroupActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: appTheme.colors.borderSoft,
+  },
+  cfgIconChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surfaceMuted,
+  },
+  cfgIconChipText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 15,
+  },
+  cfgIconChipTextBrand: {
+    color: appTheme.colors.primary,
+  },
+  cfgDragChip: {
+    marginLeft: "auto",
+    width: 34,
+    height: 30,
+    borderRadius: appTheme.radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: appTheme.colors.surfaceMuted,
+  },
+  cfgItemsCard: {
+    gap: appTheme.spacing.sm,
+  },
+  cfgItemsEmpty: {
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+    paddingVertical: appTheme.spacing.sm,
+  },
+  cfgItemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: 10,
+  },
+  cfgItemMain: {
+    flex: 1,
+    gap: 2,
+  },
+  cfgItemTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  cfgRequiredPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+  },
+  cfgRequiredPillText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 10,
+    lineHeight: 13,
+  },
+  cfgInactivePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surfaceWarningSoft,
+  },
+  cfgInactivePillText: {
+    color: appTheme.colors.warning,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 10,
+    lineHeight: 13,
+  },
+  cfgItemIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: appTheme.radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: appTheme.colors.surface,
+  },
+  cfgFormLabel: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 15,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  cfgSwitchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.sm,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: 10,
+  },
+  cfgSwitchText: {
+    flex: 1,
+    gap: 2,
+  },
+  cfgSwitchLabel: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  cfgSwitchHint: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  cfgModalActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+    marginTop: 2,
+  },
+  cfgModalCancel: {
+    paddingHorizontal: appTheme.spacing.md,
+    paddingVertical: 12,
+    borderRadius: appTheme.radius.sm,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surface,
+  },
+  cfgModalCancelText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  cfgModalSave: {
+    flex: 1,
   },
 });
