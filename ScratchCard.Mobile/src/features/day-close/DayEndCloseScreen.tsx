@@ -1988,7 +1988,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             });
           }}
           accessibilityRole="button"
-          accessibilityLabel="Open Scratch Card Summary"
+          accessibilityLabel="Open Scratch Card"
           style={({ pressed }) => [
             ui.card,
             styles.sectionCard,
@@ -2061,10 +2061,10 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               icon="lock-closed-outline"
               right={
                 <>
-                  <StatusBadge
+                  {/* <StatusBadge
                     label={pendingDropCount > 0 ? `${pendingDropCount} pending` : `${visibleCanisterDrops.length}`}
                     tone={pendingDropCount > 0 ? "warning" : visibleCanisterDrops.length > 0 ? "success" : "neutral"}
-                  />
+                  /> */}
                   <Ionicons name="chevron-forward" size={18} color={appTheme.colors.textSubtle} />
                 </>
               }
@@ -2103,7 +2103,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               icon="thermometer-outline"
               right={
                 <>
-                  <StatusBadge
+                  {/* <StatusBadge
                     label={
                       temperatureSummary.outOfRange > 0
                         ? `${temperatureSummary.outOfRange} out of range`
@@ -2122,7 +2122,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                             ? "success"
                             : "neutral"
                     }
-                  />
+                  /> */}
                   <Ionicons name="chevron-forward" size={18} color={appTheme.colors.textSubtle} />
                 </>
               }
@@ -2177,7 +2177,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               icon="clipboard-outline"
               right={
                 <>
-                  <StatusBadge
+                  {/* <StatusBadge
                     label={
                       complianceSummary.nonCompliant > 0
                         ? `${complianceSummary.nonCompliant} non-compliant`
@@ -2196,7 +2196,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                             ? "success"
                             : "neutral"
                     }
-                  />
+                  /> */}
                   <Ionicons name="chevron-forward" size={18} color={appTheme.colors.textSubtle} />
                 </>
               }
