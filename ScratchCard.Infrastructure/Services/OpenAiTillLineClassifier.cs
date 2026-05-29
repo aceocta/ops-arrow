@@ -4,8 +4,8 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using ScratchCard.Application.Common.Helpers;
 using ScratchCard.Application.Common.Interfaces;
-using ScratchCard.Domain.Enums;
 
 namespace ScratchCard.Infrastructure.Services;
 
@@ -15,6 +15,112 @@ public class OpenAiTillLineClassifier : ITillLineAiClassifier
     // (e.g. card/account numbers) that occasionally land in an OCR'd description.
     private static readonly Regex EmailRegex = new(@"\b[\w.+-]+@[\w-]+\.[\w.-]+\b", RegexOptions.Compiled);
     private static readonly Regex LongDigitsRegex = new(@"\d{7,}", RegexOptions.Compiled);
+
+    private const string SystemPrompt =
+        """
+        You are a bookkeeping assistant for a UK convenience store / newsagent / petrol forecourt.
+        Your job is to classify each till-report line by its DESCRIPTION ONLY (you are never given
+        amounts), so the shop can track where money comes in and where it goes out.
+
+        For every line, choose ONE category from the list below. If you genuinely cannot tell,
+        return "unknown" — never guess wildly.
+
+        CATEGORIES
+
+        1. sale
+           Money the shop takes in for goods or services sold.
+           Subcategorise the sale type when obvious (see "sale_kind" below).
+           Examples: "Fuel Sales", "Unleaded", "Diesel", "Super Unleaded", "AdBlue",
+           "Grocery", "Tobacco", "Alcohol", "Confectionery", "Soft Drinks",
+           "Newspaper", "Magazine", "Lottery Sales", "National Lottery", "Scratchcards",
+           "Instants", "Paypoint", "Top-up", "Mobile Top-up", "Hot Food", "Coffee", "Off-Sales".
+
+        2. discount
+           Money taken OFF a sale — reduces what the customer pays.
+           Examples: "Discount", "Manager Discount", "Staff Discount", "Promotion", "Promo",
+           "Multibuy Saving", "Meal Deal Saving", "Loyalty Discount", "Coupon", "Voucher Redeemed".
+
+        3. refund
+           Money returned to a customer (cancelled/returned sale).
+           Examples: "Refund", "Return", "Reversal", "Void", "Voided Sale",
+           "Transaction Cancelled", "Cancellation", "Error Correct" (when it reverses a sale).
+
+        4. payout
+           Money paid OUT of the till for a deliberate, legitimate reason (a movement, not a loss).
+           Examples: "Paid Out", "Pay Out", "Supplier Paid", "Cash to Safe", "Change Order",
+           "Float Top-up", "Bank Lodgement", "Wages", "Staff Pay", "Petty Cash",
+           "Lottery Prize Paid", "Scratchcard Prize Paid", "Lotto Payout".
+
+        5. expense
+           Money lost or spent operationally — typically a loss the shop absorbs (NOT a payout).
+           Examples: "Drive Off", "Drive-Off", "No Pay", "Fuel Theft", "Spillage", "Breakage",
+           "Wastage", "Damaged Stock", "Till Short", "Cash Short", "Shortage",
+           "No Sale" (records an unaccounted till open).
+
+        6. tender
+           Records HOW takings were paid (the breakdown by payment method). Also return a
+           "tender_kind" from this list:
+             cash, card, credit_card, debit_card, fuel_card, mobile, voucher, cheque, account, other
+           Examples:
+             "Cash", "Cash Tendered" -> tender / cash
+             "Card", "Chip & Pin", "Contactless", "Visa", "Mastercard" -> tender / card
+             "Credit", "Credit Card" -> tender / credit_card
+             "Debit", "Debit Card" -> tender / debit_card
+             "Fuel Card", "BP Card", "Shell Card", "Allstar", "Keyfuels" -> tender / fuel_card
+             "Apple Pay", "Google Pay" -> tender / mobile
+             "Gift Voucher", "Gift Card" -> tender / voucher
+             "Cheque" -> tender / cheque
+
+        7. summary
+           A roll-up / total / subtotal line. NEVER store these — they aggregate other lines.
+           Examples: "Total", "Subtotal", "Sub Total", "Grand Total", "Total Sales",
+           "Net Sales", "Gross Sales", "Net Total", "Total Tendered", "Amount Tendered",
+           "Balance", "Change", "Change Due", "Rounding", "VAT Total" (when it's report-wide).
+
+        8. unknown
+           You genuinely can't tell. Use sparingly.
+
+        DISAMBIGUATION RULES (apply in order)
+        A. "Cashback" / "Cash Back" is a card-side withdrawal, NOT a cash tender. Treat as
+           "unknown" so it doesn't double-count.
+        B. If the line clearly contains "total", "sub-total", "subtotal", "grand total",
+           "balance", "change", "amount due" or "rounding", it is "summary", even if other words
+           appear too. Summaries always win.
+        C. "No Sale" -> "expense" (records a till open). "No ID / No Sale" (refusal log) is NOT a
+           till line — treat as "unknown".
+        D. Lottery / scratchcard:
+             "...Sales" / "...Sold" -> "sale"
+             "...Prize Paid" / "...Payout" / "...Cash-out" -> "payout"
+        E. Manager / Staff "Discount" -> "discount" (reduces sale).
+           Manager / Staff "Refund" -> "refund" (returns money).
+        F. "Paid In" / "Float In" / "Float Top-up" -> "payout" (cash MOVEMENT, not a sale).
+        G. Tender lines never double as sales. Prefer "tender" only when the line explicitly names
+           a payment method.
+
+        INPUT: a JSON array of { id, description }. Amounts are deliberately omitted; some
+        descriptions may be lightly redacted with "#" or "[redacted]".
+
+        OUTPUT (STRICT JSON, NOTHING ELSE):
+        {
+          "results": [
+            {
+              "id": <number>,
+              "category": "sale" | "discount" | "refund" | "payout" | "expense" | "tender" |
+                          "summary" | "unknown",
+              "tender_kind": "cash" | "card" | "credit_card" | "debit_card" | "fuel_card" |
+                             "mobile" | "voucher" | "cheque" | "account" | "other" | null,
+              "sale_kind":   "fuel" | "lottery" | "scratchcard" | "paypoint" | "tobacco" |
+                             "alcohol" | "grocery" | "hot_food" | "newspaper" | "other" | null
+            }
+          ]
+        }
+
+        Rules for the sub-fields:
+        - "tender_kind" MUST be non-null when "category" is "tender", and MUST be null for every
+          other category.
+        - "sale_kind" MUST be null unless "category" is "sale".
+        - Never include extra prose, never wrap the JSON in markdown.
+        """;
 
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly OpenAiOptions _options;
@@ -30,11 +136,11 @@ public class OpenAiTillLineClassifier : ITillLineAiClassifier
         _logger = logger;
     }
 
-    public async Task<IReadOnlyDictionary<int, TillLineClassification>> ClassifyAsync(
+    public async Task<IReadOnlyDictionary<int, TillLineAiDecision>> ClassifyAsync(
         IReadOnlyCollection<TillLineDescriptor> items,
         CancellationToken cancellationToken = default)
     {
-        var empty = new Dictionary<int, TillLineClassification>();
+        var empty = new Dictionary<int, TillLineAiDecision>();
         if (items.Count == 0)
         {
             return empty;
@@ -91,22 +197,14 @@ public class OpenAiTillLineClassifier : ITillLineAiClassifier
             response_format = new { type = "json_object" },
             messages = new object[]
             {
-                new
-                {
-                    role = "system",
-                    content =
-                        "You are a bookkeeping assistant for a UK convenience/newsagent shop. You classify " +
-                        "till-report line descriptions as 'income' or 'expense'. Income = money the shop takes in " +
-                        "(sales, takings, commission). Expense = money paid out (refunds, payouts, wages, supplier " +
-                        "purchases, till shortages). You are given descriptions only — never amounts. Reply with JSON only."
-                },
+                new { role = "system", content = SystemPrompt },
                 new
                 {
                     role = "user",
                     content =
-                        "Classify each line by its id. Return strict JSON: " +
-                        "{\"results\":[{\"id\":number,\"type\":\"income\"|\"expense\"|\"unknown\"}]}. " +
-                        "Use \"unknown\" only when you genuinely cannot tell. Lines: " + linesJson
+                        "Classify the following till-report lines per the rules above. Reply with " +
+                        "strict JSON matching the documented schema. Use \"unknown\" only when you " +
+                        "truly cannot tell.\n\nLINES:\n" + linesJson
                 }
             }
         };
@@ -117,7 +215,9 @@ public class OpenAiTillLineClassifier : ITillLineAiClassifier
         var value = description ?? string.Empty;
         value = EmailRegex.Replace(value, "[redacted]");
         value = LongDigitsRegex.Replace(value, "#");
-        return value.Trim();
+        // Strip standalone digits and "x"/"@"/"qty" markers so the same product reads the same
+        // regardless of quantity (e.g. "Unleaded 5" and "Unleaded 12" both become "Unleaded").
+        return TillDescriptionNormalizer.Normalize(value);
     }
 
     private static string BuildEndpoint(string? configuredBaseUrl)
@@ -142,9 +242,9 @@ public class OpenAiTillLineClassifier : ITillLineAiClassifier
         return content.ValueKind == JsonValueKind.String ? content.GetString() ?? "{}" : "{}";
     }
 
-    private static Dictionary<int, TillLineClassification> ParseResults(string json)
+    private static Dictionary<int, TillLineAiDecision> ParseResults(string json)
     {
-        var map = new Dictionary<int, TillLineClassification>();
+        var map = new Dictionary<int, TillLineAiDecision>();
         using var doc = JsonDocument.Parse(json);
         if (!doc.RootElement.TryGetProperty("results", out var results) || results.ValueKind != JsonValueKind.Array)
         {
@@ -158,22 +258,48 @@ public class OpenAiTillLineClassifier : ITillLineAiClassifier
                 continue;
             }
 
-            var type = item.TryGetProperty("type", out var typeElement) ? typeElement.GetString() : null;
-            var classification = type?.ToLowerInvariant() switch
+            var categoryRaw = item.TryGetProperty("category", out var categoryElement) ? categoryElement.GetString() : null;
+            var category = ParseCategory(categoryRaw);
+            if (category is null)
             {
-                "income" => TillLineClassification.Income,
-                "expense" => TillLineClassification.Expense,
-                _ => (TillLineClassification?)null
-            };
-
-            if (classification.HasValue)
-            {
-                map[id] = classification.Value;
+                continue;
             }
+
+            string? tenderKind = null;
+            if (category == TillLineAiCategory.Tender
+                && item.TryGetProperty("tender_kind", out var tenderElement)
+                && tenderElement.ValueKind == JsonValueKind.String)
+            {
+                tenderKind = tenderElement.GetString();
+            }
+
+            string? saleKind = null;
+            if (category == TillLineAiCategory.Sale
+                && item.TryGetProperty("sale_kind", out var saleElement)
+                && saleElement.ValueKind == JsonValueKind.String)
+            {
+                saleKind = saleElement.GetString();
+            }
+
+            map[id] = new TillLineAiDecision(category.Value, tenderKind, saleKind);
         }
 
         return map;
     }
+
+    private static TillLineAiCategory? ParseCategory(string? raw)
+        => raw?.Trim().ToLowerInvariant() switch
+        {
+            "sale" => TillLineAiCategory.Sale,
+            "discount" => TillLineAiCategory.Discount,
+            "refund" => TillLineAiCategory.Refund,
+            "payout" => TillLineAiCategory.Payout,
+            "expense" => TillLineAiCategory.Expense,
+            "tender" => TillLineAiCategory.Tender,
+            "summary" => TillLineAiCategory.Summary,
+            "unknown" => TillLineAiCategory.Unknown,
+            _ => (TillLineAiCategory?)null
+        };
 
     private string ResolveApiKey()
     {

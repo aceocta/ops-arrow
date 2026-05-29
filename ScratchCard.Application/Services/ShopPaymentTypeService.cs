@@ -138,6 +138,66 @@ public class ShopPaymentTypeService : IShopPaymentTypeService
         await _auditService.LogAsync(nameof(ShopPaymentType), entity.Id, "ShopPaymentTypeDeleted", entity.ShopId, cancellationToken: cancellationToken);
     }
 
+    private static readonly (string Name, string Keywords)[] DefaultPaymentTypes =
+    [
+        ("Cash", "cash"),
+        ("Card", "card, visa, mastercard, contactless, chip & pin"),
+        ("Credit Card", "credit"),
+        ("Fuel Card", "fuel, bp, shell, allstar, keyfuels"),
+        ("Cheque", "cheque, check")
+    ];
+
+    public async Task<IReadOnlyCollection<ShopPaymentTypeDto>> SeedDefaultsAsync(Guid shopId, CancellationToken cancellationToken = default)
+    {
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(shopId, EditorRoles, cancellationToken);
+
+        var existingNames = await _repository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId && !x.IsDeleted)
+            .Select(x => x.Name)
+            .ToListAsync(cancellationToken);
+
+        var existing = new HashSet<string>(existingNames, StringComparer.OrdinalIgnoreCase);
+        var now = DateTimeOffset.UtcNow;
+        var userId = _currentUserService.UserId;
+        var sortOrder = 1;
+        var inserted = new List<ShopPaymentType>();
+
+        foreach (var (name, keywords) in DefaultPaymentTypes)
+        {
+            if (existing.Contains(name))
+            {
+                sortOrder++;
+                continue;
+            }
+
+            var entity = new ShopPaymentType
+            {
+                ShopId = shopId,
+                Name = name,
+                Keywords = keywords,
+                SortOrder = sortOrder++,
+                IsActive = true,
+                CreatedOn = now,
+                CreatedBy = userId
+            };
+
+            await _repository.AddAsync(entity, cancellationToken);
+            inserted.Add(entity);
+        }
+
+        if (inserted.Count > 0)
+        {
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            foreach (var entity in inserted)
+            {
+                await _auditService.LogAsync(nameof(ShopPaymentType), entity.Id, "ShopPaymentTypeSeeded", entity.ShopId, cancellationToken: cancellationToken);
+            }
+        }
+
+        return await ListAsync(shopId, includeInactive: false, cancellationToken);
+    }
+
     private static string? NullIfBlank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static ShopPaymentTypeDto Map(ShopPaymentType entity) => new()

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using ScratchCard.Application.Common.Exceptions;
+using ScratchCard.Application.Common.Helpers;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.StoreSales;
@@ -279,7 +280,10 @@ public class TillReportService : ITillReportService
                     continue;
                 }
 
-                if (string.Equals(sibling.RawDescription.Trim(), line.RawDescription.Trim(), StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(
+                        TillDescriptionNormalizer.Normalize(sibling.RawDescription),
+                        TillDescriptionNormalizer.Normalize(line.RawDescription),
+                        StringComparison.OrdinalIgnoreCase))
                 {
                     sibling.Classification = classification;
                     sibling.Source = TillLineSource.RuleEngine;
@@ -312,7 +316,8 @@ public class TillReportService : ITillReportService
             return null;
         }
 
-        var pattern = (description ?? string.Empty).Trim();
+        // Strip quantity noise so a learned rule for "Unleaded" still fires for "Unleaded 5".
+        var pattern = TillDescriptionNormalizer.Normalize(description);
         if (pattern.Length == 0 || !pattern.Any(char.IsLetter))
         {
             return null;
@@ -378,7 +383,7 @@ public class TillReportService : ITillReportService
         {
             if (line.Classification is TillLineClassification.Income or TillLineClassification.Expense)
             {
-                var key = line.RawDescription.Trim();
+                var key = TillDescriptionNormalizer.Normalize(line.RawDescription);
                 if (key.Length > 0 && learned.Add(key))
                 {
                     await UpsertLearnedRuleAsync(report.ShopId, line.RawDescription, line.Classification, cancellationToken);
@@ -692,31 +697,173 @@ public class TillReportService : ITillReportService
 
     private async Task ApplyAiSuggestionsAsync(TillReport report, CancellationToken cancellationToken)
     {
-        var unclassified = report.Lines
+        var pending = report.Lines
             .Where(l => l.Classification == TillLineClassification.Unclassified && l.RawDescription.Any(char.IsLetter))
             .ToList();
 
-        if (unclassified.Count == 0)
+        if (pending.Count == 0)
         {
             return;
         }
 
         // Index is the id we send to the model — keeps the mapping back to the line trivial and
         // ensures no other line data (e.g. amount) leaves our infrastructure.
-        var descriptors = unclassified
+        var descriptors = pending
             .Select((line, index) => new TillLineDescriptor(index, line.RawDescription))
             .ToList();
 
-        var suggestions = await _aiClassifier.ClassifyAsync(descriptors, cancellationToken);
-
-        for (var i = 0; i < unclassified.Count; i++)
+        var decisions = await _aiClassifier.ClassifyAsync(descriptors, cancellationToken);
+        if (decisions.Count == 0)
         {
-            if (suggestions.TryGetValue(i, out var classification) && classification != TillLineClassification.Unclassified)
+            return;
+        }
+
+        // Pre-load active payment types so we can map AI-suggested tenders to a configured row.
+        var paymentTypes = await _paymentTypeRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == report.ShopId && x.IsActive && !x.IsDeleted)
+            .ToListAsync(cancellationToken);
+
+        var linesToRemove = new List<TillReportLine>();
+        for (var i = 0; i < pending.Count; i++)
+        {
+            if (!decisions.TryGetValue(i, out var decision))
             {
-                unclassified[i].Classification = classification;
-                unclassified[i].Source = TillLineSource.Ai;
+                continue;
+            }
+
+            var line = pending[i];
+            switch (decision.Category)
+            {
+                case TillLineAiCategory.Sale:
+                    line.Classification = TillLineClassification.Income;
+                    line.Source = TillLineSource.Ai;
+                    line.Notes = TrimNote(decision.SaleKind is null ? "sale" : $"sale:{decision.SaleKind}");
+                    break;
+
+                case TillLineAiCategory.Discount:
+                    line.Classification = TillLineClassification.Expense;
+                    line.Source = TillLineSource.Ai;
+                    line.Notes = "discount";
+                    break;
+
+                case TillLineAiCategory.Refund:
+                    line.Classification = TillLineClassification.Expense;
+                    line.Source = TillLineSource.Ai;
+                    line.Notes = "refund";
+                    break;
+
+                case TillLineAiCategory.Payout:
+                    line.Classification = TillLineClassification.Expense;
+                    line.Source = TillLineSource.Ai;
+                    line.Notes = "payout";
+                    break;
+
+                case TillLineAiCategory.Expense:
+                    line.Classification = TillLineClassification.Expense;
+                    line.Source = TillLineSource.Ai;
+                    line.Notes = "expense";
+                    break;
+
+                case TillLineAiCategory.Tender:
+                    var matched = MatchPaymentTypeForTenderKind(paymentTypes, decision.TenderKind);
+                    if (matched is not null)
+                    {
+                        AddOrMergePayment(report, matched, line.Amount, TillLineSource.Ai);
+                        linesToRemove.Add(line);
+                    }
+                    // else: tender kind has no configured ShopPaymentType — leave as Unclassified
+                    // so the user can either tag it manually or add a matching payment type.
+                    break;
+
+                case TillLineAiCategory.Summary:
+                    // Roll-up / total — drop entirely so it can't double-count anything.
+                    linesToRemove.Add(line);
+                    break;
+
+                case TillLineAiCategory.Unknown:
+                default:
+                    break;
             }
         }
+
+        foreach (var line in linesToRemove)
+        {
+            report.Lines.Remove(line);
+        }
+    }
+
+    // Maps an AI-suggested tender_kind (cash, card, fuel_card, mobile, voucher, ...) to one of the
+    // shop's configured ShopPaymentType rows, using each row's Name + Keywords. Returns null when
+    // no configured row matches — the line then stays unclassified for manual handling.
+    private static ShopPaymentType? MatchPaymentTypeForTenderKind(
+        IReadOnlyCollection<ShopPaymentType> paymentTypes,
+        string? tenderKind)
+    {
+        if (string.IsNullOrWhiteSpace(tenderKind) || paymentTypes.Count == 0)
+        {
+            return null;
+        }
+
+        var normalized = tenderKind.Trim().ToLowerInvariant().Replace('_', ' ');
+        var tokens = normalized switch
+        {
+            "cash" => new[] { "cash" },
+            "card" => new[] { "card" },
+            "credit card" => new[] { "credit" },
+            "debit card" => new[] { "debit" },
+            "fuel card" => new[] { "fuel" },
+            "mobile" => new[] { "mobile", "apple pay", "google pay", "wallet" },
+            "voucher" => new[] { "voucher", "gift" },
+            "cheque" => new[] { "cheque", "check" },
+            "account" => new[] { "account" },
+            "other" => new[] { "other" },
+            _ => new[] { normalized }
+        };
+
+        foreach (var type in paymentTypes.OrderBy(x => x.SortOrder).ThenBy(x => x.Name))
+        {
+            var haystack = ($"{type.Name} {type.Keywords}").ToLowerInvariant();
+            if (tokens.Any(t => haystack.Contains(t)))
+            {
+                return type;
+            }
+        }
+
+        return null;
+    }
+
+    private static void AddOrMergePayment(TillReport report, ShopPaymentType type, decimal amount, TillLineSource source)
+    {
+        var existing = report.Payments.FirstOrDefault(p => p.PaymentTypeId == type.Id);
+        if (existing is null)
+        {
+            report.Payments.Add(new TillReportPayment
+            {
+                TillReportId = report.Id,
+                PaymentTypeId = type.Id,
+                PaymentTypeName = type.Name,
+                Amount = amount,
+                Source = source
+            });
+            return;
+        }
+
+        existing.Amount += amount;
+        if (existing.Source != TillLineSource.Manual)
+        {
+            existing.Source = source;
+        }
+    }
+
+    private static string? TrimNote(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return value.Length > 500 ? value[..500] : value;
     }
 
     // Matches a description against the shop's configured payment-type keywords. First match wins

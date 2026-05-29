@@ -7,6 +7,7 @@ import {
   createShopPaymentType,
   deleteShopPaymentType,
   listShopPaymentTypes,
+  seedShopPaymentTypeDefaults,
   updateShopPaymentType,
 } from "../../api/shopPaymentTypesApi";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -48,6 +49,13 @@ export function PaymentTypesConfigScreen() {
     },
     onError: (error: any) =>
       Alert.alert("Add failed", error?.response?.data?.message ?? "Could not add this payment type."),
+  });
+
+  const seedDefaultsMutation = useMutation({
+    mutationFn: () => seedShopPaymentTypeDefaults(shopId as string),
+    onSuccess: () => invalidate(),
+    onError: (error: any) =>
+      Alert.alert("Seed failed", error?.response?.data?.message ?? "Could not seed default payment types."),
   });
 
   async function toggleActive(type: ShopPaymentType) {
@@ -125,7 +133,16 @@ export function PaymentTypesConfigScreen() {
         <Text style={ui.sectionTitle}>Configured payment types</Text>
         {typesQuery.isLoading ? <Text style={ui.bodyText}>Loading…</Text> : null}
         {!typesQuery.isLoading && types.length === 0 ? (
-          <Text style={ui.bodyText}>None yet. Add Cash and Card first.</Text>
+          <>
+            <Text style={ui.bodyText}>None yet — start with the common defaults below or add your own above.</Text>
+            <PrimaryButton
+              tone="neutral"
+              label={seedDefaultsMutation.isPending ? "Adding..." : "Add common defaults"}
+              onPress={() => seedDefaultsMutation.mutate()}
+              disabled={seedDefaultsMutation.isPending}
+            />
+            <Text style={ui.caption}>Cash · Card · Credit Card · Fuel Card · Cheque (you can edit or delete any).</Text>
+          </>
         ) : null}
         {types.map((type) => (
           <View key={type.id} style={[styles.row, !type.isActive ? styles.rowInactive : null]}>

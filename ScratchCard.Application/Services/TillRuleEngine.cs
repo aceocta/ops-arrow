@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using ScratchCard.Application.Common.Helpers;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Models;
 using ScratchCard.Domain.Entities;
@@ -57,10 +58,16 @@ public class TillRuleEngine : ITillRuleEngine
             return false;
         }
 
+        // For Contains/Equals we normalise both sides so qty noise ("Unleaded 5" vs "Unleaded")
+        // doesn't break a learned/manual rule. Regex stays raw (user wrote it deliberately) and
+        // TypeCode never carries a description.
+        var normalizedDescription = TillDescriptionNormalizer.Normalize(description);
+        var normalizedPattern = TillDescriptionNormalizer.Normalize(pattern);
+
         return rule.MatchType switch
         {
-            TillRuleMatchType.Contains => description.Contains(pattern, StringComparison.OrdinalIgnoreCase),
-            TillRuleMatchType.Equals => string.Equals(description, pattern, StringComparison.OrdinalIgnoreCase),
+            TillRuleMatchType.Contains => normalizedDescription.Contains(normalizedPattern, StringComparison.OrdinalIgnoreCase),
+            TillRuleMatchType.Equals => string.Equals(normalizedDescription, normalizedPattern, StringComparison.OrdinalIgnoreCase),
             TillRuleMatchType.TypeCode => !string.IsNullOrWhiteSpace(line.TypeCode)
                 && string.Equals(line.TypeCode.Trim(), pattern, StringComparison.OrdinalIgnoreCase),
             TillRuleMatchType.Regex => TryRegex(pattern, description),

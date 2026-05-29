@@ -52,4 +52,13 @@ public class ShopPaymentTypesController : BaseApiController
         await _service.DeleteAsync(id, cancellationToken);
         return Success(new { id });
     }
+
+    [HttpPost("seed-defaults")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
+    public async Task<IActionResult> SeedDefaults([FromQuery] Guid shopId, CancellationToken cancellationToken)
+    {
+        var result = await _service.SeedDefaultsAsync(shopId, cancellationToken);
+        return Success(result);
+    }
 }

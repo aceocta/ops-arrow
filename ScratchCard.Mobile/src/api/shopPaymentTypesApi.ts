@@ -46,3 +46,12 @@ export async function updateShopPaymentType(id: string, input: {
 export async function deleteShopPaymentType(id: string) {
   await apiClient.delete(`/shop-payment-types/${id}`);
 }
+
+export async function seedShopPaymentTypeDefaults(shopId: string) {
+  const response = await apiClient.post<ApiResponse<ShopPaymentType[]>>(
+    "/shop-payment-types/seed-defaults",
+    null,
+    { params: { shopId } },
+  );
+  return response.data.data;
+}

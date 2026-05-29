@@ -61,6 +61,9 @@ public interface IShopPaymentTypeService
     Task<ShopPaymentTypeDto> CreateAsync(CreateShopPaymentTypeRequest request, CancellationToken cancellationToken = default);
     Task<ShopPaymentTypeDto> UpdateAsync(Guid id, UpdateShopPaymentTypeRequest request, CancellationToken cancellationToken = default);
     Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+    // Adds a sensible default set (Cash, Card, Credit Card, Fuel Card, Cheque) to a shop, skipping
+    // any that already exist by name. Returns the full active list afterwards.
+    Task<IReadOnlyCollection<ShopPaymentTypeDto>> SeedDefaultsAsync(Guid shopId, CancellationToken cancellationToken = default);
 }
 
 public interface ITillReportService
