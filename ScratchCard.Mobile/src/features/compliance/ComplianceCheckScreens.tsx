@@ -1483,7 +1483,7 @@ export function ComplianceChecksScreen() {
   }
 
   return (
-    <ScreenContainer>
+    <ScreenContainer scrollable={false}>
       <ScrollView
         contentContainerStyle={styles.content}
         stickyHeaderIndices={[0]}

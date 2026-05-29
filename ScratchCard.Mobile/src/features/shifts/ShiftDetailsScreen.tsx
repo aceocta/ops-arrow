@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from "react";
-import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useCallback, useMemo, useState } from "react";
+import { Alert, Image, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
 import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -548,9 +548,43 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
     </View>
   ) : null;
 
+  const onRefresh = useCallback(async () => {
+    await Promise.all([
+      shiftQuery.refetch(),
+      salesQuery.refetch(),
+      businessDayQuery.refetch(),
+      configurationQuery.refetch(),
+      subscriptionSummaryQuery.refetch(),
+      isOpenShift ? activePacksQuery.refetch() : Promise.resolve(),
+      isOpenShift ? closingNumbersQuery.refetch() : Promise.resolve(),
+      isSafeDropManagementVisible ? canisterDropsQuery.refetch() : Promise.resolve(),
+    ]);
+  }, [
+    shiftQuery,
+    salesQuery,
+    businessDayQuery,
+    configurationQuery,
+    subscriptionSummaryQuery,
+    isOpenShift,
+    activePacksQuery,
+    closingNumbersQuery,
+    isSafeDropManagementVisible,
+    canisterDropsQuery,
+  ]);
+  const isRefreshing = shiftQuery.isRefetching || salesQuery.isRefetching;
+
   return (
-    <ScreenContainer footer={shiftActionsFooter}>
-      <ScrollView contentContainerStyle={styles.pageContent}>
+    <ScreenContainer
+      footer={shiftActionsFooter}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={onRefresh}
+          tintColor={appTheme.colors.primary}
+        />
+      }
+    >
+      <View style={styles.pageContent}>
         <View style={[ui.card, styles.summaryCard]}>
           <View style={styles.headerRow}>
             <View style={styles.headingBlock}>
@@ -957,9 +991,7 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
             )}
           </View>
         </Modal>
-
-       
-      </ScrollView>
+      </View>
     </ScreenContainer>
   );
 }

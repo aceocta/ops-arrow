@@ -420,17 +420,16 @@ export function TemperatureLogScreen() {
   }
 
   return (
-    <ScreenContainer>
-      <ScrollView
-        contentContainerStyle={styles.screenContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={onPullRefresh}
-            tintColor={appTheme.colors.primary}
-          />
-        }
-      >
+    <ScreenContainer
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={onPullRefresh}
+          tintColor={appTheme.colors.primary}
+        />
+      }
+    >
+      <View style={styles.screenContent}>
         {/* <View style={styles.heroCard}>
           <Text style={styles.heroSubtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
           <Text style={styles.heroNote}>Digitize daily checks with quick entry, alerts, and supervisor signoff.</Text>
@@ -860,7 +859,7 @@ export function TemperatureLogScreen() {
             </View>
           </View>
         </Modal>
-      </ScrollView>
+      </View>
     </ScreenContainer>
   );
 }
