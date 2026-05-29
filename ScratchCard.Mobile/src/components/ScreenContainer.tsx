@@ -1,6 +1,6 @@
 import React, { PropsWithChildren, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Keyboard, Platform, RefreshControlProps, ScrollView, StyleSheet, TextInput, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { appTheme } from "../ui/theme";
 
 type ScreenContainerProps = PropsWithChildren<{
@@ -21,7 +21,12 @@ export function ScreenContainer({
 }: ScreenContainerProps) {
   const entrance = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
+  const insets = useSafeAreaInsets();
   const [keyboardInset, setKeyboardInset] = useState(0);
+  // On Android the sticky footer must clear the system navigation bar; SafeAreaView's bottom edge
+  // doesn't reliably lift an absolutely-positioned child there, so offset it explicitly.
+  const footerBottom =
+    Platform.OS === "android" ? insets.bottom + appTheme.spacing.sm : appTheme.spacing.sm;
 
   useEffect(() => {
     Animated.timing(entrance, {
@@ -37,7 +42,7 @@ export function ScreenContainer({
   });
 
   const hasFooter = Boolean(footer);
-  const footerReserve = hasFooter ? 88 : 0;
+  const footerReserve = hasFooter ? 88 + (Platform.OS === "android" ? insets.bottom : 0) : 0;
   const baseBottomPadding = appTheme.spacing.xl + appTheme.spacing.md;
 
   const scrollFocusedInputIntoView = useCallback(() => {
@@ -116,7 +121,7 @@ export function ScreenContainer({
         </Animated.View>
       )}
       {footer ? (
-        <View style={styles.footerShell}>
+        <View style={[styles.footerShell, { bottom: footerBottom }]}>
           {footer}
         </View>
       ) : null}
