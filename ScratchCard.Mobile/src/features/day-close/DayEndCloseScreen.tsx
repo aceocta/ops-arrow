@@ -768,16 +768,15 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   });
 
   // Temperature Log summary on the Day Management screen — same plan-gate pattern as Safe
-  // Drop. Daily log query is scoped to today's calendar date so the counts on the card match
-  // what the user sees on the Temperature Logs screen when they navigate in.
+  // Drop. Daily log query is scoped to this day's business date so the counts on the card match
+  // what the user sees on the Temperature Logs screen for the same day.
   const hasTemperatureLogFeature = subscriptionIncludedFeatures.some(
     (feature) => feature.toLowerCase() === TEMPERATURE_LOG_FEATURE_KEY.toLowerCase(),
   );
-  const todayDateValue = formatDateValue(new Date());
   const temperatureLogQuery = useQuery({
-    queryKey: ["temperature-daily-log", day?.shopId, todayDateValue],
-    queryFn: () => getTemperatureDailyLog(day?.shopId as string, todayDateValue),
-    enabled: hasTemperatureLogFeature && Boolean(day?.shopId),
+    queryKey: ["temperature-daily-log", day?.shopId, day?.businessDate],
+    queryFn: () => getTemperatureDailyLog(day?.shopId as string, day?.businessDate as string),
+    enabled: hasTemperatureLogFeature && Boolean(day?.shopId) && Boolean(day?.businessDate),
     staleTime: 60 * 1000,
   });
   const temperatureSummary = useMemo(() => {
