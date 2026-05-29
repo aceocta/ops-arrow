@@ -16,9 +16,42 @@ using ScratchCard.Application.DTOs.Notifications;
 using ScratchCard.Application.DTOs.ShiftSales;
 using ScratchCard.Application.DTOs.Shifts;
 using ScratchCard.Application.DTOs.Shops;
+using ScratchCard.Application.DTOs.StoreSales;
 using ScratchCard.Application.DTOs.TemperatureLogs;
+using ScratchCard.Domain.Enums;
 
 namespace ScratchCard.Application.Validators;
+
+public class CreateTillRuleRequestValidator : AbstractValidator<CreateTillRuleRequest>
+{
+    public CreateTillRuleRequestValidator()
+    {
+        RuleFor(x => x.ShopId).NotEmpty();
+        RuleFor(x => x.Pattern).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.MatchType).IsInEnum();
+        RuleFor(x => x.Classification).IsInEnum()
+            .Must(c => c != TillLineClassification.Unclassified)
+            .WithMessage("A rule must classify as Income or Expense.");
+        RuleFor(x => x.Priority).InclusiveBetween(0, 10000);
+    }
+}
+
+public class ReclassifyLineRequestValidator : AbstractValidator<ReclassifyLineRequest>
+{
+    public ReclassifyLineRequestValidator()
+    {
+        RuleFor(x => x.Classification).IsInEnum();
+    }
+}
+
+public class UpsertTillPaymentRequestValidator : AbstractValidator<UpsertTillPaymentRequest>
+{
+    public UpsertTillPaymentRequestValidator()
+    {
+        RuleFor(x => x.PaymentType).IsInEnum();
+        RuleFor(x => x.Amount).GreaterThanOrEqualTo(0);
+    }
+}
 
 public class CreateInvitationRequestValidator : AbstractValidator<CreateInvitationRequest>
 {

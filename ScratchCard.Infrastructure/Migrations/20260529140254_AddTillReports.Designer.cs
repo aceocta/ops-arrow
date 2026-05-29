@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ScratchCard.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using ScratchCard.Infrastructure.Persistence;
 namespace ScratchCard.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260529140254_AddTillReports")]
+    partial class AddTillReports
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3676,6 +3679,10 @@ namespace ScratchCard.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("AttachmentPath")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<DateOnly>("BusinessDate")
                         .HasColumnType("date");
 
@@ -3687,6 +3694,11 @@ namespace ScratchCard.Infrastructure.Migrations
 
                     b.Property<DateTimeOffset?>("ConfirmedOn")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<Guid?>("CreatedBy")
                         .HasColumnType("uniqueidentifier");
@@ -3711,14 +3723,13 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Property<string>("OcrRawText")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
                     b.Property<DateTimeOffset>("ProcessedOn")
                         .HasColumnType("datetimeoffset");
-
-                    b.Property<int>("ReportType")
-                        .HasColumnType("int");
-
-                    b.Property<Guid?>("ShiftId")
-                        .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("ShopId")
                         .HasColumnType("uniqueidentifier");
@@ -3738,45 +3749,9 @@ namespace ScratchCard.Infrastructure.Migrations
 
                     b.HasIndex("BusinessDayId");
 
-                    b.HasIndex("ShiftId");
-
                     b.HasIndex("ShopId", "BusinessDate");
 
                     b.ToTable("TillReports");
-                });
-
-            modelBuilder.Entity("ScratchCard.Domain.Entities.TillReportAttachment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ContentType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("OriginalFileName")
-                        .IsRequired()
-                        .HasMaxLength(260)
-                        .HasColumnType("nvarchar(260)");
-
-                    b.Property<int>("PageNumber")
-                        .HasColumnType("int");
-
-                    b.Property<string>("StoredPath")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<Guid>("TillReportId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TillReportId");
-
-                    b.ToTable("TillReportAttachments");
                 });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.TillReportLine", b =>
@@ -3822,33 +3797,6 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.HasIndex("TillReportId");
 
                     b.ToTable("TillReportLines");
-                });
-
-            modelBuilder.Entity("ScratchCard.Domain.Entities.TillReportPayment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal>("Amount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("PaymentType")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Source")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("TillReportId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TillReportId", "PaymentType")
-                        .IsUnique();
-
-                    b.ToTable("TillReportPayments");
                 });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.User", b =>
@@ -5063,11 +5011,6 @@ namespace ScratchCard.Infrastructure.Migrations
                         .HasForeignKey("BusinessDayId")
                         .OnDelete(DeleteBehavior.NoAction);
 
-                    b.HasOne("ScratchCard.Domain.Entities.Shift", "Shift")
-                        .WithMany()
-                        .HasForeignKey("ShiftId")
-                        .OnDelete(DeleteBehavior.NoAction);
-
                     b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
                         .WithMany()
                         .HasForeignKey("ShopId")
@@ -5076,37 +5019,13 @@ namespace ScratchCard.Infrastructure.Migrations
 
                     b.Navigation("BusinessDay");
 
-                    b.Navigation("Shift");
-
                     b.Navigation("Shop");
-                });
-
-            modelBuilder.Entity("ScratchCard.Domain.Entities.TillReportAttachment", b =>
-                {
-                    b.HasOne("ScratchCard.Domain.Entities.TillReport", "TillReport")
-                        .WithMany("Attachments")
-                        .HasForeignKey("TillReportId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.Navigation("TillReport");
                 });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.TillReportLine", b =>
                 {
                     b.HasOne("ScratchCard.Domain.Entities.TillReport", "TillReport")
                         .WithMany("Lines")
-                        .HasForeignKey("TillReportId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.Navigation("TillReport");
-                });
-
-            modelBuilder.Entity("ScratchCard.Domain.Entities.TillReportPayment", b =>
-                {
-                    b.HasOne("ScratchCard.Domain.Entities.TillReport", "TillReport")
-                        .WithMany("Payments")
                         .HasForeignKey("TillReportId")
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
@@ -5393,11 +5312,7 @@ namespace ScratchCard.Infrastructure.Migrations
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.TillReport", b =>
                 {
-                    b.Navigation("Attachments");
-
                     b.Navigation("Lines");
-
-                    b.Navigation("Payments");
                 });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.User", b =>

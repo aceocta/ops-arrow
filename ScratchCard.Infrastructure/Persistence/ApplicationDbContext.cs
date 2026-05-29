@@ -79,6 +79,11 @@ public class ApplicationDbContext : DbContext
     public DbSet<Feature> Features => Set<Feature>();
     public DbSet<SubscriptionPlanFeature> SubscriptionPlanFeatures => Set<SubscriptionPlanFeature>();
     public DbSet<CfgTemperatureSchedule> CfgTemperatureSchedules => Set<CfgTemperatureSchedule>();
+    public DbSet<TillReport> TillReports => Set<TillReport>();
+    public DbSet<TillReportLine> TillReportLines => Set<TillReportLine>();
+    public DbSet<TillReportAttachment> TillReportAttachments => Set<TillReportAttachment>();
+    public DbSet<TillReportPayment> TillReportPayments => Set<TillReportPayment>();
+    public DbSet<TillCategoryRule> TillCategoryRules => Set<TillCategoryRule>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -292,6 +297,53 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(x => new { x.DeliveryId, x.ScratchCardPackId }).IsUnique();
             entity.HasOne(x => x.Delivery).WithMany(x => x.DeliveryPacks).HasForeignKey(x => x.DeliveryId);
             entity.HasOne(x => x.ScratchCardPack).WithMany(x => x.DeliveryPacks).HasForeignKey(x => x.ScratchCardPackId);
+        });
+
+        modelBuilder.Entity<TillReport>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.BusinessDate });
+            entity.HasIndex(x => x.ShiftId);
+            entity.Property(x => x.TotalIncome).HasPrecision(18, 2);
+            entity.Property(x => x.TotalExpense).HasPrecision(18, 2);
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId);
+            entity.HasOne(x => x.Shift).WithMany().HasForeignKey(x => x.ShiftId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.BusinessDay).WithMany().HasForeignKey(x => x.BusinessDayId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasMany(x => x.Lines).WithOne(x => x.TillReport).HasForeignKey(x => x.TillReportId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(x => x.Attachments).WithOne(x => x.TillReport).HasForeignKey(x => x.TillReportId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(x => x.Payments).WithOne(x => x.TillReport).HasForeignKey(x => x.TillReportId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<TillReportLine>(entity =>
+        {
+            entity.HasIndex(x => x.TillReportId);
+            entity.Property(x => x.RawDescription).HasMaxLength(500).IsRequired();
+            entity.Property(x => x.TypeCode).HasMaxLength(50);
+            entity.Property(x => x.Notes).HasMaxLength(500);
+            entity.Property(x => x.Amount).HasPrecision(18, 2);
+        });
+
+        modelBuilder.Entity<TillReportAttachment>(entity =>
+        {
+            entity.HasIndex(x => x.TillReportId);
+            entity.Property(x => x.StoredPath).HasMaxLength(500).IsRequired();
+            entity.Property(x => x.OriginalFileName).HasMaxLength(260).IsRequired();
+            entity.Property(x => x.ContentType).HasMaxLength(100).IsRequired();
+        });
+
+        modelBuilder.Entity<TillReportPayment>(entity =>
+        {
+            entity.HasIndex(x => new { x.TillReportId, x.PaymentType }).IsUnique();
+            entity.Property(x => x.Amount).HasPrecision(18, 2);
+        });
+
+        modelBuilder.Entity<TillCategoryRule>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.IsActive });
+            entity.Property(x => x.Pattern).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId);
         });
 
         modelBuilder.Entity<ScratchCardPack>(entity =>

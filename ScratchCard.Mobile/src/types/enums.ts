@@ -60,3 +60,42 @@ export enum SubscriptionStatus {
   Expired = "Expired",
   Suspended = "Suspended",
 }
+
+export enum TillReportStatus {
+  Processing = "Processing",
+  NeedsReview = "NeedsReview",
+  Confirmed = "Confirmed",
+  Failed = "Failed",
+}
+
+export enum TillLineClassification {
+  Unclassified = "Unclassified",
+  Income = "Income",
+  Expense = "Expense",
+}
+
+export enum TillLineSource {
+  Unclassified = "Unclassified",
+  TypeCode = "TypeCode",
+  RuleEngine = "RuleEngine",
+  Manual = "Manual",
+  Ai = "Ai",
+}
+
+export enum TillRuleMatchType {
+  Contains = "Contains",
+  Equals = "Equals",
+  Regex = "Regex",
+  TypeCode = "TypeCode",
+}
+
+export enum TillReportType {
+  Shift = "Shift",
+  DayEnd = "DayEnd",
+}
+
+export enum TillPaymentType {
+  Cash = "Cash",
+  Card = "Card",
+  Other = "Other",
+}

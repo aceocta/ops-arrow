@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ScratchCard.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using ScratchCard.Infrastructure.Persistence;
 namespace ScratchCard.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260529143737_AddTillReportScopeAndAttachments")]
+    partial class AddTillReportScopeAndAttachments
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3824,33 +3827,6 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.ToTable("TillReportLines");
                 });
 
-            modelBuilder.Entity("ScratchCard.Domain.Entities.TillReportPayment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal>("Amount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("PaymentType")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Source")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("TillReportId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TillReportId", "PaymentType")
-                        .IsUnique();
-
-                    b.ToTable("TillReportPayments");
-                });
-
             modelBuilder.Entity("ScratchCard.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5103,17 +5079,6 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Navigation("TillReport");
                 });
 
-            modelBuilder.Entity("ScratchCard.Domain.Entities.TillReportPayment", b =>
-                {
-                    b.HasOne("ScratchCard.Domain.Entities.TillReport", "TillReport")
-                        .WithMany("Payments")
-                        .HasForeignKey("TillReportId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.Navigation("TillReport");
-                });
-
             modelBuilder.Entity("ScratchCard.Domain.Entities.UserInvitation", b =>
                 {
                     b.HasOne("ScratchCard.Domain.Entities.Role", "Role")
@@ -5396,8 +5361,6 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Navigation("Attachments");
 
                     b.Navigation("Lines");
-
-                    b.Navigation("Payments");
                 });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.User", b =>

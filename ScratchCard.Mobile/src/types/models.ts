@@ -1,4 +1,94 @@
-import { BillingCycle, EntryMethod, PackStatus, SellingOrder, ShiftStatus, SubscriptionStatus, SyncStatus, TemperatureEquipmentType } from "./enums";
+import { BillingCycle, EntryMethod, PackStatus, SellingOrder, ShiftStatus, SubscriptionStatus, SyncStatus, TemperatureEquipmentType, TillLineClassification, TillLineSource, TillPaymentType, TillReportStatus, TillReportType, TillRuleMatchType } from "./enums";
+
+export type TillReportPayment = {
+  id: string;
+  paymentType: TillPaymentType;
+  amount: number;
+  source: TillLineSource;
+};
+
+export type TillPaymentTypeAmount = {
+  paymentType: TillPaymentType;
+  amount: number;
+};
+
+export type TillShiftPaymentSummary = {
+  shiftId: string;
+  shiftName: string;
+  totals: TillPaymentTypeAmount[];
+};
+
+export type TillPaymentSummary = {
+  businessDayId: string;
+  businessDate: string;
+  dayTotals: TillPaymentTypeAmount[];
+  shifts: TillShiftPaymentSummary[];
+};
+
+export type TillReportLine = {
+  id: string;
+  lineNumber: number;
+  rawDescription: string;
+  amount: number;
+  typeCode?: string;
+  classification: TillLineClassification;
+  source: TillLineSource;
+  matchedRuleId?: string;
+  notes?: string;
+};
+
+export type TillReportAttachment = {
+  id: string;
+  pageNumber: number;
+  originalFileName: string;
+  contentType: string;
+};
+
+export type TillReport = {
+  id: string;
+  shopId: string;
+  reportType: TillReportType;
+  shiftId?: string;
+  businessDayId?: string;
+  businessDate: string;
+  status: TillReportStatus;
+  totalIncome: number;
+  totalExpense: number;
+  net: number;
+  lineCount: number;
+  unclassifiedCount: number;
+  attachmentCount: number;
+  processedOn: string;
+  confirmedOn?: string;
+  lines: TillReportLine[];
+  attachments: TillReportAttachment[];
+  payments: TillReportPayment[];
+};
+
+export type TillReportListItem = {
+  id: string;
+  shopId: string;
+  reportType: TillReportType;
+  shiftId?: string;
+  businessDate: string;
+  status: TillReportStatus;
+  totalIncome: number;
+  totalExpense: number;
+  net: number;
+  lineCount: number;
+  unclassifiedCount: number;
+  processedOn: string;
+};
+
+export type TillCategoryRule = {
+  id: string;
+  shopId: string;
+  pattern: string;
+  matchType: TillRuleMatchType;
+  classification: TillLineClassification;
+  priority: number;
+  isActive: boolean;
+};
 
 export type AuthProfile = {
   userId: string;

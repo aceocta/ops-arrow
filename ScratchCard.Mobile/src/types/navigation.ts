@@ -81,4 +81,8 @@ export type MainStackParamList = {
   NotificationLog: undefined;
   Settings: undefined;
   NotificationPreferences: undefined;
+  StoreSales: undefined;
+  TillReportReview: { reportId: string };
+  TillReportHistory: undefined;
+  TillPaymentSummary: { businessDayId: string };
 };

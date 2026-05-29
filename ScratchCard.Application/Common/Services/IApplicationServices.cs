@@ -18,6 +18,7 @@ using ScratchCard.Application.DTOs.RefusalRegister;
 using ScratchCard.Application.DTOs.Shifts;
 using ScratchCard.Application.DTOs.ShiftSales;
 using ScratchCard.Application.DTOs.Shops;
+using ScratchCard.Application.DTOs.StoreSales;
 using ScratchCard.Application.DTOs.Subscriptions;
 using ScratchCard.Application.DTOs.TemperatureLogs;
 using ScratchCard.Application.DTOs.Users;
@@ -44,6 +45,21 @@ public interface IAdminCustomerService
     Task<CustomerDetailDto> CancelShopSubscriptionAsync(Guid companyId, Guid shopId, bool cancelAtPeriodEnd, CancellationToken cancellationToken = default);
     Task<CustomerDetailDto> ReactivateShopSubscriptionAsync(Guid companyId, Guid shopId, CancellationToken cancellationToken = default);
     Task<InvitationDto> InviteShopUserAsync(Guid companyId, Guid shopId, string email, Guid roleId, int expiryHours, CancellationToken cancellationToken = default);
+}
+
+public interface ITillReportService
+{
+    Task<TillReportDto> ProcessAsync(ProcessTillReportRequest request, CancellationToken cancellationToken = default);
+    Task<TillReportDto> GetAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<PagedResult<TillReportListItemDto>> ListAsync(Guid shopId, DateOnly? from, DateOnly? to, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<TillReportDto> ReclassifyLineAsync(Guid reportId, Guid lineId, TillLineClassification classification, CancellationToken cancellationToken = default);
+    Task<TillReportDto> UpsertPaymentAsync(Guid reportId, TillPaymentType paymentType, decimal amount, CancellationToken cancellationToken = default);
+    Task<TillPaymentSummaryDto> GetPaymentSummaryAsync(Guid shopId, Guid businessDayId, CancellationToken cancellationToken = default);
+    Task<TillReportDto> ConfirmAsync(Guid reportId, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyCollection<TillCategoryRuleDto>> ListRulesAsync(Guid shopId, CancellationToken cancellationToken = default);
+    Task<TillCategoryRuleDto> CreateRuleAsync(CreateTillRuleRequest request, CancellationToken cancellationToken = default);
+    Task DeleteRuleAsync(Guid ruleId, CancellationToken cancellationToken = default);
 }
 
 public interface IAuthService

@@ -26,4 +26,11 @@ public static class ErrorCodes
     public const string GameNotInCatalog = "game_not_in_catalog";
     public const string TemperatureActionRequired = "temperature_action_required";
     public const string ChecklistRequiredTasksPending = "checklist_required_tasks_pending";
+    public const string TillReportImageRequired = "till_report_image_required";
+    public const string TillReportOcrNotConfigured = "till_report_ocr_not_configured";
+    public const string TillReportOcrFailed = "till_report_ocr_failed";
+    public const string TillReportNotFound = "till_report_not_found";
+    public const string TillReportAlreadyConfirmed = "till_report_already_confirmed";
+    public const string TillReportLineNotFound = "till_report_line_not_found";
+    public const string TillCategoryRuleNotFound = "till_category_rule_not_found";
 }

@@ -50,6 +50,10 @@ import { UserManagementScreen, ShopConfigurationScreen, AppConfigurationScreen, 
 import { NotificationPreferencesScreen } from "../features/settings/NotificationPreferencesScreen";
 import { ShopFeatureTogglesScreen } from "../features/settings/ShopFeatureTogglesScreen";
 import { SafeDropScreen } from "../features/safe-drop/SafeDropScreen";
+import { CaptureTillReportScreen } from "../features/store-sales/CaptureTillReportScreen";
+import { TillReportReviewScreen } from "../features/store-sales/TillReportReviewScreen";
+import { TillReportsListScreen } from "../features/store-sales/TillReportsListScreen";
+import { TillPaymentSummaryScreen } from "../features/store-sales/TillPaymentSummaryScreen";
 import { ScratchCardSummaryScreen } from "../features/scratch-card/ScratchCardSummaryScreen";
 import { BestEntryProvider, EntryOperation, useBestEntry } from "./BestEntryContext";
 import { useEntitlements } from "../features/subscription/useEntitlements";
@@ -142,6 +146,12 @@ const complianceItems: MenuItem[] = [
 
 // --- Shop (cross-cutting items not tied to a single feature module) ---
 const shopItems: MenuItem[] = [
+  {
+    label: "Store Sales",
+    screen: "StoreSales",
+    icon: "cash-outline",
+    allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
+  },
   { label: "Shop Checklist", screen: "ShopChecklist", icon: "checkmark-done-outline", mode: "checklist" },
   {
     label: "Checklist Setup",
@@ -202,7 +212,11 @@ function shouldShowBottomDock(routeName: string | undefined) {
     routeName === "DayEndClose" ||
     routeName === "CloseShift" ||
     routeName === "ShiftDetails" ||
-    routeName === "EnterClosingNumbers"
+    routeName === "EnterClosingNumbers" ||
+    routeName === "StoreSales" ||
+    routeName === "TillReportReview" ||
+    routeName === "TillReportHistory" ||
+    routeName === "TillPaymentSummary"
   );
 }
 
@@ -444,6 +458,10 @@ function MainStackScreens() {
       <Stack.Screen name="StockReport" component={StockReportScreen} options={{ title: "Stock Report" }} />
       <Stack.Screen name="AuditLog" component={AuditLogScreen} options={{ title: "Audit Log" }} />
       <Stack.Screen name="NotificationLog" component={NotificationLogScreen} options={{ title: "Notification Log" }} />
+      <Stack.Screen name="StoreSales" component={CaptureTillReportScreen} options={{ title: "Store Sales" }} />
+      <Stack.Screen name="TillReportReview" component={TillReportReviewScreen} options={{ title: "Review Till Report" }} />
+      <Stack.Screen name="TillReportHistory" component={TillReportsListScreen} options={{ title: "Till Reports" }} />
+      <Stack.Screen name="TillPaymentSummary" component={TillPaymentSummaryScreen} options={{ title: "Payment Totals" }} />
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
       <Stack.Screen name="NotificationPreferences" component={NotificationPreferencesScreen} options={{ title: "Notifications" }} />
     </Stack.Navigator>

@@ -26,6 +26,7 @@ public static class DependencyInjection
         services.Configure<GoogleAuthOptions>(configuration.GetSection("GoogleAuth"));
         services.Configure<AppJwtOptions>(configuration.GetSection("Jwt"));
         services.Configure<OpenAiOptions>(configuration.GetSection("OpenAI"));
+        services.Configure<DocumentIntelligenceOptions>(configuration.GetSection("DocumentIntelligence"));
         services.Configure<AttachmentStorageOptions>(configuration.GetSection("AttachmentStorage"));
         services.Configure<FirebasePushOptions>(configuration.GetSection("FirebasePush"));
         services.Configure<StripeOptions>(configuration.GetSection("Stripe"));
@@ -68,6 +69,8 @@ public static class DependencyInjection
         services.AddHostedService<TemperatureMissedAlertsBackgroundService>();
 
         services.AddScoped<IDeliveryNoteAiParser, OpenAiDeliveryNoteParser>();
+        services.AddScoped<ITillReportOcrService, AzureDocumentIntelligenceOcrService>();
+        services.AddScoped<ITillLineAiClassifier, OpenAiTillLineClassifier>();
         services.AddScoped<SmtpEmailSender>();
         services.AddScoped<ConfiguredEmailSender>();
         services.AddScoped<IEmailSender>(provider => provider.GetRequiredService<ConfiguredEmailSender>());
