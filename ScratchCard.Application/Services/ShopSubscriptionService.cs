@@ -25,6 +25,7 @@ public class ShopSubscriptionService : IShopSubscriptionService
     private readonly IRepository<CfgSubscriptionSettings> _subscriptionSettingsRepository;
     private readonly IBillingCheckoutService _billingCheckoutService;
     private readonly IEmailSender _emailSender;
+    private readonly IShopNotificationDispatcher _shopNotificationDispatcher;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<ShopSubscriptionService> _logger;
@@ -38,6 +39,7 @@ public class ShopSubscriptionService : IShopSubscriptionService
         IRepository<CfgSubscriptionSettings> subscriptionSettingsRepository,
         IBillingCheckoutService billingCheckoutService,
         IEmailSender emailSender,
+        IShopNotificationDispatcher shopNotificationDispatcher,
         ICurrentUserService currentUserService,
         IUnitOfWork unitOfWork,
         ILogger<ShopSubscriptionService> logger)
@@ -50,6 +52,7 @@ public class ShopSubscriptionService : IShopSubscriptionService
         _subscriptionSettingsRepository = subscriptionSettingsRepository;
         _billingCheckoutService = billingCheckoutService;
         _emailSender = emailSender;
+        _shopNotificationDispatcher = shopNotificationDispatcher;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
         _logger = logger;
@@ -241,6 +244,9 @@ public class ShopSubscriptionService : IShopSubscriptionService
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        _shopNotificationDispatcher.Enqueue(new ShopNotificationJob(
+            shop.Id, ShopNotificationKind.SubscriptionChanged, $"Plan changed to \"{plan.Name}\"."));
+
         return await BuildSummaryAsync(subscription, cancellationToken);
     }
 
@@ -287,6 +293,12 @@ public class ShopSubscriptionService : IShopSubscriptionService
         }, cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        _shopNotificationDispatcher.Enqueue(new ShopNotificationJob(
+            shopId,
+            ShopNotificationKind.SubscriptionChanged,
+            cancelAtPeriodEnd ? "Subscription cancellation scheduled at period end." : "Subscription cancelled."));
+
         return await BuildSummaryAsync(subscription, cancellationToken);
     }
 
@@ -330,6 +342,10 @@ public class ShopSubscriptionService : IShopSubscriptionService
         }, cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        _shopNotificationDispatcher.Enqueue(new ShopNotificationJob(
+            shopId, ShopNotificationKind.SubscriptionChanged, "Subscription reactivated."));
+
         return await BuildSummaryAsync(subscription, cancellationToken);
     }
 
@@ -379,6 +395,10 @@ public class ShopSubscriptionService : IShopSubscriptionService
         }, cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        _shopNotificationDispatcher.Enqueue(new ShopNotificationJob(
+            shop.Id, ShopNotificationKind.SubscriptionChanged, "Subscription paused."));
+
         return await BuildSummaryAsync(subscription, cancellationToken);
     }
 
@@ -464,6 +484,10 @@ public class ShopSubscriptionService : IShopSubscriptionService
         }, cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        _shopNotificationDispatcher.Enqueue(new ShopNotificationJob(
+            shop.Id, ShopNotificationKind.SubscriptionChanged, "Subscription resumed."));
+
         return await BuildSummaryAsync(subscription, cancellationToken);
     }
 

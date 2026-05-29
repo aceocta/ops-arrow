@@ -30,6 +30,7 @@ public class ShopService : IShopService
     private readonly ISubscriptionCalculationService _subscriptionCalculationService;
     private readonly ISubscriptionBillingService _subscriptionBillingService;
     private readonly IShopSubscriptionService _shopSubscriptionService;
+    private readonly IShopNotificationDispatcher _shopNotificationDispatcher;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
@@ -51,6 +52,7 @@ public class ShopService : IShopService
         ISubscriptionCalculationService subscriptionCalculationService,
         ISubscriptionBillingService subscriptionBillingService,
         IShopSubscriptionService shopSubscriptionService,
+        IShopNotificationDispatcher shopNotificationDispatcher,
         IAuditService auditService,
         ICurrentUserService currentUserService,
         IUnitOfWork unitOfWork)
@@ -71,6 +73,7 @@ public class ShopService : IShopService
         _subscriptionCalculationService = subscriptionCalculationService;
         _subscriptionBillingService = subscriptionBillingService;
         _shopSubscriptionService = shopSubscriptionService;
+        _shopNotificationDispatcher = shopNotificationDispatcher;
         _auditService = auditService;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
@@ -137,6 +140,13 @@ public class ShopService : IShopService
         await _shopSubscriptionService.EnsureTrialAsync(shop.Id, request.SubscriptionPlanId, cancellationToken);
 
         await _auditService.LogAsync(nameof(Shop), shop.Id, "ShopCreated", shop.Id, cancellationToken: cancellationToken);
+
+        // Notify PlatformAdmins + the company owner. Non-blocking: enqueue and move on; delivery
+        // happens on a background worker and never affects shop creation.
+        _shopNotificationDispatcher.Enqueue(new ShopNotificationJob(
+            shop.Id,
+            ShopNotificationKind.ShopCreated,
+            $"Shop \"{shop.ShopName}\" was created."));
 
         var createdShop = await _shopRepository.Query()
             .AsNoTracking()

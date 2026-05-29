@@ -26,6 +26,11 @@ using ScratchCard.Shared.Models;
 
 namespace ScratchCard.Application.Common.Services;
 
+public interface IShopNotificationWorker
+{
+    Task ProcessAsync(Common.Interfaces.ShopNotificationJob job, CancellationToken cancellationToken = default);
+}
+
 public interface IAdminCustomerService
 {
     Task<PagedResult<CustomerListItemDto>> ListCustomersAsync(string? search, int page, int pageSize, CancellationToken cancellationToken = default);
