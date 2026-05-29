@@ -55,6 +55,8 @@ public interface ITillReportService
     Task<TillReportDto> ReclassifyLineAsync(Guid reportId, Guid lineId, TillLineClassification classification, CancellationToken cancellationToken = default);
     Task<TillReportDto> UpsertPaymentAsync(Guid reportId, TillPaymentType paymentType, decimal amount, CancellationToken cancellationToken = default);
     Task<TillPaymentSummaryDto> GetPaymentSummaryAsync(Guid shopId, Guid businessDayId, CancellationToken cancellationToken = default);
+    Task<TillReportScopeSummaryDto> GetDaySummaryAsync(Guid shopId, Guid businessDayId, CancellationToken cancellationToken = default);
+    Task<TillReportScopeSummaryDto> GetShiftSummaryAsync(Guid shopId, Guid shiftId, CancellationToken cancellationToken = default);
     Task<TillReportDto> ConfirmAsync(Guid reportId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyCollection<TillCategoryRuleDto>> ListRulesAsync(Guid shopId, CancellationToken cancellationToken = default);

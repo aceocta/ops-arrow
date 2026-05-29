@@ -109,6 +109,17 @@ public class TillShiftPaymentSummaryDto
     public IReadOnlyCollection<TillPaymentTypeAmountDto> Totals { get; set; } = [];
 }
 
+public class TillReportScopeSummaryDto
+{
+    public decimal TotalSales { get; set; }
+    public decimal Payouts { get; set; }
+    public decimal Net { get; set; }
+    public decimal Cash { get; set; }
+    public decimal Card { get; set; }
+    public decimal Other { get; set; }
+    public int ReportCount { get; set; }
+}
+
 public class TillPaymentSummaryDto
 {
     public Guid BusinessDayId { get; set; }

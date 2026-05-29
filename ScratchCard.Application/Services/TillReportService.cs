@@ -465,6 +465,56 @@ public class TillReportService : ITillReportService
         };
     }
 
+    public async Task<TillReportScopeSummaryDto> GetDaySummaryAsync(Guid shopId, Guid businessDayId, CancellationToken cancellationToken = default)
+    {
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(shopId, RoleNames.All, cancellationToken);
+
+        var reports = await _reportRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId && x.BusinessDayId == businessDayId && !x.IsDeleted)
+            .Include(x => x.Payments)
+            .ToListAsync(cancellationToken);
+
+        // Prefer day-end reports for the day figure; fall back to shift reports if that's all there is.
+        var dayEnd = reports.Where(x => x.ReportType == TillReportType.DayEnd).ToList();
+        var source = dayEnd.Count > 0 ? dayEnd : reports;
+
+        return Summarise(source);
+    }
+
+    public async Task<TillReportScopeSummaryDto> GetShiftSummaryAsync(Guid shopId, Guid shiftId, CancellationToken cancellationToken = default)
+    {
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(shopId, RoleNames.All, cancellationToken);
+
+        var reports = await _reportRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId && x.ShiftId == shiftId && !x.IsDeleted)
+            .Include(x => x.Payments)
+            .ToListAsync(cancellationToken);
+
+        return Summarise(reports);
+    }
+
+    private static TillReportScopeSummaryDto Summarise(IReadOnlyCollection<TillReport> reports)
+    {
+        decimal Tender(TillPaymentType type) =>
+            reports.SelectMany(r => r.Payments).Where(p => p.PaymentType == type).Sum(p => p.Amount);
+
+        var totalSales = reports.Sum(r => r.TotalIncome);
+        var payouts = reports.Sum(r => r.TotalExpense);
+
+        return new TillReportScopeSummaryDto
+        {
+            TotalSales = totalSales,
+            Payouts = payouts,
+            Net = totalSales - payouts,
+            Cash = Tender(TillPaymentType.Cash),
+            Card = Tender(TillPaymentType.Card),
+            Other = Tender(TillPaymentType.Other),
+            ReportCount = reports.Count
+        };
+    }
+
     public async Task<IReadOnlyCollection<TillCategoryRuleDto>> ListRulesAsync(Guid shopId, CancellationToken cancellationToken = default)
     {
         await _shopMembershipService.EnsureCurrentUserShopRoleAsync(shopId, RoleNames.All, cancellationToken);

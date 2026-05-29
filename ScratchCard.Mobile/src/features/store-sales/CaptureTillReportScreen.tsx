@@ -19,12 +19,15 @@ type Props = NativeStackScreenProps<MainStackParamList, "StoreSales">;
 
 const ACTIVE_DAY_STATUSES = ["Open", "Reopened", "ReadyToClose"];
 
-export function CaptureTillReportScreen({ navigation }: Props) {
+export function CaptureTillReportScreen({ navigation, route }: Props) {
   const { activeShopId } = useAuth();
   const shopId = activeShopId;
+  const params = route.params;
 
-  const [reportType, setReportType] = React.useState<TillReportType>(TillReportType.DayEnd);
-  const [selectedShiftId, setSelectedShiftId] = React.useState<string | null>(null);
+  const [reportType, setReportType] = React.useState<TillReportType>(
+    (params?.reportType as TillReportType) ?? TillReportType.DayEnd
+  );
+  const [selectedShiftId, setSelectedShiftId] = React.useState<string | null>(params?.shiftId ?? null);
   const [photos, setPhotos] = React.useState<TillReportPhoto[]>([]);
 
   const businessDaysQuery = useQuery({
@@ -37,12 +40,17 @@ export function CaptureTillReportScreen({ navigation }: Props) {
     () => (businessDaysQuery.data ?? []).find((day) => ACTIVE_DAY_STATUSES.includes(String(day.status))),
     [businessDaysQuery.data]
   );
-  const activeBusinessDayId = activeBusinessDay?.id;
+  // A caller (Day Management / Shift Details) can pin the business day; otherwise use the open one.
+  const effectiveBusinessDayId = params?.businessDayId ?? activeBusinessDay?.id;
+  const effectiveBusinessDay = React.useMemo(
+    () => (businessDaysQuery.data ?? []).find((day) => day.id === effectiveBusinessDayId) ?? activeBusinessDay,
+    [businessDaysQuery.data, effectiveBusinessDayId, activeBusinessDay]
+  );
 
   const shiftsQuery = useQuery({
-    queryKey: ["shifts", shopId, activeBusinessDayId],
-    queryFn: () => listShifts(shopId as string, activeBusinessDayId),
-    enabled: Boolean(shopId) && Boolean(activeBusinessDayId) && reportType === TillReportType.Shift,
+    queryKey: ["shifts", shopId, effectiveBusinessDayId],
+    queryFn: () => listShifts(shopId as string, effectiveBusinessDayId),
+    enabled: Boolean(shopId) && Boolean(effectiveBusinessDayId) && reportType === TillReportType.Shift,
   });
   const shifts = shiftsQuery.data ?? [];
 
@@ -55,7 +63,7 @@ export function CaptureTillReportScreen({ navigation }: Props) {
         shopId,
         reportType,
         shiftId: reportType === TillReportType.Shift ? selectedShiftId ?? undefined : undefined,
-        businessDayId: reportType === TillReportType.DayEnd ? activeBusinessDayId : undefined,
+        businessDayId: reportType === TillReportType.DayEnd ? effectiveBusinessDayId : undefined,
         photos,
       });
     },
@@ -108,7 +116,7 @@ export function CaptureTillReportScreen({ navigation }: Props) {
   const isBusy = parseMutation.isPending;
   const needsShift = reportType === TillReportType.Shift;
   const missingShift = needsShift && !selectedShiftId;
-  const missingDay = reportType === TillReportType.DayEnd && !activeBusinessDayId;
+  const missingDay = reportType === TillReportType.DayEnd && !effectiveBusinessDayId;
   const canProcess = photos.length > 0 && !missingShift && !missingDay && !isBusy && Boolean(shopId);
 
   return (
@@ -142,7 +150,7 @@ export function CaptureTillReportScreen({ navigation }: Props) {
           missingDay ? (
             <Text style={styles.warn}>No open business day. Open today's business day first.</Text>
           ) : (
-            <Text style={ui.caption}>Saved against the current business day{activeBusinessDay ? ` (${activeBusinessDay.businessDate})` : ""}.</Text>
+            <Text style={ui.caption}>Saved against the business day{effectiveBusinessDay ? ` (${effectiveBusinessDay.businessDate})` : ""}.</Text>
           )
         ) : (
           <View style={styles.shiftPicker}>

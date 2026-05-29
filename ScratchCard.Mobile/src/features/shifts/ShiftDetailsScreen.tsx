@@ -12,6 +12,7 @@ import { getConfigurations } from "../../api/configurationsApi";
 import { getShopSubscriptionSummary } from "../../api/subscriptionApi";
 import { useAuth } from "../../auth/AuthContext";
 import { finalizeShift, getActivePacksForShift, getShift, getShiftCloseAttachmentContent, getShiftSales, listShiftClosingNumbers } from "../../api/shiftsApi";
+import { getTillShiftSummary } from "../../api/tillReportsApi";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SectionHeader } from "../../components/SectionHeader";
@@ -209,6 +210,12 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
   const salesQuery = useQuery({
     queryKey: ["shift-sales", shiftId],
     queryFn: () => getShiftSales(shiftId),
+  });
+
+  const tillShiftSummaryQuery = useQuery({
+    queryKey: ["till-shift-summary", shiftShopId, shiftId],
+    queryFn: () => getTillShiftSummary(shiftShopId as string, shiftId),
+    enabled: Boolean(shiftShopId) && Boolean(shiftId),
   });
 
   const isOpenShift = shift?.status === ShiftStatus.Open || shift?.status === ShiftStatus.Reopened;
@@ -552,6 +559,7 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
     await Promise.all([
       shiftQuery.refetch(),
       salesQuery.refetch(),
+      tillShiftSummaryQuery.refetch(),
       businessDayQuery.refetch(),
       configurationQuery.refetch(),
       subscriptionSummaryQuery.refetch(),
@@ -562,6 +570,7 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
   }, [
     shiftQuery,
     salesQuery,
+    tillShiftSummaryQuery,
     businessDayQuery,
     configurationQuery,
     subscriptionSummaryQuery,
@@ -728,6 +737,31 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
           ))}
         </View>
 
+
+        {shift ? (
+          <Pressable
+            onPress={() => navigation.navigate("StoreSales", { reportType: "Shift", shiftId, businessDayId: shift?.businessDayId })}
+            accessibilityRole="button"
+            accessibilityLabel="Add till report for this shift"
+            style={({ pressed }) => [ui.card, styles.summaryCard, pressed ? styles.safeDropHeaderTapPressed : null]}
+          >
+            <SectionHeader
+              title="Store Sales (Till Report)"
+              icon="cash-outline"
+              right={<Ionicons name="chevron-forward" size={18} color={appTheme.colors.textSubtle} />}
+            />
+            {tillShiftSummaryQuery.data && tillShiftSummaryQuery.data.reportCount > 0 ? (
+              <KpiGrid columns={2}>
+                <KpiTile label="Total Sales" value={formatCurrency(tillShiftSummaryQuery.data.totalSales)} tone="success" />
+                <KpiTile label="Payouts" value={formatCurrency(tillShiftSummaryQuery.data.payouts)} />
+                <KpiTile label="Cash" value={formatCurrency(tillShiftSummaryQuery.data.cash)} />
+                <KpiTile label="Card" value={formatCurrency(tillShiftSummaryQuery.data.card)} />
+              </KpiGrid>
+            ) : (
+              <Text style={styles.meta}>Scan this shift's till report to record income, expense and tender.</Text>
+            )}
+          </Pressable>
+        ) : null}
 
         {isSafeDropManagementVisible ? (
           <View style={[ui.card, styles.summaryCard]}>

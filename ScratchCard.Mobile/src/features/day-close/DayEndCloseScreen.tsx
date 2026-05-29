@@ -28,6 +28,7 @@ import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { SectionHeader } from "../../components/SectionHeader";
 import { KpiGrid, KpiTile } from "../../components/KpiTile";
 import { getShiftSales, listShifts, openShift, reopenShift, startScheduledShift } from "../../api/shiftsApi";
+import { getTillDaySummary } from "../../api/tillReportsApi";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -503,6 +504,12 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   const dayQuery = useQuery({
     queryKey: ["business-day", businessDayId],
     queryFn: () => getBusinessDay(businessDayId),
+  });
+
+  const tillDaySummaryQuery = useQuery({
+    queryKey: ["till-day-summary", dayQuery.data?.shopId, businessDayId],
+    queryFn: () => getTillDaySummary(dayQuery.data?.shopId as string, businessDayId),
+    enabled: Boolean(dayQuery.data?.shopId) && Boolean(businessDayId),
   });
 
   useEffect(() => {
@@ -1099,6 +1106,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           queryClient.invalidateQueries({ queryKey: ["business-day", businessDayId] }),
           queryClient.invalidateQueries({ queryKey: ["day-shift-sales-totals", businessDayId] }),
           queryClient.invalidateQueries({ queryKey: ["day-summary-closed-shift-sales", businessDayId] }),
+          queryClient.invalidateQueries({ queryKey: ["till-day-summary", shopId, businessDayId] }),
           shopId
             ? queryClient.invalidateQueries({ queryKey: ["shifts", shopId, businessDayId] })
             : Promise.resolve(),
@@ -1109,6 +1117,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
 
         await Promise.allSettled([
           queryClient.refetchQueries({ queryKey: ["business-day", businessDayId], exact: true }),
+          shopId
+            ? queryClient.refetchQueries({ queryKey: ["till-day-summary", shopId, businessDayId], exact: true })
+            : Promise.resolve(),
           shopId
             ? queryClient.refetchQueries({ queryKey: ["shifts", shopId, businessDayId], exact: true })
             : Promise.resolve(),
@@ -1677,12 +1688,13 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     await Promise.all([
       dayQuery.refetch(),
       shiftsQuery.refetch(),
+      tillDaySummaryQuery.refetch(),
       isSafeDropManagementVisible ? canisterDropsQuery.refetch() : Promise.resolve(),
       hasTemperatureLogFeature ? temperatureLogQuery.refetch() : Promise.resolve(),
       hasComplianceCheckFeature ? complianceLogQuery.refetch() : Promise.resolve(),
       subscriptionShopId ? subscriptionSummaryQuery.refetch() : Promise.resolve(),
     ]);
-  }, [dayQuery, shiftsQuery, isSafeDropManagementVisible, canisterDropsQuery, hasTemperatureLogFeature, temperatureLogQuery, hasComplianceCheckFeature, complianceLogQuery, subscriptionShopId, subscriptionSummaryQuery]);
+  }, [dayQuery, shiftsQuery, tillDaySummaryQuery, isSafeDropManagementVisible, canisterDropsQuery, hasTemperatureLogFeature, temperatureLogQuery, hasComplianceCheckFeature, complianceLogQuery, subscriptionShopId, subscriptionSummaryQuery]);
   const isRefreshing = dayQuery.isRefetching || shiftsQuery.isRefetching;
 
   if (isDayManagementInitialLoading) {
@@ -2229,6 +2241,31 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   }
                 />
               </KpiGrid>
+            )}
+          </Pressable>
+        ) : null}
+
+        {day ? (
+          <Pressable
+            onPress={() => navigation.navigate("StoreSales", { reportType: "DayEnd", businessDayId })}
+            accessibilityRole="button"
+            accessibilityLabel="Add day-end till report"
+            style={({ pressed }) => [ui.card, styles.sectionCard, pressed ? styles.sectionCardPressed : null]}
+          >
+            <SectionHeader
+              title="Store Sales (Till Report)"
+              icon="cash-outline"
+              right={<Ionicons name="chevron-forward" size={18} color={appTheme.colors.textSubtle} />}
+            />
+            {tillDaySummaryQuery.data && tillDaySummaryQuery.data.reportCount > 0 ? (
+              <KpiGrid columns={2}>
+                <KpiTile label="Total Sales" value={formatGbpOrDash(tillDaySummaryQuery.data.totalSales)} tone="success" />
+                <KpiTile label="Payouts" value={formatGbpOrDash(tillDaySummaryQuery.data.payouts)} />
+                <KpiTile label="Cash" value={formatGbpOrDash(tillDaySummaryQuery.data.cash)} />
+                <KpiTile label="Card" value={formatGbpOrDash(tillDaySummaryQuery.data.card)} />
+              </KpiGrid>
+            ) : (
+              <Text style={styles.meta}>Scan the day-end till report to record income, expense and tender.</Text>
             )}
           </Pressable>
         ) : null}

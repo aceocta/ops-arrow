@@ -81,7 +81,7 @@ export type MainStackParamList = {
   NotificationLog: undefined;
   Settings: undefined;
   NotificationPreferences: undefined;
-  StoreSales: undefined;
+  StoreSales: { reportType?: "Shift" | "DayEnd"; shiftId?: string; businessDayId?: string } | undefined;
   TillReportReview: { reportId: string };
   TillReportHistory: undefined;
   TillPaymentSummary: { businessDayId: string };

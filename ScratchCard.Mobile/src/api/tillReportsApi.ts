@@ -1,6 +1,6 @@
 import { apiClient } from "./client";
 import { ApiResponse } from "./types";
-import { TillCategoryRule, TillPaymentSummary, TillReport, TillReportListItem } from "../types/models";
+import { TillCategoryRule, TillPaymentSummary, TillReport, TillReportListItem, TillReportScopeSummary } from "../types/models";
 import { TillLineClassification, TillPaymentType, TillReportType, TillRuleMatchType } from "../types/enums";
 
 type PagedResult<T> = {
@@ -94,6 +94,20 @@ export async function upsertTillPayment(reportId: string, paymentType: TillPayme
 export async function getTillPaymentSummary(shopId: string, businessDayId: string) {
   const response = await apiClient.get<ApiResponse<TillPaymentSummary>>("/till-reports/payments/summary", {
     params: { shopId, businessDayId },
+  });
+  return response.data.data;
+}
+
+export async function getTillDaySummary(shopId: string, businessDayId: string) {
+  const response = await apiClient.get<ApiResponse<TillReportScopeSummary>>("/till-reports/summary/day", {
+    params: { shopId, businessDayId },
+  });
+  return response.data.data;
+}
+
+export async function getTillShiftSummary(shopId: string, shiftId: string) {
+  const response = await apiClient.get<ApiResponse<TillReportScopeSummary>>("/till-reports/summary/shift", {
+    params: { shopId, shiftId },
   });
   return response.data.data;
 }

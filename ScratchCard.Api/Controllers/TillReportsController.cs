@@ -133,6 +133,20 @@ public class TillReportsController : BaseApiController
         return Success(result);
     }
 
+    [HttpGet("summary/day")]
+    public async Task<IActionResult> DaySummary([FromQuery] Guid shopId, [FromQuery] Guid businessDayId, CancellationToken cancellationToken)
+    {
+        var result = await _tillReportService.GetDaySummaryAsync(shopId, businessDayId, cancellationToken);
+        return Success(result);
+    }
+
+    [HttpGet("summary/shift")]
+    public async Task<IActionResult> ShiftSummary([FromQuery] Guid shopId, [FromQuery] Guid shiftId, CancellationToken cancellationToken)
+    {
+        var result = await _tillReportService.GetShiftSummaryAsync(shopId, shiftId, cancellationToken);
+        return Success(result);
+    }
+
     [HttpGet("rules")]
     public async Task<IActionResult> ListRules([FromQuery] Guid shopId, CancellationToken cancellationToken)
     {

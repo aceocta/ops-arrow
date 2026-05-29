@@ -25,6 +25,16 @@ export type TillPaymentSummary = {
   shifts: TillShiftPaymentSummary[];
 };
 
+export type TillReportScopeSummary = {
+  totalSales: number;
+  payouts: number;
+  net: number;
+  cash: number;
+  card: number;
+  other: number;
+  reportCount: number;
+};
+
 export type TillReportLine = {
   id: string;
   lineNumber: number;
