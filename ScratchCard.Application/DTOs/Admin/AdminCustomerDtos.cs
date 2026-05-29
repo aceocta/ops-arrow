@@ -124,3 +124,11 @@ public class AdminCancelShopSubscriptionRequest
 {
     public bool CancelAtPeriodEnd { get; set; } = true;
 }
+
+/// <summary>Invite a user to a specific shop of a customer.</summary>
+public class AdminInviteUserRequest
+{
+    public string Email { get; set; } = string.Empty;
+    public Guid RoleId { get; set; }
+    public int ExpiryHours { get; set; } = 72;
+}

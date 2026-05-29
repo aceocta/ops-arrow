@@ -43,6 +43,7 @@ public interface IAdminCustomerService
     Task<CustomerDetailDto> SelectShopPlanAsync(Guid companyId, Guid shopId, Guid planId, CancellationToken cancellationToken = default);
     Task<CustomerDetailDto> CancelShopSubscriptionAsync(Guid companyId, Guid shopId, bool cancelAtPeriodEnd, CancellationToken cancellationToken = default);
     Task<CustomerDetailDto> ReactivateShopSubscriptionAsync(Guid companyId, Guid shopId, CancellationToken cancellationToken = default);
+    Task<InvitationDto> InviteShopUserAsync(Guid companyId, Guid shopId, string email, Guid roleId, int expiryHours, CancellationToken cancellationToken = default);
 }
 
 public interface IAuthService

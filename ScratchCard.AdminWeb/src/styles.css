@@ -168,6 +168,7 @@ button { font-family: inherit; }
 
 /* ---------- Pager ---------- */
 .pager { display: flex; align-items: center; gap: 14px; padding: 0 2px; }
+.toolbar { display: flex; justify-content: flex-end; }
 
 /* ---------- Tabs ---------- */
 .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--border); }

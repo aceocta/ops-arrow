@@ -5,6 +5,7 @@ import {
   assignCustomerUserRole,
   cancelShopSubscription,
   getCustomer,
+  inviteShopUser,
   reactivateShopSubscription,
   selectShopPlan,
   setCustomerStatus,
@@ -12,6 +13,7 @@ import {
   updateCustomer,
 } from "../api/customers";
 import { listPlans } from "../api/subscription";
+import { createShop } from "../api/shops";
 import { listRoles } from "../api/lookups";
 import { getApiErrorMessage } from "../api/client";
 import type { AdminUpdateCustomerRequest, CustomerDetail, CustomerUser, ShopSummary } from "../types";
@@ -62,7 +64,17 @@ export function CustomerDetailPage() {
       </div>
 
       {tab === "overview" && <OverviewTab customer={customer} onNotice={setNotice} />}
-      {tab === "shops" && <ShopsTab customer={customer} />}
+      {tab === "shops" && (
+        <ShopsTab
+          customer={customer}
+          onChanged={(message) => {
+            void queryClient.invalidateQueries({ queryKey: ["customer", id] });
+            void queryClient.invalidateQueries({ queryKey: ["customers"] });
+            void queryClient.invalidateQueries({ queryKey: ["shops"] });
+            setNotice(message);
+          }}
+        />
+      )}
       {tab === "users" && (
         <UsersTab
           customer={customer}
@@ -71,6 +83,7 @@ export function CustomerDetailPage() {
             void queryClient.invalidateQueries({ queryKey: ["customers"] });
             setNotice(message);
           }}
+          onNotice={setNotice}
         />
       )}
       {tab === "subscription" && (
@@ -149,29 +162,122 @@ function OverviewTab({ customer, onNotice }: { customer: CustomerDetail; onNotic
   );
 }
 
-function ShopsTab({ customer }: { customer: CustomerDetail }) {
+function ShopsTab({ customer, onChanged }: { customer: CustomerDetail; onChanged: (message: string) => void }) {
+  const [adding, setAdding] = useState(false);
+
   return (
-    <div className="card">
-      <table className="table">
-        <thead><tr><th>Shop</th><th>City</th><th>Plan</th><th>Subscription</th><th>Status</th></tr></thead>
-        <tbody>
-          {customer.shops.length === 0 ? (
-            <tr><td colSpan={5} className="empty-cell">No shops.</td></tr>
-          ) : customer.shops.map((s) => (
-            <tr key={s.id}>
-              <td data-label="Shop"><span className="identity-name">{s.shopName}</span></td>
-              <td data-label="City" className="muted">{s.city}</td>
-              <td data-label="Plan" className="muted">{s.subscriptionPlanName ?? "—"}</td>
-              <td data-label="Subscription"><span className="badge">{s.subscriptionStatus}</span></td>
-              <td data-label="Status">
-                <span className={`status ${s.isActive ? "status--ok" : "status--warn"}`}>
-                  <span className="dot" />{s.isActive ? "Active" : "Inactive"}
-                </span>
-              </td>
-            </tr>
+    <div className="page">
+      <div className="toolbar">
+        {adding ? <span /> : <button className="btn btn-primary btn-sm" onClick={() => setAdding(true)}>+ Add shop</button>}
+      </div>
+
+      {adding ? (
+        <AddShopForm
+          companyId={customer.id}
+          onCancel={() => setAdding(false)}
+          onCreated={(message) => { setAdding(false); onChanged(message); }}
+        />
+      ) : null}
+
+      <div className="card">
+        <table className="table">
+          <thead><tr><th>Shop</th><th>City</th><th>Plan</th><th>Subscription</th><th>Status</th></tr></thead>
+          <tbody>
+            {customer.shops.length === 0 ? (
+              <tr><td colSpan={5} className="empty-cell">No shops.</td></tr>
+            ) : customer.shops.map((s) => (
+              <tr key={s.id}>
+                <td data-label="Shop"><span className="identity-name">{s.shopName}</span></td>
+                <td data-label="City" className="muted">{s.city}</td>
+                <td data-label="Plan" className="muted">{s.subscriptionPlanName ?? "—"}</td>
+                <td data-label="Subscription"><span className="badge">{s.subscriptionStatus}</span></td>
+                <td data-label="Status">
+                  <span className={`status ${s.isActive ? "status--ok" : "status--warn"}`}>
+                    <span className="dot" />{s.isActive ? "Active" : "Inactive"}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function AddShopForm({
+  companyId,
+  onCancel,
+  onCreated,
+}: {
+  companyId: string;
+  onCancel: () => void;
+  onCreated: (message: string) => void;
+}) {
+  const [form, setForm] = useState({
+    shopName: "",
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    postCode: "",
+    country: "UK",
+    subscriptionPlanId: "",
+  });
+  const [error, setError] = useState<string | null>(null);
+  const plansQuery = useQuery({ queryKey: ["plans"], queryFn: listPlans });
+
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      createShop({
+        companyId,
+        shopName: form.shopName.trim(),
+        addressLine1: form.addressLine1.trim(),
+        addressLine2: form.addressLine2.trim() || undefined,
+        city: form.city.trim(),
+        postCode: form.postCode.trim(),
+        country: form.country.trim() || "UK",
+        subscriptionPlanId: form.subscriptionPlanId || undefined,
+      }),
+    onSuccess: () => onCreated(`Shop "${form.shopName.trim()}" created.`),
+    onError: (e) => setError(getApiErrorMessage(e, "Failed to create shop.")),
+  });
+
+  const submit = () => {
+    if (!form.shopName.trim() || !form.addressLine1.trim() || !form.city.trim() || !form.postCode.trim() || !form.country.trim()) {
+      setError("Shop name, address line 1, city, post code and country are required.");
+      return;
+    }
+    setError(null);
+    createMutation.mutate();
+  };
+
+  return (
+    <div className="card form-grid">
+      {error ? <div className="error-banner span-2">{error}</div> : null}
+      <label className="field span-2"><span>Shop name</span><input value={form.shopName} onChange={set("shopName")} /></label>
+      <label className="field"><span>Address line 1</span><input value={form.addressLine1} onChange={set("addressLine1")} /></label>
+      <label className="field"><span>Address line 2</span><input value={form.addressLine2} onChange={set("addressLine2")} /></label>
+      <label className="field"><span>City</span><input value={form.city} onChange={set("city")} /></label>
+      <label className="field"><span>Post code</span><input value={form.postCode} onChange={set("postCode")} /></label>
+      <label className="field"><span>Country</span><input value={form.country} onChange={set("country")} /></label>
+      <label className="field">
+        <span>Intended plan (optional)</span>
+        <select value={form.subscriptionPlanId} onChange={set("subscriptionPlanId")}>
+          <option value="">Start trial (no plan)</option>
+          {(plansQuery.data ?? []).map((p) => (
+            <option key={p.id} value={p.id}>{p.name} · {p.billingCycle} · £{p.pricePerShop}/shop</option>
           ))}
-        </tbody>
-      </table>
+        </select>
+      </label>
+      <div className="actions span-2">
+        <button className="btn btn-primary" disabled={createMutation.isPending} onClick={submit}>
+          {createMutation.isPending ? "Creating…" : "Create shop"}
+        </button>
+        <button className="btn" disabled={createMutation.isPending} onClick={onCancel}>Cancel</button>
+      </div>
     </div>
   );
 }
@@ -179,11 +285,14 @@ function ShopsTab({ customer }: { customer: CustomerDetail }) {
 function UsersTab({
   customer,
   onResult,
+  onNotice,
 }: {
   customer: CustomerDetail;
   onResult: (updated: CustomerDetail, message: string) => void;
+  onNotice: (message: string) => void;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [inviting, setInviting] = useState(false);
 
   // Customer users should never be granted the platform-operator role from here.
   const rolesQuery = useQuery({
@@ -193,27 +302,107 @@ function UsersTab({
   });
 
   return (
-    <div className="card table-wrap">
-      {error ? <div className="error-banner">{error}</div> : null}
-      <table className="table">
-        <thead>
-          <tr><th>User</th><th>Shop</th><th>Role</th><th>Last login</th><th>Status</th><th>Actions</th></tr>
-        </thead>
-        <tbody>
-          {customer.users.length === 0 ? (
-            <tr><td colSpan={6} className="empty-cell">No users.</td></tr>
-          ) : customer.users.map((u) => (
-            <UserRow
-              key={`${u.userId}-${u.shopId}`}
-              companyId={customer.id}
-              user={u}
-              roles={rolesQuery.data ?? []}
-              onResult={onResult}
-              onError={setError}
-            />
-          ))}
-        </tbody>
-      </table>
+    <div className="page">
+      <div className="toolbar">
+        {inviting ? <span /> : <button className="btn btn-primary btn-sm" onClick={() => setInviting(true)}>+ Invite user</button>}
+      </div>
+
+      {inviting ? (
+        <InviteUserForm
+          companyId={customer.id}
+          shops={customer.shops}
+          roles={rolesQuery.data ?? []}
+          onCancel={() => setInviting(false)}
+          onInvited={(message) => { setInviting(false); onNotice(message); }}
+        />
+      ) : null}
+
+      <div className="card table-wrap">
+        {error ? <div className="error-banner">{error}</div> : null}
+        <table className="table">
+          <thead>
+            <tr><th>User</th><th>Shop</th><th>Role</th><th>Last login</th><th>Status</th><th>Actions</th></tr>
+          </thead>
+          <tbody>
+            {customer.users.length === 0 ? (
+              <tr><td colSpan={6} className="empty-cell">No users.</td></tr>
+            ) : customer.users.map((u) => (
+              <UserRow
+                key={`${u.userId}-${u.shopId}`}
+                companyId={customer.id}
+                user={u}
+                roles={rolesQuery.data ?? []}
+                onResult={onResult}
+                onError={setError}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function InviteUserForm({
+  companyId,
+  shops,
+  roles,
+  onCancel,
+  onInvited,
+}: {
+  companyId: string;
+  shops: ShopSummary[];
+  roles: { id: string; name: string }[];
+  onCancel: () => void;
+  onInvited: (message: string) => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [shopId, setShopId] = useState(shops[0]?.id ?? "");
+  const [roleId, setRoleId] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const inviteMutation = useMutation({
+    mutationFn: () => inviteShopUser(companyId, shopId, email.trim(), roleId),
+    onSuccess: () => onInvited(`Invitation sent to ${email.trim()}.`),
+    onError: (e) => setError(getApiErrorMessage(e, "Failed to send invitation.")),
+  });
+
+  const submit = () => {
+    if (!email.trim() || !shopId || !roleId) {
+      setError("Email, shop and role are all required.");
+      return;
+    }
+    setError(null);
+    inviteMutation.mutate();
+  };
+
+  return (
+    <div className="card form-grid">
+      {error ? <div className="error-banner span-2">{error}</div> : null}
+      <label className="field span-2">
+        <span>Email</span>
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="person@example.com" />
+      </label>
+      <label className="field">
+        <span>Shop</span>
+        <select value={shopId} onChange={(e) => setShopId(e.target.value)}>
+          {shops.length === 0 ? <option value="">No shops — add one first</option> : null}
+          {shops.map((s) => <option key={s.id} value={s.id}>{s.shopName}</option>)}
+        </select>
+      </label>
+      <label className="field">
+        <span>Role</span>
+        <select value={roleId} onChange={(e) => setRoleId(e.target.value)}>
+          <option value="">Select a role…</option>
+          {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+        </select>
+      </label>
+      <div className="actions span-2">
+        <button className="btn btn-primary" disabled={inviteMutation.isPending} onClick={submit}>
+          {inviteMutation.isPending ? "Sending…" : "Send invitation"}
+        </button>
+        <button className="btn" disabled={inviteMutation.isPending} onClick={onCancel}>Cancel</button>
+      </div>
     </div>
   );
 }

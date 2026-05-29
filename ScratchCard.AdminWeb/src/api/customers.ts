@@ -68,3 +68,11 @@ export async function reactivateShopSubscription(companyId: string, shopId: stri
   );
   return res.data.data;
 }
+
+export async function inviteShopUser(companyId: string, shopId: string, email: string, roleId: string) {
+  const res = await apiClient.post<ApiResponse<unknown>>(
+    `/admin/customers/${companyId}/shops/${shopId}/invitations`,
+    { email, roleId }
+  );
+  return res.data.data;
+}

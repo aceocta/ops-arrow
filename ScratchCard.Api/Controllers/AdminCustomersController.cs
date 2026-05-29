@@ -102,4 +102,12 @@ public class AdminCustomersController : BaseApiController
         var result = await _adminCustomerService.ReactivateShopSubscriptionAsync(id, shopId, cancellationToken);
         return Success(result);
     }
+
+    /// <summary>Invite a user to a specific shop of this customer (sends the invitation email).</summary>
+    [HttpPost("{id:guid}/shops/{shopId:guid}/invitations")]
+    public async Task<IActionResult> InviteShopUser(Guid id, Guid shopId, [FromBody] AdminInviteUserRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _adminCustomerService.InviteShopUserAsync(id, shopId, request.Email, request.RoleId, request.ExpiryHours, cancellationToken);
+        return Success(result);
+    }
 }

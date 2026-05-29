@@ -102,6 +102,16 @@ public class AcceptInvitationRequestValidator : AbstractValidator<AcceptInvitati
     }
 }
 
+public class AdminInviteUserRequestValidator : AbstractValidator<AdminInviteUserRequest>
+{
+    public AdminInviteUserRequestValidator()
+    {
+        RuleFor(x => x.Email).NotEmpty().EmailAddress();
+        RuleFor(x => x.RoleId).NotEmpty();
+        RuleFor(x => x.ExpiryHours).InclusiveBetween(1, 168);
+    }
+}
+
 public class AdminUpdateCustomerRequestValidator : AbstractValidator<AdminUpdateCustomerRequest>
 {
     public AdminUpdateCustomerRequestValidator()

@@ -696,6 +696,13 @@ public class ShopService : IShopService
                 throw new AppException("company_inactive", "Company is inactive.", 400);
             }
 
+            // PlatformAdmin can create a shop for any company (admin panel "create shop for
+            // customer"); skip the per-company membership requirement that applies to owners.
+            if (_currentUserService.IsInRole(RoleNames.PlatformAdmin))
+            {
+                return company;
+            }
+
             if (_currentUserService.UserId.HasValue)
             {
                 var hasShopAccess = await _shopUserRepository.Query()
@@ -888,12 +895,26 @@ public class ShopService : IShopService
 
     private async Task EnsureCreatorOwnershipAsync(Shop shop, CancellationToken cancellationToken)
     {
-        if (!_currentUserService.UserId.HasValue)
+        // Normally the creator becomes the shop's CompanyOwner. But when a PlatformAdmin creates a
+        // shop on a customer's behalf (admin panel), attach the customer's company owner instead —
+        // never the admin. If that company has no owner, attach nobody.
+        Guid? ownerUserId;
+        if (_currentUserService.IsInRole(RoleNames.PlatformAdmin) && shop.CompanyId.HasValue)
+        {
+            var company = await _companyRepository.GetByIdAsync(shop.CompanyId.Value, cancellationToken);
+            ownerUserId = company?.OwnerUserId;
+        }
+        else
+        {
+            ownerUserId = _currentUserService.UserId;
+        }
+
+        if (!ownerUserId.HasValue)
         {
             return;
         }
 
-        var userId = _currentUserService.UserId.Value;
+        var userId = ownerUserId.Value;
         var existingShopUser = await _shopUserRepository.Query()
             .FirstOrDefaultAsync(x => x.ShopId == shop.Id && x.UserId == userId, cancellationToken);
 
@@ -915,7 +936,7 @@ public class ShopService : IShopService
             IsActive = true,
             JoinedOn = DateTimeOffset.UtcNow,
             CreatedOn = DateTimeOffset.UtcNow,
-            CreatedBy = userId
+            CreatedBy = _currentUserService.UserId
         };
 
         await _shopUserRepository.AddAsync(shopUser, cancellationToken);

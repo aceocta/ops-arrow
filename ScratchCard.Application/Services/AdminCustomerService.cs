@@ -3,6 +3,7 @@ using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Admin;
+using ScratchCard.Application.DTOs.Invitations;
 using ScratchCard.Domain.Entities;
 using ScratchCard.Domain.Enums;
 using ScratchCard.Shared.Models;
@@ -23,6 +24,7 @@ public class AdminCustomerService : IAdminCustomerService
     private readonly IRepository<ShopSubscription> _shopSubscriptionRepository;
     private readonly IUserService _userService;
     private readonly IShopSubscriptionService _shopSubscriptionService;
+    private readonly IInvitationService _invitationService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IAuditService _auditService;
     private readonly IUnitOfWork _unitOfWork;
@@ -34,6 +36,7 @@ public class AdminCustomerService : IAdminCustomerService
         IRepository<ShopSubscription> shopSubscriptionRepository,
         IUserService userService,
         IShopSubscriptionService shopSubscriptionService,
+        IInvitationService invitationService,
         ICurrentUserService currentUserService,
         IAuditService auditService,
         IUnitOfWork unitOfWork)
@@ -44,6 +47,7 @@ public class AdminCustomerService : IAdminCustomerService
         _shopSubscriptionRepository = shopSubscriptionRepository;
         _userService = userService;
         _shopSubscriptionService = shopSubscriptionService;
+        _invitationService = invitationService;
         _currentUserService = currentUserService;
         _auditService = auditService;
         _unitOfWork = unitOfWork;
@@ -414,6 +418,28 @@ public class AdminCustomerService : IAdminCustomerService
         await EnsureShopBelongsToCompanyAsync(companyId, shopId, cancellationToken);
         await _shopSubscriptionService.ReactivateAsync(shopId, cancellationToken);
         return await GetCustomerAsync(companyId, cancellationToken);
+    }
+
+    public async Task<InvitationDto> InviteShopUserAsync(
+        Guid companyId,
+        Guid shopId,
+        string email,
+        Guid roleId,
+        int expiryHours,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureShopBelongsToCompanyAsync(companyId, shopId, cancellationToken);
+        // Reuse the invitation service (it already permits PlatformAdmin and enforces the shop's
+        // seat limit + sends the invite email).
+        return await _invitationService.SendInvitationAsync(
+            new CreateInvitationRequest
+            {
+                ShopId = shopId,
+                Email = email,
+                RoleId = roleId,
+                ExpiryHours = expiryHours <= 0 ? 72 : expiryHours
+            },
+            cancellationToken);
     }
 
     // Guards that the targeted shop actually belongs to the customer being managed, so an admin
