@@ -25,7 +25,12 @@ public static class TillDescriptionNormalizer
             return string.Empty;
         }
 
-        var text = NumberRegex.Replace(value, " ");
+        // Till-report convention: the description is everything BEFORE the first ':'.
+        // Anything after it (value, qty, amount) is dropped.
+        var colonIndex = value.IndexOf(':');
+        var text = colonIndex >= 0 ? value[..colonIndex] : value;
+
+        text = NumberRegex.Replace(text, " ");
         text = QtyMarkerRegex.Replace(text, " ");
         text = WhitespaceRegex.Replace(text, " ");
         return text.Trim();

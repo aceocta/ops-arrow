@@ -5,6 +5,7 @@ using Azure.AI.DocumentIntelligence;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ScratchCard.Application.Common.Exceptions;
+using ScratchCard.Application.Common.Helpers;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Models;
 using ScratchCard.Domain.Constants;
@@ -122,10 +123,12 @@ public class AzureDocumentIntelligenceOcrService : ITillReportOcrService
                     " ",
                     cells
                         .Where(c => c.ColumnIndex != amountColumn)
-                        .Select(c => (c.Content ?? string.Empty).Trim())
+                        .Select(c => TakeBeforeColon((c.Content ?? string.Empty).Trim()))
                         .Where(s => s.Length > 0 && !TryParseMoneyCell(s).HasValue))
                     .Trim();
 
+                // Descriptions are alphabetic — strip any digit / qty / colon noise before storing.
+                description = TillDescriptionNormalizer.Normalize(description);
                 if (!HasLetter(description))
                 {
                     continue;
@@ -156,12 +159,16 @@ public class AzureDocumentIntelligenceOcrService : ITillReportOcrService
                 }
 
                 var (description, amount, hasTrailingAmount) = TryExtractTrailingAmount(text);
+                // Descriptions are alphabetic — strip any digit / qty / colon noise here so the
+                // pairing logic and storage both see the clean identifier.
+                description = TillDescriptionNormalizer.Normalize(description);
 
                 if (!hasTrailingAmount)
                 {
-                    if (HasLetter(text))
+                    var cleanText = TillDescriptionNormalizer.Normalize(text);
+                    if (HasLetter(cleanText))
                     {
-                        pendingDescription = text;
+                        pendingDescription = cleanText;
                     }
                     continue;
                 }
@@ -201,7 +208,15 @@ public class AzureDocumentIntelligenceOcrService : ITillReportOcrService
 
         var amount = ParseMoney(last.Value) ?? 0m;
         var description = text[..last.Index].Trim().TrimEnd(':', '-', '£', '$', '€', ' ', '\t').Trim();
+        // Till-report convention: the description is whatever sits before the first ':'.
+        description = TakeBeforeColon(description);
         return (description, amount, true);
+    }
+
+    private static string TakeBeforeColon(string value)
+    {
+        var i = value.IndexOf(':');
+        return i >= 0 ? value[..i].Trim() : value;
     }
 
     private static decimal? TryParseMoneyCell(string? content)
