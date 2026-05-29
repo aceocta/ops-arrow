@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Subscriptions;
+using ScratchCard.Domain.Constants;
 using ScratchCard.Infrastructure.Services;
 using Stripe;
 
@@ -48,6 +49,7 @@ public class ShopSubscriptionController : BaseApiController
     /// this explicitly so a pure summary GET stays side-effect free.
     /// </summary>
     [HttpPost("ensure-trial")]
+    [Authorize(Roles = RoleNames.ManagementAndAbove)]
     public async Task<IActionResult> EnsureTrial([FromBody] EnsureShopTrialRequest request, CancellationToken cancellationToken)
     {
         var result = await _shopSubscriptionService.EnsureTrialAsync(request.ShopId, request.IntendedPlanId, cancellationToken);
@@ -67,6 +69,7 @@ public class ShopSubscriptionController : BaseApiController
     }
 
     [HttpPost("select-plan")]
+    [Authorize(Roles = RoleNames.ManagementAndAbove)]
     public async Task<IActionResult> SelectPlan([FromBody] SelectShopSubscriptionPlanRequest request, CancellationToken cancellationToken)
     {
         var result = await _shopSubscriptionService.SelectPlanAsync(request, cancellationToken);
@@ -79,6 +82,7 @@ public class ShopSubscriptionController : BaseApiController
     /// Stripe webhook activates the subscription.
     /// </summary>
     [HttpPost("checkout-session")]
+    [Authorize(Roles = RoleNames.ManagementAndAbove)]
     public async Task<IActionResult> CreateCheckoutSession([FromBody] CreateBillingCheckoutRequest request, CancellationToken cancellationToken)
     {
         var session = await _billingCheckoutService.CreateCheckoutSessionAsync(new BillingCheckoutRequest
@@ -96,6 +100,7 @@ public class ShopSubscriptionController : BaseApiController
     /// subscriptions, view invoices, etc.
     /// </summary>
     [HttpPost("portal-session")]
+    [Authorize(Roles = RoleNames.ManagementAndAbove)]
     public async Task<IActionResult> CreatePortalSession([FromBody] PortalSessionRequest request, CancellationToken cancellationToken)
     {
         var url = await _shopSubscriptionService.CreatePortalSessionAsync(request.ShopId, cancellationToken);
@@ -103,6 +108,7 @@ public class ShopSubscriptionController : BaseApiController
     }
 
     [HttpPost("cancel")]
+    [Authorize(Roles = RoleNames.ManagementAndAbove)]
     public async Task<IActionResult> Cancel([FromBody] CancelShopSubscriptionRequest request, CancellationToken cancellationToken)
     {
         var result = await _shopSubscriptionService.CancelAsync(request.ShopId, request.CancelAtPeriodEnd, cancellationToken);
@@ -110,6 +116,7 @@ public class ShopSubscriptionController : BaseApiController
     }
 
     [HttpPost("reactivate")]
+    [Authorize(Roles = RoleNames.ManagementAndAbove)]
     public async Task<IActionResult> Reactivate([FromBody] ReactivateShopSubscriptionRequest request, CancellationToken cancellationToken)
     {
         var result = await _shopSubscriptionService.ReactivateAsync(request.ShopId, cancellationToken);
@@ -122,6 +129,7 @@ public class ShopSubscriptionController : BaseApiController
     /// Owner can resume any time within 1 year; after that a background job auto-cancels.
     /// </summary>
     [HttpPost("pause")]
+    [Authorize(Roles = RoleNames.ManagementAndAbove)]
     public async Task<IActionResult> Pause([FromBody] PauseShopSubscriptionRequest request, CancellationToken cancellationToken)
     {
         var result = await _shopSubscriptionService.PauseAsync(request.ShopId, cancellationToken);
@@ -135,6 +143,7 @@ public class ShopSubscriptionController : BaseApiController
     /// the owner to Choose Plan.
     /// </summary>
     [HttpPost("resume")]
+    [Authorize(Roles = RoleNames.ManagementAndAbove)]
     public async Task<IActionResult> Resume([FromBody] ResumeShopSubscriptionRequest request, CancellationToken cancellationToken)
     {
         var result = await _shopSubscriptionService.ResumeAsync(request.ShopId, cancellationToken);

@@ -17,6 +17,7 @@ import { appTheme } from "../../ui/theme";
 import { track } from "../../utils/analytics";
 import { haptics } from "../../utils/haptics";
 import { refreshEntitlementsFromBackend, startBillingCheckout } from "./purchaseService";
+import { SUBSCRIPTION_MANAGE_RESTRICTED_MESSAGE, useCanManageSubscription } from "./useCanManageSubscription";
 
 // On iOS we must not show pricing or purchase CTAs in-app (Apple Guideline 3.1.3(c)).
 // The button reads as account management; the price grid is rendered in the web billing portal.
@@ -31,6 +32,7 @@ export function ChoosePlanScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const queryClient = useQueryClient();
   const { activeShop, activeShopId } = useAuth();
+  const canManageSubscription = useCanManageSubscription();
   const shopId = activeShopId;
   const [selectedPlanId, setSelectedPlanId] = useState<string>("");
   const [restorePending, setRestorePending] = useState(false);
@@ -118,6 +120,12 @@ export function ChoosePlanScreen() {
         <Text style={styles.title}>{IS_IOS ? "Subscription plans" : "Choose Subscription Plan"}</Text>
         <Text style={styles.meta}>Company: {activeShop?.companyName ?? "-"}</Text>
 
+        {!canManageSubscription ? (
+          <View style={styles.restrictedNotice}>
+            <Text style={styles.restrictedText}>{SUBSCRIPTION_MANAGE_RESTRICTED_MESSAGE}</Text>
+          </View>
+        ) : (
+        <>
         {plansQuery.isLoading ? (
           <View style={{ gap: 8 }}>
             <Skeleton height={70} radius={appTheme.radius.sm} />
@@ -217,6 +225,8 @@ export function ChoosePlanScreen() {
         <Text style={styles.legalHelp}>
           Subscriptions auto-renew unless cancelled at least 24 hours before the end of the current period. Manage in your store account.
         </Text>
+        </>
+        )}
       </View>
     </ScreenContainer>
   );
@@ -326,5 +336,15 @@ const styles = StyleSheet.create({
     color: appTheme.colors.textSubtle,
     textAlign: "center",
     paddingHorizontal: appTheme.spacing.sm,
+  },
+  restrictedNotice: {
+    backgroundColor: appTheme.colors.surfaceInfoMuted,
+    borderRadius: appTheme.radius.sm,
+    padding: appTheme.spacing.sm,
+    marginTop: appTheme.spacing.sm,
+  },
+  restrictedText: {
+    ...appTheme.typography.body,
+    color: appTheme.colors.textInfoStrong,
   },
 });

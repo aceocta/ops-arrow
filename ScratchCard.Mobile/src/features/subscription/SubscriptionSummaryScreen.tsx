@@ -18,6 +18,7 @@ import { toastError, toastSuccess } from "../../components/toast";
 import { RootStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
+import { SUBSCRIPTION_MANAGE_RESTRICTED_MESSAGE, useCanManageSubscription } from "./useCanManageSubscription";
 
 function formatDate(value?: string | null) {
   if (!value) return "-";
@@ -30,6 +31,7 @@ export function SubscriptionSummaryScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const queryClient = useQueryClient();
   const { activeShop, activeShopId } = useAuth();
+  const canManageSubscription = useCanManageSubscription();
   const shopId = activeShopId;
 
   const summaryQuery = useQuery({
@@ -183,43 +185,51 @@ export function SubscriptionSummaryScreen() {
             ) : null}
           </>
         ) : null}
-        <PrimaryButton label="Choose Plan" onPress={() => navigation.navigate("ChoosePlan")} disabled={!shopId} />
+        {canManageSubscription ? (
+          <>
+            <PrimaryButton label="Choose Plan" onPress={() => navigation.navigate("ChoosePlan")} disabled={!shopId} />
 
-        {summary && isPaused ? (
-          <PrimaryButton
-            label={resumeMutation.isPending ? "Resuming..." : "Resume Shop"}
-            tone="success"
-            onPress={() => resumeMutation.mutate()}
-            disabled={resumeMutation.isPending}
-          />
-        ) : null}
+            {summary && isPaused ? (
+              <PrimaryButton
+                label={resumeMutation.isPending ? "Resuming..." : "Resume Shop"}
+                tone="success"
+                onPress={() => resumeMutation.mutate()}
+                disabled={resumeMutation.isPending}
+              />
+            ) : null}
 
-        {summary && !isPaused && !isCancelled && !isCancelledAtPeriodEnd ? (
-          <PrimaryButton
-            label={pauseMutation.isPending ? "Pausing..." : "Pause Shop"}
-            tone="neutral"
-            onPress={confirmPause}
-            disabled={pauseMutation.isPending}
-          />
-        ) : null}
+            {summary && !isPaused && !isCancelled && !isCancelledAtPeriodEnd ? (
+              <PrimaryButton
+                label={pauseMutation.isPending ? "Pausing..." : "Pause Shop"}
+                tone="neutral"
+                onPress={confirmPause}
+                disabled={pauseMutation.isPending}
+              />
+            ) : null}
 
-        {summary && !isPaused && !isCancelled && !isCancelledAtPeriodEnd ? (
-          <PrimaryButton
-            label={cancelMutation.isPending ? "Cancelling..." : "Cancel Subscription"}
-            tone="danger"
-            onPress={confirmCancel}
-            disabled={cancelMutation.isPending}
-          />
-        ) : null}
+            {summary && !isPaused && !isCancelled && !isCancelledAtPeriodEnd ? (
+              <PrimaryButton
+                label={cancelMutation.isPending ? "Cancelling..." : "Cancel Subscription"}
+                tone="danger"
+                onPress={confirmCancel}
+                disabled={cancelMutation.isPending}
+              />
+            ) : null}
 
-        {summary && (isCancelled || isCancelledAtPeriodEnd) ? (
-          <PrimaryButton
-            label={reactivateMutation.isPending ? "Reactivating..." : "Reactivate Subscription"}
-            tone="success"
-            onPress={() => reactivateMutation.mutate()}
-            disabled={reactivateMutation.isPending}
-          />
-        ) : null}
+            {summary && (isCancelled || isCancelledAtPeriodEnd) ? (
+              <PrimaryButton
+                label={reactivateMutation.isPending ? "Reactivating..." : "Reactivate Subscription"}
+                tone="success"
+                onPress={() => reactivateMutation.mutate()}
+                disabled={reactivateMutation.isPending}
+              />
+            ) : null}
+          </>
+        ) : (
+          <View style={styles.restrictedNotice}>
+            <Text style={styles.restrictedText}>{SUBSCRIPTION_MANAGE_RESTRICTED_MESSAGE}</Text>
+          </View>
+        )}
       </View>
     </ScreenContainer>
   );
@@ -279,5 +289,14 @@ const styles = StyleSheet.create({
   capBannerBody: {
     ...appTheme.typography.caption,
     color: appTheme.colors.textMuted,
+  },
+  restrictedNotice: {
+    backgroundColor: appTheme.colors.surfaceInfoMuted,
+    borderRadius: appTheme.radius.sm,
+    padding: appTheme.spacing.sm,
+  },
+  restrictedText: {
+    ...appTheme.typography.body,
+    color: appTheme.colors.textInfoStrong,
   },
 });
