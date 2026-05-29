@@ -11,6 +11,7 @@ export type RootStackParamList = {
   InvitationAccept: { token?: string } | undefined;
   MainTabs: undefined;
   ShopSelector: undefined;
+  ShopSelection: undefined;
   BarcodeScanner: {
     mode?: "single" | "auto";
     packId?: string;

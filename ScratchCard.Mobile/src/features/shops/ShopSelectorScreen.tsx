@@ -1,14 +1,13 @@
 import React, { useMemo } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAuth } from "../../auth/AuthContext";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { RootStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 import { getRoleDisplayName } from "../../utils/roleLabels";
-
-type Props = NativeStackScreenProps<RootStackParamList, "ShopSelector">;
 
 type GroupedShops = {
   companyId: string;
@@ -20,7 +19,8 @@ type GroupedShops = {
   }>;
 };
 
-export function ShopSelectorScreen({ navigation }: Props) {
+export function ShopSelectorScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { profile, activeShopId, setActiveShop } = useAuth();
 
   const groupedShops = useMemo<GroupedShops[]>(() => {
@@ -61,7 +61,12 @@ export function ShopSelectorScreen({ navigation }: Props) {
   async function onSelectShop(shopId: string) {
     try {
       await setActiveShop(shopId);
-      navigation.goBack();
+      // When opened as an in-app switcher there's a screen to return to; when shown as the
+      // mandatory post-login chooser there isn't — setting the active shop re-renders the
+      // navigator into the app, so we only go back if we can.
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      }
     } catch {
       Alert.alert("Switch failed", "Unable to switch shop. Please try again.");
     }

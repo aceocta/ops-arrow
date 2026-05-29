@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { Text } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -35,6 +36,13 @@ export function RootNavigator() {
   const queryClient = useQueryClient();
   const needsCompanySetup = isAuthenticated && profile?.hasCompanySetup === false;
   const needsShopSetup = isAuthenticated && profile?.hasCompanySetup === true && profile?.hasShopSetup === false;
+  // After login, if the user belongs to more than one shop and hasn't got an active shop resolved
+  // (no remembered choice), force them to pick. The selector groups shops by company, so this
+  // doubles as the company picker when they span multiple companies.
+  const needsShopSelection =
+    isAuthenticated && !needsCompanySetup && !needsShopSetup && !activeShopId && (profile?.shops?.length ?? 0) > 0;
+  const spansMultipleCompanies =
+    new Set((profile?.shops ?? []).map((shop) => shop.companyId ?? "none")).size > 1;
   const shouldLoadSubscription = isAuthenticated && !needsCompanySetup && !needsShopSetup && Boolean(activeShopId);
 
   useEffect(() => {
@@ -118,6 +126,24 @@ export function RootNavigator() {
       ) : needsShopSetup ? (
         <>
           <Stack.Screen name="ShopSetup" component={ShopSetupScreen} options={{ title: "Shop Setup" }} />
+        </>
+      ) : needsShopSelection ? (
+        <>
+          <Stack.Screen
+            name="ShopSelection"
+            component={ShopSelectorScreen}
+            options={{
+              title: spansMultipleCompanies ? "Select Company & Shop" : "Select Shop",
+              headerRight: () => (
+                <Text
+                  onPress={() => void signOut()}
+                  style={{ color: appTheme.colors.onPrimary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 }}
+                >
+                  Log out
+                </Text>
+              ),
+            }}
+          />
         </>
       ) : requiresBillingAction ? (
         <>

@@ -365,11 +365,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 function resolveActiveShopId(profile: AuthProfile, preferredShopId?: string | null) {
+  // Honour a remembered/last-used shop when it's still valid.
   if (preferredShopId && profile.shops.some((shop) => shop.shopId === preferredShopId)) {
     return preferredShopId;
   }
 
-  return profile.shops[0]?.shopId ?? null;
+  // Exactly one shop → go straight in. With more than one (especially across companies) we return
+  // null so the app forces an explicit shop/company choice instead of guessing.
+  if (profile.shops.length === 1) {
+    return profile.shops[0].shopId;
+  }
+
+  return null;
 }
 
 export function useAuth() {
