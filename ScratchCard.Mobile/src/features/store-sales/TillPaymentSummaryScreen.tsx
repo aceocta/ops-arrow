@@ -65,9 +65,9 @@ function TenderTotals({ totals, emptyText }: { totals: TillPaymentTypeAmount[]; 
   const grandTotal = totals.reduce((sum, t) => sum + t.amount, 0);
   return (
     <View style={styles.totalsBlock}>
-      {totals.map((total) => (
-        <View key={total.paymentType} style={styles.totalRow}>
-          <Text style={styles.totalLabel}>{total.paymentType}</Text>
+      {totals.map((total, index) => (
+        <View key={total.paymentTypeId ?? `${total.name}-${index}`} style={styles.totalRow}>
+          <Text style={styles.totalLabel}>{total.name}</Text>
           <Text style={styles.totalValue}>{formatGbp(total.amount)}</Text>
         </View>
       ))}

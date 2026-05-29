@@ -73,6 +73,7 @@ public class TillReportsController : BaseApiController
         var result = await _tillReportService.ProcessAsync(new ProcessTillReportRequest
         {
             ShopId = request.ShopId,
+            TillId = request.TillId,
             ReportType = request.ReportType,
             ShiftId = request.ShiftId,
             BusinessDayId = request.BusinessDayId,
@@ -122,7 +123,7 @@ public class TillReportsController : BaseApiController
     [Authorize(Roles = RoleNames.OwnerAndManager)]
     public async Task<IActionResult> UpsertPayment(Guid id, [FromBody] UpsertTillPaymentRequest request, CancellationToken cancellationToken)
     {
-        var result = await _tillReportService.UpsertPaymentAsync(id, request.PaymentType, request.Amount, cancellationToken);
+        var result = await _tillReportService.UpsertPaymentAsync(id, request.PaymentTypeId, request.Amount, cancellationToken);
         return Success(result);
     }
 
@@ -175,6 +176,7 @@ public class TillReportsController : BaseApiController
 public class ParseTillReportFormRequest
 {
     public Guid ShopId { get; set; }
+    public Guid? TillId { get; set; }
     public TillReportType ReportType { get; set; } = TillReportType.DayEnd;
     public Guid? ShiftId { get; set; }
     public Guid? BusinessDayId { get; set; }

@@ -48,8 +48,48 @@ public class UpsertTillPaymentRequestValidator : AbstractValidator<UpsertTillPay
 {
     public UpsertTillPaymentRequestValidator()
     {
-        RuleFor(x => x.PaymentType).IsInEnum();
+        RuleFor(x => x.PaymentTypeId).NotEmpty();
         RuleFor(x => x.Amount).GreaterThanOrEqualTo(0);
+    }
+}
+
+public class CreateShopPaymentTypeRequestValidator : AbstractValidator<CreateShopPaymentTypeRequest>
+{
+    public CreateShopPaymentTypeRequestValidator()
+    {
+        RuleFor(x => x.ShopId).NotEmpty();
+        RuleFor(x => x.Name).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Code).MaximumLength(50);
+        RuleFor(x => x.Keywords).MaximumLength(500);
+    }
+}
+
+public class UpdateShopPaymentTypeRequestValidator : AbstractValidator<UpdateShopPaymentTypeRequest>
+{
+    public UpdateShopPaymentTypeRequestValidator()
+    {
+        RuleFor(x => x.Name).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Code).MaximumLength(50);
+        RuleFor(x => x.Keywords).MaximumLength(500);
+    }
+}
+
+public class CreateTillRequestValidator : AbstractValidator<CreateTillRequest>
+{
+    public CreateTillRequestValidator()
+    {
+        RuleFor(x => x.ShopId).NotEmpty();
+        RuleFor(x => x.Name).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Code).MaximumLength(50);
+    }
+}
+
+public class UpdateTillRequestValidator : AbstractValidator<UpdateTillRequest>
+{
+    public UpdateTillRequestValidator()
+    {
+        RuleFor(x => x.Name).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Code).MaximumLength(50);
     }
 }
 

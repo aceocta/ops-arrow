@@ -21,6 +21,8 @@ public class TillReportService : ITillReportService
     private readonly IRepository<TillCategoryRule> _ruleRepository;
     private readonly IRepository<BusinessDay> _businessDayRepository;
     private readonly IRepository<Shift> _shiftRepository;
+    private readonly IRepository<Till> _tillRepository;
+    private readonly IRepository<ShopPaymentType> _paymentTypeRepository;
     private readonly ITillReportOcrService _ocrService;
     private readonly ITillRuleEngine _ruleEngine;
     private readonly ITillLineAiClassifier _aiClassifier;
@@ -35,6 +37,8 @@ public class TillReportService : ITillReportService
         IRepository<TillCategoryRule> ruleRepository,
         IRepository<BusinessDay> businessDayRepository,
         IRepository<Shift> shiftRepository,
+        IRepository<Till> tillRepository,
+        IRepository<ShopPaymentType> paymentTypeRepository,
         ITillReportOcrService ocrService,
         ITillRuleEngine ruleEngine,
         ITillLineAiClassifier aiClassifier,
@@ -48,6 +52,8 @@ public class TillReportService : ITillReportService
         _ruleRepository = ruleRepository;
         _businessDayRepository = businessDayRepository;
         _shiftRepository = shiftRepository;
+        _tillRepository = tillRepository;
+        _paymentTypeRepository = paymentTypeRepository;
         _ocrService = ocrService;
         _ruleEngine = ruleEngine;
         _aiClassifier = aiClassifier;
@@ -68,6 +74,7 @@ public class TillReportService : ITillReportService
         await _shopMembershipService.EnsureCurrentUserShopRoleAsync(request.ShopId, EditorRoles, cancellationToken);
 
         var scope = await ResolveScopeAsync(request, cancellationToken);
+        var tillId = await ResolveTillIdAsync(request.ShopId, request.TillId, cancellationToken);
 
         var rules = await _ruleRepository.Query()
             .AsNoTracking()
@@ -77,6 +84,7 @@ public class TillReportService : ITillReportService
         var report = new TillReport
         {
             ShopId = request.ShopId,
+            TillId = tillId,
             ReportType = request.ReportType,
             ShiftId = scope.ShiftId,
             BusinessDayId = scope.BusinessDayId,
@@ -92,9 +100,14 @@ public class TillReportService : ITillReportService
         var rawText = new StringBuilder();
         var lineNumber = 1;
         var pageNumber = 1;
-        // Tender lines (Cash/Card/...) are pulled out of the ledger and summed into the payments
-        // table instead of being treated as income/expense descriptions.
-        var paymentTotals = new Dictionary<TillPaymentType, decimal>();
+        // Tender lines (Cash/Card/... whatever the shop has configured) are pulled out of the
+        // ledger and summed into the payments table instead of being treated as income/expense
+        // descriptions. Detection is driven by the shop's own payment-type list + keywords.
+        var paymentTypes = await _paymentTypeRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == request.ShopId && x.IsActive && !x.IsDeleted)
+            .ToListAsync(cancellationToken);
+        var paymentTotals = new Dictionary<Guid, (string Name, decimal Amount)>();
         foreach (var file in request.Files)
         {
             if (file.Bytes.Length == 0)
@@ -127,10 +140,11 @@ public class TillReportService : ITillReportService
 
             foreach (var ocrLine in ocr.Lines)
             {
-                var paymentType = DetectPaymentType(ocrLine.Description);
-                if (paymentType.HasValue)
+                var matchedType = MatchPaymentType(paymentTypes, ocrLine.Description);
+                if (matchedType is not null)
                 {
-                    paymentTotals[paymentType.Value] = paymentTotals.GetValueOrDefault(paymentType.Value) + ocrLine.Amount;
+                    var existing = paymentTotals.GetValueOrDefault(matchedType.Id);
+                    paymentTotals[matchedType.Id] = (matchedType.Name, existing.Amount + ocrLine.Amount);
                     continue;
                 }
 
@@ -152,8 +166,9 @@ public class TillReportService : ITillReportService
         {
             report.Payments.Add(new TillReportPayment
             {
-                PaymentType = kvp.Key,
-                Amount = kvp.Value,
+                PaymentTypeId = kvp.Key,
+                PaymentTypeName = kvp.Value.Name,
+                Amount = kvp.Value.Amount,
                 Source = TillLineSource.RuleEngine
             });
         }
@@ -217,6 +232,8 @@ public class TillReportService : ITillReportService
             {
                 Id = x.Id,
                 ShopId = x.ShopId,
+                TillId = x.TillId,
+                TillName = x.Till != null ? x.Till.Name : null,
                 ReportType = x.ReportType,
                 ShiftId = x.ShiftId,
                 BusinessDate = x.BusinessDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
@@ -383,7 +400,7 @@ public class TillReportService : ITillReportService
         return MapDetail(report);
     }
 
-    public async Task<TillReportDto> UpsertPaymentAsync(Guid reportId, TillPaymentType paymentType, decimal amount, CancellationToken cancellationToken = default)
+    public async Task<TillReportDto> UpsertPaymentAsync(Guid reportId, Guid paymentTypeId, decimal amount, CancellationToken cancellationToken = default)
     {
         var report = await LoadReportAsync(reportId, asTracking: true, cancellationToken);
         await _shopMembershipService.EnsureCurrentUserShopRoleAsync(report.ShopId, EditorRoles, cancellationToken);
@@ -393,11 +410,25 @@ public class TillReportService : ITillReportService
             throw new AppException(ErrorCodes.TillReportAlreadyConfirmed, "This till report is already confirmed and can no longer be edited.");
         }
 
-        var payment = report.Payments.FirstOrDefault(x => x.PaymentType == paymentType);
+        var paymentType = await _paymentTypeRepository.Query()
+            .FirstOrDefaultAsync(x => x.Id == paymentTypeId && x.ShopId == report.ShopId && !x.IsDeleted, cancellationToken)
+            ?? throw new AppException(ErrorCodes.PaymentTypeNotFound, "Payment type not found for this shop.", 404);
+
+        var payment = report.Payments.FirstOrDefault(x => x.PaymentTypeId == paymentTypeId);
         if (payment is null)
         {
-            payment = new TillReportPayment { PaymentType = paymentType, TillReportId = report.Id };
+            payment = new TillReportPayment
+            {
+                TillReportId = report.Id,
+                PaymentTypeId = paymentTypeId,
+                PaymentTypeName = paymentType.Name
+            };
             report.Payments.Add(payment);
+        }
+        else
+        {
+            // Refresh the snapshot name in case the configured payment type was renamed.
+            payment.PaymentTypeName = paymentType.Name;
         }
 
         payment.Amount = amount;
@@ -426,12 +457,7 @@ public class TillReportService : ITillReportService
         var dayEndReports = reports.Where(x => x.ReportType == TillReportType.DayEnd).ToList();
         var daySource = dayEndReports.Count > 0 ? dayEndReports : reports;
 
-        var dayTotals = daySource
-            .SelectMany(x => x.Payments)
-            .GroupBy(p => p.PaymentType)
-            .Select(g => new TillPaymentTypeAmountDto { PaymentType = g.Key, Amount = g.Sum(p => p.Amount) })
-            .OrderBy(x => x.PaymentType)
-            .ToArray();
+        var dayTotals = SumTenders(daySource);
 
         var shifts = reports
             .Where(x => x.ReportType == TillReportType.Shift && x.ShiftId.HasValue)
@@ -440,12 +466,7 @@ public class TillReportService : ITillReportService
             {
                 ShiftId = g.Key,
                 ShiftName = g.Select(r => r.Shift?.ShiftName).FirstOrDefault(n => !string.IsNullOrWhiteSpace(n)) ?? "Shift",
-                Totals = g
-                    .SelectMany(r => r.Payments)
-                    .GroupBy(p => p.PaymentType)
-                    .Select(pg => new TillPaymentTypeAmountDto { PaymentType = pg.Key, Amount = pg.Sum(p => p.Amount) })
-                    .OrderBy(x => x.PaymentType)
-                    .ToArray()
+                Totals = SumTenders(g.ToArray())
             })
             .OrderBy(x => x.ShiftName)
             .ToArray();
@@ -497,9 +518,6 @@ public class TillReportService : ITillReportService
 
     private static TillReportScopeSummaryDto Summarise(IReadOnlyCollection<TillReport> reports)
     {
-        decimal Tender(TillPaymentType type) =>
-            reports.SelectMany(r => r.Payments).Where(p => p.PaymentType == type).Sum(p => p.Amount);
-
         var totalSales = reports.Sum(r => r.TotalIncome);
         var payouts = reports.Sum(r => r.TotalExpense);
 
@@ -508,12 +526,23 @@ public class TillReportService : ITillReportService
             TotalSales = totalSales,
             Payouts = payouts,
             Net = totalSales - payouts,
-            Cash = Tender(TillPaymentType.Cash),
-            Card = Tender(TillPaymentType.Card),
-            Other = Tender(TillPaymentType.Other),
+            Tenders = SumTenders(reports),
             ReportCount = reports.Count
         };
     }
+
+    private static TillPaymentTypeAmountDto[] SumTenders(IReadOnlyCollection<TillReport> reports)
+        => reports
+            .SelectMany(r => r.Payments)
+            .GroupBy(p => new { p.PaymentTypeId, p.PaymentTypeName })
+            .Select(g => new TillPaymentTypeAmountDto
+            {
+                PaymentTypeId = g.Key.PaymentTypeId,
+                Name = g.Key.PaymentTypeName,
+                Amount = g.Sum(p => p.Amount)
+            })
+            .OrderBy(x => x.Name)
+            .ToArray();
 
     public async Task<IReadOnlyCollection<TillCategoryRuleDto>> ListRulesAsync(Guid shopId, CancellationToken cancellationToken = default)
     {
@@ -582,8 +611,41 @@ public class TillReportService : ITillReportService
             .Include(x => x.Lines)
             .Include(x => x.Attachments)
             .Include(x => x.Payments)
+            .Include(x => x.Till)
             .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken)
             ?? throw new AppException(ErrorCodes.TillReportNotFound, "Till report not found.", 404);
+    }
+
+    private async Task<Guid?> ResolveTillIdAsync(Guid shopId, Guid? requestedTillId, CancellationToken cancellationToken)
+    {
+        var shopHasTills = await _tillRepository.Query()
+            .AsNoTracking()
+            .AnyAsync(x => x.ShopId == shopId && x.IsActive && !x.IsDeleted, cancellationToken);
+
+        if (!shopHasTills)
+        {
+            // Shop hasn't configured any tills yet — allow capture without one so the user isn't
+            // blocked. Once tills exist, picking one is required.
+            return null;
+        }
+
+        if (!requestedTillId.HasValue || requestedTillId.Value == Guid.Empty)
+        {
+            throw new AppException(ErrorCodes.TillRequired, "Select which till this report is for.");
+        }
+
+        var ownedAndActive = await _tillRepository.Query()
+            .AsNoTracking()
+            .AnyAsync(
+                x => x.Id == requestedTillId.Value && x.ShopId == shopId && x.IsActive && !x.IsDeleted,
+                cancellationToken);
+
+        if (!ownedAndActive)
+        {
+            throw new AppException(ErrorCodes.TillNotFound, "Till not found for this shop.", 404);
+        }
+
+        return requestedTillId;
     }
 
     private async Task<(Guid? BusinessDayId, Guid? ShiftId, DateOnly BusinessDate)> ResolveScopeAsync(
@@ -657,35 +719,39 @@ public class TillReportService : ITillReportService
         }
     }
 
-    private static readonly string[] CardKeywords =
-        ["card", "visa", "mastercard", "master card", "debit", "credit", "contactless", "amex", "eftpos", "chip & pin", "chip and pin"];
-    private static readonly string[] OtherTenderKeywords =
-        ["voucher", "cheque", "check", "gift card", "gift voucher", "account"];
-
-    // Recognises tender lines so they can be routed to the payments table rather than the ledger.
-    private static TillPaymentType? DetectPaymentType(string? description)
+    // Matches a description against the shop's configured payment-type keywords. First match wins
+    // (ordered by SortOrder then Name). Each payment type carries its own comma-separated keyword
+    // list, e.g. "card,visa,mastercard,debit,contactless". Case-insensitive contains.
+    private static ShopPaymentType? MatchPaymentType(IReadOnlyCollection<ShopPaymentType> paymentTypes, string? description)
     {
-        if (string.IsNullOrWhiteSpace(description))
+        if (string.IsNullOrWhiteSpace(description) || paymentTypes.Count == 0)
         {
             return null;
         }
 
         var text = description.ToLowerInvariant();
-
-        // "cashback" / "cash back" is a card-side refund, not a cash tender — keep it out of Cash.
-        if (text.Contains("cash") && !text.Contains("cashback") && !text.Contains("cash back"))
+        // "cashback" / "cash back" is a card-side refund, not a tender — never match it.
+        if (text.Contains("cashback") || text.Contains("cash back"))
         {
-            return TillPaymentType.Cash;
+            return null;
         }
 
-        if (CardKeywords.Any(text.Contains))
+        foreach (var type in paymentTypes.OrderBy(x => x.SortOrder).ThenBy(x => x.Name))
         {
-            return TillPaymentType.Card;
-        }
+            if (string.IsNullOrWhiteSpace(type.Keywords))
+            {
+                continue;
+            }
 
-        if (OtherTenderKeywords.Any(text.Contains))
-        {
-            return TillPaymentType.Other;
+            var keywords = type.Keywords
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(k => k.ToLowerInvariant())
+                .Where(k => k.Length > 0);
+
+            if (keywords.Any(k => text.Contains(k)))
+            {
+                return type;
+            }
         }
 
         return null;
@@ -706,6 +772,8 @@ public class TillReportService : ITillReportService
     {
         Id = report.Id,
         ShopId = report.ShopId,
+        TillId = report.TillId,
+        TillName = report.Till?.Name,
         ReportType = report.ReportType,
         ShiftId = report.ShiftId,
         BusinessDayId = report.BusinessDayId,
@@ -734,11 +802,12 @@ public class TillReportService : ITillReportService
             })
             .ToArray(),
         Payments = report.Payments
-            .OrderBy(x => x.PaymentType)
+            .OrderBy(x => x.PaymentTypeName)
             .Select(p => new TillReportPaymentDto
             {
                 Id = p.Id,
-                PaymentType = p.PaymentType,
+                PaymentTypeId = p.PaymentTypeId,
+                PaymentTypeName = p.PaymentTypeName,
                 Amount = p.Amount,
                 Source = p.Source
             })

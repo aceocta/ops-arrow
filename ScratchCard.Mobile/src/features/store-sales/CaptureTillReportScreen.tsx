@@ -8,6 +8,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { listBusinessDays } from "../../api/businessDaysApi";
 import { listShifts } from "../../api/shiftsApi";
 import { parseTillReport, TillReportPhoto } from "../../api/tillReportsApi";
+import { listTills } from "../../api/tillsApi";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { MainStackParamList } from "../../types/navigation";
@@ -28,7 +29,22 @@ export function CaptureTillReportScreen({ navigation, route }: Props) {
     (params?.reportType as TillReportType) ?? TillReportType.DayEnd
   );
   const [selectedShiftId, setSelectedShiftId] = React.useState<string | null>(params?.shiftId ?? null);
+  const [selectedTillId, setSelectedTillId] = React.useState<string | null>(null);
   const [photos, setPhotos] = React.useState<TillReportPhoto[]>([]);
+
+  const tillsQuery = useQuery({
+    queryKey: ["tills", shopId],
+    queryFn: () => listTills(shopId as string),
+    enabled: Boolean(shopId),
+  });
+  const tills = tillsQuery.data ?? [];
+
+  // Auto-select if there's exactly one till — the picker is hidden in that case anyway.
+  React.useEffect(() => {
+    if (tills.length === 1 && selectedTillId !== tills[0].id) {
+      setSelectedTillId(tills[0].id);
+    }
+  }, [tills, selectedTillId]);
 
   const businessDaysQuery = useQuery({
     queryKey: ["business-days", shopId],
@@ -61,6 +77,7 @@ export function CaptureTillReportScreen({ navigation, route }: Props) {
       }
       return parseTillReport({
         shopId,
+        tillId: selectedTillId ?? undefined,
         reportType,
         shiftId: reportType === TillReportType.Shift ? selectedShiftId ?? undefined : undefined,
         businessDayId: reportType === TillReportType.DayEnd ? effectiveBusinessDayId : undefined,
@@ -117,7 +134,8 @@ export function CaptureTillReportScreen({ navigation, route }: Props) {
   const needsShift = reportType === TillReportType.Shift;
   const missingShift = needsShift && !selectedShiftId;
   const missingDay = reportType === TillReportType.DayEnd && !effectiveBusinessDayId;
-  const canProcess = photos.length > 0 && !missingShift && !missingDay && !isBusy && Boolean(shopId);
+  const missingTill = tills.length > 0 && !selectedTillId;
+  const canProcess = photos.length > 0 && !missingShift && !missingDay && !missingTill && !isBusy && Boolean(shopId);
 
   return (
     <ScreenContainer
@@ -132,28 +150,35 @@ export function CaptureTillReportScreen({ navigation, route }: Props) {
       }
     >
       <View style={ui.card}>
-        <Text style={ui.sectionTitle}>What is this till report for?</Text>
-        <View style={styles.segment}>
-          <SegmentButton
-            label="Day end"
-            active={reportType === TillReportType.DayEnd}
-            onPress={() => setReportType(TillReportType.DayEnd)}
-          />
-          <SegmentButton
-            label="A shift"
-            active={reportType === TillReportType.Shift}
-            onPress={() => setReportType(TillReportType.Shift)}
-          />
+        <Text style={ui.sectionTitle}>What's this till report for?</Text>
+
+        <View style={styles.pickerGroup}>
+          <Text style={styles.pickerLabel}>Scope</Text>
+          <View style={styles.chipRow}>
+            <Chip
+              label="Day end"
+              active={reportType === TillReportType.DayEnd}
+              disabled={isBusy}
+              onPress={() => setReportType(TillReportType.DayEnd)}
+            />
+            <Chip
+              label="A shift"
+              active={reportType === TillReportType.Shift}
+              disabled={isBusy}
+              onPress={() => setReportType(TillReportType.Shift)}
+            />
+          </View>
+          {reportType === TillReportType.DayEnd && !missingDay && effectiveBusinessDay ? (
+            <Text style={ui.caption}>Business day {effectiveBusinessDay.businessDate}</Text>
+          ) : null}
+          {reportType === TillReportType.DayEnd && missingDay ? (
+            <Text style={styles.warn}>No open business day. Open today's business day first.</Text>
+          ) : null}
         </View>
 
-        {reportType === TillReportType.DayEnd ? (
-          missingDay ? (
-            <Text style={styles.warn}>No open business day. Open today's business day first.</Text>
-          ) : (
-            <Text style={ui.caption}>Saved against the business day{effectiveBusinessDay ? ` (${effectiveBusinessDay.businessDate})` : ""}.</Text>
-          )
-        ) : (
-          <View style={styles.shiftPicker}>
+        {reportType === TillReportType.Shift ? (
+          <View style={styles.pickerGroup}>
+            <Text style={styles.pickerLabel}>Shift</Text>
             {missingDay ? (
               <Text style={styles.warn}>No open business day. Open a business day to list its shifts.</Text>
             ) : shiftsQuery.isLoading ? (
@@ -161,25 +186,63 @@ export function CaptureTillReportScreen({ navigation, route }: Props) {
             ) : shifts.length === 0 ? (
               <Text style={styles.warn}>No shifts for the current business day.</Text>
             ) : (
-              shifts.map((shift) => {
-                const selected = shift.id === selectedShiftId;
-                return (
-                  <Pressable
+              <View style={styles.chipRow}>
+                {shifts.map((shift) => (
+                  <Chip
                     key={shift.id}
-                    style={[styles.shiftRow, selected ? styles.shiftRowSelected : null]}
-                    onPress={() => setSelectedShiftId(shift.id)}
+                    label={shift.shiftName}
+                    sublabel={String(shift.status)}
+                    active={shift.id === selectedShiftId}
                     disabled={isBusy}
-                  >
-                    <Text style={styles.shiftName}>{shift.shiftName}</Text>
-                    <Text style={[styles.shiftBadge, selected ? styles.shiftBadgeSelected : null]}>
-                      {selected ? "Selected" : String(shift.status)}
-                    </Text>
-                  </Pressable>
-                );
-              })
+                    onPress={() => setSelectedShiftId(shift.id)}
+                  />
+                ))}
+              </View>
             )}
           </View>
-        )}
+        ) : null}
+
+        <View style={styles.pickerGroup}>
+          <Text style={styles.pickerLabel}>Till</Text>
+          {tillsQuery.isLoading ? (
+            <Text style={ui.caption}>Loading tills…</Text>
+          ) : tills.length === 0 ? (
+            <View>
+              <Text style={styles.warn}>No tills configured for this shop.</Text>
+              <Pressable onPress={() => navigation.navigate("TillsConfig")} disabled={isBusy}>
+                <Text style={styles.link}>Set up tills →</Text>
+              </Pressable>
+            </View>
+          ) : tills.length === 1 ? (
+            <View style={styles.chipRow}>
+              <Chip
+                label={tills[0].name}
+                sublabel={tills[0].code ?? undefined}
+                active
+                disabled
+                onPress={() => undefined}
+              />
+            </View>
+          ) : (
+            <>
+              <View style={styles.chipRow}>
+                {tills.map((till) => (
+                  <Chip
+                    key={till.id}
+                    label={till.name}
+                    sublabel={till.code ?? undefined}
+                    active={till.id === selectedTillId}
+                    disabled={isBusy}
+                    onPress={() => setSelectedTillId(till.id)}
+                  />
+                ))}
+              </View>
+              <Pressable onPress={() => navigation.navigate("TillsConfig")} disabled={isBusy}>
+                <Text style={styles.link}>Manage tills →</Text>
+              </Pressable>
+            </>
+          )}
+        </View>
       </View>
 
       <View style={ui.card}>
@@ -224,10 +287,35 @@ export function CaptureTillReportScreen({ navigation, route }: Props) {
   );
 }
 
-function SegmentButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+function Chip({
+  label,
+  sublabel,
+  active,
+  disabled,
+  onPress,
+}: {
+  label: string;
+  sublabel?: string;
+  active: boolean;
+  disabled?: boolean;
+  onPress: () => void;
+}) {
   return (
-    <Pressable style={[styles.segmentButton, active ? styles.segmentButtonActive : null]} onPress={onPress}>
-      <Text style={[styles.segmentText, active ? styles.segmentTextActive : null]}>{label}</Text>
+    <Pressable
+      style={[styles.chip, active ? styles.chipSelected : null, disabled ? styles.chipDisabled : null]}
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+    >
+      <Text style={[styles.chipText, active ? styles.chipTextSelected : null]} numberOfLines={1}>
+        {label}
+      </Text>
+      {sublabel ? (
+        <Text style={[styles.chipSub, active ? styles.chipSubSelected : null]} numberOfLines={1}>
+          {sublabel}
+        </Text>
+      ) : null}
     </Pressable>
   );
 }
@@ -256,6 +344,39 @@ const styles = StyleSheet.create({
   segmentText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, lineHeight: 16 },
   segmentTextActive: { color: appTheme.colors.onPrimary },
   warn: { color: appTheme.colors.warning, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 16 },
+  link: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, lineHeight: 17, paddingTop: 4 },
+  chipRow: { flexDirection: "row", gap: 8 },
+  chip: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    gap: 2,
+  },
+  chipSelected: {
+    borderColor: appTheme.colors.primary,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+  },
+  chipText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, lineHeight: 16, textAlign: "center" },
+  chipTextSelected: { color: appTheme.colors.primary },
+  chipSub: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 11, lineHeight: 13, textAlign: "center" },
+  chipSubSelected: { color: appTheme.colors.primary },
+  chipDisabled: { opacity: 0.55 },
+  pickerGroup: { gap: 6 },
+  pickerLabel: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 13,
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+  },
   shiftPicker: { gap: 8 },
   shiftRow: {
     flexDirection: "row",

@@ -36,6 +36,8 @@ public static class DependencyInjection
         services.AddScoped<IGameService, GameService>();
         services.AddScoped<IDeliveryService, DeliveryService>();
         services.AddScoped<ITillRuleEngine, TillRuleEngine>();
+        services.AddScoped<ITillService, TillService>();
+        services.AddScoped<IShopPaymentTypeService, ShopPaymentTypeService>();
         services.AddScoped<ITillReportService, TillReportService>();
         services.AddScoped<IPackService, PackService>();
         services.AddScoped<IBusinessDayService, BusinessDayService>();

@@ -1,14 +1,26 @@
-import { BillingCycle, EntryMethod, PackStatus, SellingOrder, ShiftStatus, SubscriptionStatus, SyncStatus, TemperatureEquipmentType, TillLineClassification, TillLineSource, TillPaymentType, TillReportStatus, TillReportType, TillRuleMatchType } from "./enums";
+import { BillingCycle, EntryMethod, PackStatus, SellingOrder, ShiftStatus, SubscriptionStatus, SyncStatus, TemperatureEquipmentType, TillLineClassification, TillLineSource, TillReportStatus, TillReportType, TillRuleMatchType } from "./enums";
+
+export type ShopPaymentType = {
+  id: string;
+  shopId: string;
+  name: string;
+  code?: string;
+  keywords?: string;
+  sortOrder: number;
+  isActive: boolean;
+};
 
 export type TillReportPayment = {
   id: string;
-  paymentType: TillPaymentType;
+  paymentTypeId?: string;
+  paymentTypeName: string;
   amount: number;
   source: TillLineSource;
 };
 
 export type TillPaymentTypeAmount = {
-  paymentType: TillPaymentType;
+  paymentTypeId?: string;
+  name: string;
   amount: number;
 };
 
@@ -25,14 +37,20 @@ export type TillPaymentSummary = {
   shifts: TillShiftPaymentSummary[];
 };
 
+export type Till = {
+  id: string;
+  shopId: string;
+  name: string;
+  code?: string;
+  isActive: boolean;
+};
+
 export type TillReportScopeSummary = {
   totalSales: number;
   payouts: number;
   net: number;
-  cash: number;
-  card: number;
-  other: number;
   reportCount: number;
+  tenders: TillPaymentTypeAmount[];
 };
 
 export type TillReportLine = {
@@ -57,6 +75,8 @@ export type TillReportAttachment = {
 export type TillReport = {
   id: string;
   shopId: string;
+  tillId?: string;
+  tillName?: string;
   reportType: TillReportType;
   shiftId?: string;
   businessDayId?: string;
@@ -78,6 +98,8 @@ export type TillReport = {
 export type TillReportListItem = {
   id: string;
   shopId: string;
+  tillId?: string;
+  tillName?: string;
   reportType: TillReportType;
   shiftId?: string;
   businessDate: string;

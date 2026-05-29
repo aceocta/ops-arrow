@@ -79,6 +79,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<Feature> Features => Set<Feature>();
     public DbSet<SubscriptionPlanFeature> SubscriptionPlanFeatures => Set<SubscriptionPlanFeature>();
     public DbSet<CfgTemperatureSchedule> CfgTemperatureSchedules => Set<CfgTemperatureSchedule>();
+    public DbSet<Till> Tills => Set<Till>();
+    public DbSet<ShopPaymentType> ShopPaymentTypes => Set<ShopPaymentType>();
     public DbSet<TillReport> TillReports => Set<TillReport>();
     public DbSet<TillReportLine> TillReportLines => Set<TillReportLine>();
     public DbSet<TillReportAttachment> TillReportAttachments => Set<TillReportAttachment>();
@@ -299,14 +301,27 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(x => x.ScratchCardPack).WithMany(x => x.DeliveryPacks).HasForeignKey(x => x.ScratchCardPackId);
         });
 
+        modelBuilder.Entity<Till>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.IsActive });
+            entity.HasIndex(x => new { x.ShopId, x.Name }).IsUnique();
+            entity.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Code).HasMaxLength(50);
+            entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId);
+        });
+
         modelBuilder.Entity<TillReport>(entity =>
         {
             entity.HasIndex(x => new { x.ShopId, x.BusinessDate });
             entity.HasIndex(x => x.ShiftId);
+            entity.HasIndex(x => x.TillId);
             entity.Property(x => x.TotalIncome).HasPrecision(18, 2);
             entity.Property(x => x.TotalExpense).HasPrecision(18, 2);
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
             entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId);
+            entity.HasOne(x => x.Till).WithMany().HasForeignKey(x => x.TillId).OnDelete(DeleteBehavior.NoAction);
             entity.HasOne(x => x.Shift).WithMany().HasForeignKey(x => x.ShiftId).OnDelete(DeleteBehavior.NoAction);
             entity.HasOne(x => x.BusinessDay).WithMany().HasForeignKey(x => x.BusinessDayId).OnDelete(DeleteBehavior.NoAction);
             entity.HasMany(x => x.Lines).WithOne(x => x.TillReport).HasForeignKey(x => x.TillReportId).OnDelete(DeleteBehavior.Cascade);
@@ -331,10 +346,26 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.ContentType).HasMaxLength(100).IsRequired();
         });
 
+        modelBuilder.Entity<ShopPaymentType>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.IsActive });
+            entity.HasIndex(x => new { x.ShopId, x.Name }).IsUnique();
+            entity.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Code).HasMaxLength(50);
+            entity.Property(x => x.Keywords).HasMaxLength(500);
+            entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId);
+        });
+
         modelBuilder.Entity<TillReportPayment>(entity =>
         {
-            entity.HasIndex(x => new { x.TillReportId, x.PaymentType }).IsUnique();
+            entity.HasIndex(x => new { x.TillReportId, x.PaymentTypeId })
+                .IsUnique()
+                .HasFilter("[PaymentTypeId] IS NOT NULL");
+            entity.Property(x => x.PaymentTypeName).HasMaxLength(100).IsRequired();
             entity.Property(x => x.Amount).HasPrecision(18, 2);
+            entity.HasOne(x => x.PaymentType).WithMany().HasForeignKey(x => x.PaymentTypeId).OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<TillCategoryRule>(entity =>

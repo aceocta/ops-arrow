@@ -12,8 +12,9 @@ import {
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { MainStackParamList } from "../../types/navigation";
-import { TillLineClassification, TillLineSource, TillPaymentType, TillReportStatus, TillReportType } from "../../types/enums";
-import { TillReportLine } from "../../types/models";
+import { listShopPaymentTypes } from "../../api/shopPaymentTypesApi";
+import { TillLineClassification, TillLineSource, TillReportStatus, TillReportType } from "../../types/enums";
+import { ShopPaymentType, TillReportLine } from "../../types/models";
 import { formatGbp } from "../../utils/currency";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -50,18 +51,24 @@ export function TillReportReviewScreen({ route, navigation }: Props) {
 
   const report = reportQuery.data;
 
-  const [tender, setTender] = React.useState({ cash: "", card: "", other: "" });
+  const paymentTypesQuery = useQuery({
+    queryKey: ["shop-payment-types", report?.shopId],
+    queryFn: () => listShopPaymentTypes(report?.shopId as string),
+    enabled: Boolean(report?.shopId),
+  });
+  const paymentTypes: ShopPaymentType[] = paymentTypesQuery.data ?? [];
+
+  // Keyed by payment type id; allows any number of tenders the shop has configured.
+  const [tenders, setTenders] = React.useState<Record<string, string>>({});
   React.useEffect(() => {
     if (!report) return;
-    const amountFor = (type: TillPaymentType) => {
-      const found = report.payments.find((p) => p.paymentType === type);
-      return found ? String(found.amount) : "";
-    };
-    setTender({
-      cash: amountFor(TillPaymentType.Cash),
-      card: amountFor(TillPaymentType.Card),
-      other: amountFor(TillPaymentType.Other),
-    });
+    const next: Record<string, string> = {};
+    for (const payment of report.payments) {
+      if (payment.paymentTypeId) {
+        next[payment.paymentTypeId] = String(payment.amount);
+      }
+    }
+    setTenders(next);
   }, [report]);
 
   const saveTenderMutation = useMutation({
@@ -73,15 +80,12 @@ export function TillReportReviewScreen({ route, navigation }: Props) {
         return Number.isFinite(num) && num >= 0 ? num : null;
       };
       let latest = report!;
-      const entries: Array<[TillPaymentType, string]> = [
-        [TillPaymentType.Cash, tender.cash],
-        [TillPaymentType.Card, tender.card],
-        [TillPaymentType.Other, tender.other],
-      ];
-      for (const [type, raw] of entries) {
+      for (const type of paymentTypes) {
+        const raw = tenders[type.id];
+        if (raw === undefined) continue;
         const amount = parse(raw);
         if (amount !== null) {
-          latest = await upsertTillPayment(reportId, type, amount);
+          latest = await upsertTillPayment(reportId, type.id, amount);
         }
       }
       return latest;
@@ -146,10 +150,20 @@ export function TillReportReviewScreen({ route, navigation }: Props) {
           <View style={ui.card}>
             <Text style={ui.sectionTitle}>Payments (tender)</Text>
             <Text style={ui.caption}>How takings were paid. Auto-read where possible — adjust if needed.</Text>
-            <TenderRow label="Cash" value={tender.cash} disabled={isConfirmed || isBusy} onChange={(v) => setTender((s) => ({ ...s, cash: v }))} />
-            <TenderRow label="Card" value={tender.card} disabled={isConfirmed || isBusy} onChange={(v) => setTender((s) => ({ ...s, card: v }))} />
-            <TenderRow label="Other" value={tender.other} disabled={isConfirmed || isBusy} onChange={(v) => setTender((s) => ({ ...s, other: v }))} />
-            {!isConfirmed ? (
+            {paymentTypes.length === 0 ? (
+              <Text style={styles.warnNote}>No payment types configured for this shop yet.</Text>
+            ) : (
+              paymentTypes.map((type) => (
+                <TenderRow
+                  key={type.id}
+                  label={type.name}
+                  value={tenders[type.id] ?? ""}
+                  disabled={isConfirmed || isBusy}
+                  onChange={(v) => setTenders((s) => ({ ...s, [type.id]: v }))}
+                />
+              ))
+            )}
+            {!isConfirmed && paymentTypes.length > 0 ? (
               <PrimaryButton
                 size="sm"
                 tone="neutral"

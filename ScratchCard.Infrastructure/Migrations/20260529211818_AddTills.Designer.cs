@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ScratchCard.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using ScratchCard.Infrastructure.Persistence;
 namespace ScratchCard.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260529211818_AddTills")]
+    partial class AddTills
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2905,63 +2908,6 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.ToTable("ShopChecklistTaskCompletions");
                 });
 
-            modelBuilder.Entity("ScratchCard.Domain.Entities.ShopPaymentType", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Code")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset>("CreatedOn")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(true);
-
-                    b.Property<bool>("IsDeleted")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
-
-                    b.Property<string>("Keywords")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<Guid?>("ModifiedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset?>("ModifiedOn")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<Guid>("ShopId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ShopId", "IsActive");
-
-                    b.HasIndex("ShopId", "Name")
-                        .IsUnique();
-
-                    b.ToTable("ShopPaymentTypes");
-                });
-
             modelBuilder.Entity("ScratchCard.Domain.Entities.ShopScratchCardGame", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3946,13 +3892,8 @@ namespace ScratchCard.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<Guid?>("PaymentTypeId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("PaymentTypeName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                    b.Property<int>("PaymentType")
+                        .HasColumnType("int");
 
                     b.Property<int>("Source")
                         .HasColumnType("int");
@@ -3962,11 +3903,8 @@ namespace ScratchCard.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("PaymentTypeId");
-
-                    b.HasIndex("TillReportId", "PaymentTypeId")
-                        .IsUnique()
-                        .HasFilter("[PaymentTypeId] IS NOT NULL");
+                    b.HasIndex("TillReportId", "PaymentType")
+                        .IsUnique();
 
                     b.ToTable("TillReportPayments");
                 });
@@ -4993,17 +4931,6 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Navigation("Shop");
                 });
 
-            modelBuilder.Entity("ScratchCard.Domain.Entities.ShopPaymentType", b =>
-                {
-                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
-                        .WithMany()
-                        .HasForeignKey("ShopId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.Navigation("Shop");
-                });
-
             modelBuilder.Entity("ScratchCard.Domain.Entities.ShopScratchCardGame", b =>
                 {
                     b.HasOne("ScratchCard.Domain.Entities.ScratchCardGame", "MasterGame")
@@ -5254,18 +5181,11 @@ namespace ScratchCard.Infrastructure.Migrations
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.TillReportPayment", b =>
                 {
-                    b.HasOne("ScratchCard.Domain.Entities.ShopPaymentType", "PaymentType")
-                        .WithMany()
-                        .HasForeignKey("PaymentTypeId")
-                        .OnDelete(DeleteBehavior.NoAction);
-
                     b.HasOne("ScratchCard.Domain.Entities.TillReport", "TillReport")
                         .WithMany("Payments")
                         .HasForeignKey("TillReportId")
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
-
-                    b.Navigation("PaymentType");
 
                     b.Navigation("TillReport");
                 });

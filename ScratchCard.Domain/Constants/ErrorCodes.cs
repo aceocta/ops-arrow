@@ -33,4 +33,9 @@ public static class ErrorCodes
     public const string TillReportAlreadyConfirmed = "till_report_already_confirmed";
     public const string TillReportLineNotFound = "till_report_line_not_found";
     public const string TillCategoryRuleNotFound = "till_category_rule_not_found";
+    public const string TillRequired = "till_required";
+    public const string TillNotFound = "till_not_found";
+    public const string DuplicateTillName = "duplicate_till_name";
+    public const string PaymentTypeNotFound = "payment_type_not_found";
+    public const string DuplicatePaymentTypeName = "duplicate_payment_type_name";
 }

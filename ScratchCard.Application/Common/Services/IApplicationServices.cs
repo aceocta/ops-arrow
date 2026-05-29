@@ -47,13 +47,29 @@ public interface IAdminCustomerService
     Task<InvitationDto> InviteShopUserAsync(Guid companyId, Guid shopId, string email, Guid roleId, int expiryHours, CancellationToken cancellationToken = default);
 }
 
+public interface ITillService
+{
+    Task<IReadOnlyCollection<TillDto>> ListAsync(Guid shopId, bool includeInactive, CancellationToken cancellationToken = default);
+    Task<TillDto> CreateAsync(CreateTillRequest request, CancellationToken cancellationToken = default);
+    Task<TillDto> UpdateAsync(Guid id, UpdateTillRequest request, CancellationToken cancellationToken = default);
+    Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+}
+
+public interface IShopPaymentTypeService
+{
+    Task<IReadOnlyCollection<ShopPaymentTypeDto>> ListAsync(Guid shopId, bool includeInactive, CancellationToken cancellationToken = default);
+    Task<ShopPaymentTypeDto> CreateAsync(CreateShopPaymentTypeRequest request, CancellationToken cancellationToken = default);
+    Task<ShopPaymentTypeDto> UpdateAsync(Guid id, UpdateShopPaymentTypeRequest request, CancellationToken cancellationToken = default);
+    Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+}
+
 public interface ITillReportService
 {
     Task<TillReportDto> ProcessAsync(ProcessTillReportRequest request, CancellationToken cancellationToken = default);
     Task<TillReportDto> GetAsync(Guid id, CancellationToken cancellationToken = default);
     Task<PagedResult<TillReportListItemDto>> ListAsync(Guid shopId, DateOnly? from, DateOnly? to, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<TillReportDto> ReclassifyLineAsync(Guid reportId, Guid lineId, TillLineClassification classification, CancellationToken cancellationToken = default);
-    Task<TillReportDto> UpsertPaymentAsync(Guid reportId, TillPaymentType paymentType, decimal amount, CancellationToken cancellationToken = default);
+    Task<TillReportDto> UpsertPaymentAsync(Guid reportId, Guid paymentTypeId, decimal amount, CancellationToken cancellationToken = default);
     Task<TillPaymentSummaryDto> GetPaymentSummaryAsync(Guid shopId, Guid businessDayId, CancellationToken cancellationToken = default);
     Task<TillReportScopeSummaryDto> GetDaySummaryAsync(Guid shopId, Guid businessDayId, CancellationToken cancellationToken = default);
     Task<TillReportScopeSummaryDto> GetShiftSummaryAsync(Guid shopId, Guid shiftId, CancellationToken cancellationToken = default);

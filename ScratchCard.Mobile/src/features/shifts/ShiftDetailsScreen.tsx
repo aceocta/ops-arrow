@@ -754,8 +754,9 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
               <KpiGrid columns={2}>
                 <KpiTile label="Total Sales" value={formatCurrency(tillShiftSummaryQuery.data.totalSales)} tone="success" />
                 <KpiTile label="Payouts" value={formatCurrency(tillShiftSummaryQuery.data.payouts)} />
-                <KpiTile label="Cash" value={formatCurrency(tillShiftSummaryQuery.data.cash)} />
-                <KpiTile label="Card" value={formatCurrency(tillShiftSummaryQuery.data.card)} />
+                {tillShiftSummaryQuery.data.tenders.slice(0, 4).map((t, i) => (
+                  <KpiTile key={t.paymentTypeId ?? `${t.name}-${i}`} label={t.name} value={formatCurrency(t.amount)} />
+                ))}
               </KpiGrid>
             ) : (
               <Text style={styles.meta}>Scan this shift's till report to record income, expense and tender.</Text>

@@ -2063,8 +2063,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               <KpiGrid columns={2}>
                 <KpiTile label="Total Sales" value={formatGbpOrDash(tillDaySummaryQuery.data.totalSales)} tone="success" />
                 <KpiTile label="Payouts" value={formatGbpOrDash(tillDaySummaryQuery.data.payouts)} />
-                <KpiTile label="Cash" value={formatGbpOrDash(tillDaySummaryQuery.data.cash)} />
-                <KpiTile label="Card" value={formatGbpOrDash(tillDaySummaryQuery.data.card)} />
+                {tillDaySummaryQuery.data.tenders.slice(0, 4).map((t, i) => (
+                  <KpiTile key={t.paymentTypeId ?? `${t.name}-${i}`} label={t.name} value={formatGbpOrDash(t.amount)} />
+                ))}
               </KpiGrid>
             ) : (
               <Text style={styles.meta}>Scan the day-end till report to record income, expense and tender.</Text>

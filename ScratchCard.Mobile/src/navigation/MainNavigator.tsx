@@ -54,6 +54,8 @@ import { CaptureTillReportScreen } from "../features/store-sales/CaptureTillRepo
 import { TillReportReviewScreen } from "../features/store-sales/TillReportReviewScreen";
 import { TillReportsListScreen } from "../features/store-sales/TillReportsListScreen";
 import { TillPaymentSummaryScreen } from "../features/store-sales/TillPaymentSummaryScreen";
+import { TillsConfigScreen } from "../features/store-sales/TillsConfigScreen";
+import { PaymentTypesConfigScreen } from "../features/store-sales/PaymentTypesConfigScreen";
 import { ScratchCardSummaryScreen } from "../features/scratch-card/ScratchCardSummaryScreen";
 import { BestEntryProvider, EntryOperation, useBestEntry } from "./BestEntryContext";
 import { useEntitlements } from "../features/subscription/useEntitlements";
@@ -184,6 +186,8 @@ const adminItems: MenuItem[] = [
     allowedRoles: ["PlatformAdmin", "CompanyOwner"],
   },
   { label: "Shop Configuration", screen: "ShopConfiguration", icon: "storefront-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"] },
+  { label: "Tills", screen: "TillsConfig", icon: "cash-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"] },
+  { label: "Payment Types", screen: "PaymentTypesConfig", icon: "card-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"] },
   { label: "App Configuration", screen: "AppConfiguration", icon: "construct-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner"] },
 ];
 
@@ -216,7 +220,9 @@ function shouldShowBottomDock(routeName: string | undefined) {
     routeName === "StoreSales" ||
     routeName === "TillReportReview" ||
     routeName === "TillReportHistory" ||
-    routeName === "TillPaymentSummary"
+    routeName === "TillPaymentSummary" ||
+    routeName === "TillsConfig" ||
+    routeName === "PaymentTypesConfig"
   );
 }
 
@@ -462,6 +468,8 @@ function MainStackScreens() {
       <Stack.Screen name="TillReportReview" component={TillReportReviewScreen} options={{ title: "Review Till Report" }} />
       <Stack.Screen name="TillReportHistory" component={TillReportsListScreen} options={{ title: "Till Reports" }} />
       <Stack.Screen name="TillPaymentSummary" component={TillPaymentSummaryScreen} options={{ title: "Payment Totals" }} />
+      <Stack.Screen name="TillsConfig" component={TillsConfigScreen} options={{ title: "Tills" }} />
+      <Stack.Screen name="PaymentTypesConfig" component={PaymentTypesConfigScreen} options={{ title: "Payment Types" }} />
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
       <Stack.Screen name="NotificationPreferences" component={NotificationPreferencesScreen} options={{ title: "Notifications" }} />
     </Stack.Navigator>

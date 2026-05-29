@@ -1,7 +1,7 @@
 import { apiClient } from "./client";
 import { ApiResponse } from "./types";
 import { TillCategoryRule, TillPaymentSummary, TillReport, TillReportListItem, TillReportScopeSummary } from "../types/models";
-import { TillLineClassification, TillPaymentType, TillReportType, TillRuleMatchType } from "../types/enums";
+import { TillLineClassification, TillReportType, TillRuleMatchType } from "../types/enums";
 
 type PagedResult<T> = {
   items: T[];
@@ -16,6 +16,7 @@ export type TillReportPhoto = {
 
 export async function parseTillReport(input: {
   shopId: string;
+  tillId?: string;
   reportType: TillReportType;
   shiftId?: string;
   businessDayId?: string;
@@ -24,6 +25,9 @@ export async function parseTillReport(input: {
   const formData = new FormData();
   formData.append("shopId", input.shopId);
   formData.append("reportType", input.reportType);
+  if (input.tillId) {
+    formData.append("tillId", input.tillId);
+  }
   if (input.shiftId) {
     formData.append("shiftId", input.shiftId);
   }
@@ -83,9 +87,9 @@ export async function confirmTillReport(reportId: string) {
   return response.data.data;
 }
 
-export async function upsertTillPayment(reportId: string, paymentType: TillPaymentType, amount: number) {
+export async function upsertTillPayment(reportId: string, paymentTypeId: string, amount: number) {
   const response = await apiClient.post<ApiResponse<TillReport>>(`/till-reports/${reportId}/payments`, {
-    paymentType,
+    paymentTypeId,
     amount,
   });
   return response.data.data;

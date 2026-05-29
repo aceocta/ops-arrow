@@ -93,9 +93,3 @@ export enum TillReportType {
   Shift = "Shift",
   DayEnd = "DayEnd",
 }
-
-export enum TillPaymentType {
-  Cash = "Cash",
-  Card = "Card",
-  Other = "Other",
-}

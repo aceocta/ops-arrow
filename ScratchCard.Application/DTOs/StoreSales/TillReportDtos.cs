@@ -6,6 +6,8 @@ public class TillReportDto
 {
     public Guid Id { get; set; }
     public Guid ShopId { get; set; }
+    public Guid? TillId { get; set; }
+    public string? TillName { get; set; }
     public TillReportType ReportType { get; set; }
     public Guid? ShiftId { get; set; }
     public Guid? BusinessDayId { get; set; }
@@ -27,7 +29,8 @@ public class TillReportDto
 public class TillReportPaymentDto
 {
     public Guid Id { get; set; }
-    public TillPaymentType PaymentType { get; set; }
+    public Guid? PaymentTypeId { get; set; }
+    public string PaymentTypeName { get; set; } = string.Empty;
     public decimal Amount { get; set; }
     public TillLineSource Source { get; set; }
 }
@@ -57,6 +60,8 @@ public class TillReportListItemDto
 {
     public Guid Id { get; set; }
     public Guid ShopId { get; set; }
+    public Guid? TillId { get; set; }
+    public string? TillName { get; set; }
     public TillReportType ReportType { get; set; }
     public Guid? ShiftId { get; set; }
     public string BusinessDate { get; set; } = string.Empty;
@@ -72,6 +77,7 @@ public class TillReportListItemDto
 public class ProcessTillReportRequest
 {
     public Guid ShopId { get; set; }
+    public Guid? TillId { get; set; }
     public TillReportType ReportType { get; set; } = TillReportType.DayEnd;
     public Guid? ShiftId { get; set; }
     public Guid? BusinessDayId { get; set; }
@@ -92,13 +98,14 @@ public class ReclassifyLineRequest
 
 public class UpsertTillPaymentRequest
 {
-    public TillPaymentType PaymentType { get; set; }
+    public Guid PaymentTypeId { get; set; }
     public decimal Amount { get; set; }
 }
 
 public class TillPaymentTypeAmountDto
 {
-    public TillPaymentType PaymentType { get; set; }
+    public Guid? PaymentTypeId { get; set; }
+    public string Name { get; set; } = string.Empty;
     public decimal Amount { get; set; }
 }
 
@@ -114,10 +121,8 @@ public class TillReportScopeSummaryDto
     public decimal TotalSales { get; set; }
     public decimal Payouts { get; set; }
     public decimal Net { get; set; }
-    public decimal Cash { get; set; }
-    public decimal Card { get; set; }
-    public decimal Other { get; set; }
     public int ReportCount { get; set; }
+    public IReadOnlyCollection<TillPaymentTypeAmountDto> Tenders { get; set; } = [];
 }
 
 public class TillPaymentSummaryDto
