@@ -1,4 +1,5 @@
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 
 function initials(name?: string, email?: string): string {
@@ -26,14 +27,29 @@ const navIcon = {
   ),
 };
 
+const hamburgerIcon = (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="3" y1="6" x2="21" y2="6" />
+    <line x1="3" y1="12" x2="21" y2="12" />
+    <line x1="3" y1="18" x2="21" y2="18" />
+  </svg>
+);
+
 export function Layout({ children }: { children: React.ReactNode }) {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const name = profile?.displayName || profile?.email || "";
+  const [navOpen, setNavOpen] = useState(false);
+
+  // Close the mobile drawer whenever the route changes.
+  useEffect(() => setNavOpen(false), [location.pathname]);
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      {navOpen ? <div className="sidebar-overlay" onClick={() => setNavOpen(false)} /> : null}
+
+      <aside className={`sidebar${navOpen ? " open" : ""}`}>
         <Link to="/customers" className="sidebar-brand">
           <span className="brand-mark">OA</span>
           <span>Ops Arrow <span className="brand-sub">Admin</span></span>
@@ -50,6 +66,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       <div className="app-body">
         <header className="topbar">
+          <button
+            className="nav-toggle"
+            aria-label="Toggle navigation"
+            onClick={() => setNavOpen((v) => !v)}
+          >
+            {hamburgerIcon}
+          </button>
           <div className="header-right">
             <span className="user-chip">
               <span className="avatar avatar--sm">{initials(profile?.displayName, profile?.email)}</span>

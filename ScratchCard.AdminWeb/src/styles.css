@@ -81,13 +81,21 @@ button { font-family: inherit; }
 .app-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .topbar {
   position: sticky; top: 0; z-index: 10;
-  display: flex; align-items: center; justify-content: flex-end;
+  display: flex; align-items: center;
   padding: 0 28px; height: 60px;
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: saturate(160%) blur(8px);
   border-bottom: 1px solid var(--border);
 }
-.header-right { display: flex; align-items: center; gap: 14px; }
+.nav-toggle {
+  display: none; align-items: center; justify-content: center;
+  width: 40px; height: 40px; margin-right: 8px;
+  border: 1px solid var(--border-strong); background: var(--surface); border-radius: 10px;
+  color: var(--text-muted); cursor: pointer;
+}
+.nav-toggle:hover { background: var(--surface-2); color: var(--text); }
+.sidebar-overlay { display: none; }
+.header-right { display: flex; align-items: center; gap: 14px; margin-left: auto; }
 .user-chip { display: inline-flex; align-items: center; gap: 9px; }
 .header-user { font-size: 14px; color: var(--text-muted); font-weight: 500; }
 
@@ -239,3 +247,59 @@ select {
 .login-title { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.3px; }
 .login-sub { margin: -6px 0 8px; color: var(--text-muted); font-size: 14px; }
 .login-card .btn-primary { padding: 11px 15px; margin-top: 4px; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 860px) {
+  .nav-toggle { display: inline-flex; }
+
+  /* Sidebar becomes an off-canvas drawer toggled by the hamburger. */
+  .sidebar {
+    position: fixed; top: 0; left: 0; height: 100vh; z-index: 50;
+    transform: translateX(-100%); transition: transform 0.22s ease;
+    box-shadow: var(--shadow-md);
+  }
+  .sidebar.open { transform: translateX(0); }
+  .sidebar-overlay {
+    display: block; position: fixed; inset: 0; z-index: 40;
+    background: rgba(15, 31, 42, 0.42);
+  }
+
+  .app-body { width: 100%; }
+  .app-main { padding: 18px 16px; }
+  .topbar { padding: 0 16px; }
+
+  .page-head { flex-direction: column; align-items: stretch; }
+  .search-row { width: 100%; }
+  .search-row input { min-width: 0; flex: 1; }
+
+  .form-grid { grid-template-columns: 1fr; padding: 18px; }
+  .kv { gap: 18px; }
+  .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Tables reflow: each row becomes a stacked card with a label per cell. */
+  .table thead { display: none; }
+  .table, .table tbody, .table tr, .table td { display: block; width: 100%; }
+  .table tr { padding: 6px 4px; border-bottom: 8px solid var(--bg); }
+  .table tbody tr:last-child { border-bottom: none; }
+  .table td {
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+    padding: 9px 16px; border-bottom: 1px solid var(--border); text-align: right;
+  }
+  .table tr td:last-child { border-bottom: none; }
+  .table td::before {
+    content: attr(data-label); text-align: left; flex-shrink: 0;
+    color: var(--text-subtle); font-weight: 600; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .table td.empty-cell::before { content: none; }
+  .table td.empty-cell { justify-content: center; text-align: center; }
+  .table .num { text-align: right; }
+  .table .identity { justify-content: flex-end; }
+  .table .row-actions { flex-wrap: wrap; justify-content: flex-end; }
+  .table td select { max-width: 60%; }
+}
+
+@media (max-width: 480px) {
+  .header-user { display: none; }
+  .page-head h1 { font-size: 21px; }
+}

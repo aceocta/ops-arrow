@@ -159,11 +159,11 @@ function ShopsTab({ customer }: { customer: CustomerDetail }) {
             <tr><td colSpan={5} className="empty-cell">No shops.</td></tr>
           ) : customer.shops.map((s) => (
             <tr key={s.id}>
-              <td><span className="identity-name">{s.shopName}</span></td>
-              <td className="muted">{s.city}</td>
-              <td className="muted">{s.subscriptionPlanName ?? "—"}</td>
-              <td><span className="badge">{s.subscriptionStatus}</span></td>
-              <td>
+              <td data-label="Shop"><span className="identity-name">{s.shopName}</span></td>
+              <td data-label="City" className="muted">{s.city}</td>
+              <td data-label="Plan" className="muted">{s.subscriptionPlanName ?? "—"}</td>
+              <td data-label="Subscription"><span className="badge">{s.subscriptionStatus}</span></td>
+              <td data-label="Status">
                 <span className={`status ${s.isActive ? "status--ok" : "status--warn"}`}>
                   <span className="dot" />{s.isActive ? "Active" : "Inactive"}
                 </span>
@@ -253,7 +253,7 @@ function UserRow({
 
   return (
     <tr>
-      <td>
+      <td data-label="User">
         <div className="identity">
           <span className="avatar">{userInitials(user.fullName, user.email)}</span>
           <div>
@@ -262,20 +262,20 @@ function UserRow({
           </div>
         </div>
       </td>
-      <td className="muted">{user.shopName}</td>
-      <td>
+      <td data-label="Shop" className="muted">{user.shopName}</td>
+      <td data-label="Role">
         <select value={roleId} onChange={(e) => setRoleId(e.target.value)} disabled={busy}>
           {roles.length === 0 ? <option value={user.roleId}>{user.roleName}</option> : null}
           {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
       </td>
-      <td className="muted">{user.lastLoginOn ? new Date(user.lastLoginOn).toLocaleString() : "—"}</td>
-      <td>
+      <td data-label="Last login" className="muted">{user.lastLoginOn ? new Date(user.lastLoginOn).toLocaleString() : "—"}</td>
+      <td data-label="Status">
         <span className={`status ${user.isActive ? "status--ok" : "status--warn"}`}>
           <span className="dot" />{user.isActive ? "Active" : "Inactive"}
         </span>
       </td>
-      <td>
+      <td data-label="Actions">
         <div className="row-actions">
           <button
             className="btn btn-sm"
@@ -372,10 +372,10 @@ function ShopSubscriptionRow({
 
   return (
     <tr>
-      <td><span className="identity-name">{shop.shopName}</span></td>
-      <td className="muted">{shop.subscriptionPlanName ?? "—"}</td>
-      <td><span className="badge">{shop.subscriptionStatus}</span></td>
-      <td>
+      <td data-label="Shop"><span className="identity-name">{shop.shopName}</span></td>
+      <td data-label="Current plan" className="muted">{shop.subscriptionPlanName ?? "—"}</td>
+      <td data-label="Status"><span className="badge">{shop.subscriptionStatus}</span></td>
+      <td data-label="Assign plan">
         <div className="row-actions">
           <select value={planId} onChange={(e) => setPlanId(e.target.value)} disabled={busy}>
             <option value="">Select a plan…</option>
@@ -386,7 +386,7 @@ function ShopSubscriptionRow({
           </button>
         </div>
       </td>
-      <td>
+      <td data-label="Actions">
         <div className="row-actions">
           {isCancelled ? (
             <button className="btn btn-sm btn-success" disabled={busy} onClick={() => reactivateMutation.mutate()}>

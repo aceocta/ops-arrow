@@ -63,12 +63,12 @@ export function CustomersListPage() {
             ) : data && data.items.length > 0 ? (
               data.items.map((c) => (
                 <tr key={c.id} className="row-clickable" onClick={() => navigate(`/customers/${c.id}`)}>
-                  <td><span className="identity-name">{c.companyName}</span></td>
-                  <td className="muted">{c.email || "—"}</td>
-                  <td className="num">{c.shopCount}</td>
-                  <td className="num">{c.userCount}</td>
-                  <td><span className="badge">{c.subscriptionStatus}</span></td>
-                  <td>
+                  <td data-label="Company"><span className="identity-name">{c.companyName}</span></td>
+                  <td data-label="Email" className="muted">{c.email || "—"}</td>
+                  <td data-label="Shops" className="num">{c.shopCount}</td>
+                  <td data-label="Users" className="num">{c.userCount}</td>
+                  <td data-label="Subscription"><span className="badge">{c.subscriptionStatus}</span></td>
+                  <td data-label="Status">
                     <span className={`status ${c.isActive ? "status--ok" : "status--warn"}`}>
                       <span className="dot" />{c.status}
                     </span>

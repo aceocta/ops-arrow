@@ -67,12 +67,12 @@ export function ShopsListPage() {
                   className={s.companyId ? "row-clickable" : undefined}
                   onClick={() => s.companyId && navigate(`/customers/${s.companyId}`)}
                 >
-                  <td><span className="identity-name">{s.shopName}</span></td>
-                  <td className="muted">{s.companyName || "—"}</td>
-                  <td className="muted">{s.city || "—"}</td>
-                  <td className="muted">{s.subscriptionPlanName ?? "—"}</td>
-                  <td><span className="badge">{s.subscriptionStatus}</span></td>
-                  <td>
+                  <td data-label="Shop"><span className="identity-name">{s.shopName}</span></td>
+                  <td data-label="Company" className="muted">{s.companyName || "—"}</td>
+                  <td data-label="City" className="muted">{s.city || "—"}</td>
+                  <td data-label="Plan" className="muted">{s.subscriptionPlanName ?? "—"}</td>
+                  <td data-label="Subscription"><span className="badge">{s.subscriptionStatus}</span></td>
+                  <td data-label="Status">
                     <span className={`status ${s.isActive ? "status--ok" : "status--warn"}`}>
                       <span className="dot" />{s.isActive ? "Active" : "Inactive"}
                     </span>
