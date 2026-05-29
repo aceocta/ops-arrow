@@ -30,6 +30,12 @@ public class ValidateInvitationResponse
     public Guid ShopId { get; set; }
     public string RoleName { get; set; } = string.Empty;
     public DateTimeOffset ExpiresOn { get; set; }
+
+    /// <summary>
+    /// True when a user account already exists for this email. The accept screen uses this to skip
+    /// the name/password setup — an existing user just joins the new shop and signs in as usual.
+    /// </summary>
+    public bool AccountExists { get; set; }
 }
 
 public class AcceptInvitationRequest

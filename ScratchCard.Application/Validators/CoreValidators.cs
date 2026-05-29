@@ -95,10 +95,13 @@ public class AcceptInvitationRequestValidator : AbstractValidator<AcceptInvitati
 {
     public AcceptInvitationRequestValidator()
     {
+        // Name/password are required only for brand-new accounts; that's enforced in the service
+        // (an existing user just joins the new shop without re-entering credentials). Here we only
+        // bound-check whatever is supplied.
         RuleFor(x => x.Token).NotEmpty();
-        RuleFor(x => x.FirstName).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.LastName).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.Password).NotEmpty().MinimumLength(8);
+        RuleFor(x => x.FirstName).MaximumLength(100);
+        RuleFor(x => x.LastName).MaximumLength(100);
+        RuleFor(x => x.Password).MinimumLength(8).When(x => !string.IsNullOrEmpty(x.Password));
     }
 }
 

@@ -142,13 +142,18 @@ public class InvitationService : IInvitationService
             throw new AppException(ErrorCodes.InvitationExpired, "Invitation has expired.");
         }
 
+        var accountExists = await _userRepository.Query()
+            .AsNoTracking()
+            .AnyAsync(x => x.Email == invitation.Email, cancellationToken);
+
         return new ValidateInvitationResponse
         {
             IsValid = true,
             Email = invitation.Email,
             ShopId = invitation.ShopId,
             RoleName = invitation.Role.Name,
-            ExpiresOn = invitation.ExpiresOn
+            ExpiresOn = invitation.ExpiresOn,
+            AccountExists = accountExists
         };
     }
 
@@ -173,29 +178,27 @@ public class InvitationService : IInvitationService
             throw new AppException(ErrorCodes.InvitationExpired, "Invitation has expired.");
         }
 
-        if (string.IsNullOrWhiteSpace(request.FirstName))
-        {
-            throw new AppException("validation_failed", "First name is required.", 400);
-        }
-
-        if (string.IsNullOrWhiteSpace(request.LastName))
-        {
-            throw new AppException("validation_failed", "Last name is required.", 400);
-        }
-
-        if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 8)
-        {
-            throw new AppException("validation_failed", "Password must be at least 8 characters.", 400);
-        }
-
         var now = DateTimeOffset.UtcNow;
-        var passwordHash = _passwordHashService.HashPassword(request.Password);
 
         var user = await _userRepository.Query()
             .FirstOrDefaultAsync(x => x.Email == invitation.Email, cancellationToken);
 
         if (user is null)
         {
+            // Brand-new person: they set up their name + password during acceptance.
+            if (string.IsNullOrWhiteSpace(request.FirstName))
+            {
+                throw new AppException("validation_failed", "First name is required.", 400);
+            }
+            if (string.IsNullOrWhiteSpace(request.LastName))
+            {
+                throw new AppException("validation_failed", "Last name is required.", 400);
+            }
+            if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 8)
+            {
+                throw new AppException("validation_failed", "Password must be at least 8 characters.", 400);
+            }
+
             user = new User
             {
                 Email = invitation.Email,
@@ -203,7 +206,7 @@ public class InvitationService : IInvitationService
                 LastName = request.LastName.Trim(),
                 ExternalProvider = "DirectSignup",
                 ExternalProviderUserId = $"direct-{Guid.NewGuid():N}",
-                PasswordHash = passwordHash,
+                PasswordHash = _passwordHashService.HashPassword(request.Password),
                 IsActive = true,
                 LastLoginOn = now,
                 CreatedOn = now
@@ -211,14 +214,9 @@ public class InvitationService : IInvitationService
 
             await _userRepository.AddAsync(user, cancellationToken);
         }
-        else
-        {
-            user.FirstName = request.FirstName.Trim();
-            user.LastName = request.LastName.Trim();
-            user.PasswordHash = passwordHash;
-            user.LastLoginOn = now;
-            _userRepository.Update(user);
-        }
+        // Existing account: do NOT touch their name or password. Accepting an invitation to a new
+        // shop only grants membership — they keep their existing credentials and sign in as usual.
+        // The emailed invitation token already proves they control this email address.
 
         var shopUserExists = await _shopUserRepository.Query()
             .AnyAsync(x => x.ShopId == invitation.ShopId && x.UserId == user.Id, cancellationToken);

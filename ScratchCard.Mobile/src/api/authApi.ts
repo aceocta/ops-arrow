@@ -72,11 +72,30 @@ export async function signUpWithPassword(payload: {
   return parseAuthTokenResult(response.data);
 }
 
+export type ValidateInvitationResult = {
+  isValid: boolean;
+  email: string;
+  shopId: string;
+  roleName: string;
+  expiresOn: string;
+  // True when the email already has an account — the invitee just joins the new shop and
+  // signs in with their existing password (no name/password setup needed).
+  accountExists: boolean;
+};
+
+export async function validateInvitation(token: string) {
+  const response = await apiClient.get<{ success: boolean; data: ValidateInvitationResult }>(
+    "/invitations/validate",
+    { params: { token }, timeout: 45000 }
+  );
+  return response.data.data;
+}
+
 export async function acceptInvitation(payload: {
   token: string;
-  firstName: string;
-  lastName: string;
-  password: string;
+  firstName?: string;
+  lastName?: string;
+  password?: string;
 }) {
   // Accept is often the first call after a cold app open from the email link, so
   // give the (possibly cold-starting) server more headroom than the global 15s.
