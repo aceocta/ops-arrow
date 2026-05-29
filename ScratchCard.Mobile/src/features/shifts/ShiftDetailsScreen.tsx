@@ -910,11 +910,9 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
         ) : null}
 
 
-           <View style={[ui.card, styles.summaryCard]}>
+        {closeAttachments.length > 0 ? (
+          <View style={[ui.card, styles.summaryCard]}>
           <Text style={styles.sectionTitle}>Attachments</Text>
-          {closeAttachments.length === 0 ? (
-            <Text style={styles.meta}>No attachments saved for this shift.</Text>
-          ) : (
             <View style={styles.attachmentList}>
               {closeAttachments.map((attachment) => {
                 const canPreviewImage = isImageContentType(attachment.contentType);
@@ -971,8 +969,8 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
                 );
               })}
             </View>
-          )}
-        </View>
+          </View>
+        ) : null}
 
         <Modal
           visible={isAttachmentPreviewModalVisible}

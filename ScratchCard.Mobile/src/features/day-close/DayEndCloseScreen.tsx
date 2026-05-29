@@ -2047,6 +2047,31 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           ) : null}
         </Pressable>
 
+        {day ? (
+          <Pressable
+            onPress={() => navigation.navigate("StoreSales", { reportType: "DayEnd", businessDayId })}
+            accessibilityRole="button"
+            accessibilityLabel="Add day-end till report"
+            style={({ pressed }) => [ui.card, styles.sectionCard, pressed ? styles.sectionCardPressed : null]}
+          >
+            <SectionHeader
+              title="Store Sales (Till Report)"
+              icon="cash-outline"
+              right={<Ionicons name="chevron-forward" size={18} color={appTheme.colors.textSubtle} />}
+            />
+            {tillDaySummaryQuery.data && tillDaySummaryQuery.data.reportCount > 0 ? (
+              <KpiGrid columns={2}>
+                <KpiTile label="Total Sales" value={formatGbpOrDash(tillDaySummaryQuery.data.totalSales)} tone="success" />
+                <KpiTile label="Payouts" value={formatGbpOrDash(tillDaySummaryQuery.data.payouts)} />
+                <KpiTile label="Cash" value={formatGbpOrDash(tillDaySummaryQuery.data.cash)} />
+                <KpiTile label="Card" value={formatGbpOrDash(tillDaySummaryQuery.data.card)} />
+              </KpiGrid>
+            ) : (
+              <Text style={styles.meta}>Scan the day-end till report to record income, expense and tender.</Text>
+            )}
+          </Pressable>
+        ) : null}
+
         {isSafeDropManagementVisible ? (
           <Pressable
             onPress={() => {
@@ -2241,31 +2266,6 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   }
                 />
               </KpiGrid>
-            )}
-          </Pressable>
-        ) : null}
-
-        {day ? (
-          <Pressable
-            onPress={() => navigation.navigate("StoreSales", { reportType: "DayEnd", businessDayId })}
-            accessibilityRole="button"
-            accessibilityLabel="Add day-end till report"
-            style={({ pressed }) => [ui.card, styles.sectionCard, pressed ? styles.sectionCardPressed : null]}
-          >
-            <SectionHeader
-              title="Store Sales (Till Report)"
-              icon="cash-outline"
-              right={<Ionicons name="chevron-forward" size={18} color={appTheme.colors.textSubtle} />}
-            />
-            {tillDaySummaryQuery.data && tillDaySummaryQuery.data.reportCount > 0 ? (
-              <KpiGrid columns={2}>
-                <KpiTile label="Total Sales" value={formatGbpOrDash(tillDaySummaryQuery.data.totalSales)} tone="success" />
-                <KpiTile label="Payouts" value={formatGbpOrDash(tillDaySummaryQuery.data.payouts)} />
-                <KpiTile label="Cash" value={formatGbpOrDash(tillDaySummaryQuery.data.cash)} />
-                <KpiTile label="Card" value={formatGbpOrDash(tillDaySummaryQuery.data.card)} />
-              </KpiGrid>
-            ) : (
-              <Text style={styles.meta}>Scan the day-end till report to record income, expense and tender.</Text>
             )}
           </Pressable>
         ) : null}
