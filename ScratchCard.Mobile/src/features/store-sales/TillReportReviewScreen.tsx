@@ -1,5 +1,6 @@
 import React from "react";
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -197,36 +198,45 @@ function LineRow({
   disabled: boolean;
   onClassify: (classification: TillLineClassification) => void;
 }) {
+  const isIncome = line.classification === TillLineClassification.Income;
+  const isExpense = line.classification === TillLineClassification.Expense;
+  const accentStyle = isIncome ? styles.accentIncome : isExpense ? styles.accentExpense : styles.accentNeutral;
+  const amountStyle = isIncome ? styles.amountIncome : isExpense ? styles.amountExpense : styles.amountNeutral;
+
   return (
     <View style={styles.lineRow}>
-      <View style={styles.lineMain}>
-        <View style={styles.lineDescWrap}>
-          <Text style={styles.lineDesc} numberOfLines={2}>
-            {line.rawDescription}
-          </Text>
-          {line.source === TillLineSource.Ai ? (
-            <View style={styles.aiTag}>
-              <Text style={styles.aiTagText}>AI · verify</Text>
-            </View>
-          ) : null}
+      <View style={[styles.accent, accentStyle]} />
+      <View style={styles.lineBody}>
+        <View style={styles.lineMain}>
+          <View style={styles.lineDescWrap}>
+            <Text style={styles.lineDesc} numberOfLines={2}>
+              {line.rawDescription}
+            </Text>
+            {line.source === TillLineSource.Ai ? (
+              <View style={styles.aiTag}>
+                <Text style={styles.aiTagText}>AI · tap to confirm</Text>
+              </View>
+            ) : null}
+          </View>
+          <Text style={[styles.lineAmount, amountStyle]}>{formatGbp(line.amount)}</Text>
         </View>
-        <Text style={styles.lineAmount}>{formatGbp(line.amount)}</Text>
-      </View>
-      <View style={styles.toggleRow}>
-        <ClassifyChip
-          label="Income"
-          active={line.classification === TillLineClassification.Income}
-          tone="income"
-          disabled={disabled}
-          onPress={() => onClassify(TillLineClassification.Income)}
-        />
-        <ClassifyChip
-          label="Expense"
-          active={line.classification === TillLineClassification.Expense}
-          tone="expense"
-          disabled={disabled}
-          onPress={() => onClassify(TillLineClassification.Expense)}
-        />
+        <View style={styles.segment}>
+          <SegmentOption
+            label="Income"
+            tone="income"
+            active={isIncome}
+            disabled={disabled}
+            onPress={() => onClassify(TillLineClassification.Income)}
+          />
+          <View style={styles.segmentDivider} />
+          <SegmentOption
+            label="Expense"
+            tone="expense"
+            active={isExpense}
+            disabled={disabled}
+            onPress={() => onClassify(TillLineClassification.Expense)}
+          />
+        </View>
       </View>
     </View>
   );
@@ -262,7 +272,7 @@ function TenderRow({
   );
 }
 
-function ClassifyChip({
+function SegmentOption({
   label,
   active,
   tone,
@@ -275,14 +285,19 @@ function ClassifyChip({
   disabled: boolean;
   onPress: () => void;
 }) {
-  const activeStyle = tone === "income" ? styles.chipIncomeActive : styles.chipExpenseActive;
+  const activeBg = tone === "income" ? styles.segIncomeOn : styles.segExpenseOn;
+  const activeText = tone === "income" ? styles.segTextIncomeOn : styles.segTextExpenseOn;
+  const activeColor = tone === "income" ? appTheme.colors.success : appTheme.colors.danger;
   return (
     <Pressable
-      style={[styles.chip, active ? activeStyle : null, disabled ? styles.chipDisabled : null]}
+      style={[styles.segOption, active ? activeBg : null, disabled ? styles.segDisabled : null]}
       onPress={onPress}
       disabled={disabled}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
     >
-      <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>{label}</Text>
+      {active ? <Ionicons name="checkmark-circle" size={14} color={activeColor} /> : null}
+      <Text style={[styles.segText, active ? activeText : null]}>{label}</Text>
     </Pressable>
   );
 }
@@ -323,13 +338,18 @@ const styles = StyleSheet.create({
   summaryLink: { paddingTop: 4 },
   summaryLinkText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, lineHeight: 17 },
   lineRow: {
+    flexDirection: "row",
     borderWidth: 1,
     borderColor: appTheme.colors.borderSoft,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surface,
-    padding: 10,
-    gap: 8,
+    overflow: "hidden",
   },
+  accent: { width: 3, alignSelf: "stretch" },
+  accentIncome: { backgroundColor: appTheme.colors.success },
+  accentExpense: { backgroundColor: appTheme.colors.danger },
+  accentNeutral: { backgroundColor: appTheme.colors.warning },
+  lineBody: { flex: 1, padding: 10, gap: 8 },
   lineMain: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
   lineDescWrap: { flex: 1, gap: 3 },
   lineDesc: { color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 13, lineHeight: 17 },
@@ -341,20 +361,32 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   aiTagText: { color: appTheme.colors.info, fontFamily: appTheme.fonts.bodyMedium, fontSize: 10, lineHeight: 13 },
-  lineAmount: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 18 },
-  toggleRow: { flexDirection: "row", gap: 8 },
-  chip: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 7,
-    borderRadius: appTheme.radius.pill,
+  lineAmount: { fontFamily: appTheme.fonts.bodyMedium, fontSize: 15, lineHeight: 19 },
+  amountIncome: { color: appTheme.colors.success },
+  amountExpense: { color: appTheme.colors.danger },
+  amountNeutral: { color: appTheme.colors.text },
+  segment: {
+    flexDirection: "row",
+    alignItems: "stretch",
     borderWidth: 1,
     borderColor: appTheme.colors.border,
-    backgroundColor: appTheme.colors.surface,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    overflow: "hidden",
   },
-  chipIncomeActive: { backgroundColor: appTheme.colors.success, borderColor: appTheme.colors.success },
-  chipExpenseActive: { backgroundColor: appTheme.colors.danger, borderColor: appTheme.colors.danger },
-  chipDisabled: { opacity: 0.5 },
-  chipText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 14 },
-  chipTextActive: { color: appTheme.colors.onPrimary },
+  segmentDivider: { width: 1, backgroundColor: appTheme.colors.border },
+  segOption: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingVertical: 8,
+  },
+  segIncomeOn: { backgroundColor: appTheme.colors.surfaceSuccessMuted },
+  segExpenseOn: { backgroundColor: appTheme.colors.surfaceDangerSoft },
+  segDisabled: { opacity: 0.5 },
+  segText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 15 },
+  segTextIncomeOn: { color: appTheme.colors.success },
+  segTextExpenseOn: { color: appTheme.colors.danger },
 });
