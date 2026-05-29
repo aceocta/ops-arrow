@@ -15,6 +15,19 @@ public class CustomerListItemDto
     public DateTimeOffset CreatedOn { get; set; }
 }
 
+/// <summary>Row in the platform-wide shops list (across all customers).</summary>
+public class AdminShopListItemDto
+{
+    public Guid Id { get; set; }
+    public string ShopName { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+    public Guid? CompanyId { get; set; }
+    public string CompanyName { get; set; } = string.Empty;
+    public string SubscriptionStatus { get; set; } = string.Empty;
+    public string? SubscriptionPlanName { get; set; }
+}
+
 public class ShopSummaryDto
 {
     public Guid Id { get; set; }
@@ -22,6 +35,7 @@ public class ShopSummaryDto
     public string City { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public string SubscriptionStatus { get; set; } = string.Empty;
+    public string? SubscriptionPlanName { get; set; }
 }
 
 public class CustomerUserDto
@@ -29,8 +43,10 @@ public class CustomerUserDto
     public Guid UserId { get; set; }
     public string FullName { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
-    public string RoleName { get; set; } = string.Empty;
+    public Guid ShopId { get; set; }
     public string ShopName { get; set; } = string.Empty;
+    public Guid RoleId { get; set; }
+    public string RoleName { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public DateTimeOffset? LastLoginOn { get; set; }
 }
@@ -81,4 +97,30 @@ public class AdminUpdateCustomerRequest
     public string? PostCode { get; set; }
     public string? Country { get; set; }
     public bool IsActive { get; set; }
+}
+
+/// <summary>Toggle a customer user's active state for a specific shop membership.</summary>
+public class AdminSetUserActiveRequest
+{
+    public Guid ShopId { get; set; }
+    public bool IsActive { get; set; }
+}
+
+/// <summary>Assign a role to a customer user for a specific shop membership.</summary>
+public class AdminAssignUserRoleRequest
+{
+    public Guid ShopId { get; set; }
+    public Guid RoleId { get; set; }
+}
+
+/// <summary>Assign a subscription plan to a specific shop.</summary>
+public class AdminSelectShopPlanRequest
+{
+    public Guid PlanId { get; set; }
+}
+
+/// <summary>Cancel a specific shop's subscription.</summary>
+public class AdminCancelShopSubscriptionRequest
+{
+    public bool CancelAtPeriodEnd { get; set; } = true;
 }

@@ -29,9 +29,15 @@ namespace ScratchCard.Application.Common.Services;
 public interface IAdminCustomerService
 {
     Task<PagedResult<CustomerListItemDto>> ListCustomersAsync(string? search, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<PagedResult<AdminShopListItemDto>> ListShopsAsync(string? search, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<CustomerDetailDto> GetCustomerAsync(Guid companyId, CancellationToken cancellationToken = default);
     Task<CustomerDetailDto> UpdateCustomerAsync(Guid companyId, AdminUpdateCustomerRequest request, CancellationToken cancellationToken = default);
     Task<CustomerDetailDto> SetCustomerStatusAsync(Guid companyId, bool isActive, CancellationToken cancellationToken = default);
+    Task<CustomerDetailDto> SetUserActiveAsync(Guid companyId, Guid userId, Guid shopId, bool isActive, CancellationToken cancellationToken = default);
+    Task<CustomerDetailDto> AssignUserRoleAsync(Guid companyId, Guid userId, Guid shopId, Guid roleId, CancellationToken cancellationToken = default);
+    Task<CustomerDetailDto> SelectShopPlanAsync(Guid companyId, Guid shopId, Guid planId, CancellationToken cancellationToken = default);
+    Task<CustomerDetailDto> CancelShopSubscriptionAsync(Guid companyId, Guid shopId, bool cancelAtPeriodEnd, CancellationToken cancellationToken = default);
+    Task<CustomerDetailDto> ReactivateShopSubscriptionAsync(Guid companyId, Guid shopId, CancellationToken cancellationToken = default);
 }
 
 public interface IAuthService

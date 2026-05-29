@@ -34,7 +34,8 @@
       "PowerShell(Get-ChildItem -Path \"J:\\\\ScratchCard\" -Filter \"package.json\" -Depth 2 | Where-Object { $_.DirectoryName -notmatch \"node_modules\" })",
       "Bash(awk '/class SelectSubscriptionPlanRequest|class CancelSubscriptionRequest|class ReactivateSubscriptionRequest|class SubscriptionSummaryDto|class SubscriptionPlanDto/{f=1} f{print} /^}/{if\\(f\\)f=0}' ScratchCard.Application/DTOs/Subscriptions/*.cs)",
       "Bash(npm install *)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5268/api/subscription/plans)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5268/api/subscription/plans)",
+      "Bash(npm run *)"
     ]
   }
 }

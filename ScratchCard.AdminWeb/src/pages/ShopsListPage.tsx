@@ -1,20 +1,20 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { listCustomers } from "../api/customers";
+import { listShops } from "../api/shops";
 import { getApiErrorMessage } from "../api/client";
 
 const PAGE_SIZE = 20;
 
-export function CustomersListPage() {
+export function ShopsListPage() {
   const navigate = useNavigate();
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
   const query = useQuery({
-    queryKey: ["customers", search, page],
-    queryFn: () => listCustomers(search, page, PAGE_SIZE),
+    queryKey: ["shops", search, page],
+    queryFn: () => listShops(search, page, PAGE_SIZE),
     placeholderData: keepPreviousData,
   });
 
@@ -30,10 +30,10 @@ export function CustomersListPage() {
   return (
     <div className="page">
       <div className="page-head">
-        <h1>Customers</h1>
+        <h1>Shops</h1>
         <form className="search-row" onSubmit={onSearch}>
           <input
-            placeholder="Search by company name or email"
+            placeholder="Search by shop or company name"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
           />
@@ -42,17 +42,17 @@ export function CustomersListPage() {
       </div>
 
       {query.isError ? (
-        <div className="error-banner">{getApiErrorMessage(query.error, "Failed to load customers.")}</div>
+        <div className="error-banner">{getApiErrorMessage(query.error, "Failed to load shops.")}</div>
       ) : null}
 
       <div className="card">
         <table className="table">
           <thead>
             <tr>
+              <th>Shop</th>
               <th>Company</th>
-              <th>Email</th>
-              <th className="num">Shops</th>
-              <th className="num">Users</th>
+              <th>City</th>
+              <th>Plan</th>
               <th>Subscription</th>
               <th>Status</th>
             </tr>
@@ -61,22 +61,26 @@ export function CustomersListPage() {
             {query.isLoading ? (
               <tr><td colSpan={6} className="empty-cell">Loading…</td></tr>
             ) : data && data.items.length > 0 ? (
-              data.items.map((c) => (
-                <tr key={c.id} className="row-clickable" onClick={() => navigate(`/customers/${c.id}`)}>
-                  <td><span className="identity-name">{c.companyName}</span></td>
-                  <td className="muted">{c.email || "—"}</td>
-                  <td className="num">{c.shopCount}</td>
-                  <td className="num">{c.userCount}</td>
-                  <td><span className="badge">{c.subscriptionStatus}</span></td>
+              data.items.map((s) => (
+                <tr
+                  key={s.id}
+                  className={s.companyId ? "row-clickable" : undefined}
+                  onClick={() => s.companyId && navigate(`/customers/${s.companyId}`)}
+                >
+                  <td><span className="identity-name">{s.shopName}</span></td>
+                  <td className="muted">{s.companyName || "—"}</td>
+                  <td className="muted">{s.city || "—"}</td>
+                  <td className="muted">{s.subscriptionPlanName ?? "—"}</td>
+                  <td><span className="badge">{s.subscriptionStatus}</span></td>
                   <td>
-                    <span className={`status ${c.isActive ? "status--ok" : "status--warn"}`}>
-                      <span className="dot" />{c.status}
+                    <span className={`status ${s.isActive ? "status--ok" : "status--warn"}`}>
+                      <span className="dot" />{s.isActive ? "Active" : "Inactive"}
                     </span>
                   </td>
                 </tr>
               ))
             ) : (
-              <tr><td colSpan={6} className="empty-cell">No customers found.</td></tr>
+              <tr><td colSpan={6} className="empty-cell">No shops found.</td></tr>
             )}
           </tbody>
         </table>

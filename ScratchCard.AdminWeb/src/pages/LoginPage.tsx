@@ -34,6 +34,7 @@ export function LoginPage() {
   return (
     <div className="login-wrap">
       <form className="login-card" onSubmit={onSubmit}>
+        <span className="login-brand">OA</span>
         <h1 className="login-title">Ops Arrow Admin</h1>
         <p className="login-sub">Platform administrator sign in</p>
 

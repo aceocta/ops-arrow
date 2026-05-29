@@ -52,22 +52,42 @@ export interface CustomerListItem {
   createdOn: string;
 }
 
+export interface AdminShopListItem {
+  id: string;
+  shopName: string;
+  city: string;
+  isActive: boolean;
+  companyId?: string | null;
+  companyName: string;
+  subscriptionStatus: string;
+  subscriptionPlanName?: string | null;
+}
+
 export interface ShopSummary {
   id: string;
   shopName: string;
   city: string;
   isActive: boolean;
   subscriptionStatus: string;
+  subscriptionPlanName?: string | null;
 }
 
 export interface CustomerUser {
   userId: string;
   fullName: string;
   email: string;
-  roleName: string;
+  shopId: string;
   shopName: string;
+  roleId: string;
+  roleName: string;
   isActive: boolean;
   lastLoginOn?: string | null;
+}
+
+export interface RoleOption {
+  id: string;
+  name: string;
+  description: string;
 }
 
 export interface CustomerSubscription {

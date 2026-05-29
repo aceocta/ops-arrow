@@ -4,6 +4,7 @@ import { Layout } from "./components/Layout";
 import { LoginPage } from "./pages/LoginPage";
 import { CustomersListPage } from "./pages/CustomersListPage";
 import { CustomerDetailPage } from "./pages/CustomerDetailPage";
+import { ShopsListPage } from "./pages/ShopsListPage";
 
 export function App() {
   return (
@@ -25,6 +26,16 @@ export function App() {
           <RequireAuth>
             <Layout>
               <CustomerDetailPage />
+            </Layout>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/shops"
+        element={
+          <RequireAuth>
+            <Layout>
+              <ShopsListPage />
             </Layout>
           </RequireAuth>
         }

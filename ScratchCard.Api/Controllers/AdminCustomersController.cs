@@ -62,4 +62,44 @@ public class AdminCustomersController : BaseApiController
         var result = await _adminCustomerService.SetCustomerStatusAsync(id, true, cancellationToken);
         return Success(result);
     }
+
+    /// <summary>Activate/deactivate a customer user for a specific shop membership.</summary>
+    [HttpPost("{id:guid}/users/{userId:guid}/active")]
+    public async Task<IActionResult> SetUserActive(Guid id, Guid userId, [FromBody] AdminSetUserActiveRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _adminCustomerService.SetUserActiveAsync(id, userId, request.ShopId, request.IsActive, cancellationToken);
+        return Success(result);
+    }
+
+    /// <summary>Assign a role to a customer user for a specific shop membership.</summary>
+    [HttpPut("{id:guid}/users/{userId:guid}/role")]
+    public async Task<IActionResult> AssignUserRole(Guid id, Guid userId, [FromBody] AdminAssignUserRoleRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _adminCustomerService.AssignUserRoleAsync(id, userId, request.ShopId, request.RoleId, cancellationToken);
+        return Success(result);
+    }
+
+    /// <summary>Assign a subscription plan to a specific shop of this customer.</summary>
+    [HttpPost("{id:guid}/shops/{shopId:guid}/subscription/select-plan")]
+    public async Task<IActionResult> SelectShopPlan(Guid id, Guid shopId, [FromBody] AdminSelectShopPlanRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _adminCustomerService.SelectShopPlanAsync(id, shopId, request.PlanId, cancellationToken);
+        return Success(result);
+    }
+
+    /// <summary>Cancel a specific shop's subscription.</summary>
+    [HttpPost("{id:guid}/shops/{shopId:guid}/subscription/cancel")]
+    public async Task<IActionResult> CancelShopSubscription(Guid id, Guid shopId, [FromBody] AdminCancelShopSubscriptionRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _adminCustomerService.CancelShopSubscriptionAsync(id, shopId, request.CancelAtPeriodEnd, cancellationToken);
+        return Success(result);
+    }
+
+    /// <summary>Reactivate a specific shop's subscription.</summary>
+    [HttpPost("{id:guid}/shops/{shopId:guid}/subscription/reactivate")]
+    public async Task<IActionResult> ReactivateShopSubscription(Guid id, Guid shopId, CancellationToken cancellationToken)
+    {
+        var result = await _adminCustomerService.ReactivateShopSubscriptionAsync(id, shopId, cancellationToken);
+        return Success(result);
+    }
 }

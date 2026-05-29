@@ -21,6 +21,8 @@ public class AdminCustomerService : IAdminCustomerService
     private readonly IRepository<Shop> _shopRepository;
     private readonly IRepository<ShopUser> _shopUserRepository;
     private readonly IRepository<ShopSubscription> _shopSubscriptionRepository;
+    private readonly IUserService _userService;
+    private readonly IShopSubscriptionService _shopSubscriptionService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IAuditService _auditService;
     private readonly IUnitOfWork _unitOfWork;
@@ -30,6 +32,8 @@ public class AdminCustomerService : IAdminCustomerService
         IRepository<Shop> shopRepository,
         IRepository<ShopUser> shopUserRepository,
         IRepository<ShopSubscription> shopSubscriptionRepository,
+        IUserService userService,
+        IShopSubscriptionService shopSubscriptionService,
         ICurrentUserService currentUserService,
         IAuditService auditService,
         IUnitOfWork unitOfWork)
@@ -38,6 +42,8 @@ public class AdminCustomerService : IAdminCustomerService
         _shopRepository = shopRepository;
         _shopUserRepository = shopUserRepository;
         _shopSubscriptionRepository = shopSubscriptionRepository;
+        _userService = userService;
+        _shopSubscriptionService = shopSubscriptionService;
         _currentUserService = currentUserService;
         _auditService = auditService;
         _unitOfWork = unitOfWork;
@@ -119,6 +125,72 @@ public class AdminCustomerService : IAdminCustomerService
         return new PagedResult<CustomerListItemDto> { Items = items, TotalCount = totalCount };
     }
 
+    public async Task<PagedResult<AdminShopListItemDto>> ListShopsAsync(
+        string? search,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        page = page < 1 ? 1 : page;
+        pageSize = pageSize is < 1 or > 100 ? 20 : pageSize;
+
+        var query = _shopRepository.Query().AsNoTracking().Where(x => !x.IsDeleted);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(x => EF.Functions.Like(x.ShopName, $"%{term}%")
+                                     || (x.Company != null && EF.Functions.Like(x.Company.CompanyName, $"%{term}%")));
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var pageShops = await query
+            .OrderBy(x => x.ShopName)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(x => new
+            {
+                x.Id,
+                x.ShopName,
+                x.City,
+                x.IsActive,
+                x.CompanyId,
+                CompanyName = x.Company != null ? x.Company.CompanyName : string.Empty
+            })
+            .ToListAsync(cancellationToken);
+
+        var shopIds = pageShops.Select(x => x.Id).ToList();
+
+        var subs = await _shopSubscriptionRepository.Query().AsNoTracking()
+            .Where(ss => shopIds.Contains(ss.ShopId))
+            .Select(ss => new { ss.ShopId, ss.Status, PlanName = ss.SubscriptionPlan != null ? ss.SubscriptionPlan.Name : null })
+            .ToListAsync(cancellationToken);
+
+        var statusByShop = subs.GroupBy(x => x.ShopId)
+            .ToDictionary(g => g.Key, g => RollUpStatus(g.Select(x => x.Status)));
+        var planByShop = subs.GroupBy(x => x.ShopId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderBy(x => x.Status == SubscriptionStatus.Active ? 0 : x.Status == SubscriptionStatus.TrialActive ? 1 : 2)
+                      .Select(x => x.PlanName)
+                      .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)));
+
+        var items = pageShops.Select(s => new AdminShopListItemDto
+        {
+            Id = s.Id,
+            ShopName = s.ShopName,
+            City = s.City,
+            IsActive = s.IsActive,
+            CompanyId = s.CompanyId,
+            CompanyName = s.CompanyName,
+            SubscriptionStatus = statusByShop.GetValueOrDefault(s.Id, "None"),
+            SubscriptionPlanName = planByShop.GetValueOrDefault(s.Id)
+        }).ToArray();
+
+        return new PagedResult<AdminShopListItemDto> { Items = items, TotalCount = totalCount };
+    }
+
     public async Task<CustomerDetailDto> GetCustomerAsync(Guid companyId, CancellationToken cancellationToken = default)
     {
         var company = await _companyRepository.Query().AsNoTracking()
@@ -140,13 +212,25 @@ public class AdminCustomerService : IAdminCustomerService
             .GroupBy(x => x.ShopId)
             .ToDictionary(g => g.Key, g => RollUpStatus(g.Select(x => x.Status)));
 
+        // Plan name from the representative subscription (same Active > Trial > first priority used
+        // for the rolled-up status), so the displayed plan matches the displayed status.
+        var planNameByShop = subsByShop
+            .GroupBy(x => x.ShopId)
+            .ToDictionary(
+                g => g.Key,
+                g => g
+                    .OrderBy(x => x.Status == SubscriptionStatus.Active ? 0 : x.Status == SubscriptionStatus.TrialActive ? 1 : 2)
+                    .Select(x => x.PlanName)
+                    .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)));
+
         var shopDtos = shops.Select(s => new ShopSummaryDto
         {
             Id = s.Id,
             ShopName = s.ShopName,
             City = s.City,
             IsActive = s.IsActive,
-            SubscriptionStatus = statusByShop.GetValueOrDefault(s.Id, "None")
+            SubscriptionStatus = statusByShop.GetValueOrDefault(s.Id, "None"),
+            SubscriptionPlanName = planNameByShop.GetValueOrDefault(s.Id)
         }).ToArray();
 
         var users = await _shopUserRepository.Query().AsNoTracking()
@@ -157,8 +241,10 @@ public class AdminCustomerService : IAdminCustomerService
                 UserId = su.UserId,
                 FullName = (su.User.FirstName + " " + su.User.LastName).Trim(),
                 Email = su.User.Email,
-                RoleName = su.Role.Name,
+                ShopId = su.ShopId,
                 ShopName = su.Shop.ShopName,
+                RoleId = su.RoleId,
+                RoleName = su.Role.Name,
                 IsActive = su.IsActive,
                 LastLoginOn = su.User.LastLoginOn
             })
@@ -263,6 +349,83 @@ public class AdminCustomerService : IAdminCustomerService
             cancellationToken: cancellationToken);
 
         return await GetCustomerAsync(companyId, cancellationToken);
+    }
+
+    public async Task<CustomerDetailDto> SetUserActiveAsync(
+        Guid companyId,
+        Guid userId,
+        Guid shopId,
+        bool isActive,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureShopBelongsToCompanyAsync(companyId, shopId, cancellationToken);
+        // UserService already lets PlatformAdmin manage any shop's users; reuse it so the
+        // active-state semantics stay identical to the owner/manager flow.
+        await _userService.SetActiveAsync(userId, shopId, isActive, cancellationToken);
+        return await GetCustomerAsync(companyId, cancellationToken);
+    }
+
+    public async Task<CustomerDetailDto> AssignUserRoleAsync(
+        Guid companyId,
+        Guid userId,
+        Guid shopId,
+        Guid roleId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureShopBelongsToCompanyAsync(companyId, shopId, cancellationToken);
+        await _userService.UpdateRoleAsync(
+            userId,
+            new DTOs.Users.UpdateUserRoleRequest { ShopId = shopId, RoleId = roleId },
+            cancellationToken);
+        return await GetCustomerAsync(companyId, cancellationToken);
+    }
+
+    public async Task<CustomerDetailDto> SelectShopPlanAsync(
+        Guid companyId,
+        Guid shopId,
+        Guid planId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureShopBelongsToCompanyAsync(companyId, shopId, cancellationToken);
+        // Subscriptions are managed per shop (the live product model); reuse the shop subscription
+        // service so behaviour matches the owner/manager flow.
+        await _shopSubscriptionService.SelectPlanAsync(
+            new DTOs.Subscriptions.SelectShopSubscriptionPlanRequest { ShopId = shopId, PlanId = planId },
+            cancellationToken);
+        return await GetCustomerAsync(companyId, cancellationToken);
+    }
+
+    public async Task<CustomerDetailDto> CancelShopSubscriptionAsync(
+        Guid companyId,
+        Guid shopId,
+        bool cancelAtPeriodEnd,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureShopBelongsToCompanyAsync(companyId, shopId, cancellationToken);
+        await _shopSubscriptionService.CancelAsync(shopId, cancelAtPeriodEnd, cancellationToken);
+        return await GetCustomerAsync(companyId, cancellationToken);
+    }
+
+    public async Task<CustomerDetailDto> ReactivateShopSubscriptionAsync(
+        Guid companyId,
+        Guid shopId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureShopBelongsToCompanyAsync(companyId, shopId, cancellationToken);
+        await _shopSubscriptionService.ReactivateAsync(shopId, cancellationToken);
+        return await GetCustomerAsync(companyId, cancellationToken);
+    }
+
+    // Guards that the targeted shop actually belongs to the customer being managed, so an admin
+    // acting on behalf of one customer can't reach into another customer's shop by shop id.
+    private async Task EnsureShopBelongsToCompanyAsync(Guid companyId, Guid shopId, CancellationToken cancellationToken)
+    {
+        var belongs = await _shopRepository.Query().AsNoTracking()
+            .AnyAsync(s => s.Id == shopId && s.CompanyId == companyId && !s.IsDeleted, cancellationToken);
+        if (!belongs)
+        {
+            throw new AppException("shop_not_found", "Shop not found for this customer.", 404);
+        }
     }
 
     // Rolls a set of per-shop subscription statuses up into one company-level label, picking the
