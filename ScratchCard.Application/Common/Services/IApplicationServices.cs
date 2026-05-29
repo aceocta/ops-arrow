@@ -1,3 +1,4 @@
+using ScratchCard.Application.DTOs.Admin;
 using ScratchCard.Application.DTOs.Auth;
 using ScratchCard.Application.DTOs.BusinessDays;
 using ScratchCard.Application.DTOs.Companies;
@@ -21,8 +22,17 @@ using ScratchCard.Application.DTOs.Subscriptions;
 using ScratchCard.Application.DTOs.TemperatureLogs;
 using ScratchCard.Application.DTOs.Users;
 using ScratchCard.Domain.Enums;
+using ScratchCard.Shared.Models;
 
 namespace ScratchCard.Application.Common.Services;
+
+public interface IAdminCustomerService
+{
+    Task<PagedResult<CustomerListItemDto>> ListCustomersAsync(string? search, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<CustomerDetailDto> GetCustomerAsync(Guid companyId, CancellationToken cancellationToken = default);
+    Task<CustomerDetailDto> UpdateCustomerAsync(Guid companyId, AdminUpdateCustomerRequest request, CancellationToken cancellationToken = default);
+    Task<CustomerDetailDto> SetCustomerStatusAsync(Guid companyId, bool isActive, CancellationToken cancellationToken = default);
+}
 
 public interface IAuthService
 {

@@ -1,4 +1,5 @@
 using FluentValidation;
+using ScratchCard.Application.DTOs.Admin;
 using ScratchCard.Application.DTOs.BusinessDays;
 using ScratchCard.Application.DTOs.ComplianceChecks;
 using ScratchCard.Application.DTOs.Common;
@@ -98,6 +99,22 @@ public class AcceptInvitationRequestValidator : AbstractValidator<AcceptInvitati
         RuleFor(x => x.FirstName).NotEmpty().MaximumLength(100);
         RuleFor(x => x.LastName).NotEmpty().MaximumLength(100);
         RuleFor(x => x.Password).NotEmpty().MinimumLength(8);
+    }
+}
+
+public class AdminUpdateCustomerRequestValidator : AbstractValidator<AdminUpdateCustomerRequest>
+{
+    public AdminUpdateCustomerRequestValidator()
+    {
+        RuleFor(x => x.CompanyName).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(256);
+        RuleFor(x => x.PhoneNumber).MaximumLength(50);
+        RuleFor(x => x.RegistrationNumber).MaximumLength(100);
+        RuleFor(x => x.AddressLine1).MaximumLength(200);
+        RuleFor(x => x.AddressLine2).MaximumLength(200);
+        RuleFor(x => x.City).MaximumLength(100);
+        RuleFor(x => x.PostCode).MaximumLength(20);
+        RuleFor(x => x.Country).MaximumLength(100);
     }
 }
 
