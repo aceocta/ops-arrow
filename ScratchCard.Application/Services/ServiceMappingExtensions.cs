@@ -321,7 +321,10 @@ internal static class ServiceMappingExtensions
         Notes = reading.Notes,
         ActionTaken = reading.ActionTaken,
         RecordedOn = reading.RecordedOn,
-        RecordedByName = reading.RecordedByName
+        RecordedByName = reading.RecordedByName,
+        ScheduleId = reading.ScheduleId,
+        ScheduleLabel = reading.Schedule?.Label,
+        IsLateForSchedule = reading.IsLateForSchedule
     };
 
     public static TemperatureDailySignoffDto ToDto(this TemperatureDailySignoff signoff) => new()

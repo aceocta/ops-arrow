@@ -55,6 +55,18 @@ public class ReportsController : BaseApiController
         return Success(result);
     }
 
+    [HttpGet("temperature-schedule-grid")]
+    public async Task<IActionResult> TemperatureScheduleGrid(
+        [FromQuery] Guid shopId,
+        [FromQuery] DateOnly from,
+        [FromQuery] DateOnly to,
+        [FromQuery] Guid? unitId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _reportService.GetTemperatureScheduleGridAsync(shopId, from, to, unitId, cancellationToken);
+        return Success(result);
+    }
+
     [HttpGet("stock")]
     public async Task<IActionResult> Stock([FromQuery] Guid shopId, CancellationToken cancellationToken)
     {

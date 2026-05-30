@@ -608,8 +608,10 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.Notes).HasMaxLength(500);
             entity.Property(x => x.ActionTaken).HasMaxLength(500);
             entity.Property(x => x.RecordedByName).HasMaxLength(200);
+            entity.HasIndex(x => x.ScheduleId);
             entity.HasOne(x => x.Shop).WithMany(x => x.TemperatureReadings).HasForeignKey(x => x.ShopId);
             entity.HasOne(x => x.TemperatureMonitoringUnit).WithMany(x => x.Readings).HasForeignKey(x => x.TemperatureMonitoringUnitId);
+            entity.HasOne(x => x.Schedule).WithMany().HasForeignKey(x => x.ScheduleId).OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<TemperatureDailySignoff>(entity =>

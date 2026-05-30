@@ -18,6 +18,8 @@ public class ReportService : IReportService
     private readonly IRepository<ShiftScratchCardSale> _salesRepository;
     private readonly IRepository<ScratchCardPack> _packRepository;
     private readonly IRepository<TemperatureReading> _temperatureReadingRepository;
+    private readonly IRepository<CfgTemperatureSchedule> _temperatureScheduleRepository;
+    private readonly IRepository<TemperatureMonitoringUnit> _temperatureUnitRepository;
     private readonly IRepository<AuditLog> _auditLogRepository;
     private readonly IRepository<NotificationLog> _notificationRepository;
     private readonly IEmailSender _emailSender;
@@ -30,6 +32,8 @@ public class ReportService : IReportService
         IRepository<ShiftScratchCardSale> salesRepository,
         IRepository<ScratchCardPack> packRepository,
         IRepository<TemperatureReading> temperatureReadingRepository,
+        IRepository<CfgTemperatureSchedule> temperatureScheduleRepository,
+        IRepository<TemperatureMonitoringUnit> temperatureUnitRepository,
         IRepository<AuditLog> auditLogRepository,
         IRepository<NotificationLog> notificationRepository,
         IEmailSender emailSender,
@@ -41,6 +45,8 @@ public class ReportService : IReportService
         _salesRepository = salesRepository;
         _packRepository = packRepository;
         _temperatureReadingRepository = temperatureReadingRepository;
+        _temperatureScheduleRepository = temperatureScheduleRepository;
+        _temperatureUnitRepository = temperatureUnitRepository;
         _auditLogRepository = auditLogRepository;
         _notificationRepository = notificationRepository;
         _emailSender = emailSender;
@@ -130,6 +136,137 @@ public class ReportService : IReportService
             .ToListAsync(cancellationToken);
 
         return readings.Select(x => x.ToDto()).ToArray();
+    }
+
+    public async Task<TemperatureScheduleGridDto> GetTemperatureScheduleGridAsync(
+        Guid shopId,
+        DateOnly from,
+        DateOnly to,
+        Guid? unitId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (from > to)
+        {
+            throw new AppException("temperature_invalid_range", "From date cannot be after to date.");
+        }
+
+        var schedules = await _temperatureScheduleRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId && x.IsActive)
+            .OrderBy(x => x.ExpectedTime)
+            .ThenBy(x => x.Label)
+            .ToListAsync(cancellationToken);
+
+        var units = await _temperatureUnitRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId && x.IsActive && !x.IsDeleted)
+            .OrderBy(x => x.UnitName)
+            .Select(x => new TemperatureScheduleGridUnitDto { UnitId = x.Id, UnitName = x.UnitName })
+            .ToListAsync(cancellationToken);
+
+        if (unitId.HasValue)
+        {
+            units = units.Where(u => u.UnitId == unitId.Value).ToList();
+        }
+
+        var readingsQuery = _temperatureReadingRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId && x.ReadingDate >= from && x.ReadingDate <= to && x.ScheduleId != null);
+        if (unitId.HasValue)
+        {
+            readingsQuery = readingsQuery.Where(x => x.TemperatureMonitoringUnitId == unitId.Value);
+        }
+        var readings = await readingsQuery
+            .Select(x => new
+            {
+                x.Id,
+                x.TemperatureMonitoringUnitId,
+                x.ScheduleId,
+                x.ReadingDate,
+                x.ReadingTime,
+                x.TemperatureCelsius,
+                x.IsOutOfRange,
+                x.IsLateForSchedule
+            })
+            .ToListAsync(cancellationToken);
+
+        // Index readings by (date, unit, schedule) so the cell builder is O(1) per slot.
+        var readingByKey = readings.ToDictionary(
+            r => (r.ReadingDate, r.TemperatureMonitoringUnitId, r.ScheduleId!.Value),
+            r => r);
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var nowTime = TimeOnly.FromDateTime(DateTime.UtcNow);
+
+        var cells = new List<TemperatureScheduleGridCellDto>();
+        var onTime = 0;
+        var late = 0;
+        var missed = 0;
+
+        for (var date = from; date <= to; date = date.AddDays(1))
+        {
+            foreach (var unit in units)
+            {
+                var applicableSlots = schedules
+                    .Where(s => s.TemperatureMonitoringUnitId == null || s.TemperatureMonitoringUnitId == unit.UnitId);
+
+                foreach (var slot in applicableSlots)
+                {
+                    var cell = new TemperatureScheduleGridCellDto
+                    {
+                        Date = date,
+                        UnitId = unit.UnitId,
+                        ScheduleId = slot.Id
+                    };
+
+                    if (readingByKey.TryGetValue((date, unit.UnitId, slot.Id), out var reading))
+                    {
+                        cell.ReadingId = reading.Id;
+                        cell.ReadingTime = reading.ReadingTime;
+                        cell.TemperatureCelsius = reading.TemperatureCelsius;
+                        cell.IsOutOfRange = reading.IsOutOfRange;
+                        cell.IsLate = reading.IsLateForSchedule;
+                        cell.State = reading.IsLateForSchedule
+                            ? TemperatureScheduleCellState.Late
+                            : TemperatureScheduleCellState.OnTime;
+                        if (cell.State == TemperatureScheduleCellState.Late) late++;
+                        else onTime++;
+                    }
+                    else
+                    {
+                        // No reading yet — Upcoming if the slot's tolerance window hasn't closed.
+                        var slotCutoff = slot.ExpectedTime.ToTimeSpan() + TimeSpan.FromMinutes(slot.ToleranceMinutes);
+                        var stillOpen = date > today
+                            || (date == today && nowTime.ToTimeSpan() <= slotCutoff);
+                        cell.State = stillOpen
+                            ? TemperatureScheduleCellState.Upcoming
+                            : TemperatureScheduleCellState.Missed;
+                        if (cell.State == TemperatureScheduleCellState.Missed) missed++;
+                    }
+
+                    cells.Add(cell);
+                }
+            }
+        }
+
+        return new TemperatureScheduleGridDto
+        {
+            From = from,
+            To = to,
+            Units = units,
+            Slots = schedules.Select(s => new TemperatureScheduleGridSlotDto
+            {
+                ScheduleId = s.Id,
+                UnitId = s.TemperatureMonitoringUnitId,
+                Label = s.Label,
+                ExpectedTime = s.ExpectedTime,
+                ToleranceMinutes = s.ToleranceMinutes
+            }).ToArray(),
+            Cells = cells,
+            OnTimeCount = onTime,
+            LateCount = late,
+            MissedCount = missed
+        };
     }
 
     public async Task<IReadOnlyCollection<StockReportRowDto>> GetStockReportAsync(Guid shopId, CancellationToken cancellationToken = default)

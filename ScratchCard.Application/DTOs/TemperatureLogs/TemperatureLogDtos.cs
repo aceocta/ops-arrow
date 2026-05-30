@@ -89,6 +89,58 @@ public class TemperatureReadingDto
     public string? ActionTaken { get; set; }
     public DateTimeOffset RecordedOn { get; set; }
     public string? RecordedByName { get; set; }
+    // Scheduled-check binding (null when no schedule matched this reading).
+    public Guid? ScheduleId { get; set; }
+    public string? ScheduleLabel { get; set; }
+    public bool IsLateForSchedule { get; set; }
+}
+
+public enum TemperatureScheduleCellState
+{
+    Upcoming = 0,
+    OnTime = 1,
+    Late = 2,
+    Missed = 3
+}
+
+public class TemperatureScheduleGridSlotDto
+{
+    public Guid ScheduleId { get; set; }
+    public Guid? UnitId { get; set; }
+    public string Label { get; set; } = string.Empty;
+    public TimeOnly ExpectedTime { get; set; }
+    public int ToleranceMinutes { get; set; }
+}
+
+public class TemperatureScheduleGridUnitDto
+{
+    public Guid UnitId { get; set; }
+    public string UnitName { get; set; } = string.Empty;
+}
+
+public class TemperatureScheduleGridCellDto
+{
+    public DateOnly Date { get; set; }
+    public Guid UnitId { get; set; }
+    public Guid ScheduleId { get; set; }
+    public TemperatureScheduleCellState State { get; set; }
+    public Guid? ReadingId { get; set; }
+    public TimeOnly? ReadingTime { get; set; }
+    public decimal? TemperatureCelsius { get; set; }
+    public bool? IsOutOfRange { get; set; }
+    public bool IsLate { get; set; }
+}
+
+public class TemperatureScheduleGridDto
+{
+    public DateOnly From { get; set; }
+    public DateOnly To { get; set; }
+    public IReadOnlyCollection<TemperatureScheduleGridUnitDto> Units { get; set; } = [];
+    public IReadOnlyCollection<TemperatureScheduleGridSlotDto> Slots { get; set; } = [];
+    public IReadOnlyCollection<TemperatureScheduleGridCellDto> Cells { get; set; } = [];
+    public int OnTimeCount { get; set; }
+    public int LateCount { get; set; }
+    public int MissedCount { get; set; }
 }
 
 public class SignOffTemperatureDailyLogRequest

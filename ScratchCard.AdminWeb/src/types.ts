@@ -142,3 +142,37 @@ export interface SubscriptionPlan {
   displayOrder: number;
   isActive: boolean;
 }
+
+// The feature catalogue (ScratchCard.Domain.Entities.Feature). System features are seeded from
+// code and can be deactivated but not renamed/deleted.
+export interface Feature {
+  id: string;
+  key: string;
+  name: string;
+  description?: string | null;
+  category?: string | null;
+  displayOrder: number;
+  isActive: boolean;
+  isSystem: boolean;
+}
+
+// One feature's assignment to a plan (SubscriptionPlanFeature). Absent row == feature not on the
+// plan; a row with isEnabled=false is a kept-but-disabled override.
+export interface SubscriptionPlanFeature {
+  id: string;
+  subscriptionPlanId: string;
+  featureId: string;
+  featureKey: string;
+  featureName: string;
+  category?: string | null;
+  isEnabled: boolean;
+  limitValue?: number | null;
+  notes?: string | null;
+}
+
+export interface UpsertPlanFeatureRequest {
+  featureId: string;
+  isEnabled: boolean;
+  limitValue?: number | null;
+  notes?: string | null;
+}

@@ -15,6 +15,8 @@ import { TemperatureLogScreen } from "../features/temperature/TemperatureLogScre
 import { TemperatureLogsByDayScreen } from "../features/temperature/TemperatureLogsByDayScreen";
 import { TemperatureLogsReportScreen } from "../features/temperature/TemperatureLogsReportScreen";
 import { TemperatureUnitsScreen } from "../features/temperature/TemperatureUnitsScreen";
+import { TemperatureSchedulesScreen } from "../features/temperature/TemperatureSchedulesScreen";
+import { TemperatureScheduleGridScreen } from "../features/temperature/TemperatureScheduleGridScreen";
 import { RefusalRegisterScreen } from "../features/refusals/RefusalRegisterScreen";
 import { RefusalRegisterByDayScreen } from "../features/refusals/RefusalRegisterByDayScreen";
 import { RefusalReportScreen } from "../features/refusals/RefusalReportScreen";
@@ -116,6 +118,21 @@ const temperatureItems: MenuItem[] = [
   { label: "Temperature Logs by Day", screen: "TemperatureLogsByDay", icon: "calendar-number-outline", mode: "temperature", requiredFeature: "TemperatureLog" },
   { label: "Temperature Logs Report", screen: "TemperatureLogsReport", icon: "bar-chart-outline", mode: "temperature", requiredFeature: "TemperatureLog" },
   { label: "Temperature Date Range Report", screen: "TemperatureLogsDateRangeReport", icon: "document-text-outline", mode: "temperature", requiredFeature: "TemperatureLog" },
+  {
+    label: "Scheduled Checks",
+    screen: "TemperatureSchedules",
+    icon: "alarm-outline",
+    mode: "temperature",
+    allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
+    requiredFeature: "TemperatureLog",
+  },
+  {
+    label: "Schedule Report",
+    screen: "TemperatureScheduleGrid",
+    icon: "calendar-outline",
+    mode: "temperature",
+    requiredFeature: "TemperatureLog",
+  },
 ];
 
 // --- Refusal Log ---
@@ -419,6 +436,8 @@ function MainStackScreens() {
       <Stack.Screen name="TemperatureLogsReport" component={TemperatureLogsReportScreen} options={{ title: "Temperature Logs Report" }} />
       <Stack.Screen name="TemperatureLogsDateRangeReport" component={TemperatureLogsReportScreen} options={{ title: "Temperature Logs Date Range Report" }} />
       <Stack.Screen name="TemperatureUnits" component={TemperatureUnitsScreen} options={{ title: "Temperature Units" }} />
+      <Stack.Screen name="TemperatureSchedules" component={TemperatureSchedulesScreen} options={{ title: "Scheduled Checks" }} />
+      <Stack.Screen name="TemperatureScheduleGrid" component={TemperatureScheduleGridScreen} options={{ title: "Schedule Report" }} />
       <Stack.Screen name="RefusalRegister" component={RefusalRegisterScreen} options={{ title: "No ID / No Sale" }} />
       <Stack.Screen name="RefusalRegisterByDay" component={RefusalRegisterByDayScreen} options={{ title: "Refusals by Day" }} />
       <Stack.Screen name="RefusalReport" component={RefusalReportScreen} options={{ title: "Refusal Report" }} />

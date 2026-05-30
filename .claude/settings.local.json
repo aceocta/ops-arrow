@@ -37,7 +37,9 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5268/api/subscription/plans)",
       "Bash(npm run *)",
       "Bash(awk '/class CreateShopRequest/{f=1} f{print} /^}/{if\\(f && done\\){exit} } /^}/{if\\(f\\)done=1}' ScratchCard.Application/DTOs/Shops/*.cs)",
-      "Bash(echo \"EXIT: $?\")"
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(xargs grep -l -i \"plan\\\\|feature\")",
+      "Bash(sed -n '1,400p' ScratchCard.Application/DTOs/Subscriptions/SubscriptionDtos.cs)"
     ]
   }
 }

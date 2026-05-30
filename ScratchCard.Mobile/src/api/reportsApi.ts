@@ -91,6 +91,9 @@ function mapTemperatureReading(raw: any): TemperatureReading {
     actionTaken: raw.actionTaken ?? undefined,
     recordedOn: String(raw.recordedOn ?? ""),
     recordedByName: raw.recordedByName ?? undefined,
+    scheduleId: raw.scheduleId ? String(raw.scheduleId) : undefined,
+    scheduleLabel: raw.scheduleLabel ?? undefined,
+    isLateForSchedule: Boolean(raw.isLateForSchedule),
   };
 }
 

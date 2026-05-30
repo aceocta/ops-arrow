@@ -1,6 +1,6 @@
 import { apiClient } from "./client";
 import { ApiResponse } from "./types";
-import { TemperatureDailyLog, TemperatureMonitoringUnit, TemperatureReading, TemperatureUnitDailyLog } from "../types/models";
+import { TemperatureDailyLog, TemperatureMonitoringUnit, TemperatureReading, TemperatureSchedule, TemperatureScheduleGrid, TemperatureUnitDailyLog } from "../types/models";
 import { TemperatureEquipmentType } from "../types/enums";
 
 function normalizeDateOnly(value: unknown) {
@@ -48,6 +48,9 @@ function mapReading(raw: any): TemperatureReading {
     actionTaken: raw.actionTaken ?? undefined,
     recordedOn: String(raw.recordedOn ?? ""),
     recordedByName: raw.recordedByName ?? undefined,
+    scheduleId: raw.scheduleId ? String(raw.scheduleId) : undefined,
+    scheduleLabel: raw.scheduleLabel ?? undefined,
+    isLateForSchedule: Boolean(raw.isLateForSchedule),
   };
 }
 
@@ -165,4 +168,51 @@ export async function signOffTemperatureDailyLog(payload: {
     signedByName: String(signoff.signedByName ?? ""),
     notes: signoff.notes ?? undefined,
   };
+}
+
+export async function listTemperatureSchedules(shopId: string) {
+  const response = await apiClient.get<ApiResponse<TemperatureSchedule[]>>("/temperature-logs/schedules", {
+    params: { shopId },
+  });
+  return response.data.data;
+}
+
+export async function createTemperatureSchedule(payload: {
+  shopId: string;
+  temperatureMonitoringUnitId?: string;
+  label: string;
+  expectedTime: string;
+  toleranceMinutes: number;
+  isActive: boolean;
+}) {
+  const response = await apiClient.post<ApiResponse<TemperatureSchedule>>("/temperature-logs/schedules", payload);
+  return response.data.data;
+}
+
+export async function updateTemperatureSchedule(id: string, payload: {
+  shopId: string;
+  temperatureMonitoringUnitId?: string;
+  label: string;
+  expectedTime: string;
+  toleranceMinutes: number;
+  isActive: boolean;
+}) {
+  const response = await apiClient.put<ApiResponse<TemperatureSchedule>>(`/temperature-logs/schedules/${id}`, payload);
+  return response.data.data;
+}
+
+export async function deleteTemperatureSchedule(id: string) {
+  await apiClient.delete(`/temperature-logs/schedules/${id}`);
+}
+
+export async function getTemperatureScheduleGrid(input: {
+  shopId: string;
+  from: string;
+  to: string;
+  unitId?: string;
+}) {
+  const response = await apiClient.get<ApiResponse<TemperatureScheduleGrid>>("/reports/temperature-schedule-grid", {
+    params: input,
+  });
+  return response.data.data;
 }

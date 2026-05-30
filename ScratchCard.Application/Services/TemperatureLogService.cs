@@ -272,6 +272,24 @@ public class TemperatureLogService : ITemperatureLogService
                     && x.ReadingTime == request.ReadingTime,
                 cancellationToken);
 
+        // Slot-claim: match the reading to the nearest active schedule for this shop/unit/day
+        // that isn't already claimed by another reading. If outside its tolerance window, the
+        // reading is flagged late. Updates skip claiming (we keep the original slot binding).
+        Guid? scheduleId = null;
+        var isLate = false;
+        if (existing is null)
+        {
+            var (claimedId, late) = await ResolveScheduleClaimAsync(
+                request.ShopId,
+                request.TemperatureMonitoringUnitId,
+                request.ReadingDate,
+                request.ReadingTime,
+                excludeReadingId: null,
+                cancellationToken);
+            scheduleId = claimedId;
+            isLate = late;
+        }
+
         var auditAction = "TemperatureReadingRecorded";
         TemperatureReading reading;
         if (existing is null)
@@ -290,6 +308,8 @@ public class TemperatureLogService : ITemperatureLogService
                 RecordedOn = now,
                 RecordedByUserId = _currentUserService.UserId,
                 RecordedByName = _currentUserService.FullName,
+                ScheduleId = scheduleId,
+                IsLateForSchedule = isLate,
                 CreatedOn = now,
                 CreatedBy = _currentUserService.UserId
             };
@@ -476,6 +496,68 @@ public class TemperatureLogService : ITemperatureLogService
             cancellationToken: cancellationToken);
 
         return signoff.ToDto();
+    }
+
+    /// <summary>
+    /// Picks the closest unsatisfied schedule for this shop+unit on the given date and returns
+    /// (scheduleId, isLate). Schedules that already have a reading for the same unit on the same
+    /// date are skipped — so a single late reading can't claim two slots. Returns (null, false)
+    /// when no schedule matches (shop hasn't configured any, or every slot already satisfied).
+    /// </summary>
+    private async Task<(Guid? ScheduleId, bool IsLate)> ResolveScheduleClaimAsync(
+        Guid shopId,
+        Guid unitId,
+        DateOnly readingDate,
+        TimeOnly readingTime,
+        Guid? excludeReadingId,
+        CancellationToken cancellationToken)
+    {
+        var candidates = await _scheduleRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId
+                && x.IsActive
+                && (x.TemperatureMonitoringUnitId == null || x.TemperatureMonitoringUnitId == unitId))
+            .ToListAsync(cancellationToken);
+
+        if (candidates.Count == 0)
+        {
+            return (null, false);
+        }
+
+        var alreadyClaimed = await _readingRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.TemperatureMonitoringUnitId == unitId
+                && x.ReadingDate == readingDate
+                && x.ScheduleId != null
+                && (excludeReadingId == null || x.Id != excludeReadingId))
+            .Select(x => x.ScheduleId!.Value)
+            .ToListAsync(cancellationToken);
+
+        var taken = new HashSet<Guid>(alreadyClaimed);
+
+        CfgTemperatureSchedule? closest = null;
+        var closestDelta = TimeSpan.MaxValue;
+        // Prefer the unit-specific schedule when one exists alongside a shop-wide schedule for the
+        // same slot — narrower scope wins on ties.
+        foreach (var schedule in candidates
+            .Where(x => !taken.Contains(x.Id))
+            .OrderBy(x => x.TemperatureMonitoringUnitId.HasValue ? 0 : 1))
+        {
+            var delta = (readingTime.ToTimeSpan() - schedule.ExpectedTime.ToTimeSpan()).Duration();
+            if (delta < closestDelta)
+            {
+                closestDelta = delta;
+                closest = schedule;
+            }
+        }
+
+        if (closest is null)
+        {
+            return (null, false);
+        }
+
+        var tolerance = TimeSpan.FromMinutes(Math.Max(0, closest.ToleranceMinutes));
+        return (closest.Id, closestDelta > tolerance);
     }
 
     private static void ValidateTemperatureRange(decimal minTemperatureCelsius, decimal maxTemperatureCelsius)

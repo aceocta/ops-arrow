@@ -775,6 +775,57 @@ export type TemperatureReading = {
   actionTaken?: string;
   recordedOn: string;
   recordedByName?: string;
+  scheduleId?: string;
+  scheduleLabel?: string;
+  isLateForSchedule: boolean;
+};
+
+export type TemperatureSchedule = {
+  id: string;
+  shopId: string;
+  temperatureMonitoringUnitId?: string;
+  label: string;
+  expectedTime: string;
+  toleranceMinutes: number;
+  isActive: boolean;
+};
+
+export type TemperatureScheduleGridSlot = {
+  scheduleId: string;
+  unitId?: string;
+  label: string;
+  expectedTime: string;
+  toleranceMinutes: number;
+};
+
+export type TemperatureScheduleGridUnit = {
+  unitId: string;
+  unitName: string;
+};
+
+export type TemperatureScheduleCellState = "Upcoming" | "OnTime" | "Late" | "Missed";
+
+export type TemperatureScheduleGridCell = {
+  date: string;
+  unitId: string;
+  scheduleId: string;
+  state: TemperatureScheduleCellState;
+  readingId?: string;
+  readingTime?: string;
+  temperatureCelsius?: number;
+  isOutOfRange?: boolean;
+  isLate: boolean;
+};
+
+export type TemperatureScheduleGrid = {
+  from: string;
+  to: string;
+  units: TemperatureScheduleGridUnit[];
+  slots: TemperatureScheduleGridSlot[];
+  cells: TemperatureScheduleGridCell[];
+  onTimeCount: number;
+  lateCount: number;
+  missedCount: number;
 };
 
 export type TemperatureDailySignoff = {

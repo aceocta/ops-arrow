@@ -304,3 +304,53 @@ select {
   .header-user { display: none; }
   .page-head h1 { font-size: 21px; }
 }
+
+/* ---- Subscription Plans page ---- */
+.plans-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.plans-list { display: flex; flex-direction: column; padding: 8px; gap: 4px; }
+.plan-item {
+  display: flex; flex-direction: column; gap: 4px; align-items: flex-start;
+  padding: 12px 14px; border: 1px solid transparent; border-radius: 10px;
+  background: transparent; cursor: pointer; text-align: left; width: 100%;
+}
+.plan-item:hover { background: var(--surface-2); }
+.plan-item.active { background: var(--accent-soft); border-color: var(--accent); }
+.plan-item-main { display: flex; align-items: center; gap: 8px; }
+.plan-item-sub { font-size: 12px; }
+
+.plan-editor { padding: 22px; }
+.plan-editor-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 8px;
+}
+.plan-editor-head h2 { margin: 0 0 2px; font-size: 19px; font-weight: 700; }
+.plan-editor-head .row-actions { align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.feature-groups { display: flex; flex-direction: column; gap: 22px; margin-top: 16px; }
+.feature-group-title {
+  margin: 0 0 8px; font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.6px; color: var(--text-muted);
+}
+.feature-row {
+  display: flex; align-items: flex-start; gap: 12px; padding: 10px 4px;
+  border-top: 1px solid var(--border); cursor: pointer;
+}
+.feature-row:first-of-type { border-top: none; }
+.feature-row input[type="checkbox"] { margin-top: 3px; width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+.feature-row-text { display: flex; flex-direction: column; gap: 2px; }
+.feature-row-name { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.feature-row-desc { font-size: 13px; }
+.feature-row-key { font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.feature-tag { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+@media (max-width: 720px) {
+  .plans-layout { grid-template-columns: 1fr; }
+  .plans-list { flex-direction: row; overflow-x: auto; }
+  .plan-item { min-width: 180px; }
+}
