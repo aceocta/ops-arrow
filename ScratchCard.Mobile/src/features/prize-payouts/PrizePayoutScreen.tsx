@@ -93,9 +93,10 @@ export function PrizePayoutScreen({ route }: Props) {
         <View style={[ui.card, styles.card]}>
           <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
           <Text style={styles.meta}>
-            Shift: {shiftQuery.data?.startedOn
-              ? new Date(shiftQuery.data.startedOn).toLocaleString()
-              : "-"}
+            Shift: {shiftQuery.data?.shiftName ?? "-"}
+            {shiftQuery.data?.openedOn
+              ? ` · opened ${new Date(shiftQuery.data.openedOn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+              : ""}
           </Text>
 
           <Text style={styles.fieldLabel}>Pack</Text>

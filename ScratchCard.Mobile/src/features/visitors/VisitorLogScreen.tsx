@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
@@ -25,6 +26,14 @@ export function VisitorLogScreen({ navigation }: Props) {
     queryFn: () => getVisitorDailyLog(activeShopId as string, date),
     enabled: Boolean(activeShopId),
   });
+
+  // Returning from sign-in / sign-out flows: refetch so the on-site list reflects mutations
+  // made on the child screen.
+  useFocusEffect(
+    useCallback(() => {
+      if (activeShopId) void dailyQuery.refetch();
+    }, [dailyQuery.refetch, activeShopId]),
+  );
 
   const signOutMutation = useMutation({
     mutationFn: (entryId: string) => signOutVisitor(entryId),

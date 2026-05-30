@@ -1,5 +1,5 @@
 ﻿import React, { useMemo, useRef, useState } from "react";
-import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LandscapeSignatureModal } from "../../components/LandscapeSignatureModal";
 import { listRefusalEntriesByRange, reviewRefusalEntries } from "../../api/refusalRegisterApi";
@@ -209,34 +209,43 @@ export function RefusalManagerReviewScreen() {
         <Text style={styles.sectionSubtitle}>Tap an entry to toggle selection for batch review.</Text>
         {entriesQuery.isLoading ? <SkeletonList count={4} rowHeight={84} /> : null}
         {!entriesQuery.isLoading && entries.length === 0 ? <Text style={styles.meta}>No entries in selected range.</Text> : null}
-        <ScrollView style={styles.listScroll} contentContainerStyle={styles.listContent}>
-          {entries.map((entry) => {
-            const isSelected = selectedEntryIds.includes(entry.id);
-            return (
-              <Pressable
-                key={entry.id}
-                style={[styles.entryCard, isSelected ? styles.entryCardSelected : null]}
-                onPress={() => toggleEntrySelection(entry.id)}
-                disabled={!canReview}
-              >
-                <View style={styles.entryTopRow}>
-                  <Text style={styles.entryNo}>[{isSelected ? "x" : " "}] No. {entry.sequenceNo}</Text>
-                  <Text style={styles.entryDate}>{entry.refusalDate} {entry.refusalTime || "--:--"}</Text>
-                </View>
-                <View style={styles.entryBadgeRow}>
-                  <StatusBadge label={entry.signatureImagePath ? "Signed" : "No Signature"} tone={entry.signatureImagePath ? "success" : "danger"} />
-                  <StatusBadge label={entry.reviewedOn ? "Reviewed" : "Pending Review"} tone={entry.reviewedOn ? "success" : "warning"} />
-                </View>
-                <Text style={styles.entryProduct}>{entry.product}</Text>
-                <Text style={styles.meta}>Person: {entry.personDescription}</Text>
-                <Text style={styles.meta}>Staff: {getStaffDisplayName(entry)}</Text>
-                <Text style={styles.meta}>
-                  Review: {entry.reviewedOn ? `Reviewed by ${entry.reviewedByName ?? "-"} on ${formatDateTimeValue(entry.reviewedOn)}` : "Pending"}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        {entries.length > 0 ? (
+          <FlatList
+            style={styles.listScroll}
+            contentContainerStyle={styles.listContent}
+            data={entries}
+            keyExtractor={(entry) => entry.id}
+            extraData={selectedEntryIds}
+            initialNumToRender={10}
+            windowSize={7}
+            removeClippedSubviews
+            renderItem={({ item: entry }) => {
+              const isSelected = selectedEntryIds.includes(entry.id);
+              return (
+                <Pressable
+                  style={[styles.entryCard, isSelected ? styles.entryCardSelected : null]}
+                  onPress={() => toggleEntrySelection(entry.id)}
+                  disabled={!canReview}
+                >
+                  <View style={styles.entryTopRow}>
+                    <Text style={styles.entryNo}>[{isSelected ? "x" : " "}] No. {entry.sequenceNo}</Text>
+                    <Text style={styles.entryDate}>{entry.refusalDate} {entry.refusalTime || "--:--"}</Text>
+                  </View>
+                  <View style={styles.entryBadgeRow}>
+                    <StatusBadge label={entry.signatureImagePath ? "Signed" : "No Signature"} tone={entry.signatureImagePath ? "success" : "danger"} />
+                    <StatusBadge label={entry.reviewedOn ? "Reviewed" : "Pending Review"} tone={entry.reviewedOn ? "success" : "warning"} />
+                  </View>
+                  <Text style={styles.entryProduct}>{entry.product}</Text>
+                  <Text style={styles.meta}>Person: {entry.personDescription}</Text>
+                  <Text style={styles.meta}>Staff: {getStaffDisplayName(entry)}</Text>
+                  <Text style={styles.meta}>
+                    Review: {entry.reviewedOn ? `Reviewed by ${entry.reviewedByName ?? "-"} on ${formatDateTimeValue(entry.reviewedOn)}` : "Pending"}
+                  </Text>
+                </Pressable>
+              );
+            }}
+          />
+        ) : null}
       </View>
 
       <Modal

@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
@@ -39,6 +39,14 @@ export function BusinessDayScreen() {
     queryFn: () => listBusinessDays(shopId as string),
     enabled: Boolean(shopId),
   });
+
+  // After closing/opening a day from a child screen and navigating back, the list otherwise
+  // shows stale status badges until pull-to-refresh. Refetch on focus to keep the screen honest.
+  useFocusEffect(
+    useCallback(() => {
+      if (shopId) void dayListQuery.refetch();
+    }, [dayListQuery.refetch, shopId]),
+  );
 
   // Default to Manage if there's already an active day, so users don't accidentally try to
   // open a duplicate.

@@ -42,6 +42,14 @@ import { appTheme } from "../../ui/theme";
 import { useAuth } from "../../auth/AuthContext";
 import { useFeature } from "../subscription/useFeature";
 import { UpgradeNotice } from "../subscription/FeatureGate";
+import {
+  ensureFileNameWithExtension,
+  formatFileSize,
+  getBase64Payload,
+  getContentTypeFromDataUrl,
+  getFileExtensionFromContentType,
+  isImageContentType,
+} from "../../utils/attachments";
 import { confirmDestructive } from "../../utils/confirm";
 import { haptics } from "../../utils/haptics";
 
@@ -257,83 +265,8 @@ function formatShiftDuration(start: Date, end: Date): string {
   return `${hours}h ${minutes}m`;
 }
 
-function formatFileSize(size?: number) {
-  if (!size || size <= 0) {
-    return "";
-  }
-
-  const units = ["B", "KB", "MB", "GB"];
-  let value = size;
-  let unitIndex = 0;
-
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex++;
-  }
-
-  const fixed = unitIndex === 0 ? value.toFixed(0) : value.toFixed(1);
-  return `${fixed} ${units[unitIndex]}`;
-}
-
-function isImageContentType(contentType?: string) {
-  return (contentType ?? "").toLowerCase().startsWith("image/");
-}
-
-function getContentTypeFromDataUrl(dataUrl: string) {
-  const prefix = "data:";
-  const suffix = ";base64,";
-  if (!dataUrl.startsWith(prefix)) {
-    return "application/octet-stream";
-  }
-
-  const endIndex = dataUrl.indexOf(suffix);
-  if (endIndex <= prefix.length) {
-    return "application/octet-stream";
-  }
-
-  return dataUrl.slice(prefix.length, endIndex).trim() || "application/octet-stream";
-}
-
-function getBase64Payload(dataUrl: string) {
-  const marker = "base64,";
-  const markerIndex = dataUrl.indexOf(marker);
-  return markerIndex >= 0 ? dataUrl.slice(markerIndex + marker.length).trim() : dataUrl.trim();
-}
-
-function getFileExtensionFromContentType(contentType: string) {
-  switch (contentType.toLowerCase()) {
-    case "image/jpeg":
-      return ".jpg";
-    case "image/png":
-      return ".png";
-    case "image/webp":
-      return ".webp";
-    case "image/gif":
-      return ".gif";
-    case "application/pdf":
-      return ".pdf";
-    case "text/plain":
-      return ".txt";
-    default:
-      return "";
-  }
-}
-
-function ensureFileNameWithExtension(fileName: string, contentType: string) {
-  const trimmed = fileName.trim();
-  if (trimmed.length === 0) {
-    const extension = getFileExtensionFromContentType(contentType);
-    return `attachment${extension || ".bin"}`;
-  }
-
-  const hasExtension = /\.[A-Za-z0-9]{1,10}$/.test(trimmed);
-  if (hasExtension) {
-    return trimmed;
-  }
-
-  const extension = getFileExtensionFromContentType(contentType);
-  return `${trimmed}${extension || ""}`;
-}
+// Attachment helpers extracted to ../../utils/attachments — re-used by ShiftDetails and other
+// close flows. Keeping the import surface stable: the function names are unchanged.
 
 function DayManagementLoadingState() {
   const pulse = useRef(new Animated.Value(0.45)).current;
