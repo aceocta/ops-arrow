@@ -108,6 +108,13 @@ const scratchCardItems: MenuItem[] = [
 const temperatureItems: MenuItem[] = [
   { label: "Temperature Logs", screen: "TemperatureLogs", icon: "thermometer-outline", mode: "temperature", requiredFeature: "TemperatureLog" },
   {
+    label: "Temperature Report",
+    screen: "TemperatureScheduleGrid",
+    icon: "calendar-outline",
+    mode: "temperature",
+    requiredFeature: "TemperatureLog",
+  },
+  {
     label: "Temperature Units",
     screen: "TemperatureUnits",
     icon: "options-outline",
@@ -115,22 +122,17 @@ const temperatureItems: MenuItem[] = [
     allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
     requiredFeature: "TemperatureLog",
   },
-  { label: "Temperature Logs by Day", screen: "TemperatureLogsByDay", icon: "calendar-number-outline", mode: "temperature", requiredFeature: "TemperatureLog" },
-  { label: "Temperature Logs Report", screen: "TemperatureLogsReport", icon: "bar-chart-outline", mode: "temperature", requiredFeature: "TemperatureLog" },
-  { label: "Temperature Date Range Report", screen: "TemperatureLogsDateRangeReport", icon: "document-text-outline", mode: "temperature", requiredFeature: "TemperatureLog" },
+  // Hidden from the menu (screens/routes remain registered). The Temperature Report above
+  // replaces these day/report views.
+  // { label: "Temperature Logs by Day", screen: "TemperatureLogsByDay", icon: "calendar-number-outline", mode: "temperature", requiredFeature: "TemperatureLog" },
+  // { label: "Temperature Logs Report", screen: "TemperatureLogsReport", icon: "bar-chart-outline", mode: "temperature", requiredFeature: "TemperatureLog" },
+  // { label: "Temperature Date Range Report", screen: "TemperatureLogsDateRangeReport", icon: "document-text-outline", mode: "temperature", requiredFeature: "TemperatureLog" },
   {
     label: "Scheduled Checks",
     screen: "TemperatureSchedules",
     icon: "alarm-outline",
     mode: "temperature",
     allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
-    requiredFeature: "TemperatureLog",
-  },
-  {
-    label: "Schedule Report",
-    screen: "TemperatureScheduleGrid",
-    icon: "calendar-outline",
-    mode: "temperature",
     requiredFeature: "TemperatureLog",
   },
 ];
@@ -437,7 +439,7 @@ function MainStackScreens() {
       <Stack.Screen name="TemperatureLogsDateRangeReport" component={TemperatureLogsReportScreen} options={{ title: "Temperature Logs Date Range Report" }} />
       <Stack.Screen name="TemperatureUnits" component={TemperatureUnitsScreen} options={{ title: "Temperature Units" }} />
       <Stack.Screen name="TemperatureSchedules" component={TemperatureSchedulesScreen} options={{ title: "Scheduled Checks" }} />
-      <Stack.Screen name="TemperatureScheduleGrid" component={TemperatureScheduleGridScreen} options={{ title: "Schedule Report" }} />
+      <Stack.Screen name="TemperatureScheduleGrid" component={TemperatureScheduleGridScreen} options={{ title: "Temperature Report" }} />
       <Stack.Screen name="RefusalRegister" component={RefusalRegisterScreen} options={{ title: "No ID / No Sale" }} />
       <Stack.Screen name="RefusalRegisterByDay" component={RefusalRegisterByDayScreen} options={{ title: "Refusals by Day" }} />
       <Stack.Screen name="RefusalReport" component={RefusalReportScreen} options={{ title: "Refusal Report" }} />

@@ -197,13 +197,11 @@ function PlanFeatureEditor({ plan, features }: { plan: SubscriptionPlan; feature
                     disabled={busy}
                   />
                   <span className="feature-row-text">
-                    <span className="feature-row-name">
-                      {f.name}
-                      {f.isSystem ? <span className="badge feature-tag">system</span> : null}
-                    </span>
+                    <span className="feature-row-name">{f.name}</span>
                     {f.description ? <span className="muted feature-row-desc">{f.description}</span> : null}
                     <span className="muted feature-row-key">{f.key}</span>
                   </span>
+                  {f.isSystem ? <span className="badge feature-tag">system</span> : null}
                 </label>
               ))}
             </div>

@@ -204,7 +204,9 @@ public class SubscriptionPlanAdminService : ISubscriptionPlanAdminService
                 CreatedBy = _currentUserService.UserId,
                 Feature = feature
             };
-            plan.PlanFeatures.Add(existing);
+            // Add via the DbSet (not the navigation collection) so EF tracks the client-keyed
+            // row as Added (INSERT) rather than Modified — see SetPlanFeaturesAsync.
+            await _planFeatureRepository.AddAsync(existing, cancellationToken);
         }
         else
         {
@@ -250,7 +252,7 @@ public class SubscriptionPlanAdminService : ISubscriptionPlanAdminService
     public async Task<IReadOnlyCollection<SubscriptionPlanFeatureDto>> SetPlanFeaturesAsync(Guid planId, SetPlanFeaturesRequest request, CancellationToken cancellationToken = default)
     {
         var plan = await _planRepository.Query()
-            .Include(p => p.PlanFeatures).ThenInclude(pf => pf.Feature)
+            .Include(p => p.PlanFeatures)
             .FirstOrDefaultAsync(p => p.Id == planId, cancellationToken)
             ?? throw new AppException("plan_not_found", "Subscription plan not found.", 404);
 
@@ -266,22 +268,20 @@ public class SubscriptionPlanAdminService : ISubscriptionPlanAdminService
         }
 
         var now = DateTimeOffset.UtcNow;
-        var byFeatureId = plan.PlanFeatures.ToDictionary(pf => pf.FeatureId);
+        var existingByFeatureId = plan.PlanFeatures.ToDictionary(pf => pf.FeatureId);
 
-        // Remove anything not in the new set.
-        foreach (var existing in plan.PlanFeatures.ToList())
+        // Remove anything not in the new set. Use the DbSet (repository) only — mutating the
+        // navigation collection as well as removing on a required relationship confuses EF's
+        // change tracker.
+        foreach (var existing in plan.PlanFeatures.Where(pf => !requestedIds.Contains(pf.FeatureId)).ToList())
         {
-            if (!requestedIds.Contains(existing.FeatureId))
-            {
-                plan.PlanFeatures.Remove(existing);
-                _planFeatureRepository.Remove(existing);
-            }
+            _planFeatureRepository.Remove(existing);
         }
 
         // Upsert each requested feature.
         foreach (var item in request.Features)
         {
-            if (byFeatureId.TryGetValue(item.FeatureId, out var existing))
+            if (existingByFeatureId.TryGetValue(item.FeatureId, out var existing))
             {
                 existing.IsEnabled = item.IsEnabled;
                 existing.LimitValue = item.LimitValue;
@@ -291,7 +291,11 @@ public class SubscriptionPlanAdminService : ISubscriptionPlanAdminService
             }
             else
             {
-                plan.PlanFeatures.Add(new SubscriptionPlanFeature
+                // Add through the DbSet and set only the FK (not the Feature navigation). The
+                // entity carries a client-generated Id from BaseEntity, so adding it via the
+                // navigation collection makes EF treat it as Modified (UPDATE) rather than Added
+                // (INSERT); AddAsync forces the correct Added state.
+                await _planFeatureRepository.AddAsync(new SubscriptionPlanFeature
                 {
                     SubscriptionPlanId = plan.Id,
                     FeatureId = item.FeatureId,
@@ -300,8 +304,7 @@ public class SubscriptionPlanAdminService : ISubscriptionPlanAdminService
                     Notes = item.Notes,
                     CreatedOn = now,
                     CreatedBy = _currentUserService.UserId,
-                    Feature = features[item.FeatureId]
-                });
+                }, cancellationToken);
             }
         }
 
@@ -314,11 +317,8 @@ public class SubscriptionPlanAdminService : ISubscriptionPlanAdminService
             newValue: $"plan={plan.Id}; features={string.Join(",", request.Features.Select(x => x.FeatureId))}",
             cancellationToken: cancellationToken);
 
-        return plan.PlanFeatures
-            .OrderBy(pf => pf.Feature?.Category)
-            .ThenBy(pf => pf.Feature?.DisplayOrder)
-            .Select(pf => pf.ToDto())
-            .ToArray();
+        // Re-read with the Feature graph so the response carries keys/names/categories.
+        return await ListPlanFeaturesAsync(plan.Id, cancellationToken);
     }
 
     private async Task<string?> ReplacePlanFeaturesByKeyAsync(SubscriptionPlan plan, IReadOnlyCollection<string> featureKeys, CancellationToken cancellationToken)
