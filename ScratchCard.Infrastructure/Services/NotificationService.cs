@@ -13,6 +13,7 @@ public class NotificationService : INotificationService
     private readonly IRepository<NotificationLog> _notificationRepository;
     private readonly IEmailSender _emailSender;
     private readonly ISmsSender _smsSender;
+    private readonly IWhatsAppSender _whatsAppSender;
     private readonly IPushSender _pushSender;
     private readonly IFeatureGateService _featureGateService;
     private readonly IUnitOfWork _unitOfWork;
@@ -22,6 +23,7 @@ public class NotificationService : INotificationService
         IRepository<NotificationLog> notificationRepository,
         IEmailSender emailSender,
         ISmsSender smsSender,
+        IWhatsAppSender whatsAppSender,
         IPushSender pushSender,
         IFeatureGateService featureGateService,
         IUnitOfWork unitOfWork,
@@ -30,6 +32,7 @@ public class NotificationService : INotificationService
         _notificationRepository = notificationRepository;
         _emailSender = emailSender;
         _smsSender = smsSender;
+        _whatsAppSender = whatsAppSender;
         _pushSender = pushSender;
         _featureGateService = featureGateService;
         _unitOfWork = unitOfWork;
@@ -101,6 +104,9 @@ public class NotificationService : INotificationService
                 case NotificationChannel.SMS:
                     await _smsSender.SendAsync(message.Recipient, message.Body, cancellationToken);
                     break;
+                case NotificationChannel.WhatsApp:
+                    await _whatsAppSender.SendAsync(message.Recipient, message.Body, cancellationToken);
+                    break;
                 case NotificationChannel.InApp:
                     await _pushSender.SendAsync(message, cancellationToken);
                     break;
@@ -126,8 +132,9 @@ public class NotificationService : INotificationService
     {
         NotificationChannel.Email => FeatureKeys.NotificationsEmail,
         NotificationChannel.InApp => FeatureKeys.NotificationsPush,
-        // SMS today maps to the WhatsApp/SMS bucket on plans. When a dedicated WhatsApp sender
-        // is added, split this into two cases.
+        NotificationChannel.WhatsApp => FeatureKeys.NotificationsWhatsApp,
+        // SMS remains gated under the WhatsApp bucket for back-compat with existing SMS callers
+        // until a dedicated SMS feature key + plan tier inclusion is introduced.
         NotificationChannel.SMS => FeatureKeys.NotificationsWhatsApp,
         _ => null
     };

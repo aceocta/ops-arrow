@@ -29,6 +29,7 @@ public static class DependencyInjection
         services.Configure<DocumentIntelligenceOptions>(configuration.GetSection("DocumentIntelligence"));
         services.Configure<AttachmentStorageOptions>(configuration.GetSection("AttachmentStorage"));
         services.Configure<FirebasePushOptions>(configuration.GetSection("FirebasePush"));
+        services.Configure<MetaWhatsAppOptions>(configuration.GetSection("WhatsApp"));
         services.Configure<StripeOptions>(configuration.GetSection("Stripe"));
         services.AddScoped<IBillingCheckoutService, StripeBillingCheckoutService>();
 
@@ -77,6 +78,25 @@ public static class DependencyInjection
         services.AddScoped<ConfiguredEmailSender>();
         services.AddScoped<IEmailSender>(provider => provider.GetRequiredService<ConfiguredEmailSender>());
         services.AddScoped<ISmsSender, NoopSmsSender>();
+
+        // WhatsApp: register Meta sender when AccessToken + PhoneNumberId are both present,
+        // else the no-op so feature-gated callers don't blow up in dev or fresh staging.
+        var whatsAppConfig = configuration.GetSection("WhatsApp");
+        var hasMetaCredentials =
+            !string.IsNullOrWhiteSpace(whatsAppConfig["AccessToken"]) &&
+            !string.IsNullOrWhiteSpace(whatsAppConfig["PhoneNumberId"]);
+        if (hasMetaCredentials)
+        {
+            services.AddHttpClient<IWhatsAppSender, MetaWhatsAppSender>(client =>
+            {
+                client.BaseAddress = new Uri("https://graph.facebook.com/");
+                client.Timeout = TimeSpan.FromSeconds(15);
+            });
+        }
+        else
+        {
+            services.AddScoped<IWhatsAppSender, NoopWhatsAppSender>();
+        }
 
         return services;
     }

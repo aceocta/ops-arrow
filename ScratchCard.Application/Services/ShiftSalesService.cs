@@ -1013,6 +1013,42 @@ public class ShiftSalesService : IShiftSalesService
                 // Notification failures are logged by notification service and must not block shift close.
             }
         }
+
+        // WhatsApp companion: short plaintext summary sent to the company phone (when the shop's
+        // plan includes notifications.whatsapp — silently suppressed by NotificationService for
+        // Starter). The full HTML+PDF lands in email; WhatsApp is the at-a-glance heads-up.
+        var whatsAppRecipient = await ResolveSummaryWhatsAppRecipientAsync(shift.ShopId, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(whatsAppRecipient))
+        {
+            var whatsAppBody = BuildShiftCloseSummaryWhatsAppBody(
+                shopName,
+                shift,
+                businessDay,
+                summaryRows,
+                safeDropRows,
+                safeDropManagementEnabled,
+                temperatureRows);
+
+            try
+            {
+                await _notificationService.SendAsync(new NotificationMessage
+                {
+                    ShopId = shift.ShopId,
+                    NotificationType = NotificationType.ShiftCloseSummary,
+                    Channel = NotificationChannel.WhatsApp,
+                    Recipient = whatsAppRecipient,
+                    Subject = subject,
+                    Body = whatsAppBody,
+                    IsBodyHtml = false,
+                    RelatedEntityName = nameof(Shift),
+                    RelatedEntityId = shift.Id
+                }, cancellationToken);
+            }
+            catch
+            {
+                // Same as email path: WhatsApp failure must not block shift close.
+            }
+        }
     }
 
     private async Task SendShiftClosePushNotificationsAsync(
@@ -1096,6 +1132,68 @@ public class ShiftSalesService : IShiftSalesService
             "Shift close push attempted for shift {ShiftId} to {RecipientCount} recipient token(s).",
             shift.Id,
             recipientTokens.Length);
+    }
+
+    /// <summary>
+    /// Returns the company phone number for the shop's owning company, suitable for sending the
+    /// shift-close WhatsApp companion message. User-level phone numbers don't exist yet (no
+    /// User.PhoneNumber column), so we fall back to the company contact. Returns null when no
+    /// company is linked or no phone is on file.
+    /// </summary>
+    private async Task<string?> ResolveSummaryWhatsAppRecipientAsync(Guid shopId, CancellationToken cancellationToken)
+    {
+        return await _shopRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.Id == shopId && !x.IsDeleted && x.Company != null)
+            .Select(x => x.Company!.PhoneNumber)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Compact plain-text summary for WhatsApp: shop, shift, headline totals, optional safe-drop
+    /// and temperature lines. Stays well under Meta's 1024-char template body parameter limit,
+    /// even with the longest realistic shop name.
+    /// </summary>
+    private static string BuildShiftCloseSummaryWhatsAppBody(
+        string shopName,
+        Shift shift,
+        BusinessDay businessDay,
+        IReadOnlyCollection<ShiftCloseSummaryRow> summaryRows,
+        IReadOnlyCollection<SafeDropSummaryRow> safeDropRows,
+        bool safeDropManagementEnabled,
+        IReadOnlyCollection<TemperatureSummaryRow> temperatureRows)
+    {
+        var totalSales = summaryRows.Sum(r => r.SalesAmount);
+        var totalTicketsSold = summaryRows.Sum(r => r.SoldQuantity);
+        var packCount = summaryRows.Count;
+
+        var lines = new List<string>
+        {
+            $"{shopName} - Shift Close",
+            $"{shift.ShiftName} on {businessDay.BusinessDate:yyyy-MM-dd}",
+            string.Empty,
+            $"Scratch sales: £{totalSales:N2}",
+            $"Tickets sold: {totalTicketsSold} across {packCount} pack{(packCount == 1 ? string.Empty : "s")}",
+        };
+
+        if (safeDropManagementEnabled)
+        {
+            var safeDropTotal = safeDropRows.Sum(r => r.Amount);
+            lines.Add($"Safe drops: £{safeDropTotal:N2} ({safeDropRows.Count})");
+        }
+
+        if (temperatureRows.Count > 0)
+        {
+            var outOfRange = temperatureRows.Count(r => r.IsOutOfRange == true);
+            lines.Add(outOfRange == 0
+                ? $"Temperature: all {temperatureRows.Count} unit(s) in range"
+                : $"Temperature: {outOfRange} of {temperatureRows.Count} unit(s) out of range");
+        }
+
+        lines.Add(string.Empty);
+        lines.Add("Full report sent to your email.");
+
+        return string.Join('\n', lines);
     }
 
     private async Task<List<string>> ResolveSummaryRecipientsAsync(Guid shopId, CancellationToken cancellationToken)
