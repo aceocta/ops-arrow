@@ -260,7 +260,7 @@ function buildRefusalReportHtml(input: {
         <div class="title">Refusals Register</div>
         <div class="subtitle">Shop: ${escapeHtml(input.shopName)} | Selected Date: ${escapeHtml(input.date)}</div>
         ${groupsHtml || "<div>No entries found for this date.</div>"}
-        <div class="foot">Generated from digital No ID / No Sale register.</div>
+        <div class="foot">Generated from digital Refusal Log register.</div>
       </body>
     </html>
   `;

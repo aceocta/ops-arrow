@@ -46,7 +46,7 @@ export function RefusalRegisterByDayScreen() {
       <View style={styles.screenHeaderCard}>
         <View style={styles.screenHeaderTop}>
           <View style={styles.screenHeaderTitleWrap}>
-            <Text style={styles.screenHeaderEyebrow}>No ID / No Sale</Text>
+            <Text style={styles.screenHeaderEyebrow}>Refusal Log</Text>
             <Text style={styles.screenHeaderTitle}>Daily Register</Text>
             <Text style={styles.screenHeaderMeta}>Shop: {activeShop?.shopName ?? "-"}</Text>
           </View>

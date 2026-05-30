@@ -139,7 +139,7 @@ const temperatureItems: MenuItem[] = [
 
 // --- Refusal Log ---
 const refusalItems: MenuItem[] = [
-  { label: "No ID / No Sale", screen: "RefusalRegister", icon: "shield-checkmark-outline", mode: "refusals", requiredFeature: "RefusalNoIdNoSale" },
+  { label: "Refusal Log", screen: "RefusalRegister", icon: "shield-checkmark-outline", mode: "refusals", requiredFeature: "RefusalNoIdNoSale" },
   { label: "Refusal Report", screen: "RefusalReport", icon: "document-text-outline", mode: "refusals", requiredFeature: "RefusalNoIdNoSale" },
   { label: "Refusal Manager Review", screen: "RefusalManagerReview", icon: "clipboard-outline", mode: "refusals", requiredFeature: "refusal_log.multi_manager_review" },
 ];
@@ -261,7 +261,7 @@ function getOperationLabel(operation: EntryOperation | null) {
   if (operation === "compliance") return "Compliance";
   if (operation === "temperature") return "Temperature";
   if (operation === "scratchCard") return "Scratch Card";
-  if (operation === "refusals") return "No ID / No Sale";
+  if (operation === "refusals") return "Refusal Log";
   return "All";
 }
 
@@ -440,7 +440,7 @@ function MainStackScreens() {
       <Stack.Screen name="TemperatureUnits" component={TemperatureUnitsScreen} options={{ title: "Temperature Units" }} />
       <Stack.Screen name="TemperatureSchedules" component={TemperatureSchedulesScreen} options={{ title: "Scheduled Checks" }} />
       <Stack.Screen name="TemperatureScheduleGrid" component={TemperatureScheduleGridScreen} options={{ title: "Temperature Report" }} />
-      <Stack.Screen name="RefusalRegister" component={RefusalRegisterScreen} options={{ title: "No ID / No Sale" }} />
+      <Stack.Screen name="RefusalRegister" component={RefusalRegisterScreen} options={{ title: "Refusal Log" }} />
       <Stack.Screen name="RefusalRegisterByDay" component={RefusalRegisterByDayScreen} options={{ title: "Refusals by Day" }} />
       <Stack.Screen name="RefusalReport" component={RefusalReportScreen} options={{ title: "Refusal Report" }} />
       <Stack.Screen name="RefusalManagerReview" component={RefusalManagerReviewScreen} options={{ title: "Refusal Manager Review" }} />

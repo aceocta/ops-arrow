@@ -154,7 +154,7 @@ export function RefusalManagerReviewScreen() {
       {/* <View style={styles.screenHeaderCard}>
         <View style={styles.screenHeaderTop}>
           <View style={styles.screenHeaderTitleWrap}>
-            <Text style={styles.screenHeaderEyebrow}>No ID / No Sale</Text>
+            <Text style={styles.screenHeaderEyebrow}>Refusal Log</Text>
             <Text style={styles.screenHeaderTitle}>Manager Review</Text>
             <Text style={styles.screenHeaderMeta}>Batch review with a single manager signature.</Text>
           </View>

@@ -48,7 +48,7 @@ const operationOptions: OperationOption[] = [
   },
   {
     key: "refusals",
-    title: "No ID / No Sale",
+    title: "Refusal Log",
     route: "RefusalRegister",
     icon: "shield-checkmark-outline",
     iconColor: appTheme.colors.warning,

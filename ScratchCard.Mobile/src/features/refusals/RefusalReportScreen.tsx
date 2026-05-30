@@ -115,8 +115,8 @@ export function RefusalReportScreen() {
 
       await sendReportEmail({
         recipientEmail: profile?.email,
-        subject: `No ID / No Sale Refusal Report (${fromDate} to ${toDate})`,
-        body: `Please find attached the No ID / No Sale Refusal Report for ${fromDate} to ${toDate}.`,
+        subject: `Refusal Log Report (${fromDate} to ${toDate})`,
+        body: `Please find attached the Refusal Log Report for ${fromDate} to ${toDate}.`,
         attachmentFileName,
         attachmentBase64,
       });

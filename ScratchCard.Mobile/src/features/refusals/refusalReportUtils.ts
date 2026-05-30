@@ -278,11 +278,11 @@ export function buildRefusalRangeReportHtml(input: {
         </style>
       </head>
       <body>
-        <div class="title">No ID / No Sale Refusal Report</div>
+        <div class="title">Refusal Log Report</div>
         <div class="subtitle">Shop: ${escapeHtml(input.shopName)} | Date Range: ${escapeHtml(input.from)} to ${escapeHtml(input.to)}</div>
         <div class="report-meta">Report Date Time: ${escapeHtml(reportDateTime)}</div>
         ${groupsHtml || "<div>No entries found for this date range.</div>"}
-        <div class="foot">Generated from digital No ID / No Sale register.</div>
+        <div class="foot">Generated from digital Refusal Log register.</div>
       </body>
     </html>
   `;

@@ -114,7 +114,7 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
   return (
     <ScreenContainer>
       <View style={styles.screenHeaderCard}>
-        <Text style={styles.screenHeaderEyebrow}>No ID / No Sale</Text>
+        <Text style={styles.screenHeaderEyebrow}>Refusal Log</Text>
         <Text style={styles.screenHeaderTitle}>Edit Refusal Entry</Text>
         <Text style={styles.screenHeaderMeta}>Update details and optionally replace the staff signature.</Text>
       </View>
