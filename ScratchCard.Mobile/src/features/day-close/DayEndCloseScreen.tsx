@@ -2567,6 +2567,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     label="Shift name"
                     value={newShiftName}
                     onChangeText={setNewShiftName}
+                    autoCapitalize="words"
+                    returnKeyType="done"
                   />
                 ) : (
                   <View style={styles.reviewSnapshotCard}>
@@ -2735,6 +2737,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 keyboardType="decimal-pad"
                 accessibilityLabel="Lotto payout amount in pounds"
                 error={payoutFieldError?.key === "lotto" ? payoutFieldError.message : null}
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => scratchInputRef.current?.focus()}
               />
               <FloatingLabelInput
                 ref={scratchInputRef}
@@ -2758,6 +2763,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 keyboardType="decimal-pad"
                 accessibilityLabel="Scratch card payout amount in pounds"
                 error={payoutFieldError?.key === "scratch" ? payoutFieldError.message : null}
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => tillInputRef.current?.focus()}
               />
               <FloatingLabelInput
                 ref={tillInputRef}
@@ -2781,6 +2789,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 keyboardType="decimal-pad"
                 accessibilityLabel="Till payout amount in pounds"
                 error={payoutFieldError?.key === "till" ? payoutFieldError.message : null}
+                returnKeyType="done"
               />
               <Text style={styles.fieldLabel}>Additional Close Notes</Text>
               <TextInput

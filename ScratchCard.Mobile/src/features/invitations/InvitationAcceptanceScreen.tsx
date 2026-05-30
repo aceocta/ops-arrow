@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -34,6 +34,11 @@ export function InvitationAcceptanceScreen({ route, navigation }: Props) {
   const [lastName, setLastName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
+  const firstNameRef = useRef<TextInput>(null);
+  const lastNameRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
+  const confirmPasswordRef = useRef<TextInput>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [validation, setValidation] = useState<ValidationState>({ status: "idle" });
 
@@ -134,7 +139,17 @@ export function InvitationAcceptanceScreen({ route, navigation }: Props) {
       <View style={ui.card}>
         <Text style={styles.title}>Accept Invitation</Text>
 
-        <FloatingLabelInput label="Invitation token" value={token} onChangeText={setToken} editable={!isBusy} />
+        <FloatingLabelInput
+          label="Invitation token"
+          value={token}
+          onChangeText={setToken}
+          editable={!isBusy}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => firstNameRef.current?.focus()}
+        />
 
         {validation.status === "loading" ? (
           <Text style={styles.subtitle}>Checking invitation…</Text>
@@ -161,21 +176,47 @@ export function InvitationAcceptanceScreen({ route, navigation }: Props) {
         {isNewUser ? (
           <>
             <Text style={styles.subtitle}>Set up your account to join as {validation.roleName}.</Text>
-            <FloatingLabelInput label="First name" value={firstName} onChangeText={setFirstName} editable={!isBusy} />
-            <FloatingLabelInput label="Last name" value={lastName} onChangeText={setLastName} editable={!isBusy} />
             <FloatingLabelInput
+              ref={firstNameRef}
+              label="First name"
+              value={firstName}
+              onChangeText={setFirstName}
+              editable={!isBusy}
+              autoCapitalize="words"
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => lastNameRef.current?.focus()}
+            />
+            <FloatingLabelInput
+              ref={lastNameRef}
+              label="Last name"
+              value={lastName}
+              onChangeText={setLastName}
+              editable={!isBusy}
+              autoCapitalize="words"
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => passwordRef.current?.focus()}
+            />
+            <FloatingLabelInput
+              ref={passwordRef}
               label="Password (min 8 characters)"
               value={password}
               onChangeText={setPassword}
               secureTextEntry
               editable={!isBusy}
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => confirmPasswordRef.current?.focus()}
             />
             <FloatingLabelInput
+              ref={confirmPasswordRef}
               label="Confirm password"
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry
               editable={!isBusy}
+              returnKeyType="done"
             />
           </>
         ) : null}

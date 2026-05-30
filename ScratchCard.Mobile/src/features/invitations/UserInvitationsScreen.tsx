@@ -1,5 +1,5 @@
-﻿import React, { useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+﻿import React, { useMemo, useRef, useState } from "react";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
@@ -33,6 +33,7 @@ export function UserInvitationsScreen() {
     profile?.roles?.some((role) => role === "CompanyOwner") ?? false;
   const [email, setEmail] = useState("");
   const [expiryHours, setExpiryHours] = useState("72");
+  const expiryHoursRef = useRef<TextInput>(null);
   const [selectedRoleId, setSelectedRoleId] = useState<string>("");
 
   const rolesQuery = useQuery({
@@ -151,14 +152,20 @@ export function UserInvitationsScreen() {
             keyboardType="email-address"
             onChangeText={setEmail}
             editable={canSendInvitations}
+            autoCorrect={false}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => expiryHoursRef.current?.focus()}
           />
 
           <FloatingLabelInput
+            ref={expiryHoursRef}
             label="Expiry hours (e.g. 72)"
             value={expiryHours}
             keyboardType="number-pad"
             onChangeText={setExpiryHours}
             editable={canSendInvitations}
+            returnKeyType="done"
           />
 
           <Text style={styles.fieldLabel}>Role</Text>

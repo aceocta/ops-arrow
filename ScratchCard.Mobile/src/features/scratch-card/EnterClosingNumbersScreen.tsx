@@ -813,6 +813,7 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
                     placeholderTextColor={appTheme.colors.textSubtle}
                     keyboardType="numeric"
                     editable={isManualClosingSerialEnabled}
+                    returnKeyType="done"
                     onChangeText={(value) => {
                       if (!isManualClosingSerialEnabled) {
                         return;
