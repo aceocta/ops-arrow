@@ -358,6 +358,7 @@ export type Shift = {
   syncStatus?: SyncStatus;
   isAutoCreated?: boolean;
   autoTemplateId?: string;
+  closeNote?: string;
   closeAttachments?: Array<{
     id: string;
     fileName: string;

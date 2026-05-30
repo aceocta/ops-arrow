@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Image, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
 import { Ionicons } from "@expo/vector-icons";
@@ -179,6 +179,7 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
   const [loadingAttachmentId, setLoadingAttachmentId] = useState<string | null>(null);
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<string | null>(null);
   const [pendingCloseAttachments, setPendingCloseAttachments] = useState<PendingCloseAttachment[]>([]);
+  const [closeNote, setCloseNote] = useState("");
   const [isFinalizing, setIsFinalizing] = useState(false);
 
   const shiftQuery = useQuery({
@@ -187,6 +188,12 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
   });
   const shift = shiftQuery.data;
   const shiftShopId = shift?.shopId ?? routeShopId;
+
+  useEffect(() => {
+    if (shift?.closeNote !== undefined) {
+      setCloseNote(shift.closeNote ?? "");
+    }
+  }, [shift?.closeNote]);
 
   const businessDayQuery = useQuery({
     queryKey: ["business-day", shiftQuery.data?.businessDayId],
@@ -487,7 +494,9 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
     setIsFinalizing(true);
     try {
       // No entries payload — the server folds in the closing numbers from the staging store.
+      const trimmedNote = closeNote.trim();
       const payload = {
+        notes: trimmedNote.length > 0 ? trimmedNote : undefined,
         attachments: pendingCloseAttachments.map((attachment) => ({
           fileName: attachment.fileName,
           base64: attachment.base64,
@@ -853,6 +862,29 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
 
         {canCloseShift ? (
           <View style={[ui.card, styles.summaryCard]}>
+            <SectionHeader title="Shift Note" subtitle="Optional — recorded with the shift-close report" icon="document-text-outline" />
+            <TextInput
+              style={styles.shiftNoteInput}
+              value={closeNote}
+              onChangeText={setCloseNote}
+              placeholder="Anything notable about this shift…"
+              placeholderTextColor={appTheme.colors.textSubtle}
+              multiline
+              numberOfLines={3}
+              maxLength={1000}
+              editable={!isFinalizing}
+              textAlignVertical="top"
+            />
+          </View>
+        ) : shift?.closeNote ? (
+          <View style={[ui.card, styles.summaryCard]}>
+            <SectionHeader title="Shift Note" icon="document-text-outline" />
+            <Text style={styles.meta}>{shift.closeNote}</Text>
+          </View>
+        ) : null}
+
+        {canCloseShift ? (
+          <View style={[ui.card, styles.summaryCard]}>
             <SectionHeader title="Close Attachments" subtitle="Optional — added to the shift-close report" icon="attach-outline" />
             {pendingCloseAttachments.length > 0 ? (
               <View style={styles.attachmentList}>
@@ -1140,6 +1172,19 @@ const styles = StyleSheet.create({
     paddingVertical: appTheme.spacing.sm,
     fontFamily: appTheme.fonts.body,
     fontSize: 14,
+  },
+  shiftNoteInput: {
+    minHeight: 84,
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderSoft,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    color: appTheme.colors.text,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.sm,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 14,
+    lineHeight: 19,
   },
   safeDropHeaderTap: {
     borderRadius: appTheme.radius.sm,

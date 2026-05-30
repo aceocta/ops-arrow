@@ -45,6 +45,8 @@ public class ShiftDto
     public string SyncStatus { get; set; } = string.Empty;
     public bool IsAutoCreated { get; set; }
     public string? AutoTemplateId { get; set; }
+    // The free-text note captured at shift close (lives on the ShiftReconciliation row).
+    public string? CloseNote { get; set; }
     public IReadOnlyCollection<CloseAttachmentDto> CloseAttachments { get; set; } = [];
 }
 

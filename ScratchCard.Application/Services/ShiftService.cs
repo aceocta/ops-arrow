@@ -314,7 +314,8 @@ public class ShiftService : IShiftService
                 x.ClosedOn,
                 x.Status,
                 x.SyncStatus,
-                x.Notes))
+                x.Notes,
+                x.ShiftReconciliation != null ? x.ShiftReconciliation.Notes : null))
             .ToListAsync(cancellationToken);
 
         if (shiftRows.Count == 0)
@@ -419,7 +420,8 @@ public class ShiftService : IShiftService
                 x.ClosedOn,
                 x.Status,
                 x.SyncStatus,
-                x.Notes))
+                x.Notes,
+                x.ShiftReconciliation != null ? x.ShiftReconciliation.Notes : null))
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new AppException("shift_not_found", "Shift not found.", 404);
 
@@ -572,6 +574,7 @@ public class ShiftService : IShiftService
         AutoTemplateId = ShiftMetadata.TryGetAutoTemplateId(row.Notes, out var templateId) && !string.IsNullOrWhiteSpace(templateId)
             ? templateId
             : null,
+        CloseNote = row.CloseNote,
         CloseAttachments = attachments
     };
 
@@ -708,7 +711,8 @@ public class ShiftService : IShiftService
         DateTimeOffset? ClosedOn,
         ShiftStatus Status,
         SyncStatus SyncStatus,
-        string? Notes);
+        string? Notes,
+        string? CloseNote);
 
     private sealed record ShiftCloseCandidateQueryRow(
         Guid Id,
