@@ -111,6 +111,14 @@ public class TillReportsController : BaseApiController
         return Success(result);
     }
 
+    [HttpDelete("{id:guid}/lines/{lineId:guid}")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
+    public async Task<IActionResult> DeleteLine(Guid id, Guid lineId, CancellationToken cancellationToken)
+    {
+        var result = await _tillReportService.DeleteLineAsync(id, lineId, cancellationToken);
+        return Success(result);
+    }
+
     [HttpPost("{id:guid}/confirm")]
     [Authorize(Roles = RoleNames.OwnerAndManager)]
     public async Task<IActionResult> Confirm(Guid id, CancellationToken cancellationToken)

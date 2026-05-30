@@ -19,6 +19,7 @@ public class TillReportService : ITillReportService
         [RoleNames.CompanyOwner, RoleNames.Manager];
 
     private readonly IRepository<TillReport> _reportRepository;
+    private readonly IRepository<TillReportLine> _lineRepository;
     private readonly IRepository<TillCategoryRule> _ruleRepository;
     private readonly IRepository<BusinessDay> _businessDayRepository;
     private readonly IRepository<Shift> _shiftRepository;
@@ -35,6 +36,7 @@ public class TillReportService : ITillReportService
 
     public TillReportService(
         IRepository<TillReport> reportRepository,
+        IRepository<TillReportLine> lineRepository,
         IRepository<TillCategoryRule> ruleRepository,
         IRepository<BusinessDay> businessDayRepository,
         IRepository<Shift> shiftRepository,
@@ -50,6 +52,7 @@ public class TillReportService : ITillReportService
         IUnitOfWork unitOfWork)
     {
         _reportRepository = reportRepository;
+        _lineRepository = lineRepository;
         _ruleRepository = ruleRepository;
         _businessDayRepository = businessDayRepository;
         _shiftRepository = shiftRepository;
@@ -297,6 +300,35 @@ public class TillReportService : ITillReportService
         report.ModifiedBy = _currentUserService.UserId;
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return MapDetail(report);
+    }
+
+    public async Task<TillReportDto> DeleteLineAsync(Guid reportId, Guid lineId, CancellationToken cancellationToken = default)
+    {
+        var report = await LoadReportAsync(reportId, asTracking: true, cancellationToken);
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(report.ShopId, EditorRoles, cancellationToken);
+
+        if (report.Status == TillReportStatus.Confirmed)
+        {
+            throw new AppException(ErrorCodes.TillReportAlreadyConfirmed, "This till report is already confirmed and can no longer be edited.");
+        }
+
+        var line = report.Lines.FirstOrDefault(x => x.Id == lineId)
+            ?? throw new AppException(ErrorCodes.TillReportLineNotFound, "Till report line not found.", 404);
+
+        // Hard delete — there's no soft-delete column on TillReportLine. Both the tracked context
+        // and the in-memory collection need to drop the row so MapDetail returns the updated state.
+        _lineRepository.Remove(line);
+        report.Lines.Remove(line);
+
+        RecomputeTotals(report);
+        report.ModifiedOn = DateTimeOffset.UtcNow;
+        report.ModifiedBy = _currentUserService.UserId;
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _auditService.LogAsync(nameof(TillReportLine), lineId, "TillReportLineDeleted", report.ShopId, cancellationToken: cancellationToken);
 
         return MapDetail(report);
     }

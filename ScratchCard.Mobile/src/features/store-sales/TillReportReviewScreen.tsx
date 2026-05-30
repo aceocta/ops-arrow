@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   classifyTillReportLine,
   confirmTillReport,
+  deleteTillReportLine,
   getTillReport,
   upsertTillPayment,
 } from "../../api/tillReportsApi";
@@ -38,6 +39,25 @@ export function TillReportReviewScreen({ route, navigation }: Props) {
     },
     onError: () => Alert.alert("Update failed", "Could not update that line. Please try again."),
   });
+
+  const deleteLineMutation = useMutation({
+    mutationFn: (lineId: string) => deleteTillReportLine(reportId, lineId),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["till-report", reportId], updated);
+    },
+    onError: () => Alert.alert("Delete failed", "Could not delete that line. Please try again."),
+  });
+
+  function confirmDeleteLine(line: TillReportLine) {
+    Alert.alert(
+      "Delete line",
+      `Remove "${line.rawDescription}" from this report? This can't be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => deleteLineMutation.mutate(line.id) },
+      ],
+    );
+  }
 
   const confirmMutation = useMutation({
     mutationFn: () => confirmTillReport(reportId),
@@ -99,7 +119,7 @@ export function TillReportReviewScreen({ route, navigation }: Props) {
 
   const isConfirmed = report?.status === TillReportStatus.Confirmed;
   const unclassifiedCount = report?.unclassifiedCount ?? 0;
-  const isBusy = classifyMutation.isPending || confirmMutation.isPending || saveTenderMutation.isPending;
+  const isBusy = classifyMutation.isPending || confirmMutation.isPending || saveTenderMutation.isPending || deleteLineMutation.isPending;
 
   return (
     <ScreenContainer
@@ -193,6 +213,7 @@ export function TillReportReviewScreen({ route, navigation }: Props) {
                   line={line}
                   disabled={isBusy || isConfirmed}
                   onClassify={(classification) => classifyMutation.mutate({ lineId: line.id, classification })}
+                  onDelete={isConfirmed ? undefined : () => confirmDeleteLine(line)}
                 />
               ))
             )}
@@ -207,10 +228,12 @@ function LineRow({
   line,
   disabled,
   onClassify,
+  onDelete,
 }: {
   line: TillReportLine;
   disabled: boolean;
   onClassify: (classification: TillLineClassification) => void;
+  onDelete?: () => void;
 }) {
   const isIncome = line.classification === TillLineClassification.Income;
   const isExpense = line.classification === TillLineClassification.Expense;
@@ -233,6 +256,18 @@ function LineRow({
             ) : null}
           </View>
           <Text style={[styles.lineAmount, amountStyle]}>{formatGbp(line.amount)}</Text>
+          {onDelete ? (
+            <Pressable
+              style={styles.deleteBtn}
+              onPress={onDelete}
+              disabled={disabled}
+              accessibilityRole="button"
+              accessibilityLabel={`Delete ${line.rawDescription}`}
+              hitSlop={6}
+            >
+              <Ionicons name="trash-outline" size={15} color={appTheme.colors.danger} />
+            </Pressable>
+          ) : null}
         </View>
         <View style={styles.segment}>
           <SegmentOption
@@ -379,6 +414,16 @@ const styles = StyleSheet.create({
   amountIncome: { color: appTheme.colors.success },
   amountExpense: { color: appTheme.colors.danger },
   amountNeutral: { color: appTheme.colors.text },
+  deleteBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: appTheme.radius.sm,
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderSoft,
+    backgroundColor: appTheme.colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   segment: {
     flexDirection: "row",
     alignItems: "stretch",

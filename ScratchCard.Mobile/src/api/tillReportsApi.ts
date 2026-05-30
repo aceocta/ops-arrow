@@ -82,6 +82,13 @@ export async function classifyTillReportLine(reportId: string, lineId: string, c
   return response.data.data;
 }
 
+export async function deleteTillReportLine(reportId: string, lineId: string) {
+  const response = await apiClient.delete<ApiResponse<TillReport>>(
+    `/till-reports/${reportId}/lines/${lineId}`,
+  );
+  return response.data.data;
+}
+
 export async function confirmTillReport(reportId: string) {
   const response = await apiClient.post<ApiResponse<TillReport>>(`/till-reports/${reportId}/confirm`, {});
   return response.data.data;
