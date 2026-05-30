@@ -18,6 +18,7 @@ public static class PlanFeatureCatalogue
         FeatureKeys.RefusalLogBasic,
         FeatureKeys.ComplianceBasic,
         FeatureKeys.SafeDropBasic,
+        FeatureKeys.VisitorLogBasic,
         FeatureKeys.NotificationsEmail,
     };
 

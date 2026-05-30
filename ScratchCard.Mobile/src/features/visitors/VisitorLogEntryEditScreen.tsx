@@ -39,9 +39,8 @@ export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
   const [timeOut, setTimeOut] = useState<string>("");
   const [visitorName, setVisitorName] = useState("");
   const [organisation, setOrganisation] = useState("");
-  const [visitType, setVisitType] = useState<string>("Delivery");
+  const [visitType, setVisitType] = useState<string>("Other");
   const [purpose, setPurpose] = useState("");
-  const [hostName, setHostName] = useState("");
   const [vehicleReg, setVehicleReg] = useState("");
   const [notes, setNotes] = useState("");
   const [spaPassport, setSpaPassport] = useState("");
@@ -74,7 +73,6 @@ export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
     setOrganisation(e.organisation ?? "");
     setVisitType(e.visitType || "Other");
     setPurpose(e.purpose ?? "");
-    setHostName(e.hostName ?? "");
     setVehicleReg(e.vehicleRegistration ?? "");
     setNotes(e.notes ?? "");
     setSpaPassport(e.spaPassportRef ?? "");
@@ -115,7 +113,6 @@ export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
         organisation: organisation.trim() || undefined,
         visitType,
         purpose: purpose.trim() || undefined,
-        hostName: hostName.trim() || undefined,
         vehicleRegistration: vehicleReg.trim() || undefined,
         notes: notes.trim() || undefined,
         spaPassportRef: isFuelStation ? spaPassport.trim() || undefined : undefined,
@@ -157,13 +154,22 @@ export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
   const signaturePreview = signatureDataUrl || existingSignatureQuery.data;
   const isInspector = useMemo(() => visitType === "Inspector", [visitType]);
 
-  return (
-    <ScreenContainer>
-      <View style={styles.headerCard}>
-        <Text style={styles.eyebrow}>Visitors Log</Text>
-        <Text style={styles.title}>{isEdit ? "Edit visit" : "Sign in visitor"}</Text>
-      </View>
+  // Title rendered by the navigator header instead of an in-screen card.
+  useEffect(() => {
+    navigation.setOptions({ title: isEdit ? "Edit visit" : "Sign in visitor" });
+  }, [navigation, isEdit]);
 
+  return (
+    <ScreenContainer
+      footer={
+        <PrimaryButton
+          label={saveMutation.isPending ? "Saving…" : isEdit ? "Save changes" : "Sign in"}
+          icon="checkmark-outline"
+          onPress={() => saveMutation.mutate()}
+          disabled={saveMutation.isPending}
+        />
+      }
+    >
       <View style={ui.card}>
         <View style={styles.row}>
           <DateTimeField style={styles.flex1} mode="date" value={visitDate} onChange={setVisitDate} maximumDate={new Date()} />
@@ -211,7 +217,6 @@ export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
         {isInspector ? <Text style={styles.inspectorHint}>⚑ Managers will be alerted that an inspector is on site.</Text> : null}
 
         <FloatingLabelInput label="Reason / work" value={purpose} onChangeText={setPurpose} />
-        <FloatingLabelInput label="Visiting (host staff)" value={hostName} onChangeText={setHostName} autoCapitalize="words" />
         <FloatingLabelInput label="Vehicle registration" value={vehicleReg} onChangeText={setVehicleReg} autoCapitalize="characters" />
       </View>
 
@@ -236,6 +241,8 @@ export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
         )}
         <PrimaryButton label={signaturePreview ? "Recapture signature" : "Capture signature"} tone="neutral" icon="create-outline" onPress={() => setSignatureModalOpen(true)} />
 
+        <FloatingLabelInput label="Notes (optional)" value={notes} onChangeText={setNotes} multiline />
+
         {photoFeature.isAllowed ? (
           <>
             <Text style={[styles.cardTitle, { marginTop: 12 }]}>Photo (optional)</Text>
@@ -243,16 +250,7 @@ export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
             <PrimaryButton label={photoDataUrl ? "Retake photo" : "Take photo"} tone="neutral" icon="camera-outline" onPress={() => void capturePhoto()} />
           </>
         ) : null}
-
-        <FloatingLabelInput label="Notes (optional)" value={notes} onChangeText={setNotes} multiline />
       </View>
-
-      <PrimaryButton
-        label={saveMutation.isPending ? "Saving…" : isEdit ? "Save changes" : "Sign in"}
-        icon="checkmark-outline"
-        onPress={() => saveMutation.mutate()}
-        disabled={saveMutation.isPending}
-      />
 
       <LandscapeSignatureModal
         visible={signatureModalOpen}

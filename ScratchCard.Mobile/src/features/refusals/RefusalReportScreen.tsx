@@ -296,7 +296,6 @@ export function RefusalReportScreen() {
         <View style={styles.screenHeaderCard}>
           <View style={styles.screenHeaderTop}>
             <View style={styles.screenHeaderTitleWrap}>
-              <Text style={styles.screenHeaderTitle}>Refusal Report</Text>
               <Text style={styles.subtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
             </View>
             <StatusBadge label={pendingCount > 0 ? "Attention Needed" : "Healthy"} tone={pendingCount > 0 ? "warning" : "success"} />

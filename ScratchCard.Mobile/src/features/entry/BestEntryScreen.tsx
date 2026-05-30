@@ -69,11 +69,12 @@ const operationOptions: OperationOption[] = [
   {
     key: "visitors",
     title: "Visitors Log",
+    // Land on the daily register so existing visits are visible at a glance.
+    // The register has a "Sign in visitor" primary button for the next-action path.
     route: "VisitorLog",
     icon: "people-outline",
     iconColor: appTheme.colors.info,
     iconBg: appTheme.colors.surfaceInfoMuted,
-    requiredFeature: "visitor_log.basic",
   }
 ];
 

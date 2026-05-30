@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from "react";
-import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
@@ -8,9 +10,10 @@ import { DateTimeField, formatDateValue, parseDateValue } from "../../components
 import { LoadingState } from "../../components/LoadingState";
 import { ReportActionButton } from "../../components/ReportActionButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
-import { listVisitorEntriesByRange } from "../../api/visitorLogApi";
+import { listVisitorEntriesByRange, signOutVisitor } from "../../api/visitorLogApi";
 import { sendReportEmail } from "../../api/reportsApi";
 import { useAuth } from "../../auth/AuthContext";
+import { MainStackParamList } from "../../types/navigation";
 import { VisitorLogEntry } from "../../types/models";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -62,6 +65,8 @@ function buildReportHtml(shopName: string, from: string, to: string, entries: Vi
 
 export function VisitorLogReportScreen() {
   const { activeShopId, activeShop, profile } = useAuth();
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const queryClient = useQueryClient();
   const [fromDate, setFromDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 6);
@@ -69,6 +74,24 @@ export function VisitorLogReportScreen() {
   });
   const [toDate, setToDate] = useState(() => formatDateValue(new Date()));
   const [emailing, setEmailing] = useState(false);
+
+  const signOutMutation = useMutation({
+    mutationFn: (entryId: string) => signOutVisitor(entryId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["visitor-range"] });
+      void queryClient.invalidateQueries({ queryKey: ["visitor-daily-log"] });
+      void queryClient.invalidateQueries({ queryKey: ["visitor-on-site"] });
+    },
+    onError: (e: any) =>
+      Alert.alert("Failed", e?.response?.data?.message ?? "Unable to sign visitor out."),
+  });
+
+  const confirmSignOut = (entry: VisitorLogEntry) => {
+    Alert.alert("Sign out visitor?", `Mark ${entry.visitorName} as left now?`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Sign out", onPress: () => signOutMutation.mutate(entry.id) },
+    ]);
+  };
 
   const rangeIsValid = useMemo(() => {
     const f = parseDateValue(fromDate);
@@ -161,14 +184,36 @@ export function VisitorLogReportScreen() {
         <Text style={styles.cardTitle}>Loaded visits ({fromDate} to {toDate})</Text>
         {reportQuery.isLoading ? <LoadingState inline /> : null}
         {!reportQuery.isLoading && entries.length === 0 ? <Text style={styles.meta}>No visitors found for this range.</Text> : null}
-        {entries.map((e) => (
-          <View key={e.id} style={styles.rowItem}>
-            <Text style={styles.rowName} numberOfLines={1}>{e.visitDate} · {e.visitorName}{e.isInspector ? " ⚑" : ""}</Text>
-            <Text style={styles.meta}>
-              {e.visitType}{e.organisation ? ` · ${e.organisation}` : ""} · In {e.timeIn}{e.timeOut ? ` · Out ${e.timeOut}` : " · on site"}
-            </Text>
-          </View>
-        ))}
+        {entries.map((e) => {
+          const onSite = !e.timeOut;
+          const signingOutThisRow = signOutMutation.isPending && signOutMutation.variables === e.id;
+          return (
+            <Pressable
+              key={e.id}
+              style={styles.rowItem}
+              onPress={() => navigation.navigate("VisitorLogEntryEdit", { entryId: e.id })}
+              accessibilityRole="button"
+              accessibilityLabel={`Open visit by ${e.visitorName}`}
+            >
+              <Text style={styles.rowName} numberOfLines={1}>{e.visitDate} · {e.visitorName}{e.isInspector ? " ⚑" : ""}</Text>
+              <Text style={styles.meta}>
+                {e.visitType}{e.organisation ? ` · ${e.organisation}` : ""} · In {e.timeIn}{e.timeOut ? ` · Out ${e.timeOut}` : " · on site"}
+              </Text>
+              {onSite ? (
+                <Pressable
+                  style={styles.signOutButton}
+                  onPress={() => confirmSignOut(e)}
+                  disabled={signingOutThisRow}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Sign out ${e.visitorName}`}
+                  hitSlop={6}
+                >
+                  <Text style={styles.signOutButtonText}>{signingOutThisRow ? "Signing out…" : "Sign out"}</Text>
+                </Pressable>
+              ) : null}
+            </Pressable>
+          );
+        })}
       </View>
     </ScreenContainer>
   );
@@ -186,6 +231,22 @@ const styles = StyleSheet.create({
   metricValue: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 18, lineHeight: 20 },
   metricLabel: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.body, fontSize: 11 },
   actionRow: { flexDirection: "row", gap: appTheme.spacing.xs },
-  rowItem: { paddingVertical: 8, borderTopWidth: 1, borderTopColor: appTheme.colors.borderSoft, gap: 2 },
+  rowItem: { paddingVertical: 8, borderTopWidth: 1, borderTopColor: appTheme.colors.borderSoft, gap: 4 },
   rowName: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
+  signOutButton: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: appTheme.radius.sm,
+    borderWidth: 1,
+    borderColor: appTheme.colors.primary,
+    backgroundColor: appTheme.colors.surface,
+    marginTop: 2,
+  },
+  signOutButtonText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 15,
+  },
 });

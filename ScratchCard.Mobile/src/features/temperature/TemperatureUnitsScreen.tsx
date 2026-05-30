@@ -154,11 +154,6 @@ export function TemperatureUnitsScreen() {
 
   return (
     <ScreenContainer>
-      <View style={styles.hero}>
-        <Text style={styles.heroTitle}>Temperature Units</Text>
-        <Text style={styles.heroSubtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
-        <Text style={styles.heroNote}>Manage all monitoring units and accepted temperature ranges.</Text>
-      </View>
 
       <View style={ui.card}>
         <View style={styles.sectionRow}>

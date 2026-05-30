@@ -251,7 +251,8 @@ function shouldShowBottomDock(routeName: string | undefined) {
     routeName === "TillReportHistory" ||
     routeName === "TillPaymentSummary" ||
     routeName === "TillsConfig" ||
-    routeName === "PaymentTypesConfig"
+    routeName === "PaymentTypesConfig" ||
+    routeName === "VisitorLogEntryEdit"
   );
 }
 
