@@ -10,6 +10,7 @@ public static class FeatureKeys
     public const string RefusalNoIdNoSale = "RefusalNoIdNoSale";
     public const string ComplianceChecklist = "ComplianceChecklist";
     public const string SafeDropManagement = "SafeDropManagement";
+    public const string StoreSales = "StoreSales";
 
     // --- Scratch Card Management ---
     public const string ScratchCardBasic = "scratch_card.basic";
@@ -43,6 +44,10 @@ public static class FeatureKeys
     public const string SafeDropCanisterLimitAlerts = "safe_drop.canister_limit_alerts";
     public const string SafeDropApprovalWorkflow = "safe_drop.approval_workflow";
     public const string SafeDropCashVariance = "safe_drop.cash_variance";
+
+    // --- Store Sales (till report import) ---
+    public const string StoreSalesBasic = "store_sales.basic";
+    public const string StoreSalesAi = "store_sales.ai";
 
     // --- Notifications ---
     public const string NotificationsEmail = "notifications.email";
@@ -79,6 +84,7 @@ public static class FeatureKeys
         new FeatureCatalogEntry(RefusalNoIdNoSale, "Refusal Register", "Modules", "Top-level Refusal / No ID No Sale module.", 3),
         new FeatureCatalogEntry(ComplianceChecklist, "Compliance Checklist", "Modules", "Top-level Compliance module.", 4),
         new FeatureCatalogEntry(SafeDropManagement, "Safe Drop Management", "Modules", "Top-level Safe Drop module.", 5),
+        new FeatureCatalogEntry(StoreSales, "Store Sales", "Modules", "Top-level Store Sales / till-report import module.", 6),
 
         // Scratch Card.
         new FeatureCatalogEntry(ScratchCardBasic, "Basic Scratch Card", "Scratch Card", null, 10),
@@ -113,6 +119,10 @@ public static class FeatureKeys
         new FeatureCatalogEntry(SafeDropApprovalWorkflow, "Approval workflow", "Safe Drop", null, 53),
         new FeatureCatalogEntry(SafeDropCashVariance, "Cash variance", "Safe Drop", null, 54),
 
+        // Store Sales (till report import).
+        new FeatureCatalogEntry(StoreSalesBasic, "Basic Store Sales", "Store Sales", "Capture, manual classify, tender editor.", 55),
+        new FeatureCatalogEntry(StoreSalesAi, "AI auto-categorisation", "Store Sales", "AI-driven categorisation of till lines.", 56),
+
         // Notifications.
         new FeatureCatalogEntry(NotificationsEmail, "Email notifications", "Notifications", null, 60),
         new FeatureCatalogEntry(NotificationsPush, "Push notifications", "Notifications", null, 61),
@@ -140,6 +150,7 @@ public static class FeatureKeys
         new FeatureCatalogEntry(TemperatureLog,        "Temperature Log", "Modules", "Fridge/freezer temperature logging and alerts.", 3),
         new FeatureCatalogEntry(RefusalNoIdNoSale,     "Refusal Log",  "Modules", "Refusal / No-ID-No-Sale register.", 4),
         new FeatureCatalogEntry(ComplianceChecklist,   "Compliance Check", "Modules", "Daily / weekly / monthly compliance checklists.", 5),
+        new FeatureCatalogEntry(StoreSales,             "Store Sales",  "Modules", "Till-report capture, OCR/AI categorisation, tender tracking.", 6),
     };
 
     // Map each top-level module to the granular feature keys it covers. Disabling a module at
@@ -167,6 +178,10 @@ public static class FeatureKeys
             [SafeDropManagement] = new[]
             {
                 SafeDropBasic, SafeDropCanisterLimitAlerts, SafeDropApprovalWorkflow, SafeDropCashVariance,
+            },
+            [StoreSales] = new[]
+            {
+                StoreSalesBasic, StoreSalesAi,
             },
         };
 

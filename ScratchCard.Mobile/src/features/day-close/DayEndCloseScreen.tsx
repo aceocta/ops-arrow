@@ -814,6 +814,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   const hasComplianceCheckFeature = subscriptionIncludedFeatures.some(
     (feature) => feature.toLowerCase() === COMPLIANCE_CHECK_FEATURE_KEY.toLowerCase(),
   );
+  const hasStoreSalesFeature = subscriptionIncludedFeatures.some(
+    (feature) => feature.toLowerCase() === "storesales",
+  );
   const complianceLogQuery = useQuery({
     queryKey: ["compliance-period-log", day?.shopId, "Daily", day?.businessDate],
     queryFn: () => getComplianceCheckPeriodLog(day?.shopId as string, "Daily", day?.businessDate as string),
@@ -2047,7 +2050,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           ) : null}
         </Pressable>
 
-        {day ? (
+        {day && hasStoreSalesFeature ? (
           <Pressable
             onPress={() => navigation.navigate("StoreSales", { reportType: "DayEnd", businessDayId })}
             accessibilityRole="button"

@@ -319,6 +319,9 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
   }, [entries]);
 
   const subscriptionIncludedFeatures = subscriptionSummaryQuery.data?.includedFeatures ?? [];
+  const hasStoreSalesFeature = subscriptionIncludedFeatures.some(
+    (feature) => feature.toLowerCase() === "storesales",
+  );
   const hasSafeDropSubscriptionFeature = subscriptionIncludedFeatures.some(
     (feature) => feature.toLowerCase() === SAFE_DROP_FEATURE_KEY.toLowerCase(),
   );
@@ -738,7 +741,7 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
         </View>
 
 
-        {shift ? (
+        {shift && hasStoreSalesFeature ? (
           <Pressable
             onPress={() => navigation.navigate("StoreSales", { reportType: "Shift", shiftId, businessDayId: shift?.businessDayId })}
             accessibilityRole="button"

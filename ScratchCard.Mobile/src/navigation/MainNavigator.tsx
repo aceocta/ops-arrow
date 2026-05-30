@@ -153,6 +153,7 @@ const shopItems: MenuItem[] = [
     screen: "StoreSales",
     icon: "cash-outline",
     allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
+    requiredFeature: "StoreSales",
   },
   { label: "Shop Checklist", screen: "ShopChecklist", icon: "checkmark-done-outline", mode: "checklist" },
   {

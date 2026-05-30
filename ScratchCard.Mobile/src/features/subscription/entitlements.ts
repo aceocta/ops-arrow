@@ -7,7 +7,8 @@ const ENTITLEMENTS_CACHE_KEY_PREFIX = "opsarrow_shop_entitlements_v1:";
 // for forward-compat so backend can ship new keys without a mobile release; specific keys are
 // listed below for IDE autocomplete and documentation.
 export type EntitlementFeature =
-  | "ScratchCardManagement" | "TemperatureLog" | "RefusalNoIdNoSale" | "ComplianceChecklist" | "SafeDropManagement"
+  | "ScratchCardManagement" | "TemperatureLog" | "RefusalNoIdNoSale" | "ComplianceChecklist" | "SafeDropManagement" | "StoreSales"
+  | "store_sales.basic" | "store_sales.ai"
   | "scratch_card.basic" | "scratch_card.attachments" | "scratch_card.manual_entry_alerts"
   | "scratch_card.advanced_validation" | "scratch_card.manual_correction_reasons" | "scratch_card.suspicious_alerts"
   | "temperature_log.basic" | "temperature_log.missed_alerts" | "temperature_log.scheduled_checks" | "temperature_log.full_history"

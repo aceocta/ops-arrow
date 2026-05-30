@@ -892,6 +892,7 @@ public static class SeedDataInitializer
             FeatureKeys.NotificationsPush, FeatureKeys.NotificationsWhatsApp,
             FeatureKeys.DashboardBasic,
             FeatureKeys.AuditLogBasic,
+            FeatureKeys.StoreSales, FeatureKeys.StoreSalesBasic,
         }).ToArray();
 
         // Pro: Growth + advanced validation, suspicious alerts, scheduled checks, full history,
@@ -911,6 +912,7 @@ public static class SeedDataInitializer
             FeatureKeys.ApprovalWorkflow,
             FeatureKeys.ReportsAdvanced,
             FeatureKeys.SupportPriority,
+            FeatureKeys.StoreSalesAi,
         }).ToArray();
 
         // Monthly-only catalogue. MaxUsers / ReportExportsPerMonth: null means unlimited.
