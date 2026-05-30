@@ -94,24 +94,22 @@ export function TemperatureScheduleGridScreen() {
 
   return (
     <ScreenContainer>
-      <View style={ui.card}>
-        {/* <Text style={ui.sectionTitle}>Temperature report</Text> */}
-          <View style={styles.quickRow}>
-          <Pressable style={styles.quickBtn} onPress={setToday}>
-            <Text style={styles.quickBtnText}>Today</Text>
-          </Pressable>
-          <Pressable style={styles.quickBtn} onPress={() => setLastDays(7)}>
-            <Text style={styles.quickBtnText}>Last 7 days</Text>
-          </Pressable>
-          <Pressable style={styles.quickBtn} onPress={() => setLastDays(30)}>
-            <Text style={styles.quickBtnText}>Last 30 days</Text>
-          </Pressable>
-        </View>
+      <View style={[ui.card, styles.compactCard]}>
         <View style={styles.rangeRow}>
           <DateTimeField style={{ flex: 1 }} mode="date" value={fromDate} onChange={setFromDate} maximumDate={new Date()} />
           <DateTimeField style={{ flex: 1 }} mode="date" value={toDate} onChange={setToDate} maximumDate={new Date()} />
         </View>
-      
+        <View style={styles.quickRow}>
+          <Pressable style={styles.quickBtn} onPress={setToday}>
+            <Text style={styles.quickBtnText}>Today</Text>
+          </Pressable>
+          <Pressable style={styles.quickBtn} onPress={() => setLastDays(7)}>
+            <Text style={styles.quickBtnText}>7 days</Text>
+          </Pressable>
+          <Pressable style={styles.quickBtn} onPress={() => setLastDays(30)}>
+            <Text style={styles.quickBtnText}>30 days</Text>
+          </Pressable>
+        </View>
         {!rangeIsValid ? (
           <Text style={styles.warning}>From date must be on or before To date.</Text>
         ) : null}
@@ -264,16 +262,13 @@ function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
 
   return (
     <>
-      <View style={ui.card}>
-        <Text style={ui.sectionTitle}>Summary</Text>
+      <View style={[ui.card, styles.compactCard]}>
         <View style={styles.legendRow}>
-          <Text style={[styles.legendItem, styles.cellOnTimeText]}>✓ On time · {grid.onTimeCount}</Text>
-          <Text style={[styles.legendItem, styles.cellLateText]}>⚠ Late · {grid.lateCount}</Text>
-          <Text style={[styles.legendItem, styles.cellMissedText]}>✗ Missed · {grid.missedCount}</Text>
-        </View>
-        <View style={styles.legendRow}>
-          <Text style={[styles.legendItem, styles.inRangeText]}>● In range · {inRangeCount}</Text>
-          <Text style={[styles.legendItem, styles.outOfRangeText]}>▲ Out of range · {outOfRangeCount}</Text>
+          <Text style={[styles.legendItem, styles.cellOnTimeText]}>✓ {grid.onTimeCount}</Text>
+          <Text style={[styles.legendItem, styles.cellLateText]}>⚠ {grid.lateCount}</Text>
+          <Text style={[styles.legendItem, styles.cellMissedText]}>✗ {grid.missedCount}</Text>
+          <Text style={[styles.legendItem, styles.inRangeText]}>● In {inRangeCount}</Text>
+          <Text style={[styles.legendItem, styles.outOfRangeText]}>▲ Out {outOfRangeCount}</Text>
         </View>
         <View style={styles.actionRow}>
           <ReportActionButton icon="print-outline" label="Print" onPress={() => void printReport()} disabled={actionsDisabled} />
@@ -504,8 +499,9 @@ const DATE_HEADER_H = 24;
 const SLOT_HEADER_H = 30;
 
 const styles = StyleSheet.create({
-  rangeRow: { flexDirection: "row", gap: appTheme.spacing.xs, marginTop: 4 },
-  quickRow: { flexDirection: "row", flexWrap: "wrap", gap: appTheme.spacing.xs, marginTop: 8 },
+  compactCard: { padding: appTheme.spacing.sm, gap: appTheme.spacing.xs },
+  rangeRow: { flexDirection: "row", gap: appTheme.spacing.xs },
+  quickRow: { flexDirection: "row", flexWrap: "wrap", gap: appTheme.spacing.xs },
   quickBtn: {
     borderWidth: 1,
     borderColor: appTheme.colors.border,
@@ -517,7 +513,7 @@ const styles = StyleSheet.create({
   quickBtnText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 15 },
   warning: { color: appTheme.colors.warning, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 16, marginTop: 6 },
   legendRow: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  actionRow: { flexDirection: "row", gap: appTheme.spacing.xs, marginTop: 12 },
+  actionRow: { flexDirection: "row", gap: appTheme.spacing.xs },
   legendItem: { fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, lineHeight: 17 },
   tableRow: { flexDirection: "row", marginTop: 8 },
   // Fixed left column listing the units (one per row).
