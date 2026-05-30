@@ -73,6 +73,19 @@ public class AdminSubscriptionPlansController : BaseApiController
         return Success(result);
     }
 
+    /// <summary>
+    /// Additively syncs the plan against the canonical feature set for a tier
+    /// (Starter / Growth / Pro). Adds any catalogue feature the plan doesn't have yet; never
+    /// removes or disables existing features. Use this after adding new feature keys so existing
+    /// plans pick them up without manual upserts.
+    /// </summary>
+    [HttpPost("{id:guid}/sync-from-catalogue")]
+    public async Task<IActionResult> SyncFromCatalogue(Guid id, [FromQuery] string tier, CancellationToken cancellationToken)
+    {
+        var result = await _planAdminService.SyncFromCatalogueAsync(id, tier, cancellationToken);
+        return Success(result);
+    }
+
     /// <summary>Remove a single feature from a plan.</summary>
     [HttpDelete("{id:guid}/features/{featureId:guid}")]
     public async Task<IActionResult> RemoveFeature(Guid id, Guid featureId, CancellationToken cancellationToken)

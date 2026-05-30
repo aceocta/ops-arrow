@@ -8,6 +8,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { getTemperatureScheduleGrid, listTemperatureReadings } from "../../api/temperatureLogsApi";
 import { sendReportEmail } from "../../api/reportsApi";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
+import { LoadingState } from "../../components/LoadingState";
 import { ReportActionButton } from "../../components/ReportActionButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { buildTemperatureRangeReportHtml } from "./temperatureReportUtils";
@@ -116,7 +117,7 @@ export function TemperatureScheduleGridScreen() {
       </View>
 
       {!rangeIsValid ? null : gridQuery.isLoading ? (
-        <Text style={ui.bodyText}>Loading…</Text>
+        <LoadingState />
       ) : !grid || grid.slots.length === 0 ? (
         <View style={ui.card}>
           <Text style={ui.bodyText}>

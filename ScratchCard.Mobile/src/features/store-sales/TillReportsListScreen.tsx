@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../auth/AuthContext";
 import { listTillReports } from "../../api/tillReportsApi";
+import { LoadingState } from "../../components/LoadingState";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { MainStackParamList } from "../../types/navigation";
 import { TillReportStatus, TillReportType } from "../../types/enums";
@@ -33,7 +34,7 @@ export function TillReportsListScreen({ navigation }: Props) {
         <RefreshControl refreshing={reportsQuery.isFetching} onRefresh={() => void reportsQuery.refetch()} />
       }
     >
-      {reportsQuery.isLoading ? <Text style={ui.bodyText}>Loading…</Text> : null}
+      {reportsQuery.isLoading ? <LoadingState /> : null}
 
       {!reportsQuery.isLoading && items.length === 0 ? (
         <View style={ui.card}>

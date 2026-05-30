@@ -10,9 +10,11 @@ import {
   seedShopPaymentTypeDefaults,
   updateShopPaymentType,
 } from "../../api/shopPaymentTypesApi";
+import { LoadingState } from "../../components/LoadingState";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ShopPaymentType } from "../../types/models";
+import { confirmDestructive } from "../../utils/confirm";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -73,26 +75,18 @@ export function PaymentTypesConfigScreen() {
     }
   }
 
-  function confirmDelete(type: ShopPaymentType) {
-    Alert.alert(
-      "Delete payment type",
-      `Remove "${type.name}"? Existing till-report payments stay readable.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteShopPaymentType(type.id);
-              invalidate();
-            } catch (error: any) {
-              Alert.alert("Delete failed", error?.response?.data?.message ?? "Could not delete this payment type.");
-            }
-          },
-        },
-      ],
-    );
+  async function confirmDelete(type: ShopPaymentType) {
+    const ok = await confirmDestructive({
+      title: "Delete payment type",
+      message: `Remove "${type.name}"? Existing till-report payments stay readable.`,
+    });
+    if (!ok) return;
+    try {
+      await deleteShopPaymentType(type.id);
+      invalidate();
+    } catch (error: any) {
+      Alert.alert("Delete failed", error?.response?.data?.message ?? "Could not delete this payment type.");
+    }
   }
 
   const types = typesQuery.data ?? [];
@@ -131,7 +125,7 @@ export function PaymentTypesConfigScreen() {
 
       <View style={ui.card}>
         <Text style={ui.sectionTitle}>Configured payment types</Text>
-        {typesQuery.isLoading ? <Text style={ui.bodyText}>Loading…</Text> : null}
+        {typesQuery.isLoading ? <LoadingState inline /> : null}
         {!typesQuery.isLoading && types.length === 0 ? (
           <>
             <Text style={ui.bodyText}>None yet — start with the common defaults below or add your own above.</Text>

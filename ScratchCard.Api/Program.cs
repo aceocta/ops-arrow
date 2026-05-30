@@ -74,6 +74,35 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddMemoryCache();
+
+// Per-shop rate-limit policies. The "till-parse" policy throttles the expensive OCR + AI path
+// (10/min/shop, burst of 3). Other endpoints stay unlimited. Partition by shopId from the form
+// field, falling back to the caller IP for unauthenticated callers.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("till-parse", httpContext =>
+    {
+        var shopId = httpContext.Request.HasFormContentType
+            ? httpContext.Request.Form["shopId"].ToString()
+            : null;
+        var key = !string.IsNullOrWhiteSpace(shopId)
+            ? $"shop:{shopId}"
+            : $"ip:{httpContext.Connection.RemoteIpAddress}";
+        return System.Threading.RateLimiting.RateLimitPartition.GetTokenBucketLimiter(
+            key,
+            _ => new System.Threading.RateLimiting.TokenBucketRateLimiterOptions
+            {
+                TokenLimit = 10,
+                TokensPerPeriod = 10,
+                ReplenishmentPeriod = TimeSpan.FromMinutes(1),
+                QueueLimit = 3,
+                QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
+                AutoReplenishment = true
+            });
+    });
+});
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
@@ -81,6 +110,7 @@ builder.Services.AddInfrastructure(builder.Configuration);
 var app = builder.Build();
 
 app.UseMiddleware<GlobalExceptionMiddleware>();
+app.UseMiddleware<LoggingScopeMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {
@@ -90,7 +120,14 @@ if (app.Environment.IsDevelopment())
 
 //if (builder.Configuration.GetValue<bool>("SeedOnStartup"))
 //{
-await app.Services.SeedDatabaseAsync();
+{
+    var seedStopwatch = System.Diagnostics.Stopwatch.StartNew();
+    await app.Services.SeedDatabaseAsync();
+    seedStopwatch.Stop();
+    app.Logger.LogInformation(
+        "Database migrate + seed completed in {ElapsedMs} ms.",
+        seedStopwatch.ElapsedMilliseconds);
+}
 //}
 
 app.UseCors("AllowFrontend");
@@ -100,6 +137,8 @@ app.UseAuthentication();
 app.UseMiddleware<SubscriptionAccessMiddleware>();
 
 app.UseAuthorization();
+
+app.UseRateLimiter();
 
 app.MapControllers();
 

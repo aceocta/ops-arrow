@@ -1,13 +1,16 @@
-import axios, { AxiosError } from "axios";
+import axios, { AxiosError, AxiosRequestConfig } from "axios";
 import Constants from "expo-constants";
 import { getAccessToken } from "../auth/tokenStorage";
 import { classifySubscriptionError, emitSubscriptionError } from "../features/subscription/subscriptionErrorBus";
-const configuredBaseUrl =
-  // "https://wa-ops-arrow-uat-dvdrbjf9fraydwdd.canadacentral-01.azurewebsites.net/api";
-  "https://gaming-lent-startup.ngrok-free.dev/api";
-// const configuredBaseUrl =
-//   (Constants.expoConfig?.extra?.apiBaseUrl as string | undefined) ??
-//   "http://localhost:5268/api";
+
+// Resolve order:
+// 1. EXPO_PUBLIC_API_BASE_URL (build-time env var)
+// 2. expoConfig.extra.apiBaseUrl (app.json / app.config.js)
+// 3. Hardcoded fallback (kept as a last resort so dev still works without env wiring)
+const FALLBACK_BASE_URL = "https://gaming-lent-startup.ngrok-free.dev/api";
+const envBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+const extraBaseUrl = (Constants.expoConfig?.extra as any)?.apiBaseUrl?.toString().trim();
+const configuredBaseUrl = envBaseUrl || extraBaseUrl || FALLBACK_BASE_URL;
 
 function resolveApiBaseUrl(input: string) {
   const normalizedInput = input.trim();
@@ -42,7 +45,9 @@ export const resolvedApiBaseUrl = baseURL;
 
 export const apiClient = axios.create({
   baseURL,
-  timeout: 15000,
+  // Daily-driver app: a 15s ceiling was too aggressive on cold-starting Azure backends. Raise the
+  // global floor; long ops (OCR, AI) override per-call.
+  timeout: 30000,
 });
 
 apiClient.interceptors.request.use(async (config) => {
@@ -53,9 +58,11 @@ apiClient.interceptors.request.use(async (config) => {
   return config;
 });
 
+type RetryableConfig = AxiosRequestConfig & { __retryAttempted?: boolean };
+
 apiClient.interceptors.response.use(
   (response) => response,
-  (error: AxiosError<{ code?: string; message?: string }>) => {
+  async (error: AxiosError<{ code?: string; message?: string }>) => {
     if (error.response?.status === 403) {
       const code = error.response.data?.code;
       const kind = classifySubscriptionError(code);
@@ -67,6 +74,24 @@ apiClient.interceptors.response.use(
         });
       }
     }
+
+    // One transparent retry on transient 5xx / network errors (covers Azure cold-start blips,
+    // dropped wifi packets). Only safe for idempotent verbs — POST/PUT/PATCH/DELETE are skipped.
+    const config = error.config as RetryableConfig | undefined;
+    const status = error.response?.status;
+    const isNetwork = !error.response;
+    const isServerSlip = typeof status === "number" && status >= 500 && status <= 599;
+    const verb = (config?.method ?? "get").toLowerCase();
+    const isIdempotent = verb === "get" || verb === "head" || verb === "options";
+
+    if (config && !config.__retryAttempted && isIdempotent && (isNetwork || isServerSlip)) {
+      config.__retryAttempted = true;
+      await new Promise<void>((resolve) => {
+        setTimeout(() => resolve(), 600);
+      });
+      return apiClient.request(config);
+    }
+
     return Promise.reject(error);
   }
 );

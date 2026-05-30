@@ -5,6 +5,7 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
+import { LoadingState } from "../../components/LoadingState";
 import { ReportActionButton } from "../../components/ReportActionButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { listVisitorEntriesByRange } from "../../api/visitorLogApi";
@@ -158,7 +159,7 @@ export function VisitorLogReportScreen() {
 
       <View style={ui.card}>
         <Text style={styles.cardTitle}>Loaded visits ({fromDate} to {toDate})</Text>
-        {reportQuery.isLoading ? <Text style={styles.meta}>Loading…</Text> : null}
+        {reportQuery.isLoading ? <LoadingState inline /> : null}
         {!reportQuery.isLoading && entries.length === 0 ? <Text style={styles.meta}>No visitors found for this range.</Text> : null}
         {entries.map((e) => (
           <View key={e.id} style={styles.rowItem}>

@@ -61,6 +61,7 @@ public class ShopSubscriptionService : IShopSubscriptionService
     public async Task<ShopSubscriptionSummaryDto> EnsureTrialAsync(Guid shopId, Guid? intendedPlanId = null, CancellationToken cancellationToken = default)
     {
         var existing = await _shopSubscriptionRepository.Query()
+            .AsNoTracking()
             .Where(x => x.ShopId == shopId)
             .OrderByDescending(x => x.CreatedOn)
             .FirstOrDefaultAsync(cancellationToken);
@@ -130,6 +131,7 @@ public class ShopSubscriptionService : IShopSubscriptionService
         // EnsureTrialAsync. This makes the endpoint safe to poll and makes deletes of broken
         // subscriptions actually stick.
         var subscription = await _shopSubscriptionRepository.Query()
+            .AsNoTracking()
             .Where(x => x.ShopId == shopId)
             .OrderByDescending(x => x.CreatedOn)
             .FirstOrDefaultAsync(cancellationToken);
@@ -741,6 +743,7 @@ public class ShopSubscriptionService : IShopSubscriptionService
         {
             // No metadata? Fall back to mapping Price ID → Plan.
             var byPrice = await _planRepository.Query()
+                .AsNoTracking()
                 .Where(p => p.IsActive && p.StripePriceId == snapshot.PriceId)
                 .FirstOrDefaultAsync(cancellationToken);
             if (byPrice is not null)
@@ -815,6 +818,8 @@ public class ShopSubscriptionService : IShopSubscriptionService
     {
         var plan = subscription.SubscriptionPlanId.HasValue
             ? await _planRepository.Query()
+                .AsNoTracking()
+                .AsSplitQuery()
                 .Include(p => p.PlanFeatures).ThenInclude(pf => pf.Feature)
                 .FirstOrDefaultAsync(p => p.Id == subscription.SubscriptionPlanId.Value, cancellationToken)
             : null;
@@ -882,6 +887,7 @@ public class ShopSubscriptionService : IShopSubscriptionService
     private async Task<SubscriptionPlan?> ResolveTrialPlanAsync(CancellationToken cancellationToken)
     {
         return await _planRepository.Query()
+            .AsNoTracking()
             .Where(p => p.IsActive && p.BillingCycle == BillingCycle.Trial)
             .OrderByDescending(p => p.TrialDays)
             .FirstOrDefaultAsync(cancellationToken);
@@ -902,6 +908,7 @@ public class ShopSubscriptionService : IShopSubscriptionService
         if (trialPlan?.TrialDays > 0) return trialPlan.TrialDays;
 
         var globalSettings = await _subscriptionSettingsRepository.Query()
+            .AsNoTracking()
             .Where(x => x.ShopId == null)
             .OrderByDescending(x => x.CreatedOn)
             .FirstOrDefaultAsync(cancellationToken);

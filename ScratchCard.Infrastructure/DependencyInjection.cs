@@ -62,6 +62,8 @@ public static class DependencyInjection
         services.AddSingleton<DayCloseNotificationBackgroundQueue>();
         services.AddSingleton<IDayCloseNotificationDispatcher>(provider => provider.GetRequiredService<DayCloseNotificationBackgroundQueue>());
         services.AddHostedService<DayCloseNotificationBackgroundService>();
+        services.AddSingleton<AuditLogBackgroundQueue>();
+        services.AddHostedService<AuditLogBackgroundService>();
         services.AddSingleton<ShopNotificationBackgroundQueue>();
         services.AddSingleton<IShopNotificationDispatcher>(provider => provider.GetRequiredService<ShopNotificationBackgroundQueue>());
         services.AddHostedService<ShopNotificationBackgroundService>();

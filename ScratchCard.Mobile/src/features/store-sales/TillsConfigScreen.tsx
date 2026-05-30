@@ -4,9 +4,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import { createTill, deleteTill, listTills, updateTill } from "../../api/tillsApi";
+import { LoadingState } from "../../components/LoadingState";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { Till } from "../../types/models";
+import { confirmDestructive } from "../../utils/confirm";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -36,27 +38,19 @@ export function TillsConfigScreen() {
       Alert.alert("Add failed", error?.response?.data?.message ?? "Could not add this till."),
   });
 
-  function confirmDelete(till: Till) {
-    Alert.alert(
-      "Delete till",
-      `Remove "${till.name}"? Existing till reports for it stay intact.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteTill(till.id);
-              void queryClient.invalidateQueries({ queryKey: ["tills", shopId] });
-              void queryClient.invalidateQueries({ queryKey: ["tills", shopId, "all"] });
-            } catch (error: any) {
-              Alert.alert("Delete failed", error?.response?.data?.message ?? "Could not delete this till.");
-            }
-          },
-        },
-      ],
-    );
+  async function confirmDelete(till: Till) {
+    const ok = await confirmDestructive({
+      title: "Delete till",
+      message: `Remove "${till.name}"? Existing till reports for it stay intact.`,
+    });
+    if (!ok) return;
+    try {
+      await deleteTill(till.id);
+      void queryClient.invalidateQueries({ queryKey: ["tills", shopId] });
+      void queryClient.invalidateQueries({ queryKey: ["tills", shopId, "all"] });
+    } catch (error: any) {
+      Alert.alert("Delete failed", error?.response?.data?.message ?? "Could not delete this till.");
+    }
   }
 
   async function toggleActive(till: Till) {
@@ -104,7 +98,7 @@ export function TillsConfigScreen() {
 
       <View style={ui.card}>
         <Text style={ui.sectionTitle}>Configured tills</Text>
-        {tillsQuery.isLoading ? <Text style={ui.bodyText}>Loading…</Text> : null}
+        {tillsQuery.isLoading ? <LoadingState inline /> : null}
         {!tillsQuery.isLoading && tills.length === 0 ? (
           <Text style={ui.bodyText}>No tills yet. Add your first one above.</Text>
         ) : null}

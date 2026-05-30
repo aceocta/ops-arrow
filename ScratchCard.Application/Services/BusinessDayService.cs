@@ -175,6 +175,7 @@ public class BusinessDayService : IBusinessDayService
     {
         var query = _businessDayRepository.Query()
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(x => x.ScratchCardDayCloseSummary)
             .Include(x => x.CloseAttachments)
             .Where(x => x.ShopId == shopId);
@@ -206,6 +207,7 @@ public class BusinessDayService : IBusinessDayService
     public async Task<BusinessDayDto> GetAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var day = await _businessDayRepository.Query()
+            .AsSplitQuery()
             .Include(x => x.ScratchCardDayCloseSummary)
             .Include(x => x.CloseAttachments)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
@@ -726,6 +728,7 @@ public class BusinessDayService : IBusinessDayService
 
         var closedDay = await _businessDayRepository.Query()
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(x => x.ScratchCardDayCloseSummary)
             .Include(x => x.CloseAttachments)
             .FirstOrDefaultAsync(x => x.Id == day.Id, cancellationToken)

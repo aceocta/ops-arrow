@@ -20,6 +20,7 @@ import { KpiGrid, KpiTile } from "../../components/KpiTile";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ShiftStatus } from "../../types/enums";
 import { MainStackParamList } from "../../types/navigation";
+import { confirmDestructive } from "../../utils/confirm";
 import { formatGbp } from "../../utils/currency";
 import { haptics } from "../../utils/haptics";
 import { track } from "../../utils/analytics";
@@ -478,15 +479,10 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
     }
 
     if (closingProgress.active === 0) {
-      const proceed = await new Promise<boolean>((resolve) => {
-        Alert.alert(
-          "Close shift with no sales?",
-          "There are no active packs for this shift. Finalising will close it with zero sales recorded. Continue?",
-          [
-            { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
-            { text: "Close shift", style: "destructive", onPress: () => resolve(true) },
-          ],
-        );
+      const proceed = await confirmDestructive({
+        title: "Close shift with no sales?",
+        message: "There are no active packs for this shift. Finalising will close it with zero sales recorded. Continue?",
+        confirmLabel: "Close shift",
       });
       if (!proceed) return;
     }

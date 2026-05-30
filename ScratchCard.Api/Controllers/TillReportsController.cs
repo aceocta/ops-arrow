@@ -24,6 +24,7 @@ public class TillReportsController : BaseApiController
     [Authorize(Roles = RoleNames.OwnerAndManager)]
     [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
     [RequestSizeLimit(40 * 1024 * 1024)]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("till-parse")]
     public async Task<IActionResult> Parse([FromForm] ParseTillReportFormRequest request, CancellationToken cancellationToken)
     {
         if (request.ShopId == Guid.Empty)

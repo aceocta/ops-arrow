@@ -1,25 +1,19 @@
 using ScratchCard.Application.Common.Interfaces;
-using ScratchCard.Domain.Entities;
 
 namespace ScratchCard.Infrastructure.Services;
 
 public class AuditService : IAuditService
 {
-    private readonly IRepository<AuditLog> _auditRepository;
+    private readonly AuditLogBackgroundQueue _queue;
     private readonly ICurrentUserService _currentUserService;
-    private readonly IUnitOfWork _unitOfWork;
 
-    public AuditService(
-        IRepository<AuditLog> auditRepository,
-        ICurrentUserService currentUserService,
-        IUnitOfWork unitOfWork)
+    public AuditService(AuditLogBackgroundQueue queue, ICurrentUserService currentUserService)
     {
-        _auditRepository = auditRepository;
+        _queue = queue;
         _currentUserService = currentUserService;
-        _unitOfWork = unitOfWork;
     }
 
-    public async Task LogAsync(
+    public Task LogAsync(
         string entityName,
         Guid? entityId,
         string actionType,
@@ -29,21 +23,20 @@ public class AuditService : IAuditService
         string? reason = null,
         CancellationToken cancellationToken = default)
     {
-        var entry = new AuditLog
-        {
-            ShopId = shopId,
-            EntityName = entityName,
-            EntityId = entityId,
-            ActionType = actionType,
-            OldValue = oldValue,
-            NewValue = newValue,
-            ChangedByUserId = _currentUserService.UserId,
-            ChangedOn = DateTimeOffset.UtcNow,
-            Reason = reason,
-            IpAddress = _currentUserService.IpAddress
-        };
+        // Fire-and-forget enqueue — the AuditLogBackgroundService drains the channel and persists
+        // with its own scoped DbContext. Removes a second DB round-trip from every mutation.
+        _queue.Enqueue(new AuditLogJob(
+            EntityName: entityName,
+            EntityId: entityId,
+            ActionType: actionType,
+            ShopId: shopId,
+            OldValue: oldValue,
+            NewValue: newValue,
+            Reason: reason,
+            ChangedByUserId: _currentUserService.UserId,
+            IpAddress: _currentUserService.IpAddress,
+            ChangedOn: DateTimeOffset.UtcNow));
 
-        await _auditRepository.AddAsync(entry, cancellationToken);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 }

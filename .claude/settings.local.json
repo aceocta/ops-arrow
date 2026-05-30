@@ -40,7 +40,9 @@
       "Bash(echo \"EXIT: $?\")",
       "Bash(xargs grep -l -i \"plan\\\\|feature\")",
       "Bash(sed -n '1,400p' ScratchCard.Application/DTOs/Subscriptions/SubscriptionDtos.cs)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(xargs grep -L \"FlatList\")",
+      "Bash(xargs grep -l \"ToListAsync\")"
     ]
   }
 }

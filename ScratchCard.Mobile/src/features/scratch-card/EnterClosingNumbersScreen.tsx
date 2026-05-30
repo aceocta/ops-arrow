@@ -12,6 +12,7 @@ import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { clearShiftDraft, getShiftDraft } from "../../offline/draftRepository";
 import { calculateShiftSales } from "../../utils/serialCalculation";
+import { confirmDestructive } from "../../utils/confirm";
 import { toApiEntryMethod } from "../../utils/enumParsers";
 import { formatGbp } from "../../utils/currency";
 import { EntryMethod, SellingOrder, ShiftStatus } from "../../types/enums";
@@ -842,37 +843,30 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
                     accessibilityRole="button"
                     accessibilityLabel={`Mark pack ${row.pack.packNumber} as sold out`}
                     disabled={!isManualClosingSerialEnabled || isSubmitting}
-                    onPress={() => {
+                    onPress={async () => {
                       // Marking sold-out sets the closing serial to the end of the pack which
                       // cannot be undone short of editing the textbox — confirm first so a
                       // mis-tap doesn't silently empty the inventory.
                       const soldOutSerial = normalizeClosingSerialInput(getLastSerialForPack(row.pack));
                       haptics.warning();
-                      Alert.alert(
-                        "Mark pack as sold out?",
-                        `Pack ${row.pack.packNumber} closing serial will be set to ${soldOutSerial}.`,
-                        [
-                          { text: "Cancel", style: "cancel" },
-                          {
-                            text: "Mark sold out",
-                            style: "destructive",
-                            onPress: () => {
-                              haptics.success();
-                              setEntries((previous) => ({
-                                ...previous,
-                                [row.pack.id]: {
-                                  closingSerialNumber: soldOutSerial,
-                                  originalScannedSerialNumber: previous[row.pack.id]?.originalScannedSerialNumber,
-                                  entryMethod: previous[row.pack.id]?.originalScannedSerialNumber
-                                    ? EntryMethod.ScannedEdited
-                                    : EntryMethod.Manual,
-                                  manualEntryReason: previous[row.pack.id]?.manualEntryReason,
-                                },
-                              }));
-                            },
-                          },
-                        ],
-                      );
+                      const ok = await confirmDestructive({
+                        title: "Mark pack as sold out?",
+                        message: `Pack ${row.pack.packNumber} closing serial will be set to ${soldOutSerial}.`,
+                        confirmLabel: "Mark sold out",
+                      });
+                      if (!ok) return;
+                      haptics.success();
+                      setEntries((previous) => ({
+                        ...previous,
+                        [row.pack.id]: {
+                          closingSerialNumber: soldOutSerial,
+                          originalScannedSerialNumber: previous[row.pack.id]?.originalScannedSerialNumber,
+                          entryMethod: previous[row.pack.id]?.originalScannedSerialNumber
+                            ? EntryMethod.ScannedEdited
+                            : EntryMethod.Manual,
+                          manualEntryReason: previous[row.pack.id]?.manualEntryReason,
+                        },
+                      }));
                     }}
                   >
                     <Text style={styles.soldOutButtonText}>Sold Out</Text>

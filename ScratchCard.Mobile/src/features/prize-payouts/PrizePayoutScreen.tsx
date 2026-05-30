@@ -27,6 +27,7 @@ export function PrizePayoutScreen({ route }: Props) {
   const [prizeAmount, setPrizeAmount] = useState("0");
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [notes, setNotes] = useState("");
+  const PAYMENT_METHODS = ["Cash", "Card", "Transfer", "Voucher"] as const;
 
   const shiftQuery = useQuery({
     queryKey: ["shift", shiftId],
@@ -91,19 +92,27 @@ export function PrizePayoutScreen({ route }: Props) {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={[ui.card, styles.card]}>
           <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
-          <Text style={styles.meta}>Shift ID: {shiftId}</Text>
+          <Text style={styles.meta}>
+            Shift: {shiftQuery.data?.startedOn
+              ? new Date(shiftQuery.data.startedOn).toLocaleString()
+              : "-"}
+          </Text>
 
           <Text style={styles.fieldLabel}>Pack</Text>
           <ScrollView horizontal contentContainerStyle={styles.packChoices} showsHorizontalScrollIndicator={false}>
             {(packsQuery.data ?? []).map((pack) => {
               const selected = selectedPackId === pack.id;
+              const gameLabel = pack.gameName ?? pack.gameCode ?? "";
               return (
                 <Pressable
                   key={pack.id}
                   style={[styles.choice, selected && styles.choiceSelected]}
                   onPress={() => setSelectedPackId(pack.id)}
+                  accessibilityLabel={`Pack ${pack.packNumber}${gameLabel ? `, ${gameLabel}` : ""}`}
                 >
-                  <Text style={[styles.choiceText, selected && styles.choiceTextSelected]}>{pack.packNumber}</Text>
+                  <Text style={[styles.choiceText, selected && styles.choiceTextSelected]}>
+                    {`Pack ${pack.packNumber}${gameLabel ? ` · ${gameLabel}` : ""}`}
+                  </Text>
                 </Pressable>
               );
             })}
@@ -122,11 +131,24 @@ export function PrizePayoutScreen({ route }: Props) {
             keyboardType="decimal-pad"
             accessibilityLabel="Prize amount in pounds"
           />
-          <FloatingLabelInput
-            label="Payment method (Cash / Card / Transfer)"
-            value={paymentMethod}
-            onChangeText={setPaymentMethod}
-          />
+          <Text style={styles.fieldLabel}>Payment method</Text>
+          <View style={styles.methodRow}>
+            {PAYMENT_METHODS.map((method) => {
+              const selected = paymentMethod === method;
+              return (
+                <Pressable
+                  key={method}
+                  style={[styles.choice, selected && styles.choiceSelected]}
+                  onPress={() => setPaymentMethod(method)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={`Pay by ${method}`}
+                >
+                  <Text style={[styles.choiceText, selected && styles.choiceTextSelected]}>{method}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
           <FloatingLabelInput
             label="Notes (optional)"
             value={notes}
@@ -191,6 +213,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   packChoices: {
+    gap: appTheme.spacing.xs,
+  },
+  methodRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: appTheme.spacing.xs,
   },
   choice: {

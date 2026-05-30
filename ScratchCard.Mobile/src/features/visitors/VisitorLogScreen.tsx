@@ -4,6 +4,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
 import { PrimaryButton } from "../../components/PrimaryButton";
+import { LoadingState } from "../../components/LoadingState";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { getVisitorDailyLog, signOutVisitor } from "../../api/visitorLogApi";
 import { useAuth } from "../../auth/AuthContext";
@@ -64,7 +65,7 @@ export function VisitorLogScreen({ navigation }: Props) {
       </View>
 
       {dailyQuery.isLoading ? (
-        <Text style={ui.bodyText}>Loading…</Text>
+        <LoadingState />
       ) : entries.length === 0 ? (
         <View style={ui.card}>
           <Text style={ui.bodyText}>No visitors recorded for this date.</Text>

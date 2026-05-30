@@ -209,6 +209,11 @@ public interface ISubscriptionPlanAdminService
     Task<SubscriptionPlanFeatureDto> UpsertPlanFeatureAsync(Guid planId, UpsertPlanFeatureRequest request, CancellationToken cancellationToken = default);
     Task RemovePlanFeatureAsync(Guid planId, Guid featureId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<SubscriptionPlanFeatureDto>> SetPlanFeaturesAsync(Guid planId, SetPlanFeaturesRequest request, CancellationToken cancellationToken = default);
+    // Re-applies the canonical feature set for the given tier name (Starter/Growth/Pro) onto the
+    // plan. Seed never updates existing plans, so newly added feature keys won't reach a plan
+    // without this. The merge is additive — admin-added features outside the catalogue are left
+    // untouched.
+    Task<IReadOnlyCollection<SubscriptionPlanFeatureDto>> SyncFromCatalogueAsync(Guid planId, string tier, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Reads the global subscription settings (ShopId = null) — drives the fallback trial length

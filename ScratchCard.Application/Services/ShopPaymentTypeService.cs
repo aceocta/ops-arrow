@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Services;
@@ -13,29 +14,46 @@ public class ShopPaymentTypeService : IShopPaymentTypeService
     private static readonly string[] EditorRoles =
         [RoleNames.CompanyOwner, RoleNames.Manager];
 
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(5);
+
     private readonly IRepository<ShopPaymentType> _repository;
     private readonly IShopMembershipService _shopMembershipService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IAuditService _auditService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IMemoryCache _cache;
 
     public ShopPaymentTypeService(
         IRepository<ShopPaymentType> repository,
         IShopMembershipService shopMembershipService,
         ICurrentUserService currentUserService,
         IAuditService auditService,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IMemoryCache cache)
     {
         _repository = repository;
         _shopMembershipService = shopMembershipService;
         _currentUserService = currentUserService;
         _auditService = auditService;
         _unitOfWork = unitOfWork;
+        _cache = cache;
     }
+
+    private static string ActiveListCacheKey(Guid shopId) => $"shop-payment-types:active:{shopId}";
+    private void InvalidateCache(Guid shopId) => _cache.Remove(ActiveListCacheKey(shopId));
 
     public async Task<IReadOnlyCollection<ShopPaymentTypeDto>> ListAsync(Guid shopId, bool includeInactive, CancellationToken cancellationToken = default)
     {
         await _shopMembershipService.EnsureCurrentUserShopRoleAsync(shopId, RoleNames.All, cancellationToken);
+
+        // Active list is hot (read on every till capture / summary). Cache it; invalidate on
+        // mutate. includeInactive is used only on the config screen, no caching needed there.
+        if (!includeInactive
+            && _cache.TryGetValue<IReadOnlyCollection<ShopPaymentTypeDto>>(ActiveListCacheKey(shopId), out var cached)
+            && cached is not null)
+        {
+            return cached;
+        }
 
         var query = _repository.Query()
             .AsNoTracking()
@@ -51,7 +69,12 @@ public class ShopPaymentTypeService : IShopPaymentTypeService
             .ThenBy(x => x.Name)
             .ToListAsync(cancellationToken);
 
-        return items.Select(Map).ToArray();
+        var dto = items.Select(Map).ToArray();
+        if (!includeInactive)
+        {
+            _cache.Set(ActiveListCacheKey(shopId), (IReadOnlyCollection<ShopPaymentTypeDto>)dto, CacheTtl);
+        }
+        return dto;
     }
 
     public async Task<ShopPaymentTypeDto> CreateAsync(CreateShopPaymentTypeRequest request, CancellationToken cancellationToken = default)
@@ -80,6 +103,7 @@ public class ShopPaymentTypeService : IShopPaymentTypeService
 
         await _repository.AddAsync(entity, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        InvalidateCache(entity.ShopId);
 
         await _auditService.LogAsync(nameof(ShopPaymentType), entity.Id, "ShopPaymentTypeCreated", entity.ShopId, cancellationToken: cancellationToken);
 
@@ -114,6 +138,7 @@ public class ShopPaymentTypeService : IShopPaymentTypeService
         entity.ModifiedBy = _currentUserService.UserId;
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        InvalidateCache(entity.ShopId);
 
         await _auditService.LogAsync(nameof(ShopPaymentType), entity.Id, "ShopPaymentTypeUpdated", entity.ShopId, cancellationToken: cancellationToken);
 
@@ -134,6 +159,7 @@ public class ShopPaymentTypeService : IShopPaymentTypeService
         entity.ModifiedBy = _currentUserService.UserId;
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        InvalidateCache(entity.ShopId);
 
         await _auditService.LogAsync(nameof(ShopPaymentType), entity.Id, "ShopPaymentTypeDeleted", entity.ShopId, cancellationToken: cancellationToken);
     }
@@ -189,6 +215,7 @@ public class ShopPaymentTypeService : IShopPaymentTypeService
         if (inserted.Count > 0)
         {
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+            InvalidateCache(shopId);
             foreach (var entity in inserted)
             {
                 await _auditService.LogAsync(nameof(ShopPaymentType), entity.Id, "ShopPaymentTypeSeeded", entity.ShopId, cancellationToken: cancellationToken);

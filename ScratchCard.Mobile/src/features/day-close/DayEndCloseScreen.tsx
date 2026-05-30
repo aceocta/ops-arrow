@@ -42,6 +42,7 @@ import { appTheme } from "../../ui/theme";
 import { useAuth } from "../../auth/AuthContext";
 import { useFeature } from "../subscription/useFeature";
 import { UpgradeNotice } from "../subscription/FeatureGate";
+import { confirmDestructive } from "../../utils/confirm";
 import { haptics } from "../../utils/haptics";
 
 type Props = NativeStackScreenProps<MainStackParamList, "DayEndClose">;
@@ -2903,20 +2904,15 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                           style={styles.attachmentRemoveButton}
                           accessibilityRole="button"
                           accessibilityLabel={`Remove attachment ${attachment.fileName}`}
-                          onPress={() => {
-                            Alert.alert(
-                              "Remove attachment?",
-                              `Remove '${attachment.fileName}' from this close?`,
-                              [
-                                { text: "Cancel", style: "cancel" },
-                                {
-                                  text: "Remove",
-                                  style: "destructive",
-                                  onPress: () =>
-                                    setCloseDayAttachments((previous) => previous.filter((item) => item.id !== attachment.id)),
-                                },
-                              ],
-                            );
+                          onPress={async () => {
+                            const ok = await confirmDestructive({
+                              title: "Remove attachment?",
+                              message: `Remove '${attachment.fileName}' from this close?`,
+                              confirmLabel: "Remove",
+                            });
+                            if (ok) {
+                              setCloseDayAttachments((previous) => previous.filter((item) => item.id !== attachment.id));
+                            }
                           }}
                           disabled={closeMutation.isPending}
                         >
@@ -2957,15 +2953,13 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     style={[styles.attachmentActionButton, styles.attachmentActionButtonDanger]}
                     accessibilityRole="button"
                     accessibilityLabel="Clear all close day attachments"
-                    onPress={() => {
-                      Alert.alert(
-                        "Clear all attachments?",
-                        `This will remove all ${closeDayAttachments.length} attachment(s). You'll need to re-add them if you want to attach files to this close.`,
-                        [
-                          { text: "Cancel", style: "cancel" },
-                          { text: "Clear all", style: "destructive", onPress: () => setCloseDayAttachments([]) },
-                        ],
-                      );
+                    onPress={async () => {
+                      const ok = await confirmDestructive({
+                        title: "Clear all attachments?",
+                        message: `This will remove all ${closeDayAttachments.length} attachment(s). You'll need to re-add them if you want to attach files to this close.`,
+                        confirmLabel: "Clear all",
+                      });
+                      if (ok) setCloseDayAttachments([]);
                     }}
                     disabled={closeMutation.isPending}
                   >
@@ -2996,7 +2990,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     styles.modalActionPrimary,
                     (closeMutation.isPending || !canClose) ? styles.modalActionDisabled : null,
                   ]}
-                  onPress={() => {
+                  onPress={async () => {
                     normalizeAllPayoutInputs();
                     if (!validateCloseDayInputs()) {
                       return;
@@ -3007,14 +3001,13 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     if (hasTillPayoutVariance) {
                       haptics.warning();
                       const direction = (tillPayoutVariance ?? 0) < 0 ? "short" : "over";
-                      Alert.alert(
-                        "Confirm cash variance",
-                        `Till is ${direction} by ${tillPayoutVarianceText}. Closing the day will commit this variance. Continue?`,
-                        [
-                          { text: "Review", style: "cancel" },
-                          { text: "Close anyway", style: "destructive", onPress: () => closeMutation.mutate() },
-                        ],
-                      );
+                      const ok = await confirmDestructive({
+                        title: "Confirm cash variance",
+                        message: `Till is ${direction} by ${tillPayoutVarianceText}. Closing the day will commit this variance. Continue?`,
+                        cancelLabel: "Review",
+                        confirmLabel: "Close anyway",
+                      });
+                      if (ok) closeMutation.mutate();
                       return;
                     }
                     closeMutation.mutate();
@@ -3083,16 +3076,14 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     styles.modalActionPrimary,
                     (reopenMutation.isPending || !canReopen || reopenReason.trim().length === 0) ? styles.modalActionDisabled : null,
                   ]}
-                  onPress={() => {
+                  onPress={async () => {
                     if (reopenReason.trim().length === 0) return;
-                    Alert.alert(
-                      "Reopen this day?",
-                      "Are you sure you want to reopen this closed day? This action is logged.",
-                      [
-                        { text: "Cancel", style: "cancel" },
-                        { text: "Reopen", style: "destructive", onPress: () => reopenMutation.mutate() },
-                      ],
-                    );
+                    const ok = await confirmDestructive({
+                      title: "Reopen this day?",
+                      message: "Are you sure you want to reopen this closed day? This action is logged.",
+                      confirmLabel: "Reopen",
+                    });
+                    if (ok) reopenMutation.mutate();
                   }}
                   disabled={reopenMutation.isPending || !canReopen || reopenReason.trim().length === 0}
                 >

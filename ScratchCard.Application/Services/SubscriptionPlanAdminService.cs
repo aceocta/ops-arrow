@@ -3,6 +3,7 @@ using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Subscriptions;
+using ScratchCard.Domain.Constants;
 using ScratchCard.Domain.Entities;
 
 namespace ScratchCard.Application.Services;
@@ -318,6 +319,58 @@ public class SubscriptionPlanAdminService : ISubscriptionPlanAdminService
             cancellationToken: cancellationToken);
 
         // Re-read with the Feature graph so the response carries keys/names/categories.
+        return await ListPlanFeaturesAsync(plan.Id, cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<SubscriptionPlanFeatureDto>> SyncFromCatalogueAsync(Guid planId, string tier, CancellationToken cancellationToken = default)
+    {
+        var catalogue = PlanFeatureCatalogue.ForTier(tier)
+            ?? throw new AppException("invalid_tier", "Tier must be one of: Starter, Growth, Pro.");
+
+        var plan = await _planRepository.Query()
+            .Include(p => p.PlanFeatures)
+            .FirstOrDefaultAsync(p => p.Id == planId, cancellationToken)
+            ?? throw new AppException("plan_not_found", "Subscription plan not found.", 404);
+
+        var features = await _featureRepository.Query()
+            .Where(f => catalogue.Contains(f.Key))
+            .ToListAsync(cancellationToken);
+
+        var now = DateTimeOffset.UtcNow;
+        var currentFeatureIds = plan.PlanFeatures.Select(pf => pf.FeatureId).ToHashSet();
+        var addedKeys = new List<string>();
+
+        // Additive merge: enable any catalogue feature that's missing; never remove an admin-added
+        // feature outside the catalogue, never disable an existing one.
+        foreach (var feature in features)
+        {
+            if (currentFeatureIds.Contains(feature.Id))
+            {
+                continue;
+            }
+
+            await _planFeatureRepository.AddAsync(new SubscriptionPlanFeature
+            {
+                SubscriptionPlanId = plan.Id,
+                FeatureId = feature.Id,
+                IsEnabled = true,
+                CreatedOn = now,
+                CreatedBy = _currentUserService.UserId
+            }, cancellationToken);
+            addedKeys.Add(feature.Key);
+        }
+
+        if (addedKeys.Count > 0)
+        {
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await _auditService.LogAsync(
+                entityName: nameof(SubscriptionPlan),
+                entityId: plan.Id,
+                actionType: "PlanFeaturesSyncedFromCatalogue",
+                newValue: $"tier={tier}; added={string.Join(",", addedKeys)}",
+                cancellationToken: cancellationToken);
+        }
+
         return await ListPlanFeaturesAsync(plan.Id, cancellationToken);
     }
 

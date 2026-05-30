@@ -10,12 +10,14 @@ import {
   getTillReport,
   upsertTillPayment,
 } from "../../api/tillReportsApi";
+import { LoadingState } from "../../components/LoadingState";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { MainStackParamList } from "../../types/navigation";
 import { listShopPaymentTypes } from "../../api/shopPaymentTypesApi";
 import { TillLineClassification, TillLineSource, TillReportStatus, TillReportType } from "../../types/enums";
 import { ShopPaymentType, TillReportLine } from "../../types/models";
+import { confirmDestructive } from "../../utils/confirm";
 import { formatGbp } from "../../utils/currency";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -34,29 +36,78 @@ export function TillReportReviewScreen({ route, navigation }: Props) {
   const classifyMutation = useMutation({
     mutationFn: (input: { lineId: string; classification: TillLineClassification }) =>
       classifyTillReportLine(reportId, input.lineId, input.classification),
+    // Optimistic: flip the chip locally before the server replies; rollback on failure so the
+    // user never sees a stale "Income" selection that the server actually rejected.
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({ queryKey: ["till-report", reportId] });
+      const previous = queryClient.getQueryData<import("../../types/models").TillReport>([
+        "till-report",
+        reportId,
+      ]);
+      if (previous) {
+        const next: import("../../types/models").TillReport = {
+          ...previous,
+          lines: previous.lines.map((line) =>
+            line.id === input.lineId
+              ? { ...line, classification: input.classification, source: TillLineSource.Manual }
+              : line,
+          ),
+        };
+        queryClient.setQueryData(["till-report", reportId], next);
+      }
+      return { previous };
+    },
+    onError: (_error, _input, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["till-report", reportId], context.previous);
+      }
+      Alert.alert("Update failed", "Could not update that line. Please try again.");
+    },
     onSuccess: (updated) => {
+      // Server is authoritative — overwrite with the canonical response (also picks up sibling
+      // re-classifications and recomputed totals).
       queryClient.setQueryData(["till-report", reportId], updated);
     },
-    onError: () => Alert.alert("Update failed", "Could not update that line. Please try again."),
   });
 
   const deleteLineMutation = useMutation({
     mutationFn: (lineId: string) => deleteTillReportLine(reportId, lineId),
+    // Optimistic: drop the row locally; rollback on server error.
+    onMutate: async (lineId) => {
+      await queryClient.cancelQueries({ queryKey: ["till-report", reportId] });
+      const previous = queryClient.getQueryData<import("../../types/models").TillReport>([
+        "till-report",
+        reportId,
+      ]);
+      if (previous) {
+        const next: import("../../types/models").TillReport = {
+          ...previous,
+          lines: previous.lines.filter((line) => line.id !== lineId),
+        };
+        queryClient.setQueryData(["till-report", reportId], next);
+      }
+      return { previous };
+    },
+    onError: (_error, _input, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["till-report", reportId], context.previous);
+      }
+      Alert.alert("Delete failed", "Could not delete that line. Please try again.");
+    },
     onSuccess: (updated) => {
+      // Server response includes recomputed totals — always overwrite with the canonical version.
       queryClient.setQueryData(["till-report", reportId], updated);
     },
-    onError: () => Alert.alert("Delete failed", "Could not delete that line. Please try again."),
   });
 
-  function confirmDeleteLine(line: TillReportLine) {
-    Alert.alert(
-      "Delete line",
-      `Remove "${line.rawDescription}" from this report? This can't be undone.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => deleteLineMutation.mutate(line.id) },
-      ],
-    );
+  async function confirmDeleteLine(line: TillReportLine) {
+    const ok = await confirmDestructive({
+      title: "Delete line",
+      message: `Remove "${line.rawDescription}" from this report? This can't be undone.`,
+    });
+    if (ok) {
+      deleteLineMutation.mutate(line.id);
+    }
   }
 
   const confirmMutation = useMutation({
@@ -133,7 +184,7 @@ export function TillReportReviewScreen({ route, navigation }: Props) {
         ) : undefined
       }
     >
-      {reportQuery.isLoading ? <Text style={ui.bodyText}>Loading…</Text> : null}
+      {reportQuery.isLoading ? <LoadingState /> : null}
       {reportQuery.isError ? <Text style={styles.error}>Could not load this till report.</Text> : null}
 
       {report ? (

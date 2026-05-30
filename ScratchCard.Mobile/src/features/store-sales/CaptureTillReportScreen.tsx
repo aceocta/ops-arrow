@@ -8,6 +8,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { listBusinessDays } from "../../api/businessDaysApi";
 import { listShifts } from "../../api/shiftsApi";
 import { parseTillReport, TillReportPhoto } from "../../api/tillReportsApi";
+import { compressForUpload } from "../../utils/imageCompression";
 import { listTills } from "../../api/tillsApi";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -118,12 +119,19 @@ export function CaptureTillReportScreen({ navigation, route }: Props) {
       return;
     }
 
-    const added: TillReportPhoto[] = result.assets.map((asset, index) => ({
-      uri: asset.uri,
-      fileName: asset.fileName ?? `till-report-${Date.now()}-${index}.jpg`,
-      mimeType: asset.mimeType ?? "image/jpeg",
-    }));
-    setPhotos((current) => [...current, ...added]);
+    // Compress each picked photo before adding to the list — drops a 4 MB phone shot to a few
+    // hundred KB, so uploads finish quickly even on poor cellular without hurting OCR accuracy.
+    const compressed = await Promise.all(
+      result.assets.map(async (asset, index) => {
+        const out = await compressForUpload(asset.uri);
+        return {
+          uri: out.uri,
+          fileName: asset.fileName ?? `till-report-${Date.now()}-${index}.jpg`,
+          mimeType: "image/jpeg",
+        } satisfies TillReportPhoto;
+      }),
+    );
+    setPhotos((current) => [...current, ...compressed]);
   }
 
   function removePhoto(uri: string) {

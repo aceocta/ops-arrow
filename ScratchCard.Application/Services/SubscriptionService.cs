@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Services;
@@ -24,6 +25,10 @@ public class SubscriptionService : ISubscriptionService
     private readonly IInvoiceService _invoiceService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IMemoryCache _cache;
+
+    private const string PlansCacheKey = "subscription:plans:active";
+    private static readonly TimeSpan PlansTtl = TimeSpan.FromMinutes(10);
 
     public SubscriptionService(
         IRepository<Company> companyRepository,
@@ -38,7 +43,8 @@ public class SubscriptionService : ISubscriptionService
         ISubscriptionBillingService subscriptionBillingService,
         IInvoiceService invoiceService,
         ICurrentUserService currentUserService,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IMemoryCache cache)
     {
         _companyRepository = companyRepository;
         _shopRepository = shopRepository;
@@ -53,19 +59,28 @@ public class SubscriptionService : ISubscriptionService
         _invoiceService = invoiceService;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
+        _cache = cache;
     }
 
     public async Task<IReadOnlyCollection<SubscriptionPlanDto>> GetPlansAsync(CancellationToken cancellationToken = default)
     {
+        if (_cache.TryGetValue<IReadOnlyCollection<SubscriptionPlanDto>>(PlansCacheKey, out var cached) && cached is not null)
+        {
+            return cached;
+        }
+
         var plans = await _planRepository.Query()
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(p => p.PlanFeatures).ThenInclude(pf => pf.Feature)
             .Where(x => x.IsActive)
             .OrderBy(x => x.BillingCycle)
             .ThenBy(x => x.Name)
             .ToListAsync(cancellationToken);
 
-        return plans.Select(x => x.ToDto()).ToArray();
+        var result = (IReadOnlyCollection<SubscriptionPlanDto>)plans.Select(x => x.ToDto()).ToArray();
+        _cache.Set(PlansCacheKey, result, PlansTtl);
+        return result;
     }
 
     public async Task<SubscriptionSummaryDto> GetSummaryAsync(Guid companyId, CancellationToken cancellationToken = default)

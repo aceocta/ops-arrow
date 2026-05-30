@@ -15,6 +15,7 @@ import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { Skeleton } from "../../components/Skeleton";
 import { toastError, toastSuccess } from "../../components/toast";
+import { confirmDestructive } from "../../utils/confirm";
 import { RootStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -120,15 +121,14 @@ export function SubscriptionSummaryScreen() {
     );
   }
 
-  function confirmCancel() {
-    Alert.alert(
-      "Cancel subscription?",
-      "This shop will lose access at the end of the current period.",
-      [
-        { text: "Keep subscription", style: "cancel" },
-        { text: "Cancel at period end", style: "destructive", onPress: () => cancelMutation.mutate(true) },
-      ]
-    );
+  async function confirmCancel() {
+    const ok = await confirmDestructive({
+      title: "Cancel subscription?",
+      message: "This shop will lose access at the end of the current period.",
+      cancelLabel: "Keep subscription",
+      confirmLabel: "Cancel at period end",
+    });
+    if (ok) cancelMutation.mutate(true);
   }
 
   return (

@@ -6,6 +6,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../auth/AuthContext";
+import { NetworkStatusBanner } from "../components/NetworkStatusBanner";
 import { DashboardScreen } from "../features/dashboard/DashboardScreen";
 import { BestEntryScreen } from "../features/entry/BestEntryScreen";
 import { UserInvitationsScreen } from "../features/invitations/UserInvitationsScreen";
@@ -686,8 +687,12 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
   const insets = useSafeAreaInsets();
   const { profile, activeShop, signOut } = useAuth();
   const { entitlements } = useEntitlements();
-  const features = entitlements?.features ?? [];
-  const userRoles = profile?.roles ?? [];
+  // Stabilise these arrays by content so the React.memo'd DrawerSection doesn't re-render on
+  // every entitlements refetch even when the actual feature set is unchanged.
+  const featuresKey = (entitlements?.features ?? []).slice().sort().join("|");
+  const features = useMemo(() => (entitlements?.features ?? []).slice().sort(), [featuresKey]);
+  const rolesKey = (profile?.roles ?? []).slice().sort().join("|");
+  const userRoles = useMemo(() => (profile?.roles ?? []).slice().sort(), [rolesKey]);
   const isCompanyOwner = userRoles.some((role) => role === "CompanyOwner");
   const isPlatformAdmin = userRoles.some((role) => role === "PlatformAdmin");
   const isManager = userRoles.some((role) => role === "Manager");
@@ -1003,6 +1008,7 @@ export function MainNavigator() {
   return (
     <BestEntryProvider>
       <View style={styles.navigatorShell}>
+        <NetworkStatusBanner />
         <Drawer.Navigator
           screenOptions={{
             headerShown: false,

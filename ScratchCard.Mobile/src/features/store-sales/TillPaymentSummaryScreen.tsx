@@ -4,6 +4,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import { getTillPaymentSummary } from "../../api/tillReportsApi";
+import { LoadingState } from "../../components/LoadingState";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { MainStackParamList } from "../../types/navigation";
 import { TillPaymentTypeAmount } from "../../types/models";
@@ -30,7 +31,7 @@ export function TillPaymentSummaryScreen({ route }: Props) {
     <ScreenContainer
       refreshControl={<RefreshControl refreshing={summaryQuery.isFetching} onRefresh={() => void summaryQuery.refetch()} />}
     >
-      {summaryQuery.isLoading ? <Text style={ui.bodyText}>Loading…</Text> : null}
+      {summaryQuery.isLoading ? <LoadingState /> : null}
 
       {summary ? (
         <>

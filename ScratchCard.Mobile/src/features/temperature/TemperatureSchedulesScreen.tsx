@@ -10,9 +10,11 @@ import {
   listTemperatureUnits,
   updateTemperatureSchedule,
 } from "../../api/temperatureLogsApi";
+import { LoadingState } from "../../components/LoadingState";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { TemperatureSchedule } from "../../types/models";
+import { confirmDestructive } from "../../utils/confirm";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -84,26 +86,18 @@ export function TemperatureSchedulesScreen() {
       Alert.alert("Add failed", error?.response?.data?.message ?? "Could not add this scheduled check."),
   });
 
-  function confirmDelete(schedule: TemperatureSchedule) {
-    Alert.alert(
-      "Delete schedule",
-      `Remove the "${schedule.label}" slot? Existing readings stay intact.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteTemperatureSchedule(schedule.id);
-              invalidate();
-            } catch (error: any) {
-              Alert.alert("Delete failed", error?.response?.data?.message ?? "Could not delete this schedule.");
-            }
-          },
-        },
-      ],
-    );
+  async function confirmDelete(schedule: TemperatureSchedule) {
+    const ok = await confirmDestructive({
+      title: "Delete schedule",
+      message: `Remove the "${schedule.label}" slot? Existing readings stay intact.`,
+    });
+    if (!ok) return;
+    try {
+      await deleteTemperatureSchedule(schedule.id);
+      invalidate();
+    } catch (error: any) {
+      Alert.alert("Delete failed", error?.response?.data?.message ?? "Could not delete this schedule.");
+    }
   }
 
   async function toggleActive(schedule: TemperatureSchedule) {
@@ -221,7 +215,7 @@ export function TemperatureSchedulesScreen() {
 
       <View style={ui.card}>
         <Text style={ui.sectionTitle}>Configured slots</Text>
-        {schedulesQuery.isLoading ? <Text style={ui.bodyText}>Loading…</Text> : null}
+        {schedulesQuery.isLoading ? <LoadingState inline /> : null}
         {!schedulesQuery.isLoading && schedules.length === 0 ? (
           <Text style={ui.bodyText}>No scheduled checks yet — add one above.</Text>
         ) : null}

@@ -1,4 +1,5 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { AppState, AppStateStatus } from "react-native";
 import {
   AuthTokenResult,
   getCurrentUserProfile,
@@ -72,6 +73,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     void bootstrap();
   }, []);
+
+  // Proactive access-token refresh. The server issues an 8h token (see Jwt:AccessTokenExpiryMinutes);
+  // for an app used through a full shift we don't want the user logged out mid-action. Refresh on
+  // a 3h cadence while foregrounded, and on returning to the app after being away ≥ 1h.
+  const lastRefreshRef = useRef<number>(Date.now());
+  useEffect(() => {
+    if (!profile) return;
+
+    const refresh = async (reason: string) => {
+      try {
+        const refreshed = await refreshAuthToken();
+        if (refreshed.accessToken) {
+          await saveAccessToken(refreshed.accessToken);
+          lastRefreshRef.current = Date.now();
+        }
+      } catch (error) {
+        reportError(error, { phase: `auth-refresh:${reason}` });
+      }
+    };
+
+    const intervalId = setInterval(() => {
+      void refresh("interval");
+    }, 3 * 60 * 60 * 1000);
+
+    const onAppStateChange = (next: AppStateStatus) => {
+      if (next === "active") {
+        const sinceLast = Date.now() - lastRefreshRef.current;
+        if (sinceLast >= 60 * 60 * 1000) {
+          void refresh("foreground");
+        }
+      }
+    };
+    const sub = AppState.addEventListener("change", onAppStateChange);
+
+    return () => {
+      clearInterval(intervalId);
+      sub.remove();
+    };
+  }, [profile?.userId]);
 
   useEffect(() => {
     if (profile?.userId) {

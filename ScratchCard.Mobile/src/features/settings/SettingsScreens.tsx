@@ -26,6 +26,7 @@ import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme, type ThemeMode } from "../../ui/theme";
 import { getStoredThemeModePreference, setStoredThemeModePreference } from "../../ui/themePreference";
+import { confirmDestructive } from "../../utils/confirm";
 import { getRoleDisplayName } from "../../utils/roleLabels";
 import { buildShiftTemplateId, deriveShopOperationalSetup, SHOP_CONFIG_KEYS, serializeShiftTemplates, ShiftTemplateSetup } from "./shopConfiguration";
 
@@ -463,20 +464,14 @@ export function UserManagementScreen() {
     onError: (error: any) => Alert.alert("Failed", error?.response?.data?.message ?? "Unable to change user status."),
   });
 
-  function confirmToggleActive(user: { id: string; isActive: boolean }, displayName: string) {
+  async function confirmToggleActive(user: { id: string; isActive: boolean }, displayName: string) {
     if (user.isActive) {
-      Alert.alert(
-        "Deactivate user?",
-        `${displayName} will lose access to ${activeShop?.shopName ?? "this shop"} immediately.`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Deactivate",
-            style: "destructive",
-            onPress: () => toggleActiveMutation.mutate({ userId: user.id, isActive: true }),
-          },
-        ],
-      );
+      const ok = await confirmDestructive({
+        title: "Deactivate user?",
+        message: `${displayName} will lose access to ${activeShop?.shopName ?? "this shop"} immediately.`,
+        confirmLabel: "Deactivate",
+      });
+      if (ok) toggleActiveMutation.mutate({ userId: user.id, isActive: true });
     } else {
       toggleActiveMutation.mutate({ userId: user.id, isActive: false });
     }
@@ -1259,17 +1254,15 @@ export function CompanyManagementScreen() {
     },
   });
 
-  function confirmToggleCompany() {
+  async function confirmToggleCompany() {
     if (!ownedCompany) return;
     if (ownedCompany.isActive) {
-      Alert.alert(
-        "Deactivate company?",
-        `${ownedCompany.companyName} will be marked inactive. Shops and users may lose access.`,
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Deactivate", style: "destructive", onPress: () => toggleCompanyMutation.mutate() },
-        ],
-      );
+      const ok = await confirmDestructive({
+        title: "Deactivate company?",
+        message: `${ownedCompany.companyName} will be marked inactive. Shops and users may lose access.`,
+        confirmLabel: "Deactivate",
+      });
+      if (ok) toggleCompanyMutation.mutate();
     } else {
       toggleCompanyMutation.mutate();
     }
@@ -1507,20 +1500,18 @@ export function ShopManagementScreen() {
     ? (shopsQuery.data ?? []).find((s) => s.id === editingShopId)
     : null;
 
-  function attemptToggleActive(nextIsActive: boolean) {
+  async function attemptToggleActive(nextIsActive: boolean) {
     if (!editingShopId) {
       setEditingIsActive(nextIsActive);
       return;
     }
     if (!nextIsActive && editingIsActive) {
-      Alert.alert(
-        "Deactivate shop?",
-        "Staff assigned to this shop will lose access. You can reactivate it later.",
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Deactivate", style: "destructive", onPress: () => setEditingIsActive(false) },
-        ],
-      );
+      const ok = await confirmDestructive({
+        title: "Deactivate shop?",
+        message: "Staff assigned to this shop will lose access. You can reactivate it later.",
+        confirmLabel: "Deactivate",
+      });
+      if (ok) setEditingIsActive(false);
       return;
     }
     setEditingIsActive(nextIsActive);
@@ -1902,15 +1893,13 @@ export function SettingsScreen() {
     }
   }
 
-  function confirmSignOut() {
-    Alert.alert(
-      "Sign out?",
-      "You'll need to sign back in with your account.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Sign Out", style: "destructive", onPress: () => void onSignOut() },
-      ],
-    );
+  async function confirmSignOut() {
+    const ok = await confirmDestructive({
+      title: "Sign out?",
+      message: "You'll need to sign back in with your account.",
+      confirmLabel: "Sign Out",
+    });
+    if (ok) void onSignOut();
   }
 
   async function onChangeThemeMode(nextMode: ThemeMode) {
