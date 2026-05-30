@@ -15,6 +15,7 @@ import { finalizeShift, getActivePacksForShift, getShift, getShiftCloseAttachmen
 import { getTillShiftSummary } from "../../api/tillReportsApi";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { toastError } from "../../components/toast";
 import { SectionHeader } from "../../components/SectionHeader";
 import { KpiGrid, KpiTile } from "../../components/KpiTile";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -538,7 +539,7 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
       navigation.goBack();
     } catch (error: any) {
       haptics.error();
-      Alert.alert("Failed", error?.response?.data?.message ?? "Shift close failed.");
+      toastError(error?.response?.data?.message ?? "Shift close failed.");
     } finally {
       setIsFinalizing(false);
     }

@@ -8,6 +8,7 @@ import { DateTimeField, formatDateValue, parseDateValue } from "../../components
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { toastError, toastSuccess } from "../../components/toast";
 import { SkeletonList } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { useFeature } from "../subscription/useFeature";
@@ -104,10 +105,10 @@ export function RefusalManagerReviewScreen() {
         queryClient.invalidateQueries({ queryKey: ["refusal-daily-log"] }),
         queryClient.invalidateQueries({ queryKey: ["refusal-daily-log-view"] }),
       ]);
-      Alert.alert("Saved", "Selected entries reviewed with manager signature.");
+      toastSuccess("Selected entries reviewed with manager signature.");
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to review selected entries.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to review selected entries.");
     },
   });
 

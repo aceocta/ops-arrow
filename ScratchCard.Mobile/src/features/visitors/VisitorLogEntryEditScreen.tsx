@@ -8,6 +8,7 @@ import { DateTimeField, formatDateValue, formatTimeValue } from "../../component
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { toastError } from "../../components/toast";
 import {
   createVisitorEntry,
   getVisitorEntry,
@@ -154,7 +155,7 @@ export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
       navigation.goBack();
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to save visitor entry.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to save visitor entry.");
     },
   });
 

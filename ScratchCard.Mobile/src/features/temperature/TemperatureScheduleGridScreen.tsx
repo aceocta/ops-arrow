@@ -11,6 +11,7 @@ import { DateTimeField, formatDateValue, parseDateValue } from "../../components
 import { LoadingState } from "../../components/LoadingState";
 import { ReportActionButton } from "../../components/ReportActionButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { toastError } from "../../components/toast";
 import { buildTemperatureRangeReportHtml } from "./temperatureReportUtils";
 import {
   TemperatureReading,
@@ -182,7 +183,7 @@ function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
     try {
       await Print.printAsync({ html: buildHtml(), width: 792, height: 612, orientation: Print.Orientation.landscape });
     } catch (error: any) {
-      Alert.alert("Failed", error?.message ?? "Unable to open print dialog.");
+      toastError(error?.message ?? "Unable to open print dialog.");
     }
   };
 
@@ -199,7 +200,7 @@ function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
         UTI: "com.adobe.pdf",
       });
     } catch (error: any) {
-      Alert.alert("Failed", error?.message ?? "Unable to generate or share PDF.");
+      toastError(error?.message ?? "Unable to generate or share PDF.");
     }
   };
 
@@ -220,7 +221,7 @@ function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
       });
       Alert.alert("Email sent", `Report has been sent to ${profile?.email ?? "your inbox"}.`);
     } catch (error: any) {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to send report email.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to send report email.");
     } finally {
       setEmailing(false);
     }

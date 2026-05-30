@@ -21,6 +21,7 @@ import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { toastError } from "../../components/toast";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { formatGbp } from "../../utils/currency";
 import { SellingOrder } from "../../types/enums";
@@ -319,7 +320,7 @@ export function ReceiveDeliveryScreen() {
       void queryClient.invalidateQueries({ queryKey: ["packs", shopId] });
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to create delivery.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to create delivery.");
     },
   });
 

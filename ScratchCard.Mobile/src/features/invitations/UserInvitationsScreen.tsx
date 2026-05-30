@@ -7,6 +7,7 @@ import { listInvitations, sendInvitation, cancelInvitation } from "../../api/inv
 import { getRoleOptions } from "../../api/lookupsApi";
 import { listUsers } from "../../api/usersApi";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { toastError } from "../../components/toast";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { useEntitlements } from "../subscription/useEntitlements";
 import { ui } from "../../ui/primitives";
@@ -111,7 +112,7 @@ export function UserInvitationsScreen() {
       void queryClient.invalidateQueries({ queryKey: ["invitations", shopId] });
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to send invitation.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to send invitation.");
     },
   });
 
@@ -121,7 +122,7 @@ export function UserInvitationsScreen() {
       void queryClient.invalidateQueries({ queryKey: ["invitations", shopId] });
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? "Unable to cancel invitation.");
+      toastError(error?.response?.data?.message ?? "Unable to cancel invitation.");
     },
   });
 

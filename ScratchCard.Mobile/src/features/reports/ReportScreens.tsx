@@ -21,6 +21,7 @@ import { listShifts } from "../../api/shiftsApi";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
 import { ReportActionButton } from "../../components/ReportActionButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { toastError } from "../../components/toast";
 import { useFeature } from "../subscription/useFeature";
 import { UpgradeNotice } from "../subscription/FeatureGate";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -218,7 +219,7 @@ export function DailySalesReportScreen() {
         orientation: Print.Orientation.landscape,
       });
     } catch (error: any) {
-      Alert.alert("Failed", error?.message ?? "Unable to open print dialog.");
+      toastError(error?.message ?? "Unable to open print dialog.");
     }
   };
 
@@ -243,7 +244,7 @@ export function DailySalesReportScreen() {
         UTI: "com.adobe.pdf",
       });
     } catch (error: any) {
-      Alert.alert("Failed", error?.message ?? "Unable to generate or share PDF.");
+      toastError(error?.message ?? "Unable to generate or share PDF.");
     }
   };
 
@@ -253,7 +254,7 @@ export function DailySalesReportScreen() {
       const recipient = profile?.email ?? "your inbox";
       Alert.alert("Email sent", `Report has been sent to ${recipient}.`);
     } catch (error: any) {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to send report email.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to send report email.");
     }
   };
 

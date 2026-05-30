@@ -16,6 +16,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { ReportActionButton } from "../../components/ReportActionButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { toastError } from "../../components/toast";
 import { SkeletonList } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
@@ -187,7 +188,7 @@ export function RefusalReportScreen() {
         orientation: Print.Orientation.landscape,
       });
     } catch (error: any) {
-      Alert.alert("Failed", error?.message ?? "Unable to open print dialog.");
+      toastError(error?.message ?? "Unable to open print dialog.");
     }
   };
 
@@ -208,7 +209,7 @@ export function RefusalReportScreen() {
         UTI: "com.adobe.pdf",
       });
     } catch (error: any) {
-      Alert.alert("Failed", error?.message ?? "Unable to generate or share PDF.");
+      toastError(error?.message ?? "Unable to generate or share PDF.");
     }
   };
 
@@ -218,7 +219,7 @@ export function RefusalReportScreen() {
       const recipient = profile?.email ?? "your inbox";
       Alert.alert("Email sent", `Report has been sent to ${recipient}.`);
     } catch (error: any) {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to send report email.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to send report email.");
     }
   };
 

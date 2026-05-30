@@ -35,6 +35,7 @@ import { PrimaryButton } from "../../components/PrimaryButton";
 import { ReportActionButton } from "../../components/ReportActionButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SectionHeader } from "../../components/SectionHeader";
+import { toastError } from "../../components/toast";
 import { Skeleton } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
@@ -945,7 +946,7 @@ export function ComplianceChecksScreen() {
       await queryClient.invalidateQueries({ queryKey: ["compliance-period-log", shopId, frequency, effectivePeriodDate] });
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to save compliance check.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to save compliance check.");
     },
   });
 
@@ -2100,7 +2101,7 @@ export function ComplianceChecksConfigScreen() {
       await queryClient.invalidateQueries({ queryKey: ["compliance-config", shopId, frequency] });
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to save compliance group.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to save compliance group.");
     },
   });
 
@@ -2135,7 +2136,7 @@ export function ComplianceChecksConfigScreen() {
       await queryClient.invalidateQueries({ queryKey: ["compliance-config", shopId, frequency] });
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to save compliance item.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to save compliance item.");
     },
   });
 
@@ -2150,7 +2151,7 @@ export function ComplianceChecksConfigScreen() {
       });
       await queryClient.invalidateQueries({ queryKey: ["compliance-config", shopId, frequency] });
     } catch (error: any) {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to reorder groups.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to reorder groups.");
       setGroups(normalizeGroups(configQuery.data ?? []));
     }
   }
@@ -2170,7 +2171,7 @@ export function ComplianceChecksConfigScreen() {
       });
       await queryClient.invalidateQueries({ queryKey: ["compliance-config", shopId, frequency] });
     } catch (error: any) {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to reorder items.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to reorder items.");
       setGroups(normalizeGroups(configQuery.data ?? []));
     }
   }
@@ -2609,7 +2610,7 @@ export function ComplianceActionsScreen() {
       await queryClient.invalidateQueries({ queryKey: ["compliance-actions", shopId, fromDate, toDate, openOnly] });
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to close action.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to close action.");
     },
   });
 

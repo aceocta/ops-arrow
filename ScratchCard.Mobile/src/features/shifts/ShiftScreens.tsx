@@ -9,6 +9,7 @@ import { listPacks } from "../../api/packsApi";
 import { deleteShift, getShift, getShiftSales, listShiftCloseCandidates, listShifts, openShift, startScheduledShift } from "../../api/shiftsApi";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { toastError } from "../../components/toast";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { deriveShopOperationalSetup } from "../settings/shopConfiguration";
 import { formatGbp } from "../../utils/currency";
@@ -218,7 +219,7 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
       setViewMode("close");
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to open shift.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to open shift.");
     },
   });
 
@@ -231,7 +232,7 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
       setViewMode("close");
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to start scheduled shift.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to start scheduled shift.");
     },
   });
 
@@ -242,7 +243,7 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
       await shiftsQuery.refetch();
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to remove scheduled shift.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to remove scheduled shift.");
     },
   });
 

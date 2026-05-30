@@ -13,6 +13,7 @@ import { DateTimeField, formatDateValue, formatTimeValue, parseDateTimeValue } f
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { toastError, toastSuccess } from "../../components/toast";
 import { SkeletonList } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
@@ -331,11 +332,11 @@ export function RefusalRegisterScreen() {
       setObservations("");
       setRefusalTime(formatTimeValue(new Date()));
       setSignatureDataUrl("");
-      Alert.alert("Saved", "Refusal entry recorded.");
+      toastSuccess("Refusal entry recorded.");
       await queryClient.invalidateQueries({ queryKey: ["refusal-daily-log", shopId, selectedDate] });
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to save refusal entry.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to save refusal entry.");
     },
   });
 
@@ -398,7 +399,7 @@ export function RefusalRegisterScreen() {
         orientation: Print.Orientation.landscape,
       });
     } catch (error: any) {
-      Alert.alert("Failed", error?.message ?? "Unable to open print dialog.");
+      toastError(error?.message ?? "Unable to open print dialog.");
     }
   };
 
@@ -423,7 +424,7 @@ export function RefusalRegisterScreen() {
         UTI: "com.adobe.pdf",
       });
     } catch (error: any) {
-      Alert.alert("Failed", error?.message ?? "Unable to generate or share PDF.");
+      toastError(error?.message ?? "Unable to generate or share PDF.");
     }
   };
 

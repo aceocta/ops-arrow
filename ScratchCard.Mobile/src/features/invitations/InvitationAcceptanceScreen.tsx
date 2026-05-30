@@ -3,6 +3,7 @@ import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { toastError } from "../../components/toast";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { acceptInvitation, validateInvitation } from "../../api/authApi";
 import { RootStackParamList } from "../../types/navigation";
@@ -122,7 +123,7 @@ export function InvitationAcceptanceScreen({ route, navigation }: Props) {
         { cancelable: false },
       );
     } catch (error: any) {
-      Alert.alert("Failed", describeAcceptError(error));
+      toastError(describeAcceptError(error));
     } finally {
       setIsBusy(false);
     }

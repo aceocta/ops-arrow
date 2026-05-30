@@ -7,6 +7,7 @@ import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { LoadingState } from "../../components/LoadingState";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { toastError } from "../../components/toast";
 import { getVisitorDailyLog, signOutVisitor } from "../../api/visitorLogApi";
 import { useAuth } from "../../auth/AuthContext";
 import { MainStackParamList } from "../../types/navigation";
@@ -41,7 +42,7 @@ export function VisitorLogScreen({ navigation }: Props) {
       void queryClient.invalidateQueries({ queryKey: ["visitor-daily-log"] });
       void queryClient.invalidateQueries({ queryKey: ["visitor-on-site"] });
     },
-    onError: (e: any) => Alert.alert("Failed", e?.response?.data?.message ?? "Unable to sign visitor out."),
+    onError: (e: any) => toastError(e?.response?.data?.message ?? "Unable to sign visitor out."),
   });
 
   const data = dailyQuery.data;

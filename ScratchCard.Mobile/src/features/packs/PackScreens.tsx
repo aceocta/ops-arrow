@@ -6,6 +6,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
+import { toastError } from "../../components/toast";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -370,7 +371,7 @@ export function ScratchCardGameCreateScreen({ navigation }: GameCreateProps) {
       navigation.goBack();
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to create game.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to create game.");
     },
   });
 
@@ -446,7 +447,7 @@ export function ScratchCardGameEditScreen({ route, navigation }: GameEditProps) 
       navigation.goBack();
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to update game.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to update game.");
     },
   });
 
@@ -1040,7 +1041,7 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
     },
     onError: (error: any) => {
       const fallbackMessage = activateOnCreate ? "Unable to create and activate pack." : "Unable to create pack.";
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? fallbackMessage);
+      toastError(error?.response?.data?.message ?? error?.message ?? fallbackMessage);
     },
   });
 
@@ -1307,7 +1308,7 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
       Alert.alert("Updated", "Pack status updated.");
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to update pack.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to update pack.");
     },
   });
 
@@ -1360,7 +1361,7 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
       Alert.alert("Updated", "Pack details updated.");
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to update pack details.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to update pack details.");
     },
   });
 
@@ -1506,7 +1507,7 @@ export function ActivatePackScreen({ route, navigation }: ActivatePackProps) {
       navigation.goBack();
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? "Unable to activate pack.");
+      toastError(error?.response?.data?.message ?? "Unable to activate pack.");
     },
   });
 

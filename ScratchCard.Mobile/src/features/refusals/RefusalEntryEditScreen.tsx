@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LandscapeSignatureModal } from "../../components/LandscapeSignatureModal";
@@ -9,6 +9,7 @@ import { DateTimeField } from "../../components/DateTimeField";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { toastError, toastSuccess } from "../../components/toast";
 import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
@@ -96,11 +97,11 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
         queryClient.invalidateQueries({ queryKey: ["refusal-daily-log"] }),
         queryClient.invalidateQueries({ queryKey: ["refusal-daily-log-view"] }),
       ]);
-      Alert.alert("Saved", "Refusal entry updated.");
+      toastSuccess("Refusal entry updated.");
       navigation.goBack();
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to update refusal entry.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to update refusal entry.");
     },
   });
 

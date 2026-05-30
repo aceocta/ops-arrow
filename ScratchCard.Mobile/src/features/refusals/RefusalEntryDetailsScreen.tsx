@@ -7,6 +7,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { toastError, toastSuccess } from "../../components/toast";
 import { SectionHeader } from "../../components/SectionHeader";
 import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
@@ -71,10 +72,10 @@ export function RefusalEntryDetailsScreen({ route, navigation }: Props) {
         queryClient.invalidateQueries({ queryKey: ["refusal-daily-log"] }),
         queryClient.invalidateQueries({ queryKey: ["refusal-daily-log-view"] }),
       ]);
-      Alert.alert("Saved", "Manager review updated.");
+      toastSuccess("Manager review updated.");
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to update manager review.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to update manager review.");
     },
   });
 

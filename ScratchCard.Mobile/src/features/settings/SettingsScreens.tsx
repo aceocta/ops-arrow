@@ -17,6 +17,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { LabeledValue } from "../../components/LabeledValue";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { toastError, toastSuccess } from "../../components/toast";
 import { SkeletonList } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { SubscriptionPlanPicker } from "../subscription/SubscriptionPlanPicker";
@@ -451,7 +452,7 @@ export function UserManagementScreen() {
       void queryClient.invalidateQueries({ queryKey: ["users", shopId] });
       setExpandedUserId(null);
     },
-    onError: (error: any) => Alert.alert("Failed", error?.response?.data?.message ?? "Unable to update role."),
+    onError: (error: any) => toastError(error?.response?.data?.message ?? "Unable to update role."),
   });
 
   const toggleActiveMutation = useMutation({
@@ -461,7 +462,7 @@ export function UserManagementScreen() {
       return reactivateUser(userId, shopId);
     },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["users", shopId] }),
-    onError: (error: any) => Alert.alert("Failed", error?.response?.data?.message ?? "Unable to change user status."),
+    onError: (error: any) => toastError(error?.response?.data?.message ?? "Unable to change user status."),
   });
 
   async function confirmToggleActive(user: { id: string; isActive: boolean }, displayName: string) {
@@ -731,11 +732,11 @@ function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
     },
     onSuccess: () => {
       setDraftValues({});
-      Alert.alert("Saved", `${scopeMeta.title} updated.`);
+      toastSuccess(`${scopeMeta.title} updated.`);
       void queryClient.invalidateQueries({ queryKey: ["configurations", shopId] });
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to update configuration.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to update configuration.");
     },
   });
 
@@ -1204,7 +1205,7 @@ export function CompanyManagementScreen() {
       void queryClient.invalidateQueries({ queryKey: ["companies", "mine"] });
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to create company.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to create company.");
     },
   });
 
@@ -1230,7 +1231,7 @@ export function CompanyManagementScreen() {
       void queryClient.invalidateQueries({ queryKey: ["companies", "mine"] });
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to update company details.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to update company details.");
     },
   });
 
@@ -1250,7 +1251,7 @@ export function CompanyManagementScreen() {
       void queryClient.invalidateQueries({ queryKey: ["companies", "mine"] });
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? "Unable to update company status.");
+      toastError(error?.response?.data?.message ?? "Unable to update company status.");
     },
   });
 
@@ -1458,7 +1459,7 @@ export function ShopManagementScreen() {
       void Promise.all([queryClient.invalidateQueries({ queryKey: ["shops", resolvedCompanyId] }), refreshProfile()]);
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? `Unable to ${editingShopId ? "update" : "create"} shop.`);
+      toastError(error?.response?.data?.message ?? error?.message ?? `Unable to ${editingShopId ? "update" : "create"} shop.`);
     },
   });
 

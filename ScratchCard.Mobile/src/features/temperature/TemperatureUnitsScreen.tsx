@@ -6,6 +6,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { toastError } from "../../components/toast";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { TemperatureEquipmentType } from "../../types/enums";
@@ -103,7 +104,7 @@ export function TemperatureUnitsScreen() {
       ]);
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to create unit.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to create unit.");
     },
   });
 
@@ -155,7 +156,7 @@ export function TemperatureUnitsScreen() {
       ]);
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to update unit.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to update unit.");
     },
   });
 

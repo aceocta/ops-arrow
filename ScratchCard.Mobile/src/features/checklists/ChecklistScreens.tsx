@@ -24,6 +24,7 @@ import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { toastError } from "../../components/toast";
 import { StatusBadge } from "../../components/StatusBadge";
 import {
   enqueueOfflineChecklistCompletion,
@@ -162,7 +163,7 @@ export function ShopChecklistScreen() {
       await queueQuery.refetch();
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to save checklist task.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to save checklist task.");
     },
   });
 
@@ -522,7 +523,7 @@ export function ChecklistConfigurationScreen() {
       await queryClient.invalidateQueries({ queryKey: ["checklist-config", shopId] });
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to save checklist group.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to save checklist group.");
     },
   });
 
@@ -564,7 +565,7 @@ export function ChecklistConfigurationScreen() {
       await queryClient.invalidateQueries({ queryKey: ["checklist-config", shopId] });
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to save checklist task.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to save checklist task.");
     },
   });
 
@@ -581,7 +582,7 @@ export function ChecklistConfigurationScreen() {
       await queryClient.invalidateQueries({ queryKey: ["checklist-config", shopId] });
     } catch (error: any) {
       setConfigGroups(previousGroups);
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to reorder checklist groups.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to reorder checklist groups.");
     }
   }
 
@@ -612,7 +613,7 @@ export function ChecklistConfigurationScreen() {
       await queryClient.invalidateQueries({ queryKey: ["checklist-config", shopId] });
     } catch (error: any) {
       setConfigGroups(previousGroups);
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to reorder checklist tasks.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to reorder checklist tasks.");
     }
   }
 

@@ -10,6 +10,7 @@ import { DateTimeField, formatDateValue, parseDateValue } from "../../components
 import { ReportActionButton } from "../../components/ReportActionButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SkeletonList } from "../../components/Skeleton";
+import { toastError } from "../../components/toast";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -169,7 +170,7 @@ export function TemperatureLogsReportScreen() {
         orientation: Print.Orientation.landscape,
       });
     } catch (error: any) {
-      Alert.alert("Failed", error?.message ?? "Unable to open print dialog.");
+      toastError(error?.message ?? "Unable to open print dialog.");
     }
   };
 
@@ -189,7 +190,7 @@ export function TemperatureLogsReportScreen() {
         UTI: "com.adobe.pdf",
       });
     } catch (error: any) {
-      Alert.alert("Failed", error?.message ?? "Unable to generate or share PDF.");
+      toastError(error?.message ?? "Unable to generate or share PDF.");
     }
   };
 
@@ -199,7 +200,7 @@ export function TemperatureLogsReportScreen() {
       const recipient = profile?.email ?? "your inbox";
       Alert.alert("Email sent", `Report has been sent to ${recipient}.`);
     } catch (error: any) {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to send report email.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to send report email.");
     }
   };
 

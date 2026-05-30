@@ -11,6 +11,7 @@ import {
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, formatTimeValue, parseDateTimeValue } from "../../components/DateTimeField";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
+import { toastError, toastSuccess } from "../../components/toast";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -270,13 +271,13 @@ export function TemperatureLogScreen() {
       setReadingTime(formatTimeValue(new Date()));
       setIsLogEntryModalVisible(false);
       setSelectedDate(entryDate);
-      Alert.alert("Saved", "Temperature reading recorded.");
+      toastSuccess("Temperature reading recorded.");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["temperature-daily-log", shopId, entryDate] }),
       ]);
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to save reading.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to save reading.");
     },
   });
 

@@ -8,6 +8,7 @@ import { listPacks } from "../../api/packsApi";
 import { approvePrizePayout, createPrizePayout, listPrizePayouts } from "../../api/prizePayoutsApi";
 import { getShift } from "../../api/shiftsApi";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { toastError, toastSuccess } from "../../components/toast";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { MainStackParamList } from "../../types/navigation";
 import { formatGbp } from "../../utils/currency";
@@ -71,11 +72,11 @@ export function PrizePayoutScreen({ route }: Props) {
       setTicketNumber("");
       setPrizeAmount("0");
       setNotes("");
-      Alert.alert("Saved", "Prize payout recorded.");
+      toastSuccess("Prize payout recorded.");
       void queryClient.invalidateQueries({ queryKey: ["prize-payouts", shiftId] });
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to create prize payout.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to create prize payout.");
     },
   });
 
@@ -85,7 +86,7 @@ export function PrizePayoutScreen({ route }: Props) {
       void queryClient.invalidateQueries({ queryKey: ["prize-payouts", shiftId] });
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? "Unable to approve payout.");
+      toastError(error?.response?.data?.message ?? "Unable to approve payout.");
     },
   });
 

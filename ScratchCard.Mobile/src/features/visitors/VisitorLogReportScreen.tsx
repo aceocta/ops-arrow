@@ -10,6 +10,7 @@ import { DateTimeField, formatDateValue, parseDateValue } from "../../components
 import { LoadingState } from "../../components/LoadingState";
 import { ReportActionButton } from "../../components/ReportActionButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { toastError } from "../../components/toast";
 import { listVisitorEntriesByRange, signOutVisitor } from "../../api/visitorLogApi";
 import { sendReportEmail } from "../../api/reportsApi";
 import { useAuth } from "../../auth/AuthContext";
@@ -83,7 +84,7 @@ export function VisitorLogReportScreen() {
       void queryClient.invalidateQueries({ queryKey: ["visitor-on-site"] });
     },
     onError: (e: any) =>
-      Alert.alert("Failed", e?.response?.data?.message ?? "Unable to sign visitor out."),
+      toastError(e?.response?.data?.message ?? "Unable to sign visitor out."),
   });
 
   const confirmSignOut = (entry: VisitorLogEntry) => {
@@ -113,7 +114,7 @@ export function VisitorLogReportScreen() {
     try {
       await Print.printAsync({ html: buildHtml(), orientation: Print.Orientation.landscape });
     } catch (e: any) {
-      Alert.alert("Failed", e?.message ?? "Unable to open print dialog.");
+      toastError(e?.message ?? "Unable to open print dialog.");
     }
   };
 
@@ -126,7 +127,7 @@ export function VisitorLogReportScreen() {
       }
       await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: `Visitors Log ${fromDate} to ${toDate}`, UTI: "com.adobe.pdf" });
     } catch (e: any) {
-      Alert.alert("Failed", e?.message ?? "Unable to generate or share PDF.");
+      toastError(e?.message ?? "Unable to generate or share PDF.");
     }
   };
 
@@ -145,7 +146,7 @@ export function VisitorLogReportScreen() {
       });
       Alert.alert("Email sent", `Report has been sent to ${profile?.email ?? "your inbox"}.`);
     } catch (e: any) {
-      Alert.alert("Failed", e?.response?.data?.message ?? e?.message ?? "Unable to send report email.");
+      toastError(e?.response?.data?.message ?? e?.message ?? "Unable to send report email.");
     } finally {
       setEmailing(false);
     }
