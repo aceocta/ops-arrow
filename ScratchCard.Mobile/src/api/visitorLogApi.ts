@@ -123,6 +123,19 @@ export async function searchVisitorDirectory(shopId: string, query: string) {
   })) as VisitorDirectory[];
 }
 
+export type VisitorOrganisationSuggestion = { id: string; name: string; usageCount: number };
+
+export async function searchVisitorOrganisations(shopId: string, query: string): Promise<VisitorOrganisationSuggestion[]> {
+  const response = await apiClient.get<ApiResponse<VisitorOrganisationSuggestion[]>>("/visitor-log/organisations", {
+    params: { shopId, query },
+  });
+  return (response.data.data ?? []).map((raw: any) => ({
+    id: String(raw.id),
+    name: String(raw.name ?? ""),
+    usageCount: Number(raw.usageCount ?? 0),
+  }));
+}
+
 export async function getVisitorEntrySignature(entryId: string) {
   const response = await apiClient.get<ApiResponse<string | null>>(`/visitor-log/entries/${entryId}/signature`);
   return response.data.data ?? undefined;

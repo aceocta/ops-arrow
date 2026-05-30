@@ -12,7 +12,7 @@ import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
 type OperationOption = {
-  key: "scratchCard" | "temperature" | "refusals" | "checklist" | "compliance";
+  key: "scratchCard" | "temperature" | "refusals" | "checklist" | "compliance" | "visitors";
   title: string;
   route: keyof MainStackParamList;
   icon: keyof typeof Ionicons.glyphMap;
@@ -65,6 +65,15 @@ const operationOptions: OperationOption[] = [
     iconBg: appTheme.colors.surfaceWarningSoft,
     operation: "compliance",
     requiredFeature: "ComplianceChecklist",
+  },
+  {
+    key: "visitors",
+    title: "Visitors Log",
+    route: "VisitorLog",
+    icon: "people-outline",
+    iconColor: appTheme.colors.info,
+    iconBg: appTheme.colors.surfaceInfoMuted,
+    requiredFeature: "visitor_log.basic",
   }
 ];
 

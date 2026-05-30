@@ -419,6 +419,7 @@ public interface IVisitorLogService
     Task<IReadOnlyCollection<VisitorLogEntryDto>> ListOnSiteAsync(Guid shopId, CancellationToken cancellationToken = default);
     Task<VisitorLogDailyLogDto> GetDailyLogAsync(Guid shopId, DateOnly date, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<VisitorDirectoryDto>> SearchDirectoryAsync(Guid shopId, string query, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<VisitorOrganisationDto>> SearchOrganisationsAsync(string query, CancellationToken cancellationToken = default);
     Task<string?> GetEntrySignatureDataUrlAsync(Guid id, CancellationToken cancellationToken = default);
     Task<string?> GetEntryPhotoDataUrlAsync(Guid id, CancellationToken cancellationToken = default);
 }

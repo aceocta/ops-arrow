@@ -12,13 +12,12 @@ import {
   createVisitorEntry,
   getVisitorEntry,
   getVisitorEntrySignature,
-  searchVisitorDirectory,
+  searchVisitorOrganisations,
   updateVisitorEntry,
 } from "../../api/visitorLogApi";
 import { useAuth } from "../../auth/AuthContext";
 import { useFeature } from "../../features/subscription/useFeature";
 import { MainStackParamList } from "../../types/navigation";
-import { VisitorDirectory } from "../../types/models";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -51,7 +50,7 @@ export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
   const [signatureDataUrl, setSignatureDataUrl] = useState("");
   const [photoDataUrl, setPhotoDataUrl] = useState("");
   const [signatureModalOpen, setSignatureModalOpen] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showOrgSuggestions, setShowOrgSuggestions] = useState(false);
 
   const entryQuery = useQuery({
     queryKey: ["visitor-entry", entryId],
@@ -84,20 +83,13 @@ export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
     setHasInit(true);
   }, [entryQuery.data, hasInit, isEdit]);
 
-  // Directory auto-fill: look up known visitors for this company as the name is typed.
-  const directoryQuery = useQuery({
-    queryKey: ["visitor-directory", activeShopId, visitorName.trim()],
-    queryFn: () => searchVisitorDirectory(activeShopId as string, visitorName.trim()),
-    enabled: !isEdit && Boolean(activeShopId) && visitorName.trim().length >= 2 && showSuggestions,
+  // Platform-wide company-name type-ahead so the same organisation is spelled consistently.
+  const orgQuery = useQuery({
+    queryKey: ["visitor-organisations", activeShopId, organisation.trim()],
+    queryFn: () => searchVisitorOrganisations(activeShopId as string, organisation.trim()),
+    enabled: Boolean(activeShopId) && organisation.trim().length >= 2 && showOrgSuggestions,
   });
-  const suggestions = directoryQuery.data ?? [];
-
-  const applySuggestion = (s: VisitorDirectory) => {
-    setVisitorName(s.fullName);
-    if (s.organisation) setOrganisation(s.organisation);
-    if (s.defaultVisitType && VISIT_TYPES.includes(s.defaultVisitType)) setVisitType(s.defaultVisitType);
-    setShowSuggestions(false);
-  };
+  const orgSuggestions = orgQuery.data ?? [];
 
   const capturePhoto = async () => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
@@ -178,31 +170,35 @@ export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
           <DateTimeField style={styles.flex1} mode="time" value={timeIn} onChange={setTimeIn} />
         </View>
 
+        <FloatingLabelInput label="Visitor name *" value={visitorName} onChangeText={setVisitorName} autoCapitalize="words" />
+
         <View style={{ position: "relative" }}>
           <FloatingLabelInput
-            label="Visitor name *"
-            value={visitorName}
+            label="Company / organisation"
+            value={organisation}
             onChangeText={(t) => {
-              setVisitorName(t);
-              setShowSuggestions(true);
+              setOrganisation(t);
+              setShowOrgSuggestions(true);
             }}
             autoCapitalize="words"
           />
-          {!isEdit && showSuggestions && suggestions.length > 0 ? (
+          {showOrgSuggestions && orgSuggestions.length > 0 ? (
             <View style={styles.suggestBox}>
-              {suggestions.map((s) => (
-                <Pressable key={s.id} style={styles.suggestItem} onPress={() => applySuggestion(s)}>
-                  <Text style={styles.suggestName}>{s.fullName}</Text>
-                  <Text style={styles.suggestMeta}>
-                    {(s.organisation ? `${s.organisation} · ` : "")}{s.visitCount} prev. visit{s.visitCount === 1 ? "" : "s"}
-                  </Text>
+              {orgSuggestions.map((o) => (
+                <Pressable
+                  key={o.id}
+                  style={styles.suggestItem}
+                  onPress={() => {
+                    setOrganisation(o.name);
+                    setShowOrgSuggestions(false);
+                  }}
+                >
+                  <Text style={styles.suggestName}>{o.name}</Text>
                 </Pressable>
               ))}
             </View>
           ) : null}
         </View>
-
-        <FloatingLabelInput label="Company / organisation" value={organisation} onChangeText={setOrganisation} autoCapitalize="words" />
 
         <Text style={styles.fieldLabel}>Visit type</Text>
         <View style={styles.chipsRow}>

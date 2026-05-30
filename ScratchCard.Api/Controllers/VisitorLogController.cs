@@ -66,6 +66,15 @@ public class VisitorLogController : BaseApiController
         return Success(result);
     }
 
+    /// <summary>Type-ahead over the shared platform organisation directory (consistent company names).</summary>
+    [HttpGet("organisations")]
+    [RequireFeature(FeatureKeys.VisitorLogBasic)]
+    public async Task<IActionResult> Organisations([FromQuery] Guid shopId, [FromQuery] string query, CancellationToken cancellationToken)
+    {
+        var result = await _visitorLogService.SearchOrganisationsAsync(query ?? string.Empty, cancellationToken);
+        return Success(result);
+    }
+
     [HttpGet("entries/{id:guid}")]
     public async Task<IActionResult> GetEntry(Guid id, CancellationToken cancellationToken)
     {

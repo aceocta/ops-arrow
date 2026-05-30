@@ -77,6 +77,14 @@ public class VisitorLogDailyLogDto
     public IReadOnlyCollection<VisitorLogEntryDto> Entries { get; set; } = [];
 }
 
+/// <summary>A platform-wide organisation (company) name suggestion for the company autocomplete.</summary>
+public class VisitorOrganisationDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int UsageCount { get; set; }
+}
+
 /// <summary>A directory match used to auto-fill the form when a known visitor returns.</summary>
 public class VisitorDirectoryDto
 {

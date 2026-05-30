@@ -15,6 +15,7 @@ public class VisitorLogService : IVisitorLogService
 {
     private readonly IRepository<VisitorLogEntry> _entryRepository;
     private readonly IRepository<Visitor> _visitorRepository;
+    private readonly IRepository<VisitorOrganisation> _organisationRepository;
     private readonly IRepository<Shop> _shopRepository;
     private readonly IRepository<ShopUser> _shopUserRepository;
     private readonly IFeatureGateService _featureGateService;
@@ -26,6 +27,7 @@ public class VisitorLogService : IVisitorLogService
     public VisitorLogService(
         IRepository<VisitorLogEntry> entryRepository,
         IRepository<Visitor> visitorRepository,
+        IRepository<VisitorOrganisation> organisationRepository,
         IRepository<Shop> shopRepository,
         IRepository<ShopUser> shopUserRepository,
         IFeatureGateService featureGateService,
@@ -36,6 +38,7 @@ public class VisitorLogService : IVisitorLogService
     {
         _entryRepository = entryRepository;
         _visitorRepository = visitorRepository;
+        _organisationRepository = organisationRepository;
         _shopRepository = shopRepository;
         _shopUserRepository = shopUserRepository;
         _featureGateService = featureGateService;
@@ -81,7 +84,11 @@ public class VisitorLogService : IVisitorLogService
             photoPath = await SaveImageAsync(request.PhotoDataUrl!, request.ShopId, request.VisitDate, "photos", "photo", cancellationToken);
         }
 
-        var visitor = await ResolveOrCreateDirectoryAsync(shop.CompanyId, name, request.Organisation, visitType, now, cancellationToken);
+        // Canonicalise the company name against the shared platform directory so spelling stays
+        // consistent everywhere, and add it to the directory if it's new.
+        var canonicalOrg = await ResolveOrCreateOrganisationAsync(request.Organisation, now, cancellationToken);
+
+        var visitor = await ResolveOrCreateDirectoryAsync(shop.CompanyId, name, canonicalOrg, visitType, now, cancellationToken);
 
         var entry = new VisitorLogEntry
         {
@@ -92,7 +99,7 @@ public class VisitorLogService : IVisitorLogService
             TimeIn = request.TimeIn,
             TimeOut = null,
             VisitorName = name,
-            Organisation = Clean(request.Organisation),
+            Organisation = canonicalOrg,
             VisitType = visitType,
             Purpose = Clean(request.Purpose),
             HostName = Clean(request.HostName),
@@ -153,7 +160,7 @@ public class VisitorLogService : IVisitorLogService
         entry.TimeIn = request.TimeIn;
         entry.TimeOut = request.TimeOut;
         entry.VisitorName = (request.VisitorName?.Trim() is { Length: > 0 } n) ? n : entry.VisitorName;
-        entry.Organisation = Clean(request.Organisation);
+        entry.Organisation = await ResolveOrCreateOrganisationAsync(request.Organisation, DateTimeOffset.UtcNow, cancellationToken);
         entry.VisitType = visitType;
         entry.IsInspector = VisitorVisitType.IsInspector(visitType);
         entry.Purpose = Clean(request.Purpose);
@@ -264,6 +271,66 @@ public class VisitorLogService : IVisitorLogService
             .ToListAsync(cancellationToken);
 
         return matches.Select(x => x.ToDirectoryDto()).ToArray();
+    }
+
+    public async Task<IReadOnlyCollection<VisitorOrganisationDto>> SearchOrganisationsAsync(string query, CancellationToken cancellationToken = default)
+    {
+        var term = query?.Trim() ?? string.Empty;
+        if (term.Length < 2)
+        {
+            return Array.Empty<VisitorOrganisationDto>();
+        }
+
+        // Platform-wide search — most-used names first so common suppliers surface at the top.
+        var matches = await _organisationRepository.Query().AsNoTracking()
+            .Where(x => EF.Functions.Like(x.Name, $"%{term}%"))
+            .OrderByDescending(x => x.UsageCount)
+            .ThenBy(x => x.Name)
+            .Take(10)
+            .ToListAsync(cancellationToken);
+
+        return matches.Select(x => new VisitorOrganisationDto { Id = x.Id, Name = x.Name, UsageCount = x.UsageCount }).ToArray();
+    }
+
+    private async Task<string?> ResolveOrCreateOrganisationAsync(string? rawName, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var name = Clean(rawName);
+        if (name is null)
+        {
+            return null;
+        }
+
+        var normalized = NormalizeOrganisation(name);
+        var existing = await _organisationRepository.Query()
+            .FirstOrDefaultAsync(x => x.NormalizedName == normalized, cancellationToken);
+
+        if (existing is not null)
+        {
+            existing.UsageCount += 1;
+            existing.LastUsedOn = now;
+            existing.ModifiedOn = now;
+            existing.ModifiedBy = _currentUserService.UserId;
+            // Return the canonical stored spelling so every log uses the same form.
+            return existing.Name;
+        }
+
+        var created = new VisitorOrganisation
+        {
+            Name = name,
+            NormalizedName = normalized,
+            UsageCount = 1,
+            LastUsedOn = now,
+            CreatedOn = now,
+            CreatedBy = _currentUserService.UserId
+        };
+        await _organisationRepository.AddAsync(created, cancellationToken);
+        return created.Name;
+    }
+
+    private static string NormalizeOrganisation(string name)
+    {
+        var collapsed = string.Join(' ', name.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return collapsed.ToLowerInvariant();
     }
 
     public async Task<string?> GetEntrySignatureDataUrlAsync(Guid id, CancellationToken cancellationToken = default)

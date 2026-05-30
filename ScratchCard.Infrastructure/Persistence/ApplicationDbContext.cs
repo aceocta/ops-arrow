@@ -69,6 +69,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<RefusalRegisterDailySignoff> RefusalRegisterDailySignoffs => Set<RefusalRegisterDailySignoff>();
     public DbSet<Visitor> Visitors => Set<Visitor>();
     public DbSet<VisitorLogEntry> VisitorLogEntries => Set<VisitorLogEntry>();
+    public DbSet<VisitorOrganisation> VisitorOrganisations => Set<VisitorOrganisation>();
     public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
     public DbSet<CompanySubscription> CompanySubscriptions => Set<CompanySubscription>();
     public DbSet<ShopSubscription> ShopSubscriptions => Set<ShopSubscription>();
@@ -819,6 +820,13 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.DefaultVisitType).HasMaxLength(40);
             entity.HasOne<Company>().WithMany().HasForeignKey(x => x.CompanyId)
                 .IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<VisitorOrganisation>(entity =>
+        {
+            entity.HasIndex(x => x.NormalizedName).IsUnique();
+            entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.NormalizedName).HasMaxLength(200).IsRequired();
         });
 
         modelBuilder.Entity<VisitorLogEntry>(entity =>
