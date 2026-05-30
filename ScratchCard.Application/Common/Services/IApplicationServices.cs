@@ -15,6 +15,7 @@ using ScratchCard.Application.DTOs.Packs;
 using ScratchCard.Application.DTOs.PrizePayouts;
 using ScratchCard.Application.DTOs.Reports;
 using ScratchCard.Application.DTOs.RefusalRegister;
+using ScratchCard.Application.DTOs.VisitorLog;
 using ScratchCard.Application.DTOs.Shifts;
 using ScratchCard.Application.DTOs.ShiftSales;
 using ScratchCard.Application.DTOs.Shops;
@@ -405,6 +406,21 @@ public interface IRefusalRegisterService
     Task<IReadOnlyCollection<RefusalRegisterEntryDto>> ReviewEntriesAsync(ReviewRefusalRegisterEntriesRequest request, CancellationToken cancellationToken = default);
     Task<RefusalRegisterDailySignoffDto> SignOffDailyAsync(SignOffRefusalRegisterDailyRequest request, CancellationToken cancellationToken = default);
     Task ReopenDailyAsync(ReopenRefusalRegisterDailyRequest request, CancellationToken cancellationToken = default);
+}
+
+public interface IVisitorLogService
+{
+    Task<VisitorLogEntryDto> CreateEntryAsync(CreateVisitorLogEntryRequest request, CancellationToken cancellationToken = default);
+    Task<VisitorLogEntryDto> GetEntryAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<VisitorLogEntryDto> UpdateEntryAsync(Guid id, UpdateVisitorLogEntryRequest request, CancellationToken cancellationToken = default);
+    Task<VisitorLogEntryDto> SignOutAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<VisitorLogEntryDto>> ListEntriesAsync(Guid shopId, DateOnly date, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<VisitorLogEntryDto>> ListEntriesByRangeAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<VisitorLogEntryDto>> ListOnSiteAsync(Guid shopId, CancellationToken cancellationToken = default);
+    Task<VisitorLogDailyLogDto> GetDailyLogAsync(Guid shopId, DateOnly date, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<VisitorDirectoryDto>> SearchDirectoryAsync(Guid shopId, string query, CancellationToken cancellationToken = default);
+    Task<string?> GetEntrySignatureDataUrlAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<string?> GetEntryPhotoDataUrlAsync(Guid id, CancellationToken cancellationToken = default);
 }
 
 public interface IShopChecklistService

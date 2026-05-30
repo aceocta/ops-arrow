@@ -129,7 +129,7 @@ export type AuthProfile = {
   lastName: string;
   displayName?: string;
   roles: string[];
-  shops: { shopId: string; companyId?: string; companyName?: string; shopName: string; role: string }[];
+  shops: { shopId: string; companyId?: string; companyName?: string; shopName: string; role: string; isFuelStation?: boolean }[];
   hasCompanySetup: boolean;
   hasShopSetup: boolean;
   primaryCompanyId?: string;
@@ -888,4 +888,49 @@ export type RefusalRegisterDailyLog = {
   date: string;
   signoff?: RefusalRegisterDailySignoff;
   entries: RefusalRegisterEntry[];
+};
+
+export type VisitorVisitType = "Delivery" | "Contractor" | "Rep" | "Inspector" | "Other";
+
+export type VisitorLogEntry = {
+  id: string;
+  shopId: string;
+  visitorId?: string;
+  sequenceNo: number;
+  visitDate: string;
+  timeIn: string;
+  timeOut?: string;
+  isOnSite: boolean;
+  visitorName: string;
+  organisation?: string;
+  visitType: string;
+  purpose?: string;
+  hostName?: string;
+  vehicleRegistration?: string;
+  isInspector: boolean;
+  hasSignature: boolean;
+  hasPhoto: boolean;
+  notes?: string;
+  spaPassportRef?: string;
+  permitToWorkRef?: string;
+  inductionAcknowledged: boolean;
+  recordedOn: string;
+  recordedByName?: string;
+};
+
+export type VisitorLogDailyLog = {
+  shopId: string;
+  date: string;
+  onSiteCount: number;
+  entries: VisitorLogEntry[];
+};
+
+export type VisitorDirectory = {
+  id: string;
+  fullName: string;
+  organisation?: string;
+  phone?: string;
+  defaultVisitType?: string;
+  visitCount: number;
+  lastVisitedOn?: string;
 };

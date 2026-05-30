@@ -1,0 +1,297 @@
+import React, { useEffect, useMemo, useState } from "react";
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import * as ImagePicker from "expo-image-picker";
+import { LandscapeSignatureModal } from "../../components/LandscapeSignatureModal";
+import { DateTimeField, formatDateValue, formatTimeValue } from "../../components/DateTimeField";
+import { FloatingLabelInput } from "../../components/FloatingLabelInput";
+import { PrimaryButton } from "../../components/PrimaryButton";
+import { ScreenContainer } from "../../components/ScreenContainer";
+import {
+  createVisitorEntry,
+  getVisitorEntry,
+  getVisitorEntrySignature,
+  searchVisitorDirectory,
+  updateVisitorEntry,
+} from "../../api/visitorLogApi";
+import { useAuth } from "../../auth/AuthContext";
+import { useFeature } from "../../features/subscription/useFeature";
+import { MainStackParamList } from "../../types/navigation";
+import { VisitorDirectory } from "../../types/models";
+import { ui } from "../../ui/primitives";
+import { appTheme } from "../../ui/theme";
+
+type Props = NativeStackScreenProps<MainStackParamList, "VisitorLogEntryEdit">;
+
+const VISIT_TYPES: string[] = ["Delivery", "Contractor", "Rep", "Inspector", "Other"];
+
+export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
+  const entryId = route.params?.entryId;
+  const isEdit = Boolean(entryId);
+  const queryClient = useQueryClient();
+  const { activeShopId, activeShop } = useAuth();
+  const isFuelStation = Boolean(activeShop?.isFuelStation);
+  const photoFeature = useFeature("visitor_log.attachments");
+
+  const [hasInit, setHasInit] = useState(false);
+  const [visitDate, setVisitDate] = useState(() => formatDateValue(new Date()));
+  const [timeIn, setTimeIn] = useState(() => formatTimeValue(new Date()));
+  const [timeOut, setTimeOut] = useState<string>("");
+  const [visitorName, setVisitorName] = useState("");
+  const [organisation, setOrganisation] = useState("");
+  const [visitType, setVisitType] = useState<string>("Delivery");
+  const [purpose, setPurpose] = useState("");
+  const [hostName, setHostName] = useState("");
+  const [vehicleReg, setVehicleReg] = useState("");
+  const [notes, setNotes] = useState("");
+  const [spaPassport, setSpaPassport] = useState("");
+  const [permit, setPermit] = useState("");
+  const [induction, setInduction] = useState(false);
+  const [signatureDataUrl, setSignatureDataUrl] = useState("");
+  const [photoDataUrl, setPhotoDataUrl] = useState("");
+  const [signatureModalOpen, setSignatureModalOpen] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const entryQuery = useQuery({
+    queryKey: ["visitor-entry", entryId],
+    queryFn: () => getVisitorEntry(entryId as string),
+    enabled: isEdit,
+  });
+
+  const existingSignatureQuery = useQuery({
+    queryKey: ["visitor-entry-signature", entryId],
+    queryFn: () => getVisitorEntrySignature(entryId as string),
+    enabled: isEdit && Boolean(entryQuery.data?.hasSignature),
+  });
+
+  useEffect(() => {
+    if (!isEdit || !entryQuery.data || hasInit) return;
+    const e = entryQuery.data;
+    setVisitDate(e.visitDate);
+    setTimeIn(e.timeIn);
+    setTimeOut(e.timeOut ?? "");
+    setVisitorName(e.visitorName);
+    setOrganisation(e.organisation ?? "");
+    setVisitType(e.visitType || "Other");
+    setPurpose(e.purpose ?? "");
+    setHostName(e.hostName ?? "");
+    setVehicleReg(e.vehicleRegistration ?? "");
+    setNotes(e.notes ?? "");
+    setSpaPassport(e.spaPassportRef ?? "");
+    setPermit(e.permitToWorkRef ?? "");
+    setInduction(e.inductionAcknowledged);
+    setHasInit(true);
+  }, [entryQuery.data, hasInit, isEdit]);
+
+  // Directory auto-fill: look up known visitors for this company as the name is typed.
+  const directoryQuery = useQuery({
+    queryKey: ["visitor-directory", activeShopId, visitorName.trim()],
+    queryFn: () => searchVisitorDirectory(activeShopId as string, visitorName.trim()),
+    enabled: !isEdit && Boolean(activeShopId) && visitorName.trim().length >= 2 && showSuggestions,
+  });
+  const suggestions = directoryQuery.data ?? [];
+
+  const applySuggestion = (s: VisitorDirectory) => {
+    setVisitorName(s.fullName);
+    if (s.organisation) setOrganisation(s.organisation);
+    if (s.defaultVisitType && VISIT_TYPES.includes(s.defaultVisitType)) setVisitType(s.defaultVisitType);
+    setShowSuggestions(false);
+  };
+
+  const capturePhoto = async () => {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Camera blocked", "Allow camera access to attach a visitor photo.");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({ base64: true, quality: 0.5, allowsEditing: true });
+    if (!result.canceled && result.assets?.[0]?.base64) {
+      setPhotoDataUrl(`data:image/jpeg;base64,${result.assets[0].base64}`);
+    }
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (!activeShopId) throw new Error("No active shop selected.");
+      if (!visitorName.trim()) throw new Error("Visitor name is required.");
+      if (!timeIn.trim()) throw new Error("Time in is required.");
+      if (!isEdit && !signatureDataUrl.trim()) throw new Error("Signature is required.");
+
+      const common = {
+        visitorName: visitorName.trim(),
+        organisation: organisation.trim() || undefined,
+        visitType,
+        purpose: purpose.trim() || undefined,
+        hostName: hostName.trim() || undefined,
+        vehicleRegistration: vehicleReg.trim() || undefined,
+        notes: notes.trim() || undefined,
+        spaPassportRef: isFuelStation ? spaPassport.trim() || undefined : undefined,
+        permitToWorkRef: isFuelStation ? permit.trim() || undefined : undefined,
+        inductionAcknowledged: isFuelStation ? induction : undefined,
+        photoDataUrl: photoDataUrl.trim() || undefined,
+      };
+
+      if (isEdit) {
+        return updateVisitorEntry(entryId as string, {
+          ...common,
+          timeIn,
+          timeOut: timeOut.trim() || undefined,
+          signatureDataUrl: signatureDataUrl.trim() || undefined,
+        });
+      }
+      return createVisitorEntry({
+        ...common,
+        shopId: activeShopId,
+        visitDate,
+        timeIn,
+        signatureDataUrl: signatureDataUrl.trim(),
+      });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["visitor-daily-log"] }),
+        queryClient.invalidateQueries({ queryKey: ["visitor-on-site"] }),
+        queryClient.invalidateQueries({ queryKey: ["visitor-entry", entryId] }),
+      ]);
+      Alert.alert(isEdit ? "Saved" : "Signed in", isEdit ? "Visitor entry updated." : "Visitor signed in.");
+      navigation.goBack();
+    },
+    onError: (error: any) => {
+      Alert.alert("Failed", error?.response?.data?.message ?? error?.message ?? "Unable to save visitor entry.");
+    },
+  });
+
+  const signaturePreview = signatureDataUrl || existingSignatureQuery.data;
+  const isInspector = useMemo(() => visitType === "Inspector", [visitType]);
+
+  return (
+    <ScreenContainer>
+      <View style={styles.headerCard}>
+        <Text style={styles.eyebrow}>Visitors Log</Text>
+        <Text style={styles.title}>{isEdit ? "Edit visit" : "Sign in visitor"}</Text>
+      </View>
+
+      <View style={ui.card}>
+        <View style={styles.row}>
+          <DateTimeField style={styles.flex1} mode="date" value={visitDate} onChange={setVisitDate} maximumDate={new Date()} />
+          <DateTimeField style={styles.flex1} mode="time" value={timeIn} onChange={setTimeIn} />
+        </View>
+
+        <View style={{ position: "relative" }}>
+          <FloatingLabelInput
+            label="Visitor name *"
+            value={visitorName}
+            onChangeText={(t) => {
+              setVisitorName(t);
+              setShowSuggestions(true);
+            }}
+            autoCapitalize="words"
+          />
+          {!isEdit && showSuggestions && suggestions.length > 0 ? (
+            <View style={styles.suggestBox}>
+              {suggestions.map((s) => (
+                <Pressable key={s.id} style={styles.suggestItem} onPress={() => applySuggestion(s)}>
+                  <Text style={styles.suggestName}>{s.fullName}</Text>
+                  <Text style={styles.suggestMeta}>
+                    {(s.organisation ? `${s.organisation} · ` : "")}{s.visitCount} prev. visit{s.visitCount === 1 ? "" : "s"}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+        </View>
+
+        <FloatingLabelInput label="Company / organisation" value={organisation} onChangeText={setOrganisation} autoCapitalize="words" />
+
+        <Text style={styles.fieldLabel}>Visit type</Text>
+        <View style={styles.chipsRow}>
+          {VISIT_TYPES.map((t) => (
+            <Pressable key={t} onPress={() => setVisitType(t)} style={[styles.chip, visitType === t ? styles.chipActive : null]}>
+              <Text style={[styles.chipText, visitType === t ? styles.chipTextActive : null]}>{t}</Text>
+            </Pressable>
+          ))}
+        </View>
+        {isInspector ? <Text style={styles.inspectorHint}>⚑ Managers will be alerted that an inspector is on site.</Text> : null}
+
+        <FloatingLabelInput label="Reason / work" value={purpose} onChangeText={setPurpose} />
+        <FloatingLabelInput label="Visiting (host staff)" value={hostName} onChangeText={setHostName} autoCapitalize="words" />
+        <FloatingLabelInput label="Vehicle registration" value={vehicleReg} onChangeText={setVehicleReg} autoCapitalize="characters" />
+      </View>
+
+      {isFuelStation ? (
+        <View style={ui.card}>
+          <Text style={styles.cardTitle}>Forecourt contractor controls</Text>
+          <FloatingLabelInput label="SPA passport ref" value={spaPassport} onChangeText={setSpaPassport} autoCapitalize="characters" />
+          <FloatingLabelInput label="Permit-to-work ref" value={permit} onChangeText={setPermit} autoCapitalize="characters" />
+          <View style={styles.switchRow}>
+            <Text style={styles.switchLabel}>Site induction acknowledged</Text>
+            <Switch value={induction} onValueChange={setInduction} />
+          </View>
+        </View>
+      ) : null}
+
+      <View style={ui.card}>
+        <Text style={styles.cardTitle}>Signature {isEdit ? "" : "*"}</Text>
+        {signaturePreview ? (
+          <Image source={{ uri: signaturePreview }} style={styles.signaturePreview} resizeMode="contain" />
+        ) : (
+          <Text style={styles.meta}>No signature captured yet.</Text>
+        )}
+        <PrimaryButton label={signaturePreview ? "Recapture signature" : "Capture signature"} tone="neutral" icon="create-outline" onPress={() => setSignatureModalOpen(true)} />
+
+        {photoFeature.isAllowed ? (
+          <>
+            <Text style={[styles.cardTitle, { marginTop: 12 }]}>Photo (optional)</Text>
+            {photoDataUrl ? <Image source={{ uri: photoDataUrl }} style={styles.photoPreview} resizeMode="cover" /> : null}
+            <PrimaryButton label={photoDataUrl ? "Retake photo" : "Take photo"} tone="neutral" icon="camera-outline" onPress={() => void capturePhoto()} />
+          </>
+        ) : null}
+
+        <FloatingLabelInput label="Notes (optional)" value={notes} onChangeText={setNotes} multiline />
+      </View>
+
+      <PrimaryButton
+        label={saveMutation.isPending ? "Saving…" : isEdit ? "Save changes" : "Sign in"}
+        icon="checkmark-outline"
+        onPress={() => saveMutation.mutate()}
+        disabled={saveMutation.isPending}
+      />
+
+      <LandscapeSignatureModal
+        visible={signatureModalOpen}
+        title="Visitor signature"
+        onClose={() => setSignatureModalOpen(false)}
+        onSave={(dataUrl) => {
+          setSignatureDataUrl(dataUrl);
+          setSignatureModalOpen(false);
+        }}
+      />
+    </ScreenContainer>
+  );
+}
+
+const styles = StyleSheet.create({
+  headerCard: { gap: 2 },
+  eyebrow: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.4 },
+  title: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 22, lineHeight: 27 },
+  row: { flexDirection: "row", gap: appTheme.spacing.xs },
+  flex1: { flex: 1 },
+  fieldLabel: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, marginTop: 4 },
+  chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: appTheme.spacing.xs },
+  chip: { borderWidth: 1, borderColor: appTheme.colors.border, borderRadius: appTheme.radius.pill, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: appTheme.colors.surfaceMuted },
+  chipActive: { backgroundColor: appTheme.colors.surfaceTint, borderColor: appTheme.colors.primary },
+  chipText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
+  chipTextActive: { color: appTheme.colors.primary },
+  inspectorHint: { color: appTheme.colors.warning, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
+  cardTitle: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 16, lineHeight: 20 },
+  meta: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 13 },
+  switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  switchLabel: { color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 14, flex: 1 },
+  signaturePreview: { width: "100%", height: 120, backgroundColor: appTheme.colors.surfaceMuted, borderRadius: appTheme.radius.sm },
+  photoPreview: { width: "100%", height: 180, backgroundColor: appTheme.colors.surfaceMuted, borderRadius: appTheme.radius.sm },
+  suggestBox: { borderWidth: 1, borderColor: appTheme.colors.border, borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surface, marginTop: 4, overflow: "hidden" },
+  suggestItem: { paddingHorizontal: 12, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: appTheme.colors.borderSoft },
+  suggestName: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
+  suggestMeta: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12 },
+});

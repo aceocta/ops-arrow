@@ -15,6 +15,7 @@ using ScratchCard.Application.DTOs.ShiftSales;
 using ScratchCard.Application.DTOs.Shops;
 using ScratchCard.Application.DTOs.Subscriptions;
 using ScratchCard.Application.DTOs.TemperatureLogs;
+using ScratchCard.Application.DTOs.VisitorLog;
 using ScratchCard.Domain.Entities;
 
 namespace ScratchCard.Application.Services;
@@ -358,6 +359,44 @@ internal static class ServiceMappingExtensions
         ReviewedByName = entry.ReviewedByName,
         ReviewNotes = entry.ReviewNotes,
         ReviewSignatureImagePath = entry.ReviewSignatureImagePath
+    };
+
+    public static VisitorLogEntryDto ToDto(this VisitorLogEntry entry) => new()
+    {
+        Id = entry.Id,
+        ShopId = entry.ShopId,
+        VisitorId = entry.VisitorId,
+        SequenceNo = entry.SequenceNo,
+        VisitDate = entry.VisitDate,
+        TimeIn = entry.TimeIn,
+        TimeOut = entry.TimeOut,
+        IsOnSite = entry.TimeOut is null,
+        VisitorName = entry.VisitorName,
+        Organisation = entry.Organisation,
+        VisitType = entry.VisitType,
+        Purpose = entry.Purpose,
+        HostName = entry.HostName,
+        VehicleRegistration = entry.VehicleRegistration,
+        IsInspector = entry.IsInspector,
+        HasSignature = !string.IsNullOrWhiteSpace(entry.SignatureImagePath),
+        HasPhoto = !string.IsNullOrWhiteSpace(entry.PhotoImagePath),
+        Notes = entry.Notes,
+        SpaPassportRef = entry.SpaPassportRef,
+        PermitToWorkRef = entry.PermitToWorkRef,
+        InductionAcknowledged = entry.InductionAcknowledged,
+        RecordedOn = entry.RecordedOn,
+        RecordedByName = entry.RecordedByName
+    };
+
+    public static VisitorDirectoryDto ToDirectoryDto(this Visitor visitor) => new()
+    {
+        Id = visitor.Id,
+        FullName = visitor.FullName,
+        Organisation = visitor.Organisation,
+        Phone = visitor.Phone,
+        DefaultVisitType = visitor.DefaultVisitType,
+        VisitCount = visitor.VisitCount,
+        LastVisitedOn = visitor.LastVisitedOn
     };
 
     public static RefusalRegisterDailySignoffDto ToDto(this RefusalRegisterDailySignoff signoff) => new()

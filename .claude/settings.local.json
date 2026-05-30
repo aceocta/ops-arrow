@@ -39,7 +39,8 @@
       "Bash(awk '/class CreateShopRequest/{f=1} f{print} /^}/{if\\(f && done\\){exit} } /^}/{if\\(f\\)done=1}' ScratchCard.Application/DTOs/Shops/*.cs)",
       "Bash(echo \"EXIT: $?\")",
       "Bash(xargs grep -l -i \"plan\\\\|feature\")",
-      "Bash(sed -n '1,400p' ScratchCard.Application/DTOs/Subscriptions/SubscriptionDtos.cs)"
+      "Bash(sed -n '1,400p' ScratchCard.Application/DTOs/Subscriptions/SubscriptionDtos.cs)",
+      "WebSearch"
     ]
   }
 }

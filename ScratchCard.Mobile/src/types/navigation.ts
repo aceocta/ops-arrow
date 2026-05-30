@@ -61,6 +61,9 @@ export type MainStackParamList = {
   RefusalManagerReview: undefined;
   RefusalEntryDetails: { entryId: string };
   RefusalEntryEdit: { entryId: string };
+  VisitorLog: undefined;
+  VisitorLogEntryEdit: { entryId?: string } | undefined;
+  VisitorLogReport: undefined;
   ScratchCardPacks: undefined;
   ManualPackCreate: { autoOpenScanner?: boolean } | undefined;
   PackDetails: { packId: string };

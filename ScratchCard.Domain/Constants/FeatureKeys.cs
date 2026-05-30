@@ -11,6 +11,7 @@ public static class FeatureKeys
     public const string ComplianceChecklist = "ComplianceChecklist";
     public const string SafeDropManagement = "SafeDropManagement";
     public const string StoreSales = "StoreSales";
+    public const string VisitorsLog = "VisitorsLog";
 
     // --- Scratch Card Management ---
     public const string ScratchCardBasic = "scratch_card.basic";
@@ -49,6 +50,13 @@ public static class FeatureKeys
     public const string StoreSalesBasic = "store_sales.basic";
     public const string StoreSalesAi = "store_sales.ai";
 
+    // --- Visitors Log ---
+    public const string VisitorLogBasic = "visitor_log.basic";
+    public const string VisitorLogAttachments = "visitor_log.attachments";
+    public const string VisitorLogContractorPermits = "visitor_log.contractor_permits";
+    public const string VisitorLogInspectorAlerts = "visitor_log.inspector_alerts";
+    public const string VisitorLogReports = "visitor_log.reports";
+
     // --- Notifications ---
     public const string NotificationsEmail = "notifications.email";
     public const string NotificationsPush = "notifications.push";
@@ -85,6 +93,7 @@ public static class FeatureKeys
         new FeatureCatalogEntry(ComplianceChecklist, "Compliance Checklist", "Modules", "Top-level Compliance module.", 4),
         new FeatureCatalogEntry(SafeDropManagement, "Safe Drop Management", "Modules", "Top-level Safe Drop module.", 5),
         new FeatureCatalogEntry(StoreSales, "Store Sales", "Modules", "Top-level Store Sales / till-report import module.", 6),
+        new FeatureCatalogEntry(VisitorsLog, "Visitors Log", "Modules", "Top-level Visitors / contractor sign-in module.", 7),
 
         // Scratch Card.
         new FeatureCatalogEntry(ScratchCardBasic, "Basic Scratch Card", "Scratch Card", null, 10),
@@ -123,6 +132,13 @@ public static class FeatureKeys
         new FeatureCatalogEntry(StoreSalesBasic, "Basic Store Sales", "Store Sales", "Capture, manual classify, tender editor.", 55),
         new FeatureCatalogEntry(StoreSalesAi, "AI auto-categorisation", "Store Sales", "AI-driven categorisation of till lines.", 56),
 
+        // Visitors Log.
+        new FeatureCatalogEntry(VisitorLogBasic, "Basic Visitors Log", "Visitors Log", "Sign in/out, on-site roll call, daily register.", 57),
+        new FeatureCatalogEntry(VisitorLogAttachments, "Photo capture", "Visitors Log", "Optional visitor/ID photo on sign-in.", 58),
+        new FeatureCatalogEntry(VisitorLogContractorPermits, "Contractor permits (forecourt)", "Visitors Log", "SPA passport / permit-to-work / induction fields for fuel sites.", 59),
+        new FeatureCatalogEntry(VisitorLogInspectorAlerts, "Inspector alerts", "Visitors Log", "Notify managers when an inspector signs in.", 60),
+        new FeatureCatalogEntry(VisitorLogReports, "Visitor reports", "Visitors Log", "Date-range register report with print / share / email.", 61),
+
         // Notifications.
         new FeatureCatalogEntry(NotificationsEmail, "Email notifications", "Notifications", null, 60),
         new FeatureCatalogEntry(NotificationsPush, "Push notifications", "Notifications", null, 61),
@@ -151,6 +167,7 @@ public static class FeatureKeys
         new FeatureCatalogEntry(RefusalNoIdNoSale,     "Refusal Log",  "Modules", "Refusal / No-ID-No-Sale register.", 4),
         new FeatureCatalogEntry(ComplianceChecklist,   "Compliance Check", "Modules", "Daily / weekly / monthly compliance checklists.", 5),
         new FeatureCatalogEntry(StoreSales,             "Store Sales",  "Modules", "Till-report capture, OCR/AI categorisation, tender tracking.", 6),
+        new FeatureCatalogEntry(VisitorsLog,            "Visitors Log", "Modules", "Visitor / contractor sign-in, on-site roll call, reports.", 7),
     };
 
     // Map each top-level module to the granular feature keys it covers. Disabling a module at
@@ -182,6 +199,11 @@ public static class FeatureKeys
             [StoreSales] = new[]
             {
                 StoreSalesBasic, StoreSalesAi,
+            },
+            [VisitorsLog] = new[]
+            {
+                VisitorLogBasic, VisitorLogAttachments, VisitorLogContractorPermits,
+                VisitorLogInspectorAlerts, VisitorLogReports,
             },
         };
 

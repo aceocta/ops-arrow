@@ -14,6 +14,10 @@ public class Shop : AuditableEntity
     public bool IsActive { get; set; } = true;
     public bool IsDeleted { get; set; }
 
+    // Marks the shop as a fuel forecourt. Drives the forecourt-only Visitors Log fields
+    // (SPA passport / permit-to-work / induction) — those are hidden for non-fuel shops.
+    public bool IsFuelStation { get; set; }
+
     // Per-shop opt-out toggles for the top-level feature modules (ScratchCardManagement,
     // TemperatureLog, RefusalNoIdNoSale, ComplianceChecklist, SafeDropManagement). Entries here
     // override the subscription plan: even if the plan includes a module, a key listed here
@@ -52,4 +56,5 @@ public class Shop : AuditableEntity
     public ICollection<ComplianceCheckAttachment> ComplianceCheckAttachments { get; set; } = new List<ComplianceCheckAttachment>();
     public ICollection<RefusalRegisterEntry> RefusalRegisterEntries { get; set; } = new List<RefusalRegisterEntry>();
     public ICollection<RefusalRegisterDailySignoff> RefusalRegisterDailySignoffs { get; set; } = new List<RefusalRegisterDailySignoff>();
+    public ICollection<VisitorLogEntry> VisitorLogEntries { get; set; } = new List<VisitorLogEntry>();
 }

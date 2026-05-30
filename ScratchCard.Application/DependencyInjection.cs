@@ -49,6 +49,7 @@ public static class DependencyInjection
         services.AddScoped<ILookupService, LookupService>();
         services.AddScoped<ITemperatureLogService, TemperatureLogService>();
         services.AddScoped<IRefusalRegisterService, RefusalRegisterService>();
+        services.AddScoped<IVisitorLogService, VisitorLogService>();
         services.AddScoped<IShopChecklistService, ShopChecklistService>();
         services.AddScoped<IComplianceCheckService, ComplianceCheckService>();
 

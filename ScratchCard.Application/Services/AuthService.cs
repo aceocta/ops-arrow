@@ -613,7 +613,8 @@ public class AuthService : IAuthService
                 CompanyId = x.Shop.CompanyId,
                 CompanyName = x.Shop.Company != null ? x.Shop.Company.CompanyName : null,
                 ShopName = x.Shop.ShopName,
-                Role = x.Role.Name
+                Role = x.Role.Name,
+                IsFuelStation = x.Shop.IsFuelStation
             })
             .ToListAsync(cancellationToken);
 
@@ -668,7 +669,8 @@ public class AuthService : IAuthService
                 CompanyId = x.Shop.CompanyId,
                 CompanyName = x.Shop.Company?.CompanyName,
                 ShopName = x.Shop.ShopName,
-                Role = x.Role.Name
+                Role = x.Role.Name,
+                IsFuelStation = x.Shop.IsFuelStation
             })
             .ToArray();
 

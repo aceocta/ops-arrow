@@ -20,6 +20,9 @@ import { TemperatureScheduleGridScreen } from "../features/temperature/Temperatu
 import { RefusalRegisterScreen } from "../features/refusals/RefusalRegisterScreen";
 import { RefusalRegisterByDayScreen } from "../features/refusals/RefusalRegisterByDayScreen";
 import { RefusalReportScreen } from "../features/refusals/RefusalReportScreen";
+import { VisitorLogScreen } from "../features/visitors/VisitorLogScreen";
+import { VisitorLogEntryEditScreen } from "../features/visitors/VisitorLogEntryEditScreen";
+import { VisitorLogReportScreen } from "../features/visitors/VisitorLogReportScreen";
 import { RefusalManagerReviewScreen } from "../features/refusals/RefusalManagerReviewScreen";
 import { RefusalEntryDetailsScreen } from "../features/refusals/RefusalEntryDetailsScreen";
 import { RefusalEntryEditScreen } from "../features/refusals/RefusalEntryEditScreen";
@@ -85,7 +88,7 @@ type MenuItem = {
   requiredFeature?: string;
 };
 
-type DrawerSectionKey = "scratchCard" | "temperature" | "refusals" | "compliance" | "shop" | "admin";
+type DrawerSectionKey = "scratchCard" | "temperature" | "refusals" | "visitors" | "compliance" | "shop" | "admin";
 
 const Drawer = createDrawerNavigator<MainDrawerParamList>();
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -142,6 +145,11 @@ const refusalItems: MenuItem[] = [
   { label: "Refusal Log", screen: "RefusalRegister", icon: "shield-checkmark-outline", mode: "refusals", requiredFeature: "RefusalNoIdNoSale" },
   { label: "Refusal Report", screen: "RefusalReport", icon: "document-text-outline", mode: "refusals", requiredFeature: "RefusalNoIdNoSale" },
   { label: "Refusal Manager Review", screen: "RefusalManagerReview", icon: "clipboard-outline", mode: "refusals", requiredFeature: "refusal_log.multi_manager_review" },
+];
+
+const visitorItems: MenuItem[] = [
+  { label: "Visitors Log", screen: "VisitorLog", icon: "people-outline", requiredFeature: "visitor_log.basic" },
+  { label: "Visitor Report", screen: "VisitorLogReport", icon: "document-text-outline", requiredFeature: "visitor_log.reports" },
 ];
 
 // --- Compliance ---
@@ -446,6 +454,9 @@ function MainStackScreens() {
       <Stack.Screen name="RefusalManagerReview" component={RefusalManagerReviewScreen} options={{ title: "Refusal Manager Review" }} />
       <Stack.Screen name="RefusalEntryDetails" component={RefusalEntryDetailsScreen} options={{ title: "Refusal Details" }} />
       <Stack.Screen name="RefusalEntryEdit" component={RefusalEntryEditScreen} options={{ title: "Edit Refusal" }} />
+      <Stack.Screen name="VisitorLog" component={VisitorLogScreen} options={{ title: "Visitors Log" }} />
+      <Stack.Screen name="VisitorLogEntryEdit" component={VisitorLogEntryEditScreen} options={{ title: "Visitor" }} />
+      <Stack.Screen name="VisitorLogReport" component={VisitorLogReportScreen} options={{ title: "Visitor Report" }} />
       <Stack.Screen name="ScratchCardPacks" component={ScratchCardPacksScreen} options={{ title: "Card Packs" }} />
       <Stack.Screen
         name="ManualPackCreate"
@@ -693,6 +704,7 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
     scratchCard: true,
     temperature: false,
     refusals: false,
+    visitors: false,
     compliance: false,
     shop: false,
     admin: false,
@@ -859,6 +871,22 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
           features={features}
           onPress={goTo}
           expanded={expandedSections.refusals}
+          onToggle={toggleSection}
+          activeScreen={activeScreen}
+        />
+
+        <DrawerSection
+          sectionKey="visitors"
+          title="Visitors Log"
+          icon="people-outline"
+          accentColor={appTheme.colors.info}
+          accentSoftBackground={appTheme.colors.surfaceInfoMuted}
+          items={visitorItems}
+          isCompanyOwner={isCompanyOwner}
+          userRoles={userRoles}
+          features={features}
+          onPress={goTo}
+          expanded={expandedSections.visitors}
           onToggle={toggleSection}
           activeScreen={activeScreen}
         />

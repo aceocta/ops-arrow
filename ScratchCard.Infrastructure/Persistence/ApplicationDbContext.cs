@@ -67,6 +67,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<ComplianceCheckAttachment> ComplianceCheckAttachments => Set<ComplianceCheckAttachment>();
     public DbSet<RefusalRegisterEntry> RefusalRegisterEntries => Set<RefusalRegisterEntry>();
     public DbSet<RefusalRegisterDailySignoff> RefusalRegisterDailySignoffs => Set<RefusalRegisterDailySignoff>();
+    public DbSet<Visitor> Visitors => Set<Visitor>();
+    public DbSet<VisitorLogEntry> VisitorLogEntries => Set<VisitorLogEntry>();
     public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
     public DbSet<CompanySubscription> CompanySubscriptions => Set<CompanySubscription>();
     public DbSet<ShopSubscription> ShopSubscriptions => Set<ShopSubscription>();
@@ -806,6 +808,39 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.Notes).HasMaxLength(1000);
             entity.Property(x => x.SignatureImagePath).HasMaxLength(1000);
             entity.HasOne(x => x.Shop).WithMany(x => x.RefusalRegisterDailySignoffs).HasForeignKey(x => x.ShopId);
+        });
+
+        modelBuilder.Entity<Visitor>(entity =>
+        {
+            entity.HasIndex(x => new { x.CompanyId, x.FullName });
+            entity.Property(x => x.FullName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Organisation).HasMaxLength(200);
+            entity.Property(x => x.Phone).HasMaxLength(50);
+            entity.Property(x => x.DefaultVisitType).HasMaxLength(40);
+            entity.HasOne<Company>().WithMany().HasForeignKey(x => x.CompanyId)
+                .IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<VisitorLogEntry>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.VisitDate });
+            entity.HasIndex(x => new { x.ShopId, x.VisitDate, x.SequenceNo }).IsUnique();
+            entity.HasIndex(x => new { x.ShopId, x.TimeOut });
+            entity.Property(x => x.VisitorName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Organisation).HasMaxLength(200);
+            entity.Property(x => x.VisitType).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.Purpose).HasMaxLength(500);
+            entity.Property(x => x.HostName).HasMaxLength(200);
+            entity.Property(x => x.VehicleRegistration).HasMaxLength(20);
+            entity.Property(x => x.Notes).HasMaxLength(1000);
+            entity.Property(x => x.SignatureImagePath).HasMaxLength(1000);
+            entity.Property(x => x.PhotoImagePath).HasMaxLength(1000);
+            entity.Property(x => x.SpaPassportRef).HasMaxLength(100);
+            entity.Property(x => x.PermitToWorkRef).HasMaxLength(100);
+            entity.Property(x => x.RecordedByName).HasMaxLength(200);
+            entity.HasOne(x => x.Shop).WithMany(x => x.VisitorLogEntries).HasForeignKey(x => x.ShopId);
+            entity.HasOne(x => x.Visitor).WithMany(x => x.Entries).HasForeignKey(x => x.VisitorId)
+                .IsRequired(false).OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<SubscriptionPlan>(entity =>
