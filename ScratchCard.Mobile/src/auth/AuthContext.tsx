@@ -40,7 +40,7 @@ type AuthContextValue = {
   retryBootstrap: () => Promise<void>;
   setActiveShop: (shopId: string) => Promise<void>;
   signInWithPassword: (payload: { email: string; password: string }) => Promise<void>;
-  signUpWithPassword: (payload: { email: string; password: string; verificationCode: string; firstName?: string; lastName?: string }) => Promise<void>;
+  signUpWithPassword: (payload: { email: string; password: string; verificationCode: string; firstName?: string; lastName?: string; ownerPhoneNumber?: string }) => Promise<void>;
   signUpCompany: (payload: {
     companyName: string;
     ownerFirstName: string;
@@ -229,7 +229,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  async function signUpWithPassword(payload: { email: string; password: string; verificationCode: string; firstName?: string; lastName?: string }) {
+  async function signUpWithPassword(payload: { email: string; password: string; verificationCode: string; firstName?: string; lastName?: string; ownerPhoneNumber?: string }) {
     setIsLoading(true);
     try {
       const result = await signUpWithPasswordApi(payload);

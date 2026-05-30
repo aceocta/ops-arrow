@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Auth;
+using ScratchCard.Application.DTOs.Users;
 
 namespace ScratchCard.Api.Controllers;
 
@@ -11,11 +12,13 @@ public class AuthController : BaseApiController
 {
     private readonly IAuthService _authService;
     private readonly IConfiguration _configuration;
+    private readonly IUserService _userService;
 
-    public AuthController(IAuthService authService, IConfiguration configuration)
+    public AuthController(IAuthService authService, IConfiguration configuration, IUserService userService)
     {
         _authService = authService;
         _configuration = configuration;
+        _userService = userService;
     }
 
     [HttpPost("signup/request-verification-code")]
@@ -176,6 +179,18 @@ public class AuthController : BaseApiController
     {
         var profile = await _authService.GetCurrentUserProfileAsync(cancellationToken);
         return Success(profile);
+    }
+
+    /// <summary>
+    /// Lets the signed-in user update their own first/last name and optional phone number.
+    /// No shop-role gate — every user can edit their own profile.
+    /// </summary>
+    [HttpPut("me")]
+    [Authorize]
+    public async Task<IActionResult> UpdateMe([FromBody] UpdateUserProfileRequest request, CancellationToken cancellationToken)
+    {
+        var updated = await _userService.UpdateMyProfileAsync(request, cancellationToken);
+        return Success(updated);
     }
 
     [HttpPost("refresh")]

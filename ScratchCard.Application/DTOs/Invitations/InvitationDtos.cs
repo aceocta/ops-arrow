@@ -44,4 +44,6 @@ public class AcceptInvitationRequest
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
+    /// <summary>Optional phone number (with country code) for WhatsApp alerts. Never mandatory.</summary>
+    public string? PhoneNumber { get; set; }
 }

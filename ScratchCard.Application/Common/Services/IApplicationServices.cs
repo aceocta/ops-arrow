@@ -112,6 +112,10 @@ public interface IUserService
     Task<IReadOnlyCollection<UserDto>> ListUsersAsync(Guid shopId, CancellationToken cancellationToken = default);
     Task UpdateRoleAsync(Guid userId, UpdateUserRoleRequest request, CancellationToken cancellationToken = default);
     Task SetActiveAsync(Guid userId, Guid shopId, bool isActive, CancellationToken cancellationToken = default);
+    /// <summary>Lets a signed-in user edit their own name/phone. Phone is optional.</summary>
+    Task<UserDto> UpdateMyProfileAsync(UpdateUserProfileRequest request, CancellationToken cancellationToken = default);
+    /// <summary>Lets a CompanyOwner or Manager update another user's name/phone on a shop they manage.</summary>
+    Task<UserDto> UpdateUserDetailsAsync(Guid userId, Guid shopId, UpdateUserProfileRequest request, CancellationToken cancellationToken = default);
 }
 
 public interface IShopService

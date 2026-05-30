@@ -204,6 +204,7 @@ public class InvitationService : IInvitationService
                 Email = invitation.Email,
                 FirstName = request.FirstName.Trim(),
                 LastName = request.LastName.Trim(),
+                PhoneNumber = string.IsNullOrWhiteSpace(request.PhoneNumber) ? null : request.PhoneNumber.Trim(),
                 ExternalProvider = "DirectSignup",
                 ExternalProviderUserId = $"direct-{Guid.NewGuid():N}",
                 PasswordHash = _passwordHashService.HashPassword(request.Password),

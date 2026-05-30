@@ -1351,6 +1351,116 @@ public class BusinessDayService : IBusinessDayService
                 // Notification failures are logged by notification service and must not block day close.
             }
         }
+
+        // WhatsApp companion: short plaintext day summary fanned out to every active CompanyOwner
+        // AND Manager phone on the shop (gated on notifications.whatsapp). Email always carries
+        // the full HTML + PDF; WhatsApp is the at-a-glance "day's closed" heads-up.
+        var whatsAppRecipients = await ResolveDayCloseWhatsAppRecipientsAsync(day.ShopId, cancellationToken);
+        if (whatsAppRecipients.Count > 0)
+        {
+            var whatsAppBody = BuildDayCloseSummaryWhatsAppBody(
+                shopName,
+                day,
+                shifts,
+                entries,
+                missingOpeningTicketCount,
+                safeDropRows,
+                safeDropManagementEnabled,
+                temperatureRows);
+
+            foreach (var recipientPhone in whatsAppRecipients)
+            {
+                try
+                {
+                    await _notificationService.SendAsync(new NotificationMessage
+                    {
+                        ShopId = day.ShopId,
+                        NotificationType = NotificationType.DayCloseSummary,
+                        Channel = NotificationChannel.WhatsApp,
+                        Recipient = recipientPhone,
+                        Subject = subject,
+                        Body = whatsAppBody,
+                        IsBodyHtml = false,
+                        RelatedEntityName = nameof(BusinessDay),
+                        RelatedEntityId = day.Id
+                    }, cancellationToken);
+                }
+                catch
+                {
+                    // Per-recipient failure must not block the rest or day close itself.
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Day-end recipients = every active CompanyOwner OR Manager on the shop with a saved
+    /// phone number. Owners get the day summary; shift-close goes to managers only.
+    /// </summary>
+    private async Task<IReadOnlyList<string>> ResolveDayCloseWhatsAppRecipientsAsync(Guid shopId, CancellationToken cancellationToken)
+    {
+        return await _shopUserRepository.Query()
+            .AsNoTracking()
+            .Where(x =>
+                x.ShopId == shopId &&
+                x.IsActive &&
+                (x.Role.Name == RoleNames.CompanyOwner || x.Role.Name == RoleNames.Manager) &&
+                !string.IsNullOrWhiteSpace(x.User.PhoneNumber))
+            .Select(x => x.User.PhoneNumber!)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Compact plaintext day-end summary suitable for WhatsApp (stays well under the 1024-char
+    /// template parameter limit). Headline numbers only; full breakdown stays in email.
+    /// </summary>
+    private static string BuildDayCloseSummaryWhatsAppBody(
+        string shopName,
+        BusinessDay day,
+        IReadOnlyCollection<Shift> shifts,
+        IReadOnlyCollection<ShiftScratchCardSale> entries,
+        int missingOpeningTicketCount,
+        IReadOnlyCollection<SafeDropSummaryRow> safeDropRows,
+        bool safeDropManagementEnabled,
+        IReadOnlyCollection<TemperatureSummaryRow> temperatureRows)
+    {
+        var totalSales = entries.Sum(e => e.SalesAmount);
+        var totalTickets = entries.Sum(e => e.SoldQuantity);
+
+        var lines = new List<string>
+        {
+            $"{shopName} - Day Close",
+            $"{day.BusinessDate:yyyy-MM-dd}",
+            string.Empty,
+            $"Shifts: {shifts.Count}",
+            $"Scratch sales: £{totalSales:N2}",
+            $"Tickets sold: {totalTickets}",
+        };
+
+        if (missingOpeningTicketCount > 0)
+        {
+            lines.Add($"Missing opening tickets: {missingOpeningTicketCount}");
+        }
+
+        if (safeDropManagementEnabled)
+        {
+            var safeDropTotal = safeDropRows.Sum(r => r.Amount);
+            lines.Add($"Safe drops: £{safeDropTotal:N2} ({safeDropRows.Count})");
+        }
+
+        if (temperatureRows.Count > 0)
+        {
+            var outOfRange = temperatureRows.Count(r => r.IsOutOfRange == true);
+            lines.Add(outOfRange == 0
+                ? $"Temperature: all {temperatureRows.Count} unit(s) in range"
+                : $"Temperature: {outOfRange} of {temperatureRows.Count} unit(s) out of range");
+        }
+
+        lines.Add(string.Empty);
+        lines.Add("Full report sent to your email.");
+
+        return string.Join('\n', lines);
     }
 
     private async Task SendDayClosePushNotificationsAsync(

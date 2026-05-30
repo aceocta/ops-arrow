@@ -137,6 +137,7 @@ public class CompanySignupService : ICompanySignupService
                 Email = normalizedOwnerEmail,
                 FirstName = request.OwnerFirstName.Trim(),
                 LastName = request.OwnerLastName.Trim(),
+                PhoneNumber = NormalisePhoneInput(request.OwnerPhoneNumber),
                 ExternalProvider = "DirectSignup",
                 ExternalProviderUserId = $"direct-{Guid.NewGuid():N}",
                 PasswordHash = _passwordHashService.HashPassword(request.Password),
@@ -152,6 +153,11 @@ public class CompanySignupService : ICompanySignupService
         {
             user.FirstName = request.OwnerFirstName.Trim();
             user.LastName = request.OwnerLastName.Trim();
+            // Phone is optional; only overwrite when provided (don't clobber existing).
+            if (!string.IsNullOrWhiteSpace(request.OwnerPhoneNumber))
+            {
+                user.PhoneNumber = NormalisePhoneInput(request.OwnerPhoneNumber);
+            }
             user.ExternalProvider = string.IsNullOrWhiteSpace(user.ExternalProvider) ? "DirectSignup" : user.ExternalProvider;
             user.ExternalProviderUserId = string.IsNullOrWhiteSpace(user.ExternalProviderUserId)
                 ? $"direct-{Guid.NewGuid():N}"
@@ -333,6 +339,19 @@ public class CompanySignupService : ICompanySignupService
             cancellationToken: cancellationToken);
 
         return token;
+    }
+
+    /// <summary>
+    /// Lightweight tidy-up for the optional phone number captured at signup. Trim whitespace
+    /// and treat blank as null. Full E.164 normalisation happens at WhatsApp send-time in the
+    /// PhoneNumberNormaliser; we only store what the user typed (with spaces/dashes intact)
+    /// so the Settings screen can show it back to them looking the way they entered it.
+    /// </summary>
+    private static string? NormalisePhoneInput(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        var trimmed = raw.Trim();
+        return trimmed.Length == 0 ? null : trimmed;
     }
 
     private async Task<int> ResolveTrialDaysAsync(SubscriptionPlan trialPlan, CancellationToken cancellationToken)

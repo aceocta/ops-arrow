@@ -35,6 +35,9 @@ public class CompanySignupRequest
     public string OwnerFirstName { get; set; } = string.Empty;
     public string OwnerLastName { get; set; } = string.Empty;
     public string OwnerEmail { get; set; } = string.Empty;
+    /// <summary>Optional user phone number with country code (e.g. "+447911..."). Used for WhatsApp alerts.</summary>
+    public string? OwnerPhoneNumber { get; set; }
+    /// <summary>Company contact phone. Independent of the user's personal phone.</summary>
     public string? PhoneNumber { get; set; }
     public string? AddressLine1 { get; set; }
     public string? AddressLine2 { get; set; }

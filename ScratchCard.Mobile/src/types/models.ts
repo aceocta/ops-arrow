@@ -127,6 +127,8 @@ export type AuthProfile = {
   email: string;
   firstName: string;
   lastName: string;
+  /** Optional user phone number (with country code) — used to route WhatsApp alerts. */
+  phoneNumber?: string;
   displayName?: string;
   roles: string[];
   shops: { shopId: string; companyId?: string; companyName?: string; shopName: string; role: string; isFuelStation?: boolean }[];
@@ -396,6 +398,8 @@ export type UserListItem = {
   email: string;
   firstName: string;
   lastName: string;
+  /** Optional phone (with country code). Used for WhatsApp routing. */
+  phoneNumber?: string;
   displayName?: string;
   isActive: boolean;
   lastLoginOn?: string;

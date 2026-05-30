@@ -1014,11 +1014,12 @@ public class ShiftSalesService : IShiftSalesService
             }
         }
 
-        // WhatsApp companion: short plaintext summary sent to the company phone (when the shop's
-        // plan includes notifications.whatsapp — silently suppressed by NotificationService for
-        // Starter). The full HTML+PDF lands in email; WhatsApp is the at-a-glance heads-up.
-        var whatsAppRecipient = await ResolveSummaryWhatsAppRecipientAsync(shift.ShopId, cancellationToken);
-        if (!string.IsNullOrWhiteSpace(whatsAppRecipient))
+        // WhatsApp companion: short plaintext summary fanned out to every active manager who has
+        // a phone number saved (gated on notifications.whatsapp — silently suppressed by
+        // NotificationService for Starter). The full HTML+PDF still lands in email; WhatsApp is
+        // the at-a-glance heads-up for whoever is supervising the shift.
+        var whatsAppRecipients = await ResolveShiftCloseWhatsAppRecipientsAsync(shift.ShopId, cancellationToken);
+        if (whatsAppRecipients.Count > 0)
         {
             var whatsAppBody = BuildShiftCloseSummaryWhatsAppBody(
                 shopName,
@@ -1029,24 +1030,27 @@ public class ShiftSalesService : IShiftSalesService
                 safeDropManagementEnabled,
                 temperatureRows);
 
-            try
+            foreach (var recipientPhone in whatsAppRecipients)
             {
-                await _notificationService.SendAsync(new NotificationMessage
+                try
                 {
-                    ShopId = shift.ShopId,
-                    NotificationType = NotificationType.ShiftCloseSummary,
-                    Channel = NotificationChannel.WhatsApp,
-                    Recipient = whatsAppRecipient,
-                    Subject = subject,
-                    Body = whatsAppBody,
-                    IsBodyHtml = false,
-                    RelatedEntityName = nameof(Shift),
-                    RelatedEntityId = shift.Id
-                }, cancellationToken);
-            }
-            catch
-            {
-                // Same as email path: WhatsApp failure must not block shift close.
+                    await _notificationService.SendAsync(new NotificationMessage
+                    {
+                        ShopId = shift.ShopId,
+                        NotificationType = NotificationType.ShiftCloseSummary,
+                        Channel = NotificationChannel.WhatsApp,
+                        Recipient = recipientPhone,
+                        Subject = subject,
+                        Body = whatsAppBody,
+                        IsBodyHtml = false,
+                        RelatedEntityName = nameof(Shift),
+                        RelatedEntityId = shift.Id
+                    }, cancellationToken);
+                }
+                catch
+                {
+                    // Per-recipient failure must not block other recipients or shift close itself.
+                }
             }
         }
     }
@@ -1135,18 +1139,23 @@ public class ShiftSalesService : IShiftSalesService
     }
 
     /// <summary>
-    /// Returns the company phone number for the shop's owning company, suitable for sending the
-    /// shift-close WhatsApp companion message. User-level phone numbers don't exist yet (no
-    /// User.PhoneNumber column), so we fall back to the company contact. Returns null when no
-    /// company is linked or no phone is on file.
+    /// Returns the phone numbers of every active Manager on the shop, for sending the shift-close
+    /// WhatsApp companion. Owners receive day-end summaries (see BusinessDayService) — shift-close
+    /// is targeted at the supervising manager. Phones without country codes are still returned;
+    /// the WhatsApp sender normalises before contacting Meta.
     /// </summary>
-    private async Task<string?> ResolveSummaryWhatsAppRecipientAsync(Guid shopId, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<string>> ResolveShiftCloseWhatsAppRecipientsAsync(Guid shopId, CancellationToken cancellationToken)
     {
-        return await _shopRepository.Query()
+        return await _shopUserRepository.Query()
             .AsNoTracking()
-            .Where(x => x.Id == shopId && !x.IsDeleted && x.Company != null)
-            .Select(x => x.Company!.PhoneNumber)
-            .FirstOrDefaultAsync(cancellationToken);
+            .Where(x =>
+                x.ShopId == shopId &&
+                x.IsActive &&
+                x.Role.Name == RoleNames.Manager &&
+                !string.IsNullOrWhiteSpace(x.User.PhoneNumber))
+            .Select(x => x.User.PhoneNumber!)
+            .Distinct()
+            .ToListAsync(cancellationToken);
     }
 
     /// <summary>

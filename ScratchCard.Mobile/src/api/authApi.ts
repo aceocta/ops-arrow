@@ -67,9 +67,23 @@ export async function signUpWithPassword(payload: {
   verificationCode: string;
   firstName?: string;
   lastName?: string;
+  ownerPhoneNumber?: string;
 }) {
   const response = await apiClient.post("/auth/signup", payload);
   return parseAuthTokenResult(response.data);
+}
+
+/**
+ * Updates the signed-in user's own profile (first/last name and optional phone number).
+ * Phone is never mandatory — pass empty string to clear, omit to leave unchanged.
+ */
+export async function updateMyProfile(payload: {
+  firstName?: string;
+  lastName?: string;
+  phoneNumber?: string;
+}) {
+  const response = await apiClient.put("/auth/me", payload);
+  return response.data?.data;
 }
 
 export type ValidateInvitationResult = {
@@ -96,6 +110,7 @@ export async function acceptInvitation(payload: {
   firstName?: string;
   lastName?: string;
   password?: string;
+  phoneNumber?: string;
 }) {
   // Accept is often the first call after a cold app open from the email link, so
   // give the (possibly cold-starting) server more headroom than the global 15s.
@@ -108,6 +123,9 @@ export async function signUpCompany(payload: {
   ownerFirstName: string;
   ownerLastName: string;
   ownerEmail: string;
+  /** Optional user phone number with country code, for WhatsApp alerts. */
+  ownerPhoneNumber?: string;
+  /** Optional company contact phone. Independent of the user's personal phone. */
   phoneNumber?: string;
   addressLine1?: string;
   addressLine2?: string;

@@ -35,6 +35,18 @@ public class UsersController : BaseApiController
         return Success(new { Updated = true });
     }
 
+    /// <summary>
+    /// Manager-only edit of another user's first/last name and optional phone number. The shopId
+    /// query param is required so the RequireShopRole gate (class-level) can scope the caller's
+    /// authority correctly, and so an off-shop user can't be edited from this endpoint.
+    /// </summary>
+    [HttpPut("{userId:guid}/details")]
+    public async Task<IActionResult> UpdateDetails(Guid userId, [FromQuery] Guid shopId, [FromBody] UpdateUserProfileRequest request, CancellationToken cancellationToken)
+    {
+        var updated = await _userService.UpdateUserDetailsAsync(userId, shopId, request, cancellationToken);
+        return Success(updated);
+    }
+
     [HttpPost("{userId:guid}/deactivate")]
     public async Task<IActionResult> Deactivate(Guid userId, [FromQuery] Guid shopId, CancellationToken cancellationToken)
     {

@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Controller, useForm } from "react-hook-form";
 import { requestSignupVerificationCode } from "../api/authApi";
 import { FloatingLabelInput } from "../components/FloatingLabelInput";
+import { PhoneNumberInput } from "../components/PhoneNumberInput";
 import { ScreenContainer } from "../components/ScreenContainer";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { ui } from "../ui/primitives";
@@ -15,6 +16,7 @@ type SignupForm = {
   firstName: string;
   lastName: string;
   email: string;
+  phoneNumber: string;
   password: string;
   confirmPassword: string;
   verificationCode: string;
@@ -42,6 +44,7 @@ export function CompanySignupScreen() {
       firstName: "",
       lastName: "",
       email: "",
+      phoneNumber: "",
       password: "",
       confirmPassword: "",
       verificationCode: "",
@@ -136,6 +139,7 @@ export function CompanySignupScreen() {
         lastName: validated.lastName,
         password: values.password,
         verificationCode,
+        ownerPhoneNumber: values.phoneNumber.trim() || undefined,
       });
     } catch (error: any) {
       Alert.alert("Sign up failed", error?.response?.data?.message ?? error?.message ?? "Unable to create account.");
@@ -224,6 +228,23 @@ export function CompanySignupScreen() {
             />
           )}
         />
+
+        <Controller
+          control={control}
+          name="phoneNumber"
+          render={({ field: { value, onChange } }) => (
+            <PhoneNumberInput
+              label="Phone (optional)"
+              value={value}
+              onChangeText={onChange}
+              editable={!busy}
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => passwordRef.current?.focus()}
+            />
+          )}
+        />
+        <Text style={styles.hint}>Optional. Add a phone to receive WhatsApp alerts for shift and day-end closures.</Text>
 
         <Text style={styles.hint}>Password: minimum 8 characters</Text>
         <Controller

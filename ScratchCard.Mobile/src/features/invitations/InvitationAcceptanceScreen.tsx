@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
+import { PhoneNumberInput } from "../../components/PhoneNumberInput";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError } from "../../components/toast";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -35,11 +36,13 @@ export function InvitationAcceptanceScreen({ route, navigation }: Props) {
   const [lastName, setLastName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
 
   const firstNameRef = useRef<TextInput>(null);
   const lastNameRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const confirmPasswordRef = useRef<TextInput>(null);
+  const phoneNumberRef = useRef<TextInput>(null);
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [firstNameError, setFirstNameError] = useState<string | null>(null);
   const [lastNameError, setLastNameError] = useState<string | null>(null);
@@ -111,7 +114,13 @@ export function InvitationAcceptanceScreen({ route, navigation }: Props) {
       await acceptInvitation(
         isExistingAccount
           ? { token: token.trim() }
-          : { token: token.trim(), firstName: firstName.trim(), lastName: lastName.trim(), password },
+          : {
+              token: token.trim(),
+              firstName: firstName.trim(),
+              lastName: lastName.trim(),
+              password,
+              phoneNumber: phoneNumber.trim() || undefined,
+            },
       );
 
       const message = isExistingAccount
@@ -232,9 +241,20 @@ export function InvitationAcceptanceScreen({ route, navigation }: Props) {
               onChangeText={(t) => { setConfirmPassword(t); if (confirmPasswordError) setConfirmPasswordError(null); }}
               secureTextEntry
               editable={!isBusy}
-              returnKeyType="done"
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => phoneNumberRef.current?.focus()}
               error={confirmPasswordError}
             />
+            <PhoneNumberInput
+              ref={phoneNumberRef}
+              label="Phone (optional)"
+              value={phoneNumber}
+              onChangeText={setPhoneNumber}
+              editable={!isBusy}
+              returnKeyType="done"
+            />
+            <Text style={styles.subtitle}>Optional. Add a phone to receive WhatsApp alerts for shift and day-end closures.</Text>
           </>
         ) : null}
 

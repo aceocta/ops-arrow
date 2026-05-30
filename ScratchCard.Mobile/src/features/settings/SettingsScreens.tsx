@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, DevSettings, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -6,16 +6,19 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Constants from "expo-constants";
 import { reloadAppAsync } from "expo";
 import { Ionicons } from "@expo/vector-icons";
+import { updateMyProfile } from "../../api/authApi";
 import { createCompany, listMyCompanies, updateCompany } from "../../api/companiesApi";
 import { getConfigurations, updateConfigurations } from "../../api/configurationsApi";
 import { resolvedApiBaseUrl } from "../../api/client";
 import { DateTimeField } from "../../components/DateTimeField";
 import { getRoleOptions } from "../../api/lookupsApi";
 import { createShop, listShops, updateShop } from "../../api/shopsApi";
-import { deactivateUser, listUsers, reactivateUser, updateUserRole } from "../../api/usersApi";
+import { deactivateUser, listUsers, reactivateUser, updateUserDetails, updateUserRole } from "../../api/usersApi";
 import { useAuth } from "../../auth/AuthContext";
 import { LabeledValue } from "../../components/LabeledValue";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
+import { PhoneNumberInput } from "../../components/PhoneNumberInput";
+import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError, toastSuccess } from "../../components/toast";
 import { SkeletonList } from "../../components/Skeleton";
@@ -429,7 +432,15 @@ export function UserManagementScreen() {
   const { activeShopId, activeShop } = useAuth();
   const shopId = activeShopId;
   const [searchTerm, setSearchTerm] = useState("");
-  const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
+  // Two-state expansion model: each user row can open into one panel at a time. "role" shows
+  // the role chip picker; "details" shows editable name + phone fields. Only one panel per row.
+  type ExpandedPanel = "role" | "details";
+  const [expandedUser, setExpandedUser] = useState<{ id: string; panel: ExpandedPanel } | null>(null);
+  const [editDraft, setEditDraft] = useState<{ firstName: string; lastName: string; phoneNumber: string }>({
+    firstName: "",
+    lastName: "",
+    phoneNumber: "",
+  });
 
   const usersQuery = useQuery({
     queryKey: ["users", shopId],
@@ -450,9 +461,22 @@ export function UserManagementScreen() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["users", shopId] });
-      setExpandedUserId(null);
+      setExpandedUser(null);
     },
     onError: (error: any) => toastError(error?.response?.data?.message ?? "Unable to update role."),
+  });
+
+  const updateDetailsMutation = useMutation({
+    mutationFn: async ({ userId, payload }: { userId: string; payload: { firstName?: string; lastName?: string; phoneNumber?: string } }) => {
+      if (!shopId) throw new Error("Shop context missing.");
+      return updateUserDetails(userId, shopId, payload);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["users", shopId] });
+      setExpandedUser(null);
+      toastSuccess("User details updated.");
+    },
+    onError: (error: any) => toastError(error?.response?.data?.message ?? "Unable to update user details."),
   });
 
   const toggleActiveMutation = useMutation({
@@ -510,7 +534,13 @@ export function UserManagementScreen() {
         ) : null}
         {filteredUsers.map((user) => {
           const displayName = buildDisplayName(user);
-          const isExpanded = expandedUserId === user.id;
+          const isRolePanel = expandedUser?.id === user.id && expandedUser.panel === "role";
+          const isDetailsPanel = expandedUser?.id === user.id && expandedUser.panel === "details";
+          const detailsDirty =
+            isDetailsPanel &&
+            (editDraft.firstName.trim() !== (user.firstName ?? "") ||
+              editDraft.lastName.trim() !== (user.lastName ?? "") ||
+              editDraft.phoneNumber.trim() !== (user.phoneNumber ?? ""));
           return (
             <View key={user.id} style={styles.item}>
               <View style={styles.userManagementHeaderRow}>
@@ -521,15 +551,35 @@ export function UserManagementScreen() {
                 <StatusBadge label={user.isActive ? "Active" : "Inactive"} tone={user.isActive ? "success" : "neutral"} />
               </View>
               <Text style={styles.meta}>Role: {getRoleDisplayName(user.roleName)}</Text>
+              {user.phoneNumber ? <Text style={styles.meta}>Phone: {user.phoneNumber}</Text> : null}
               <Text style={styles.meta}>Last login: {formatRelativeTime(user.lastLoginOn)}</Text>
 
-              <View style={[styles.row, { marginTop: 8 }]}>
+              <View style={[styles.row, { marginTop: 8, flexWrap: "wrap" }]}>
                 <Pressable
                   style={[styles.smallButton, styles.smallButtonSecondary]}
-                  onPress={() => setExpandedUserId(isExpanded ? null : user.id)}
+                  onPress={() => {
+                    if (isDetailsPanel) {
+                      setExpandedUser(null);
+                      return;
+                    }
+                    setEditDraft({
+                      firstName: user.firstName ?? "",
+                      lastName: user.lastName ?? "",
+                      phoneNumber: user.phoneNumber ?? "",
+                    });
+                    setExpandedUser({ id: user.id, panel: "details" });
+                  }}
                 >
                   <Text style={[styles.smallButtonText, styles.smallButtonTextSecondary]}>
-                    {isExpanded ? "Cancel" : "Change Role"}
+                    {isDetailsPanel ? "Cancel" : "Edit Details"}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.smallButton, styles.smallButtonSecondary]}
+                  onPress={() => setExpandedUser(isRolePanel ? null : { id: user.id, panel: "role" })}
+                >
+                  <Text style={[styles.smallButtonText, styles.smallButtonTextSecondary]}>
+                    {isRolePanel ? "Cancel" : "Change Role"}
                   </Text>
                 </Pressable>
                 <Pressable
@@ -540,7 +590,7 @@ export function UserManagementScreen() {
                 </Pressable>
               </View>
 
-              {isExpanded ? (
+              {isRolePanel ? (
                 <View style={{ marginTop: 8, gap: 6 }}>
                   <Text style={styles.caption}>Select a new role:</Text>
                   <View style={styles.choiceChipWrap}>
@@ -560,6 +610,55 @@ export function UserManagementScreen() {
                       );
                     })}
                   </View>
+                </View>
+              ) : null}
+
+              {isDetailsPanel ? (
+                <View style={{ marginTop: 8, gap: 8 }}>
+                  <Text style={styles.caption}>
+                    Edit this user's name and optional phone (with country code) for WhatsApp alerts.
+                  </Text>
+                  <FloatingLabelInput
+                    label="First name"
+                    value={editDraft.firstName}
+                    onChangeText={(t) => setEditDraft((d) => ({ ...d, firstName: t }))}
+                    autoCapitalize="words"
+                    editable={!updateDetailsMutation.isPending}
+                  />
+                  <FloatingLabelInput
+                    label="Last name"
+                    value={editDraft.lastName}
+                    onChangeText={(t) => setEditDraft((d) => ({ ...d, lastName: t }))}
+                    autoCapitalize="words"
+                    editable={!updateDetailsMutation.isPending}
+                  />
+                  <PhoneNumberInput
+                    label="Phone (optional)"
+                    value={editDraft.phoneNumber}
+                    onChangeText={(t) => setEditDraft((d) => ({ ...d, phoneNumber: t }))}
+                    editable={!updateDetailsMutation.isPending}
+                  />
+                  <Pressable
+                    style={[
+                      styles.smallButton,
+                      detailsDirty && !updateDetailsMutation.isPending ? styles.smallButtonPrimary : styles.smallButtonDisabled,
+                    ]}
+                    disabled={!detailsDirty || updateDetailsMutation.isPending}
+                    onPress={() =>
+                      updateDetailsMutation.mutate({
+                        userId: user.id,
+                        payload: {
+                          firstName: editDraft.firstName.trim(),
+                          lastName: editDraft.lastName.trim(),
+                          phoneNumber: editDraft.phoneNumber.trim(),
+                        },
+                      })
+                    }
+                  >
+                    <Text style={styles.smallButtonText}>
+                      {updateDetailsMutation.isPending ? "Saving…" : "Save"}
+                    </Text>
+                  </Pressable>
                 </View>
               ) : null}
             </View>
@@ -1760,7 +1859,45 @@ function SettingsNavRow({
 
 export function SettingsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
-  const { profile, activeShop, signOut } = useAuth();
+  const { profile, activeShop, signOut, refreshProfile } = useAuth();
+
+  // My-profile editor (own name + optional phone for WhatsApp alerts). Defaults to whatever's
+  // currently on the auth profile and writes via /auth/me PUT.
+  const [editedFirstName, setEditedFirstName] = useState(profile?.firstName ?? "");
+  const [editedLastName, setEditedLastName] = useState(profile?.lastName ?? "");
+  const [editedPhoneNumber, setEditedPhoneNumber] = useState(profile?.phoneNumber ?? "");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const profileLastNameRef = useRef<TextInput>(null);
+  const profilePhoneRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    setEditedFirstName(profile?.firstName ?? "");
+    setEditedLastName(profile?.lastName ?? "");
+    setEditedPhoneNumber(profile?.phoneNumber ?? "");
+  }, [profile?.firstName, profile?.lastName, profile?.phoneNumber]);
+
+  const profileDirty =
+    editedFirstName.trim() !== (profile?.firstName ?? "") ||
+    editedLastName.trim() !== (profile?.lastName ?? "") ||
+    editedPhoneNumber.trim() !== (profile?.phoneNumber ?? "");
+
+  async function onSaveProfile() {
+    if (!profileDirty || isSavingProfile) return;
+    setIsSavingProfile(true);
+    try {
+      await updateMyProfile({
+        firstName: editedFirstName.trim(),
+        lastName: editedLastName.trim(),
+        phoneNumber: editedPhoneNumber.trim(),
+      });
+      await refreshProfile();
+      toastSuccess("Profile updated.");
+    } catch (error: any) {
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to update profile.");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  }
 
   const displayName = profile ? buildDisplayName(profile) : "-";
   const avatarInitial = displayName !== "-" && displayName.trim().length > 0 ? displayName.trim().charAt(0).toUpperCase() : "?";
@@ -1949,6 +2086,44 @@ export function SettingsScreen() {
           <LabeledValue label="Active shop" value={activeShop?.shopName ?? "-"} />
           <LabeledValue label="Active company" value={activeShop?.companyName ?? "-"} />
         </View>
+      </View>
+
+      <View style={ui.card}>
+        <Text style={styles.sectionTitle}>My Profile</Text>
+        <Text style={styles.settingsSectionMeta}>
+          Your name and contact phone. Phone is optional — add it (with country code) to receive WhatsApp alerts for shift and day-end closures.
+        </Text>
+        <FloatingLabelInput
+          label="First name"
+          value={editedFirstName}
+          onChangeText={setEditedFirstName}
+          autoCapitalize="words"
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => profileLastNameRef.current?.focus()}
+        />
+        <FloatingLabelInput
+          ref={profileLastNameRef}
+          label="Last name"
+          value={editedLastName}
+          onChangeText={setEditedLastName}
+          autoCapitalize="words"
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => profilePhoneRef.current?.focus()}
+        />
+        <PhoneNumberInput
+          ref={profilePhoneRef}
+          label="Phone (optional)"
+          value={editedPhoneNumber}
+          onChangeText={setEditedPhoneNumber}
+          returnKeyType="done"
+        />
+        <PrimaryButton
+          label={isSavingProfile ? "Saving…" : "Save profile"}
+          onPress={() => void onSaveProfile()}
+          disabled={!profileDirty || isSavingProfile}
+        />
       </View>
 
       <View style={ui.card}>
@@ -2533,6 +2708,12 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.surfaceBrandMuted,
     borderWidth: 0,
     borderColor: appTheme.colors.borderBrandSoft,
+  },
+  smallButtonPrimary: {
+    backgroundColor: appTheme.colors.primary,
+  },
+  smallButtonDisabled: {
+    backgroundColor: appTheme.colors.surfaceMuted,
   },
   userManagementHeaderRow: {
     flexDirection: "row",

@@ -6,6 +6,8 @@ public class CurrentUserProfileDto
     public string Email { get; set; } = string.Empty;
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
+    /// <summary>Optional phone (international format) — null when not yet provided by the user.</summary>
+    public string? PhoneNumber { get; set; }
     public string DisplayName => $"{FirstName} {LastName}".Trim();
     public IReadOnlyCollection<string> Roles { get; set; } = [];
     public IReadOnlyCollection<UserShopDto> Shops { get; set; } = [];
