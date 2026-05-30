@@ -1,5 +1,5 @@
-import React from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useRef } from "react";
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Controller, useForm } from "react-hook-form";
 import { requestSignupVerificationCode } from "../api/authApi";
@@ -31,6 +31,11 @@ export function CompanySignupScreen() {
   const [verificationRequested, setVerificationRequested] = useState(false);
   const [verificationTargetEmail, setVerificationTargetEmail] = useState<string | null>(null);
   const [verificationExpiresOn, setVerificationExpiresOn] = useState<string | null>(null);
+
+  const lastNameRef = useRef<TextInput>(null);
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
+  const confirmPasswordRef = useRef<TextInput>(null);
 
   const { control, handleSubmit, setValue } = useForm<SignupForm>({
     defaultValues: {
@@ -162,6 +167,10 @@ export function CompanySignupScreen() {
               onChangeText={onChange}
               underlineColorAndroid="transparent"
               editable={!busy}
+              autoCapitalize="words"
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => lastNameRef.current?.focus()}
             />
           )}
         />
@@ -171,11 +180,16 @@ export function CompanySignupScreen() {
           name="lastName"
           render={({ field: { value, onChange } }) => (
             <FloatingLabelInput
+              ref={lastNameRef}
               label="Last name"
               value={value}
               onChangeText={onChange}
               underlineColorAndroid="transparent"
               editable={!busy}
+              autoCapitalize="words"
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => emailRef.current?.focus()}
             />
           )}
         />
@@ -185,6 +199,7 @@ export function CompanySignupScreen() {
           name="email"
           render={({ field: { value, onChange } }) => (
             <FloatingLabelInput
+              ref={emailRef}
               label="Email address"
               value={value}
               onChangeText={(nextValue) => {
@@ -203,6 +218,9 @@ export function CompanySignupScreen() {
               autoCorrect={false}
               underlineColorAndroid="transparent"
               editable={!busy}
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => passwordRef.current?.focus()}
             />
           )}
         />
@@ -215,12 +233,16 @@ export function CompanySignupScreen() {
             <View style={styles.passwordRow}>
               <View style={styles.passwordInputContainer}>
                 <FloatingLabelInput
+                  ref={passwordRef}
                   label="Password"
                   value={value}
                   onChangeText={onChange}
                   secureTextEntry={!showPassword}
                   underlineColorAndroid="transparent"
                   editable={!busy}
+                  returnKeyType="next"
+                  submitBehavior="submit"
+                  onSubmitEditing={() => confirmPasswordRef.current?.focus()}
                 />
                 <Pressable
                   style={styles.passwordIconButton}
@@ -246,12 +268,14 @@ export function CompanySignupScreen() {
             <View style={styles.passwordRow}>
               <View style={styles.passwordInputContainer}>
                 <FloatingLabelInput
+                  ref={confirmPasswordRef}
                   label="Confirm password"
                   value={value}
                   onChangeText={onChange}
                   secureTextEntry={!showConfirmPassword}
                   underlineColorAndroid="transparent"
                   editable={!busy}
+                  returnKeyType="done"
                 />
                 <Pressable
                   style={styles.passwordIconButton}

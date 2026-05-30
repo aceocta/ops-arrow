@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import React, { useRef, useState } from "react";
+import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
 import { createCompany } from "../api/companiesApi";
 import { useAuth } from "./AuthContext";
 import { FloatingLabelInput } from "../components/FloatingLabelInput";
@@ -14,6 +14,7 @@ export function CompanySetupScreen() {
   const [registrationNumber, setRegistrationNumber] = useState("");
   const [isBusy, setIsBusy] = useState(false);
   const [progressMessage, setProgressMessage] = useState<string | null>(null);
+  const registrationNumberRef = useRef<TextInput>(null);
 
   const busy = isLoading || isBusy;
 
@@ -54,14 +55,22 @@ export function CompanySetupScreen() {
           onChangeText={setCompanyName}
           underlineColorAndroid="transparent"
           editable={!busy}
+          autoCapitalize="words"
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => registrationNumberRef.current?.focus()}
         />
 
         <FloatingLabelInput
+          ref={registrationNumberRef}
           label="Registration number (optional)"
           value={registrationNumber}
           onChangeText={setRegistrationNumber}
           underlineColorAndroid="transparent"
           editable={!busy}
+          autoCapitalize="characters"
+          returnKeyType="go"
+          onSubmitEditing={() => void onContinue()}
         />
 
         <PrimaryButton

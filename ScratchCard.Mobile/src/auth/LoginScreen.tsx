@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -21,6 +21,7 @@ export function LoginScreen() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
+  const passwordRef = useRef<TextInput>(null);
 
   const appConfig = useMemo(() => {
     const extra = (Constants.expoConfig?.extra ?? {}) as Record<string, string | boolean | undefined>;
@@ -100,16 +101,22 @@ export function LoginScreen() {
           autoCorrect={false}
           underlineColorAndroid="transparent"
           editable={!busy}
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => passwordRef.current?.focus()}
         />
         <View style={styles.passwordRow}>
           <View style={styles.passwordInputContainer}>
             <FloatingLabelInput
+              ref={passwordRef}
               label="Password"
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
               underlineColorAndroid="transparent"
               editable={!busy}
+              returnKeyType="go"
+              onSubmitEditing={() => void onSignIn()}
             />
             <Pressable
               style={styles.passwordIconButton}

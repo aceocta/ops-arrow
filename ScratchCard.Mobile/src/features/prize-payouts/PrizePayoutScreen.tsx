@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -27,6 +27,8 @@ export function PrizePayoutScreen({ route }: Props) {
   const [prizeAmount, setPrizeAmount] = useState("0");
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [notes, setNotes] = useState("");
+  const prizeAmountRef = useRef<TextInput>(null);
+  const notesRef = useRef<TextInput>(null);
   const PAYMENT_METHODS = ["Cash", "Card", "Transfer", "Voucher"] as const;
 
   const shiftQuery = useQuery({
@@ -123,14 +125,21 @@ export function PrizePayoutScreen({ route }: Props) {
             label="Ticket number"
             value={ticketNumber}
             onChangeText={setTicketNumber}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => prizeAmountRef.current?.focus()}
           />
           <FloatingLabelInput
+            ref={prizeAmountRef}
             label="Prize amount"
             prefix="£"
             value={prizeAmount}
             onChangeText={setPrizeAmount}
             keyboardType="decimal-pad"
             accessibilityLabel="Prize amount in pounds"
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => notesRef.current?.focus()}
           />
           <Text style={styles.fieldLabel}>Payment method</Text>
           <View style={styles.methodRow}>
@@ -151,9 +160,11 @@ export function PrizePayoutScreen({ route }: Props) {
             })}
           </View>
           <FloatingLabelInput
+            ref={notesRef}
             label="Notes (optional)"
             value={notes}
             onChangeText={setNotes}
+            returnKeyType="done"
           />
 
           <PrimaryButton

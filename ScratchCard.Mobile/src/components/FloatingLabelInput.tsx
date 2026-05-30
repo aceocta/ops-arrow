@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import { appTheme } from "../ui/theme";
+import { useScrollToFocusedInput } from "./ScreenContainer";
 
 type Props = Omit<TextInputProps, "placeholder"> & {
   label: string;
@@ -23,6 +24,7 @@ export const FloatingLabelInput = forwardRef<TextInput, Props>(function Floating
 ) {
   const innerRef = useRef<TextInput>(null);
   const inputRef = (ref as React.RefObject<TextInput>) ?? innerRef;
+  const scrollToFocused = useScrollToFocusedInput();
   const [isFocused, setIsFocused] = useState(false);
   const hasValue = Boolean(value && String(value).length > 0);
   const floated = isFocused || hasValue;
@@ -40,8 +42,11 @@ export const FloatingLabelInput = forwardRef<TextInput, Props>(function Floating
     (event: Parameters<NonNullable<TextInputProps["onFocus"]>>[0]) => {
       setIsFocused(true);
       onFocus?.(event);
+      // If this input would land under the keyboard (typical when "Next" advances to a field
+      // below the visible area), nudge the screen scroll so the field stays in view.
+      scrollToFocused();
     },
-    [onFocus],
+    [onFocus, scrollToFocused],
   );
 
   const handleBlur = useCallback(

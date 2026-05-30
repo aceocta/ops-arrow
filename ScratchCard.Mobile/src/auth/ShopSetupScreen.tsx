@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import React, { useRef, useState } from "react";
+import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
 import { createShop } from "../api/shopsApi";
 import { useAuth } from "./AuthContext";
 import { FloatingLabelInput } from "../components/FloatingLabelInput";
@@ -23,6 +23,12 @@ export function ShopSetupScreen() {
   const [subscriptionPlanId, setSubscriptionPlanId] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [progressMessage, setProgressMessage] = useState<string | null>(null);
+
+  const addressLine1Ref = useRef<TextInput>(null);
+  const addressLine2Ref = useRef<TextInput>(null);
+  const cityRef = useRef<TextInput>(null);
+  const postCodeRef = useRef<TextInput>(null);
+  const countryRef = useRef<TextInput>(null);
 
   const companyId = profile?.primaryCompanyId;
   const busy = isLoading || isBusy;
@@ -85,47 +91,73 @@ export function ShopSetupScreen() {
           onChangeText={setShopName}
           underlineColorAndroid="transparent"
           editable={!busy}
+          autoCapitalize="words"
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => addressLine1Ref.current?.focus()}
         />
 
         <FloatingLabelInput
+          ref={addressLine1Ref}
           label="Address line 1"
           value={addressLine1}
           onChangeText={setAddressLine1}
           underlineColorAndroid="transparent"
           editable={!busy}
+          autoCapitalize="words"
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => addressLine2Ref.current?.focus()}
         />
 
         <FloatingLabelInput
+          ref={addressLine2Ref}
           label="Address line 2 (optional)"
           value={addressLine2}
           onChangeText={setAddressLine2}
           underlineColorAndroid="transparent"
           editable={!busy}
+          autoCapitalize="words"
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => cityRef.current?.focus()}
         />
 
         <FloatingLabelInput
+          ref={cityRef}
           label="City"
           value={city}
           onChangeText={setCity}
           underlineColorAndroid="transparent"
           editable={!busy}
+          autoCapitalize="words"
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => postCodeRef.current?.focus()}
         />
 
         <FloatingLabelInput
+          ref={postCodeRef}
           label="Post code"
           value={postCode}
           onChangeText={setPostCode}
           autoCapitalize="characters"
           underlineColorAndroid="transparent"
           editable={!busy}
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => countryRef.current?.focus()}
         />
 
         <FloatingLabelInput
+          ref={countryRef}
           label="Country"
           value={country}
           onChangeText={setCountry}
           underlineColorAndroid="transparent"
           editable={!busy}
+          autoCapitalize="words"
+          returnKeyType="done"
         />
 
         <View style={styles.configSection}>

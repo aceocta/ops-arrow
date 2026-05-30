@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -45,6 +45,10 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
   const [staffMemberInitials, setStaffMemberInitials] = useState("");
   const [signatureDataUrl, setSignatureDataUrl] = useState("");
   const [isSignatureModalVisible, setIsSignatureModalVisible] = useState(false);
+
+  const personDescriptionRef = useRef<TextInput>(null);
+  const observationsRef = useRef<TextInput>(null);
+  const staffRef = useRef<TextInput>(null);
 
   const entryQuery = useQuery({
     queryKey: ["refusal-entry", entryId],
@@ -131,6 +135,9 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
               label="Refused product"
               value={product}
               onChangeText={setProduct}
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => personDescriptionRef.current?.focus()}
             />
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
               {productSuggestions.map((item) => (
@@ -146,6 +153,7 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
 
             <Text style={styles.fieldLabel}>Name of person or description</Text>
             <TextInput
+              ref={personDescriptionRef}
               style={[styles.input, styles.textArea]}
               value={personDescription}
               onChangeText={setPersonDescription}
@@ -157,6 +165,7 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
 
             <Text style={styles.fieldLabel}>Observations</Text>
             <TextInput
+              ref={observationsRef}
               style={[styles.input, styles.textArea]}
               value={observations}
               onChangeText={setObservations}
@@ -167,10 +176,12 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
             />
 
             <FloatingLabelInput
+              ref={staffRef}
               label="Staff member full name"
               value={staffMemberInitials}
               onChangeText={setStaffMemberInitials}
               autoCapitalize="words"
+              returnKeyType="done"
             />
 
             <Text style={styles.fieldLabel}>Signature</Text>

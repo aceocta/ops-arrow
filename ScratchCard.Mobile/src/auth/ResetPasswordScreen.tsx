@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { resetPassword } from "../api/authApi";
 import { FloatingLabelInput } from "../components/FloatingLabelInput";
@@ -16,6 +16,8 @@ export function ResetPasswordScreen({ route, navigation }: Props) {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isBusy, setIsBusy] = useState(false);
+  const newPasswordRef = useRef<TextInput>(null);
+  const confirmPasswordRef = useRef<TextInput>(null);
 
   useEffect(() => {
     if (route.params?.token) {
@@ -81,22 +83,32 @@ export function ResetPasswordScreen({ route, navigation }: Props) {
           autoCorrect={false}
           editable={!isBusy}
           underlineColorAndroid="transparent"
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => newPasswordRef.current?.focus()}
         />
         <FloatingLabelInput
+          ref={newPasswordRef}
           label="New password (min 8 characters)"
           value={newPassword}
           onChangeText={setNewPassword}
           secureTextEntry
           editable={!isBusy}
           underlineColorAndroid="transparent"
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => confirmPasswordRef.current?.focus()}
         />
         <FloatingLabelInput
+          ref={confirmPasswordRef}
           label="Confirm new password"
           value={confirmPassword}
           onChangeText={setConfirmPassword}
           secureTextEntry
           editable={!isBusy}
           underlineColorAndroid="transparent"
+          returnKeyType="go"
+          onSubmitEditing={() => void onResetPassword()}
         />
         <PrimaryButton
           label={isBusy ? "Resetting..." : "Reset Password"}

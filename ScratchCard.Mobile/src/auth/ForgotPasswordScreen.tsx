@@ -50,6 +50,8 @@ export function ForgotPasswordScreen() {
           autoCorrect={false}
           editable={!isBusy}
           underlineColorAndroid="transparent"
+          returnKeyType="go"
+          onSubmitEditing={() => void onRequestReset()}
         />
         <PrimaryButton
           label={isBusy ? "Sending..." : "Send Reset Email"}

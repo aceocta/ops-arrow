@@ -1,4 +1,4 @@
-import React, { PropsWithChildren, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Keyboard, Platform, RefreshControlProps, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { appTheme } from "../ui/theme";
@@ -7,6 +7,15 @@ import { useIsTablet } from "../utils/useIsTablet";
 // On tablet, content is capped at this width and centred. Phones (width < 768) are
 // untouched — the existing edge-to-edge layout is preserved exactly.
 const TABLET_CONTENT_MAX_WIDTH = 720;
+
+// Inputs anywhere in the tree can call this on focus to nudge the screen scroll so the
+// currently-focused field isn't hidden by the keyboard. Without it, tapping "Next" to advance
+// can leave the new field under the keyboard if it sits below the visible window.
+const ScrollToFocusedContext = React.createContext<() => void>(() => {});
+
+export function useScrollToFocusedInput(): () => void {
+  return useContext(ScrollToFocusedContext);
+}
 
 type ScreenContainerProps = PropsWithChildren<{
   centerContent?: boolean;
@@ -97,56 +106,64 @@ export function ScreenContainer({
     [baseBottomPadding, footerReserve, keyboardInset, isTablet]
   );
 
+  // Expose the scroll-into-view helper to any descendant input via Context. Inputs call it from
+  // onFocus so that when "Next" advances focus, the new field is nudged above the keyboard.
+  const triggerScrollToFocused = useCallback(() => {
+    requestAnimationFrame(scrollFocusedInputIntoView);
+  }, [scrollFocusedInputIntoView]);
+
   return (
-    <SafeAreaView style={styles.safeArea} edges={["left", "right", "bottom"]}>
-      {scrollable ? (
-        <ScrollView
-          ref={scrollViewRef}
-          contentContainerStyle={contentStyle}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-          automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
-          contentInsetAdjustmentBehavior="automatic"
-          nestedScrollEnabled
-          refreshControl={refreshControl}
-        >
+    <ScrollToFocusedContext.Provider value={triggerScrollToFocused}>
+      <SafeAreaView style={styles.safeArea} edges={["left", "right", "bottom"]}>
+        {scrollable ? (
+          <ScrollView
+            ref={scrollViewRef}
+            contentContainerStyle={contentStyle}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+            automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
+            contentInsetAdjustmentBehavior="automatic"
+            nestedScrollEnabled
+            refreshControl={refreshControl}
+          >
+            <Animated.View
+              style={[
+                styles.body,
+                centerContent ? styles.bodyCentered : null,
+                { opacity: entrance, transform: [{ translateY }] },
+              ]}
+            >
+              {children}
+            </Animated.View>
+          </ScrollView>
+        ) : (
           <Animated.View
             style={[
-              styles.body,
-              centerContent ? styles.bodyCentered : null,
-              { opacity: entrance, transform: [{ translateY }] },
+              styles.bodyNoScroll,
+              { paddingBottom: keyboardInset + footerReserve, opacity: entrance, transform: [{ translateY }] },
+              isTablet
+                ? { maxWidth: TABLET_CONTENT_MAX_WIDTH, alignSelf: "center" as const, width: "100%" as const }
+                : null,
             ]}
           >
             {children}
           </Animated.View>
-        </ScrollView>
-      ) : (
-        <Animated.View
-          style={[
-            styles.bodyNoScroll,
-            { paddingBottom: keyboardInset + footerReserve, opacity: entrance, transform: [{ translateY }] },
-            isTablet
-              ? { maxWidth: TABLET_CONTENT_MAX_WIDTH, alignSelf: "center" as const, width: "100%" as const }
-              : null,
-          ]}
-        >
-          {children}
-        </Animated.View>
-      )}
-      {footer ? (
-        <View
-          style={[
-            styles.footerShell,
-            { bottom: footerBottom },
-            // Match the centred content column on tablet so the sticky footer doesn't
-            // float against the right edge.
-            isTablet ? { maxWidth: TABLET_CONTENT_MAX_WIDTH, alignSelf: "center" as const, left: undefined, right: undefined, width: "100%" } : null,
-          ]}
-        >
-          {footer}
-        </View>
-      ) : null}
-    </SafeAreaView>
+        )}
+        {footer ? (
+          <View
+            style={[
+              styles.footerShell,
+              { bottom: footerBottom },
+              // Match the centred content column on tablet so the sticky footer doesn't
+              // float against the right edge.
+              isTablet ? { maxWidth: TABLET_CONTENT_MAX_WIDTH, alignSelf: "center" as const, left: undefined, right: undefined, width: "100%" } : null,
+            ]}
+          >
+            {footer}
+          </View>
+        ) : null}
+      </SafeAreaView>
+    </ScrollToFocusedContext.Provider>
   );
 }
 

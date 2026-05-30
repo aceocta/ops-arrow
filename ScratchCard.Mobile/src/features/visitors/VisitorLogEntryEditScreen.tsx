@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker";
@@ -32,6 +32,13 @@ export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
   const { activeShopId, activeShop } = useAuth();
   const isFuelStation = Boolean(activeShop?.isFuelStation);
   const photoFeature = useFeature("visitor_log.attachments");
+
+  // Tap "Next" on the keyboard to advance through text fields. Skips date/time/chip controls
+  // which can't accept focus from a keyboard return key.
+  const organisationRef = useRef<TextInput>(null);
+  const purposeRef = useRef<TextInput>(null);
+  const vehicleRegRef = useRef<TextInput>(null);
+  const notesRef = useRef<TextInput>(null);
 
   const [hasInit, setHasInit] = useState(false);
   const [visitDate, setVisitDate] = useState(() => formatDateValue(new Date()));
@@ -176,10 +183,19 @@ export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
           <DateTimeField style={styles.flex1} mode="time" value={timeIn} onChange={setTimeIn} />
         </View>
 
-        <FloatingLabelInput label="Visitor name *" value={visitorName} onChangeText={setVisitorName} autoCapitalize="words" />
+        <FloatingLabelInput
+          label="Visitor name *"
+          value={visitorName}
+          onChangeText={setVisitorName}
+          autoCapitalize="words"
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => organisationRef.current?.focus()}
+        />
 
         <View style={{ position: "relative" }}>
           <FloatingLabelInput
+            ref={organisationRef}
             label="Company / organisation"
             value={organisation}
             onChangeText={(t) => {
@@ -187,6 +203,9 @@ export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
               setShowOrgSuggestions(true);
             }}
             autoCapitalize="words"
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => purposeRef.current?.focus()}
           />
           {showOrgSuggestions && orgSuggestions.length > 0 ? (
             <View style={styles.suggestBox}>
@@ -216,8 +235,25 @@ export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
         </View>
         {isInspector ? <Text style={styles.inspectorHint}>⚑ Managers will be alerted that an inspector is on site.</Text> : null}
 
-        <FloatingLabelInput label="Reason / work" value={purpose} onChangeText={setPurpose} />
-        <FloatingLabelInput label="Vehicle registration" value={vehicleReg} onChangeText={setVehicleReg} autoCapitalize="characters" />
+        <FloatingLabelInput
+          ref={purposeRef}
+          label="Reason / work"
+          value={purpose}
+          onChangeText={setPurpose}
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => vehicleRegRef.current?.focus()}
+        />
+        <FloatingLabelInput
+          ref={vehicleRegRef}
+          label="Vehicle registration"
+          value={vehicleReg}
+          onChangeText={setVehicleReg}
+          autoCapitalize="characters"
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => notesRef.current?.focus()}
+        />
       </View>
 
       {isFuelStation ? (
@@ -241,7 +277,14 @@ export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
         )}
         <PrimaryButton label={signaturePreview ? "Recapture signature" : "Capture signature"} tone="neutral" icon="create-outline" onPress={() => setSignatureModalOpen(true)} />
 
-        <FloatingLabelInput label="Notes (optional)" value={notes} onChangeText={setNotes} multiline />
+        <FloatingLabelInput
+          ref={notesRef}
+          label="Notes (optional)"
+          value={notes}
+          onChangeText={setNotes}
+          multiline
+          returnKeyType="done"
+        />
 
         {photoFeature.isAllowed ? (
           <>
