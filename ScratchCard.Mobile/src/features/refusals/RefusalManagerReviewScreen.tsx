@@ -7,6 +7,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
+import { RowFlash } from "../../components/RowFlash";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError, toastSuccess } from "../../components/toast";
 import { SkeletonList } from "../../components/Skeleton";
@@ -223,26 +224,29 @@ export function RefusalManagerReviewScreen() {
             renderItem={({ item: entry }) => {
               const isSelected = selectedEntryIds.includes(entry.id);
               return (
-                <Pressable
-                  style={[styles.entryCard, isSelected ? styles.entryCardSelected : null]}
-                  onPress={() => toggleEntrySelection(entry.id)}
-                  disabled={!canReview}
-                >
-                  <View style={styles.entryTopRow}>
-                    <Text style={styles.entryNo}>[{isSelected ? "x" : " "}] No. {entry.sequenceNo}</Text>
-                    <Text style={styles.entryDate}>{entry.refusalDate} {entry.refusalTime || "--:--"}</Text>
-                  </View>
-                  <View style={styles.entryBadgeRow}>
-                    <StatusBadge label={entry.signatureImagePath ? "Signed" : "No Signature"} tone={entry.signatureImagePath ? "success" : "danger"} />
-                    <StatusBadge label={entry.reviewedOn ? "Reviewed" : "Pending Review"} tone={entry.reviewedOn ? "success" : "warning"} />
-                  </View>
-                  <Text style={styles.entryProduct}>{entry.product}</Text>
-                  <Text style={styles.meta}>Person: {entry.personDescription}</Text>
-                  <Text style={styles.meta}>Staff: {getStaffDisplayName(entry)}</Text>
-                  <Text style={styles.meta}>
-                    Review: {entry.reviewedOn ? `Reviewed by ${entry.reviewedByName ?? "-"} on ${formatDateTimeValue(entry.reviewedOn)}` : "Pending"}
-                  </Text>
-                </Pressable>
+                // Flashes briefly when reviewedOn flips from null → set (review just landed).
+                <RowFlash flashKey={entry.reviewedOn ?? null}>
+                  <Pressable
+                    style={[styles.entryCard, isSelected ? styles.entryCardSelected : null]}
+                    onPress={() => toggleEntrySelection(entry.id)}
+                    disabled={!canReview}
+                  >
+                    <View style={styles.entryTopRow}>
+                      <Text style={styles.entryNo}>[{isSelected ? "x" : " "}] No. {entry.sequenceNo}</Text>
+                      <Text style={styles.entryDate}>{entry.refusalDate} {entry.refusalTime || "--:--"}</Text>
+                    </View>
+                    <View style={styles.entryBadgeRow}>
+                      <StatusBadge label={entry.signatureImagePath ? "Signed" : "No Signature"} tone={entry.signatureImagePath ? "success" : "danger"} />
+                      <StatusBadge label={entry.reviewedOn ? "Reviewed" : "Pending Review"} tone={entry.reviewedOn ? "success" : "warning"} />
+                    </View>
+                    <Text style={styles.entryProduct}>{entry.product}</Text>
+                    <Text style={styles.meta}>Person: {entry.personDescription}</Text>
+                    <Text style={styles.meta}>Staff: {getStaffDisplayName(entry)}</Text>
+                    <Text style={styles.meta}>
+                      Review: {entry.reviewedOn ? `Reviewed by ${entry.reviewedByName ?? "-"} on ${formatDateTimeValue(entry.reviewedOn)}` : "Pending"}
+                    </Text>
+                  </Pressable>
+                </RowFlash>
               );
             }}
           />

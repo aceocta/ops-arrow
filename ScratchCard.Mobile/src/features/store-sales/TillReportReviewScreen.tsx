@@ -164,7 +164,7 @@ export function TillReportReviewScreen({ route, navigation }: Props) {
     },
     onSuccess: (updated) => {
       queryClient.setQueryData(["till-report", reportId], updated);
-      Alert.alert("Saved", "Tender amounts updated.");
+      toastSuccess("Tender amounts updated.");
     },
     onError: () => Alert.alert("Save failed", "Could not save tender amounts."),
   });

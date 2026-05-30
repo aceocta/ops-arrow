@@ -23,6 +23,13 @@ export function ShopSetupScreen() {
   const [subscriptionPlanId, setSubscriptionPlanId] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [progressMessage, setProgressMessage] = useState<string | null>(null);
+  const [shopNameError, setShopNameError] = useState<string | null>(null);
+  const [addressLine1Error, setAddressLine1Error] = useState<string | null>(null);
+  const [cityError, setCityError] = useState<string | null>(null);
+  const [postCodeError, setPostCodeError] = useState<string | null>(null);
+  const [countryError, setCountryError] = useState<string | null>(null);
+  const [displayCountError, setDisplayCountError] = useState<string | null>(null);
+  const [planError, setPlanError] = useState<string | null>(null);
 
   const addressLine1Ref = useRef<TextInput>(null);
   const addressLine2Ref = useRef<TextInput>(null);
@@ -38,19 +45,22 @@ export function ShopSetupScreen() {
       Alert.alert("Setup required", "Company is not available. Please complete company setup first.");
       return;
     }
-    if (!shopName.trim() || !addressLine1.trim() || !city.trim() || !postCode.trim() || !country.trim()) {
-      Alert.alert("Validation", "Shop name, address, city, post code, and country are required.");
-      return;
-    }
+    let hasError = false;
+    if (!shopName.trim()) { setShopNameError("Required."); hasError = true; }
+    if (!addressLine1.trim()) { setAddressLine1Error("Required."); hasError = true; }
+    if (!city.trim()) { setCityError("Required."); hasError = true; }
+    if (!postCode.trim()) { setPostCodeError("Required."); hasError = true; }
+    if (!country.trim()) { setCountryError("Required."); hasError = true; }
     const parsedDisplayCount = Number(scratchCardDisplayCount.trim());
     if (!Number.isInteger(parsedDisplayCount) || parsedDisplayCount <= 0) {
-      Alert.alert("Validation", "Display count must be a whole number greater than 0.");
-      return;
+      setDisplayCountError("Must be a whole number greater than 0.");
+      hasError = true;
     }
     if (!subscriptionPlanId) {
-      Alert.alert("Validation", "Please select a subscription plan for this shop.");
-      return;
+      setPlanError("Please select a subscription plan.");
+      hasError = true;
     }
+    if (hasError) return;
 
     setIsBusy(true);
     try {
@@ -65,7 +75,8 @@ export function ShopSetupScreen() {
         country: country.trim(),
         scratchCardDisplayCount: parsedDisplayCount,
         packSellingOrder,
-        subscriptionPlanId,
+        // Validation above already early-exits when this is null.
+        subscriptionPlanId: subscriptionPlanId!,
       });
       // setProgressMessage("Finalizing setup...");
       await refreshProfile(createdShop.id, true);
@@ -88,26 +99,28 @@ export function ShopSetupScreen() {
         <FloatingLabelInput
           label="Shop name"
           value={shopName}
-          onChangeText={setShopName}
+          onChangeText={(t) => { setShopName(t); if (shopNameError) setShopNameError(null); }}
           underlineColorAndroid="transparent"
           editable={!busy}
           autoCapitalize="words"
           returnKeyType="next"
           submitBehavior="submit"
           onSubmitEditing={() => addressLine1Ref.current?.focus()}
+          error={shopNameError}
         />
 
         <FloatingLabelInput
           ref={addressLine1Ref}
           label="Address line 1"
           value={addressLine1}
-          onChangeText={setAddressLine1}
+          onChangeText={(t) => { setAddressLine1(t); if (addressLine1Error) setAddressLine1Error(null); }}
           underlineColorAndroid="transparent"
           editable={!busy}
           autoCapitalize="words"
           returnKeyType="next"
           submitBehavior="submit"
           onSubmitEditing={() => addressLine2Ref.current?.focus()}
+          error={addressLine1Error}
         />
 
         <FloatingLabelInput
@@ -127,37 +140,40 @@ export function ShopSetupScreen() {
           ref={cityRef}
           label="City"
           value={city}
-          onChangeText={setCity}
+          onChangeText={(t) => { setCity(t); if (cityError) setCityError(null); }}
           underlineColorAndroid="transparent"
           editable={!busy}
           autoCapitalize="words"
           returnKeyType="next"
           submitBehavior="submit"
           onSubmitEditing={() => postCodeRef.current?.focus()}
+          error={cityError}
         />
 
         <FloatingLabelInput
           ref={postCodeRef}
           label="Post code"
           value={postCode}
-          onChangeText={setPostCode}
+          onChangeText={(t) => { setPostCode(t); if (postCodeError) setPostCodeError(null); }}
           autoCapitalize="characters"
           underlineColorAndroid="transparent"
           editable={!busy}
           returnKeyType="next"
           submitBehavior="submit"
           onSubmitEditing={() => countryRef.current?.focus()}
+          error={postCodeError}
         />
 
         <FloatingLabelInput
           ref={countryRef}
           label="Country"
           value={country}
-          onChangeText={setCountry}
+          onChangeText={(t) => { setCountry(t); if (countryError) setCountryError(null); }}
           underlineColorAndroid="transparent"
           editable={!busy}
           autoCapitalize="words"
           returnKeyType="done"
+          error={countryError}
         />
 
         <View style={styles.configSection}>
@@ -167,10 +183,11 @@ export function ShopSetupScreen() {
           <FloatingLabelInput
             label="Scratch card display count"
             value={scratchCardDisplayCount}
-            onChangeText={setScratchCardDisplayCount}
+            onChangeText={(t) => { setScratchCardDisplayCount(t); if (displayCountError) setDisplayCountError(null); }}
             keyboardType="number-pad"
             underlineColorAndroid="transparent"
             editable={!busy}
+            error={displayCountError}
           />
 
           <Text style={styles.fieldLabel}>Pack Selling Order</Text>
@@ -193,9 +210,10 @@ export function ShopSetupScreen() {
         <View style={styles.configSection}>
           <SubscriptionPlanPicker
             value={subscriptionPlanId}
-            onChange={setSubscriptionPlanId}
+            onChange={(id) => { setSubscriptionPlanId(id); if (planError) setPlanError(null); }}
             disabled={busy}
           />
+          {planError ? <Text style={styles.planErrorText}>{planError}</Text> : null}
         </View>
 
         <PrimaryButton
@@ -212,6 +230,13 @@ export function ShopSetupScreen() {
 const styles = StyleSheet.create({
   header: {
     gap: 4,
+  },
+  planErrorText: {
+    color: appTheme.colors.danger,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: appTheme.spacing.sm,
   },
   title: {
     color: appTheme.colors.text,

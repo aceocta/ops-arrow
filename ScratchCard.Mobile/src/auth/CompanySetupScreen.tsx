@@ -14,13 +14,14 @@ export function CompanySetupScreen() {
   const [registrationNumber, setRegistrationNumber] = useState("");
   const [isBusy, setIsBusy] = useState(false);
   const [progressMessage, setProgressMessage] = useState<string | null>(null);
+  const [companyNameError, setCompanyNameError] = useState<string | null>(null);
   const registrationNumberRef = useRef<TextInput>(null);
 
   const busy = isLoading || isBusy;
 
   async function onContinue() {
     if (!companyName.trim()) {
-      Alert.alert("Validation", "Company name is required.");
+      setCompanyNameError("Company name is required.");
       return;
     }
 
@@ -52,13 +53,17 @@ export function CompanySetupScreen() {
         <FloatingLabelInput
           label="Company name"
           value={companyName}
-          onChangeText={setCompanyName}
+          onChangeText={(t) => {
+            setCompanyName(t);
+            if (companyNameError) setCompanyNameError(null);
+          }}
           underlineColorAndroid="transparent"
           editable={!busy}
           autoCapitalize="words"
           returnKeyType="next"
           submitBehavior="submit"
           onSubmitEditing={() => registrationNumberRef.current?.focus()}
+          error={companyNameError}
         />
 
         <FloatingLabelInput

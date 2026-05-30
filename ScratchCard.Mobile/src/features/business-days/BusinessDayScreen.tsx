@@ -7,6 +7,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { listBusinessDays, openBusinessDay } from "../../api/businessDaysApi";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { toastError } from "../../components/toast";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
@@ -85,7 +86,7 @@ export function BusinessDayScreen() {
     },
     onError: (error: any) => {
       haptics.error();
-      Alert.alert("Failed", error?.response?.data?.message ?? "Unable to open business day.");
+      toastError(error?.response?.data?.message ?? "Unable to open business day.");
     },
   });
 

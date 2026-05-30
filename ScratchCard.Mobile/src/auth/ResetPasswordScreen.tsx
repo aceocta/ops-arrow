@@ -16,6 +16,9 @@ export function ResetPasswordScreen({ route, navigation }: Props) {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isBusy, setIsBusy] = useState(false);
+  const [tokenError, setTokenError] = useState<string | null>(null);
+  const [newPasswordError, setNewPasswordError] = useState<string | null>(null);
+  const [confirmPasswordError, setConfirmPasswordError] = useState<string | null>(null);
   const newPasswordRef = useRef<TextInput>(null);
   const confirmPasswordRef = useRef<TextInput>(null);
 
@@ -26,20 +29,20 @@ export function ResetPasswordScreen({ route, navigation }: Props) {
   }, [route.params?.token]);
 
   async function onResetPassword() {
+    let hasError = false;
     if (!token.trim()) {
-      Alert.alert("Validation", "Reset token is required.");
-      return;
+      setTokenError("Reset token is required.");
+      hasError = true;
     }
-
     if (!newPassword || newPassword.length < 8) {
-      Alert.alert("Validation", "Password must be at least 8 characters.");
-      return;
+      setNewPasswordError("Password must be at least 8 characters.");
+      hasError = true;
     }
-
     if (newPassword !== confirmPassword) {
-      Alert.alert("Validation", "Passwords do not match.");
-      return;
+      setConfirmPasswordError("Passwords do not match.");
+      hasError = true;
     }
+    if (hasError) return;
 
     setIsBusy(true);
     try {
@@ -78,7 +81,10 @@ export function ResetPasswordScreen({ route, navigation }: Props) {
         <FloatingLabelInput
           label="Reset token"
           value={token}
-          onChangeText={setToken}
+          onChangeText={(t) => {
+            setToken(t);
+            if (tokenError) setTokenError(null);
+          }}
           autoCapitalize="none"
           autoCorrect={false}
           editable={!isBusy}
@@ -86,29 +92,39 @@ export function ResetPasswordScreen({ route, navigation }: Props) {
           returnKeyType="next"
           submitBehavior="submit"
           onSubmitEditing={() => newPasswordRef.current?.focus()}
+          error={tokenError}
         />
         <FloatingLabelInput
           ref={newPasswordRef}
           label="New password (min 8 characters)"
           value={newPassword}
-          onChangeText={setNewPassword}
+          onChangeText={(t) => {
+            setNewPassword(t);
+            if (newPasswordError) setNewPasswordError(null);
+            if (confirmPasswordError) setConfirmPasswordError(null);
+          }}
           secureTextEntry
           editable={!isBusy}
           underlineColorAndroid="transparent"
           returnKeyType="next"
           submitBehavior="submit"
           onSubmitEditing={() => confirmPasswordRef.current?.focus()}
+          error={newPasswordError}
         />
         <FloatingLabelInput
           ref={confirmPasswordRef}
           label="Confirm new password"
           value={confirmPassword}
-          onChangeText={setConfirmPassword}
+          onChangeText={(t) => {
+            setConfirmPassword(t);
+            if (confirmPasswordError) setConfirmPasswordError(null);
+          }}
           secureTextEntry
           editable={!isBusy}
           underlineColorAndroid="transparent"
           returnKeyType="go"
           onSubmitEditing={() => void onResetPassword()}
+          error={confirmPasswordError}
         />
         <PrimaryButton
           label={isBusy ? "Resetting..." : "Reset Password"}

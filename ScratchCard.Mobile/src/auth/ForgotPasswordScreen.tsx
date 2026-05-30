@@ -14,10 +14,11 @@ export function ForgotPasswordScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [email, setEmail] = useState("");
   const [isBusy, setIsBusy] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   async function onRequestReset() {
     if (!email.trim()) {
-      Alert.alert("Validation", "Email is required.");
+      setEmailError("Email is required.");
       return;
     }
 
@@ -44,7 +45,10 @@ export function ForgotPasswordScreen() {
         <FloatingLabelInput
           label="Email address"
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(t) => {
+            setEmail(t);
+            if (emailError) setEmailError(null);
+          }}
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
@@ -52,6 +56,7 @@ export function ForgotPasswordScreen() {
           underlineColorAndroid="transparent"
           returnKeyType="go"
           onSubmitEditing={() => void onRequestReset()}
+          error={emailError}
         />
         <PrimaryButton
           label={isBusy ? "Sending..." : "Send Reset Email"}

@@ -10,6 +10,7 @@ import { haptics } from "../../utils/haptics";
 import { track } from "../../utils/analytics";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { toastError, toastSuccess } from "../../components/toast";
 import { clearShiftDraft, getShiftDraft } from "../../offline/draftRepository";
 import { calculateShiftSales } from "../../utils/serialCalculation";
 import { confirmDestructive } from "../../utils/confirm";
@@ -612,11 +613,11 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
       await queryClient.invalidateQueries({ queryKey: ["shift-closing-numbers", shiftId] });
       haptics.success();
       track("closing_numbers_saved", { shiftId, shopId, count: toSave.length });
-      Alert.alert("Saved", `${toSave.length} closing number${toSave.length === 1 ? "" : "s"} saved. Finalise the shift from the Close Shift screen.`);
+      toastSuccess(`${toSave.length} closing number${toSave.length === 1 ? "" : "s"} saved. Finalise the shift from the Close Shift screen.`);
       navigation.goBack();
     } catch (error: any) {
       haptics.error();
-      Alert.alert("Failed", error?.response?.data?.message ?? "Unable to save closing numbers.");
+      toastError(error?.response?.data?.message ?? "Unable to save closing numbers.");
     } finally {
       setIsSubmitting(false);
     }

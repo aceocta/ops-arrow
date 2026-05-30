@@ -21,6 +21,8 @@ export function LoginScreen() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const passwordRef = useRef<TextInput>(null);
 
   const appConfig = useMemo(() => {
@@ -47,14 +49,16 @@ export function LoginScreen() {
   const busy = isLoading || isBusy;
 
   async function onSignIn() {
+    let hasError = false;
     if (!email.trim()) {
-      Alert.alert("Validation", "Email is required.");
-      return;
+      setEmailError("Email is required.");
+      hasError = true;
     }
     if (!password) {
-      Alert.alert("Validation", "Password is required.");
-      return;
+      setPasswordError("Password is required.");
+      hasError = true;
     }
+    if (hasError) return;
     setIsBusy(true);
     try {
       await signInWithPassword({ email: email.trim(), password });
@@ -95,7 +99,10 @@ export function LoginScreen() {
         <FloatingLabelInput
           label="Email address"
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(t) => {
+            setEmail(t);
+            if (emailError) setEmailError(null);
+          }}
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
@@ -104,6 +111,7 @@ export function LoginScreen() {
           returnKeyType="next"
           submitBehavior="submit"
           onSubmitEditing={() => passwordRef.current?.focus()}
+          error={emailError}
         />
         <View style={styles.passwordRow}>
           <View style={styles.passwordInputContainer}>
@@ -111,12 +119,16 @@ export function LoginScreen() {
               ref={passwordRef}
               label="Password"
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(t) => {
+                setPassword(t);
+                if (passwordError) setPasswordError(null);
+              }}
               secureTextEntry={!showPassword}
               underlineColorAndroid="transparent"
               editable={!busy}
               returnKeyType="go"
               onSubmitEditing={() => void onSignIn()}
+              error={passwordError}
             />
             <Pressable
               style={styles.passwordIconButton}

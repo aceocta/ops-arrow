@@ -8,6 +8,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { toastError } from "../../components/toast";
 import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
@@ -53,7 +54,7 @@ export function DashboardScreen() {
       navigation.replace("DayEndClose", { businessDayId: openedDay.id });
     },
     onError: (error: any) => {
-      Alert.alert("Failed", error?.response?.data?.message ?? "Unable to open business day.");
+      toastError(error?.response?.data?.message ?? "Unable to open business day.");
     },
   });
 

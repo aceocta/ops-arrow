@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { LoadingState } from "../../components/LoadingState";
+import { RowFlash } from "../../components/RowFlash";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError } from "../../components/toast";
 import { getVisitorDailyLog, signOutVisitor } from "../../api/visitorLogApi";
@@ -79,36 +80,38 @@ export function VisitorLogScreen({ navigation }: Props) {
         </View>
       ) : (
         entries.map((entry) => (
-          <Pressable
-            key={entry.id}
-            style={[ui.card, styles.entryCard, entry.isOnSite ? styles.entryOnSite : null]}
-            onPress={() => navigation.navigate("VisitorLogEntryEdit", { entryId: entry.id })}
-          >
-            <View style={styles.entryHeader}>
-              <Text style={styles.entryName} numberOfLines={1}>
-                #{entry.sequenceNo} · {entry.visitorName}
-              </Text>
-              <View style={[styles.typeBadge, entry.isInspector ? styles.typeBadgeInspector : null]}>
-                <Text style={[styles.typeBadgeText, entry.isInspector ? styles.typeBadgeTextInspector : null]}>{entry.visitType}</Text>
+          // Flashes briefly when the visitor's timeOut flips from null → set (sign-out just landed).
+          <RowFlash key={entry.id} flashKey={entry.timeOut ?? null} style={ui.card}>
+            <Pressable
+              style={[styles.entryCard, entry.isOnSite ? styles.entryOnSite : null]}
+              onPress={() => navigation.navigate("VisitorLogEntryEdit", { entryId: entry.id })}
+            >
+              <View style={styles.entryHeader}>
+                <Text style={styles.entryName} numberOfLines={1}>
+                  #{entry.sequenceNo} · {entry.visitorName}
+                </Text>
+                <View style={[styles.typeBadge, entry.isInspector ? styles.typeBadgeInspector : null]}>
+                  <Text style={[styles.typeBadgeText, entry.isInspector ? styles.typeBadgeTextInspector : null]}>{entry.visitType}</Text>
+                </View>
               </View>
-            </View>
-            {entry.organisation ? <Text style={styles.entryMeta}>{entry.organisation}</Text> : null}
-            <Text style={styles.entryMeta}>
-              In {entry.timeIn}
-              {entry.timeOut ? ` · Out ${entry.timeOut}` : " · still on site"}
-              {entry.vehicleRegistration ? ` · ${entry.vehicleRegistration}` : ""}
-            </Text>
-            {entry.purpose ? <Text style={styles.entryMeta}>{entry.purpose}</Text> : null}
-            {entry.isOnSite ? (
-              <Pressable
-                style={styles.signOutButton}
-                onPress={() => confirmSignOut(entry)}
-                disabled={signOutMutation.isPending}
-              >
-                <Text style={styles.signOutText}>Sign out</Text>
-              </Pressable>
-            ) : null}
-          </Pressable>
+              {entry.organisation ? <Text style={styles.entryMeta}>{entry.organisation}</Text> : null}
+              <Text style={styles.entryMeta}>
+                In {entry.timeIn}
+                {entry.timeOut ? ` · Out ${entry.timeOut}` : " · still on site"}
+                {entry.vehicleRegistration ? ` · ${entry.vehicleRegistration}` : ""}
+              </Text>
+              {entry.purpose ? <Text style={styles.entryMeta}>{entry.purpose}</Text> : null}
+              {entry.isOnSite ? (
+                <Pressable
+                  style={styles.signOutButton}
+                  onPress={() => confirmSignOut(entry)}
+                  disabled={signOutMutation.isPending}
+                >
+                  <Text style={styles.signOutText}>Sign out</Text>
+                </Pressable>
+              ) : null}
+            </Pressable>
+          </RowFlash>
         ))
       )}
     </ScreenContainer>

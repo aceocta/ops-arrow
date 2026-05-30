@@ -40,6 +40,11 @@ export function InvitationAcceptanceScreen({ route, navigation }: Props) {
   const lastNameRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const confirmPasswordRef = useRef<TextInput>(null);
+  const [tokenError, setTokenError] = useState<string | null>(null);
+  const [firstNameError, setFirstNameError] = useState<string | null>(null);
+  const [lastNameError, setLastNameError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [confirmPasswordError, setConfirmPasswordError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [validation, setValidation] = useState<ValidationState>({ status: "idle" });
 
@@ -88,15 +93,17 @@ export function InvitationAcceptanceScreen({ route, navigation }: Props) {
 
   async function onAccept() {
     if (validation.status !== "valid") {
-      Alert.alert("Validation", "Enter a valid invitation token first.");
+      setTokenError("Enter a valid invitation token first.");
       return;
     }
 
     if (isNewUser) {
-      if (!firstName.trim()) return Alert.alert("Validation", "First name is required.");
-      if (!lastName.trim()) return Alert.alert("Validation", "Last name is required.");
-      if (!password || password.length < 8) return Alert.alert("Validation", "Password must be at least 8 characters.");
-      if (password !== confirmPassword) return Alert.alert("Validation", "Passwords do not match.");
+      let hasError = false;
+      if (!firstName.trim()) { setFirstNameError("First name is required."); hasError = true; }
+      if (!lastName.trim()) { setLastNameError("Last name is required."); hasError = true; }
+      if (!password || password.length < 8) { setPasswordError("Password must be at least 8 characters."); hasError = true; }
+      if (password !== confirmPassword) { setConfirmPasswordError("Passwords do not match."); hasError = true; }
+      if (hasError) return;
     }
 
     setIsBusy(true);
@@ -143,13 +150,14 @@ export function InvitationAcceptanceScreen({ route, navigation }: Props) {
         <FloatingLabelInput
           label="Invitation token"
           value={token}
-          onChangeText={setToken}
+          onChangeText={(t) => { setToken(t); if (tokenError) setTokenError(null); }}
           editable={!isBusy}
           autoCapitalize="none"
           autoCorrect={false}
           returnKeyType="next"
           submitBehavior="submit"
           onSubmitEditing={() => firstNameRef.current?.focus()}
+          error={tokenError}
         />
 
         {validation.status === "loading" ? (
@@ -181,43 +189,51 @@ export function InvitationAcceptanceScreen({ route, navigation }: Props) {
               ref={firstNameRef}
               label="First name"
               value={firstName}
-              onChangeText={setFirstName}
+              onChangeText={(t) => { setFirstName(t); if (firstNameError) setFirstNameError(null); }}
               editable={!isBusy}
               autoCapitalize="words"
               returnKeyType="next"
               submitBehavior="submit"
               onSubmitEditing={() => lastNameRef.current?.focus()}
+              error={firstNameError}
             />
             <FloatingLabelInput
               ref={lastNameRef}
               label="Last name"
               value={lastName}
-              onChangeText={setLastName}
+              onChangeText={(t) => { setLastName(t); if (lastNameError) setLastNameError(null); }}
               editable={!isBusy}
               autoCapitalize="words"
               returnKeyType="next"
               submitBehavior="submit"
               onSubmitEditing={() => passwordRef.current?.focus()}
+              error={lastNameError}
             />
             <FloatingLabelInput
               ref={passwordRef}
               label="Password (min 8 characters)"
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(t) => {
+                setPassword(t);
+                if (passwordError) setPasswordError(null);
+                if (confirmPasswordError) setConfirmPasswordError(null);
+              }}
               secureTextEntry
               editable={!isBusy}
               returnKeyType="next"
               submitBehavior="submit"
               onSubmitEditing={() => confirmPasswordRef.current?.focus()}
+              error={passwordError}
             />
             <FloatingLabelInput
               ref={confirmPasswordRef}
               label="Confirm password"
               value={confirmPassword}
-              onChangeText={setConfirmPassword}
+              onChangeText={(t) => { setConfirmPassword(t); if (confirmPasswordError) setConfirmPasswordError(null); }}
               secureTextEntry
               editable={!isBusy}
               returnKeyType="done"
+              error={confirmPasswordError}
             />
           </>
         ) : null}
