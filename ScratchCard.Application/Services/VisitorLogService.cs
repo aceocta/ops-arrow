@@ -23,6 +23,7 @@ public class VisitorLogService : IVisitorLogService
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IAttachmentStorageService _attachmentStorage;
 
     public VisitorLogService(
         IRepository<VisitorLogEntry> entryRepository,
@@ -34,7 +35,8 @@ public class VisitorLogService : IVisitorLogService
         INotificationService notificationService,
         IAuditService auditService,
         ICurrentUserService currentUserService,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IAttachmentStorageService attachmentStorage)
     {
         _entryRepository = entryRepository;
         _visitorRepository = visitorRepository;
@@ -46,6 +48,7 @@ public class VisitorLogService : IVisitorLogService
         _auditService = auditService;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
+        _attachmentStorage = attachmentStorage;
     }
 
     public async Task<VisitorLogEntryDto> CreateEntryAsync(CreateVisitorLogEntryRequest request, CancellationToken cancellationToken = default)
@@ -452,16 +455,17 @@ public class VisitorLogService : IVisitorLogService
         return string.IsNullOrEmpty(trimmed) ? null : trimmed;
     }
 
-    private static async Task<string> SaveImageAsync(string dataUrl, Guid shopId, DateOnly date, string sectionFolder, string filePrefix, CancellationToken cancellationToken)
+    private async Task<string> SaveImageAsync(string dataUrl, Guid shopId, DateOnly date, string sectionFolder, string filePrefix, CancellationToken cancellationToken)
     {
         var (bytes, ext) = ParseImage(dataUrl);
-        var projectRoot = ResolveProjectRootPath();
-        var folderPath = Path.Combine(projectRoot, "SignatureUploads", "VisitorLog", sectionFolder, shopId.ToString("N"), date.ToString("yyyyMMdd"));
-        Directory.CreateDirectory(folderPath);
         var fileName = $"{filePrefix}-{DateTime.UtcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}.{ext}";
-        var fullPath = Path.Combine(folderPath, fileName);
-        await File.WriteAllBytesAsync(fullPath, bytes, cancellationToken);
-        return fullPath;
+        var relativePath = string.Join('/',
+            "VisitorLog",
+            sectionFolder,
+            shopId.ToString("N"),
+            date.ToString("yyyyMMdd"),
+            fileName);
+        return await _attachmentStorage.SaveAsync(bytes, relativePath, cancellationToken);
     }
 
     private static (byte[] Bytes, string Extension) ParseImage(string dataUrl)
@@ -489,41 +493,32 @@ public class VisitorLogService : IVisitorLogService
         }
     }
 
-    private static async Task<string?> ReadImageDataUrlAsync(string? imagePath, CancellationToken cancellationToken)
+    private async Task<string?> ReadImageDataUrlAsync(string? imagePath, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(imagePath) || !File.Exists(imagePath))
+        // Stored path may be a legacy filesystem path or a new "blob://" token — the storage
+        // service handles both transparently.
+        var bytes = await _attachmentStorage.ReadAsync(imagePath, cancellationToken);
+        if (bytes is null)
         {
             return null;
         }
-        var mime = imagePath.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ? "image/jpeg" : "image/png";
-        var bytes = await File.ReadAllBytesAsync(imagePath, cancellationToken);
+
+        var mime = !string.IsNullOrWhiteSpace(imagePath) && imagePath.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)
+            ? "image/jpeg"
+            : "image/png";
         return $"data:{mime};base64,{Convert.ToBase64String(bytes)}";
     }
 
-    private static void TryDeleteImage(string? imagePath)
+    private void TryDeleteImage(string? imagePath)
     {
         if (string.IsNullOrWhiteSpace(imagePath)) return;
         try
         {
-            if (File.Exists(imagePath)) File.Delete(imagePath);
+            _ = _attachmentStorage.DeleteIfExistsAsync(imagePath, CancellationToken.None);
         }
         catch
         {
             // ignore cleanup failures
         }
-    }
-
-    private static string ResolveProjectRootPath()
-    {
-        var current = new DirectoryInfo(Directory.GetCurrentDirectory());
-        while (current is not null)
-        {
-            if (File.Exists(Path.Combine(current.FullName, "ScratchCard.slnx")))
-            {
-                return current.FullName;
-            }
-            current = current.Parent;
-        }
-        return Directory.GetCurrentDirectory();
     }
 }

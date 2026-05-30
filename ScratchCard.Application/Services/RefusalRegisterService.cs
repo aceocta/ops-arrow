@@ -16,19 +16,22 @@ public class RefusalRegisterService : IRefusalRegisterService
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IAttachmentStorageService _attachmentStorage;
 
     public RefusalRegisterService(
         IRepository<RefusalRegisterEntry> entryRepository,
         IRepository<RefusalRegisterDailySignoff> signoffRepository,
         IAuditService auditService,
         ICurrentUserService currentUserService,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IAttachmentStorageService attachmentStorage)
     {
         _entryRepository = entryRepository;
         _signoffRepository = signoffRepository;
         _auditService = auditService;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
+        _attachmentStorage = attachmentStorage;
     }
 
     public async Task<RefusalRegisterEntryDto> CreateEntryAsync(CreateRefusalRegisterEntryRequest request, CancellationToken cancellationToken = default)
@@ -490,7 +493,7 @@ public class RefusalRegisterService : IRefusalRegisterService
         entry.ModifiedBy = reviewedByUserId;
     }
 
-    private static async Task<string> SaveSignatureImageAsync(
+    private async Task<string> SaveSignatureImageAsync(
         string signatureDataUrl,
         Guid shopId,
         DateOnly date,
@@ -501,28 +504,26 @@ public class RefusalRegisterService : IRefusalRegisterService
         return await SaveSignatureImageAsync(bytes, shopId, date, sectionFolder, cancellationToken);
     }
 
-    private static async Task<string> SaveSignatureImageAsync(
+    private async Task<string> SaveSignatureImageAsync(
         byte[] bytes,
         Guid shopId,
         DateOnly date,
         string sectionFolder,
         CancellationToken cancellationToken)
     {
-        var projectRoot = ResolveProjectRootPath();
-        var folderPath = Path.Combine(
-            projectRoot,
-            "SignatureUploads",
+        // Goes via IAttachmentStorageService: hits Azure Blob when AttachmentStorage:UseBlobStorage
+        // is true (production), local disk otherwise (dev fallback). The returned token is opaque —
+        // for blob it's "blob://container/path"; for local it's an absolute path. Both forms are
+        // handled transparently by ReadSignatureDataUrlAsync / TryDeleteSignatureImage below.
+        var fileName = $"signature-{DateTime.UtcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}.png";
+        var relativePath = string.Join('/',
             "RefusalRegister",
             sectionFolder,
             shopId.ToString("N"),
-            date.ToString("yyyyMMdd"));
+            date.ToString("yyyyMMdd"),
+            fileName);
 
-        Directory.CreateDirectory(folderPath);
-
-        var fileName = $"signature-{DateTime.UtcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}.png";
-        var fullPath = Path.Combine(folderPath, fileName);
-        await File.WriteAllBytesAsync(fullPath, bytes, cancellationToken);
-        return fullPath;
+        return await _attachmentStorage.SaveAsync(bytes, relativePath, cancellationToken);
     }
 
     private static byte[] ParseSignatureBytes(string signatureDataUrl)
@@ -547,23 +548,21 @@ public class RefusalRegisterService : IRefusalRegisterService
         }
     }
 
-    private static async Task<string?> ReadSignatureDataUrlAsync(string? signatureImagePath, CancellationToken cancellationToken)
+    private async Task<string?> ReadSignatureDataUrlAsync(string? signatureImagePath, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(signatureImagePath))
+        // The stored path can be "blob://…" (new uploads going forward) or an absolute filesystem
+        // path (legacy data from before the storage refactor). IAttachmentStorageService handles
+        // both forms.
+        var bytes = await _attachmentStorage.ReadAsync(signatureImagePath, cancellationToken);
+        if (bytes is null)
         {
             return null;
         }
 
-        if (!File.Exists(signatureImagePath))
-        {
-            return null;
-        }
-
-        var bytes = await File.ReadAllBytesAsync(signatureImagePath, cancellationToken);
         return $"data:image/png;base64,{Convert.ToBase64String(bytes)}";
     }
 
-    private static void TryDeleteSignatureImage(string? signatureImagePath)
+    private void TryDeleteSignatureImage(string? signatureImagePath)
     {
         if (string.IsNullOrWhiteSpace(signatureImagePath))
         {
@@ -572,10 +571,8 @@ public class RefusalRegisterService : IRefusalRegisterService
 
         try
         {
-            if (File.Exists(signatureImagePath))
-            {
-                File.Delete(signatureImagePath);
-            }
+            // Fire-and-forget on the blob/local path; failures must not affect the business flow.
+            _ = _attachmentStorage.DeleteIfExistsAsync(signatureImagePath, CancellationToken.None);
         }
         catch
         {
@@ -583,22 +580,6 @@ public class RefusalRegisterService : IRefusalRegisterService
         }
     }
 
-    private static string ResolveProjectRootPath()
-    {
-        var current = new DirectoryInfo(Directory.GetCurrentDirectory());
-        while (current is not null)
-        {
-            var solutionPath = Path.Combine(current.FullName, "ScratchCard.slnx");
-            if (File.Exists(solutionPath))
-            {
-                return current.FullName;
-            }
-
-            current = current.Parent;
-        }
-
-        return Directory.GetCurrentDirectory();
-    }
 }
 
 
