@@ -2,6 +2,11 @@ import React, { PropsWithChildren, useCallback, useEffect, useMemo, useRef, useS
 import { Animated, Keyboard, Platform, RefreshControlProps, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { appTheme } from "../ui/theme";
+import { useIsTablet } from "../utils/useIsTablet";
+
+// On tablet, content is capped at this width and centred. Phones (width < 768) are
+// untouched — the existing edge-to-edge layout is preserved exactly.
+const TABLET_CONTENT_MAX_WIDTH = 720;
 
 type ScreenContainerProps = PropsWithChildren<{
   centerContent?: boolean;
@@ -22,6 +27,7 @@ export function ScreenContainer({
   const entrance = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
+  const isTablet = useIsTablet();
   const [keyboardInset, setKeyboardInset] = useState(0);
   // On Android the sticky footer must clear the system navigation bar; SafeAreaView's bottom edge
   // doesn't reliably lift an absolutely-positioned child there, so offset it explicitly.
@@ -83,8 +89,12 @@ export function ScreenContainer({
       {
         paddingBottom: baseBottomPadding + keyboardInset + footerReserve,
       },
+      // Tablet-only: stop content stretching to the full ~1000px viewport width — cap and centre.
+      isTablet
+        ? { maxWidth: TABLET_CONTENT_MAX_WIDTH, alignSelf: "center" as const, width: "100%" as const }
+        : null,
     ],
-    [baseBottomPadding, footerReserve, keyboardInset]
+    [baseBottomPadding, footerReserve, keyboardInset, isTablet]
   );
 
   return (
@@ -115,13 +125,24 @@ export function ScreenContainer({
           style={[
             styles.bodyNoScroll,
             { paddingBottom: keyboardInset + footerReserve, opacity: entrance, transform: [{ translateY }] },
+            isTablet
+              ? { maxWidth: TABLET_CONTENT_MAX_WIDTH, alignSelf: "center" as const, width: "100%" as const }
+              : null,
           ]}
         >
           {children}
         </Animated.View>
       )}
       {footer ? (
-        <View style={[styles.footerShell, { bottom: footerBottom }]}>
+        <View
+          style={[
+            styles.footerShell,
+            { bottom: footerBottom },
+            // Match the centred content column on tablet so the sticky footer doesn't
+            // float against the right edge.
+            isTablet ? { maxWidth: TABLET_CONTENT_MAX_WIDTH, alignSelf: "center" as const, left: undefined, right: undefined, width: "100%" } : null,
+          ]}
+        >
           {footer}
         </View>
       ) : null}

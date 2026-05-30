@@ -69,6 +69,7 @@ import { MainStackParamList, RootStackParamList } from "../types/navigation";
 import { appTheme } from "../ui/theme";
 import { appInfo } from "../config/appInfo";
 import { getRoleDisplayName } from "../utils/roleLabels";
+import { useIsTablet } from "../utils/useIsTablet";
 
 type MainDrawerParamList = {
   MainStack: NavigatorScreenParams<MainStackParamList> | undefined;
@@ -1006,6 +1007,11 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
 }
 
 export function MainNavigator() {
+  // Tablet: widen the drawer so the menu doesn't look phone-pinned to one side. Phone keeps
+  // the existing 332-px drawer exactly.
+  const isTablet = useIsTablet();
+  const drawerWidth = isTablet ? 380 : 332;
+
   return (
     <BestEntryProvider>
       <View style={styles.navigatorShell}>
@@ -1016,7 +1022,7 @@ export function MainNavigator() {
             drawerType: "slide",
             overlayColor: appTheme.colors.overlaySoft,
             drawerStyle: {
-              width: 332,
+              width: drawerWidth,
               backgroundColor: appTheme.colors.surface,
             },
             swipeEdgeWidth: 48,
