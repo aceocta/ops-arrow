@@ -534,6 +534,7 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
   const completedRows = computedRows.filter((row) => Boolean(entries[row.pack.id]?.closingSerialNumber) && !row.hasError).length;
   const errorRows = computedRows.filter((row) => row.hasError).length;
   const pendingRows = computedRows.filter((row) => !entries[row.pack.id]?.closingSerialNumber).length;
+  const scannedRows = computedRows.length - pendingRows;
   const pendingPackHints = useMemo(
     () =>
       computedRows
@@ -699,6 +700,19 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
           {/* </View> */}
           {/* <Text style={styles.meta}>{readinessMessage}</Text> */}
 
+          {computedRows.length > 0 ? (
+            <View style={styles.scanProgressRow}>
+              <Text style={styles.scanProgressText}>
+                {scannedRows} scanned · {pendingRows} pending
+              </Text>
+              {errorRows > 0 ? (
+                <Text style={[styles.scanProgressText, styles.finalizeProgressTextError]}>
+                  {errorRows} error{errorRows === 1 ? "" : "s"}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+
               {isCameraScanningEnabled ? (
             <PrimaryButton
               label="Scan Any Pack"
@@ -742,6 +756,9 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
         {computedRows.map((row) => {
           const entry = entries[row.pack.id];
           const hasClosingSerial = Boolean(entry?.closingSerialNumber?.trim());
+          // Pre-fill the opening serial as a suggested starting point so the box is never blank.
+          // It is shown muted and the pack stays "Pending" until actually scanned or edited.
+          const openingSerialDefault = normalizeClosingSerialInput(row.pack.currentSerialNumber);
           const isFlagged =
             entry?.entryMethod === EntryMethod.Manual ||
             (entry?.originalScannedSerialNumber &&
@@ -784,8 +801,13 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
               <View style={styles.scanInputRow}>
                 <View style={styles.scanInputCell}>
                   <TextInput
-                    style={[styles.input, styles.inlineSerialInput, !isManualClosingSerialEnabled ? styles.inputDisabled : null]}
-                    value={entry?.closingSerialNumber ?? ""}
+                    style={[
+                      styles.input,
+                      styles.inlineSerialInput,
+                      !hasClosingSerial ? styles.inlineSerialInputDefault : null,
+                      !isManualClosingSerialEnabled ? styles.inputDisabled : null,
+                    ]}
+                    value={entry?.closingSerialNumber || openingSerialDefault}
                     placeholder={isManualClosingSerialEnabled ? "Serial no" : "Scan required"}
                     placeholderTextColor={appTheme.colors.textSubtle}
                     keyboardType="numeric"
@@ -1212,6 +1234,22 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 38,
     paddingVertical: 6,
+  },
+  inlineSerialInputDefault: {
+    // Suggested opening serial — muted so it reads as a default, not a confirmed entry.
+    color: appTheme.colors.textSubtle,
+  },
+  scanProgressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.xs,
+  },
+  scanProgressText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 16,
   },
   readonly: {
     color: appTheme.colors.info,
