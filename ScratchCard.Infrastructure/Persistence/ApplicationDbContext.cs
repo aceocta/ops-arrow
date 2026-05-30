@@ -147,7 +147,13 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.Entity<Shop>(entity =>
         {
-            entity.HasIndex(x => new { x.CompanyId, x.ShopName });
+            // Shop name uniqueness is scoped to a company — two different companies can have a
+            // shop with the same name, but within one company names must be unique. Filtered so
+            // soft-deleted rows don't block reuse, and unassigned (CompanyId IS NULL) shops
+            // never trigger the constraint.
+            entity.HasIndex(x => new { x.CompanyId, x.ShopName })
+                .IsUnique()
+                .HasFilter("[IsDeleted] = 0 AND [CompanyId] IS NOT NULL");
             entity.Property(x => x.ShopName).HasMaxLength(200).IsRequired();
             entity.Property(x => x.AddressLine1).HasMaxLength(200).IsRequired();
             entity.Property(x => x.AddressLine2).HasMaxLength(200);
