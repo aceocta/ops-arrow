@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { RouteProp, useRoute } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -184,6 +184,7 @@ export function TemperatureLogScreen() {
   const [notes, setNotes] = useState("");
   const [actionTaken, setActionTaken] = useState("");
   const [textEditorField, setTextEditorField] = useState<"notes" | "action" | null>(null);
+  const initialsRef = useRef<TextInput>(null);
   const [textEditorValue, setTextEditorValue] = useState("");
   const [isLogEntryModalVisible, setIsLogEntryModalVisible] = useState(false);
   const [dailyFilter, setDailyFilter] = useState<DailyFilter>("all");
@@ -747,14 +748,19 @@ export function TemperatureLogScreen() {
                     value={temperatureCelsius}
                     onChangeText={setTemperatureCelsius}
                     keyboardType="decimal-pad"
+                    returnKeyType="next"
+                    submitBehavior="submit"
+                    onSubmitEditing={() => initialsRef.current?.focus()}
                   />
                 </View>
                 <View style={styles.entryColumn}>
                   <FloatingLabelInput
+                    ref={initialsRef}
                     label="Initials"
                     value={checkedByInitials}
                     onChangeText={setCheckedByInitials}
                     autoCapitalize="characters"
+                    returnKeyType="done"
                   />
                 </View>
               </View>

@@ -25,6 +25,7 @@ export function TillsConfigScreen() {
 
   const [newName, setNewName] = React.useState("");
   const [newCode, setNewCode] = React.useState("");
+  const codeInputRef = React.useRef<TextInput>(null);
 
   const createMutation = useMutation({
     mutationFn: () => createTill({ shopId: shopId as string, name: newName.trim(), code: newCode.trim() || undefined }),
@@ -79,14 +80,19 @@ export function TillsConfigScreen() {
             placeholder="Name"
             placeholderTextColor={appTheme.colors.textSubtle}
             editable={!createMutation.isPending}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => codeInputRef.current?.focus()}
           />
           <TextInput
+            ref={codeInputRef}
             style={[styles.input, styles.codeInput]}
             value={newCode}
             onChangeText={setNewCode}
             placeholder="Code (optional)"
             placeholderTextColor={appTheme.colors.textSubtle}
             editable={!createMutation.isPending}
+            returnKeyType="done"
           />
         </View>
         <PrimaryButton

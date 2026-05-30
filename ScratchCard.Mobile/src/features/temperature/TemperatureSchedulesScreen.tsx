@@ -57,6 +57,8 @@ export function TemperatureSchedulesScreen() {
   const [label, setLabel] = React.useState("");
   const [hour, setHour] = React.useState("10");
   const [minute, setMinute] = React.useState("00");
+  const hourRef = React.useRef<TextInput>(null);
+  const minuteRef = React.useRef<TextInput>(null);
   const [tolerance, setTolerance] = React.useState(30);
   const [unitId, setUnitId] = React.useState<string | undefined>(undefined);
 
@@ -137,11 +139,16 @@ export function TemperatureSchedulesScreen() {
           placeholder="Label (e.g. Morning, Evening, Closing)"
           placeholderTextColor={appTheme.colors.textSubtle}
           editable={!createMutation.isPending}
+          autoCapitalize="words"
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => hourRef.current?.focus()}
         />
 
         <View style={styles.timeRow}>
           <Text style={styles.timeLabel}>Time</Text>
           <TextInput
+            ref={hourRef}
             style={[styles.input, styles.timeInput]}
             value={hour}
             onChangeText={(t) => setHour(t.replace(/\D/g, "").slice(0, 2))}
@@ -150,9 +157,13 @@ export function TemperatureSchedulesScreen() {
             keyboardType="number-pad"
             maxLength={2}
             editable={!createMutation.isPending}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => minuteRef.current?.focus()}
           />
           <Text style={styles.timeColon}>:</Text>
           <TextInput
+            ref={minuteRef}
             style={[styles.input, styles.timeInput]}
             value={minute}
             onChangeText={(t) => setMinute(t.replace(/\D/g, "").slice(0, 2))}
@@ -161,6 +172,7 @@ export function TemperatureSchedulesScreen() {
             keyboardType="number-pad"
             maxLength={2}
             editable={!createMutation.isPending}
+            returnKeyType="done"
           />
         </View>
 

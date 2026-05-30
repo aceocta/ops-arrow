@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+﻿import React, { useRef, useState } from "react";
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createTemperatureUnit, listTemperatureUnits, updateTemperatureUnit } from "../../api/temperatureLogsApi";
@@ -54,6 +54,13 @@ export function TemperatureUnitsScreen() {
   const [editMaxTemp, setEditMaxTemp] = useState("5");
   const [editLocation, setEditLocation] = useState("");
   const [editIsActive, setEditIsActive] = useState(true);
+
+  const newMinTempRef = useRef<TextInput>(null);
+  const newMaxTempRef = useRef<TextInput>(null);
+  const newLocationRef = useRef<TextInput>(null);
+  const editMinTempRef = useRef<TextInput>(null);
+  const editMaxTempRef = useRef<TextInput>(null);
+  const editLocationRef = useRef<TextInput>(null);
 
   const unitsQuery = useQuery({
     queryKey: ["temperature-units", shopId],
@@ -206,6 +213,10 @@ export function TemperatureUnitsScreen() {
               label="Unit name (e.g. Front Fridge)"
               value={newUnitName}
               onChangeText={setNewUnitName}
+              autoCapitalize="words"
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => newMinTempRef.current?.focus()}
             />
             <Text style={styles.fieldLabel}>Equipment Type</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.choiceRow}>
@@ -225,26 +236,37 @@ export function TemperatureUnitsScreen() {
             <View style={styles.row}>
               <View style={{ flex: 1 }}>
                 <FloatingLabelInput
+                  ref={newMinTempRef}
                   label="Min °C"
                   value={newMinTemp}
                   onChangeText={(value) => setNewMinTemp(sanitizeSignedDecimal(value))}
                   keyboardType="numbers-and-punctuation"
+                  returnKeyType="next"
+                  submitBehavior="submit"
+                  onSubmitEditing={() => newMaxTempRef.current?.focus()}
                 />
               </View>
               <View style={{ flex: 1 }}>
                 <FloatingLabelInput
+                  ref={newMaxTempRef}
                   label="Max °C"
                   value={newMaxTemp}
                   onChangeText={(value) => setNewMaxTemp(sanitizeSignedDecimal(value))}
                   keyboardType="numbers-and-punctuation"
+                  returnKeyType="next"
+                  submitBehavior="submit"
+                  onSubmitEditing={() => newLocationRef.current?.focus()}
                 />
               </View>
             </View>
 
             <FloatingLabelInput
+              ref={newLocationRef}
               label="Location (optional)"
               value={newLocation}
               onChangeText={setNewLocation}
+              autoCapitalize="words"
+              returnKeyType="done"
             />
             <View style={styles.modalActions}>
               <PrimaryButton
@@ -279,6 +301,10 @@ export function TemperatureUnitsScreen() {
               label="Unit name"
               value={editUnitName}
               onChangeText={setEditUnitName}
+              autoCapitalize="words"
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => editMinTempRef.current?.focus()}
             />
             <Text style={styles.fieldLabel}>Equipment Type</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.choiceRow}>
@@ -298,26 +324,37 @@ export function TemperatureUnitsScreen() {
             <View style={styles.row}>
               <View style={{ flex: 1 }}>
                 <FloatingLabelInput
+                  ref={editMinTempRef}
                   label="Min °C"
                   value={editMinTemp}
                   onChangeText={(value) => setEditMinTemp(sanitizeSignedDecimal(value))}
                   keyboardType="numbers-and-punctuation"
+                  returnKeyType="next"
+                  submitBehavior="submit"
+                  onSubmitEditing={() => editMaxTempRef.current?.focus()}
                 />
               </View>
               <View style={{ flex: 1 }}>
                 <FloatingLabelInput
+                  ref={editMaxTempRef}
                   label="Max °C"
                   value={editMaxTemp}
                   onChangeText={(value) => setEditMaxTemp(sanitizeSignedDecimal(value))}
                   keyboardType="numbers-and-punctuation"
+                  returnKeyType="next"
+                  submitBehavior="submit"
+                  onSubmitEditing={() => editLocationRef.current?.focus()}
                 />
               </View>
             </View>
 
             <FloatingLabelInput
+              ref={editLocationRef}
               label="Location (optional)"
               value={editLocation}
               onChangeText={setEditLocation}
+              autoCapitalize="words"
+              returnKeyType="done"
             />
 
             <Text style={styles.fieldLabel}>Status</Text>

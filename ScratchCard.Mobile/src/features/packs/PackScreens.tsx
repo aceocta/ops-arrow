@@ -707,6 +707,11 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
   const [notes, setNotes] = useState("");
   const [activateOnCreate, setActivateOnCreate] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
+
+  const displayNumberRef = useRef<TextInput>(null);
+  const totalTicketsRef = useRef<TextInput>(null);
+  const startSerialRef = useRef<TextInput>(null);
+  const endSerialRef = useRef<TextInput>(null);
   const lastAutoSerialRangeRef = useRef<{ start: string; end: string } | null>(null);
   const awaitingPackScanRef = useRef(false);
   const hasAutoOpenedScannerRef = useRef(false);
@@ -1096,6 +1101,9 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
               placeholder="Pack number (ex: 0009477)"
               placeholderTextColor={appTheme.colors.textSubtle}
               autoCapitalize="characters"
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => displayNumberRef.current?.focus()}
             />
             <Pressable
               style={[styles.inlineScanButton, !shopId && styles.inlineScanButtonDisabled]}
@@ -1136,18 +1144,26 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
           <View style={styles.splitFieldRow}>
             <View style={styles.splitFieldCell}>
               <FloatingLabelInput
+                ref={displayNumberRef}
                 label={maxDisplayCount > 0 ? `Display number (1-${maxDisplayCount})` : "Display number"}
                 value={displayNumber}
                 onChangeText={setDisplayNumber}
                 keyboardType="number-pad"
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => totalTicketsRef.current?.focus()}
               />
             </View>
             <View style={styles.splitFieldCell}>
               <FloatingLabelInput
+                ref={totalTicketsRef}
                 label="Total tickets"
                 value={totalTickets}
                 onChangeText={setTotalTickets}
                 keyboardType="number-pad"
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => startSerialRef.current?.focus()}
               />
             </View>
           </View>
@@ -1160,16 +1176,22 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
           <View style={styles.splitFieldRow}>
             <View style={styles.splitFieldCell}>
               <FloatingLabelInput
+                ref={startSerialRef}
                 label="Start serial number"
                 value={startSerialNumber}
                 onChangeText={setStartSerialNumber}
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => endSerialRef.current?.focus()}
               />
             </View>
             <View style={styles.splitFieldCell}>
               <FloatingLabelInput
+                ref={endSerialRef}
                 label="End serial number"
                 value={endSerialNumber}
                 onChangeText={setEndSerialNumber}
+                returnKeyType="done"
               />
             </View>
           </View>

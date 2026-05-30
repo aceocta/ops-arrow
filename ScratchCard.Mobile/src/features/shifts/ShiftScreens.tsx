@@ -456,6 +456,8 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
                 label="Shift name"
                 value={shiftName}
                 onChangeText={setShiftName}
+                autoCapitalize="words"
+                returnKeyType="done"
               />
             ) : (
               <View style={styles.item}>

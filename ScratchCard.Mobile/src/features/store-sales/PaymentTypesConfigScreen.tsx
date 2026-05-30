@@ -31,6 +31,7 @@ export function PaymentTypesConfigScreen() {
 
   const [name, setName] = React.useState("");
   const [keywords, setKeywords] = React.useState("");
+  const keywordsRef = React.useRef<TextInput>(null);
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["shop-payment-types", shopId] });
@@ -107,14 +108,19 @@ export function PaymentTypesConfigScreen() {
           placeholder="Name"
           placeholderTextColor={appTheme.colors.textSubtle}
           editable={!createMutation.isPending}
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => keywordsRef.current?.focus()}
         />
         <TextInput
+          ref={keywordsRef}
           style={styles.input}
           value={keywords}
           onChangeText={setKeywords}
           placeholder="Keywords (optional)"
           placeholderTextColor={appTheme.colors.textSubtle}
           editable={!createMutation.isPending}
+          returnKeyType="done"
         />
         <PrimaryButton
           label={createMutation.isPending ? "Adding..." : "Add payment type"}

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as ImagePicker from "expo-image-picker";
 import {
   Alert,
@@ -88,6 +88,8 @@ export function ReceiveDeliveryScreen() {
   const [supplierName, setSupplierName] = useState("");
   const [deliveryReference, setDeliveryReference] = useState("");
   const [notes, setNotes] = useState("");
+  const deliveryReferenceRef = useRef<TextInput>(null);
+  const notesRef = useRef<TextInput>(null);
   const [packRows, setPackRows] = useState<DraftPackRow[]>([createDefaultPackRow(1, SellingOrder.Ascending)]);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [editingRow, setEditingRow] = useState<DraftPackRow | null>(null);
@@ -465,9 +467,31 @@ export function ReceiveDeliveryScreen() {
           <Text style={styles.meta}>Pack Selling Order: {configuredPackSellingOrder}</Text>
           <Text style={styles.fieldLabel}>Delivery Date</Text>
           <DateTimeField mode="date" value={deliveryDate} onChange={setDeliveryDate} />
-          <FloatingLabelInput label="Supplier name" value={supplierName} onChangeText={setSupplierName} />
-          <FloatingLabelInput label="Delivery reference" value={deliveryReference} onChangeText={setDeliveryReference} />
-          <FloatingLabelInput label="Notes (optional)" value={notes} onChangeText={setNotes} />
+          <FloatingLabelInput
+            label="Supplier name"
+            value={supplierName}
+            onChangeText={setSupplierName}
+            autoCapitalize="words"
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => deliveryReferenceRef.current?.focus()}
+          />
+          <FloatingLabelInput
+            ref={deliveryReferenceRef}
+            label="Delivery reference"
+            value={deliveryReference}
+            onChangeText={setDeliveryReference}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => notesRef.current?.focus()}
+          />
+          <FloatingLabelInput
+            ref={notesRef}
+            label="Notes (optional)"
+            value={notes}
+            onChangeText={setNotes}
+            returnKeyType="done"
+          />
           <View style={styles.rowActions}>
             <Pressable
               style={styles.actionButton}

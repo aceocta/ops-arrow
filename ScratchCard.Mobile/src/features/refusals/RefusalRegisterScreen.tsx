@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -277,6 +277,8 @@ export function RefusalRegisterScreen() {
   const [personDescription, setPersonDescription] = useState("");
   const [observations, setObservations] = useState("");
   const [staffMemberInitials, setStaffMemberInitials] = useState("");
+  const personDescriptionRef = useRef<TextInput>(null);
+  const staffRef = useRef<TextInput>(null);
   const [signatureDataUrl, setSignatureDataUrl] = useState("");
   const [isSignatureModalVisible, setIsSignatureModalVisible] = useState(false);
 
@@ -491,6 +493,9 @@ export function RefusalRegisterScreen() {
           label="Refused product"
           value={product}
           onChangeText={setProduct}
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => personDescriptionRef.current?.focus()}
         />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
           {productSuggestions.map((item) => (
@@ -506,6 +511,7 @@ export function RefusalRegisterScreen() {
 
         <Text style={styles.fieldLabel}>Name of person or description</Text>
         <TextInput
+          ref={personDescriptionRef}
           style={[styles.input, styles.textArea]}
           value={personDescription}
           onChangeText={setPersonDescription}
@@ -527,10 +533,12 @@ export function RefusalRegisterScreen() {
         />
 
         <FloatingLabelInput
+          ref={staffRef}
           label="Staff member full name"
           value={staffMemberInitials}
           onChangeText={setStaffMemberInitials}
           autoCapitalize="words"
+          returnKeyType="done"
         />
 
         <Text style={styles.fieldLabel}>Staff Signature</Text>

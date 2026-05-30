@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from "react";
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useMemo, useRef, useState } from "react";
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { RouteProp, useRoute } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -71,6 +71,8 @@ export function SafeDropScreen() {
   const [amount, setAmount] = useState("");
   const [droppedByName, setDroppedByName] = useState("");
   const [amountError, setAmountError] = useState<string | undefined>(undefined);
+  const amountRef = useRef<TextInput>(null);
+  const droppedByNameRef = useRef<TextInput>(null);
 
   const addMutation = useMutation({
     mutationFn: async () => {
@@ -157,8 +159,12 @@ export function SafeDropScreen() {
             value={canisterNumber}
             onChangeText={setCanisterNumber}
             editable={!addMutation.isPending}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => amountRef.current?.focus()}
           />
           <FloatingLabelInput
+            ref={amountRef}
             label="Amount"
             prefix="£"
             value={amount}
@@ -169,12 +175,18 @@ export function SafeDropScreen() {
             keyboardType="decimal-pad"
             editable={!addMutation.isPending}
             error={amountError}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => droppedByNameRef.current?.focus()}
           />
           <FloatingLabelInput
+            ref={droppedByNameRef}
             label={defaultDroppedByName ? `Dropped by (default: ${defaultDroppedByName})` : "Dropped by"}
             value={droppedByName}
             onChangeText={setDroppedByName}
             editable={!addMutation.isPending}
+            autoCapitalize="words"
+            returnKeyType="done"
           />
           <PrimaryButton
             label={addMutation.isPending ? "Saving..." : "Add Safe Drop"}
