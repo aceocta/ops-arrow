@@ -809,16 +809,45 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
                       !hasClosingSerial ? styles.inlineSerialInputDefault : null,
                       !isManualClosingSerialEnabled ? styles.inputDisabled : null,
                     ]}
-                    value={entry?.closingSerialNumber || openingSerialDefault}
-                    placeholder={isManualClosingSerialEnabled ? "Serial no" : "Scan required"}
+                    // Display the opening serial as the initial value so the user immediately
+                    // sees where the pack currently sits. On focus, if the field still shows the
+                    // (unedited) opening default, clear it so the first keystroke goes into an
+                    // empty input — that's the only reliable way to make this editable on
+                    // Android numeric keyboards, where selectTextOnFocus isn't honoured.
+                    value={entry?.closingSerialNumber ?? openingSerialDefault}
+                    placeholder="Serial no"
                     placeholderTextColor={appTheme.colors.textSubtle}
                     keyboardType="numeric"
-                    editable={isManualClosingSerialEnabled}
+                    editable={!isSubmitting}
                     returnKeyType="done"
-                    onChangeText={(value) => {
-                      if (!isManualClosingSerialEnabled) {
-                        return;
+                    onFocus={() => {
+                      // entry is undefined → user hasn't typed yet → clear the pre-fill so
+                      // they type into a blank field instead of appending to the suggestion.
+                      if (entry?.closingSerialNumber === undefined) {
+                        setEntries((previous) => ({
+                          ...previous,
+                          [row.pack.id]: {
+                            closingSerialNumber: "",
+                            originalScannedSerialNumber: previous[row.pack.id]?.originalScannedSerialNumber,
+                            entryMethod: previous[row.pack.id]?.entryMethod ?? EntryMethod.Manual,
+                            manualEntryReason: previous[row.pack.id]?.manualEntryReason,
+                          },
+                        }));
                       }
+                    }}
+                    onBlur={() => {
+                      // If the user focused and tapped away without typing anything, drop the
+                      // empty entry so the opening default re-displays and the row stays Pending.
+                      const current = entry?.closingSerialNumber;
+                      if (current !== undefined && current.trim().length === 0) {
+                        setEntries((previous) => {
+                          const next = { ...previous };
+                          delete next[row.pack.id];
+                          return next;
+                        });
+                      }
+                    }}
+                    onChangeText={(value) => {
                       const normalizedValue = normalizeClosingSerialInput(value);
 
                       setEntries((previous) => ({
