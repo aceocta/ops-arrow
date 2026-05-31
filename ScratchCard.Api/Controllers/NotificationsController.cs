@@ -47,4 +47,19 @@ public class NotificationsController : BaseApiController
         await _notificationLogService.UnregisterPushTokenAsync(request, cancellationToken);
         return Success(new { Unregistered = true });
     }
+
+    /// <summary>
+    /// Diagnostic: fires a known-good push to every active device token registered for the
+    /// supplied user and returns per-token success/failure detail (Firebase error verbatim on
+    /// failure). Bypasses plan gating — use it to verify the FCM credentials, the token
+    /// registration flow, and the device-side notification permission together in one call.
+    /// Platform-admin only because it can be used to send arbitrary notifications to any user.
+    /// </summary>
+    [HttpPost("push/test")]
+    [Authorize(Roles = RoleNames.PlatformAdmin)]
+    public async Task<IActionResult> TestPush([FromQuery] Guid userId, CancellationToken cancellationToken)
+    {
+        var result = await _notificationLogService.SendTestPushAsync(userId, cancellationToken);
+        return Success(result);
+    }
 }

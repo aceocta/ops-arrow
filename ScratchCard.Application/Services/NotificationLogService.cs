@@ -15,7 +15,9 @@ public class NotificationLogService : INotificationLogService
     private readonly IRepository<NotificationLog> _notificationRepository;
     private readonly IRepository<UserPushToken> _userPushTokenRepository;
     private readonly IRepository<ShopUser> _shopUserRepository;
+    private readonly IRepository<User> _userRepository;
     private readonly INotificationService _notificationService;
+    private readonly IPushSender _pushSender;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -23,14 +25,18 @@ public class NotificationLogService : INotificationLogService
         IRepository<NotificationLog> notificationRepository,
         IRepository<UserPushToken> userPushTokenRepository,
         IRepository<ShopUser> shopUserRepository,
+        IRepository<User> userRepository,
         INotificationService notificationService,
+        IPushSender pushSender,
         ICurrentUserService currentUserService,
         IUnitOfWork unitOfWork)
     {
         _notificationRepository = notificationRepository;
         _userPushTokenRepository = userPushTokenRepository;
         _shopUserRepository = shopUserRepository;
+        _userRepository = userRepository;
         _notificationService = notificationService;
+        _pushSender = pushSender;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
     }
@@ -168,5 +174,93 @@ public class NotificationLogService : INotificationLogService
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<TestPushResultDto> SendTestPushAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await _userRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.Id == userId)
+            .Select(x => new { x.Id, x.Email })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new AppException("user_not_found", "User not found.", 404);
+
+        var tokens = await _userPushTokenRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.UserId == userId && x.IsActive)
+            .OrderByDescending(x => x.ModifiedOn ?? x.CreatedOn)
+            .ToListAsync(cancellationToken);
+
+        var perToken = new List<TestPushTokenResult>(tokens.Count);
+        var subject = "Ops Arrow push test";
+        var body = $"Diagnostic ping at {DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm:ss} UTC. If this notification reached your device, the push pipeline is healthy end-to-end.";
+
+        foreach (var t in tokens)
+        {
+            var message = new NotificationMessage
+            {
+                ShopId = t.ShopId,
+                // Reuse the closest fitting enum value for the diagnostic — there's no dedicated
+                // "system test" type and adding one would force a schema/migration change just for
+                // a developer tool.
+                NotificationType = NotificationType.ShiftCloseSummary,
+                Channel = NotificationChannel.InApp,
+                Recipient = t.PushToken,
+                Subject = subject,
+                Body = body,
+                IsBodyHtml = false,
+                RelatedEntityName = nameof(UserPushToken),
+                RelatedEntityId = t.Id,
+            };
+
+            // Bypass NotificationService.SendAsync (which applies plan gating + persists a
+            // NotificationLog row) — for a diagnostic we want raw per-token success/failure
+            // with the Firebase error verbatim, regardless of the shop's plan tier.
+            bool sent;
+            string? failureReason;
+            try
+            {
+                await _pushSender.SendAsync(message, cancellationToken);
+                sent = true;
+                failureReason = null;
+            }
+            catch (Exception ex)
+            {
+                sent = false;
+                failureReason = ex.Message;
+            }
+
+            perToken.Add(new TestPushTokenResult
+            {
+                TokenId = t.Id,
+                Platform = t.Platform,
+                DeviceName = t.DeviceName,
+                // Surface only a head + tail so the response is human-readable but the full
+                // token is never echoed back (avoids accidental leakage in logs / screenshots).
+                TokenPreview = PreviewToken(t.PushToken),
+                Sent = sent,
+                FailureReason = failureReason,
+                CreatedOn = t.CreatedOn,
+                LastUsedOn = t.ModifiedOn,
+            });
+        }
+
+        return new TestPushResultDto
+        {
+            UserId = user.Id,
+            UserEmail = user.Email,
+            TokensRegistered = perToken.Count,
+            SentSuccessfully = perToken.Count(x => x.Sent),
+            FailedCount = perToken.Count(x => !x.Sent),
+            PerToken = perToken,
+        };
+    }
+
+    private static string PreviewToken(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token)) return string.Empty;
+        var trimmed = token.Trim();
+        if (trimmed.Length <= 16) return trimmed;
+        return $"{trimmed[..8]}…{trimmed[^6..]}";
     }
 }

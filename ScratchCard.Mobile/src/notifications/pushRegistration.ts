@@ -1,5 +1,5 @@
 import Constants from "expo-constants";
-import { Platform } from "react-native";
+import { PermissionsAndroid, Platform } from "react-native";
 
 export type FirebaseDevicePushToken = {
   token: string;
@@ -27,6 +27,16 @@ export async function resolveFirebasePushTokenAsync(): Promise<FirebaseDevicePus
         authStatus === messagingModule.AuthorizationStatus.AUTHORIZED ||
         authStatus === messagingModule.AuthorizationStatus.PROVISIONAL;
       if (!hasPermission) {
+        return null;
+      }
+    } else if (Platform.OS === "android" && typeof Platform.Version === "number" && Platform.Version >= 33) {
+      // Android 13 (API 33) introduced the POST_NOTIFICATIONS runtime permission. Without it,
+      // FCM tokens still register and the backend's send call still succeeds — but the OS drops
+      // the notification on display, so it looks broken with no error anywhere. Request explicitly.
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+      );
+      if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
         return null;
       }
     }

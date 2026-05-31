@@ -378,6 +378,12 @@ public interface INotificationLogService
     Task RetryFailedAsync(Guid notificationLogId, CancellationToken cancellationToken = default);
     Task RegisterPushTokenAsync(RegisterPushTokenRequest request, CancellationToken cancellationToken = default);
     Task UnregisterPushTokenAsync(UnregisterPushTokenRequest request, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Diagnostic: fires a known-good push to every registered token of the given user and
+    /// returns per-token success/failure detail (Firebase error verbatim on failure). Intended
+    /// for admins / dev to verify the push pipeline end-to-end when "it just isn't working".
+    /// </summary>
+    Task<TestPushResultDto> SendTestPushAsync(Guid userId, CancellationToken cancellationToken = default);
 }
 
 public interface ILookupService
