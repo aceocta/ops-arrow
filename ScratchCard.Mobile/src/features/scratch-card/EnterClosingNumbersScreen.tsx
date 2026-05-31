@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useNetInfo } from "@react-native-community/netinfo";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -261,6 +262,9 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
   // Mirror of touchedPackIds for the scan subscription callback (which is set up once in a
   // useEffect and can't read the live state directly).
   const touchedPackIdsRef = useRef<Set<string>>(new Set());
+  // Per-pack TextInput refs so the "Next" return key (Android) and the inline → button (iOS,
+  // where the numeric keypad has no return key) can focus the next pack's input.
+  const inputRefs = useRef<Record<string, TextInput | null>>({});
   const gameNameTooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function openBarcodeScanner(params: {
@@ -826,7 +830,7 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
           </View>
         ) : null}
 
-        {computedRows.map((row) => {
+        {computedRows.map((row, rowIndex) => {
           const entry = entries[row.pack.id];
           const hasClosingSerial = Boolean(entry?.closingSerialNumber?.trim());
           // Pre-fill the opening serial as a suggested starting point so the box is never blank.
@@ -837,6 +841,13 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
             (entry?.originalScannedSerialNumber &&
               entry.originalScannedSerialNumber !== entry.closingSerialNumber);
           const isTouched = touchedPackIds.has(row.pack.id);
+          // Next pack in the visible order. Used to chain the Android numeric "Next" return key
+          // and the iOS inline arrow button.
+          const nextRow = rowIndex + 1 < computedRows.length ? computedRows[rowIndex + 1] : null;
+          const focusNextInput = () => {
+            if (!nextRow) return;
+            inputRefs.current[nextRow.pack.id]?.focus();
+          };
           const rowStatusLabel = row.hasError ? "Error" : isTouched ? "Ready" : "Pending";
           const rowStatusTone: "danger" | "success" | "warning" = row.hasError ? "danger" : isTouched ? "success" : "warning";
           const isPendingRow = rowStatusLabel === "Pending";
@@ -875,6 +886,9 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
               <View style={styles.scanInputRow}>
                 <View style={styles.scanInputCell}>
                   <TextInput
+                    ref={(el) => {
+                      inputRefs.current[row.pack.id] = el;
+                    }}
                     style={[
                       styles.input,
                       styles.inlineSerialInput,
@@ -890,7 +904,12 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
                     placeholderTextColor={appTheme.colors.textSubtle}
                     keyboardType="numeric"
                     editable={!isSubmitting}
-                    returnKeyType="done"
+                    // Android: number-pad keyboards include a return key, so "next" + onSubmitEditing
+                    // works natively. iOS: number-pad has no return key — the inline ⬇ button below
+                    // gives the same affordance there. "done" on the last row dismisses.
+                    returnKeyType={nextRow ? "next" : "done"}
+                    submitBehavior={nextRow ? "submit" : undefined}
+                    onSubmitEditing={focusNextInput}
                     onBlur={() => {
                       // If the user emptied the field and tapped away, snap it back to the
                       // opening serial (the seeded default) and revert the row to Pending so
@@ -938,6 +957,19 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
                     }}
                   />
                 </View>
+
+                {nextRow ? (
+                  <Pressable
+                    style={styles.nextPackButton}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Move to pack ${nextRow.pack.packNumber}`}
+                    onPress={focusNextInput}
+                    disabled={isSubmitting}
+                    hitSlop={4}
+                  >
+                    <Ionicons name="arrow-down" size={18} color={appTheme.colors.primary} />
+                  </Pressable>
+                ) : null}
 
                 <View style={styles.scanInputCell}>
                   <Pressable
@@ -1261,6 +1293,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 8,
+  },
+  nextPackButton: {
+    width: 38,
+    height: 38,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceBrandMuted,
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderBrandSoft,
+    alignItems: "center",
+    justifyContent: "center",
   },
   soldOutButtonText: {
     color: appTheme.colors.text,
