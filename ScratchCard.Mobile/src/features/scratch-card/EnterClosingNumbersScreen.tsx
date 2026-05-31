@@ -28,7 +28,10 @@ type Props = NativeStackScreenProps<MainStackParamList, "EnterClosingNumbers">;
 type EntryState = {
   closingSerialNumber: string;
   originalScannedSerialNumber?: string;
-  entryMethod: EntryMethod;
+  // Optional because the screen seeds a default entry per pack with the opening serial as the
+  // initial closing — that seeded entry has no real method until the user types, scans, or
+  // marks it sold out. Save flow checks `touchedPackIds` rather than this field.
+  entryMethod?: EntryMethod;
   manualEntryReason?: string;
 };
 
@@ -246,11 +249,18 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
   const netInfo = useNetInfo();
   const queryClient = useQueryClient();
   const [entries, setEntries] = useState<Record<string, EntryState>>({});
+  // Tracks packs the user has actually typed into or scanned. Lets us render the opening
+  // serial as the input's initial real value (rather than placeholder) while still keeping
+  // the row badge as "Pending" until the user explicitly acknowledges/changes it.
+  const [touchedPackIds, setTouchedPackIds] = useState<Set<string>>(new Set());
   const [scanStatus, setScanStatus] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [gameNameTooltipPackId, setGameNameTooltipPackId] = useState<string | null>(null);
   const packsRef = useRef<ScratchCardPack[]>([]);
   const entriesRef = useRef<Record<string, EntryState>>({});
+  // Mirror of touchedPackIds for the scan subscription callback (which is set up once in a
+  // useEffect and can't read the live state directly).
+  const touchedPackIdsRef = useRef<Set<string>>(new Set());
   const gameNameTooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function openBarcodeScanner(params: {
@@ -329,6 +339,21 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
   }, [entries]);
 
   useEffect(() => {
+    touchedPackIdsRef.current = touchedPackIds;
+  }, [touchedPackIds]);
+
+  // Small helper so scan / sold-out / future automated entry paths can mark a pack as
+  // user-acknowledged without each one having to remember to call setTouchedPackIds.
+  function markPackTouched(packId: string) {
+    setTouchedPackIds((prev) => {
+      if (prev.has(packId)) return prev;
+      const next = new Set(prev);
+      next.add(packId);
+      return next;
+    });
+  }
+
+  useEffect(() => {
     void (async () => {
       const draft = await getShiftDraft<{ entries: Record<string, EntryState> }>(shiftId);
       if (draft) {
@@ -338,7 +363,8 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
   }, [shiftId]);
 
   // Server-stored closing numbers are the source of truth — merge them in so the screen shows
-  // what was already saved (including from another device).
+  // what was already saved (including from another device). Persisted rows count as "touched"
+  // (the badge should be Ready, not Pending).
   useEffect(() => {
     if (!closingsQuery.data) {
       return;
@@ -355,7 +381,40 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
       }
       return next;
     });
+    setTouchedPackIds((prev) => {
+      const next = new Set(prev);
+      for (const closing of closingsQuery.data!) {
+        next.add(closing.packId);
+      }
+      return next;
+    });
   }, [closingsQuery.data]);
+
+  // Pre-fill each pack's closing with its opening serial as soon as the pack list arrives so
+  // the input box always shows a real, editable value (rather than a greyed-out placeholder).
+  // Only seeds packs that don't already have an entry — so server-saved values from the effect
+  // above and per-pack user edits both win over this default.
+  useEffect(() => {
+    const packs = packsQuery.data;
+    if (!packs || packs.length === 0) {
+      return;
+    }
+    setEntries((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const pack of packs) {
+        if (next[pack.id]) continue;
+        next[pack.id] = {
+          closingSerialNumber: normalizeClosingSerialInput(pack.currentSerialNumber),
+          originalScannedSerialNumber: undefined,
+          entryMethod: undefined,
+          manualEntryReason: undefined,
+        };
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [packsQuery.data]);
 
   useEffect(() => () => {
     if (gameNameTooltipTimerRef.current) {
@@ -404,8 +463,9 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
         const normalizedParsedSerial = normalizeScannedSerial(payload.parsedSerial);
         if (payload.packId && fallbackSerial) {
           const targetPackId = payload.packId;
-          const existingEntry = entriesRef.current[targetPackId];
-          if (existingEntry?.closingSerialNumber?.trim()) {
+          // "Already set" means the user has already entered/scanned a closing — not just the
+          // seeded opening default. Use the touched set, not the value, to gate re-scanning.
+          if (touchedPackIdsRef.current.has(targetPackId)) {
             setScanStatus("Closing serial is already set. Clear the textbox first if you need to rescan.");
             return;
           }
@@ -420,6 +480,7 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
               manualEntryReason: previous[targetPackId]?.manualEntryReason,
             },
           }));
+          markPackTouched(targetPackId);
           return;
         }
 
@@ -427,9 +488,8 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
         return;
       }
 
-      const existingEntry = entriesRef.current[matchedPack.id];
-      if (existingEntry?.closingSerialNumber?.trim()) {
-        // setScanStatus(`Closing serial already set for pack ${matchedPack.packNumber}. Clear it first to scan again.`);
+      if (touchedPackIdsRef.current.has(matchedPack.id)) {
+        // Already user-set — silently ignore so a stray rescan doesn't overwrite work.
         return;
       }
 
@@ -448,6 +508,7 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
               manualEntryReason: previous[matchedPack.id]?.manualEntryReason,
             },
           }));
+          markPackTouched(matchedPack.id);
           return;
         }
 
@@ -474,6 +535,7 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
           manualEntryReason: previous[matchedPack.id]?.manualEntryReason,
         },
       }));
+      markPackTouched(matchedPack.id);
     });
 
     return unsubscribe;
@@ -533,20 +595,23 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
     },
     { salesAmount: 0 }
   );
-  const completedRows = computedRows.filter((row) => Boolean(entries[row.pack.id]?.closingSerialNumber) && !row.hasError).length;
+  // "Completed" means the user has touched the row (typed, scanned, or marked sold out) AND
+  // the validation passes — not just "has a value". Every row has a seeded value (the opening
+  // serial), but a row the user hasn't acknowledged still counts as Pending.
+  const completedRows = computedRows.filter((row) => touchedPackIds.has(row.pack.id) && !row.hasError).length;
   const errorRows = computedRows.filter((row) => row.hasError).length;
-  const pendingRows = computedRows.filter((row) => !entries[row.pack.id]?.closingSerialNumber).length;
+  const pendingRows = computedRows.filter((row) => !touchedPackIds.has(row.pack.id)).length;
   const scannedRows = computedRows.length - pendingRows;
   const pendingPackHints = useMemo(
     () =>
       computedRows
-        .filter((row) => !entries[row.pack.id]?.closingSerialNumber)
+        .filter((row) => !touchedPackIds.has(row.pack.id))
         .map((row) => ({
           packId: row.pack.id,
           packNumber: row.pack.packNumber,
           label: `Display ${row.pack.displayNumber != null ? `#${row.pack.displayNumber}` : "-"} | Pack ${row.pack.packNumber}`,
         })),
-    [computedRows, entries]
+    [computedRows, touchedPackIds]
   );
   // A shift with zero active packs is finalisable as a no-sales close — there's nothing for
   // the shopkeeper to scan or enter, so blocking them would leave the shift in limbo.
@@ -566,9 +631,12 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
     }
 
     const packs = packsQuery.data ?? [];
+    // Only persist rows the user actually touched (typed/scanned/marked-sold-out). Seeded-only
+    // opening values shouldn't be auto-saved as closings — the user hasn't confirmed them.
     const toSave = packs
       .map((pack) => ({ pack, entry: entries[pack.id] }))
-      .filter((x): x is { pack: ScratchCardPack; entry: EntryState } => Boolean(x.entry?.closingSerialNumber));
+      .filter((x): x is { pack: ScratchCardPack; entry: EntryState } =>
+        Boolean(x.entry?.closingSerialNumber) && touchedPackIds.has(x.pack.id));
 
     if (toSave.length === 0) {
       Alert.alert("Nothing to save", "Enter at least one closing number first.");
@@ -576,7 +644,7 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
     }
 
     // Block any entered-but-invalid serial (out of range / negative sold).
-    const errored = computedRows.find((row) => entries[row.pack.id]?.closingSerialNumber && row.hasError);
+    const errored = computedRows.find((row) => touchedPackIds.has(row.pack.id) && row.hasError);
     if (errored) {
       Alert.alert("Validation", `Fix closing serial for pack ${errored.pack.packNumber}.`);
       return;
@@ -603,7 +671,10 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
           entryMethod: toApiEntryMethod(
             entry.entryMethod === EntryMethod.Scanned && wasEdited
               ? EntryMethod.ScannedEdited
-              : entry.entryMethod
+              // Save only iterates touched rows, so entryMethod is normally already set —
+              // default to Manual defensively for the (impossible-in-practice) case that
+              // an edited row reaches save without a method recorded.
+              : entry.entryMethod ?? EntryMethod.Manual
           ),
           manualEntryReason: entry.manualEntryReason,
         });
@@ -765,8 +836,9 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
             entry?.entryMethod === EntryMethod.Manual ||
             (entry?.originalScannedSerialNumber &&
               entry.originalScannedSerialNumber !== entry.closingSerialNumber);
-          const rowStatusLabel = row.hasError ? "Error" : entry?.closingSerialNumber ? "Ready" : "Pending";
-          const rowStatusTone: "danger" | "success" | "warning" = row.hasError ? "danger" : entry?.closingSerialNumber ? "success" : "warning";
+          const isTouched = touchedPackIds.has(row.pack.id);
+          const rowStatusLabel = row.hasError ? "Error" : isTouched ? "Ready" : "Pending";
+          const rowStatusTone: "danger" | "success" | "warning" = row.hasError ? "danger" : isTouched ? "success" : "warning";
           const isPendingRow = rowStatusLabel === "Pending";
           const isReadyRow = rowStatusLabel === "Ready";
 
@@ -809,40 +881,34 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
                       !hasClosingSerial ? styles.inlineSerialInputDefault : null,
                       !isManualClosingSerialEnabled ? styles.inputDisabled : null,
                     ]}
-                    // Display the opening serial as the initial value so the user immediately
-                    // sees where the pack currently sits. On focus, if the field still shows the
-                    // (unedited) opening default, clear it so the first keystroke goes into an
-                    // empty input — that's the only reliable way to make this editable on
-                    // Android numeric keyboards, where selectTextOnFocus isn't honoured.
-                    value={entry?.closingSerialNumber ?? openingSerialDefault}
+                    // Value is seeded to the opening serial when the pack list arrives (see
+                    // useEffect above), so the box always shows a real editable number rather
+                    // than a placeholder. The user can backspace + type to adjust the trailing
+                    // digits without retyping the whole serial.
+                    value={entry?.closingSerialNumber ?? ""}
                     placeholder="Serial no"
                     placeholderTextColor={appTheme.colors.textSubtle}
                     keyboardType="numeric"
                     editable={!isSubmitting}
                     returnKeyType="done"
-                    onFocus={() => {
-                      // entry is undefined → user hasn't typed yet → clear the pre-fill so
-                      // they type into a blank field instead of appending to the suggestion.
-                      if (entry?.closingSerialNumber === undefined) {
+                    onBlur={() => {
+                      // If the user emptied the field and tapped away, snap it back to the
+                      // opening serial (the seeded default) and revert the row to Pending so
+                      // the screen never sits in an "empty + ambiguous" state.
+                      if (!entry?.closingSerialNumber || entry.closingSerialNumber.trim().length === 0) {
                         setEntries((previous) => ({
                           ...previous,
                           [row.pack.id]: {
-                            closingSerialNumber: "",
-                            originalScannedSerialNumber: previous[row.pack.id]?.originalScannedSerialNumber,
-                            entryMethod: previous[row.pack.id]?.entryMethod ?? EntryMethod.Manual,
-                            manualEntryReason: previous[row.pack.id]?.manualEntryReason,
+                            closingSerialNumber: openingSerialDefault,
+                            originalScannedSerialNumber: undefined,
+                            entryMethod: undefined,
+                            manualEntryReason: undefined,
                           },
                         }));
-                      }
-                    }}
-                    onBlur={() => {
-                      // If the user focused and tapped away without typing anything, drop the
-                      // empty entry so the opening default re-displays and the row stays Pending.
-                      const current = entry?.closingSerialNumber;
-                      if (current !== undefined && current.trim().length === 0) {
-                        setEntries((previous) => {
-                          const next = { ...previous };
-                          delete next[row.pack.id];
+                        setTouchedPackIds((prev) => {
+                          if (!prev.has(row.pack.id)) return prev;
+                          const next = new Set(prev);
+                          next.delete(row.pack.id);
                           return next;
                         });
                       }
@@ -861,6 +927,14 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
                           manualEntryReason: previous[row.pack.id]?.manualEntryReason,
                         },
                       }));
+                      // Any edit marks the pack as user-acknowledged — flips the status badge
+                      // from Pending to Ready (or Error if validation fails).
+                      setTouchedPackIds((prev) => {
+                        if (prev.has(row.pack.id)) return prev;
+                        const next = new Set(prev);
+                        next.add(row.pack.id);
+                        return next;
+                      });
                     }}
                   />
                 </View>
@@ -898,6 +972,7 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
                           manualEntryReason: previous[row.pack.id]?.manualEntryReason,
                         },
                       }));
+                      markPackTouched(row.pack.id);
                     }}
                   >
                     <Text style={styles.soldOutButtonText}>Sold Out</Text>
