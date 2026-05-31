@@ -859,7 +859,11 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
 
         {canCloseShift ? (
           <View style={[ui.card, styles.summaryCard]}>
-            <SectionHeader title="Shift Note" subtitle="Optional — recorded with the shift-close report" icon="document-text-outline" />
+            <SectionHeader
+              title="Shift Note & Attachments"
+              // subtitle="Optional — both are recorded with the shift-close report"
+              icon="document-text-outline"
+            />
             <TextInput
               style={styles.shiftNoteInput}
               value={closeNote}
@@ -872,17 +876,6 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
               editable={!isFinalizing}
               textAlignVertical="top"
             />
-          </View>
-        ) : shift?.closeNote ? (
-          <View style={[ui.card, styles.summaryCard]}>
-            <SectionHeader title="Shift Note" icon="document-text-outline" />
-            <Text style={styles.meta}>{shift.closeNote}</Text>
-          </View>
-        ) : null}
-
-        {canCloseShift ? (
-          <View style={[ui.card, styles.summaryCard]}>
-            <SectionHeader title="Close Attachments" subtitle="Optional — added to the shift-close report" icon="attach-outline" />
             {pendingCloseAttachments.length > 0 ? (
               <View style={styles.attachmentList}>
                 {pendingCloseAttachments.map((attachment) => {
@@ -940,12 +933,12 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
               </Pressable>
             </View>
           </View>
-        ) : null}
-
-
-        {closeAttachments.length > 0 ? (
+        ) : (shift?.closeNote || closeAttachments.length > 0) ? (
+          // Read-only view of the already-saved note + attachments after the shift is closed.
           <View style={[ui.card, styles.summaryCard]}>
-          <Text style={styles.sectionTitle}>Attachments</Text>
+            <SectionHeader title="Shift Note & Attachments" icon="document-text-outline" />
+            {shift?.closeNote ? <Text style={styles.meta}>{shift.closeNote}</Text> : null}
+            {closeAttachments.length > 0 ? (
             <View style={styles.attachmentList}>
               {closeAttachments.map((attachment) => {
                 const canPreviewImage = isImageContentType(attachment.contentType);
@@ -1002,6 +995,7 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
                 );
               })}
             </View>
+            ) : null}
           </View>
         ) : null}
 

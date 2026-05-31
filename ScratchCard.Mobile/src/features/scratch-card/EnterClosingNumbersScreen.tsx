@@ -958,19 +958,6 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
                   />
                 </View>
 
-                {nextRow ? (
-                  <Pressable
-                    style={styles.nextPackButton}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Move to pack ${nextRow.pack.packNumber}`}
-                    onPress={focusNextInput}
-                    disabled={isSubmitting}
-                    hitSlop={4}
-                  >
-                    <Ionicons name="arrow-down" size={18} color={appTheme.colors.primary} />
-                  </Pressable>
-                ) : null}
-
                 <View style={styles.scanInputCell}>
                   <Pressable
                     style={[
@@ -1293,16 +1280,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 8,
-  },
-  nextPackButton: {
-    width: 38,
-    height: 38,
-    borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surfaceBrandMuted,
-    borderWidth: 1,
-    borderColor: appTheme.colors.borderBrandSoft,
-    alignItems: "center",
-    justifyContent: "center",
   },
   soldOutButtonText: {
     color: appTheme.colors.text,
