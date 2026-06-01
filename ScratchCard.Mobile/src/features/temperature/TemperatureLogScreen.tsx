@@ -745,17 +745,6 @@ export function TemperatureLogScreen() {
               <View style={styles.entryRow}>
                 <View style={styles.entryColumn}>
                   <FloatingLabelInput
-                    label="Temperature (°C)"
-                    value={temperatureCelsius}
-                    onChangeText={setTemperatureCelsius}
-                    keyboardType="decimal-pad"
-                    returnKeyType="next"
-                    submitBehavior="submit"
-                    onSubmitEditing={() => initialsRef.current?.focus()}
-                  />
-                </View>
-                <View style={styles.entryColumn}>
-                  <FloatingLabelInput
                     ref={initialsRef}
                     label="Initials"
                     value={checkedByInitials}
@@ -763,6 +752,64 @@ export function TemperatureLogScreen() {
                     autoCapitalize="characters"
                     returnKeyType="done"
                   />
+                </View>
+                <View style={styles.entryColumn}>
+                  <View style={styles.tempInputRow}>
+                      <Pressable
+                      style={styles.tempSignButton}
+                      onPress={() => {
+                        // Toggle the sign of whatever's currently entered. Empty stays empty
+                        // (so the next keystroke starts cleanly), "-x" becomes "x", and "x"
+                        // becomes "-x". The decimal-pad keyboard has no minus key, so this is
+                        // the only way to enter freezer temperatures on Android.
+                        const trimmed = temperatureCelsius.trim();
+                        if (!trimmed) {
+                          setTemperatureCelsius("-");
+                          return;
+                        }
+                        if (trimmed.startsWith("-")) {
+                          setTemperatureCelsius(trimmed.slice(1));
+                          return;
+                        }
+                        setTemperatureCelsius(`-${trimmed}`);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Toggle negative temperature"
+                    >
+                      <Text style={styles.tempSignButtonText}>±</Text>
+                    </Pressable>
+                    <View style={styles.tempInputField}>
+                      <FloatingLabelInput
+                        label="Temperature"
+                        value={temperatureCelsius}
+                        onChangeText={(raw) => {
+                          // Always show an explicit sign in front of the number so freezer (-)
+                          // vs fridge (+) readings are obvious at a glance. Empty stays empty so
+                          // the placeholder still shows; the "-" prefix from the ± button is
+                          // preserved; otherwise a positive value gets a "+" prefix.
+                          const trimmed = raw.replace(/\s/g, "");
+                          if (trimmed.length === 0) {
+                            setTemperatureCelsius("");
+                            return;
+                          }
+                          if (trimmed === "-" || trimmed === "+") {
+                            setTemperatureCelsius(trimmed);
+                            return;
+                          }
+                          if (trimmed.startsWith("-") || trimmed.startsWith("+")) {
+                            setTemperatureCelsius(trimmed);
+                            return;
+                          }
+                          setTemperatureCelsius(`+${trimmed}`);
+                        }}
+                        keyboardType="decimal-pad"
+                        returnKeyType="next"
+                        submitBehavior="submit"
+                        onSubmitEditing={() => initialsRef.current?.focus()}
+                      />
+                    </View>
+                  
+                  </View>
                 </View>
               </View>
 
@@ -967,6 +1014,29 @@ const styles = StyleSheet.create({
   entryColumn: {
     flex: 1,
     gap: 2,
+  },
+  tempInputRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: appTheme.spacing.xs,
+  },
+  tempInputField: {
+    flex: 1,
+  },
+  tempSignButton: {
+    width: 44,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tempSignButtonText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.heading,
+    fontSize: 20,
+    lineHeight: 24,
   },
   noteActionTile: {
     flex: 1,
