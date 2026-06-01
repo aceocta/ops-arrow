@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { forwardRef, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, TextInputProps, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNetInfo } from "@react-native-community/netinfo";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -10,7 +10,7 @@ import { getActivePacksForShift, getShift, listShiftClosingNumbers, upsertShiftC
 import { haptics } from "../../utils/haptics";
 import { track } from "../../utils/analytics";
 import { PrimaryButton } from "../../components/PrimaryButton";
-import { ScreenContainer } from "../../components/ScreenContainer";
+import { ScreenContainer, useScrollToFocusedInput } from "../../components/ScreenContainer";
 import { toastError, toastSuccess } from "../../components/toast";
 import { clearShiftDraft, getShiftDraft } from "../../offline/draftRepository";
 import { calculateShiftSales } from "../../utils/serialCalculation";
@@ -25,6 +25,28 @@ import { appTheme } from "../../ui/theme";
 import { subscribeScan } from "../barcode-scanner/scanBus";
 
 type Props = NativeStackScreenProps<MainStackParamList, "EnterClosingNumbers">;
+
+// Closing-serial text box. Wraps a plain TextInput so it can call the screen's scroll-into-view
+// helper on focus — this component renders inside ScreenContainer, so the context resolves to the
+// real handler (calling the hook in the screen body would sit above the provider and no-op).
+// Needed because tapping "Next" advances focus while the keyboard stays up, and no keyboardDidShow
+// event fires to scroll the newly-focused field above the keyboard.
+const ClosingSerialInput = forwardRef<TextInput, TextInputProps>(function ClosingSerialInput(
+  { onFocus, ...rest },
+  ref,
+) {
+  const scrollToFocused = useScrollToFocusedInput();
+  return (
+    <TextInput
+      ref={ref}
+      onFocus={(event) => {
+        onFocus?.(event);
+        scrollToFocused();
+      }}
+      {...rest}
+    />
+  );
+});
 
 type EntryState = {
   closingSerialNumber: string;
@@ -906,7 +928,7 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
               {/* <Text style={styles.fieldLabel}>Closing Serial Number</Text> */}
               <View style={styles.scanInputRow}>
                 <View style={styles.scanInputCell}>
-                  <TextInput
+                  <ClosingSerialInput
                     ref={(el) => {
                       inputRefs.current[row.pack.id] = el;
                     }}
