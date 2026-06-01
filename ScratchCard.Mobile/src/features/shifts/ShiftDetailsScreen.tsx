@@ -919,7 +919,7 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
                 disabled={isFinalizing}
               >
                 <Ionicons name="camera-outline" size={16} color={appTheme.colors.text} />
-                <Text style={styles.actionButtonText}>Take Photo</Text>
+                <Text style={styles.attachmentActionButtonText}>Take Photo</Text>
               </Pressable>
               <Pressable
                 style={[styles.attachmentActionButton, styles.attachmentActionButtonFlex]}
@@ -929,7 +929,7 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
                 disabled={isFinalizing}
               >
                 <Ionicons name="images-outline" size={16} color={appTheme.colors.text} />
-                <Text style={styles.actionButtonText}>From Gallery</Text>
+                <Text style={styles.attachmentActionButtonText}>From Gallery</Text>
               </Pressable>
             </View>
           </View>
@@ -1340,6 +1340,15 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.surface,
     paddingHorizontal: 10,
     paddingVertical: 8,
+  },
+  // On-surface label color (matches the icon). The button sits on `surface`, so the primary
+  // `actionButtonText` (onPrimary) color was near-invisible — black on dark in dark mode,
+  // white on white in light mode.
+  attachmentActionButtonText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
   },
   attachmentActionButtonFlex: {
     flex: 1,
