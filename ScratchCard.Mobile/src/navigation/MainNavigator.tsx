@@ -101,12 +101,11 @@ const Stack = createNativeStackNavigator<MainStackParamList>();
 
 // --- Scratch Card ---
 const scratchCardItems: MenuItem[] = [
-  { label: "Day Management", screen: "Dashboard", icon: "calendar-outline", mode: "scratchCard" },
-  { label: "Card Packs", screen: "ScratchCardPacks", icon: "albums-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
-  { label: "Card Games", screen: "ScratchCardGames", icon: "game-controller-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
-  { label: "Deliveries", screen: "Deliveries", icon: "cube-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
   { label: "Daily Sales Report", screen: "DailySalesReport", icon: "stats-chart-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
-  { label: "Stock Report", screen: "StockReport", icon: "archive-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
+  { label: "Add Packs", screen: "ScratchCardPacks", icon: "ticket-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
+  { label: "Add Deliveries", screen: "Deliveries", icon: "cube-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
+  { label: "Card Games", screen: "ScratchCardGames", icon: "game-controller-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
+  { label: "Pack Stock", screen: "StockReport", icon: "archive-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
 ];
 
 // --- Temperature Log ---
@@ -755,6 +754,12 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
     props.navigation.closeDrawer();
   }
 
+  function onOpenDayManagement() {
+    setSelectedOperation("scratchCard");
+    props.navigation.navigate("MainStack", { screen: "Dashboard" });
+    props.navigation.closeDrawer();
+  }
+
   async function onSignOut() {
     props.navigation.closeDrawer();
     await signOut();
@@ -830,6 +835,42 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
               name={activeScreen === "BestEntry" ? "checkmark-circle" : "chevron-forward"}
               size={14}
               color={activeScreen === "BestEntry" ? appTheme.colors.primary : appTheme.colors.textSubtle}
+            />
+          </Pressable>
+        </View>
+
+        <View style={styles.drawerTopItemWrap}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.drawerItem,
+              activeScreen === "Dashboard" ? styles.drawerItemActive : null,
+              pressed ? styles.drawerItemPressed : null,
+            ]}
+            onPress={onOpenDayManagement}
+            accessibilityRole="button"
+            accessibilityLabel="Day Management"
+          >
+            <View style={styles.drawerItemMain}>
+              <View
+                style={[
+                  styles.drawerItemIconWrap,
+                  activeScreen === "Dashboard" ? styles.drawerItemIconWrapActive : null,
+                ]}
+              >
+                <Ionicons
+                  name="calendar-outline"
+                  size={15}
+                  color={activeScreen === "Dashboard" ? appTheme.colors.onPrimary : appTheme.colors.textMuted}
+                />
+              </View>
+              <Text style={[styles.drawerItemText, activeScreen === "Dashboard" ? styles.drawerItemTextActive : null]}>
+                Day Management
+              </Text>
+            </View>
+            <Ionicons
+              name={activeScreen === "Dashboard" ? "checkmark-circle" : "chevron-forward"}
+              size={14}
+              color={activeScreen === "Dashboard" ? appTheme.colors.primary : appTheme.colors.textSubtle}
             />
           </Pressable>
         </View>
