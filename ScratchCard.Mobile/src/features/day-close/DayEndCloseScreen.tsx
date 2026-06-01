@@ -416,9 +416,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   const [attachmentPreviewId, setAttachmentPreviewId] = useState<string | null>(null);
   const [newShiftName, setNewShiftName] = useState("");
   const [closeDayAttachments, setCloseDayAttachments] = useState<CloseAttachmentState[]>([]);
-  // Opt-in: when set, success handler will open the next business day and navigate to it.
-  // Default off so a misdial does not roll the user onto an unexpected day.
-  const [shouldAutoOpenNextDay, setShouldAutoOpenNextDay] = useState(false);
+  // After a successful day-close the next business day is always opened and the user is taken
+  // there. The previous opt-in checkbox was removed at product request — closing always rolls
+  // straight into the next day's trading.
   // scratch_card.attachments is Growth+. Starter shops see a compact upgrade notice in place
   // of the attachment uploader so they can still complete the close.
   const attachmentsFeature = useFeature("scratch_card.attachments");
@@ -497,12 +497,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       setCloseDayAttachments([]);
 
       const shopId = closedDay?.shopId ?? day?.shopId;
-      // Only roll forward when the shopkeeper opted in via the close-day modal. Otherwise we
-      // leave them on the closed day so they can review the saved totals.
-      if (!shouldAutoOpenNextDay || !shopId || !closedDay?.businessDate) {
+      if (!shopId || !closedDay?.businessDate) {
         Alert.alert("Closed", "Business day closed successfully.");
         void dayQuery.refetch();
-        setShouldAutoOpenNextDay(false);
         return;
       }
 
@@ -512,7 +509,6 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
         Alert.alert("Closed", `Business day closed. Opened ${openedDay.businessDate}.`);
         // Use navigate (not replace) so back gesture returns to the just-closed day.
         navigation.navigate("DayEndClose", { businessDayId: openedDay.id });
-        setShouldAutoOpenNextDay(false);
         return;
       } catch {
         try {
@@ -527,7 +523,6 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           if (fallbackDay) {
             Alert.alert("Closed", `Business day closed. Opened ${fallbackDay.businessDate}.`);
             navigation.navigate("DayEndClose", { businessDayId: fallbackDay.id });
-            setShouldAutoOpenNextDay(false);
             return;
           }
         } catch {
@@ -537,7 +532,6 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
 
       Alert.alert("Closed", "Business day closed successfully.");
       void dayQuery.refetch();
-      setShouldAutoOpenNextDay(false);
     },
     onError: (error: unknown) => {
       Alert.alert("Couldn't close the day", getApiErrorMessage(error, "Unable to close business day."));
@@ -2911,21 +2905,6 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   </Pressable>
                 </View>
               ) : null}
-              <Pressable
-                style={styles.optInRow}
-                onPress={() => {
-                  haptics.selection();
-                  setShouldAutoOpenNextDay((v) => !v);
-                }}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: shouldAutoOpenNextDay }}
-                accessibilityLabel="Open next business day automatically after closing"
-              >
-                <View style={[styles.optInCheckbox, shouldAutoOpenNextDay ? styles.optInCheckboxOn : null]}>
-                  {shouldAutoOpenNextDay ? <Ionicons name="checkmark" size={14} color={appTheme.colors.onPrimary} /> : null}
-                </View>
-                <Text style={styles.optInLabel}>Open next business day after closing</Text>
-              </Pressable>
               <View style={styles.modalActionRow}>
                 <Pressable
                   style={[
