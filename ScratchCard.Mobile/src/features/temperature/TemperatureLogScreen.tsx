@@ -995,28 +995,23 @@ export function TemperatureLogScreen() {
                 </View>
               ) : null}
 
-              <View style={styles.entryRow}>
-                <Pressable
-                  accessibilityRole="button"
-                  style={styles.noteActionTile}
-                  onPress={() => openTextEditor("notes")}
-                >
-                  <Text style={styles.noteActionLabel}>Notes</Text>
-                  <Text style={[styles.noteActionValue, !notes.trim() ? styles.noteActionPlaceholder : null]} numberOfLines={2}>
-                    {notes.trim() || "None"}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  style={styles.noteActionTile}
-                  onPress={() => openTextEditor("action")}
-                >
-                  <Text style={styles.noteActionLabel}>Action Taken</Text>
-                  <Text style={[styles.noteActionValue, !actionTaken.trim() ? styles.noteActionPlaceholder : null]} numberOfLines={2}>
-                    {actionTaken.trim() || "None"}
-                  </Text>
-                </Pressable>
-              </View>
+              {/* Notes hidden — managers wanted a tighter form. Action Taken only surfaces when the
+                  live reading is out of range, since that's the only case where a corrective
+                  action is meaningful to record. */}
+              {liveStatus?.outOfRange ? (
+                <View style={styles.entryRow}>
+                  <Pressable
+                    accessibilityRole="button"
+                    style={styles.noteActionTile}
+                    onPress={() => openTextEditor("action")}
+                  >
+                    <Text style={styles.noteActionLabel}>Action Taken</Text>
+                    <Text style={[styles.noteActionValue, !actionTaken.trim() ? styles.noteActionPlaceholder : null]} numberOfLines={2}>
+                      {actionTaken.trim() || "Tap to record corrective action"}
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : null}
 
               <PrimaryButton
                 label={
@@ -1180,11 +1175,11 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.body,
   },
   entryRow: {
-    flexDirection: "row",
-    gap: appTheme.spacing.xs,
+    flexDirection: "column",
+    gap: appTheme.spacing.sm,
   },
   entryColumn: {
-    flex: 1,
+    width: "100%",
     gap: 2,
   },
   tempInputRow: {
