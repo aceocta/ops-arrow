@@ -318,11 +318,19 @@ function normalizeShiftName(shiftName: string) {
 export function DailySalesReportScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const route = useRoute<RouteProp<MainStackParamList, "DailySalesReport">>();
-  const initialDate = route.params?.date ?? formatDateValue(new Date());
+  // If the screen was opened with a specific date (e.g. drill-through from Day Management),
+  // pin from = to = that date. Otherwise default the picker to the last 7 days so an owner sees
+  // a useful trailing window straight away instead of just today's sales.
+  const initialRange = useMemo(() => {
+    if (route.params?.date) {
+      return { from: route.params.date, to: route.params.date };
+    }
+    return computeRangePreset("last7");
+  }, [route.params?.date]);
   const { activeShopId, activeShop, profile } = useAuth();
   const shopId = activeShopId;
-  const [from, setFrom] = useState(initialDate);
-  const [to, setTo] = useState(initialDate);
+  const [from, setFrom] = useState(initialRange.from);
+  const [to, setTo] = useState(initialRange.to);
 
   const query = useQuery({
     queryKey: ["report-daily-sales", shopId, from, to],
