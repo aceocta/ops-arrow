@@ -42,7 +42,8 @@
       "Bash(sed -n '1,400p' ScratchCard.Application/DTOs/Subscriptions/SubscriptionDtos.cs)",
       "WebSearch",
       "Bash(xargs grep -L \"FlatList\")",
-      "Bash(xargs grep -l \"ToListAsync\")"
+      "Bash(xargs grep -l \"ToListAsync\")",
+      "Bash(grep -v \"\\\\.cs:.*//\")"
     ]
   }
 }
