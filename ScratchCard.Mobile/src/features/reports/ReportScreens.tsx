@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, FlatList, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -18,7 +18,8 @@ import {
   getStockReport,
 } from "../../api/reportsApi";
 import { listShifts } from "../../api/shiftsApi";
-import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
+import { formatDateValue, parseDateValue } from "../../components/DateTimeField";
+import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { ReportActionButton } from "../../components/ReportActionButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError } from "../../components/toast";
@@ -31,6 +32,48 @@ import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 import { buildScratchCardDailySalesReportHtml } from "./scratchCardReportUtils";
 
+type RangePresetKey = "today" | "yesterday" | "last7" | "last30" | "thisMonth" | "lastMonth";
+
+function computeRangePreset(preset: RangePresetKey): { from: string; to: string } {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const shift = (date: Date, days: number) => {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    return d;
+  };
+  switch (preset) {
+    case "today":
+      return { from: formatDateValue(today), to: formatDateValue(today) };
+    case "yesterday": {
+      const y = shift(today, -1);
+      return { from: formatDateValue(y), to: formatDateValue(y) };
+    }
+    case "last7":
+      return { from: formatDateValue(shift(today, -6)), to: formatDateValue(today) };
+    case "last30":
+      return { from: formatDateValue(shift(today, -29)), to: formatDateValue(today) };
+    case "thisMonth": {
+      const start = new Date(today.getFullYear(), today.getMonth(), 1);
+      return { from: formatDateValue(start), to: formatDateValue(today) };
+    }
+    case "lastMonth": {
+      const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const end = new Date(today.getFullYear(), today.getMonth(), 0);
+      return { from: formatDateValue(start), to: formatDateValue(end) };
+    }
+  }
+}
+
+const RANGE_PRESETS: Array<{ key: RangePresetKey; label: string }> = [
+  { key: "today", label: "Today" },
+  // { key: "yesterday", label: "Yesterday" },
+  { key: "last7", label: "Last 7 Days" },
+  { key: "last30", label: "Last 30 Days" },
+  { key: "thisMonth", label: "This Month" },
+  // { key: "lastMonth", label: "Last Month" },
+];
+
 function DateRangeInputs({
   from,
   to,
@@ -42,10 +85,159 @@ function DateRangeInputs({
   setFrom: (value: string) => void;
   setTo: (value: string) => void;
 }) {
+  const [pickerStage, setPickerStage] = useState<"from" | "to" | null>(null);
+  // Holds the just-picked "from" while we wait for the "to" pick, so the second picker can use it
+  // as its minimumDate without depending on the React state update having committed yet.
+  const [pendingFrom, setPendingFrom] = useState<string | null>(null);
+
+  const activePreset = useMemo<RangePresetKey | null>(() => {
+    for (const preset of RANGE_PRESETS) {
+      const candidate = computeRangePreset(preset.key);
+      if (candidate.from === from && candidate.to === to) return preset.key;
+    }
+    return null;
+  }, [from, to]);
+
+  const applyPreset = (key: RangePresetKey) => {
+    const { from: nextFrom, to: nextTo } = computeRangePreset(key);
+    setFrom(nextFrom);
+    setTo(nextTo);
+    setPickerStage(null);
+    setPendingFrom(null);
+  };
+
+  const displayRange = useMemo(() => {
+    const fromParsed = parseDateValue(from);
+    const toParsed = parseDateValue(to);
+    if (!fromParsed && !toParsed) return "Select date range";
+    const fmt = (d: Date) =>
+      d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
+    if (fromParsed && toParsed) {
+      if (from === to) return fmt(fromParsed);
+      return `${fmt(fromParsed)}  —  ${fmt(toParsed)}`;
+    }
+    return fromParsed ? fmt(fromParsed) : toParsed ? fmt(toParsed) : "Select date range";
+  }, [from, to]);
+
+  const pickerValue = useMemo(() => {
+    if (pickerStage === "to") {
+      return parseDateValue(pendingFrom ?? from) ?? new Date();
+    }
+    return parseDateValue(from) ?? new Date();
+  }, [from, pendingFrom, pickerStage]);
+
+  const pickerMinimum = useMemo(() => {
+    if (pickerStage === "to") {
+      return parseDateValue(pendingFrom ?? from) ?? undefined;
+    }
+    return undefined;
+  }, [from, pendingFrom, pickerStage]);
+
+  const handlePickerChange = (event: DateTimePickerEvent, selected?: Date) => {
+    // Android dismisses by firing event.type === "dismissed" with no selected. Reset both stages.
+    if (event.type === "dismissed" || !selected) {
+      setPickerStage(null);
+      setPendingFrom(null);
+      return;
+    }
+
+    if (pickerStage === "from") {
+      const next = formatDateValue(selected);
+      setFrom(next);
+      // Auto-advance the "to" date so it never sits before "from".
+      if (to && to < next) {
+        setTo(next);
+      }
+      setPendingFrom(next);
+      // On Android the picker is a one-shot modal — close and re-open for the "to" stage on
+      // the next tick. On iOS it stays inline so we just switch the stage flag.
+      if (Platform.OS === "android") {
+        setPickerStage(null);
+        setTimeout(() => setPickerStage("to"), 50);
+      } else {
+        setPickerStage("to");
+      }
+      return;
+    }
+
+    if (pickerStage === "to") {
+      setTo(formatDateValue(selected));
+      setPickerStage(null);
+      setPendingFrom(null);
+    }
+  };
+
+  const openPicker = () => {
+    setPendingFrom(null);
+    setPickerStage("from");
+  };
+
   return (
-    <View style={styles.row}>
-      <DateTimeField style={{ flex: 1 }} mode="date" value={from} onChange={setFrom} placeholder="From date" />
-      <DateTimeField style={{ flex: 1 }} mode="date" value={to} onChange={setTo} placeholder="To date" />
+    <View style={styles.rangePickerWrap}>
+      <View style={styles.rangePresetRow}>
+        {RANGE_PRESETS.map((preset) => {
+          const isActive = activePreset === preset.key;
+          return (
+            <Pressable
+              key={preset.key}
+              accessibilityRole="button"
+              accessibilityLabel={`Select ${preset.label}`}
+              accessibilityState={{ selected: isActive }}
+              onPress={() => applyPreset(preset.key)}
+              style={[styles.rangePresetChip, isActive ? styles.rangePresetChipActive : null]}
+            >
+              <Text style={[styles.rangePresetChipText, isActive ? styles.rangePresetChipTextActive : null]}>
+                {preset.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <Pressable
+        style={styles.rangeTrigger}
+        onPress={openPicker}
+        accessibilityRole="button"
+        accessibilityLabel={`Selected range ${displayRange}. Tap to change.`}
+      >
+        <View style={styles.rangeTriggerTextWrap}>
+          <Text style={styles.rangeTriggerLabel}>
+            {pickerStage === "from"
+              ? "Pick start date"
+              : pickerStage === "to"
+                ? "Pick end date"
+                : "Date Range"}
+          </Text>
+          <Text style={styles.rangeTriggerValue}>{displayRange}</Text>
+        </View>
+        <View style={styles.rangeTriggerIcon}>
+          <View style={styles.rangeTriggerIconTop} />
+          <View style={styles.rangeTriggerIconBody} />
+        </View>
+      </Pressable>
+
+      {pickerStage ? (
+        <View style={styles.rangePickerSurface}>
+          <DateTimePicker
+            mode="date"
+            value={pickerValue}
+            minimumDate={pickerMinimum}
+            onChange={handlePickerChange}
+            display={Platform.OS === "ios" ? "inline" : "default"}
+          />
+          {Platform.OS === "ios" ? (
+            <Pressable
+              style={styles.rangePickerDoneButton}
+              onPress={() => {
+                setPickerStage(null);
+                setPendingFrom(null);
+              }}
+            >
+              <Text style={styles.rangePickerDoneText}>Done</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -364,14 +556,14 @@ export function DailySalesReportScreen() {
               <Text style={styles.metricLabel}>Prize Payouts</Text>
               <Text style={styles.metricValue}>{formatCurrency(totalPrizePayouts)}</Text>
             </View>
-            <View style={[styles.metricCard, styles.metricCardEmphasis]}>
+            {/* <View style={[styles.metricCard, styles.metricCardEmphasis]}>
               <Text style={styles.metricLabel}>Net Take</Text>
               <Text style={styles.metricValue}>{formatCurrency(totalNetTake)}</Text>
-            </View>
-            <View style={styles.metricCard}>
+            </View> */}
+            {/* <View style={styles.metricCard}>
               <Text style={styles.metricLabel}>Tickets · {formatCurrency(avgTicketPrice)} avg</Text>
               <Text style={styles.metricValueLarge}>{totalSoldQuantity}</Text>
-            </View>
+            </View> */}
             <View style={styles.metricCard}>
               <Text style={styles.metricLabel}>Days · Shifts</Text>
               <Text style={styles.metricValueLarge}>{totalDays} · {totalShifts}</Text>
@@ -501,10 +693,6 @@ export function DailySalesReportScreen() {
                       <View style={[styles.shiftStatCell, styles.shiftStatCellHalf]}>
                         <Text style={styles.shiftStatLabel}>Prize Payouts</Text>
                         <Text style={styles.shiftStatValue}>{formatCurrency(dayAggregate.totalPrizePayout)}</Text>
-                      </View>
-                      <View style={[styles.shiftStatCell, styles.shiftStatCellHalf]}>
-                        <Text style={styles.shiftStatLabel}>Net Take</Text>
-                        <Text style={styles.shiftStatValue}>{formatCurrency(dayAggregate.totalNetTake)}</Text>
                       </View>
                       <View style={[styles.shiftStatCell, styles.shiftStatCellHalf]}>
                         <Text style={styles.shiftStatLabel}>Tickets</Text>
@@ -1226,6 +1414,101 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 16,
     marginTop: 2,
+  },
+  rangePickerWrap: {
+    gap: appTheme.spacing.xs,
+  },
+  rangePresetRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  rangePresetChip: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    backgroundColor: appTheme.colors.surface,
+  },
+  rangePresetChipActive: {
+    borderColor: appTheme.colors.primary,
+    backgroundColor: appTheme.colors.primary,
+  },
+  rangePresetChipText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  rangePresetChipTextActive: {
+    color: appTheme.colors.onPrimary,
+  },
+  rangeTrigger: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    paddingVertical: appTheme.spacing.sm,
+    paddingHorizontal: appTheme.spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.sm,
+  },
+  rangeTriggerTextWrap: {
+    flexShrink: 1,
+    gap: 2,
+  },
+  rangeTriggerLabel: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 10,
+    lineHeight: 12,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  rangeTriggerValue: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 17,
+  },
+  rangeTriggerIcon: {
+    width: 18,
+    height: 18,
+    borderWidth: 1.5,
+    borderColor: appTheme.colors.primary,
+    borderRadius: 4,
+    overflow: "hidden",
+    backgroundColor: appTheme.colors.surface,
+  },
+  rangeTriggerIconTop: {
+    height: 5,
+    backgroundColor: appTheme.colors.primary,
+  },
+  rangeTriggerIconBody: {
+    flex: 1,
+    backgroundColor: appTheme.colors.surface,
+  },
+  rangePickerSurface: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    overflow: "hidden",
+  },
+  rangePickerDoneButton: {
+    borderTopWidth: 1,
+    borderTopColor: appTheme.colors.border,
+    paddingVertical: 10,
+    alignItems: "center",
+    backgroundColor: appTheme.colors.surfaceMuted,
+  },
+  rangePickerDoneText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
   },
   dayReviewFormula: {
     color: appTheme.colors.textSubtle,
