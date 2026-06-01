@@ -179,10 +179,8 @@ export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
       }
     >
       <View style={ui.card}>
-        <View style={styles.row}>
-          <DateTimeField style={styles.flex1} mode="date" value={visitDate} onChange={setVisitDate} maximumDate={new Date()} />
-          <DateTimeField style={styles.flex1} mode="time" value={timeIn} onChange={setTimeIn} />
-        </View>
+        <DateTimeField mode="date" value={visitDate} onChange={setVisitDate} maximumDate={new Date()} />
+        <DateTimeField mode="time" value={timeIn} onChange={setTimeIn} />
 
         <FloatingLabelInput
           label="Visitor name *"
