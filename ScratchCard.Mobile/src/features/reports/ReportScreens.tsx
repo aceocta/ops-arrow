@@ -531,12 +531,10 @@ export function DailySalesReportScreen() {
                     Difference : {payoutDifference != null ? formatCurrency(payoutDifference) : "-"}
                   </Text>
                 </View>
-                <View style={styles.dayReviewCard}>
-                  <Text style={styles.dayReviewTitle}>Missing Ticket Details (Opening Serial)</Text>
-                  {dayMissingDetails.length === 0 ? (
-                    <Text style={styles.meta}>No missing-ticket detail rows recorded for this day.</Text>
-                  ) : (
-                    dayMissingDetails.map((detail, index) => (
+                {dayMissingDetails.length > 0 ? (
+                  <View style={styles.dayReviewCard}>
+                    <Text style={styles.dayReviewTitle}>Missing Ticket Details (Opening Serial)</Text>
+                    {dayMissingDetails.map((detail, index) => (
                       <View key={`${detail.shiftId}-${detail.packId}-${index}`} style={styles.dayMissingDetailItem}>
                         <Text style={styles.meta}>Shift: {detail.shiftName}</Text>
                         <Text style={styles.meta}>
@@ -549,66 +547,73 @@ export function DailySalesReportScreen() {
                         </Text>
                         <Text style={[styles.meta, styles.varianceTextNegative]}>Missing Qty: {detail.missingQuantity}</Text>
                       </View>
-                    ))
-                  )}
-                </View>
-                <View style={styles.shiftTableWrap}>
-                  <View style={styles.shiftTableHeaderRow}>
-                    <Text style={[styles.shiftTableHeaderCell, styles.shiftColName]}>Shift</Text>
-                    <Text style={[styles.shiftTableHeaderCell, styles.shiftColSales]}>Sales</Text>
-                    <Text style={[styles.shiftTableHeaderCell, styles.shiftColQty]}>Qty</Text>
-                    <Text style={[styles.shiftTableHeaderCell, styles.shiftColDiff]}>Difference</Text>
+                    ))}
                   </View>
+                ) : null}
+                <View style={styles.shiftListWrap}>
+                  <Text style={styles.shiftListTitle}>Shifts ({(rows ?? []).length})</Text>
                   {(rows ?? []).map((row, index) => {
                     const rowDifference = getPayoutBasedDifference(row);
                     const isRowPositive = rowDifference > 0.009;
                     const isRowNegative = rowDifference < -0.009;
+                    const rowSales = Number(row.salesAmount ?? 0);
                     const rowPrizePayout = Number(row.prizePayout ?? 0);
-                    const rowNetTake = Number(row.salesAmount ?? 0) - rowPrizePayout;
+                    const rowNetTake = rowSales - rowPrizePayout;
+                    const rowQty = Number(row.soldQuantity ?? 0);
+                    const rowAvgTicket = rowQty > 0 ? rowSales / rowQty : 0;
                     return (
-                    <Pressable
-                      key={`${row.businessDate}-${row.shiftName}-${index}`}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Open shift details for ${row.shiftName} on ${row.businessDate}`}
-                      style={[
-                        styles.shiftTableRow,
-                        isRowPositive ? styles.shiftTableRowPositive : null,
-                        isRowNegative ? styles.shiftTableRowNegative : null,
-                      ]}
-                      onPress={() => openShiftDetailsFromReport(row.businessDate, row.shiftName)}
-                    >
-                      <View style={styles.shiftColName}>
-                        <Text style={styles.shiftTablePrimary}>{row.shiftName}</Text>
-                        <Text style={styles.shiftTableSecondary}>
-                          Payouts {formatCurrency(rowPrizePayout)} · Net {formatCurrency(rowNetTake)}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.shiftTableSecondary,
-                            isRowPositive ? styles.varianceTextPositive : null,
-                            isRowNegative ? styles.varianceTextNegative : null,
-                          ]}
-                        >
-                          {isRowPositive ? "Over" : isRowNegative ? "Short" : "Balanced"}
-                        </Text>
-                      </View>
-                      <Text style={[styles.shiftTableValue, styles.shiftColSales]}>
-                        {formatCurrency(Number(row.salesAmount))}
-                      </Text>
-                      <Text style={[styles.shiftTableValue, styles.shiftColQty]}>
-                        {Number(row.soldQuantity ?? 0)}
-                      </Text>
-                      <Text
+                      <Pressable
+                        key={`${row.businessDate}-${row.shiftName}-${index}`}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Open shift details for ${row.shiftName} on ${row.businessDate}`}
                         style={[
-                          styles.shiftTableValue,
-                          styles.shiftColDiff,
-                          isRowPositive ? styles.varianceTextPositive : null,
-                          isRowNegative ? styles.varianceTextNegative : null,
+                          styles.shiftCard,
+                          isRowPositive ? styles.shiftCardPositive : null,
+                          isRowNegative ? styles.shiftCardNegative : null,
                         ]}
+                        onPress={() => openShiftDetailsFromReport(row.businessDate, row.shiftName)}
                       >
-                        {formatCurrency(rowDifference)}
-                      </Text>
-                    </Pressable>
+                        <View style={styles.shiftCardHeader}>
+                          <Text style={styles.shiftCardTitle}>{row.shiftName}</Text>
+                          {isRowPositive ? <StatusBadge label="Over" tone="warning" /> : null}
+                          {isRowNegative ? <StatusBadge label="Short" tone="danger" /> : null}
+                          {!isRowPositive && !isRowNegative ? <StatusBadge label="Balanced" tone="success" /> : null}
+                        </View>
+                        <View style={styles.shiftStatGrid}>
+                          <View style={styles.shiftStatCell}>
+                            <Text style={styles.shiftStatLabel}>Sales</Text>
+                            <Text style={styles.shiftStatValue}>{formatCurrency(rowSales)}</Text>
+                          </View>
+                          <View style={styles.shiftStatCell}>
+                            <Text style={styles.shiftStatLabel}>Prize Payouts</Text>
+                            <Text style={styles.shiftStatValue}>{formatCurrency(rowPrizePayout)}</Text>
+                          </View>
+                          <View style={styles.shiftStatCell}>
+                            <Text style={styles.shiftStatLabel}>Net Take</Text>
+                            <Text style={styles.shiftStatValue}>{formatCurrency(rowNetTake)}</Text>
+                          </View>
+                          <View style={styles.shiftStatCell}>
+                            <Text style={styles.shiftStatLabel}>Tickets</Text>
+                            <Text style={styles.shiftStatValue}>{rowQty}</Text>
+                          </View>
+                          <View style={styles.shiftStatCell}>
+                            <Text style={styles.shiftStatLabel}>Avg Ticket</Text>
+                            <Text style={styles.shiftStatValue}>{formatCurrency(rowAvgTicket)}</Text>
+                          </View>
+                          <View style={styles.shiftStatCell}>
+                            <Text style={styles.shiftStatLabel}>Variance</Text>
+                            <Text
+                              style={[
+                                styles.shiftStatValue,
+                                isRowPositive ? styles.varianceTextPositive : null,
+                                isRowNegative ? styles.varianceTextNegative : null,
+                              ]}
+                            >
+                              {formatCurrency(rowDifference)}
+                            </Text>
+                          </View>
+                        </View>
+                      </Pressable>
                     );
                   })}
                 </View>
@@ -1120,6 +1125,69 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     fontFamily: appTheme.fonts.bodyMedium,
+  },
+  shiftListTitle: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 13,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+    marginTop: 4,
+  },
+  shiftCard: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    padding: appTheme.spacing.sm,
+    gap: appTheme.spacing.xs,
+  },
+  shiftCardPositive: {
+    backgroundColor: appTheme.colors.badgeWarningBg,
+    borderColor: appTheme.colors.badgeWarningBg,
+  },
+  shiftCardNegative: {
+    backgroundColor: appTheme.colors.badgeDangerBg,
+    borderColor: appTheme.colors.badgeDangerBg,
+  },
+  shiftCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  shiftCardTitle: {
+    flexShrink: 1,
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.heading,
+    fontSize: 14,
+    lineHeight: 17,
+  },
+  shiftStatGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    rowGap: appTheme.spacing.xs,
+  },
+  shiftStatCell: {
+    flexBasis: "33.33%",
+    paddingVertical: 2,
+    paddingRight: 6,
+  },
+  shiftStatLabel: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 10,
+    lineHeight: 12,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  shiftStatValue: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 16,
+    marginTop: 2,
   },
   dayReviewCard: {
     borderWidth: 1,
