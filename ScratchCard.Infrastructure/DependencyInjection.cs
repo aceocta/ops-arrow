@@ -70,6 +70,7 @@ public static class DependencyInjection
         services.AddHostedService<ShopNotificationBackgroundService>();
         services.AddHostedService<ShopTrialExpiryBackgroundService>();
         services.AddHostedService<TemperatureMissedAlertsBackgroundService>();
+        services.AddHostedService<TemperatureLogReminderBackgroundService>();
 
         services.AddScoped<IDeliveryNoteAiParser, OpenAiDeliveryNoteParser>();
         services.AddScoped<ITillReportOcrService, AzureDocumentIntelligenceOcrService>();

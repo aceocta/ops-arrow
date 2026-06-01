@@ -12,5 +12,6 @@ public enum NotificationType
     SuspiciousScratchCardActivity = 8,
     CanisterLimitExceeded = 9,
     TemperatureMissedLog = 10,
-    VisitorInspectorArrival = 11
+    VisitorInspectorArrival = 11,
+    TemperatureLogReminder = 12
 }

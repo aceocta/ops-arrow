@@ -65,13 +65,15 @@ public class FirebasePushSender : IPushSender
                     Title = message.Subject,
                     Body = message.Body
                 },
-                //Data = new Dictionary<string, string>
-                //{
-                //    ["shopId"] = message.ShopId.ToString(),
-                //    ["notificationType"] = message.NotificationType.ToString(),
-                //    ["relatedEntityName"] = message.RelatedEntityName,
-                //    ["relatedEntityId"] = message.RelatedEntityId?.ToString() ?? string.Empty
-                //},
+                // Carried through to the device so the app can deep-link on tap (e.g. open the
+                // Temperature Log screen for a TemperatureLogReminder). All values must be strings.
+                Data = new Dictionary<string, string>
+                {
+                    ["shopId"] = message.ShopId.ToString(),
+                    ["notificationType"] = message.NotificationType.ToString(),
+                    ["relatedEntityName"] = message.RelatedEntityName,
+                    ["relatedEntityId"] = message.RelatedEntityId?.ToString() ?? string.Empty
+                },
                 Android = new FirebaseAndroidConfig
                 {
                     Priority = "high",

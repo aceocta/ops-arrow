@@ -7,6 +7,8 @@ import * as Linking from "expo-linking";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "./src/auth/AuthContext";
 import { ErrorBoundary } from "./src/components/ErrorBoundary";
+import { navigationRef } from "./src/navigation/navigationRef";
+import { registerNotificationTapNavigation } from "./src/notifications/notificationTapNavigation";
 import { useAutoSyncBootstrap } from "./src/offline/useAutoSyncBootstrap";
 import type { RootStackParamList } from "./src/types/navigation";
 import { bootstrapThemeModePreference } from "./src/ui/themePreference";
@@ -88,6 +90,9 @@ function AppShell() {
     }
   }, [isThemeReady]);
 
+  // Deep-link a tapped temperature-reminder push to the Temperature Log screen.
+  useEffect(() => registerNotificationTapNavigation(), []);
+
   const runtimeModules = useMemo(() => {
     if (!isThemeReady) {
       return null;
@@ -151,7 +156,7 @@ function AppShell() {
         <ErrorBoundary>
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
-              <NavigationContainer theme={navigationTheme} linking={linking}>
+              <NavigationContainer ref={navigationRef} theme={navigationTheme} linking={linking}>
                 <runtimeModules.RootNavigator />
                 <runtimeModules.AppAlertHost />
               </NavigationContainer>
