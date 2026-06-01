@@ -83,11 +83,31 @@ function isNegativeVariance(row: { difference?: number }) {
   return getDifferenceValue(row) < -0.009;
 }
 
-function getDayAggregate(rows: Array<{ soldQuantity?: number; salesAmount: number; difference?: number }>) {
+function getDayAggregate(rows: Array<{ soldQuantity?: number; salesAmount: number; prizePayout?: number; difference?: number }>) {
   const totalQuantity = rows.reduce((acc, row) => acc + Number(row.soldQuantity ?? 0), 0);
   const totalSales = rows.reduce((acc, row) => acc + Number(row.salesAmount ?? 0), 0);
+  const totalPrizePayout = rows.reduce((acc, row) => acc + Number(row.prizePayout ?? 0), 0);
+  const totalNetTake = totalSales - totalPrizePayout;
+  const avgTicketPrice = totalQuantity > 0 ? totalSales / totalQuantity : 0;
   const totalDifference = rows.reduce((acc, row) => acc + getDifferenceValue(row), 0);
-  return { totalQuantity, totalSales, totalDifference };
+  return { totalQuantity, totalSales, totalPrizePayout, totalNetTake, avgTicketPrice, totalDifference };
+}
+
+const REPORT_MONTH_NAMES_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const REPORT_WEEKDAY_NAMES_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function formatBusinessDate(isoDate: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+  if (!match) return isoDate;
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1;
+  const day = Number(match[3]);
+  if (monthIndex < 0 || monthIndex > 11) return isoDate;
+  const date = new Date(Date.UTC(year, monthIndex, day));
+  const weekday = REPORT_WEEKDAY_NAMES_SHORT[date.getUTCDay()];
+  const monthShort = REPORT_MONTH_NAMES_SHORT[monthIndex];
+  const dayStr = String(day).padStart(2, "0");
+  return `${weekday}, ${dayStr} ${monthShort} ${year}`;
 }
 
 function getDayClosePayoutSnapshot(rows: Array<{ lottoPayout?: number; scratchCardPayout?: number; tillPayout?: number }>) {
@@ -149,6 +169,29 @@ export function DailySalesReportScreen() {
     },
     [query.data]
   );
+  const totalPrizePayouts = useMemo(
+    () => (query.data ?? []).reduce((sum, row) => sum + Number(row.prizePayout ?? 0), 0),
+    [query.data],
+  );
+  const totalNetTake = totalSales - totalPrizePayouts;
+  const totalSoldQuantity = useMemo(
+    () => (query.data ?? []).reduce((sum, row) => sum + Number(row.soldQuantity ?? 0), 0),
+    [query.data],
+  );
+  const avgTicketPrice = totalSoldQuantity > 0 ? totalSales / totalSoldQuantity : 0;
+  const topDay = useMemo(() => {
+    if (groupedRows.length < 2) return null;
+    let bestDate = "";
+    let bestSales = -Infinity;
+    for (const [date, rows] of groupedRows) {
+      const sales = (rows ?? []).reduce((sum, row) => sum + Number(row.salesAmount ?? 0), 0);
+      if (sales > bestSales) {
+        bestSales = sales;
+        bestDate = date;
+      }
+    }
+    return bestSales > 0 ? { businessDate: bestDate, sales: bestSales } : null;
+  }, [groupedRows]);
 
   const reportDateTime = useMemo(() => {
     const now = new Date();
@@ -321,19 +364,28 @@ export function DailySalesReportScreen() {
           <DateRangeInputs from={from} to={to} setFrom={setFrom} setTo={setTo} />
 
           <View style={styles.metricsRow}>
-            <View style={styles.metricCard}>
-              <Text style={styles.metricValueLarge}>{totalDays}</Text>
-              <Text style={styles.metricLabel}>Days</Text>
-            </View>
-            <View style={styles.metricCard}>
-              <Text style={styles.metricValueLarge}>{totalShifts}</Text>
-              <Text style={styles.metricLabel}>Shifts</Text>
-            </View>
-            <View style={styles.metricCard}>
-              <Text style={styles.metricValue}>{formatCurrency(totalSales)}</Text>
+            <View style={[styles.metricCard, styles.metricCardEmphasis]}>
               <Text style={styles.metricLabel}>Total Sales</Text>
+              <Text style={styles.metricValue}>{formatCurrency(totalSales)}</Text>
             </View>
             <View style={styles.metricCard}>
+              <Text style={styles.metricLabel}>Prize Payouts</Text>
+              <Text style={styles.metricValue}>{formatCurrency(totalPrizePayouts)}</Text>
+            </View>
+            <View style={[styles.metricCard, styles.metricCardEmphasis]}>
+              <Text style={styles.metricLabel}>Net Take</Text>
+              <Text style={styles.metricValue}>{formatCurrency(totalNetTake)}</Text>
+            </View>
+            <View style={styles.metricCard}>
+              <Text style={styles.metricLabel}>Tickets · {formatCurrency(avgTicketPrice)} avg</Text>
+              <Text style={styles.metricValueLarge}>{totalSoldQuantity}</Text>
+            </View>
+            <View style={styles.metricCard}>
+              <Text style={styles.metricLabel}>Days · Shifts</Text>
+              <Text style={styles.metricValueLarge}>{totalDays} · {totalShifts}</Text>
+            </View>
+            <View style={styles.metricCard}>
+              <Text style={styles.metricLabel}>Missing Tickets</Text>
               <Text
                 style={[
                   styles.metricValueLarge,
@@ -342,9 +394,17 @@ export function DailySalesReportScreen() {
               >
                 {totalMissingTickets}
               </Text>
-              <Text style={styles.metricLabel}>Missing Tickets</Text>
             </View>
           </View>
+
+          {topDay ? (
+            <View style={styles.topDayCallout}>
+              <Text style={styles.topDayLabel}>Top Day</Text>
+              <Text style={styles.topDayValue}>
+                {formatBusinessDate(topDay.businessDate)} · {formatCurrency(topDay.sales)}
+              </Text>
+            </View>
+          ) : null}
 
 {Math.abs(totalDifference) > 0.009 ? (
           <View
@@ -427,7 +487,7 @@ export function DailySalesReportScreen() {
                   onPress={() => openBusinessDateDayManagement(businessDate)}
                 >
                   <View style={styles.groupHeaderRow}>
-                    <Text style={styles.groupTitle}>{businessDate}</Text>
+                    <Text style={styles.groupTitle}>{formatBusinessDate(businessDate)}</Text>
                     {isDayPositive ? <StatusBadge label="Day Over" tone="warning" /> : null}
                     {isDayNegative ? <StatusBadge label="Day Short" tone="danger" /> : null}
                     {!isDayPositive && !isDayNegative ? <StatusBadge label="Day Balanced" tone="success" /> : null}
@@ -441,8 +501,10 @@ export function DailySalesReportScreen() {
                   onPress={() => openBusinessDateDayManagement(businessDate)}
                 >
                   <View style={styles.daySummaryCard}>
-                    <Text style={styles.meta}>Total Sales: {formatCurrency(dayAggregate.totalSales)}</Text>
-                    <Text style={styles.meta}>Number of Tickets: {dayAggregate.totalQuantity}</Text>
+                    <Text style={styles.meta}>Sales: {formatCurrency(dayAggregate.totalSales)}</Text>
+                    <Text style={styles.meta}>Prize Payouts: {formatCurrency(dayAggregate.totalPrizePayout)}</Text>
+                    <Text style={styles.meta}>Net Take: {formatCurrency(dayAggregate.totalNetTake)}</Text>
+                    <Text style={styles.meta}>Tickets: {dayAggregate.totalQuantity} · Avg {formatCurrency(dayAggregate.avgTicketPrice)}</Text>
                     <Text style={[styles.meta, dayMissingCount > 0 ? styles.varianceTextNegative : null]}>
                       Missing Tickets: {dayMissingCount}
                     </Text>
@@ -466,7 +528,7 @@ export function DailySalesReportScreen() {
                       payoutDifference != null && payoutDifference < -0.009 ? styles.varianceTextNegative : null,
                     ]}
                   >
-                    Difference ((Lotto + Scratch) - Till): {payoutDifference != null ? formatCurrency(payoutDifference) : "-"}
+                    Difference : {payoutDifference != null ? formatCurrency(payoutDifference) : "-"}
                   </Text>
                 </View>
                 <View style={styles.dayReviewCard}>
@@ -501,6 +563,8 @@ export function DailySalesReportScreen() {
                     const rowDifference = getPayoutBasedDifference(row);
                     const isRowPositive = rowDifference > 0.009;
                     const isRowNegative = rowDifference < -0.009;
+                    const rowPrizePayout = Number(row.prizePayout ?? 0);
+                    const rowNetTake = Number(row.salesAmount ?? 0) - rowPrizePayout;
                     return (
                     <Pressable
                       key={`${row.businessDate}-${row.shiftName}-${index}`}
@@ -515,6 +579,9 @@ export function DailySalesReportScreen() {
                     >
                       <View style={styles.shiftColName}>
                         <Text style={styles.shiftTablePrimary}>{row.shiftName}</Text>
+                        <Text style={styles.shiftTableSecondary}>
+                          Payouts {formatCurrency(rowPrizePayout)} · Net {formatCurrency(rowNetTake)}
+                        </Text>
                         <Text
                           style={[
                             styles.shiftTableSecondary,
@@ -830,18 +897,52 @@ const styles = StyleSheet.create({
   },
   metricsRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: appTheme.spacing.xs,
   },
   metricCard: {
-    flex: 1,
+    flexBasis: "48%",
+    flexGrow: 1,
+    minWidth: 0,
     borderWidth: 1,
     borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceMuted,
     paddingVertical: appTheme.spacing.xs,
-    paddingHorizontal: appTheme.spacing.xs,
-    alignItems: "center",
+    paddingHorizontal: appTheme.spacing.sm,
+    alignItems: "flex-start",
     gap: 2,
+  },
+  metricCardEmphasis: {
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+    borderColor: appTheme.colors.primary,
+  },
+  topDayCallout: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    flexWrap: "wrap",
+    gap: 8,
+    paddingVertical: appTheme.spacing.xs,
+    paddingHorizontal: appTheme.spacing.sm,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: appTheme.colors.primary,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+  },
+  topDayLabel: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 13,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  topDayValue: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 16,
   },
   metricValue: {
     color: appTheme.colors.text,
