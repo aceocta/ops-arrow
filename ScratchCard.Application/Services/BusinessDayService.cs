@@ -2077,7 +2077,7 @@ public class BusinessDayService : IBusinessDayService
         sb.Append("</style></head><body>");
         sb.Append("<div class=\"shell\">");
         sb.Append("<div class=\"hero\">");
-        sb.Append("<h2>Scratch Card Day Close Report</h2>");
+        sb.Append("<h2>Day Close Report</h2>");
         sb.Append("</div>");
         sb.Append("<div class=\"content\">");
         sb.Append("<table class=\"meta\"><tbody>");

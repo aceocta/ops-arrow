@@ -1732,10 +1732,10 @@ sb.Append("<div class=\"shell\">");
 sb.Append("<div class=\"hero\">");
 sb.Append("<div class=\"hero-top\">");
 sb.Append("<div>");
-sb.Append("<h2>Scratch Card Shift Close Report</h2>");
-sb.Append("<p>Shift sales summary and display-level scratch card closing details</p>");
+sb.Append("<h2>Shift Close Report</h2>");
+// sb.Append("<p>Shift summary across all enabled features for this shop</p>");
 sb.Append("</div>");
-sb.Append("<div class=\"report-badge\">Shift Closed</div>");
+// sb.Append("<div class=\"report-badge\">Shift Closed</div>");
 sb.Append("</div>");
 sb.Append("</div>");
 
