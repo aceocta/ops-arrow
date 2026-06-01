@@ -228,8 +228,22 @@ export function TemperatureLogScreen() {
   }, [unitsQuery, dailyLogQuery]);
   const isRefreshing = unitsQuery.isRefetching || dailyLogQuery.isRefetching;
 
+  // Reset all entry-form fields and prime readingTime so the next unit's entry starts fresh.
+  // Used by chip taps, chevron navigation, and the post-save "advance to next" path.
+  const resetEntryFormForUnit = useCallback((unitId: string) => {
+    setSelectedUnitId(unitId);
+    setTemperatureCelsius("");
+    setNotes("");
+    setActionTaken("");
+    setReadingTime(formatTimeValue(new Date()));
+  }, []);
+
+  type RecordPostAction = "close" | "next";
+  // Holds the unit we should jump to after a successful save when the user picks "Save & Next".
+  // Captured before invoking the mutation so onSuccess can advance even after the form resets.
+  const pendingNextUnitRef = useRef<string | null>(null);
   const recordMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (_postAction: RecordPostAction) => {
       if (!shopId) throw new Error("No shop selected.");
       if (!selectedUnitId) throw new Error("Select a unit.");
       if (!temperatureCelsius.trim()) throw new Error("Enter temperature.");
@@ -264,17 +278,30 @@ export function TemperatureLogScreen() {
         actionTaken: normalizedActionTaken || undefined,
       });
     },
-    onSuccess: async () => {
-      setTemperatureCelsius("");
-      setNotes("");
-      setActionTaken("");
-      setReadingTime(formatTimeValue(new Date()));
-      setIsLogEntryModalVisible(false);
+    onSuccess: async (_data, postAction) => {
       setSelectedDate(entryDate);
       toastSuccess("Temperature reading recorded.");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["temperature-daily-log", shopId, entryDate] }),
       ]);
+
+      if (postAction === "next" && pendingNextUnitRef.current) {
+        // Stay in the modal and switch to the next pending unit. Clear form first so the
+        // operator sees an empty entry ready for the next fridge.
+        const nextUnitId = pendingNextUnitRef.current;
+        pendingNextUnitRef.current = null;
+        resetEntryFormForUnit(nextUnitId);
+        return;
+      }
+
+      // Default behaviour (Save & Close, or Save & Next with nothing pending left): tear down
+      // the modal and reset the form so the next time it opens it's clean.
+      pendingNextUnitRef.current = null;
+      setTemperatureCelsius("");
+      setNotes("");
+      setActionTaken("");
+      setReadingTime(formatTimeValue(new Date()));
+      setIsLogEntryModalVisible(false);
     },
     onError: (error: any) => {
       toastError(error?.response?.data?.message ?? error?.message ?? "Unable to save reading.");
@@ -393,17 +420,67 @@ export function TemperatureLogScreen() {
     closeTextEditor();
   };
   const openLogEntryModal = (unitId: string) => {
-    setSelectedUnitId(unitId);
+    pendingNextUnitRef.current = null;
     setEntryDate(selectedDate);
-    setTemperatureCelsius("");
-    setNotes("");
-    setActionTaken("");
-    setReadingTime(formatTimeValue(new Date()));
+    resetEntryFormForUnit(unitId);
     setIsLogEntryModalVisible(true);
   };
   const closeLogEntryModal = () => {
     closeTextEditor();
+    pendingNextUnitRef.current = null;
     setIsLogEntryModalVisible(false);
+  };
+
+  // Status helper for the chip strip. "recorded" = at least one reading today and the latest is
+  // in range; "outOfRange" = latest reading is outside the unit's min/max; "pending" = nothing
+  // recorded for this unit today.
+  const getUnitDailyStatus = (
+    unitLog: typeof dailyUnitLogs[number],
+  ): "recorded" | "outOfRange" | "pending" => {
+    const latest = unitLog.readings.length > 0 ? unitLog.readings[unitLog.readings.length - 1] : null;
+    if (!latest) return "pending";
+    return latest.isOutOfRange ? "outOfRange" : "recorded";
+  };
+
+  const selectedUnitIndex = useMemo(
+    () => dailyUnitLogs.findIndex((x) => x.unit.id === selectedUnitId),
+    [dailyUnitLogs, selectedUnitId],
+  );
+
+  // Order of "next" candidates: start at selected+1, wrap around to the start, exclude current.
+  // Returns the first pending unit if one exists; otherwise the next unit regardless of status
+  // (so the operator can still move forward to review/re-enter).
+  const nextUnitId = useMemo(() => {
+    if (dailyUnitLogs.length < 2 || selectedUnitIndex < 0) return null;
+    const orderedFromHere = [
+      ...dailyUnitLogs.slice(selectedUnitIndex + 1),
+      ...dailyUnitLogs.slice(0, selectedUnitIndex),
+    ];
+    const pending = orderedFromHere.find((u) => getUnitDailyStatus(u) === "pending");
+    return (pending ?? orderedFromHere[0]).unit.id;
+  }, [dailyUnitLogs, selectedUnitIndex]);
+
+  const prevUnitId = useMemo(() => {
+    if (dailyUnitLogs.length < 2 || selectedUnitIndex < 0) return null;
+    const prevIndex = selectedUnitIndex === 0 ? dailyUnitLogs.length - 1 : selectedUnitIndex - 1;
+    return dailyUnitLogs[prevIndex].unit.id;
+  }, [dailyUnitLogs, selectedUnitIndex]);
+
+  // Switch to a different unit without saving — used by chip taps and chevron buttons.
+  const switchToUnit = (unitId: string) => {
+    if (unitId === selectedUnitId) return;
+    closeTextEditor();
+    pendingNextUnitRef.current = null;
+    resetEntryFormForUnit(unitId);
+  };
+
+  const triggerSave = (postAction: RecordPostAction) => {
+    if (postAction === "next") {
+      pendingNextUnitRef.current = nextUnitId;
+    } else {
+      pendingNextUnitRef.current = null;
+    }
+    recordMutation.mutate(postAction);
   };
   const moveSelectedDate = (days: number) => {
     setSelectedDate((current) => shiftDateByDays(current, days));
@@ -714,7 +791,83 @@ export function TemperatureLogScreen() {
             <ModalBackdropBlur />
             <View style={styles.modalCard}>
               <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalScrollContent}>
-              <Text style={styles.sectionTitle}>{selectedUnit?.unitName ?? "Unit"}</Text>
+              {dailyUnitLogs.length > 1 ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.unitChipRow}
+                >
+                  {dailyUnitLogs.map((unitLog, index) => {
+                    const status = getUnitDailyStatus(unitLog);
+                    const isActive = unitLog.unit.id === selectedUnitId;
+                    return (
+                      <Pressable
+                        key={unitLog.unit.id}
+                        style={[
+                          styles.unitChip,
+                          isActive ? styles.unitChipActive : null,
+                          status === "recorded" ? styles.unitChipRecorded : null,
+                          status === "outOfRange" ? styles.unitChipOutOfRange : null,
+                        ]}
+                        onPress={() => switchToUnit(unitLog.unit.id)}
+                        disabled={recordMutation.isPending}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: isActive }}
+                        accessibilityLabel={`Switch to ${unitLog.unit.unitName} (${status})`}
+                      >
+                        <Text
+                          style={[
+                            styles.unitChipIndex,
+                            isActive ? styles.unitChipIndexActive : null,
+                          ]}
+                        >
+                          {index + 1}
+                        </Text>
+                        <Text
+                          numberOfLines={1}
+                          style={[
+                            styles.unitChipLabel,
+                            isActive ? styles.unitChipLabelActive : null,
+                          ]}
+                        >
+                          {unitLog.unit.unitName}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              ) : null}
+
+              <View style={styles.unitHeaderRow}>
+                <Pressable
+                  style={[styles.unitNavButton, !prevUnitId ? styles.unitNavButtonDisabled : null]}
+                  onPress={() => prevUnitId && switchToUnit(prevUnitId)}
+                  disabled={!prevUnitId || recordMutation.isPending}
+                  accessibilityRole="button"
+                  accessibilityLabel="Previous unit"
+                >
+                  <Ionicons name="chevron-back" size={18} color={appTheme.colors.text} />
+                </Pressable>
+                <View style={styles.unitHeaderTitleWrap}>
+                  <Text style={styles.sectionTitle} numberOfLines={1}>
+                    {selectedUnit?.unitName ?? "Unit"}
+                  </Text>
+                  {dailyUnitLogs.length > 1 && selectedUnitIndex >= 0 ? (
+                    <Text style={styles.unitHeaderCounter}>
+                      {selectedUnitIndex + 1} of {dailyUnitLogs.length}
+                    </Text>
+                  ) : null}
+                </View>
+                <Pressable
+                  style={[styles.unitNavButton, !nextUnitId ? styles.unitNavButtonDisabled : null]}
+                  onPress={() => nextUnitId && switchToUnit(nextUnitId)}
+                  disabled={!nextUnitId || recordMutation.isPending}
+                  accessibilityRole="button"
+                  accessibilityLabel="Next unit"
+                >
+                  <Ionicons name="chevron-forward" size={18} color={appTheme.colors.text} />
+                </Pressable>
+              </View>
               {selectedUnit ? (
                 <View style={styles.rowBetween}>
                   <Text style={styles.meta}>
@@ -758,17 +911,21 @@ export function TemperatureLogScreen() {
                       <Pressable
                       style={styles.tempSignButton}
                       onPress={() => {
-                        // Toggle the sign of whatever's currently entered. Empty stays empty
-                        // (so the next keystroke starts cleanly), "-x" becomes "x", and "x"
-                        // becomes "-x". The decimal-pad keyboard has no minus key, so this is
-                        // the only way to enter freezer temperatures on Android.
+                        // Flip the explicit sign between "+x" and "-x". Empty starts a "-" entry
+                        // so the next keystroke types digits straight after the sign. The
+                        // decimal-pad keyboard has no minus key, so this button is the only way
+                        // to enter freezer values.
                         const trimmed = temperatureCelsius.trim();
                         if (!trimmed) {
                           setTemperatureCelsius("-");
                           return;
                         }
                         if (trimmed.startsWith("-")) {
-                          setTemperatureCelsius(trimmed.slice(1));
+                          setTemperatureCelsius(`+${trimmed.slice(1)}`);
+                          return;
+                        }
+                        if (trimmed.startsWith("+")) {
+                          setTemperatureCelsius(`-${trimmed.slice(1)}`);
                           return;
                         }
                         setTemperatureCelsius(`-${trimmed}`);
@@ -862,11 +1019,26 @@ export function TemperatureLogScreen() {
               </View>
 
               <PrimaryButton
-                label={recordMutation.isPending ? "Saving..." : "Save Reading"}
-                onPress={() => recordMutation.mutate()}
+                label={
+                  recordMutation.isPending
+                    ? "Saving..."
+                    : nextUnitId
+                      ? "Save & Next Unit"
+                      : "Save Reading"
+                }
+                onPress={() => triggerSave(nextUnitId ? "next" : "close")}
                 disabled={recordMutation.isPending || !shopId || !selectedUnit}
               />
               <View style={styles.modalActionRow}>
+                {nextUnitId ? (
+                  <Pressable
+                    style={[styles.modalActionButton, styles.modalActionSecondary]}
+                    onPress={() => triggerSave("close")}
+                    disabled={recordMutation.isPending || !shopId || !selectedUnit}
+                  >
+                    <Text style={styles.modalActionSecondaryText}>Save & Close</Text>
+                  </Pressable>
+                ) : null}
                 <Pressable
                   style={[styles.modalActionButton, styles.modalActionSecondary]}
                   onPress={closeLogEntryModal}
@@ -1037,6 +1209,83 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.heading,
     fontSize: 20,
     lineHeight: 24,
+  },
+  unitChipRow: {
+    gap: 6,
+    paddingBottom: 4,
+  },
+  unitChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: 999,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    backgroundColor: appTheme.colors.surface,
+    maxWidth: 140,
+  },
+  unitChipActive: {
+    borderColor: appTheme.colors.primary,
+    backgroundColor: appTheme.colors.primary,
+  },
+  unitChipRecorded: {
+    borderColor: appTheme.colors.success,
+    backgroundColor: appTheme.colors.badgeSuccessBg,
+  },
+  unitChipOutOfRange: {
+    borderColor: appTheme.colors.danger,
+    backgroundColor: appTheme.colors.badgeDangerBg,
+  },
+  unitChipIndex: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 10,
+    lineHeight: 12,
+  },
+  unitChipIndexActive: {
+    color: appTheme.colors.onPrimary,
+  },
+  unitChipLabel: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 14,
+    flexShrink: 1,
+  },
+  unitChipLabelActive: {
+    color: appTheme.colors.onPrimary,
+  },
+  unitHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+    marginTop: 6,
+  },
+  unitNavButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  unitNavButtonDisabled: {
+    opacity: 0.35,
+  },
+  unitHeaderTitleWrap: {
+    flex: 1,
+    alignItems: "center",
+    gap: 2,
+  },
+  unitHeaderCounter: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 13,
   },
   noteActionTile: {
     flex: 1,
