@@ -43,7 +43,8 @@
       "WebSearch",
       "Bash(xargs grep -L \"FlatList\")",
       "Bash(xargs grep -l \"ToListAsync\")",
-      "Bash(grep -v \"\\\\.cs:.*//\")"
+      "Bash(grep -v \"\\\\.cs:.*//\")",
+      "Bash(Get-ChildItem -Path \"j:\\\\ScratchCard\" -Directory)"
     ]
   }
 }
