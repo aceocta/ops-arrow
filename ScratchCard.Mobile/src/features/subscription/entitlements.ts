@@ -10,7 +10,7 @@ export type EntitlementFeature =
   | "ScratchCardManagement" | "TemperatureLog" | "RefusalNoIdNoSale" | "ComplianceChecklist" | "SafeDropManagement" | "StoreSales"
   | "store_sales.basic" | "store_sales.ai"
   | "scratch_card.basic" | "scratch_card.attachments" | "scratch_card.manual_entry_alerts"
-  | "scratch_card.advanced_validation" | "scratch_card.manual_correction_reasons" | "scratch_card.suspicious_alerts"
+  | "scratch_card.advanced_validation" | "scratch_card.suspicious_alerts"
   | "temperature_log.basic" | "temperature_log.missed_alerts" | "temperature_log.scheduled_checks" | "temperature_log.full_history"
   | "refusal_log.basic" | "refusal_log.attachments" | "refusal_log.multi_manager_review"
   | "refusal_log.analytics" | "refusal_log.staff_reports"

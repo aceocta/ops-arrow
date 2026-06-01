@@ -59,7 +59,6 @@ type EntryState = {
 };
 
 const ENABLE_MOBILE_CAMERA_BARCODE_SCANNING_KEY = "EnableMobileCameraBarcodeScanning";
-const ALLOW_MANUAL_ENTRY_IF_SCAN_FAILS_KEY = "AllowManualEntryIfScanFails";
 
 function parseBooleanConfigValue(value: string | undefined, fallback: boolean) {
   if (!value) {
@@ -345,17 +344,6 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
     return parseBooleanConfigValue(configuredValue, true);
   }, [configurationsQuery.data]);
 
-  const allowManualEntryIfScanFails = useMemo(() => {
-    const configuredValue = configurationsQuery.data?.find(
-      (item) => item.configKey.toLowerCase() === ALLOW_MANUAL_ENTRY_IF_SCAN_FAILS_KEY.toLowerCase()
-    )?.configValue;
-    return parseBooleanConfigValue(configuredValue, true);
-  }, [configurationsQuery.data]);
-
-  const isManualClosingSerialEnabled = isCameraScanningEnabled
-    ? allowManualEntryIfScanFails
-    : true;
-
   useEffect(() => {
     packsRef.current = [...(packsQuery.data ?? [])].sort(comparePacksByDisplayOrder);
   }, [packsQuery.data]);
@@ -539,7 +527,7 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
         }
 
         setScanStatus(
-          `Scanned value could not be validated for pack ${matchedPack.packNumber}.${isManualClosingSerialEnabled ? " Please rescan or enter manually." : " Please rescan."}`
+          `Scanned value could not be validated for pack ${matchedPack.packNumber}. Please rescan or enter manually.`
         );
         return;
       }
@@ -565,7 +553,9 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
     });
 
     return unsubscribe;
-  }, [isManualClosingSerialEnabled]);
+    // Scan handling no longer depends on a manual-entry config gate; set up once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const computedRows = useMemo(() => {
     const packs = [...(packsQuery.data ?? [])].sort(comparePacksByDisplayOrder);
@@ -658,9 +648,7 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
   const readinessMessage = errorRows > 0
     ? "Resolve serial errors before finalising the shift."
     : pendingRows > 0
-      ? isManualClosingSerialEnabled
-        ? "Enter closing serial numbers for all active packs."
-        : "Scan each pack to capture closing serial numbers for all active packs."
+      ? "Enter closing serial numbers for all active packs."
       : "All active packs are ready. You can finalise this shift.";
 
   async function onSaveClosingNumbers() {
@@ -694,14 +682,6 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
     if (errored) {
       Alert.alert("Validation", `Fix closing serial for pack ${errored.pack.packNumber}.`);
       return;
-    }
-
-    if (!isManualClosingSerialEnabled) {
-      const manualEntryPack = toSave.find((x) => x.entry.entryMethod === EntryMethod.Manual);
-      if (manualEntryPack) {
-        Alert.alert("Validation", `Manual entry is disabled. Scan pack ${manualEntryPack.pack.packNumber} instead.`);
-        return;
-      }
     }
 
     setIsSubmitting(true);
@@ -936,7 +916,6 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
                       styles.input,
                       styles.inlineSerialInput,
                       !hasClosingSerial ? styles.inlineSerialInputDefault : null,
-                      !isManualClosingSerialEnabled ? styles.inputDisabled : null,
                     ]}
                     // Value is seeded to the opening serial when the pack list arrives (see
                     // useEffect above), so the box always shows a real editable number rather
@@ -1005,11 +984,11 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
                   <Pressable
                     style={[
                       styles.soldOutButton,
-                      (!isManualClosingSerialEnabled || isSubmitting) ? styles.actionButtonDisabled : null,
+                      isSubmitting ? styles.actionButtonDisabled : null,
                     ]}
                     accessibilityRole="button"
                     accessibilityLabel={`Mark pack ${row.pack.packNumber} as sold out`}
-                    disabled={!isManualClosingSerialEnabled || isSubmitting}
+                    disabled={isSubmitting}
                     onPress={async () => {
                       // Marking sold-out sets the closing serial to the end of the pack which
                       // cannot be undone short of editing the textbox — confirm first so a

@@ -18,7 +18,6 @@ public static class FeatureKeys
     public const string ScratchCardAttachments = "scratch_card.attachments";
     public const string ScratchCardManualEntryAlerts = "scratch_card.manual_entry_alerts";
     public const string ScratchCardAdvancedValidation = "scratch_card.advanced_validation";
-    public const string ScratchCardManualCorrectionReasons = "scratch_card.manual_correction_reasons";
     public const string ScratchCardSuspiciousAlerts = "scratch_card.suspicious_alerts";
 
     // --- Temperature Log ---
@@ -100,7 +99,6 @@ public static class FeatureKeys
         new FeatureCatalogEntry(ScratchCardAttachments, "Attachments", "Scratch Card", null, 11),
         new FeatureCatalogEntry(ScratchCardManualEntryAlerts, "Manual-entry alerts", "Scratch Card", null, 12),
         new FeatureCatalogEntry(ScratchCardAdvancedValidation, "Advanced validation", "Scratch Card", null, 13),
-        new FeatureCatalogEntry(ScratchCardManualCorrectionReasons, "Manual correction reasons", "Scratch Card", null, 14),
         new FeatureCatalogEntry(ScratchCardSuspiciousAlerts, "Suspicious activity alerts", "Scratch Card", null, 15),
 
         // Temperature Log.
@@ -178,7 +176,7 @@ public static class FeatureKeys
             [ScratchCardManagement] = new[]
             {
                 ScratchCardBasic, ScratchCardAttachments, ScratchCardManualEntryAlerts,
-                ScratchCardAdvancedValidation, ScratchCardManualCorrectionReasons, ScratchCardSuspiciousAlerts,
+                ScratchCardAdvancedValidation, ScratchCardSuspiciousAlerts,
             },
             [TemperatureLog] = new[]
             {

@@ -726,7 +726,6 @@ public static class SeedDataInitializer
             {
                 ShopId = null,
                 EnableMobileCameraBarcodeScanning = true,
-                AllowManualEntryIfScanFails = true,
                 BarcodeContains = "PackAndSerial",
                 PackNumberStartPosition = 0,
                 PackNumberLength = 6,
@@ -901,7 +900,7 @@ public static class SeedDataInitializer
         // dashboards, approval workflow, advanced reports.
         var proFeatures = growthFeatures.Concat(new[]
         {
-            FeatureKeys.ScratchCardAdvancedValidation, FeatureKeys.ScratchCardManualCorrectionReasons,
+            FeatureKeys.ScratchCardAdvancedValidation,
             FeatureKeys.ScratchCardSuspiciousAlerts,
             FeatureKeys.TemperatureLogScheduledChecks, FeatureKeys.TemperatureLogFullHistory,
             FeatureKeys.RefusalLogAnalytics, FeatureKeys.RefusalLogStaffReports,

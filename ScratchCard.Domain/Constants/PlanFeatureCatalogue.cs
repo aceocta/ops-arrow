@@ -37,7 +37,7 @@ public static class PlanFeatureCatalogue
 
     public static readonly IReadOnlyList<string> Pro = ((IEnumerable<string>)Growth).Concat(new[]
     {
-        FeatureKeys.ScratchCardAdvancedValidation, FeatureKeys.ScratchCardManualCorrectionReasons,
+        FeatureKeys.ScratchCardAdvancedValidation,
         FeatureKeys.ScratchCardSuspiciousAlerts,
         FeatureKeys.TemperatureLogScheduledChecks, FeatureKeys.TemperatureLogFullHistory,
         FeatureKeys.RefusalLogAnalytics, FeatureKeys.RefusalLogStaffReports,

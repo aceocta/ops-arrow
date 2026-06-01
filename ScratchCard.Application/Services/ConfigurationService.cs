@@ -147,7 +147,6 @@ public class ConfigurationService : IConfigurationService
         AddItem(items, shopId, NotificationGroup, "SendNotificationOnShiftFinalize", ToConfigString(Resolve(shopNotification?.SendNotificationOnShiftFinalize, globalNotification?.SendNotificationOnShiftFinalize, true)), "bool", null);
 
         AddItem(items, shopId, BarcodeGroup, "EnableMobileCameraBarcodeScanning", ToConfigString(Resolve(shopBarcode?.EnableMobileCameraBarcodeScanning, globalBarcode?.EnableMobileCameraBarcodeScanning, true)), "bool", null);
-        AddItem(items, shopId, BarcodeGroup, "AllowManualEntryIfScanFails", ToConfigString(Resolve(shopBarcode?.AllowManualEntryIfScanFails, globalBarcode?.AllowManualEntryIfScanFails, true)), "bool", null);
         AddItem(items, shopId, BarcodeGroup, "BarcodeContains", Resolve(shopBarcode?.BarcodeContains, globalBarcode?.BarcodeContains, "PackAndSerial"), "string", null);
         AddItem(items, shopId, BarcodeGroup, "PackNumberStartPosition", ToConfigString(Resolve(shopBarcode?.PackNumberStartPosition, globalBarcode?.PackNumberStartPosition, 0)), "int", null);
         AddItem(items, shopId, BarcodeGroup, "PackNumberLength", ToConfigString(Resolve(shopBarcode?.PackNumberLength, globalBarcode?.PackNumberLength, 6)), "int", null);
@@ -511,9 +510,6 @@ public class ConfigurationService : IConfigurationService
             case "EnableMobileCameraBarcodeScanning":
                 target.EnableMobileCameraBarcodeScanning = ParseBool(value, key);
                 break;
-            case "AllowManualEntryIfScanFails":
-                target.AllowManualEntryIfScanFails = ParseBool(value, key);
-                break;
             case "BarcodeContains":
                 target.BarcodeContains = value;
                 break;
@@ -671,7 +667,6 @@ public class ConfigurationService : IConfigurationService
             "SendNotificationOnShiftFinalize" => NotificationGroup,
 
             "EnableMobileCameraBarcodeScanning" => BarcodeGroup,
-            "AllowManualEntryIfScanFails" => BarcodeGroup,
             "BarcodeContains" => BarcodeGroup,
             "PackNumberStartPosition" => BarcodeGroup,
             "PackNumberLength" => BarcodeGroup,

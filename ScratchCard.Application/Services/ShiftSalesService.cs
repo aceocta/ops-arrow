@@ -496,31 +496,6 @@ public class ShiftSalesService : IShiftSalesService
             }
         }
 
-        // Plans with scratch_card.manual_correction_reasons require a reason whenever a manual
-        // or edited entry is submitted. Below that tier, the reason field is accepted but
-        // optional.
-        var requireManualReason = await _featureGateService.HasFeatureAsync(
-            shift.ShopId,
-            FeatureKeys.ScratchCardManualCorrectionReasons,
-            cancellationToken);
-        if (requireManualReason)
-        {
-            foreach (var entry in entries)
-            {
-                var entryIsManualOrEdited = entry.EntryMethod == EntryMethod.Manual
-                    || entry.EntryMethod == EntryMethod.ScannedEdited
-                    || (!string.IsNullOrWhiteSpace(entry.OriginalScannedSerialNumber) &&
-                        !string.Equals(entry.OriginalScannedSerialNumber, entry.ClosingSerialNumber, StringComparison.OrdinalIgnoreCase));
-                if (entryIsManualOrEdited && string.IsNullOrWhiteSpace(entry.ManualEntryReason))
-                {
-                    throw new AppException(
-                        "manual_correction_reason_required",
-                        "Your subscription plan requires a reason for every manual or edited closing-serial entry.",
-                        400);
-                }
-            }
-        }
-
         // Plans with scratch_card.advanced_validation enforce a strict serial-range check:
         // the closing serial must lie within [start, end] of the pack and the resulting sold
         // quantity must be non-negative. The default validator silently clamps; strict mode
