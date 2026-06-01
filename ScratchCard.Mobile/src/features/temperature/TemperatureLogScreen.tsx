@@ -1025,15 +1025,6 @@ export function TemperatureLogScreen() {
                 disabled={recordMutation.isPending || !shopId || !selectedUnit}
               />
               <View style={styles.modalActionRow}>
-                {nextUnitId ? (
-                  <Pressable
-                    style={[styles.modalActionButton, styles.modalActionSecondary]}
-                    onPress={() => triggerSave("close")}
-                    disabled={recordMutation.isPending || !shopId || !selectedUnit}
-                  >
-                    <Text style={styles.modalActionSecondaryText}>Save & Close</Text>
-                  </Pressable>
-                ) : null}
                 <Pressable
                   style={[styles.modalActionButton, styles.modalActionSecondary]}
                   onPress={closeLogEntryModal}
@@ -1227,11 +1218,10 @@ const styles = StyleSheet.create({
   },
   unitChipRecorded: {
     borderColor: appTheme.colors.success,
-    backgroundColor: appTheme.colors.badgeSuccessBg,
   },
   unitChipOutOfRange: {
     borderColor: appTheme.colors.danger,
-    backgroundColor: appTheme.colors.badgeDangerBg,
+    borderWidth: 2,
   },
   unitChipIndex: {
     color: appTheme.colors.textSubtle,
