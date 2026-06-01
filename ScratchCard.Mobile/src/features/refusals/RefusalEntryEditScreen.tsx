@@ -78,7 +78,7 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!product.trim()) throw new Error("Product is required.");
-      if (!personDescription.trim()) throw new Error("Person description is required.");
+      if (!personDescription.trim()) throw new Error("Description is required.");
       if (!refusalTime.trim()) throw new Error("Time is required.");
 
       return updateRefusalEntry(entryId, {
@@ -152,7 +152,7 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
               ))}
             </ScrollView>
 
-            <Text style={styles.fieldLabel}>Name of person or description</Text>
+            <Text style={styles.fieldLabel}>Description</Text>
             <TextInput
               ref={personDescriptionRef}
               style={[styles.input, styles.textArea]}

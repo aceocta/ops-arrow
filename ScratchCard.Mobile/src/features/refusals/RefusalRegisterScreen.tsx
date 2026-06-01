@@ -158,7 +158,7 @@ function buildRefusalReportHtml(input: {
               <th class="col-date">Date</th>
               <th class="col-product">Product</th>
               <th class="col-time">Time</th>
-              <th class="col-person">Name of person or description</th>
+              <th class="col-person">Description</th>
               <th class="col-obs">Observations</th>
               <th class="col-staff">Staff</th>
               <th class="col-sign">Staff Sign</th>
@@ -312,7 +312,7 @@ export function RefusalRegisterScreen() {
     mutationFn: async () => {
       if (!shopId) throw new Error("No shop selected.");
       if (!product.trim()) throw new Error("Product is required.");
-      if (!personDescription.trim()) throw new Error("Person description is required.");
+      if (!personDescription.trim()) throw new Error("Description is required.");
       if (!signatureDataUrl.trim()) throw new Error("Signature is required.");
 
         return recordRefusalEntry({
@@ -510,7 +510,7 @@ export function RefusalRegisterScreen() {
           ))}
         </ScrollView>
 
-        <Text style={styles.fieldLabel}>Name of person or description</Text>
+        <Text style={styles.fieldLabel}>Description</Text>
         <TextInput
           ref={personDescriptionRef}
           style={[styles.input, styles.textArea]}

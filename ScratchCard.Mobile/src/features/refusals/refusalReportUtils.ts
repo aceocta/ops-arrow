@@ -173,7 +173,7 @@ export function buildRefusalRangeReportHtml(input: {
               <th class="col-date">Date</th>
               <th class="col-product">Product</th>
               <th class="col-time">Time</th>
-              <th class="col-person">Name of person or description</th>
+              <th class="col-person">Description</th>
               <th class="col-obs">Observations</th>
               <th class="col-staff">Staff</th>
               <th class="col-sign">Staff Sign</th>
