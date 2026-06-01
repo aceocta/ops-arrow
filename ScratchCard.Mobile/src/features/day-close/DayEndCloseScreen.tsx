@@ -1960,20 +1960,25 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               </Text>
             </View>
           ) : null}
-          <KpiGrid columns={2}>
-            <KpiTile label="Sold Qty" value={scratchCardDayTotals.soldQuantity} />
-            <KpiTile label="Sales Amount" value={formatCurrency(scratchCardDayTotals.amount)} />
-          </KpiGrid>
           {scratchCardShiftBreakdown.length > 0 ? (
             <View style={styles.shiftBreakdownList}>
+              <View style={styles.breakdownHeaderRow}>
+                <Text style={[styles.breakdownHeaderCell, styles.breakdownColShift]}>Shift</Text>
+                <Text style={[styles.breakdownHeaderCell, styles.breakdownColNum]}>Sold Qty</Text>
+                <Text style={[styles.breakdownHeaderCell, styles.breakdownColNum]}>Sales Amount</Text>
+              </View>
               {scratchCardShiftBreakdown.map((row) => (
                 <View key={row.shiftId} style={styles.shiftBreakdownRow}>
-                  <Text style={styles.shiftBreakdownName} numberOfLines={1}>{row.shiftName}</Text>
-                  <Text style={styles.shiftBreakdownMeta} numberOfLines={1}>
-                    {row.soldQuantity} sold · {formatCurrency(row.amount)}
-                  </Text>
+                  <Text style={[styles.shiftBreakdownName, styles.breakdownColShift]} numberOfLines={1}>{row.shiftName}</Text>
+                  <Text style={[styles.shiftBreakdownMeta, styles.breakdownColNum]} numberOfLines={1}>{row.soldQuantity}</Text>
+                  <Text style={[styles.shiftBreakdownMeta, styles.breakdownColNum]} numberOfLines={1}>{formatCurrency(row.amount)}</Text>
                 </View>
               ))}
+              <View style={[styles.shiftBreakdownRow, styles.shiftBreakdownTotalRow]}>
+                <Text style={[styles.shiftBreakdownName, styles.breakdownColShift, styles.shiftBreakdownTotalText]} numberOfLines={1}>Total</Text>
+                <Text style={[styles.shiftBreakdownMeta, styles.breakdownColNum, styles.shiftBreakdownTotalText]} numberOfLines={1}>{scratchCardDayTotals.soldQuantity}</Text>
+                <Text style={[styles.shiftBreakdownMeta, styles.breakdownColNum, styles.shiftBreakdownTotalText]} numberOfLines={1}>{formatCurrency(scratchCardDayTotals.amount)}</Text>
+              </View>
             </View>
           ) : null}
         </Pressable>
@@ -4311,6 +4316,38 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.body,
     fontSize: 12,
     lineHeight: 16,
+  },
+  // Total row at the end of the shift-wise breakdown: no divider below, emphasized text.
+  shiftBreakdownTotalRow: {
+    borderBottomWidth: 0,
+  },
+  shiftBreakdownTotalText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+  },
+  // Column-title row for the shift breakdown table.
+  breakdownHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: appTheme.colors.borderStrong,
+  },
+  breakdownHeaderCell: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 14,
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+  },
+  breakdownColShift: {
+    flex: 1.6,
+  },
+  breakdownColNum: {
+    flex: 1,
+    textAlign: "right",
   },
   varianceHeroTile: {
     borderRadius: appTheme.radius.md,
