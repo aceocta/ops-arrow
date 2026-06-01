@@ -45,7 +45,10 @@
       "Bash(xargs grep -l \"ToListAsync\")",
       "Bash(grep -v \"\\\\.cs:.*//\")",
       "Bash(Get-ChildItem -Path \"j:\\\\ScratchCard\" -Directory)",
-      "Bash(echo \"exit:$?\")"
+      "Bash(echo \"exit:$?\")",
+      "Bash(cd /d \"J:\\\\ScratchCard\")",
+      "Bash(dir /s /b *.ts *.tsx)",
+      "PowerShell(head -20)"
     ]
   }
 }

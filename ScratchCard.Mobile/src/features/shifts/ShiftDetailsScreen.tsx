@@ -251,6 +251,7 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
       active: activeCount,
       entered: closings.length,
       pending: Math.max(activeCount - closings.length, 0),
+      soldQuantity: closings.reduce((sum, c) => sum + Number(c.soldQuantity ?? 0), 0),
       sales: closings.reduce((sum, c) => sum + Number(c.salesAmount ?? 0), 0),
     };
   }, [activePacksQuery.data, closingNumbersQuery.data]);
@@ -665,10 +666,9 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
                   }
                 />
               </Pressable>
-              <KpiGrid columns={3}>
-                <KpiTile label="Entered" value={closingProgress.entered} tone={closingProgress.active > 0 && closingProgress.pending === 0 ? "success" : "default"} />
-                <KpiTile label="Pending" value={closingProgress.pending} tone={closingProgress.pending > 0 ? "warning" : "default"} />
-                <KpiTile label="Sales" value={formatCurrency(closingProgress.sales)} />
+              <KpiGrid columns={2}>
+                <KpiTile label="Sold Qty" value={closingProgress.soldQuantity} />
+                <KpiTile label="Total Sales" value={formatCurrency(closingProgress.sales)} />
               </KpiGrid>
               {/* <Text style={styles.meta}>
                 {closingProgress.pending > 0

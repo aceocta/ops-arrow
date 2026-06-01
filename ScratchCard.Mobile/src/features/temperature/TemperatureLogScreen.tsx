@@ -625,10 +625,16 @@ export function TemperatureLogScreen() {
                 ? formatOutOfRangeDelta(latestTemp, unit.minTemperatureCelsius, unit.maxTemperatureCelsius)
                 : "";
 
+              const rowStatusBg = !latestReading
+                ? styles.unitRowPendingBg
+                : latestReading.isOutOfRange
+                  ? styles.unitRowOutOfRangeBg
+                  : styles.unitRowInRangeBg;
+
               return (
                 <Pressable
                   key={unit.id}
-                  style={styles.unitRow}
+                  style={[styles.unitRow, rowStatusBg]}
                   onPress={() => openLogEntryModal(unit.id)}
                   accessibilityRole="button"
                   accessibilityHint="Opens the reading entry modal"
@@ -1450,6 +1456,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: appTheme.spacing.sm,
     paddingVertical: appTheme.spacing.xs,
     gap: 6,
+  },
+  // Status-tinted backgrounds so each unit's state reads at a glance.
+  unitRowPendingBg: {
+    backgroundColor: appTheme.colors.surfaceWarningSoft,
+  },
+  unitRowInRangeBg: {
+    backgroundColor: appTheme.colors.surfaceSuccessSoft,
+  },
+  unitRowOutOfRangeBg: {
+    backgroundColor: appTheme.colors.surfaceDangerSoft,
   },
   unitRowSelected: {
     borderColor: appTheme.colors.primary,
