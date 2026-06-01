@@ -1286,7 +1286,14 @@ public class BusinessDayService : IBusinessDayService
             .Where(x => x.BusinessDayId == day.Id)
             .SumAsync(x => (int?)x.MissingQuantity, cancellationToken) ?? 0;
 
+        // Section-by-feature gating: only include a section in the day-end report if the shop's
+        // plan has the corresponding module enabled. Each feature key check returns false when
+        // the plan doesn't include it OR the shop owner has toggled the module off in settings.
+        var scratchCardEnabled = await _featureGateService.HasFeatureAsync(day.ShopId, FeatureKeys.ScratchCardManagement, cancellationToken);
+        var temperatureEnabled = await _featureGateService.HasFeatureAsync(day.ShopId, FeatureKeys.TemperatureLog, cancellationToken);
+        var complianceEnabled = await _featureGateService.HasFeatureAsync(day.ShopId, FeatureKeys.ComplianceChecklist, cancellationToken);
         var safeDropManagementEnabled = await IsSafeDropManagementEnabledForReportAsync(day.ShopId, cancellationToken);
+
         var safeDropRows = safeDropManagementEnabled
             ? await _canisterDropRepository.Query()
                 .AsNoTracking()
@@ -1302,31 +1309,39 @@ public class BusinessDayService : IBusinessDayService
                 .ToArrayAsync(cancellationToken)
             : [];
 
-        var temperatureRows = await LoadTemperatureSummaryForReportAsync(day.ShopId, day.BusinessDate, cancellationToken);
-        var complianceSummary = await LoadComplianceDailySummaryForReportAsync(day.ShopId, day.BusinessDate, cancellationToken);
+        var temperatureRows = temperatureEnabled
+            ? await LoadTemperatureSummaryForReportAsync(day.ShopId, day.BusinessDate, cancellationToken)
+            : [];
+        var complianceSummary = complianceEnabled
+            ? await LoadComplianceDailySummaryForReportAsync(day.ShopId, day.BusinessDate, cancellationToken)
+            : new ComplianceDailySummary(0, 0, 0, 0);
+        var scratchCardEntries = scratchCardEnabled ? entries : Array.Empty<ShiftScratchCardSale>();
+        var missingOpeningTicketsForReport = scratchCardEnabled ? missingOpeningTicketCount : 0;
 
         var subject = $"Day Close Summary - {shopName} - {day.BusinessDate:yyyy-MM-dd}";
         var body = BuildDayCloseSummaryBodyHtml(
             shopName,
             day,
             shifts,
-            entries,
-            missingOpeningTicketCount,
+            scratchCardEntries,
+            missingOpeningTicketsForReport,
             safeDropRows,
             safeDropManagementEnabled,
             temperatureRows,
-            complianceSummary);
+            complianceSummary,
+            scratchCardEnabled);
 
-        // One PDF per report section attached separately (Scratch Card, Temperature, Safe
-        // Drop, Compliance summary). The HTML body still carries every section inline.
+        // One PDF per enabled report section, attached separately. The HTML body still carries
+        // every enabled section inline.
         var attachments = BuildDayCloseAttachments(
             shopName,
             day,
-            entries,
+            scratchCardEntries,
             safeDropRows,
             safeDropManagementEnabled,
             temperatureRows,
-            complianceSummary);
+            complianceSummary,
+            scratchCardEnabled);
 
         foreach (var recipient in recipients)
         {
@@ -1760,7 +1775,8 @@ public class BusinessDayService : IBusinessDayService
         IReadOnlyCollection<SafeDropSummaryRow> safeDropRows,
         bool safeDropManagementEnabled,
         IReadOnlyCollection<TemperatureSummaryRow> temperatureRows,
-        ComplianceDailySummary complianceSummary)
+        ComplianceDailySummary complianceSummary,
+        bool scratchCardEnabled)
     {
         var metaRows = new[]
         {
@@ -1771,59 +1787,63 @@ public class BusinessDayService : IBusinessDayService
         var fileSuffix = day.BusinessDate.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
         var attachments = new List<EmailAttachment>();
 
-        // Scratch Card — aggregated by display + game + price.
-        var scratchRows = entries
-            .Select(entry => new
-            {
-                DisplayNumber = entry.Pack?.DisplayNumber,
-                GameName = entry.Pack?.Game?.GameName ?? "Unknown",
-                entry.TicketPrice,
-                entry.SoldQuantity,
-                entry.SalesAmount,
-            })
-            .GroupBy(x => new { x.DisplayNumber, x.GameName, x.TicketPrice })
-            .Select(group => new
-            {
-                group.Key.DisplayNumber,
-                group.Key.GameName,
-                group.Key.TicketPrice,
-                SoldQuantity = group.Sum(x => x.SoldQuantity),
-                SalesAmount = group.Sum(x => x.SalesAmount),
-            })
-            .OrderBy(x => x.DisplayNumber ?? int.MaxValue)
-            .ThenBy(x => x.GameName, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        var scratchTableRows = scratchRows
-            .Select(row => (IReadOnlyList<string>)new[]
-            {
-                row.DisplayNumber?.ToString(CultureInfo.InvariantCulture) ?? "-",
-                row.GameName,
-                row.TicketPrice.ToString("0.00", CultureInfo.InvariantCulture),
-                row.SoldQuantity.ToString(CultureInfo.InvariantCulture),
-                row.SalesAmount.ToString("0.00", CultureInfo.InvariantCulture),
-            })
-            .ToArray();
-        var scratchTotalQty = scratchRows.Sum(x => x.SoldQuantity);
-        var scratchTotalSales = scratchRows.Sum(x => x.SalesAmount);
-        attachments.Add(new EmailAttachment
+        // Scratch Card — aggregated by display + game + price. Only emitted when the shop's plan
+        // includes ScratchCardManagement and the module hasn't been disabled in shop settings.
+        if (scratchCardEnabled)
         {
-            FileName = $"scratch-card-{fileSuffix}.pdf",
-            ContentType = "application/pdf",
-            Content = ReportPdfBuilder.BuildTableReport(
-                "Scratch Card Sales",
-                metaRows,
-                new[]
+            var scratchRows = entries
+                .Select(entry => new
                 {
-                    new ReportPdfBuilder.Column("Display", 90f),
-                    new ReportPdfBuilder.Column("Game Name", 230f),
-                    new ReportPdfBuilder.Column("Price", 90f, AlignRight: true),
-                    new ReportPdfBuilder.Column("Qty", 80f, AlignRight: true),
-                    new ReportPdfBuilder.Column("Sales", 110f, AlignRight: true),
-                },
-                scratchTableRows,
-                $"Total Qty: {scratchTotalQty.ToString(CultureInfo.InvariantCulture)}   Total Sales: £{scratchTotalSales.ToString("0.00", CultureInfo.InvariantCulture)}",
-                "No sales recorded for this day."),
-        });
+                    DisplayNumber = entry.Pack?.DisplayNumber,
+                    GameName = entry.Pack?.Game?.GameName ?? "Unknown",
+                    entry.TicketPrice,
+                    entry.SoldQuantity,
+                    entry.SalesAmount,
+                })
+                .GroupBy(x => new { x.DisplayNumber, x.GameName, x.TicketPrice })
+                .Select(group => new
+                {
+                    group.Key.DisplayNumber,
+                    group.Key.GameName,
+                    group.Key.TicketPrice,
+                    SoldQuantity = group.Sum(x => x.SoldQuantity),
+                    SalesAmount = group.Sum(x => x.SalesAmount),
+                })
+                .OrderBy(x => x.DisplayNumber ?? int.MaxValue)
+                .ThenBy(x => x.GameName, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            var scratchTableRows = scratchRows
+                .Select(row => (IReadOnlyList<string>)new[]
+                {
+                    row.DisplayNumber?.ToString(CultureInfo.InvariantCulture) ?? "-",
+                    row.GameName,
+                    row.TicketPrice.ToString("0.00", CultureInfo.InvariantCulture),
+                    row.SoldQuantity.ToString(CultureInfo.InvariantCulture),
+                    row.SalesAmount.ToString("0.00", CultureInfo.InvariantCulture),
+                })
+                .ToArray();
+            var scratchTotalQty = scratchRows.Sum(x => x.SoldQuantity);
+            var scratchTotalSales = scratchRows.Sum(x => x.SalesAmount);
+            attachments.Add(new EmailAttachment
+            {
+                FileName = $"scratch-card-{fileSuffix}.pdf",
+                ContentType = "application/pdf",
+                Content = ReportPdfBuilder.BuildTableReport(
+                    "Scratch Card Sales",
+                    metaRows,
+                    new[]
+                    {
+                        new ReportPdfBuilder.Column("Display", 90f),
+                        new ReportPdfBuilder.Column("Game Name", 230f),
+                        new ReportPdfBuilder.Column("Price", 90f, AlignRight: true),
+                        new ReportPdfBuilder.Column("Qty", 80f, AlignRight: true),
+                        new ReportPdfBuilder.Column("Sales", 110f, AlignRight: true),
+                    },
+                    scratchTableRows,
+                    $"Total Qty: {scratchTotalQty.ToString(CultureInfo.InvariantCulture)}   Total Sales: £{scratchTotalSales.ToString("0.00", CultureInfo.InvariantCulture)}",
+                    "No sales recorded for this day."),
+            });
+        }
 
         // Temperature.
         if (temperatureRows.Count > 0)
@@ -1945,7 +1965,8 @@ public class BusinessDayService : IBusinessDayService
         IReadOnlyCollection<SafeDropSummaryRow> safeDropRows,
         bool safeDropManagementEnabled,
         IReadOnlyCollection<TemperatureSummaryRow> temperatureRows,
-        ComplianceDailySummary complianceSummary)
+        ComplianceDailySummary complianceSummary,
+        bool scratchCardEnabled)
     {
         var rows = entries
             .Select(entry => new
@@ -2086,12 +2107,13 @@ public class BusinessDayService : IBusinessDayService
         sb.Append($"<tr><td>Closed Time</td><td>{(day.ClosedOn?.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ?? "-")} UTC</td></tr>");
         sb.Append($"<tr><td>Shifts Closed</td><td>{shiftCount}</td></tr>");
         sb.Append("</tbody></table>");
-        sb.Append($"<div class=\"cards {differenceClass}\">");
-        sb.Append($"<div class=\"card\"><div class=\"card-label\">Total Sales</div><div class=\"card-value\">{day.TotalSalesAmount.ToString("0.00", CultureInfo.InvariantCulture)}</div></div>");
-        sb.Append($"<div class=\"card\"><div class=\"card-label\">Total Prize Payout</div><div class=\"card-value\">{day.TotalPrizePayout.ToString("0.00", CultureInfo.InvariantCulture)}</div></div>");
-        // sb.Append($"<div class=\"card\"><div class=\"card-label\">Expected Cash</div><div class=\"card-value\">{day.ExpectedCash.ToString("0.00", CultureInfo.InvariantCulture)}</div></div>");
-        // sb.Append($"<div class=\"card\"><div class=\"card-label\">Difference</div><div class=\"card-value\">{tillBasedDifference.ToString("0.00", CultureInfo.InvariantCulture)}</div></div>");
-        sb.Append("</div>");
+        if (scratchCardEnabled)
+        {
+            sb.Append($"<div class=\"cards {differenceClass}\">");
+            sb.Append($"<div class=\"card\"><div class=\"card-label\">Total Sales</div><div class=\"card-value\">{day.TotalSalesAmount.ToString("0.00", CultureInfo.InvariantCulture)}</div></div>");
+            sb.Append($"<div class=\"card\"><div class=\"card-label\">Total Prize Payout</div><div class=\"card-value\">{day.TotalPrizePayout.ToString("0.00", CultureInfo.InvariantCulture)}</div></div>");
+            sb.Append("</div>");
+        }
 
         // sb.Append("<div class=\"table-title\">Day Close Metrics</div>");
         // sb.Append("<table class=\"report-table\"><thead><tr>");
@@ -2110,16 +2132,19 @@ public class BusinessDayService : IBusinessDayService
         sb.Append(shiftRowsHtml);
         sb.Append("</tbody></table>");
 
-        sb.Append("<div class=\"table-title\">Scratch Card Sales by Display</div>");
-        sb.Append("<table class=\"report-table\"><thead><tr>");
-        sb.Append("<th>Display No</th><th>Game Name</th><th class=\"num\">Price</th><th class=\"num\">Sold Qty</th><th class=\"num\">Sales Total</th>");
-        sb.Append("</tr></thead><tbody>");
-        sb.Append(salesRowsHtml);
-        sb.Append("</tbody><tfoot><tr>");
-        sb.Append("<td colspan=\"3\" class=\"num\">Total</td>");
-        sb.Append($"<td class=\"num\">{totalSoldQty.ToString(CultureInfo.InvariantCulture)}</td>");
-        sb.Append($"<td class=\"num\">{totalSales.ToString("0.00", CultureInfo.InvariantCulture)}</td>");
-        sb.Append("</tr></tfoot></table>");
+        if (scratchCardEnabled)
+        {
+            sb.Append("<div class=\"table-title\">Scratch Card Sales by Display</div>");
+            sb.Append("<table class=\"report-table\"><thead><tr>");
+            sb.Append("<th>Display No</th><th>Game Name</th><th class=\"num\">Price</th><th class=\"num\">Sold Qty</th><th class=\"num\">Sales Total</th>");
+            sb.Append("</tr></thead><tbody>");
+            sb.Append(salesRowsHtml);
+            sb.Append("</tbody><tfoot><tr>");
+            sb.Append("<td colspan=\"3\" class=\"num\">Total</td>");
+            sb.Append($"<td class=\"num\">{totalSoldQty.ToString(CultureInfo.InvariantCulture)}</td>");
+            sb.Append($"<td class=\"num\">{totalSales.ToString("0.00", CultureInfo.InvariantCulture)}</td>");
+            sb.Append("</tr></tfoot></table>");
+        }
 
         if (safeDropManagementEnabled)
         {

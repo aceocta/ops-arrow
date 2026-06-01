@@ -938,7 +938,10 @@ public class ShiftSalesService : IShiftSalesService
             : [];
 
         var summaryRows = BuildShiftCloseSummaryRows(entries, packs);
-        var temperatureRows = await LoadTemperatureSummaryRowsAsync(shift.ShopId, businessDay.BusinessDate, cancellationToken);
+        // Temperature monitoring sits at the business-day level, not the shift level — covered by
+        // the day-end report instead. Keep the parameter on the builders for now (empty array)
+        // so the existing length-guarded sections suppress themselves cleanly.
+        var temperatureRows = Array.Empty<TemperatureSummaryRow>();
         var reportGeneratedOnUtc = DateTimeOffset.UtcNow;
         var subject = $"Shift Close Summary - {shopName} - {businessDay.BusinessDate:yyyy-MM-dd} - {shift.ShiftName}";
         var body = BuildShiftCloseSummaryBodyHtml(
