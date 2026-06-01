@@ -186,6 +186,7 @@ export function TemperatureLogScreen() {
   const [actionTaken, setActionTaken] = useState("");
   const [textEditorField, setTextEditorField] = useState<"notes" | "action" | null>(null);
   const initialsRef = useRef<TextInput>(null);
+  const tempInputRef = useRef<TextInput>(null);
   const [textEditorValue, setTextEditorValue] = useState("");
   const [isLogEntryModalVisible, setIsLogEntryModalVisible] = useState(false);
   const [dailyFilter, setDailyFilter] = useState<DailyFilter>("all");
@@ -786,58 +787,12 @@ export function TemperatureLogScreen() {
           transparent
           animationType="fade"
           onRequestClose={closeLogEntryModal}
+          onShow={() => tempInputRef.current?.focus()}
         >
           <View style={styles.modalBackdrop}>
             <ModalBackdropBlur />
             <View style={styles.modalCard}>
               <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalScrollContent}>
-              {dailyUnitLogs.length > 1 ? (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.unitChipRow}
-                >
-                  {dailyUnitLogs.map((unitLog, index) => {
-                    const status = getUnitDailyStatus(unitLog);
-                    const isActive = unitLog.unit.id === selectedUnitId;
-                    return (
-                      <Pressable
-                        key={unitLog.unit.id}
-                        style={[
-                          styles.unitChip,
-                          isActive ? styles.unitChipActive : null,
-                          status === "recorded" ? styles.unitChipRecorded : null,
-                          status === "outOfRange" ? styles.unitChipOutOfRange : null,
-                        ]}
-                        onPress={() => switchToUnit(unitLog.unit.id)}
-                        disabled={recordMutation.isPending}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: isActive }}
-                        accessibilityLabel={`Switch to ${unitLog.unit.unitName} (${status})`}
-                      >
-                        <Text
-                          style={[
-                            styles.unitChipIndex,
-                            isActive ? styles.unitChipIndexActive : null,
-                          ]}
-                        >
-                          {index + 1}
-                        </Text>
-                        <Text
-                          numberOfLines={1}
-                          style={[
-                            styles.unitChipLabel,
-                            isActive ? styles.unitChipLabelActive : null,
-                          ]}
-                        >
-                          {unitLog.unit.unitName}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-              ) : null}
-
               <View style={styles.unitHeaderRow}>
                 <Pressable
                   style={[styles.unitNavButton, !prevUnitId ? styles.unitNavButtonDisabled : null]}
@@ -937,6 +892,7 @@ export function TemperatureLogScreen() {
                     </Pressable>
                     <View style={styles.tempInputField}>
                       <FloatingLabelInput
+                        ref={tempInputRef}
                         label="Temperature"
                         value={temperatureCelsius}
                         onChangeText={(raw) => {
