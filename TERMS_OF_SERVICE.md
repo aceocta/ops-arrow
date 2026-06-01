@@ -11,7 +11,7 @@
 
 These Terms of Service (the "**Terms**") are a binding agreement between:
 
-- **Ace Octa Limited**, a company registered in [England and Wales / SCOTLAND — confirm], company number [COMPANIES HOUSE NUMBER], whose registered office is at [COMPANY ADDRESS] ("**Ace Octa**", "**we**", "**us**", "**our**"); and
+- **Aceocta Limited**, a company registered in [England and Wales / SCOTLAND — confirm], company number [COMPANIES HOUSE NUMBER], whose registered office is at [COMPANY ADDRESS] ("**Aceocta**", "**we**", "**us**", "**our**"); and
 - **you**, the individual or business entity accessing the Ops Arrow mobile application, web application, related APIs, or any documentation, support, or other services we make available (together, the "**Service**").
 
 By creating an account, downloading the app, signing in, or otherwise using the Service, you confirm that you have read, understood and agree to be bound by these Terms and by our **Privacy Policy** (available at [https://opsarrow.com/privacy](https://opsarrow.com/privacy)). If you do not agree, do not use the Service.
@@ -290,7 +290,7 @@ Nothing in these Terms limits or excludes our liability for:
 
 ## 17. Indemnity
 
-You agree to indemnify, defend and hold harmless Ace Octa Limited, its officers, employees and agents from and against any claims, losses, damages, liabilities and expenses (including reasonable legal fees) arising out of:
+You agree to indemnify, defend and hold harmless Aceocta Limited, its officers, employees and agents from and against any claims, losses, damages, liabilities and expenses (including reasonable legal fees) arising out of:
 
 - Your use of the Service in breach of these Terms.
 - Customer Data you upload, including any claim that your processing of personal data was unlawful.
@@ -353,7 +353,7 @@ You and we agree that the courts of England and Wales have **exclusive jurisdict
 - **No partnership.** Nothing in these Terms creates a partnership, joint venture, employment or agency relationship between us.
 - **Severability.** If any clause is held unenforceable, the rest remains in force.
 - **No waiver.** A failure to enforce a right is not a waiver of that right.
-- **Notices to us:** aceoctalimited@gmail.com or Ace Octa Limited, [COMPANY ADDRESS].
+- **Notices to us:** aceoctalimited@gmail.com or Aceocta Limited, [COMPANY ADDRESS].
 - **Notices to you:** to the email address registered on your Account.
 
 ---
@@ -364,14 +364,14 @@ You and we agree that the courts of England and Wales have **exclusive jurisdict
 
 If you obtained the Ops Arrow mobile application from the **Apple App Store**, the following additional terms apply (required by Apple's Licensed Application End User License Agreement, Schedule 2 of the Apple Developer Program Licence Agreement):
 
-- **Acknowledgement.** These Terms are concluded between you and **Ace Octa Limited** only, and **not** with Apple Inc. ("Apple"). Apple is not responsible for the Service or its content.
+- **Acknowledgement.** These Terms are concluded between you and **Aceocta Limited** only, and **not** with Apple Inc. ("Apple"). Apple is not responsible for the Service or its content.
 - **Scope of licence.** Apple grants you a non-transferable licence to use Ops Arrow only on Apple-branded products that you own or control, and as permitted by the App Store Terms of Service.
-- **Maintenance and support.** Ace Octa Limited is solely responsible for providing any maintenance and support services for Ops Arrow. Apple has no obligation to furnish any maintenance or support services.
-- **Warranty.** In the event of any failure of Ops Arrow to conform to any applicable warranty, you may notify Apple, and Apple will refund the purchase price (if any) for Ops Arrow. **To the maximum extent permitted by law, Apple has no other warranty obligation** with respect to Ops Arrow. Any other claims, losses, liabilities, damages, costs or expenses attributable to a failure to conform to any warranty will be Ace Octa Limited's sole responsibility.
-- **Product claims.** Ace Octa Limited (not Apple) is responsible for addressing any claims by you or any third party relating to Ops Arrow, including: (a) product-liability claims; (b) any claim that Ops Arrow fails to conform to any applicable legal or regulatory requirement; and (c) claims arising under consumer-protection or similar legislation.
-- **Intellectual property.** In the event of any third-party claim that Ops Arrow or your possession and use of it infringes that party's intellectual property rights, Ace Octa Limited (not Apple) will be solely responsible for the investigation, defence, settlement and discharge of such claim.
+- **Maintenance and support.** Aceocta Limited is solely responsible for providing any maintenance and support services for Ops Arrow. Apple has no obligation to furnish any maintenance or support services.
+- **Warranty.** In the event of any failure of Ops Arrow to conform to any applicable warranty, you may notify Apple, and Apple will refund the purchase price (if any) for Ops Arrow. **To the maximum extent permitted by law, Apple has no other warranty obligation** with respect to Ops Arrow. Any other claims, losses, liabilities, damages, costs or expenses attributable to a failure to conform to any warranty will be Aceocta Limited's sole responsibility.
+- **Product claims.** Aceocta Limited (not Apple) is responsible for addressing any claims by you or any third party relating to Ops Arrow, including: (a) product-liability claims; (b) any claim that Ops Arrow fails to conform to any applicable legal or regulatory requirement; and (c) claims arising under consumer-protection or similar legislation.
+- **Intellectual property.** In the event of any third-party claim that Ops Arrow or your possession and use of it infringes that party's intellectual property rights, Aceocta Limited (not Apple) will be solely responsible for the investigation, defence, settlement and discharge of such claim.
 - **Legal compliance.** You represent and warrant that (a) you are not located in a country subject to a US government embargo or designated by the US government as a "terrorist supporting" country, and (b) you are not listed on any US government list of prohibited or restricted parties.
-- **Developer name and address.** Ace Octa Limited, [COMPANY ADDRESS]. Contact: aceoctalimited@gmail.com.
+- **Developer name and address.** Aceocta Limited, [COMPANY ADDRESS]. Contact: aceoctalimited@gmail.com.
 - **Third-party beneficiary.** You acknowledge and agree that **Apple and Apple's subsidiaries are third-party beneficiaries** of these Terms, and that upon your acceptance, Apple will have the right (and will be deemed to have accepted the right) to enforce these Terms against you as a third-party beneficiary.
 
 ### 24.2 Google Play Store
@@ -385,7 +385,7 @@ If you obtained Ops Arrow from the **Google Play Store**, your use is also subje
 If you have any questions about these Terms, please contact us:
 
 - **Email:** aceoctalimited@gmail.com
-- **Post:** Ace Octa Limited, [COMPANY ADDRESS]
+- **Post:** Aceocta Limited, [COMPANY ADDRESS]
 
 ---
 

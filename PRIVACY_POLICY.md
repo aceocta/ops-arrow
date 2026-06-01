@@ -17,9 +17,9 @@
 
 ## 1. Who we are
 
-This Privacy Policy explains how **Ace Octa Limited** ("**we**", "**us**", "**our**") collects, uses, shares and protects personal data when you use the **Ops Arrow** mobile application, web application, and related services (together, the "**Service**").
+This Privacy Policy explains how **Aceocta Limited** ("**we**", "**us**", "**our**") collects, uses, shares and protects personal data when you use the **Ops Arrow** mobile application, web application, and related services (together, the "**Service**").
 
-- **Company:** Ace Octa Limited
+- **Company:** Aceocta Limited
 - **Registered address:** [COMPANY ADDRESS]
 - **Company number:** [COMPANIES HOUSE NUMBER]
 - **ICO registration number:** [ICO NUMBER]
@@ -29,7 +29,7 @@ This Privacy Policy explains how **Ace Octa Limited** ("**we**", "**us**", "**ou
 For the purposes of the UK GDPR, the Data Protection Act 2018, and the EU GDPR:
 
 - We are the **data controller** for personal data of account holders (business owners, managers and staff who sign in to Ops Arrow).
-- Where a business customer uses Ops Arrow to record the personal data of **third parties** — for example, visitors signing into a shop's visitor log, customers refused alcohol or age-restricted goods, or delivery suppliers — the **business customer is the data controller** for that third-party data, and **Ace Octa Limited acts as a data processor** on their behalf in accordance with our Data Processing Agreement.
+- Where a business customer uses Ops Arrow to record the personal data of **third parties** — for example, visitors signing into a shop's visitor log, customers refused alcohol or age-restricted goods, or delivery suppliers — the **business customer is the data controller** for that third-party data, and **Aceocta Limited acts as a data processor** on their behalf in accordance with our Data Processing Agreement.
 
 ---
 
@@ -334,7 +334,7 @@ We may update this Privacy Policy from time to time. The "Last updated" date at 
 If you have any questions about this Privacy Policy or wish to exercise any of your rights, please contact us:
 
 - **Email:** aceoctalimited@gmail.com
-- **Post:** Ace Octa Limited, [COMPANY ADDRESS]
+- **Post:** Aceocta Limited, [COMPANY ADDRESS]
 
 ---
 
@@ -342,9 +342,9 @@ _End of Privacy Policy._
 
 ## 1. Who we are
 
-This Privacy Policy explains how **Ace Octa Limited** ("**we**", "**us**", "**our**") collects, uses, shares and protects personal data when you use the **Ops Arrow** mobile application, web application, and related services (together, the "**Service**").
+This Privacy Policy explains how **Aceocta Limited** ("**we**", "**us**", "**our**") collects, uses, shares and protects personal data when you use the **Ops Arrow** mobile application, web application, and related services (together, the "**Service**").
 
-- **Company:** Ace Octa Limited
+- **Company:** Aceocta Limited
 - **Registered address:** [COMPANY ADDRESS]
 - **Company number:** [COMPANIES HOUSE NUMBER]
 - **ICO registration number:** [ICO NUMBER]
@@ -354,7 +354,7 @@ This Privacy Policy explains how **Ace Octa Limited** ("**we**", "**us**", "**ou
 For the purposes of the UK GDPR, the Data Protection Act 2018, and the EU GDPR:
 
 - We are the **data controller** for personal data of account holders (business owners, managers and staff who sign in to Ops Arrow).
-- Where a business customer uses Ops Arrow to record the personal data of **third parties** — for example, visitors signing into a shop's visitor log, customers refused alcohol or age-restricted goods, or delivery suppliers — the **business customer is the data controller** for that third-party data, and **Ace Octa Limited acts as a data processor** on their behalf in accordance with our Data Processing Agreement.
+- Where a business customer uses Ops Arrow to record the personal data of **third parties** — for example, visitors signing into a shop's visitor log, customers refused alcohol or age-restricted goods, or delivery suppliers — the **business customer is the data controller** for that third-party data, and **Aceocta Limited acts as a data processor** on their behalf in accordance with our Data Processing Agreement.
 
 ---
 
@@ -659,7 +659,7 @@ We may update this Privacy Policy from time to time. The "Last updated" date at 
 If you have any questions about this Privacy Policy or wish to exercise any of your rights, please contact us:
 
 - **Email:** aceoctalimited@gmail.com
-- **Post:** Ace Octa Limited, [COMPANY ADDRESS]
+- **Post:** Aceocta Limited, [COMPANY ADDRESS]
 
 ---
 
