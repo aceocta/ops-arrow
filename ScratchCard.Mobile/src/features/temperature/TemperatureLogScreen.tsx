@@ -690,7 +690,7 @@ export function TemperatureLogScreen() {
           </View>
         </View>
 
-        <View style={[ui.card, styles.readingsCard]}>
+        <View style={styles.readingsSection}>
           <SectionHeader
             title="Daily Readings"
             subtitle={selectedDate}
@@ -698,7 +698,7 @@ export function TemperatureLogScreen() {
           />
           {dailyLogQuery.isLoading ? <Text style={styles.meta}>Loading daily readings...</Text> : null}
           {dailyUnitLogs.map((unitLog) => (
-            <View key={unitLog.unit.id} style={styles.unitSheet}>
+            <View key={unitLog.unit.id} style={[ui.card, styles.unitSheet]}>
               <View style={styles.unitSheetHeader}>
                 <View style={styles.unitSheetIdentity}>
                   <Text style={styles.itemTitle}>{unitLog.unit.unitName}</Text>
@@ -1082,6 +1082,10 @@ const styles = StyleSheet.create({
     lineHeight: 21,
   },
   readingsCard: {
+    gap: appTheme.spacing.sm,
+  },
+  // Container for the Daily Readings section: header + one card per unit.
+  readingsSection: {
     gap: appTheme.spacing.sm,
   },
   heroCard: {
@@ -1621,11 +1625,9 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   unitSheet: {
-    borderWidth: 0,
-    borderRadius: appTheme.radius.sm,
-    padding: appTheme.spacing.sm,
+    // Rendered as its own ui.card now (padding/background/radius come from ui.card);
+    // keep only the internal gap between the unit header and its readings table.
     gap: appTheme.spacing.xs,
-    backgroundColor: appTheme.colors.surfaceNeutralMuted,
   },
   unitSheetHeader: {
     flexDirection: "row",
@@ -1649,16 +1651,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 0,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surface,
+    // Tinted background distinguishes the column-title row from the card surface below it.
+    backgroundColor: appTheme.colors.surfaceTintAlt,
     paddingHorizontal: appTheme.spacing.xs,
     paddingVertical: 6,
     marginTop: 2,
   },
   logHeaderCell: {
-    color: appTheme.colors.textMuted,
+    color: appTheme.colors.textSubtle,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 11,
+    lineHeight: 14,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
   },
   logRowBlock: {
     borderBottomWidth: 1,
