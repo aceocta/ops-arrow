@@ -599,23 +599,35 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
     },
     { salesAmount: 0 }
   );
-  // "Completed" means the user has touched the row (typed, scanned, or marked sold out) AND
-  // the validation passes — not just "has a value". Every row has a seeded value (the opening
-  // serial), but a row the user hasn't acknowledged still counts as Pending.
-  const completedRows = computedRows.filter((row) => touchedPackIds.has(row.pack.id) && !row.hasError).length;
+  // A row is considered "ready" when either:
+  //   - the user has touched it (typed / scanned / Mark Sold Out), OR
+  //   - the closing serial still matches the opening (no sales happened — the seeded default
+  //     is a valid closing on its own, no need to make the user re-acknowledge it).
+  // Together with the error check, this means a no-sales shift can be finalised immediately
+  // without the user tapping every pack.
+  function isRowReady(row: typeof computedRows[number]) {
+    if (row.hasError) return false;
+    if (touchedPackIds.has(row.pack.id)) return true;
+    const entry = entries[row.pack.id];
+    const openingDefault = normalizeClosingSerialInput(row.pack.currentSerialNumber);
+    return Boolean(entry?.closingSerialNumber) && entry.closingSerialNumber === openingDefault;
+  }
+  const completedRows = computedRows.filter(isRowReady).length;
   const errorRows = computedRows.filter((row) => row.hasError).length;
-  const pendingRows = computedRows.filter((row) => !touchedPackIds.has(row.pack.id)).length;
+  const pendingRows = computedRows.filter((row) => !isRowReady(row) && !row.hasError).length;
   const scannedRows = computedRows.length - pendingRows;
   const pendingPackHints = useMemo(
     () =>
       computedRows
-        .filter((row) => !touchedPackIds.has(row.pack.id))
+        .filter((row) => !isRowReady(row) && !row.hasError)
         .map((row) => ({
           packId: row.pack.id,
           packNumber: row.pack.packNumber,
           label: `Display ${row.pack.displayNumber != null ? `#${row.pack.displayNumber}` : "-"} | Pack ${row.pack.packNumber}`,
         })),
-    [computedRows, touchedPackIds]
+    // isRowReady reads from entries + touchedPackIds — both already in deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [computedRows, touchedPackIds, entries]
   );
   // A shift with zero active packs is finalisable as a no-sales close — there's nothing for
   // the shopkeeper to scan or enter, so blocking them would leave the shift in limbo.
@@ -635,20 +647,28 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
     }
 
     const packs = packsQuery.data ?? [];
-    // Only persist rows the user actually touched (typed/scanned/marked-sold-out). Seeded-only
-    // opening values shouldn't be auto-saved as closings — the user hasn't confirmed them.
+    // Persist every pack that has a closing serial — either user-touched (typed/scanned/marked
+    // sold-out) OR an unchanged opening default (a no-sales pack, which is a valid 0-sold close
+    // on its own). This lets a shift with no sales finalise without forcing the user to confirm
+    // every pack individually.
     const toSave = packs
       .map((pack) => ({ pack, entry: entries[pack.id] }))
-      .filter((x): x is { pack: ScratchCardPack; entry: EntryState } =>
-        Boolean(x.entry?.closingSerialNumber) && touchedPackIds.has(x.pack.id));
+      .filter((x): x is { pack: ScratchCardPack; entry: EntryState } => {
+        if (!x.entry?.closingSerialNumber) return false;
+        if (touchedPackIds.has(x.pack.id)) return true;
+        const openingDefault = normalizeClosingSerialInput(x.pack.currentSerialNumber);
+        return x.entry.closingSerialNumber === openingDefault;
+      });
 
     if (toSave.length === 0) {
       Alert.alert("Nothing to save", "Enter at least one closing number first.");
       return;
     }
 
-    // Block any entered-but-invalid serial (out of range / negative sold).
-    const errored = computedRows.find((row) => touchedPackIds.has(row.pack.id) && row.hasError);
+    // Block any invalid serial (out of range / negative sold). Errors can only come from a
+    // touched row in practice — opening defaults always validate clean — but check across all
+    // rows defensively so a corrupt seed (e.g. opening outside pack range) is still caught.
+    const errored = computedRows.find((row) => row.hasError);
     if (errored) {
       Alert.alert("Validation", `Fix closing serial for pack ${errored.pack.packNumber}.`);
       return;
@@ -840,7 +860,6 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
             entry?.entryMethod === EntryMethod.Manual ||
             (entry?.originalScannedSerialNumber &&
               entry.originalScannedSerialNumber !== entry.closingSerialNumber);
-          const isTouched = touchedPackIds.has(row.pack.id);
           // Next pack in the visible order. Used to chain the Android numeric "Next" return key
           // and the iOS inline arrow button.
           const nextRow = rowIndex + 1 < computedRows.length ? computedRows[rowIndex + 1] : null;
@@ -848,8 +867,10 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
             if (!nextRow) return;
             inputRefs.current[nextRow.pack.id]?.focus();
           };
-          const rowStatusLabel = row.hasError ? "Error" : isTouched ? "Ready" : "Pending";
-          const rowStatusTone: "danger" | "success" | "warning" = row.hasError ? "danger" : isTouched ? "success" : "warning";
+          // Unchanged opening serials (no-sales packs) count as Ready without needing a touch.
+          const rowReady = isRowReady(row);
+          const rowStatusLabel = row.hasError ? "Error" : rowReady ? "Ready" : "Pending";
+          const rowStatusTone: "danger" | "success" | "warning" = row.hasError ? "danger" : rowReady ? "success" : "warning";
           const isPendingRow = rowStatusLabel === "Pending";
           const isReadyRow = rowStatusLabel === "Ready";
 
