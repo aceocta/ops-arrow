@@ -318,7 +318,7 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
             <View style={styles.item}>
               <View style={styles.serialConfirmHeaderRow}>
                 <View style={styles.serialConfirmHeaderTextWrap}>
-                  <Text style={styles.sectionTitle}>Confirm Starting Serials</Text>
+                  <Text style={styles.sectionTitle}>Confirm Scratch Card Starting Serials</Text>
                   {/* <Text style={styles.meta}>Confirm each active pack before opening the shift.</Text> */}
                 </View>
                 {activePacksForOpening.length > 0 ? (

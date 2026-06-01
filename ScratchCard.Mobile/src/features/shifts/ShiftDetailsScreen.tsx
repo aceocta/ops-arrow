@@ -747,7 +747,7 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
         </View>
 
 
-        {shift && hasStoreSalesFeature ? (
+        {/* {shift && hasStoreSalesFeature ? (
           <Pressable
             onPress={() => navigation.navigate("StoreSales", { reportType: "Shift", shiftId, businessDayId: shift?.businessDayId })}
             accessibilityRole="button"
@@ -771,7 +771,7 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
               <Text style={styles.meta}>Scan this shift's till report to record income, expense and tender.</Text>
             )}
           </Pressable>
-        ) : null}
+        ) : null} */}
 
         {isSafeDropManagementVisible ? (
           <View style={[ui.card, styles.summaryCard]}>

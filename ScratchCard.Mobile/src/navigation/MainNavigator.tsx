@@ -177,14 +177,14 @@ const complianceItems: MenuItem[] = [
 
 // --- Shop (cross-cutting items not tied to a single feature module) ---
 const shopItems: MenuItem[] = [
-  {
-    label: "Store Sales",
-    screen: "StoreSales",
-    icon: "cash-outline",
-    allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
-    requiredFeature: "StoreSales",
-  },
-  { label: "Shop Checklist", screen: "ShopChecklist", icon: "checkmark-done-outline", mode: "checklist" },
+  // {
+  //   label: "Store Sales",
+  //   screen: "StoreSales",
+  //   icon: "cash-outline",
+  //   allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
+  //   requiredFeature: "StoreSales",
+  // },
+  // { label: "Shop Checklist", screen: "ShopChecklist", icon: "checkmark-done-outline", mode: "checklist" },
   {
     label: "Checklist Setup",
     screen: "ChecklistConfiguration",

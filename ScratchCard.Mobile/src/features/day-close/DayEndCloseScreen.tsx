@@ -1983,7 +1983,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             </View>
           ) : null}
         </Pressable>
-
+{/* 
         {day && hasStoreSalesFeature ? (
           <Pressable
             onPress={() => navigation.navigate("StoreSales", { reportType: "DayEnd", businessDayId })}
@@ -2008,60 +2008,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               <Text style={styles.meta}>Scan the day-end till report to record income, expense and tender.</Text>
             )}
           </Pressable>
-        ) : null}
+        ) : null} */}
 
-        {isSafeDropManagementVisible ? (
-          <Pressable
-            onPress={() => {
-              if (!day?.id || !day.shopId) return;
-              navigation.navigate("SafeDrop", {
-                businessDayId: day.id,
-                businessDate: day.businessDate,
-                shopId: day.shopId,
-              });
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Open safe drops detail and add new"
-            style={({ pressed }) => [
-              ui.card,
-              styles.sectionCard,
-              pressed ? styles.sectionCardPressed : null,
-            ]}
-          >
-
-            
-            <SectionHeader
-              title="Safe Drops"
-              icon="lock-closed-outline"
-              right={
-                <>
-                  {/* <StatusBadge
-                    label={pendingDropCount > 0 ? `${pendingDropCount} pending` : `${visibleCanisterDrops.length}`}
-                    tone={pendingDropCount > 0 ? "warning" : visibleCanisterDrops.length > 0 ? "success" : "neutral"}
-                  /> */}
-                  <Ionicons name="chevron-forward" size={18} color={appTheme.colors.textSubtle} />
-                </>
-              }
-            />
-            {visibleCanisterDrops.length > 0 ? (
-              <KpiGrid columns={2}>
-                <KpiTile label="Drops" value={visibleCanisterDrops.length} />
-                <KpiTile label="Total" value={formatCurrency(safeDropTotal)} />
-              </KpiGrid>
-            ) : null}
-            {canisterDropsQuery.isFetching && visibleCanisterDrops.length === 0 ? (
-              <Text style={styles.meta}>Loading safe drops...</Text>
-            ) : visibleCanisterDrops.length === 0 ? (
-              <Text style={styles.meta}>
-                {canViewAllSafeDrops
-                  ? "No safe drops recorded for this day."
-                  : "No safe drops recorded by you for this day."}
-              </Text>
-            ) : null}
-          </Pressable>
-        ) : null}
-
-        {hasTemperatureLogFeature ? (
+          {hasTemperatureLogFeature ? (
           <Pressable
             onPress={() => navigation.navigate("TemperatureLogs", { date: day?.businessDate })}
             accessibilityRole="button"
@@ -2135,6 +2084,59 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           </Pressable>
         ) : null}
 
+
+        {isSafeDropManagementVisible ? (
+          <Pressable
+            onPress={() => {
+              if (!day?.id || !day.shopId) return;
+              navigation.navigate("SafeDrop", {
+                businessDayId: day.id,
+                businessDate: day.businessDate,
+                shopId: day.shopId,
+              });
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Open safe drops detail and add new"
+            style={({ pressed }) => [
+              ui.card,
+              styles.sectionCard,
+              pressed ? styles.sectionCardPressed : null,
+            ]}
+          >
+
+            
+            <SectionHeader
+              title="Safe Drops"
+              icon="lock-closed-outline"
+              right={
+                <>
+                  {/* <StatusBadge
+                    label={pendingDropCount > 0 ? `${pendingDropCount} pending` : `${visibleCanisterDrops.length}`}
+                    tone={pendingDropCount > 0 ? "warning" : visibleCanisterDrops.length > 0 ? "success" : "neutral"}
+                  /> */}
+                  <Ionicons name="chevron-forward" size={18} color={appTheme.colors.textSubtle} />
+                </>
+              }
+            />
+            {visibleCanisterDrops.length > 0 ? (
+              <KpiGrid columns={2}>
+                <KpiTile label="Drops" value={visibleCanisterDrops.length} />
+                <KpiTile label="Total" value={formatCurrency(safeDropTotal)} />
+              </KpiGrid>
+            ) : null}
+            {canisterDropsQuery.isFetching && visibleCanisterDrops.length === 0 ? (
+              <Text style={styles.meta}>Loading safe drops...</Text>
+            ) : visibleCanisterDrops.length === 0 ? (
+              <Text style={styles.meta}>
+                {canViewAllSafeDrops
+                  ? "No safe drops recorded for this day."
+                  : "No safe drops recorded by you for this day."}
+              </Text>
+            ) : null}
+          </Pressable>
+        ) : null}
+
+      
         {hasComplianceCheckFeature ? (
           <Pressable
             onPress={() => navigation.navigate("ComplianceChecks", { date: day?.businessDate })}
