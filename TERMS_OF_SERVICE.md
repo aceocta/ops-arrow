@@ -45,7 +45,7 @@ The Service is designed for business use. Consumers using it in a purely private
 ## 4. Your account
 
 - You must provide accurate registration details and keep them up to date.
-- You are responsible for keeping your password and access tokens confidential. Notify us immediately at aceoctalimited@gmail.com if you suspect unauthorised access.
+- You are responsible for keeping your password and access tokens confidential. Notify us immediately at support@aceocta.com if you suspect unauthorised access.
 - You are responsible for all activity that occurs under your Account, including activity by Users that you (or your administrators) invite.
 - We may suspend or terminate an Account if we reasonably believe it is being used in breach of these Terms.
 
@@ -86,7 +86,7 @@ If we offer a free trial, you may use the paid features for the trial period wit
 
 ### 6.4 Auto-renewal
 
-Subscriptions renew automatically at the end of each billing cycle (monthly or annually, as you selected) until cancelled. You can cancel at any time via the billing portal or by emailing aceoctalimited@gmail.com.
+Subscriptions renew automatically at the end of each billing cycle (monthly or annually, as you selected) until cancelled. You can cancel at any time via the billing portal or by emailing support@aceocta.com.
 
 ### 6.5 Price changes
 
@@ -147,7 +147,7 @@ You are responsible for:
 
 ### 8.4 Personal data and data processing
 
-Where your Customer Data includes personal data, our **Data Processing Agreement** (the "DPA"), incorporated by reference into these Terms, governs our processing of that data on your behalf. The DPA is available at [https://opsarrow.com/dpa](https://opsarrow.com/dpa) or on request from aceoctalimited@gmail.com.
+Where your Customer Data includes personal data, our **Data Processing Agreement** (the "DPA"), incorporated by reference into these Terms, governs our processing of that data on your behalf. The DPA is available at [https://opsarrow.com/dpa](https://opsarrow.com/dpa) or on request from support@aceocta.com.
 
 ---
 
@@ -185,7 +185,7 @@ We will use commercially reasonable efforts to keep the Service available, but w
 
 ### 11.2 Support
 
-Standard support is provided by email at aceoctalimited@gmail.com during UK business hours. Enhanced support may be offered as part of higher-tier plans.
+Standard support is provided by email at support@aceocta.com during UK business hours. Enhanced support may be offered as part of higher-tier plans.
 
 ### 11.3 No SLA in standard plans
 
@@ -219,7 +219,7 @@ We may offer features marked "beta", "preview", "early access" or similar. Beta 
 
 ### 14.1 Termination by you
 
-You may terminate your Subscription at any time via the billing portal or by emailing aceoctalimited@gmail.com. Termination takes effect at the end of the current billing cycle.
+You may terminate your Subscription at any time via the billing portal or by emailing support@aceocta.com. Termination takes effect at the end of the current billing cycle.
 
 ### 14.2 Termination by us
 
@@ -240,7 +240,7 @@ After termination:
 
 ### 14.4 Account deletion (consumer-style accounts)
 
-If you signed up as an individual rather than on behalf of a business, you can delete your Account through the **Delete my account** option in the mobile app's profile screen, or by emailing aceoctalimited@gmail.com.
+If you signed up as an individual rather than on behalf of a business, you can delete your Account through the **Delete my account** option in the mobile app's profile screen, or by emailing support@aceocta.com.
 
 ---
 
@@ -353,7 +353,7 @@ You and we agree that the courts of England and Wales have **exclusive jurisdict
 - **No partnership.** Nothing in these Terms creates a partnership, joint venture, employment or agency relationship between us.
 - **Severability.** If any clause is held unenforceable, the rest remains in force.
 - **No waiver.** A failure to enforce a right is not a waiver of that right.
-- **Notices to us:** aceoctalimited@gmail.com or Aceocta Limited, [COMPANY ADDRESS].
+- **Notices to us:** support@aceocta.com or Aceocta Limited, [COMPANY ADDRESS].
 - **Notices to you:** to the email address registered on your Account.
 
 ---
@@ -371,7 +371,7 @@ If you obtained the Ops Arrow mobile application from the **Apple App Store**, t
 - **Product claims.** Aceocta Limited (not Apple) is responsible for addressing any claims by you or any third party relating to Ops Arrow, including: (a) product-liability claims; (b) any claim that Ops Arrow fails to conform to any applicable legal or regulatory requirement; and (c) claims arising under consumer-protection or similar legislation.
 - **Intellectual property.** In the event of any third-party claim that Ops Arrow or your possession and use of it infringes that party's intellectual property rights, Aceocta Limited (not Apple) will be solely responsible for the investigation, defence, settlement and discharge of such claim.
 - **Legal compliance.** You represent and warrant that (a) you are not located in a country subject to a US government embargo or designated by the US government as a "terrorist supporting" country, and (b) you are not listed on any US government list of prohibited or restricted parties.
-- **Developer name and address.** Aceocta Limited, [COMPANY ADDRESS]. Contact: aceoctalimited@gmail.com.
+- **Developer name and address.** Aceocta Limited, [COMPANY ADDRESS]. Contact: support@aceocta.com.
 - **Third-party beneficiary.** You acknowledge and agree that **Apple and Apple's subsidiaries are third-party beneficiaries** of these Terms, and that upon your acceptance, Apple will have the right (and will be deemed to have accepted the right) to enforce these Terms against you as a third-party beneficiary.
 
 ### 24.2 Google Play Store
@@ -384,7 +384,7 @@ If you obtained Ops Arrow from the **Google Play Store**, your use is also subje
 
 If you have any questions about these Terms, please contact us:
 
-- **Email:** aceoctalimited@gmail.com
+- **Email:** support@aceocta.com
 - **Post:** Aceocta Limited, [COMPANY ADDRESS]
 
 ---

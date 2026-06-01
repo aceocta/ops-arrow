@@ -1,30 +1,15 @@
 # Privacy Policy — Ops Arrow
 
 **Last updated:** 1 June 2026
-**Effective date:** [DATE]
-
-> **Important:** This document is a draft prepared after a code-level audit of the Ops Arrow application. It is not legal advice. You must have it reviewed by a qualified solicitor before publishing it, and you must fill in the bracketed placeholders.
-
----
-# Privacy Policy — Ops Arrow
-
-**Last updated:** 1 June 2026
-**Effective date:** [DATE]
-
-> **Important:** This document is a draft prepared after a code-level audit of the Ops Arrow application. It is not legal advice. You must have it reviewed by a qualified solicitor before publishing it, and you must fill in the bracketed placeholders.
-
----
+**Effective date:** 1 June 2026
 
 ## 1. Who we are
 
 This Privacy Policy explains how **Aceocta Limited** ("**we**", "**us**", "**our**") collects, uses, shares and protects personal data when you use the **Ops Arrow** mobile application, web application, and related services (together, the "**Service**").
 
-- **Company:** Aceocta Limited
-- **Registered address:** [COMPANY ADDRESS]
-- **Company number:** [COMPANIES HOUSE NUMBER]
-- **ICO registration number:** [ICO NUMBER]
-- **Contact for privacy queries:** aceoctalimited@gmail.com
-- **Data Protection Officer (if appointed):** [DPO NAME AND EMAIL]
+- **Registered address:** 15 Pelham Road South, Gravesend DA11 8QN, UK.
+- **Company number:** 16687119
+- **Contact for privacy queries:** support@aceocta.com
 
 For the purposes of the UK GDPR, the Data Protection Act 2018, and the EU GDPR:
 
@@ -152,7 +137,7 @@ We share personal data only with the categories of recipient below, and only as 
 
 | Sub-processor | Purpose | Location of processing |
 |---|---|---|
-| **Microsoft Azure** (Microsoft Ireland Operations Ltd) — Azure SQL Database, Azure Blob Storage | Application hosting; storage of all account, business and operational data; storage of all uploaded attachments (delivery photos, till report photos, signatures, compliance attachments) | Production: **[CONFIRM REGION — UK South / North Europe]**. Note: UAT is currently in Canada Central; confirm before launch. |
+| **Microsoft Azure** (Microsoft Ireland Operations Ltd) — Azure SQL Database, Azure Blob Storage | Application hosting; storage of all account, business and operational data; storage of all uploaded attachments (delivery photos, till report photos, signatures, compliance attachments) | Production: **UK South**. Note: UAT is currently in Canada Central; confirm before launch. |
 | **Microsoft Azure AI — Document Intelligence** | OCR of till report photographs | EU |
 | **OpenAI Ireland Ltd** | AI-assisted parsing of delivery notes you upload (gpt-4.1-mini). OpenAI does not use API content to train its models. | EU / US |
 | **Stripe Payments Europe Ltd** | All subscription billing and card processing (web and mobile). On mobile, Stripe Checkout opens in the device's in-app browser sheet. | EU / US |
@@ -192,7 +177,7 @@ Some sub-processors are located outside the UK and European Economic Area (notab
 - The **UK International Data Transfer Agreement (IDTA)** or the **UK Addendum** to the EU **Standard Contractual Clauses (SCCs)**, or
 - An **adequacy decision** issued by the UK Government or the European Commission (for example, the **EU–US Data Privacy Framework** for certified US providers such as Stripe, Microsoft and Google).
 
-You can request a copy of the safeguards in place by writing to aceoctalimited@gmail.com.
+You can request a copy of the safeguards in place by writing to support@aceocta.com.
 
 ---
 
@@ -246,7 +231,7 @@ Under UK GDPR and EU GDPR you have the right to:
 - **Withdraw consent** at any time where processing is based on consent (e.g. marketing emails, WhatsApp notifications). Withdrawing consent does not affect the lawfulness of processing before withdrawal.
 - **Not be subject to automated decision-making** with legal or similarly significant effects.
 
-To exercise these rights, email **aceoctalimited@gmail.com** or use the **Delete my account** option in your profile within the app. We will respond within one month. There is no fee unless your request is manifestly unfounded or excessive.
+To exercise these rights, email **support@aceocta.com** or use the **Delete my account** option in your profile within the app. We will respond within one month. There is no fee unless your request is manifestly unfounded or excessive.
 
 ### 9.1 California residents (CCPA / CPRA)
 
@@ -333,7 +318,7 @@ We may update this Privacy Policy from time to time. The "Last updated" date at 
 
 If you have any questions about this Privacy Policy or wish to exercise any of your rights, please contact us:
 
-- **Email:** aceoctalimited@gmail.com
+- **Email:** support@aceocta.com
 - **Post:** Aceocta Limited, [COMPANY ADDRESS]
 
 ---
@@ -345,11 +330,9 @@ _End of Privacy Policy._
 This Privacy Policy explains how **Aceocta Limited** ("**we**", "**us**", "**our**") collects, uses, shares and protects personal data when you use the **Ops Arrow** mobile application, web application, and related services (together, the "**Service**").
 
 - **Company:** Aceocta Limited
-- **Registered address:** [COMPANY ADDRESS]
-- **Company number:** [COMPANIES HOUSE NUMBER]
-- **ICO registration number:** [ICO NUMBER]
-- **Contact for privacy queries:** aceoctalimited@gmail.com
-- **Data Protection Officer (if appointed):** [DPO NAME AND EMAIL]
+- **Registered address:** 15 Pelham Road South,Gravesend DA11 8QN, UK
+- **Company number:** 16687119
+- **Contact for privacy queries:** support@aceocta.com
 
 For the purposes of the UK GDPR, the Data Protection Act 2018, and the EU GDPR:
 
@@ -477,7 +460,7 @@ We share personal data only with the categories of recipient below, and only as 
 
 | Sub-processor | Purpose | Location of processing |
 |---|---|---|
-| **Microsoft Azure** (Microsoft Ireland Operations Ltd) — Azure SQL Database, Azure Blob Storage | Application hosting; storage of all account, business and operational data; storage of all uploaded attachments (delivery photos, till report photos, signatures, compliance attachments) | Production: **[CONFIRM REGION — UK South / North Europe]**. Note: UAT is currently in Canada Central; confirm before launch. |
+| **Microsoft Azure** (Microsoft Ireland Operations Ltd) — Azure SQL Database, Azure Blob Storage | Application hosting; storage of all account, business and operational data; storage of all uploaded attachments (delivery photos, till report photos, signatures, compliance attachments) | Production: **UK South**. Note: UAT is currently in Canada Central; confirm before launch. |
 | **Microsoft Azure AI — Document Intelligence** | OCR of till report photographs | EU |
 | **OpenAI Ireland Ltd** | AI-assisted parsing of delivery notes you upload (gpt-4.1-mini). OpenAI does not use API content to train its models. | EU / US |
 | **Stripe Payments Europe Ltd** | All subscription billing and card processing (web and mobile). On mobile, Stripe Checkout opens in the device's in-app browser sheet. | EU / US |
@@ -517,7 +500,7 @@ Some sub-processors are located outside the UK and European Economic Area (notab
 - The **UK International Data Transfer Agreement (IDTA)** or the **UK Addendum** to the EU **Standard Contractual Clauses (SCCs)**, or
 - An **adequacy decision** issued by the UK Government or the European Commission (for example, the **EU–US Data Privacy Framework** for certified US providers such as Stripe, Microsoft and Google).
 
-You can request a copy of the safeguards in place by writing to aceoctalimited@gmail.com.
+You can request a copy of the safeguards in place by writing to support@aceocta.com.
 
 ---
 
@@ -571,7 +554,7 @@ Under UK GDPR and EU GDPR you have the right to:
 - **Withdraw consent** at any time where processing is based on consent (e.g. marketing emails, WhatsApp notifications). Withdrawing consent does not affect the lawfulness of processing before withdrawal.
 - **Not be subject to automated decision-making** with legal or similarly significant effects.
 
-To exercise these rights, email **aceoctalimited@gmail.com** or use the **Delete my account** option in your profile within the app. We will respond within one month. There is no fee unless your request is manifestly unfounded or excessive.
+To exercise these rights, email **support@aceocta.com** or use the **Delete my account** option in your profile within the app. We will respond within one month. There is no fee unless your request is manifestly unfounded or excessive.
 
 ### 9.1 California residents (CCPA / CPRA)
 
@@ -658,8 +641,8 @@ We may update this Privacy Policy from time to time. The "Last updated" date at 
 
 If you have any questions about this Privacy Policy or wish to exercise any of your rights, please contact us:
 
-- **Email:** aceoctalimited@gmail.com
-- **Post:** Aceocta Limited, [COMPANY ADDRESS]
+- **Email:** support@aceocta.com
+- **Post:** Aceocta Limited, 15 Pelham Road South, Gravesend DA11 8QN,UK.
 
 ---
 
