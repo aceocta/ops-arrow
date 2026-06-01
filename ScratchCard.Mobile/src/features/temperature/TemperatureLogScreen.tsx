@@ -833,6 +833,7 @@ export function TemperatureLogScreen() {
                   </Text>
                 </View>
               ) : null}
+              <View style={styles.unitHeaderDivider} />
               <View style={styles.row}>
                 <DateTimeField
                   style={{ flex: 1 }}
@@ -1197,6 +1198,12 @@ const styles = StyleSheet.create({
   },
   unitChipLabelActive: {
     color: appTheme.colors.onPrimary,
+  },
+  unitHeaderDivider: {
+    height: 1,
+    backgroundColor: appTheme.colors.border,
+    marginTop: appTheme.spacing.sm,
+    marginBottom: appTheme.spacing.xs,
   },
   unitHeaderRow: {
     flexDirection: "row",
