@@ -133,14 +133,6 @@ function getShiftTone(status: ShiftStatus): "neutral" | "warning" | "danger" | "
   return "neutral";
 }
 
-function getBusinessDayStatusHint(status?: string) {
-  if (status === "Open") return "Day is active and can take transactions.";
-  if (status === "ReadyToClose") return "All shifts are closed and day is ready to close.";
-  if (status === "Closed") return "Day is closed and available for historical review.";
-  if (status === "Reopened") return "Day was reopened for additional adjustments.";
-  return "Review this day before switching.";
-}
-
 function isActiveBusinessDayStatus(status?: string) {
   const normalized = (status ?? "").trim().toLowerCase();
   return normalized === "open" || normalized === "reopened" || normalized === "readytoclose";
@@ -1428,12 +1420,23 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     () => (daysQuery.data ?? []).slice(0, 30),
     [daysQuery.data],
   );
+  // Show only the 5 business days closest to the selected date, sorted chronologically.
+  const nearbyDays = useMemo(() => {
+    const targetTime = new Date(targetBusinessDate).getTime();
+    return [...availableDays]
+      .sort(
+        (a, b) =>
+          Math.abs(new Date(a.businessDate).getTime() - targetTime) -
+          Math.abs(new Date(b.businessDate).getTime() - targetTime),
+      )
+      .slice(0, 5)
+      .sort((a, b) => a.businessDate.localeCompare(b.businessDate));
+  }, [availableDays, targetBusinessDate]);
   const selectedDateDay = useMemo(
     () => availableDays.find((item) => item.businessDate === targetBusinessDate),
     [availableDays, targetBusinessDate],
   );
   const selectedDayIsCurrent = selectedDateDay?.id === businessDayId;
-  const selectedDateStatusHint = getBusinessDayStatusHint(selectedDateDay?.status);
   const dayPickerLookupErrorMessage = daysQuery.isError
     ? (daysQuery.error as any)?.response?.data?.message ?? "Unable to load business-day availability for this date."
     : "";
@@ -2420,16 +2423,6 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 contentContainerStyle={styles.dayPickerBodyContent}
                 showsVerticalScrollIndicator={false}
               >
-                <Text style={styles.dayPickerSubtitle}>Choose a date, review availability, then confirm switch or open.</Text>
-
-                <View style={styles.dayPickerCurrentDayCard}>
-                  <View style={styles.dayPickerCurrentDayHeader}>
-                    <Text style={styles.dayPickerCurrentDayLabel}>Currently Managing</Text>
-                    <StatusBadge label={status ?? "-"} tone={getStatusTone(status)} />
-                  </View>
-                  <Text style={styles.dayPickerCurrentDayValue}>{day?.businessDate ?? "-"}</Text>
-                </View>
-
                 <View style={styles.dayPickerDateSection}>
                   <View style={styles.dayPickerSectionHeaderRow}>
                     <Text style={styles.dayPickerSectionLabel}>Select Business Date</Text>
@@ -2467,22 +2460,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     <Text style={styles.dayPickerSelectionMeta}>Checking day availability...</Text>
                   ) : dayPickerLookupErrorMessage ? (
                     <Text style={styles.error}>{dayPickerLookupErrorMessage}</Text>
-                  ) : selectedDateDay ? (
-                    <>
-                      <View style={styles.dayPickerSelectionHeader}>
-                        <Text style={styles.dayPickerSelectionTitle}>
-                          {selectedDayIsCurrent ? "This date is already open here." : "Existing business day found."}
-                        </Text>
-                        <StatusBadge label={selectedDateDay.status} tone={getStatusTone(selectedDateDay.status)} />
-                      </View>
-                      <Text style={styles.dayPickerSelectionMeta}>{selectedDateStatusHint}</Text>
-                    </>
-                  ) : (
-                    <>
-                      {/* <Text style={styles.dayPickerSelectionTitle}>No business day exists for this date.</Text> */}
-                      {/* <Text style={styles.dayPickerSelectionMeta}>Create and open a new business day for {targetBusinessDate}.</Text> */}
-                    </>
-                  )}
+                  ) : null}
                   <PrimaryButton
                     label={dayPickerPrimaryLabel}
                     tone={selectedDayIsCurrent ? "neutral" : "primary"}
@@ -2495,7 +2473,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   <View style={styles.dayPickerListHeader}>
                     <Text style={styles.dayPickerSectionLabel}>Nearby Business Days</Text>
                     <Text style={styles.dayPickerListMeta}>
-                      {daysQuery.isFetching ? "Refreshing..." : `${availableDays.length} loaded`}
+                      {daysQuery.isFetching ? "Refreshing..." : `${nearbyDays.length} shown`}
                     </Text>
                   </View>
                   {/* <Text style={styles.dayPickerListHint}>Tap a row to prefill the selected date above.</Text> */}
@@ -2505,7 +2483,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     showsVerticalScrollIndicator={false}
                     nestedScrollEnabled
                   >
-                    {availableDays.map((item) => {
+                    {nearbyDays.map((item) => {
                       const isCurrentDay = item.id === businessDayId;
                       const isTargetDate = item.businessDate === targetBusinessDate;
                       return (
@@ -2520,9 +2498,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                         >
                           <View style={styles.dayPickerItemInfo}>
                             <Text style={styles.dayPickerDate}>{item.businessDate}</Text>
-                            <Text style={styles.dayPickerItemMeta}>
-                              {isCurrentDay ? "Currently managed in this screen." : getBusinessDayStatusHint(item.status)}
-                            </Text>
+                            {isCurrentDay ? <Text style={styles.dayPickerItemMeta}>Currently managed</Text> : null}
                           </View>
                           <View style={styles.dayPickerItemBadgeWrap}>
                             <StatusBadge label={item.status} tone={getStatusTone(item.status)} />
@@ -2530,7 +2506,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                         </Pressable>
                       );
                     })}
-                    {!daysQuery.isFetching && availableDays.length === 0 ? (
+                    {!daysQuery.isFetching && nearbyDays.length === 0 ? (
                       <View style={styles.dayPickerEmptyState}>
                         <Text style={styles.meta}>No business days found in this date range.</Text>
                       </View>
@@ -3824,7 +3800,11 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   dayPickerDateSection: {
-    gap: 6,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.sm,
+    gap: appTheme.spacing.xs,
   },
   dayPickerSectionHeaderRow: {
     flexDirection: "row",
