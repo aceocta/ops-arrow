@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace ScratchCard.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class init : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -140,8 +140,6 @@ namespace ScratchCard.Infrastructure.Migrations
                     Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     MaxUsers = table.Column<int>(type: "int", nullable: true),
                     ReportExportsPerMonth = table.Column<int>(type: "int", nullable: true),
-                    AppleProductId = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
-                    GoogleProductId = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
                     StripePriceId = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
                     DisplayOrder = table.Column<int>(type: "int", nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
@@ -163,6 +161,7 @@ namespace ScratchCard.Infrastructure.Migrations
                     Email = table.Column<string>(type: "nvarchar(320)", maxLength: 320, nullable: false),
                     FirstName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     LastName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    PhoneNumber = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     ExternalProvider = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     ExternalProviderUserId = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
                     PasswordHash = table.Column<string>(type: "nvarchar(max)", nullable: true),
@@ -178,6 +177,25 @@ namespace ScratchCard.Infrastructure.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Users", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "VisitorOrganisations",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    NormalizedName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    UsageCount = table.Column<int>(type: "int", nullable: false),
+                    LastUsedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_VisitorOrganisations", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -359,6 +377,8 @@ namespace ScratchCard.Infrastructure.Migrations
                     Country = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     IsDeleted = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    IsFuelStation = table.Column<bool>(type: "bit", nullable: false),
+                    DisabledFeatureKeys = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
                     CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
@@ -369,6 +389,33 @@ namespace ScratchCard.Infrastructure.Migrations
                     table.PrimaryKey("PK_Shops", x => x.Id);
                     table.ForeignKey(
                         name: "FK_Shops_Companies_CompanyId",
+                        column: x => x.CompanyId,
+                        principalTable: "Companies",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Visitors",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CompanyId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    FullName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    Organisation = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    Phone = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    DefaultVisitType = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: true),
+                    VisitCount = table.Column<int>(type: "int", nullable: false),
+                    LastVisitedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Visitors", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Visitors_Companies_CompanyId",
                         column: x => x.CompanyId,
                         principalTable: "Companies",
                         principalColumn: "Id");
@@ -1038,6 +1085,33 @@ namespace ScratchCard.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "ShopPaymentTypes",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    Keywords = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    SortOrder = table.Column<int>(type: "int", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false, defaultValue: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ShopPaymentTypes", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ShopPaymentTypes_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
                 name: "ShopScratchCardGames",
                 columns: table => new
                 {
@@ -1213,6 +1287,58 @@ namespace ScratchCard.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "TillCategoryRules",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Pattern = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    MatchType = table.Column<int>(type: "int", nullable: false),
+                    Classification = table.Column<int>(type: "int", nullable: false),
+                    Priority = table.Column<int>(type: "int", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false, defaultValue: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TillCategoryRules", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_TillCategoryRules_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Tills",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false, defaultValue: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Tills", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Tills_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
                 name: "UserInvitations",
                 columns: table => new
                 {
@@ -1277,6 +1403,53 @@ namespace ScratchCard.Infrastructure.Migrations
                         name: "FK_UserPushTokens_Users_UserId",
                         column: x => x.UserId,
                         principalTable: "Users",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "VisitorLogEntries",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    VisitorId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    SequenceNo = table.Column<int>(type: "int", nullable: false),
+                    VisitDate = table.Column<DateOnly>(type: "date", nullable: false),
+                    TimeIn = table.Column<TimeOnly>(type: "time", nullable: false),
+                    TimeOut = table.Column<TimeOnly>(type: "time", nullable: true),
+                    VisitorName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    Organisation = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    VisitType = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
+                    Purpose = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    HostName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    VehicleRegistration = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
+                    IsInspector = table.Column<bool>(type: "bit", nullable: false),
+                    SignatureImagePath = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    PhotoImagePath = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    Notes = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    SpaPassportRef = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    PermitToWorkRef = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    InductionAcknowledged = table.Column<bool>(type: "bit", nullable: false),
+                    RecordedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    RecordedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    RecordedByName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_VisitorLogEntries", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_VisitorLogEntries_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_VisitorLogEntries_Visitors_VisitorId",
+                        column: x => x.VisitorId,
+                        principalTable: "Visitors",
                         principalColumn: "Id");
                 });
 
@@ -1601,43 +1774,6 @@ namespace ScratchCard.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "TemperatureReadings",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    TemperatureMonitoringUnitId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ReadingDate = table.Column<DateOnly>(type: "date", nullable: false),
-                    ReadingTime = table.Column<TimeOnly>(type: "time", nullable: false),
-                    TemperatureCelsius = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: false),
-                    IsOutOfRange = table.Column<bool>(type: "bit", nullable: false),
-                    CheckedByInitials = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
-                    Notes = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    ActionTaken = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    RecordedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
-                    RecordedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    RecordedByName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
-                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
-                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
-                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_TemperatureReadings", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_TemperatureReadings_Shops_ShopId",
-                        column: x => x.ShopId,
-                        principalTable: "Shops",
-                        principalColumn: "Id");
-                    table.ForeignKey(
-                        name: "FK_TemperatureReadings_TemperatureMonitoringUnits_TemperatureMonitoringUnitId",
-                        column: x => x.TemperatureMonitoringUnitId,
-                        principalTable: "TemperatureMonitoringUnits",
-                        principalColumn: "Id");
-                });
-
-            migrationBuilder.CreateTable(
                 name: "CanisterDrops",
                 columns: table => new
                 {
@@ -1772,6 +1908,44 @@ namespace ScratchCard.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "ShiftPackClosings",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ShiftId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    PackId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ClosingSerialNumber = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: false),
+                    OriginalScannedSerialNumber = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: true),
+                    EntryMethod = table.Column<int>(type: "int", nullable: false),
+                    ManualEntryReason = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    Notes = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    EnteredByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    EnteredOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ShiftPackClosings", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ShiftPackClosings_ScratchCardPacks_PackId",
+                        column: x => x.PackId,
+                        principalTable: "ScratchCardPacks",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_ShiftPackClosings_Shifts_ShiftId",
+                        column: x => x.ShiftId,
+                        principalTable: "Shifts",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_ShiftPackClosings_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
                 name: "ShiftReconciliations",
                 columns: table => new
                 {
@@ -1849,6 +2023,56 @@ namespace ScratchCard.Infrastructure.Migrations
                         name: "FK_ShiftScratchCardSales_Shops_ShopId",
                         column: x => x.ShopId,
                         principalTable: "Shops",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TillReports",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    TillId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ReportType = table.Column<int>(type: "int", nullable: false),
+                    ShiftId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    BusinessDayId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    BusinessDate = table.Column<DateOnly>(type: "date", nullable: false),
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    OcrRawText = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    TotalIncome = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    TotalExpense = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    LineCount = table.Column<int>(type: "int", nullable: false),
+                    ProcessedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    ConfirmedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ConfirmedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false, defaultValue: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TillReports", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_TillReports_BusinessDays_BusinessDayId",
+                        column: x => x.BusinessDayId,
+                        principalTable: "BusinessDays",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_TillReports_Shifts_ShiftId",
+                        column: x => x.ShiftId,
+                        principalTable: "Shifts",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_TillReports_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_TillReports_Tills_TillId",
+                        column: x => x.TillId,
+                        principalTable: "Tills",
                         principalColumn: "Id");
                 });
 
@@ -2053,6 +2277,50 @@ namespace ScratchCard.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "TemperatureReadings",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ShopId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    TemperatureMonitoringUnitId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ReadingDate = table.Column<DateOnly>(type: "date", nullable: false),
+                    ReadingTime = table.Column<TimeOnly>(type: "time", nullable: false),
+                    TemperatureCelsius = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: false),
+                    IsOutOfRange = table.Column<bool>(type: "bit", nullable: false),
+                    CheckedByInitials = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    Notes = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    ActionTaken = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    RecordedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    RecordedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    RecordedByName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    ScheduleId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    IsLateForSchedule = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ModifiedOn = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ModifiedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TemperatureReadings", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_TemperatureReadings_CfgTemperatureSchedules_ScheduleId",
+                        column: x => x.ScheduleId,
+                        principalTable: "CfgTemperatureSchedules",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_TemperatureReadings_Shops_ShopId",
+                        column: x => x.ShopId,
+                        principalTable: "Shops",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_TemperatureReadings_TemperatureMonitoringUnits_TemperatureMonitoringUnitId",
+                        column: x => x.TemperatureMonitoringUnitId,
+                        principalTable: "TemperatureMonitoringUnits",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
                 name: "ShiftCloseAttachments",
                 columns: table => new
                 {
@@ -2081,6 +2349,78 @@ namespace ScratchCard.Infrastructure.Migrations
                         name: "FK_ShiftCloseAttachments_Shops_ShopId",
                         column: x => x.ShopId,
                         principalTable: "Shops",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TillReportAttachments",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    TillReportId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    PageNumber = table.Column<int>(type: "int", nullable: false),
+                    StoredPath = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    OriginalFileName = table.Column<string>(type: "nvarchar(260)", maxLength: 260, nullable: false),
+                    ContentType = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TillReportAttachments", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_TillReportAttachments_TillReports_TillReportId",
+                        column: x => x.TillReportId,
+                        principalTable: "TillReports",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TillReportLines",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    TillReportId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    LineNumber = table.Column<int>(type: "int", nullable: false),
+                    RawDescription = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    Amount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    TypeCode = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    Classification = table.Column<int>(type: "int", nullable: false),
+                    Source = table.Column<int>(type: "int", nullable: false),
+                    MatchedRuleId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    Notes = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TillReportLines", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_TillReportLines_TillReports_TillReportId",
+                        column: x => x.TillReportId,
+                        principalTable: "TillReports",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TillReportPayments",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    TillReportId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    PaymentTypeId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    PaymentTypeName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    Amount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    Source = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TillReportPayments", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_TillReportPayments_ShopPaymentTypes_PaymentTypeId",
+                        column: x => x.PaymentTypeId,
+                        principalTable: "ShopPaymentTypes",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_TillReportPayments_TillReports_TillReportId",
+                        column: x => x.TillReportId,
+                        principalTable: "TillReports",
                         principalColumn: "Id");
                 });
 
@@ -2499,6 +2839,22 @@ namespace ScratchCard.Infrastructure.Migrations
                 column: "ShopId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_ShiftPackClosings_PackId",
+                table: "ShiftPackClosings",
+                column: "PackId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ShiftPackClosings_ShiftId_PackId",
+                table: "ShiftPackClosings",
+                columns: new[] { "ShiftId", "PackId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ShiftPackClosings_ShopId",
+                table: "ShiftPackClosings",
+                column: "ShopId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_ShiftReconciliations_ShiftId",
                 table: "ShiftReconciliations",
                 column: "ShiftId",
@@ -2606,9 +2962,22 @@ namespace ScratchCard.Infrastructure.Migrations
                 columns: new[] { "ShopId", "IsDeleted" });
 
             migrationBuilder.CreateIndex(
+                name: "IX_ShopPaymentTypes_ShopId_IsActive",
+                table: "ShopPaymentTypes",
+                columns: new[] { "ShopId", "IsActive" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ShopPaymentTypes_ShopId_Name",
+                table: "ShopPaymentTypes",
+                columns: new[] { "ShopId", "Name" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Shops_CompanyId_ShopName",
                 table: "Shops",
-                columns: new[] { "CompanyId", "ShopName" });
+                columns: new[] { "CompanyId", "ShopName" },
+                unique: true,
+                filter: "[IsDeleted] = 0 AND [CompanyId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_ShopScratchCardGames_MasterGameId",
@@ -2733,6 +3102,11 @@ namespace ScratchCard.Infrastructure.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_TemperatureReadings_ScheduleId",
+                table: "TemperatureReadings",
+                column: "ScheduleId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_TemperatureReadings_ShopId_ReadingDate",
                 table: "TemperatureReadings",
                 columns: new[] { "ShopId", "ReadingDate" });
@@ -2741,6 +3115,64 @@ namespace ScratchCard.Infrastructure.Migrations
                 name: "IX_TemperatureReadings_TemperatureMonitoringUnitId_ReadingDate_ReadingTime",
                 table: "TemperatureReadings",
                 columns: new[] { "TemperatureMonitoringUnitId", "ReadingDate", "ReadingTime" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TillCategoryRules_ShopId_IsActive",
+                table: "TillCategoryRules",
+                columns: new[] { "ShopId", "IsActive" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TillReportAttachments_TillReportId",
+                table: "TillReportAttachments",
+                column: "TillReportId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TillReportLines_TillReportId",
+                table: "TillReportLines",
+                column: "TillReportId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TillReportPayments_PaymentTypeId",
+                table: "TillReportPayments",
+                column: "PaymentTypeId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TillReportPayments_TillReportId_PaymentTypeId",
+                table: "TillReportPayments",
+                columns: new[] { "TillReportId", "PaymentTypeId" },
+                unique: true,
+                filter: "[PaymentTypeId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TillReports_BusinessDayId",
+                table: "TillReports",
+                column: "BusinessDayId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TillReports_ShiftId",
+                table: "TillReports",
+                column: "ShiftId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TillReports_ShopId_BusinessDate",
+                table: "TillReports",
+                columns: new[] { "ShopId", "BusinessDate" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TillReports_TillId",
+                table: "TillReports",
+                column: "TillId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Tills_ShopId_IsActive",
+                table: "Tills",
+                columns: new[] { "ShopId", "IsActive" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Tills_ShopId_Name",
+                table: "Tills",
+                columns: new[] { "ShopId", "Name" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
@@ -2801,6 +3233,38 @@ namespace ScratchCard.Infrastructure.Migrations
                 name: "IX_Users_PasswordResetTokenHash",
                 table: "Users",
                 column: "PasswordResetTokenHash");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_VisitorLogEntries_ShopId_TimeOut",
+                table: "VisitorLogEntries",
+                columns: new[] { "ShopId", "TimeOut" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_VisitorLogEntries_ShopId_VisitDate",
+                table: "VisitorLogEntries",
+                columns: new[] { "ShopId", "VisitDate" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_VisitorLogEntries_ShopId_VisitDate_SequenceNo",
+                table: "VisitorLogEntries",
+                columns: new[] { "ShopId", "VisitDate", "SequenceNo" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_VisitorLogEntries_VisitorId",
+                table: "VisitorLogEntries",
+                column: "VisitorId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_VisitorOrganisations_NormalizedName",
+                table: "VisitorOrganisations",
+                column: "NormalizedName",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Visitors_CompanyId_FullName",
+                table: "Visitors",
+                columns: new[] { "CompanyId", "FullName" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_WeeklyComplianceCheckEntries_CompanyId",
@@ -2876,9 +3340,6 @@ namespace ScratchCard.Infrastructure.Migrations
                 name: "CfgSubscriptionSettings");
 
             migrationBuilder.DropTable(
-                name: "CfgTemperatureSchedules");
-
-            migrationBuilder.DropTable(
                 name: "ComplianceCheckAttachments");
 
             migrationBuilder.DropTable(
@@ -2921,6 +3382,9 @@ namespace ScratchCard.Infrastructure.Migrations
                 name: "ShiftOpeningSerials");
 
             migrationBuilder.DropTable(
+                name: "ShiftPackClosings");
+
+            migrationBuilder.DropTable(
                 name: "ShiftScratchCardSales");
 
             migrationBuilder.DropTable(
@@ -2954,6 +3418,18 @@ namespace ScratchCard.Infrastructure.Migrations
                 name: "TemperatureReadings");
 
             migrationBuilder.DropTable(
+                name: "TillCategoryRules");
+
+            migrationBuilder.DropTable(
+                name: "TillReportAttachments");
+
+            migrationBuilder.DropTable(
+                name: "TillReportLines");
+
+            migrationBuilder.DropTable(
+                name: "TillReportPayments");
+
+            migrationBuilder.DropTable(
                 name: "UserInvitations");
 
             migrationBuilder.DropTable(
@@ -2961,6 +3437,12 @@ namespace ScratchCard.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "UserRoles");
+
+            migrationBuilder.DropTable(
+                name: "VisitorLogEntries");
+
+            migrationBuilder.DropTable(
+                name: "VisitorOrganisations");
 
             migrationBuilder.DropTable(
                 name: "WeeklyComplianceCheckEntries");
@@ -2987,16 +3469,22 @@ namespace ScratchCard.Infrastructure.Migrations
                 name: "Features");
 
             migrationBuilder.DropTable(
-                name: "TemperatureMonitoringUnits");
+                name: "CfgTemperatureSchedules");
+
+            migrationBuilder.DropTable(
+                name: "ShopPaymentTypes");
+
+            migrationBuilder.DropTable(
+                name: "TillReports");
 
             migrationBuilder.DropTable(
                 name: "Roles");
 
             migrationBuilder.DropTable(
-                name: "ComplianceCheckItems");
+                name: "Visitors");
 
             migrationBuilder.DropTable(
-                name: "Shifts");
+                name: "ComplianceCheckItems");
 
             migrationBuilder.DropTable(
                 name: "MasterScratchCardGames");
@@ -3008,13 +3496,22 @@ namespace ScratchCard.Infrastructure.Migrations
                 name: "CompanySubscriptions");
 
             migrationBuilder.DropTable(
+                name: "TemperatureMonitoringUnits");
+
+            migrationBuilder.DropTable(
+                name: "Shifts");
+
+            migrationBuilder.DropTable(
+                name: "Tills");
+
+            migrationBuilder.DropTable(
                 name: "ComplianceCheckGroups");
 
             migrationBuilder.DropTable(
-                name: "BusinessDays");
+                name: "SubscriptionPlans");
 
             migrationBuilder.DropTable(
-                name: "SubscriptionPlans");
+                name: "BusinessDays");
 
             migrationBuilder.DropTable(
                 name: "Shops");

@@ -12,8 +12,8 @@ using ScratchCard.Infrastructure.Persistence;
 namespace ScratchCard.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260527144454_AddShopDisabledFeatureKeys")]
-    partial class AddShopDisabledFeatureKeys
+    [Migration("20260601155551_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -2405,6 +2405,65 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.ToTable("ShiftOpeningSerials");
                 });
 
+            modelBuilder.Entity("ScratchCard.Domain.Entities.ShiftPackClosing", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ClosingSerialNumber")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<Guid?>("EnteredByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("EnteredOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("EntryMethod")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ManualEntryReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("OriginalScannedSerialNumber")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<Guid>("PackId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ShiftId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PackId");
+
+                    b.HasIndex("ShopId");
+
+                    b.HasIndex("ShiftId", "PackId")
+                        .IsUnique();
+
+                    b.ToTable("ShiftPackClosings");
+                });
+
             modelBuilder.Entity("ScratchCard.Domain.Entities.ShiftReconciliation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2600,6 +2659,9 @@ namespace ScratchCard.Infrastructure.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
 
+                    b.Property<bool>("IsFuelStation")
+                        .HasColumnType("bit");
+
                     b.Property<Guid?>("ModifiedBy")
                         .HasColumnType("uniqueidentifier");
 
@@ -2618,7 +2680,9 @@ namespace ScratchCard.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CompanyId", "ShopName");
+                    b.HasIndex("CompanyId", "ShopName")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0 AND [CompanyId] IS NOT NULL");
 
                     b.ToTable("Shops");
                 });
@@ -2847,6 +2911,63 @@ namespace ScratchCard.Infrastructure.Migrations
                         .HasFilter("[ShiftId] IS NOT NULL");
 
                     b.ToTable("ShopChecklistTaskCompletions");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.ShopPaymentType", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Keywords")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShopId", "IsActive");
+
+                    b.HasIndex("ShopId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("ShopPaymentTypes");
                 });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.ShopScratchCardGame", b =>
@@ -3513,6 +3634,9 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Property<DateTimeOffset>("CreatedOn")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<bool>("IsLateForSchedule")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("IsOutOfRange")
                         .HasColumnType("bit");
 
@@ -3542,6 +3666,9 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Property<DateTimeOffset>("RecordedOn")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<Guid?>("ScheduleId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("ShopId")
                         .HasColumnType("uniqueidentifier");
 
@@ -3554,12 +3681,310 @@ namespace ScratchCard.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ScheduleId");
+
                     b.HasIndex("ShopId", "ReadingDate");
 
                     b.HasIndex("TemperatureMonitoringUnitId", "ReadingDate", "ReadingTime")
                         .IsUnique();
 
                     b.ToTable("TemperatureReadings");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.Till", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShopId", "IsActive");
+
+                    b.HasIndex("ShopId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Tills");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.TillCategoryRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Classification")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<int>("MatchType")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Pattern")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShopId", "IsActive");
+
+                    b.ToTable("TillCategoryRules");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.TillReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("BusinessDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid?>("BusinessDayId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ConfirmedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ConfirmedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<int>("LineCount")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("OcrRawText")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset>("ProcessedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("ReportType")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("ShiftId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("TillId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("TotalExpense")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TotalIncome")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BusinessDayId");
+
+                    b.HasIndex("ShiftId");
+
+                    b.HasIndex("TillId");
+
+                    b.HasIndex("ShopId", "BusinessDate");
+
+                    b.ToTable("TillReports");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.TillReportAttachment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<int>("PageNumber")
+                        .HasColumnType("int");
+
+                    b.Property<string>("StoredPath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("TillReportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TillReportId");
+
+                    b.ToTable("TillReportAttachments");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.TillReportLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("Classification")
+                        .HasColumnType("int");
+
+                    b.Property<int>("LineNumber")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("MatchedRuleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("RawDescription")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("Source")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TillReportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TypeCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TillReportId");
+
+                    b.ToTable("TillReportLines");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.TillReportPayment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("PaymentTypeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("PaymentTypeName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("Source")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TillReportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PaymentTypeId");
+
+                    b.HasIndex("TillReportId", "PaymentTypeId")
+                        .IsUnique()
+                        .HasFilter("[PaymentTypeId] IS NOT NULL");
+
+                    b.ToTable("TillReportPayments");
                 });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.User", b =>
@@ -3620,6 +4045,9 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Property<string>("PasswordResetTokenHash")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
@@ -3796,6 +4224,211 @@ namespace ScratchCard.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("UserRoles", (string)null);
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.Visitor", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DefaultVisitType")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset?>("LastVisitedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Organisation")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("VisitCount")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "FullName");
+
+                    b.ToTable("Visitors");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.VisitorLogEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("HostName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("InductionAcknowledged")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsInspector")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Organisation")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("PermitToWorkRef")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("PhotoImagePath")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Purpose")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("RecordedByName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("RecordedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("RecordedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("SequenceNo")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SignatureImagePath")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("SpaPassportRef")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<TimeOnly>("TimeIn")
+                        .HasColumnType("time");
+
+                    b.Property<TimeOnly?>("TimeOut")
+                        .HasColumnType("time");
+
+                    b.Property<string>("VehicleRegistration")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateOnly>("VisitDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("VisitType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<Guid?>("VisitorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("VisitorName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VisitorId");
+
+                    b.HasIndex("ShopId", "TimeOut");
+
+                    b.HasIndex("ShopId", "VisitDate");
+
+                    b.HasIndex("ShopId", "VisitDate", "SequenceNo")
+                        .IsUnique();
+
+                    b.ToTable("VisitorLogEntries");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.VisitorOrganisation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("LastUsedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("ModifiedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ModifiedOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("UsageCount")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NormalizedName")
+                        .IsUnique();
+
+                    b.ToTable("VisitorOrganisations");
                 });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.DailyComplianceCheckEntry", b =>
@@ -4432,6 +5065,33 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Navigation("Shop");
                 });
 
+            modelBuilder.Entity("ScratchCard.Domain.Entities.ShiftPackClosing", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.ScratchCardPack", "Pack")
+                        .WithMany()
+                        .HasForeignKey("PackId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("ScratchCard.Domain.Entities.Shift", "Shift")
+                        .WithMany()
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
+                        .WithMany()
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Pack");
+
+                    b.Navigation("Shift");
+
+                    b.Navigation("Shop");
+                });
+
             modelBuilder.Entity("ScratchCard.Domain.Entities.ShiftReconciliation", b =>
                 {
                     b.HasOne("ScratchCard.Domain.Entities.Shift", "Shift")
@@ -4553,6 +5213,17 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Navigation("ChecklistTask");
 
                     b.Navigation("Shift");
+
+                    b.Navigation("Shop");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.ShopPaymentType", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
+                        .WithMany()
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
 
                     b.Navigation("Shop");
                 });
@@ -4712,6 +5383,11 @@ namespace ScratchCard.Infrastructure.Migrations
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.TemperatureReading", b =>
                 {
+                    b.HasOne("ScratchCard.Domain.Entities.CfgTemperatureSchedule", "Schedule")
+                        .WithMany()
+                        .HasForeignKey("ScheduleId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
                         .WithMany("TemperatureReadings")
                         .HasForeignKey("ShopId")
@@ -4724,9 +5400,105 @@ namespace ScratchCard.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
+                    b.Navigation("Schedule");
+
                     b.Navigation("Shop");
 
                     b.Navigation("TemperatureMonitoringUnit");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.Till", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
+                        .WithMany()
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Shop");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.TillCategoryRule", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
+                        .WithMany()
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Shop");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.TillReport", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.BusinessDay", "BusinessDay")
+                        .WithMany()
+                        .HasForeignKey("BusinessDayId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("ScratchCard.Domain.Entities.Shift", "Shift")
+                        .WithMany()
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
+                        .WithMany()
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("ScratchCard.Domain.Entities.Till", "Till")
+                        .WithMany()
+                        .HasForeignKey("TillId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("BusinessDay");
+
+                    b.Navigation("Shift");
+
+                    b.Navigation("Shop");
+
+                    b.Navigation("Till");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.TillReportAttachment", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.TillReport", "TillReport")
+                        .WithMany("Attachments")
+                        .HasForeignKey("TillReportId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("TillReport");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.TillReportLine", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.TillReport", "TillReport")
+                        .WithMany("Lines")
+                        .HasForeignKey("TillReportId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("TillReport");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.TillReportPayment", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.ShopPaymentType", "PaymentType")
+                        .WithMany()
+                        .HasForeignKey("PaymentTypeId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("ScratchCard.Domain.Entities.TillReport", "TillReport")
+                        .WithMany("Payments")
+                        .HasForeignKey("TillReportId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("PaymentType");
+
+                    b.Navigation("TillReport");
                 });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.UserInvitation", b =>
@@ -4784,6 +5556,32 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Navigation("Role");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.Visitor", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.NoAction);
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.VisitorLogEntry", b =>
+                {
+                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
+                        .WithMany("VisitorLogEntries")
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("ScratchCard.Domain.Entities.Visitor", "Visitor")
+                        .WithMany("Entries")
+                        .HasForeignKey("VisitorId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Shop");
+
+                    b.Navigation("Visitor");
                 });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.DailyComplianceCheckEntry", b =>
@@ -4978,6 +5776,8 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Navigation("TemperatureMonitoringUnits");
 
                     b.Navigation("TemperatureReadings");
+
+                    b.Navigation("VisitorLogEntries");
                 });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.ShopChecklistGroup", b =>
@@ -5006,11 +5806,25 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Navigation("Readings");
                 });
 
+            modelBuilder.Entity("ScratchCard.Domain.Entities.TillReport", b =>
+                {
+                    b.Navigation("Attachments");
+
+                    b.Navigation("Lines");
+
+                    b.Navigation("Payments");
+                });
+
             modelBuilder.Entity("ScratchCard.Domain.Entities.User", b =>
                 {
                     b.Navigation("ShopUsers");
 
                     b.Navigation("UserRoles");
+                });
+
+            modelBuilder.Entity("ScratchCard.Domain.Entities.Visitor", b =>
+                {
+                    b.Navigation("Entries");
                 });
 #pragma warning restore 612, 618
         }
