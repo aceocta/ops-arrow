@@ -2787,12 +2787,13 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 error={payoutFieldError?.key === "till" ? payoutFieldError.message : null}
                 returnKeyType="done"
               />
-              <Text style={styles.fieldLabel}>Additional Close Notes</Text>
+              <View style={styles.noteAttachmentSection}>
+              <Text style={styles.noteAttachmentSectionTitle}>Close Note & Attachments</Text>
               <TextInput
                 style={[styles.input, styles.multilineInput]}
                 value={notes}
                 onChangeText={setNotes}
-                placeholder="Additional notes (optional)"
+                placeholder="Anything notable about this day…"
                 placeholderTextColor={appTheme.colors.textSubtle}
                 multiline
                 numberOfLines={4}
@@ -2800,14 +2801,11 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 accessibilityLabel="Additional close notes"
               />
               {attachmentsFeature.isAllowed ? (
-                <>
-                  <Text style={styles.fieldLabel}>Attachments (Optional)</Text>
-                  <Text style={styles.meta}>
-                    {closeDayAttachments.length === 0
-                      ? "No attachments selected."
-                      : `${closeDayAttachments.length} attachment(s) selected.`}
-                  </Text>
-                </>
+                <Text style={styles.meta}>
+                  {closeDayAttachments.length === 0
+                    ? "No attachments selected."
+                    : `${closeDayAttachments.length} attachment(s) selected.`}
+                </Text>
               ) : !attachmentsFeature.isLoading ? (
                 <UpgradeNotice
                   feature="scratch_card.attachments"
@@ -2905,6 +2903,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   </Pressable>
                 </View>
               ) : null}
+              </View>
               <View style={styles.modalActionRow}>
                 <Pressable
                   style={[
@@ -3352,6 +3351,22 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontFamily: appTheme.fonts.bodyMedium,
     marginTop: 2,
+  },
+  // Groups the close note + attachments into one bordered section, matching the
+  // "Shift Note & Attachments" block on the shift detail screen.
+  noteAttachmentSection: {
+    borderWidth: 0.8,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    padding: appTheme.spacing.sm,
+    gap: appTheme.spacing.xs,
+  },
+  noteAttachmentSectionTitle: {
+    color: appTheme.colors.text,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: appTheme.fonts.bodyMedium,
   },
   input: {
     borderWidth: 0,
