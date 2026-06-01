@@ -1472,6 +1472,12 @@ public class BusinessDayService : IBusinessDayService
                 : $"Temperature: {outOfRange} of {temperatureRows.Count} unit(s) out of range");
         }
 
+        if (!string.IsNullOrWhiteSpace(day.Notes))
+        {
+            lines.Add(string.Empty);
+            lines.Add($"Note: {day.Notes.Trim()}");
+        }
+
         lines.Add(string.Empty);
         lines.Add("Full report sent to your email.");
 
@@ -2107,6 +2113,12 @@ public class BusinessDayService : IBusinessDayService
         sb.Append($"<tr><td>Closed Time</td><td>{(day.ClosedOn?.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ?? "-")} UTC</td></tr>");
         sb.Append($"<tr><td>Shifts Closed</td><td>{shiftCount}</td></tr>");
         sb.Append("</tbody></table>");
+        if (!string.IsNullOrWhiteSpace(day.Notes))
+        {
+            var noteHtml = WebUtility.HtmlEncode(day.Notes.Trim()).Replace("\r\n", "<br />").Replace("\n", "<br />");
+            sb.Append("<div class=\"table-title\">Day Close Note</div>");
+            sb.Append($"<div class=\"notes\">{noteHtml}</div>");
+        }
         if (scratchCardEnabled)
         {
             sb.Append($"<div class=\"cards {differenceClass}\">");

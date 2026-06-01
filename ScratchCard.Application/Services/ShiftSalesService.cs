@@ -897,6 +897,13 @@ public class ShiftSalesService : IShiftSalesService
             .Select(x => x.ShopName)
             .FirstOrDefaultAsync(cancellationToken) ?? "Unknown Shop";
 
+        // The shift-close note is captured on the reconciliation row; surface it in the report.
+        var shiftNote = await _reconciliationRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShiftId == shift.Id)
+            .Select(x => x.Notes)
+            .FirstOrDefaultAsync(cancellationToken);
+
         var safeDropManagementEnabled = await IsSafeDropManagementEnabledAsync(shift.ShopId, cancellationToken);
         var safeDropRows = safeDropManagementEnabled
             ? await _canisterDropRepository.Query()
@@ -927,7 +934,8 @@ public class ShiftSalesService : IShiftSalesService
             safeDropRows,
             safeDropManagementEnabled,
             temperatureRows,
-            reportGeneratedOnUtc);
+            reportGeneratedOnUtc,
+            shiftNote);
 
         // One PDF per report section, attached as separate files (Scratch Card, Temperature,
         // Safe Drop). The HTML email body still carries every section inline.
@@ -1006,7 +1014,8 @@ public class ShiftSalesService : IShiftSalesService
                 summaryRows,
                 safeDropRows,
                 safeDropManagementEnabled,
-                temperatureRows);
+                temperatureRows,
+                shiftNote);
 
             foreach (var recipientPhone in whatsAppRecipients)
             {
@@ -1148,7 +1157,8 @@ public class ShiftSalesService : IShiftSalesService
         IReadOnlyCollection<ShiftCloseSummaryRow> summaryRows,
         IReadOnlyCollection<SafeDropSummaryRow> safeDropRows,
         bool safeDropManagementEnabled,
-        IReadOnlyCollection<TemperatureSummaryRow> temperatureRows)
+        IReadOnlyCollection<TemperatureSummaryRow> temperatureRows,
+        string? shiftNote)
     {
         var totalSales = summaryRows.Sum(r => r.SalesAmount);
         var totalTicketsSold = summaryRows.Sum(r => r.SoldQuantity);
@@ -1175,6 +1185,12 @@ public class ShiftSalesService : IShiftSalesService
             lines.Add(outOfRange == 0
                 ? $"Temperature: all {temperatureRows.Count} unit(s) in range"
                 : $"Temperature: {outOfRange} of {temperatureRows.Count} unit(s) out of range");
+        }
+
+        if (!string.IsNullOrWhiteSpace(shiftNote))
+        {
+            lines.Add(string.Empty);
+            lines.Add($"Note: {shiftNote.Trim()}");
         }
 
         lines.Add(string.Empty);
@@ -1614,7 +1630,8 @@ public class ShiftSalesService : IShiftSalesService
         IReadOnlyCollection<SafeDropSummaryRow> safeDropRows,
         bool safeDropManagementEnabled,
         IReadOnlyCollection<TemperatureSummaryRow> temperatureRows,
-        DateTimeOffset reportGeneratedOnUtc)
+        DateTimeOffset reportGeneratedOnUtc,
+        string? shiftNote)
     {
         var reportDateText = reportGeneratedOnUtc.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
         var shiftDetail = $"{shift.ShiftName} ({businessDay.BusinessDate:yyyy-MM-dd})";
@@ -1730,6 +1747,11 @@ sb.Append("<tbody>");
 sb.Append($"<tr><td>Shop Name</td><td>{WebUtility.HtmlEncode(shopName)}</td></tr>");
 sb.Append($"<tr><td>Shift Detail</td><td>{WebUtility.HtmlEncode(shiftDetail)}</td></tr>");
 sb.Append($"<tr><td>Report Date</td><td>{WebUtility.HtmlEncode(reportDateText)} UTC</td></tr>");
+if (!string.IsNullOrWhiteSpace(shiftNote))
+{
+    var noteHtml = WebUtility.HtmlEncode(shiftNote.Trim()).Replace("\r\n", "<br />").Replace("\n", "<br />");
+    sb.Append($"<tr><td>Shift Note</td><td>{noteHtml}</td></tr>");
+}
 sb.Append("</tbody>");
 sb.Append("</table>");
 sb.Append("</div>");
