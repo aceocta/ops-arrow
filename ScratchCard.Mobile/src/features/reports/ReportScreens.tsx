@@ -351,15 +351,7 @@ export function DailySalesReportScreen() {
     <ScreenContainer>
       <ScrollView contentContainerStyle={styles.dailyPageContent}>
         <View style={[ui.card, styles.dailyReportCard]}>
-          <View style={styles.dailyReportHeader}>
-            <View style={styles.dailyReportHeaderMain}>
-              <Text style={styles.reportEyebrow}>Scratch Card</Text>
-              <Text style={styles.reportTitle}>Daily Sales Report</Text>
-              <Text style={styles.reportShop}>Shop: {activeShop?.shopName ?? "-"}</Text>
-              <Text style={styles.reportMetaText}>Report Date Time: {reportDateTime}</Text>
-            </View>
-            <StatusBadge label={`${totalDays} days`} tone="neutral" />
-          </View>
+       
 
           <DateRangeInputs from={from} to={to} setFrom={setFrom} setTo={setTo} />
 
@@ -501,36 +493,77 @@ export function DailySalesReportScreen() {
                   onPress={() => openBusinessDateDayManagement(businessDate)}
                 >
                   <View style={styles.daySummaryCard}>
-                    <Text style={styles.meta}>Sales: {formatCurrency(dayAggregate.totalSales)}</Text>
-                    <Text style={styles.meta}>Prize Payouts: {formatCurrency(dayAggregate.totalPrizePayout)}</Text>
-                    <Text style={styles.meta}>Net Take: {formatCurrency(dayAggregate.totalNetTake)}</Text>
-                    <Text style={styles.meta}>Tickets: {dayAggregate.totalQuantity} · Avg {formatCurrency(dayAggregate.avgTicketPrice)}</Text>
-                    <Text style={[styles.meta, dayMissingCount > 0 ? styles.varianceTextNegative : null]}>
-                      Missing Tickets: {dayMissingCount}
-                    </Text>
+                    <View style={styles.shiftStatGrid}>
+                      <View style={[styles.shiftStatCell, styles.shiftStatCellHalf]}>
+                        <Text style={styles.shiftStatLabel}>Sales</Text>
+                        <Text style={styles.shiftStatValue}>{formatCurrency(dayAggregate.totalSales)}</Text>
+                      </View>
+                      <View style={[styles.shiftStatCell, styles.shiftStatCellHalf]}>
+                        <Text style={styles.shiftStatLabel}>Prize Payouts</Text>
+                        <Text style={styles.shiftStatValue}>{formatCurrency(dayAggregate.totalPrizePayout)}</Text>
+                      </View>
+                      <View style={[styles.shiftStatCell, styles.shiftStatCellHalf]}>
+                        <Text style={styles.shiftStatLabel}>Net Take</Text>
+                        <Text style={styles.shiftStatValue}>{formatCurrency(dayAggregate.totalNetTake)}</Text>
+                      </View>
+                      <View style={[styles.shiftStatCell, styles.shiftStatCellHalf]}>
+                        <Text style={styles.shiftStatLabel}>Tickets</Text>
+                        <Text style={styles.shiftStatValue}>{dayAggregate.totalQuantity}</Text>
+                      </View>
+                      <View style={[styles.shiftStatCell, styles.shiftStatCellHalf]}>
+                        <Text style={styles.shiftStatLabel}>Missing Tickets</Text>
+                        <Text
+                          style={[
+                            styles.shiftStatValue,
+                            dayMissingCount > 0 ? styles.varianceTextNegative : null,
+                          ]}
+                        >
+                          {dayMissingCount}
+                        </Text>
+                      </View>
+                    </View>
                   </View>
                 </Pressable>
-                <View style={styles.dayReviewCard}>
-                  <Text style={styles.dayReviewTitle}>Day Close Payouts</Text>
-                  <Text style={styles.meta}>
-                    Lotto Payout: {dayClosePayouts?.lottoPayout != null ? formatCurrency(Number(dayClosePayouts.lottoPayout)) : "-"}
-                  </Text>
-                  <Text style={styles.meta}>
-                    Scratch Card Payout: {dayClosePayouts?.scratchCardPayout != null ? formatCurrency(Number(dayClosePayouts.scratchCardPayout)) : "-"}
-                  </Text>
-                  <Text style={styles.meta}>
-                    Till Payout: {dayClosePayouts?.tillPayout != null ? formatCurrency(Number(dayClosePayouts.tillPayout)) : "-"}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.meta,
-                      payoutDifference != null && payoutDifference > 0.009 ? styles.varianceTextPositive : null,
-                      payoutDifference != null && payoutDifference < -0.009 ? styles.varianceTextNegative : null,
-                    ]}
-                  >
-                    Difference : {payoutDifference != null ? formatCurrency(payoutDifference) : "-"}
-                  </Text>
-                </View>
+                {dayClosePayouts?.lottoPayout != null ||
+                dayClosePayouts?.scratchCardPayout != null ||
+                dayClosePayouts?.tillPayout != null ? (
+                  <View style={styles.dayReviewCard}>
+                    <Text style={styles.dayReviewTitle}>Day Close Payouts</Text>
+                    <View style={styles.shiftStatGrid}>
+                      <View style={[styles.shiftStatCell, styles.shiftStatCellHalf]}>
+                        <Text style={styles.shiftStatLabel}>Lotto Payout</Text>
+                        <Text style={styles.shiftStatValue}>
+                          {dayClosePayouts?.lottoPayout != null ? formatCurrency(Number(dayClosePayouts.lottoPayout)) : "—"}
+                        </Text>
+                      </View>
+                      <View style={[styles.shiftStatCell, styles.shiftStatCellHalf]}>
+                        <Text style={styles.shiftStatLabel}>Scratch Card Payout</Text>
+                        <Text style={styles.shiftStatValue}>
+                          {dayClosePayouts?.scratchCardPayout != null ? formatCurrency(Number(dayClosePayouts.scratchCardPayout)) : "—"}
+                        </Text>
+                      </View>
+                      <View style={[styles.shiftStatCell, styles.shiftStatCellHalf]}>
+                        <Text style={styles.shiftStatLabel}>Till Payout</Text>
+                        <Text style={styles.shiftStatValue}>
+                          {dayClosePayouts?.tillPayout != null ? formatCurrency(Number(dayClosePayouts.tillPayout)) : "—"}
+                        </Text>
+                      </View>
+                      <View style={[styles.shiftStatCell, styles.shiftStatCellHalf]}>
+                        <Text style={styles.shiftStatLabel}>Variance</Text>
+                        <Text
+                          style={[
+                            styles.shiftStatValue,
+                            payoutDifference != null && payoutDifference > 0.009 ? styles.varianceTextPositive : null,
+                            payoutDifference != null && payoutDifference < -0.009 ? styles.varianceTextNegative : null,
+                          ]}
+                        >
+                          {payoutDifference != null ? formatCurrency(payoutDifference) : "—"}
+                        </Text>
+                      </View>
+                    </View>
+                   
+                  </View>
+                ) : null}
                 {dayMissingDetails.length > 0 ? (
                   <View style={styles.dayReviewCard}>
                     <Text style={styles.dayReviewTitle}>Missing Ticket Details (Opening Serial)</Text>
@@ -1174,6 +1207,11 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     paddingRight: 6,
   },
+  shiftStatCellHalf: {
+    flexBasis: "49%",
+    flexGrow: 1,
+    paddingRight: 0,
+  },
   shiftStatLabel: {
     color: appTheme.colors.textSubtle,
     fontFamily: appTheme.fonts.bodyMedium,
@@ -1188,6 +1226,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 16,
     marginTop: 2,
+  },
+  dayReviewFormula: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 10,
+    lineHeight: 13,
+    fontStyle: "italic",
+    marginTop: appTheme.spacing.xs,
   },
   dayReviewCard: {
     borderWidth: 1,
