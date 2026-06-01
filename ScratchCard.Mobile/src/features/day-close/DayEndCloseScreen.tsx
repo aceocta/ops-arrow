@@ -3170,8 +3170,8 @@ const styles = StyleSheet.create({
   },
   summaryDate: {
     color: appTheme.colors.text,
-    fontSize: 19,
-    lineHeight: 24,
+    fontSize: 16,
+    lineHeight: 20,
     fontFamily: appTheme.fonts.heading,
   },
   summaryMetaGrid: {
@@ -3201,7 +3201,7 @@ const styles = StyleSheet.create({
   },
   dateActionInlineButton: {
     flex: 1,
-    minHeight: 34,
+    minHeight: 32,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.primary,
     alignItems: "center",
@@ -3225,7 +3225,7 @@ const styles = StyleSheet.create({
   },
   dateNavigationButton: {
     flex: 1,
-    minHeight: 44,
+    minHeight: 32,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceSuccessMuted,
     alignItems: "center",
@@ -3483,6 +3483,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     overflow: "hidden",
     borderRadius: appTheme.radius.md,
+    borderWidth: 0.8,
+    borderColor: appTheme.colors.border,
     backgroundColor: appTheme.colors.surface,
     gap: 0,
   },
