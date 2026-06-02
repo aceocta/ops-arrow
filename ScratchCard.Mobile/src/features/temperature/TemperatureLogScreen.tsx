@@ -189,6 +189,10 @@ export function TemperatureLogScreen() {
   const tempInputRef = useRef<TextInput>(null);
   const [textEditorValue, setTextEditorValue] = useState("");
   const [isLogEntryModalVisible, setIsLogEntryModalVisible] = useState(false);
+  // Inline "saved" confirmation shown in the live-status banner after a Save & Next, replacing
+  // the toast so the operator gets feedback right where the in/out-of-range verdict appears.
+  const [savedFlash, setSavedFlash] = useState<string | null>(null);
+  const savedFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [dailyFilter, setDailyFilter] = useState<DailyFilter>("all");
 
   const today = formatDateValue(new Date());
@@ -281,7 +285,11 @@ export function TemperatureLogScreen() {
     },
     onSuccess: async (_data, postAction) => {
       setSelectedDate(entryDate);
-      toastSuccess("Temperature reading recorded.");
+      // On "Save & Next" we stay in the modal and jump to the next unit, so skip the toast —
+      // it fires repeatedly and gets in the way. Only confirm on the final save (close).
+      if (postAction !== "next") {
+        toastSuccess("Temperature reading recorded.");
+      }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["temperature-daily-log", shopId, entryDate] }),
       ]);
@@ -289,15 +297,26 @@ export function TemperatureLogScreen() {
       if (postAction === "next" && pendingNextUnitRef.current) {
         // Stay in the modal and switch to the next pending unit. Clear form first so the
         // operator sees an empty entry ready for the next fridge.
+        const savedUnitName = selectedUnit?.unitName;
         const nextUnitId = pendingNextUnitRef.current;
         pendingNextUnitRef.current = null;
         resetEntryFormForUnit(nextUnitId);
+        // Inline "saved" confirmation in the live-status banner (replaces the toast for this flow).
+        if (savedFlashTimerRef.current) {
+          clearTimeout(savedFlashTimerRef.current);
+        }
+        setSavedFlash(savedUnitName ? `${savedUnitName} saved` : "Reading saved");
+        savedFlashTimerRef.current = setTimeout(() => setSavedFlash(null), 2500);
+        // Keep the keyboard up for the next unit — refocus after the form re-renders so the
+        // operator can keep typing without re-tapping the temperature field.
+        requestAnimationFrame(() => tempInputRef.current?.focus());
         return;
       }
 
       // Default behaviour (Save & Close, or Save & Next with nothing pending left): tear down
       // the modal and reset the form so the next time it opens it's clean.
       pendingNextUnitRef.current = null;
+      setSavedFlash(null);
       setTemperatureCelsius("");
       setNotes("");
       setActionTaken("");
@@ -366,6 +385,12 @@ export function TemperatureLogScreen() {
         : "",
     };
   }, [selectedUnit, temperatureCelsius]);
+
+  useEffect(() => () => {
+    if (savedFlashTimerRef.current) {
+      clearTimeout(savedFlashTimerRef.current);
+    }
+  }, []);
 
   const filteredUnitLogs = useMemo(() => {
     if (dailyFilter === "all") return dailyUnitLogs;
@@ -793,12 +818,15 @@ export function TemperatureLogScreen() {
           transparent
           animationType="fade"
           onRequestClose={closeLogEntryModal}
-          onShow={() => tempInputRef.current?.focus()}
+          onShow={() => {
+            setSavedFlash(null);
+            tempInputRef.current?.focus();
+          }}
         >
           <View style={styles.modalBackdrop}>
             <ModalBackdropBlur />
             <View style={styles.modalCard}>
-              <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalScrollContent}>
+              <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalScrollContent} keyboardShouldPersistTaps="handled">
               <View style={styles.unitHeaderRow}>
                 <Pressable
                   style={[styles.unitNavButton, !prevUnitId ? styles.unitNavButtonDisabled : null]}
@@ -955,6 +983,11 @@ export function TemperatureLogScreen() {
                       ? `Out of range · ${liveStatus.deltaLabel}`
                       : "In range"}
                   </Text>
+                </View>
+              ) : savedFlash ? (
+                <View style={[styles.liveStatusBanner, styles.liveStatusBannerOk]}>
+                  <Ionicons name="checkmark-circle" size={16} color={appTheme.colors.success} />
+                  <Text style={[styles.liveStatusText, styles.liveStatusTextOk]}>{savedFlash}</Text>
                 </View>
               ) : null}
 
