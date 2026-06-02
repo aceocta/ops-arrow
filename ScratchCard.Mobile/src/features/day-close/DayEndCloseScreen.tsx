@@ -2885,13 +2885,23 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     if (hasTillPayoutVariance) {
                       haptics.warning();
                       const direction = (tillPayoutVariance ?? 0) < 0 ? "short" : "over";
+                      // iOS can't present the confirm dialog over the still-open Close Day modal
+                      // (you can't stack two modals), so the dialog never appeared and the screen
+                      // looked stuck. Dismiss this modal first, let it finish closing, then confirm —
+                      // reopen it if the user backs out to review.
+                      setIsCloseDayModalVisible(false);
+                      await new Promise((resolve) => setTimeout(resolve, Platform.OS === "ios" ? 350 : 0));
                       const ok = await confirmDestructive({
                         title: "Confirm cash variance",
                         message: `Till is ${direction} by ${tillPayoutVarianceText}. Closing the day will commit this variance. Continue?`,
                         cancelLabel: "Review",
                         confirmLabel: "Close anyway",
                       });
-                      if (ok) closeMutation.mutate();
+                      if (ok) {
+                        closeMutation.mutate();
+                      } else {
+                        setIsCloseDayModalVisible(true);
+                      }
                       return;
                     }
                     closeMutation.mutate();
