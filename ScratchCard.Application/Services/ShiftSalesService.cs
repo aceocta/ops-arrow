@@ -145,6 +145,26 @@ public class ShiftSalesService : IShiftSalesService
             })
             .ToListAsync(cancellationToken);
 
+        // Missing opening tickets live on ShiftOpeningSerial (per pack at shift open), not on the
+        // sales rows. Fold them in by pack so the caller can show which pack is short.
+        var missingByPack = await _shiftOpeningSerialRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShiftId == shiftId && x.MissingQuantity > 0)
+            .GroupBy(x => x.PackId)
+            .Select(g => new { PackId = g.Key, Missing = g.Sum(x => x.MissingQuantity) })
+            .ToDictionaryAsync(x => x.PackId, x => x.Missing, cancellationToken);
+
+        if (missingByPack.Count > 0)
+        {
+            foreach (var entry in entries)
+            {
+                if (missingByPack.TryGetValue(entry.PackId, out var missing))
+                {
+                    entry.MissingQuantity = missing;
+                }
+            }
+        }
+
         return entries;
     }
 

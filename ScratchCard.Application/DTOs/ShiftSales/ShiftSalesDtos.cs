@@ -96,6 +96,9 @@ public class ShiftSalesEntryDto
     public int RemainingTickets { get; set; }
     public bool IsFlaggedForReview { get; set; }
     public bool NotificationSent { get; set; }
+    /// <summary>Opening tickets that were unaccounted for when this pack was confirmed at shift open
+    /// (expected − actual). Surfaced per-pack so the summary can show which pack is short.</summary>
+    public int MissingQuantity { get; set; }
 }
 
 /// <summary>Per-shift scratch-card sales totals for a whole business day, returned in one grouped

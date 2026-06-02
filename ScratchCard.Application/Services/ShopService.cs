@@ -425,7 +425,7 @@ public class ShopService : IShopService
                 ShopId = shopId,
                 TemperatureMonitoringUnitId = null, // all units
                 ExpectedTime = new TimeOnly(10, 0),
-                ToleranceMinutes = 3,
+                ToleranceMinutes = 30,
                 Label = "Morning check",
                 IsActive = true,
                 CreatedOn = now,
@@ -436,7 +436,7 @@ public class ShopService : IShopService
                 ShopId = shopId,
                 TemperatureMonitoringUnitId = null, // all units
                 ExpectedTime = new TimeOnly(17, 0),
-                ToleranceMinutes = 3,
+                ToleranceMinutes = 30,
                 Label = "Evening check",
                 IsActive = true,
                 CreatedOn = now,

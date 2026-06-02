@@ -524,6 +524,7 @@ export type ShiftSalesEntry = {
   remainingTickets: number;
   isFlaggedForReview: boolean;
   notificationSent: boolean;
+  missingQuantity?: number;
 };
 
 export type OfflineShiftQueueItem = {

@@ -26,6 +26,7 @@ type PackRow = {
   ticketPrice: number;
   soldQuantity: number;
   salesAmount: number;
+  missingQuantity: number;
 };
 
 type ShiftGroup = {
@@ -90,6 +91,7 @@ export function ScratchCardSummaryScreen() {
           ticketPrice: Number(entry.ticketPrice ?? 0),
           soldQuantity: Number(entry.soldQuantity ?? 0),
           salesAmount: Number(entry.salesAmount ?? 0),
+          missingQuantity: Number(entry.missingQuantity ?? 0),
         }));
         const totals = packs.reduce(
           (acc, p) => ({
@@ -196,12 +198,15 @@ export function ScratchCardSummaryScreen() {
               ) : (
                 <View style={styles.packList}>
                   {group.packs.map((pack) => (
-                    <View key={pack.id} style={styles.packItem}>
+                    <View key={pack.id} style={[styles.packItem, pack.missingQuantity > 0 ? styles.packItemMissing : null]}>
                       <View style={styles.packTopRow}>
                         <Text style={styles.packTitle} numberOfLines={1}>
                           {pack.displayNumber != null ? `#${pack.displayNumber} · ` : ""}
                           Pack {pack.packNumber}
                         </Text>
+                        {pack.missingQuantity > 0 ? (
+                          <StatusBadge label={`${pack.missingQuantity} missing`} tone="danger" />
+                        ) : null}
                         <Text style={styles.packSales}>{formatCurrencyGBP(pack.salesAmount)}</Text>
                       </View>
                       <View style={styles.serialRow}>
@@ -271,6 +276,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: appTheme.spacing.sm,
     paddingVertical: appTheme.spacing.sm,
     gap: 4,
+  },
+  packItemMissing: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.danger,
   },
   packTopRow: {
     flexDirection: "row",
