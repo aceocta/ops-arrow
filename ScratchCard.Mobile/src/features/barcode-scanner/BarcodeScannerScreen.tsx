@@ -494,11 +494,13 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
           return;
         }
 
-        schedule(captured ? 1500 : 700);
+        // Idle gap between OCR attempts. Keep a short cooldown after a successful read so we don't
+        // immediately re-capture the same ticket, but scan aggressively while still searching.
+        schedule(captured ? 900 : 350);
       }, delayMs);
     };
 
-    schedule(350);
+    schedule(200);
 
     return () => {
       cancelled = true;
