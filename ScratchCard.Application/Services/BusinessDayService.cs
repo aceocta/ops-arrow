@@ -210,6 +210,7 @@ public class BusinessDayService : IBusinessDayService
     public async Task<BusinessDayDto> GetAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var day = await _businessDayRepository.Query()
+            .AsNoTracking()
             .AsSplitQuery()
             .Include(x => x.ScratchCardDayCloseSummary)
             .Include(x => x.CloseAttachments)

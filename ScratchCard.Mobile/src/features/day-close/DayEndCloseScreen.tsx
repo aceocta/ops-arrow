@@ -673,8 +673,11 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     staleTime: 5 * 60 * 1000,
   });
   const packsQuery = useQuery({
-    queryKey: ["packs", day?.shopId],
-    queryFn: () => listPacks(day?.shopId as string),
+    // Active-only: the day screen only needs active packs (it filters to Active anyway), so we
+    // avoid fetching the shop's full pack history. Distinct key so it doesn't share cache with the
+    // Packs management screen's full list.
+    queryKey: ["packs", day?.shopId, "active"],
+    queryFn: () => listPacks(day?.shopId as string, { activeOnly: true }),
     enabled: Boolean(day?.shopId),
   });
   const shopOperationalSetup = useMemo(

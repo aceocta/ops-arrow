@@ -302,7 +302,7 @@ public interface IDeliveryService
 public interface IPackService
 {
     Task<PackDto> CreateManualAsync(CreateManualPackRequest request, CancellationToken cancellationToken = default);
-    Task<IReadOnlyCollection<PackDto>> ListAsync(Guid shopId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<PackDto>> ListAsync(Guid shopId, bool activeOnly = false, CancellationToken cancellationToken = default);
     Task<PackDto> GetAsync(Guid id, CancellationToken cancellationToken = default);
     Task<PackDto> UpdateDetailsAsync(Guid id, UpdatePackDetailsRequest request, CancellationToken cancellationToken = default);
     Task<PackDto> ActivateAsync(Guid id, ActivatePackRequest request, CancellationToken cancellationToken = default);

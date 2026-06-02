@@ -117,12 +117,21 @@ public class PackService : IPackService
         return createdPack.ToDto();
     }
 
-    public async Task<IReadOnlyCollection<PackDto>> ListAsync(Guid shopId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyCollection<PackDto>> ListAsync(Guid shopId, bool activeOnly = false, CancellationToken cancellationToken = default)
     {
         var packSetup = await _shopConfigurationService.GetPackSetupAsync(shopId, cancellationToken);
-        var packs = await _packRepository.Query()
+        var query = _packRepository.Query()
             .AsNoTracking()
-            .Where(x => x.ShopId == shopId && !x.IsDeleted)
+            .Where(x => x.ShopId == shopId && !x.IsDeleted);
+
+        // activeOnly avoids over-fetching the full pack history for callers (e.g. day management)
+        // that only need currently-active packs.
+        if (activeOnly)
+        {
+            query = query.Where(x => x.Status == PackStatus.Active);
+        }
+
+        var packs = await query
             .Include(x => x.Game)
             .OrderByDescending(x => x.ReceivedDate)
             .ToListAsync(cancellationToken);

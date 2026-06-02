@@ -21,26 +21,19 @@ public class SubscriptionAccessService : ISubscriptionAccessService
 
     public async Task<SubscriptionAccessResult> GetAccessResultAsync(Guid userId, CancellationToken cancellationToken = default)
     {
-        var companyIds = await _shopUserRepository.Query()
-            .AsNoTracking()
-            .Where(x => x.UserId == userId && x.IsActive && x.Shop.CompanyId != null)
-            .Select(x => x.Shop.CompanyId!.Value)
-            .Distinct()
-            .ToListAsync(cancellationToken);
-
-        if (companyIds.Count == 0)
-        {
-            return new SubscriptionAccessResult { IsAllowed = true };
-        }
-
+        // Single query (EXISTS subquery) instead of fetching the user's company IDs and then their
+        // subscriptions separately — this runs on every authenticated request, so halving its DB
+        // round trips matters. Behaviour is unchanged: an empty result (no company memberships, or
+        // companies with no subscription rows) still falls through to the allowed default below.
         var subscriptions = await _companySubscriptionRepository.Query()
             .AsNoTracking()
-            .Where(x => companyIds.Contains(x.CompanyId))
+            .Where(x => _shopUserRepository.Query()
+                .Any(su => su.UserId == userId && su.IsActive && su.Shop.CompanyId == x.CompanyId))
             .ToListAsync(cancellationToken);
 
         if (subscriptions.Count == 0)
         {
-            // Backward-compatibility path for pre-subscription data.
+            // No company membership, or pre-subscription data — allow (backward compatible).
             return new SubscriptionAccessResult { IsAllowed = true };
         }
 

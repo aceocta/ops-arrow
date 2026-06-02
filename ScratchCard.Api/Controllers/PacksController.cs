@@ -25,9 +25,9 @@ public class PacksController : BaseApiController
     }
 
     [HttpGet]
-    public async Task<IActionResult> List([FromQuery] Guid shopId, CancellationToken cancellationToken)
+    public async Task<IActionResult> List([FromQuery] Guid shopId, [FromQuery] bool activeOnly, CancellationToken cancellationToken)
     {
-        var result = await _packService.ListAsync(shopId, cancellationToken);
+        var result = await _packService.ListAsync(shopId, activeOnly, cancellationToken);
         return Success(result);
     }
 

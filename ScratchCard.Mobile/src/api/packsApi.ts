@@ -12,8 +12,10 @@ function mapPack(pack: ScratchCardPack): ScratchCardPack {
   };
 }
 
-export async function listPacks(shopId: string) {
-  const response = await apiClient.get<ApiResponse<ScratchCardPack[]>>("/packs", { params: { shopId } });
+export async function listPacks(shopId: string, options?: { activeOnly?: boolean }) {
+  const response = await apiClient.get<ApiResponse<ScratchCardPack[]>>("/packs", {
+    params: { shopId, activeOnly: options?.activeOnly ? true : undefined },
+  });
   return response.data.data.map(mapPack);
 }
 
