@@ -2,15 +2,16 @@ import Constants from "expo-constants";
 import { navigateToTemperatureLogs } from "../navigation/navigationRef";
 import { toastInfo } from "../components/toast";
 
-// Matches NotificationType.TemperatureLogReminder.ToString() sent in the FCM data payload.
-const TEMPERATURE_LOG_REMINDER_TYPE = "TemperatureLogReminder";
+// Match NotificationType.*.ToString() values sent in the FCM data payload. Both the hourly
+// reminder and the missed-check alert deep-link to the Temperature Log screen.
+const TEMPERATURE_LOG_TYPES = new Set(["TemperatureLogReminder", "TemperatureMissedLog"]);
 
 function routeFromNotificationData(data?: Record<string, string | object> | null) {
   if (!data) {
     return;
   }
   const notificationType = String((data as Record<string, unknown>).notificationType ?? "");
-  if (notificationType === TEMPERATURE_LOG_REMINDER_TYPE) {
+  if (TEMPERATURE_LOG_TYPES.has(notificationType)) {
     navigateToTemperatureLogs();
   }
 }

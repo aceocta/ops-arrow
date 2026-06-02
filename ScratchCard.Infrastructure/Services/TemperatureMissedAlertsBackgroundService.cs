@@ -105,13 +105,16 @@ public sealed class TemperatureMissedAlertsBackgroundService : BackgroundService
                 .Select(r => new { r.TemperatureMonitoringUnitId, r.ReadingTime })
                 .ToListAsync(cancellationToken);
 
-            var recipients = await dbContext.ShopUsers
+            // Push-only delivery: every logged-in device for this shop with an active push token.
+            // Tokens are registered on login and removed on logout. (Missed alerts used to go out by
+            // email; they are now push-only, matching the temperature-log reminder.)
+            var pushTokens = await dbContext.UserPushTokens
                 .AsNoTracking()
-                .Where(u => u.ShopId == shopId && u.IsActive && (u.Role.Name == "CompanyOwner" || u.Role.Name == "Manager"))
-                .Include(u => u.Role).Include(u => u.User)
-                .Select(u => u.User.Email).Distinct()
+                .Where(t => t.ShopId == shopId && t.IsActive && t.PushToken != "")
+                .Select(t => t.PushToken)
+                .Distinct()
                 .ToListAsync(cancellationToken);
-            if (recipients.Count == 0) continue;
+            if (pushTokens.Count == 0) continue;
 
             foreach (var schedule in shopSchedules)
             {
@@ -133,7 +136,7 @@ public sealed class TemperatureMissedAlertsBackgroundService : BackgroundService
                 var subject = $"Missed temperature check: {schedule.Label}";
                 var body = $"Scheduled reading '{schedule.Label}' at {schedule.ExpectedTime:HH\\:mm} was not recorded today ({today:yyyy-MM-dd}). Tolerance window {schedule.ToleranceMinutes} min.";
 
-                foreach (var recipient in recipients)
+                foreach (var token in pushTokens)
                 {
                     try
                     {
@@ -141,8 +144,8 @@ public sealed class TemperatureMissedAlertsBackgroundService : BackgroundService
                         {
                             ShopId = shopId,
                             NotificationType = NotificationType.TemperatureMissedLog,
-                            Channel = NotificationChannel.Email,
-                            Recipient = recipient,
+                            Channel = NotificationChannel.InApp,
+                            Recipient = token,
                             Subject = subject,
                             Body = body,
                             RelatedEntityName = nameof(CfgTemperatureSchedule),
@@ -151,7 +154,7 @@ public sealed class TemperatureMissedAlertsBackgroundService : BackgroundService
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning(ex, "Failed to send missed-temperature alert to {Recipient}", recipient);
+                        _logger.LogWarning(ex, "Failed to send missed-temperature alert push to a device for shop {ShopId}", shopId);
                     }
                 }
             }
