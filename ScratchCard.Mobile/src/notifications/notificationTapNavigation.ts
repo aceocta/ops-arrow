@@ -1,5 +1,6 @@
 import Constants from "expo-constants";
 import { navigateToTemperatureLogs } from "../navigation/navigationRef";
+import { toastInfo } from "../components/toast";
 
 // Matches NotificationType.TemperatureLogReminder.ToString() sent in the FCM data payload.
 const TEMPERATURE_LOG_REMINDER_TYPE = "TemperatureLogReminder";
@@ -22,7 +23,7 @@ function routeFromNotificationData(data?: Record<string, string | object> | null
  */
 export function registerNotificationTapNavigation(): () => void {
   let cancelled = false;
-  let unsubscribe: (() => void) | undefined;
+  const unsubscribers: Array<() => void> = [];
 
   // Firebase's native module (RNFBAppModule) is absent in Expo Go and in dev builds without the
   // native config — calling messaging() there throws. Skip entirely in those runtimes.
@@ -39,22 +40,46 @@ export function registerNotificationTapNavigation(): () => void {
     try {
       const messaging = messagingModule.default;
 
-      unsubscribe = messaging().onNotificationOpenedApp((remoteMessage) => {
-        routeFromNotificationData(remoteMessage?.data);
-      });
+      // Tap from background → deep-link.
+      unsubscribers.push(
+        messaging().onNotificationOpenedApp((remoteMessage) => {
+          routeFromNotificationData(remoteMessage?.data);
+        }),
+      );
 
+      // Foreground: FCM does not display notification messages while the app is open, so surface
+      // an in-app toast instead. (No notifee/expo-notifications installed → no OS banner here.)
+      unsubscribers.push(
+        messaging().onMessage((remoteMessage) => {
+          if (cancelled) {
+            return;
+          }
+          const title = remoteMessage?.notification?.title ?? undefined;
+          const body =
+            remoteMessage?.notification?.body ??
+            (remoteMessage?.data?.body as string | undefined) ??
+            "";
+          if (body || title) {
+            toastInfo(body || (title as string), body ? title : undefined);
+          }
+        }),
+      );
+
+      // App launched from quit state by tapping the notification.
       const initialMessage = await messaging().getInitialNotification();
       if (initialMessage && !cancelled) {
         routeFromNotificationData(initialMessage.data);
       }
     } catch {
-      // Native module not linked/available — deep-link-on-tap simply won't run in this build.
+      // Native module not linked/available — push handling simply won't run in this build.
     }
   })();
 
   return () => {
     cancelled = true;
-    unsubscribe?.();
+    for (const unsub of unsubscribers) {
+      unsub();
+    }
   };
 }
 
