@@ -18,6 +18,7 @@ public class CompanySignupService : ICompanySignupService
     private readonly IRepository<Company> _companyRepository;
     private readonly IRepository<Shop> _shopRepository;
     private readonly IRepository<ShopUser> _shopUserRepository;
+    private readonly IRepository<CfgTemperatureSchedule> _temperatureScheduleRepository;
     private readonly IRepository<SubscriptionPlan> _subscriptionPlanRepository;
     private readonly IRepository<CompanySubscription> _companySubscriptionRepository;
     private readonly IRepository<CfgSubscriptionSettings> _subscriptionSettingsRepository;
@@ -34,6 +35,7 @@ public class CompanySignupService : ICompanySignupService
         IRepository<Company> companyRepository,
         IRepository<Shop> shopRepository,
         IRepository<ShopUser> shopUserRepository,
+        IRepository<CfgTemperatureSchedule> temperatureScheduleRepository,
         IRepository<SubscriptionPlan> subscriptionPlanRepository,
         IRepository<CompanySubscription> companySubscriptionRepository,
         IRepository<CfgSubscriptionSettings> subscriptionSettingsRepository,
@@ -49,6 +51,7 @@ public class CompanySignupService : ICompanySignupService
         _companyRepository = companyRepository;
         _shopRepository = shopRepository;
         _shopUserRepository = shopUserRepository;
+        _temperatureScheduleRepository = temperatureScheduleRepository;
         _subscriptionPlanRepository = subscriptionPlanRepository;
         _companySubscriptionRepository = companySubscriptionRepository;
         _subscriptionSettingsRepository = subscriptionSettingsRepository;
@@ -219,6 +222,35 @@ public class CompanySignupService : ICompanySignupService
         };
 
         await _shopRepository.AddAsync(firstShop, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Default temperature-log schedules: 10:00 and 17:00 (3-min tolerance, all units). The
+        // owner can edit/remove them later from the Temperature Schedules screen.
+        await _temperatureScheduleRepository.AddRangeAsync(new[]
+        {
+            new CfgTemperatureSchedule
+            {
+                ShopId = firstShop.Id,
+                TemperatureMonitoringUnitId = null,
+                ExpectedTime = new TimeOnly(10, 0),
+                ToleranceMinutes = 3,
+                Label = "Morning check",
+                IsActive = true,
+                CreatedOn = now,
+                CreatedBy = user.Id,
+            },
+            new CfgTemperatureSchedule
+            {
+                ShopId = firstShop.Id,
+                TemperatureMonitoringUnitId = null,
+                ExpectedTime = new TimeOnly(17, 0),
+                ToleranceMinutes = 3,
+                Label = "Evening check",
+                IsActive = true,
+                CreatedOn = now,
+                CreatedBy = user.Id,
+            },
+        }, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var CompanyOwnerRole = await _roleRepository.Query()

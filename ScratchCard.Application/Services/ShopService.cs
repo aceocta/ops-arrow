@@ -23,6 +23,7 @@ public class ShopService : IShopService
     private readonly IRepository<ShopScratchCardGame> _shopGameRepository;
     private readonly IRepository<CfgPackSettings> _packSettingsRepository;
     private readonly IRepository<CfgDayCloseSettings> _dayCloseSettingsRepository;
+    private readonly IRepository<CfgTemperatureSchedule> _temperatureScheduleRepository;
     private readonly IRepository<SubscriptionPlan> _subscriptionPlanRepository;
     private readonly IRepository<CompanySubscription> _companySubscriptionRepository;
     private readonly IRepository<ShopSubscription> _shopSubscriptionRepository;
@@ -45,6 +46,7 @@ public class ShopService : IShopService
         IRepository<ShopScratchCardGame> shopGameRepository,
         IRepository<CfgPackSettings> packSettingsRepository,
         IRepository<CfgDayCloseSettings> dayCloseSettingsRepository,
+        IRepository<CfgTemperatureSchedule> temperatureScheduleRepository,
         IRepository<SubscriptionPlan> subscriptionPlanRepository,
         IRepository<CompanySubscription> companySubscriptionRepository,
         IRepository<ShopSubscription> shopSubscriptionRepository,
@@ -66,6 +68,7 @@ public class ShopService : IShopService
         _shopGameRepository = shopGameRepository;
         _packSettingsRepository = packSettingsRepository;
         _dayCloseSettingsRepository = dayCloseSettingsRepository;
+        _temperatureScheduleRepository = temperatureScheduleRepository;
         _subscriptionPlanRepository = subscriptionPlanRepository;
         _companySubscriptionRepository = companySubscriptionRepository;
         _shopSubscriptionRepository = shopSubscriptionRepository;
@@ -127,6 +130,7 @@ public class ShopService : IShopService
         await _shopRepository.AddAsync(shop, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         await UpsertPackConfigurationAsync(shop.Id, request.PackSellingOrder, request.ScratchCardDisplayCount, cancellationToken);
+        await SeedDefaultTemperatureSchedulesAsync(shop.Id, cancellationToken);
         await AssignActiveMasterGamesToShopAsync(shop, cancellationToken);
         await EnsureCreatorOwnershipAsync(shop, cancellationToken);
         await ApplySubscriptionAndFeatureConfigurationAsync(
@@ -405,6 +409,42 @@ public class ShopService : IShopService
         });
 
         await _shopGameRepository.AddRangeAsync(assignments, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    // New shops get default temperature-log schedules at 10:00 and 17:00 (3-min tolerance, all
+    // units). The owner can edit/remove them later from the Temperature Schedules screen.
+    private async Task SeedDefaultTemperatureSchedulesAsync(Guid shopId, CancellationToken cancellationToken)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var createdBy = _currentUserService.UserId;
+        var schedules = new[]
+        {
+            new CfgTemperatureSchedule
+            {
+                ShopId = shopId,
+                TemperatureMonitoringUnitId = null, // all units
+                ExpectedTime = new TimeOnly(10, 0),
+                ToleranceMinutes = 3,
+                Label = "Morning check",
+                IsActive = true,
+                CreatedOn = now,
+                CreatedBy = createdBy,
+            },
+            new CfgTemperatureSchedule
+            {
+                ShopId = shopId,
+                TemperatureMonitoringUnitId = null, // all units
+                ExpectedTime = new TimeOnly(17, 0),
+                ToleranceMinutes = 3,
+                Label = "Evening check",
+                IsActive = true,
+                CreatedOn = now,
+                CreatedBy = createdBy,
+            },
+        };
+
+        await _temperatureScheduleRepository.AddRangeAsync(schedules, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
