@@ -342,11 +342,6 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
   )?.configValue ?? "false";
   const safeDropConfigEnabled = parseConfigurationBool(safeDropConfigValue, false);
   const isSafeDropManagementVisible = hasSafeDropSubscriptionFeature && safeDropConfigEnabled;
-  const safeDropVisibilityMessage = !hasSafeDropSubscriptionFeature
-    ? "Safe Drop is not included in the current subscription package for this shop."
-    : !safeDropConfigEnabled
-      ? "Safe Drop is disabled in App Configuration for this shop."
-      : null;
 
   const canisterDropsQuery = useQuery({
     queryKey: ["safe-drops", shift?.businessDayId],
@@ -850,12 +845,7 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
               <Text style={styles.meta}>No safe drops recorded for this shift.</Text>
             )}
           </View>
-        ) : (
-          <View style={[ui.card, styles.summaryCard]}>
-            <Text style={styles.sectionTitle}>Safe Drop</Text>
-            <Text style={styles.meta}>{safeDropVisibilityMessage ?? "Safe Drop is currently unavailable."}</Text>
-          </View>
-        )}
+        ) : null}
 
         {canCloseShift ? (
           <View style={[ui.card, styles.summaryCard]}>
