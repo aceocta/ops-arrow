@@ -10,6 +10,7 @@ import { ScreenContainer } from "../../components/ScreenContainer";
 import { SectionHeader } from "../../components/SectionHeader";
 import { KpiGrid, KpiTile } from "../../components/KpiTile";
 import { Skeleton } from "../../components/Skeleton";
+import { StatusBadge } from "../../components/StatusBadge";
 import type { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -34,6 +35,7 @@ type ShiftGroup = {
   packs: PackRow[];
   soldQuantity: number;
   amount: number;
+  missingTickets: number;
 };
 
 function formatCurrencyGBP(value: number) {
@@ -103,6 +105,7 @@ export function ScratchCardSummaryScreen() {
           packs,
           soldQuantity: totals.soldQuantity,
           amount: totals.amount,
+          missingTickets: shift.missingOpeningTicketCount ?? 0,
         };
       }),
     [shifts, salesQuery.data],
@@ -114,8 +117,9 @@ export function ScratchCardSummaryScreen() {
         (acc, group) => ({
           soldQuantity: acc.soldQuantity + group.soldQuantity,
           amount: acc.amount + group.amount,
+          missingTickets: acc.missingTickets + group.missingTickets,
         }),
-        { soldQuantity: 0, amount: 0 },
+        { soldQuantity: 0, amount: 0, missingTickets: 0 },
       ),
     [groups],
   );
@@ -141,11 +145,25 @@ export function ScratchCardSummaryScreen() {
         }
       >
         <View style={[ui.card, styles.card]}>
-          <SectionHeader title="Scratch Card Summary" subtitle={businessDate} icon="albums-outline" />
+          <SectionHeader
+            title="Scratch Card Summary"
+            subtitle={businessDate}
+            icon="albums-outline"
+            right={
+              dayTotals.missingTickets > 0 ? (
+                <StatusBadge label={`${dayTotals.missingTickets} missing`} tone="danger" />
+              ) : undefined
+            }
+          />
           <KpiGrid columns={2}>
             <KpiTile label="Sold Qty" value={dayTotals.soldQuantity} />
             <KpiTile label="Sales Amount" value={formatCurrencyGBP(dayTotals.amount)} />
           </KpiGrid>
+          {dayTotals.missingTickets > 0 ? (
+            <Text style={styles.missingText}>
+              {dayTotals.missingTickets} missing scratch card ticket{dayTotals.missingTickets === 1 ? "" : "s"} across all shifts.
+            </Text>
+          ) : null}
         </View>
 
         {isLoading ? (
@@ -167,6 +185,11 @@ export function ScratchCardSummaryScreen() {
                 title={group.shiftName}
                 subtitle={group.status}
                 icon="layers-outline"
+                right={
+                  group.missingTickets > 0 ? (
+                    <StatusBadge label={`${group.missingTickets} missing`} tone="danger" />
+                  ) : undefined
+                }
               />
               {group.packs.length === 0 ? (
                 <Text style={styles.meta}>No scratch card sales for this shift.</Text>
@@ -227,6 +250,12 @@ const styles = StyleSheet.create({
   meta: {
     color: appTheme.colors.textMuted,
     fontFamily: appTheme.fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  missingText: {
+    color: appTheme.colors.danger,
+    fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 13,
     lineHeight: 18,
   },
