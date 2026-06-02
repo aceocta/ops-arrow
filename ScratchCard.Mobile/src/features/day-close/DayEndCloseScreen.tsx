@@ -1936,9 +1936,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 {(tillPayoutVariance ?? 0) < 0 ? "CASH SHORT" : "CASH OVER"}
               </Text>
               <Text style={styles.varianceHeroValue}>{tillPayoutVarianceText}</Text>
-              <Text style={styles.varianceHeroHint}>
+              {/* <Text style={styles.varianceHeroHint}>
                 Till payout vs. lotto + scratch-card payouts.
-              </Text>
+              </Text> */}
             </View>
           ) : null}
           {scratchCardShiftBreakdown.length > 0 ? (
