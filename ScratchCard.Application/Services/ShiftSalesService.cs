@@ -38,6 +38,7 @@ public class ShiftSalesService : IShiftSalesService
     private readonly ISerialCalculationService _serialCalculationService;
     private readonly INotificationService _notificationService;
     private readonly IShiftCloseNotificationDispatcher _shiftCloseNotificationDispatcher;
+    private readonly IShiftCloseAttachmentDispatcher _shiftCloseAttachmentDispatcher;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IAttachmentStorageService _attachmentStorageService;
@@ -67,6 +68,7 @@ public class ShiftSalesService : IShiftSalesService
         ISerialCalculationService serialCalculationService,
         INotificationService notificationService,
         IShiftCloseNotificationDispatcher shiftCloseNotificationDispatcher,
+        IShiftCloseAttachmentDispatcher shiftCloseAttachmentDispatcher,
         IAuditService auditService,
         ICurrentUserService currentUserService,
         IAttachmentStorageService attachmentStorageService,
@@ -95,6 +97,7 @@ public class ShiftSalesService : IShiftSalesService
         _serialCalculationService = serialCalculationService;
         _notificationService = notificationService;
         _shiftCloseNotificationDispatcher = shiftCloseNotificationDispatcher;
+        _shiftCloseAttachmentDispatcher = shiftCloseAttachmentDispatcher;
         _auditService = auditService;
         _currentUserService = currentUserService;
         _attachmentStorageService = attachmentStorageService;
@@ -322,6 +325,62 @@ public class ShiftSalesService : IShiftSalesService
             RemainingTickets = calc.RemainingTickets,
             EnteredOn = closing.EnteredOn,
         };
+    }
+
+    public async Task ProcessCloseAttachmentsAsync(
+        ShiftCloseAttachmentWorkItem workItem,
+        CancellationToken cancellationToken = default)
+    {
+        // Replace semantics: drop any attachments previously stored against this reconciliation,
+        // then upload the new set. Runs in the background so the close call returns immediately.
+        var existing = await _shiftCloseAttachmentRepository.Query()
+            .Where(x => x.ShiftReconciliationId == workItem.ShiftReconciliationId)
+            .ToListAsync(cancellationToken);
+        foreach (var existingAttachment in existing)
+        {
+            await _attachmentStorageService.DeleteIfExistsAsync(existingAttachment.StoredPath, cancellationToken);
+            _shiftCloseAttachmentRepository.Remove(existingAttachment);
+        }
+
+        var inputs = CloseAttachmentStorage.BuildInputs(
+            workItem.Attachments,
+            workItem.LegacyAttachmentFileName,
+            workItem.LegacyAttachmentBase64,
+            workItem.LegacyAttachmentContentType);
+
+        if (existing.Count == 0 && inputs.Count == 0)
+        {
+            return; // Nothing to delete or upload.
+        }
+
+        if (inputs.Count > 0)
+        {
+            var savedAttachments = await CloseAttachmentStorage.SaveShiftAttachmentsAsync(
+                inputs,
+                _attachmentStorageService,
+                workItem.ShopId,
+                workItem.BusinessDate,
+                workItem.ShiftName,
+                cancellationToken);
+
+            var now = DateTimeOffset.UtcNow;
+            var closeAttachments = savedAttachments.Select(saved => new ShiftCloseAttachment
+            {
+                ShiftReconciliationId = workItem.ShiftReconciliationId,
+                ShopId = workItem.ShopId,
+                OriginalFileName = saved.OriginalFileName,
+                StoredFileName = saved.StoredFileName,
+                StoredPath = saved.StoredPath,
+                ContentType = saved.ContentType,
+                FileSizeBytes = saved.FileSizeBytes,
+                CreatedOn = now,
+                CreatedBy = workItem.CreatedByUserId
+            }).ToArray();
+
+            await _shiftCloseAttachmentRepository.AddRangeAsync(closeAttachments, cancellationToken);
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
     public async Task SendShiftCloseNotificationsAsync(
@@ -707,49 +766,17 @@ public class ShiftSalesService : IShiftSalesService
             _reconciliationRepository.Update(reconciliation);
         }
 
-        var existingAttachments = await _shiftCloseAttachmentRepository.Query()
-            .Where(x => x.ShiftReconciliationId == reconciliation.Id)
-            .ToListAsync(cancellationToken);
-
-        foreach (var existingAttachment in existingAttachments)
-        {
-            await _attachmentStorageService.DeleteIfExistsAsync(existingAttachment.StoredPath, cancellationToken);
-            _shiftCloseAttachmentRepository.Remove(existingAttachment);
-        }
-
+        // Attachments are uploaded off the request (enqueued after SaveChanges below) so the close
+        // call isn't blocked on (potentially slow) blob uploads. We only validate the feature gate
+        // here so an unentitled attempt is rejected before the close commits, rather than failing
+        // silently in the background. The background worker handles delete-existing + upload-new.
         var attachmentInputs = CloseAttachmentStorage.BuildInputs(
             request.Attachments,
             request.AttachmentFileName,
             request.AttachmentBase64);
         if (attachmentInputs.Count > 0)
         {
-            // Attaching files to the shift-close report is a Growth+ feature.
             await _featureGateService.EnsureFeatureAsync(shift.ShopId, FeatureKeys.ScratchCardAttachments, cancellationToken);
-
-            var savedAttachments = await CloseAttachmentStorage.SaveShiftAttachmentsAsync(
-                attachmentInputs,
-                _attachmentStorageService,
-                shift.ShopId,
-                businessDay.BusinessDate,
-                shift.ShiftName,
-                cancellationToken);
-
-            var now = DateTimeOffset.UtcNow;
-            var createdBy = _currentUserService.UserId;
-            var closeAttachments = savedAttachments.Select(saved => new ShiftCloseAttachment
-            {
-                ShiftReconciliationId = reconciliation.Id,
-                ShopId = shift.ShopId,
-                OriginalFileName = saved.OriginalFileName,
-                StoredFileName = saved.StoredFileName,
-                StoredPath = saved.StoredPath,
-                ContentType = saved.ContentType,
-                FileSizeBytes = saved.FileSizeBytes,
-                CreatedOn = now,
-                CreatedBy = createdBy
-            }).ToArray();
-
-            await _shiftCloseAttachmentRepository.AddRangeAsync(closeAttachments, cancellationToken);
         }
 
         shift.Status = ShiftStatus.Closed;
@@ -775,6 +802,40 @@ public class ShiftSalesService : IShiftSalesService
             : (DateOnly?)null;
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Upload attachments off the request — the close is already persisted; files land moments
+        // later. Only enqueue when there are files to upload.
+        if (attachmentInputs.Count > 0)
+        {
+            var attachmentWorkItem = new ShiftCloseAttachmentWorkItem
+            {
+                ShiftReconciliationId = reconciliation.Id,
+                ShopId = shift.ShopId,
+                BusinessDate = businessDay.BusinessDate,
+                ShiftName = shift.ShiftName,
+                CreatedByUserId = _currentUserService.UserId,
+                Attachments = request.Attachments?.ToArray() ?? [],
+                LegacyAttachmentFileName = request.AttachmentFileName,
+                LegacyAttachmentBase64 = request.AttachmentBase64,
+            };
+            try
+            {
+                await _shiftCloseAttachmentDispatcher.EnqueueAsync(attachmentWorkItem, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to enqueue shift close attachments for shift {ShiftId}", shift.Id);
+                try
+                {
+                    // Fallback: process inline so attachments aren't lost if the queue is unavailable.
+                    await ProcessCloseAttachmentsAsync(attachmentWorkItem, cancellationToken);
+                }
+                catch (Exception fallbackEx)
+                {
+                    _logger.LogError(fallbackEx, "Fallback shift close attachment processing failed for shift {ShiftId}", shift.Id);
+                }
+            }
+        }
 
         var hasFlags = salesEntries.Any(x => x.NotificationRequired);
         try

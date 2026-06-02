@@ -347,6 +347,9 @@ public interface IShiftSalesService
     Task<ShiftCloseResultDto> SyncOfflineShiftCloseAsync(OfflineSyncShiftCloseRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<ShiftSalesEntryDto>> GetShiftSalesAsync(Guid shiftId, CancellationToken cancellationToken = default);
     Task SendShiftCloseNotificationsAsync(Guid shiftId, bool includeManualEntryNotifications, CancellationToken cancellationToken = default);
+    /// <summary>Uploads shift-close attachments and persists their rows. Runs off the request
+    /// (via the background queue) so the close call isn't blocked on blob uploads.</summary>
+    Task ProcessCloseAttachmentsAsync(ShiftCloseAttachmentWorkItem workItem, CancellationToken cancellationToken = default);
 
     // Per-pack closing-number staging store, edited on the dedicated "Enter Closing Numbers"
     // screen and consumed by shift finalize.

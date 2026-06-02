@@ -61,6 +61,9 @@ public static class DependencyInjection
         services.AddSingleton<ShiftCloseNotificationBackgroundQueue>();
         services.AddSingleton<IShiftCloseNotificationDispatcher>(provider => provider.GetRequiredService<ShiftCloseNotificationBackgroundQueue>());
         services.AddHostedService<ShiftCloseNotificationBackgroundService>();
+        services.AddSingleton<ShiftCloseAttachmentBackgroundQueue>();
+        services.AddSingleton<IShiftCloseAttachmentDispatcher>(provider => provider.GetRequiredService<ShiftCloseAttachmentBackgroundQueue>());
+        services.AddHostedService<ShiftCloseAttachmentBackgroundService>();
         services.AddSingleton<DayCloseNotificationBackgroundQueue>();
         services.AddSingleton<IDayCloseNotificationDispatcher>(provider => provider.GetRequiredService<DayCloseNotificationBackgroundQueue>());
         services.AddHostedService<DayCloseNotificationBackgroundService>();
