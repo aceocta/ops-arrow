@@ -168,6 +168,14 @@ public static class FeatureKeys
         new FeatureCatalogEntry(VisitorsLog,            "Visitors Log", "Modules", "Visitor / contractor sign-in, on-site roll call, reports.", 7),
     };
 
+    // Modules that start OFF for a newly created shop — the owner opts in via Feature Toggles when
+    // they want them. (Only applied at shop creation; existing shops keep their current state.)
+    public static readonly IReadOnlyList<string> DefaultDisabledModuleKeys = new[]
+    {
+        SafeDropManagement,
+        StoreSales,
+    };
+
     // Map each top-level module to the granular feature keys it covers. Disabling a module at
     // the shop level should also disable every granular feature listed here.
     public static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> ModuleChildKeys =

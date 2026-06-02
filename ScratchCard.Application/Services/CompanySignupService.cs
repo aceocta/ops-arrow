@@ -212,6 +212,8 @@ public class CompanySignupService : ICompanySignupService
             Country = company.Country,
             IsActive = true,
             IsDeleted = false,
+            // Safe Drop + Store Sales start disabled; the owner enables them in Feature Toggles.
+            DisabledFeatureKeys = FeatureKeys.DefaultDisabledModuleKeys.ToList(),
             CreatedOn = now,
             CreatedBy = user.Id
         };

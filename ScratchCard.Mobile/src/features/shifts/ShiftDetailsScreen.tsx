@@ -224,14 +224,9 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
   const tillShiftSummaryQuery = useQuery({
     queryKey: ["till-shift-summary", shiftShopId, shiftId],
     queryFn: () => getTillShiftSummary(shiftShopId as string, shiftId),
-    // Only fetch when the shop actually has Store Sales — the summary section is feature-gated, so
-    // there's no point loading it (an extra round trip) for shops that won't show it.
-    enabled:
-      Boolean(shiftShopId) &&
-      Boolean(shiftId) &&
-      (subscriptionSummaryQuery.data?.includedFeatures ?? []).some(
-        (feature) => feature.toLowerCase() === "storesales",
-      ),
+    // Disabled: the till shift-summary no longer loads on the shift detail screen (removed to
+    // speed up load). Re-enable by restoring the shopId/shiftId guard if it's needed again.
+    enabled: false,
   });
 
   const isOpenShift = shift?.status === ShiftStatus.Open || shift?.status === ShiftStatus.Reopened;
@@ -576,7 +571,6 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
     await Promise.all([
       shiftQuery.refetch(),
       salesQuery.refetch(),
-      tillShiftSummaryQuery.refetch(),
       businessDayQuery.refetch(),
       configurationQuery.refetch(),
       subscriptionSummaryQuery.refetch(),
@@ -587,7 +581,6 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
   }, [
     shiftQuery,
     salesQuery,
-    tillShiftSummaryQuery,
     businessDayQuery,
     configurationQuery,
     subscriptionSummaryQuery,
