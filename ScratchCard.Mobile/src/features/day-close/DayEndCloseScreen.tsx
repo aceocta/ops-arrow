@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Animated, Image, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Animated, Image, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -2643,7 +2643,10 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           animationType="fade"
           onRequestClose={() => setIsCloseDayModalVisible(false)}
         >
-          <View style={styles.modalBackdrop}>
+          <KeyboardAvoidingView
+            style={styles.modalBackdrop}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
             <ModalBackdropBlur />
             <ScrollView
               style={styles.closeDayModalScroll}
@@ -2940,7 +2943,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               </View>
             </View>
             </ScrollView>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
 
         <Modal

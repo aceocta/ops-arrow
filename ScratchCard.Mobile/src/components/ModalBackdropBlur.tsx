@@ -11,6 +11,7 @@ export function ModalBackdropBlur({ intensity = 38 }: ModalBackdropBlurProps) {
   return (
     <>
       <BlurView
+        pointerEvents="none"
         style={StyleSheet.absoluteFill}
         intensity={intensity}
         tint={resolvedColorScheme === "dark" ? "dark" : "light"}

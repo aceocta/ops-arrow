@@ -50,7 +50,8 @@
       "Bash(dir /s /b *.ts *.tsx)",
       "PowerShell(head -20)",
       "Bash(node -e \"const p=require\\('./package.json'\\); for \\(const k of Object.keys\\({...p.dependencies,...p.devDependencies}\\)\\) if\\(k.includes\\('firebase'\\)||k==='expo'||k==='expo-build-properties'\\) console.log\\(k, \\({...p.dependencies,...p.devDependencies}\\)[k]\\);\")",
-      "Bash(node -e \"const g=require\\('./google-services.json'\\); console.log\\(JSON.stringify\\(g.client?.map\\(c=>c.client_info?.android_client_info?.package_name\\)\\)\\);\")"
+      "Bash(node -e \"const g=require\\('./google-services.json'\\); console.log\\(JSON.stringify\\(g.client?.map\\(c=>c.client_info?.android_client_info?.package_name\\)\\)\\);\")",
+      "Bash(node -e \"const fs=require\\('fs'\\);const s=fs.readFileSync\\('src/features/day-close/DayEndCloseScreen.tsx','utf8'\\);for\\(const k of ['modalBackdrop','closeDayModalScroll','closeDayModalScrollContent','modalCard:','modalActionDisabled','modalActionButton:']\\){const i=s.indexOf\\(k\\);if\\(i<0\\){console.log\\(k,'NOT FOUND'\\);continue;}console.log\\('=== '+k+' ==='\\);console.log\\(s.slice\\(i,i+220\\).split\\('},'\\)[0]+'}'\\);}\")"
     ]
   }
 }
