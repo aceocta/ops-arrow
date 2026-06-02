@@ -325,6 +325,9 @@ public interface IBusinessDayService
     Task<BusinessDayDto> ReopenAsync(Guid id, ReopenBusinessDayRequest request, CancellationToken cancellationToken = default);
     Task<string?> GetCloseAttachmentDataUrlAsync(Guid attachmentId, CancellationToken cancellationToken = default);
     Task SendDayCloseNotificationsAsync(Guid businessDayId, CancellationToken cancellationToken = default);
+    /// <summary>Uploads day-close attachments and persists their rows. Runs off the request (via the
+    /// background queue) so the close call isn't blocked on blob uploads.</summary>
+    Task ProcessDayCloseAttachmentsAsync(DayCloseAttachmentWorkItem workItem, CancellationToken cancellationToken = default);
 }
 
 public interface IShiftService

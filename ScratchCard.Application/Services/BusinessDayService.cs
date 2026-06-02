@@ -39,6 +39,7 @@ public class BusinessDayService : IBusinessDayService
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IDayCloseNotificationDispatcher _dayCloseNotificationDispatcher;
+    private readonly IDayCloseAttachmentDispatcher _dayCloseAttachmentDispatcher;
     private readonly IAttachmentStorageService _attachmentStorageService;
     private readonly IFeatureGateService _featureGateService;
     private readonly IShopMembershipService _shopMembershipService;
@@ -68,6 +69,7 @@ public class BusinessDayService : IBusinessDayService
         IAuditService auditService,
         ICurrentUserService currentUserService,
         IDayCloseNotificationDispatcher dayCloseNotificationDispatcher,
+        IDayCloseAttachmentDispatcher dayCloseAttachmentDispatcher,
         IAttachmentStorageService attachmentStorageService,
         IFeatureGateService featureGateService,
         IShopMembershipService shopMembershipService,
@@ -96,6 +98,7 @@ public class BusinessDayService : IBusinessDayService
         _auditService = auditService;
         _currentUserService = currentUserService;
         _dayCloseNotificationDispatcher = dayCloseNotificationDispatcher;
+        _dayCloseAttachmentDispatcher = dayCloseAttachmentDispatcher;
         _attachmentStorageService = attachmentStorageService;
         _featureGateService = featureGateService;
         _shopMembershipService = shopMembershipService;
@@ -605,49 +608,17 @@ public class BusinessDayService : IBusinessDayService
         day.Difference = request.TillPayout - day.ExpectedCash;
         day.Notes = request.Notes;
 
-        var existingAttachments = await _dayCloseAttachmentRepository.Query()
-            .Where(x => x.BusinessDayId == day.Id)
-            .ToListAsync(cancellationToken);
-
-        foreach (var existingAttachment in existingAttachments)
-        {
-            await _attachmentStorageService.DeleteIfExistsAsync(existingAttachment.StoredPath, cancellationToken);
-            _dayCloseAttachmentRepository.Remove(existingAttachment);
-        }
-
+        // Attachments are uploaded off the request (enqueued after SaveChanges below) so the close
+        // isn't blocked on (potentially slow) blob uploads. Validate the feature gate now so an
+        // unentitled attempt is rejected before the close commits; the background worker handles
+        // delete-existing + upload-new.
         var attachmentInputs = CloseAttachmentStorage.BuildInputs(
             request.Attachments,
             request.AttachmentFileName,
             request.AttachmentBase64);
-
         if (attachmentInputs.Count > 0)
         {
-            // Attaching files to the day-close report is a Growth+ feature.
             await _featureGateService.EnsureFeatureAsync(day.ShopId, FeatureKeys.ScratchCardAttachments, cancellationToken);
-
-            var savedAttachments = await CloseAttachmentStorage.SaveDayAttachmentsAsync(
-                attachmentInputs,
-                _attachmentStorageService,
-                day.ShopId,
-                day.BusinessDate,
-                cancellationToken);
-
-            var now = DateTimeOffset.UtcNow;
-            var createdBy = _currentUserService.UserId;
-            var closeAttachments = savedAttachments.Select(saved => new BusinessDayCloseAttachment
-            {
-                BusinessDayId = day.Id,
-                ShopId = day.ShopId,
-                OriginalFileName = saved.OriginalFileName,
-                StoredFileName = saved.StoredFileName,
-                StoredPath = saved.StoredPath,
-                ContentType = saved.ContentType,
-                FileSizeBytes = saved.FileSizeBytes,
-                CreatedOn = now,
-                CreatedBy = createdBy
-            }).ToArray();
-
-            await _dayCloseAttachmentRepository.AddRangeAsync(closeAttachments, cancellationToken);
         }
 
         day.ClosedByUserId = _currentUserService.UserId;
@@ -710,6 +681,38 @@ public class BusinessDayService : IBusinessDayService
         _businessDayRepository.Update(day);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        // Upload attachments off the request — the close is already persisted; files land moments
+        // later. Only enqueue when there are files to upload.
+        if (attachmentInputs.Count > 0)
+        {
+            var attachmentWorkItem = new DayCloseAttachmentWorkItem
+            {
+                BusinessDayId = day.Id,
+                ShopId = day.ShopId,
+                BusinessDate = day.BusinessDate,
+                CreatedByUserId = _currentUserService.UserId,
+                Attachments = request.Attachments?.ToArray() ?? [],
+                LegacyAttachmentFileName = request.AttachmentFileName,
+                LegacyAttachmentBase64 = request.AttachmentBase64,
+            };
+            try
+            {
+                await _dayCloseAttachmentDispatcher.EnqueueAsync(attachmentWorkItem, CancellationToken.None);
+            }
+            catch
+            {
+                try
+                {
+                    // Fallback: process inline so attachments aren't lost if the queue is unavailable.
+                    await ProcessDayCloseAttachmentsAsync(attachmentWorkItem, cancellationToken);
+                }
+                catch
+                {
+                    // Day close already persisted; never block close on attachment processing.
+                }
+            }
+        }
+
         await _auditService.LogAsync(nameof(BusinessDay), day.Id, "DayClosed", day.ShopId, cancellationToken: cancellationToken);
 
         try
@@ -739,6 +742,61 @@ public class BusinessDayService : IBusinessDayService
         closedDayDto.MissingOpeningTicketCount = missingByDayId.GetValueOrDefault(closedDay.Id);
         closedDayDto.MissingOpeningTicketDetails = missingDetailsByDayId.GetValueOrDefault(closedDay.Id, []);
         return closedDayDto;
+    }
+
+    public async Task ProcessDayCloseAttachmentsAsync(
+        DayCloseAttachmentWorkItem workItem,
+        CancellationToken cancellationToken = default)
+    {
+        // Replace semantics: drop any attachments previously stored against this business day,
+        // then upload the new set. Runs in the background so the close call returns immediately.
+        var existing = await _dayCloseAttachmentRepository.Query()
+            .Where(x => x.BusinessDayId == workItem.BusinessDayId)
+            .ToListAsync(cancellationToken);
+        foreach (var existingAttachment in existing)
+        {
+            await _attachmentStorageService.DeleteIfExistsAsync(existingAttachment.StoredPath, cancellationToken);
+            _dayCloseAttachmentRepository.Remove(existingAttachment);
+        }
+
+        var inputs = CloseAttachmentStorage.BuildInputs(
+            workItem.Attachments,
+            workItem.LegacyAttachmentFileName,
+            workItem.LegacyAttachmentBase64,
+            workItem.LegacyAttachmentContentType);
+
+        if (existing.Count == 0 && inputs.Count == 0)
+        {
+            return; // Nothing to delete or upload.
+        }
+
+        if (inputs.Count > 0)
+        {
+            var savedAttachments = await CloseAttachmentStorage.SaveDayAttachmentsAsync(
+                inputs,
+                _attachmentStorageService,
+                workItem.ShopId,
+                workItem.BusinessDate,
+                cancellationToken);
+
+            var now = DateTimeOffset.UtcNow;
+            var closeAttachments = savedAttachments.Select(saved => new BusinessDayCloseAttachment
+            {
+                BusinessDayId = workItem.BusinessDayId,
+                ShopId = workItem.ShopId,
+                OriginalFileName = saved.OriginalFileName,
+                StoredFileName = saved.StoredFileName,
+                StoredPath = saved.StoredPath,
+                ContentType = saved.ContentType,
+                FileSizeBytes = saved.FileSizeBytes,
+                CreatedOn = now,
+                CreatedBy = workItem.CreatedByUserId
+            }).ToArray();
+
+            await _dayCloseAttachmentRepository.AddRangeAsync(closeAttachments, cancellationToken);
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
     public async Task SendDayCloseNotificationsAsync(Guid businessDayId, CancellationToken cancellationToken = default)
