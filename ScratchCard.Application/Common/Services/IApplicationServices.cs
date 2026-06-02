@@ -360,6 +360,9 @@ public interface IShiftSalesService
     // Per-pack closing-number staging store, edited on the dedicated "Enter Closing Numbers"
     // screen and consumed by shift finalize.
     Task<ShiftPackClosingDto> UpsertClosingNumberAsync(Guid shiftId, UpsertShiftPackClosingRequest request, CancellationToken cancellationToken = default);
+    /// <summary>Upserts several pack closing-serials in one call (batched queries), so the client
+    /// saves all packs in a single request instead of one per pack.</summary>
+    Task<IReadOnlyCollection<ShiftPackClosingDto>> UpsertClosingNumbersBatchAsync(Guid shiftId, BatchUpsertShiftPackClosingRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<ShiftPackClosingDto>> ListClosingNumbersAsync(Guid shiftId, CancellationToken cancellationToken = default);
     Task DeleteClosingNumberAsync(Guid shiftId, Guid packId, CancellationToken cancellationToken = default);
 }

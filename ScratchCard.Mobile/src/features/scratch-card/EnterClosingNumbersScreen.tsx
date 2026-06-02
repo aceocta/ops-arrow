@@ -6,7 +6,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getBusinessDay } from "../../api/businessDaysApi";
 import { getConfigurations } from "../../api/configurationsApi";
-import { getActivePacksForShift, getShift, listShiftClosingNumbers, upsertShiftClosingNumber } from "../../api/shiftsApi";
+import { getActivePacksForShift, getShift, listShiftClosingNumbers, upsertShiftClosingNumbersBatch } from "../../api/shiftsApi";
 import { haptics } from "../../utils/haptics";
 import { track } from "../../utils/analytics";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -684,11 +684,13 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
 
     setIsSubmitting(true);
     try {
-      for (const { pack, entry } of toSave) {
+      // One batched request for all packs instead of a PUT per pack (which was N sequential
+      // round trips on save).
+      const batchItems = toSave.map(({ pack, entry }) => {
         const wasEdited =
           entry.originalScannedSerialNumber &&
           entry.originalScannedSerialNumber !== entry.closingSerialNumber;
-        await upsertShiftClosingNumber(shiftId, {
+        return {
           packId: pack.id,
           closingSerialNumber: entry.closingSerialNumber,
           originalScannedSerialNumber: entry.originalScannedSerialNumber,
@@ -701,8 +703,9 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
               : entry.entryMethod ?? EntryMethod.Manual
           ),
           manualEntryReason: entry.manualEntryReason,
-        });
-      }
+        };
+      });
+      await upsertShiftClosingNumbersBatch(shiftId, batchItems);
 
       await clearShiftDraft(shiftId);
       await queryClient.invalidateQueries({ queryKey: ["shift-closing-numbers", shiftId] });

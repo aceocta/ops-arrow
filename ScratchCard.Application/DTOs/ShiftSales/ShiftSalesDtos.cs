@@ -24,6 +24,13 @@ public class UpsertShiftPackClosingRequest
     public string? Notes { get; set; }
 }
 
+/// <summary>Saves several pack closing-serials in one request so the client doesn't fire one call
+/// per pack on save.</summary>
+public class BatchUpsertShiftPackClosingRequest
+{
+    public List<UpsertShiftPackClosingRequest> Items { get; set; } = [];
+}
+
 /// <summary>A stored closing-serial entry plus the computed sold qty / sales for that pack.</summary>
 public class ShiftPackClosingDto
 {

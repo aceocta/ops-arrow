@@ -141,6 +141,16 @@ export async function upsertShiftClosingNumber(shiftId: string, payload: UpsertS
   return response.data.data;
 }
 
+// Saves all closing serials in one request (server upserts them in a single batched transaction)
+// instead of one PUT per pack.
+export async function upsertShiftClosingNumbersBatch(shiftId: string, items: UpsertShiftPackClosingPayload[]) {
+  const response = await apiClient.put<ApiResponse<ShiftPackClosing[]>>(
+    `/shift-sales/${shiftId}/closing-numbers/batch`,
+    { items },
+  );
+  return response.data.data;
+}
+
 export async function deleteShiftClosingNumber(shiftId: string, packId: string) {
   const response = await apiClient.delete<ApiResponse<boolean>>(`/shift-sales/${shiftId}/closing-numbers/${packId}`);
   return response.data.data;

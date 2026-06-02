@@ -63,6 +63,13 @@ public class ShiftSalesController : BaseApiController
         return Success(result);
     }
 
+    [HttpPut("{shiftId:guid}/closing-numbers/batch")]
+    public async Task<IActionResult> UpsertClosingNumbersBatch(Guid shiftId, [FromBody] BatchUpsertShiftPackClosingRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _shiftSalesService.UpsertClosingNumbersBatchAsync(shiftId, request, cancellationToken);
+        return Success(result);
+    }
+
     [HttpDelete("{shiftId:guid}/closing-numbers/{packId:guid}")]
     public async Task<IActionResult> DeleteClosingNumber(Guid shiftId, Guid packId, CancellationToken cancellationToken)
     {

@@ -236,6 +236,107 @@ public class ShiftSalesService : IShiftSalesService
         return BuildClosingDto(existing, pack, openingSerial, packSetup.SellingOrder);
     }
 
+    public async Task<IReadOnlyCollection<ShiftPackClosingDto>> UpsertClosingNumbersBatchAsync(
+        Guid shiftId,
+        BatchUpsertShiftPackClosingRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var items = request.Items ?? [];
+        if (items.Count == 0)
+        {
+            return [];
+        }
+
+        var shift = await _shiftRepository.Query()
+            .FirstOrDefaultAsync(x => x.Id == shiftId, cancellationToken)
+            ?? throw new AppException("shift_not_found", "Shift not found.", 404);
+
+        if (shift.Status is not (ShiftStatus.Open or ShiftStatus.Reopened))
+        {
+            throw new AppException(ErrorCodes.ShiftNotOpen, "Closing numbers can only be entered while the shift is open.");
+        }
+
+        var packIds = items.Select(x => x.PackId).Distinct().ToArray();
+
+        // Batched reads: packs, existing closings, and opening-serial snapshots — one query each
+        // for the whole set instead of per-pack round trips.
+        var packs = await _packRepository.Query()
+            .Include(x => x.Game)
+            .Where(x => packIds.Contains(x.Id) && x.ShopId == shift.ShopId && !x.IsDeleted)
+            .ToDictionaryAsync(x => x.Id, cancellationToken);
+
+        var existingByPack = (await _packClosingRepository.Query()
+            .Where(x => x.ShiftId == shiftId)
+            .ToListAsync(cancellationToken))
+            .ToDictionary(x => x.PackId);
+
+        var openingByPack = (await _shiftOpeningSerialRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShiftId == shiftId && packIds.Contains(x.PackId))
+            .ToListAsync(cancellationToken))
+            .ToDictionary(x => x.PackId, x => x.ActualOpeningSerialNumber);
+
+        var packSetup = await _shopConfigurationService.GetPackSetupAsync(shift.ShopId, cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+        var results = new List<ShiftPackClosingDto>(items.Count);
+
+        foreach (var item in items)
+        {
+            if (!packs.TryGetValue(item.PackId, out var pack))
+            {
+                throw new AppException(ErrorCodes.PackNotFound, "Pack not found.", 404);
+            }
+            if (pack.Status != PackStatus.Active)
+            {
+                throw new AppException(ErrorCodes.PackNotActive, $"Pack {pack.PackNumber} is not active.");
+            }
+
+            var closingSerial = (item.ClosingSerialNumber ?? string.Empty).Trim();
+            if (closingSerial.Length == 0)
+            {
+                throw new AppException("closing_serial_required", "Closing serial number is required.", 400);
+            }
+
+            if (!existingByPack.TryGetValue(item.PackId, out var existing))
+            {
+                existing = new ShiftPackClosing
+                {
+                    ShiftId = shiftId,
+                    ShopId = shift.ShopId,
+                    PackId = item.PackId,
+                    EnteredByUserId = _currentUserService.UserId,
+                    EnteredOn = now,
+                };
+                existing.ClosingSerialNumber = closingSerial;
+                existing.OriginalScannedSerialNumber = item.OriginalScannedSerialNumber;
+                existing.EntryMethod = item.EntryMethod;
+                existing.ManualEntryReason = item.ManualEntryReason;
+                existing.Notes = item.Notes;
+                await _packClosingRepository.AddAsync(existing, cancellationToken);
+                existingByPack[item.PackId] = existing;
+            }
+            else
+            {
+                existing.ClosingSerialNumber = closingSerial;
+                existing.OriginalScannedSerialNumber = item.OriginalScannedSerialNumber;
+                existing.EntryMethod = item.EntryMethod;
+                existing.ManualEntryReason = item.ManualEntryReason;
+                existing.Notes = item.Notes;
+                existing.ModifiedOn = now;
+                existing.ModifiedBy = _currentUserService.UserId;
+                _packClosingRepository.Update(existing);
+            }
+
+            var openingSerial = openingByPack.TryGetValue(item.PackId, out var snapshotSerial)
+                ? snapshotSerial
+                : pack.CurrentSerialNumber;
+            results.Add(BuildClosingDto(existing, pack, openingSerial, packSetup.SellingOrder));
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return results;
+    }
+
     public async Task<IReadOnlyCollection<ShiftPackClosingDto>> ListClosingNumbersAsync(
         Guid shiftId,
         CancellationToken cancellationToken = default)
