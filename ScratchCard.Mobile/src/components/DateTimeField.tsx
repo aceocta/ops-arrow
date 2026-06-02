@@ -1,7 +1,7 @@
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import React, { useMemo, useState } from "react";
 import { Platform, Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
-import { appTheme } from "../ui/theme";
+import { appTheme, resolvedColorScheme } from "../ui/theme";
 
 type DateTimeFieldMode = "date" | "time" | "datetime";
 
@@ -251,6 +251,12 @@ export function DateTimeField({
             minimumDate={minimumDate}
             maximumDate={maximumDate}
             display={Platform.OS === "ios" ? (mode === "date" ? "inline" : "spinner") : "default"}
+            // Pin the picker to the APP theme, not the device appearance — otherwise a light app on
+            // a dark-mode device (or vice versa) renders the calendar text the wrong colour and the
+            // dates become invisible against the picker background.
+            themeVariant={resolvedColorScheme === "dark" ? "dark" : "light"}
+            textColor={appTheme.colors.text}
+            accentColor={appTheme.colors.primary}
             is24Hour
           />
           {Platform.OS === "ios" ? (
