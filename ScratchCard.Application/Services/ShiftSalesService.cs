@@ -148,6 +148,24 @@ public class ShiftSalesService : IShiftSalesService
         return entries;
     }
 
+    public async Task<IReadOnlyCollection<ShiftSalesTotalDto>> GetDayShiftSalesTotalsAsync(
+        Guid businessDayId,
+        CancellationToken cancellationToken = default)
+    {
+        // One grouped query for the whole day instead of fetching each shift's sales separately.
+        return await _salesRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.Shift.BusinessDayId == businessDayId)
+            .GroupBy(x => x.ShiftId)
+            .Select(g => new ShiftSalesTotalDto
+            {
+                ShiftId = g.Key,
+                SoldQuantity = g.Sum(e => e.SoldQuantity),
+                SalesAmount = g.Sum(e => e.SalesAmount)
+            })
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<ShiftPackClosingDto> UpsertClosingNumberAsync(
         Guid shiftId,
         UpsertShiftPackClosingRequest request,

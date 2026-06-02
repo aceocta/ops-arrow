@@ -27,7 +27,7 @@ import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { SectionHeader } from "../../components/SectionHeader";
 import { KpiGrid, KpiTile } from "../../components/KpiTile";
-import { getShiftSales, listShifts, openShift, reopenShift, startScheduledShift } from "../../api/shiftsApi";
+import { getDayShiftSalesTotals, listShifts, openShift, reopenShift, startScheduledShift } from "../../api/shiftsApi";
 import { getTillDaySummary } from "../../api/tillReportsApi";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -435,7 +435,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   const tillDaySummaryQuery = useQuery({
     queryKey: ["till-day-summary", dayQuery.data?.shopId, businessDayId],
     queryFn: () => getTillDaySummary(dayQuery.data?.shopId as string, businessDayId),
-    enabled: Boolean(dayQuery.data?.shopId) && Boolean(businessDayId),
+    // Disabled: the till day-summary no longer loads on the day-management screen (removed to
+    // speed up load). Re-enable by restoring the shopId/businessDayId guard if it's needed again.
+    enabled: false,
   });
 
   useEffect(() => {
@@ -1112,69 +1114,36 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   );
   const shiftIds = useMemo(() => shifts.map((shift) => shift.id), [shifts]);
   const shiftIdsKey = shiftIds.join(",");
+  // Single grouped query for every shift's sales totals on this day, replacing the previous
+  // one-request-per-shift fan-out that slowed the screen down as shift count grew.
   const shiftSalesTotalsQuery = useQuery({
     queryKey: ["day-shift-sales-totals", businessDayId, shiftIdsKey],
-    queryFn: async () => {
-      if (shiftIds.length === 0) {
-        return {} as Record<string, { amount: number; soldQuantity: number }>;
-      }
-
-      const entries = await Promise.all(
-        shifts.map(async (shift) => {
-          try {
-            const sales = await getShiftSales(shift.id);
-            const totals = sales.reduce(
-              (acc, entry) => ({
-                amount: acc.amount + Number(entry.salesAmount ?? 0),
-                soldQuantity: acc.soldQuantity + Number(entry.soldQuantity ?? 0),
-              }),
-              { amount: 0, soldQuantity: 0 },
-            );
-            return [shift.id, totals] as const;
-          } catch {
-            return [shift.id, { amount: 0, soldQuantity: 0 }] as const;
-          }
-        }),
-      );
-
-      return Object.fromEntries(entries);
-    },
-    enabled: shiftIds.length > 0,
+    queryFn: () => getDayShiftSalesTotals(businessDayId),
+    enabled: Boolean(businessDayId) && shiftIds.length > 0,
   });
-  const closedShiftIdsKey = closedShiftIds.join(",");
-  const closedShiftSalesQuery = useQuery({
-    queryKey: ["day-summary-closed-shift-sales", businessDayId, closedShiftIdsKey],
-    queryFn: async () => {
-      if (closedShiftIds.length === 0) {
-        return 0;
-      }
-
-      const salesCollections = await Promise.all(
-        closedShiftIds.map(async (shiftId) => {
-          try {
-            return await getShiftSales(shiftId);
-          } catch {
-            return [];
-          }
-        }),
-      );
-
-      return salesCollections
-        .flat()
-        .reduce((sum, entry) => sum + Number(entry.salesAmount ?? 0), 0);
-    },
-    enabled: closedShiftIds.length > 0,
-  });
+  const shiftSalesTotalsById = useMemo(() => {
+    const map: Record<string, { amount: number; soldQuantity: number }> = {};
+    for (const total of shiftSalesTotalsQuery.data ?? []) {
+      map[total.shiftId] = {
+        amount: Number(total.salesAmount ?? 0),
+        soldQuantity: Number(total.soldQuantity ?? 0),
+      };
+    }
+    return map;
+  }, [shiftSalesTotalsQuery.data]);
   const lotteryMachinePayout = displayLottoPayout;
   const scratchCardPayout = displayScratchCardPayout;
   const tillPayout = displayTillPayout;
-  const summaryTotalSales = closedShiftIds.length === 0 ? 0 : Number(closedShiftSalesQuery.data ?? 0);
+  const summaryTotalSales = closedShiftIds.reduce(
+    (sum, id) => sum + (shiftSalesTotalsById[id]?.amount ?? 0),
+    0,
+  );
   // Aggregate scratch-card sales across every shift on this business day for the new Scratch
   // Card Summary section. Pulled from the shift-level totals query so the numbers always
   // match the per-shift cards in the list above.
   const scratchCardShiftBreakdown = useMemo(() => {
     return shifts.map((shift) => {
-      const totals = shiftSalesTotalsQuery.data?.[shift.id];
+      const totals = shiftSalesTotalsById[shift.id];
       return {
         shiftId: shift.id,
         shiftName: shift.shiftName,
@@ -1182,7 +1151,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
         amount: totals?.amount ?? 0,
       };
     });
-  }, [shifts, shiftSalesTotalsQuery.data]);
+  }, [shifts, shiftSalesTotalsById]);
   const scratchCardDayTotals = useMemo(() => {
     return scratchCardShiftBreakdown.reduce(
       (acc, row) => ({
@@ -1622,13 +1591,12 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     await Promise.all([
       dayQuery.refetch(),
       shiftsQuery.refetch(),
-      tillDaySummaryQuery.refetch(),
       isSafeDropManagementVisible ? canisterDropsQuery.refetch() : Promise.resolve(),
       hasTemperatureLogFeature ? temperatureLogQuery.refetch() : Promise.resolve(),
       hasComplianceCheckFeature ? complianceLogQuery.refetch() : Promise.resolve(),
       subscriptionShopId ? subscriptionSummaryQuery.refetch() : Promise.resolve(),
     ]);
-  }, [dayQuery, shiftsQuery, tillDaySummaryQuery, isSafeDropManagementVisible, canisterDropsQuery, hasTemperatureLogFeature, temperatureLogQuery, hasComplianceCheckFeature, complianceLogQuery, subscriptionShopId, subscriptionSummaryQuery]);
+  }, [dayQuery, shiftsQuery, isSafeDropManagementVisible, canisterDropsQuery, hasTemperatureLogFeature, temperatureLogQuery, hasComplianceCheckFeature, complianceLogQuery, subscriptionShopId, subscriptionSummaryQuery]);
   const isRefreshing = dayQuery.isRefetching || shiftsQuery.isRefetching;
 
   if (isDayManagementInitialLoading) {
@@ -1798,9 +1766,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             const canStartScheduledShift = shift.status === ShiftStatus.Scheduled;
             const isClosedShift = closedSummaryStatuses.has(shift.status);
             const isOpenShift = shift.status === ShiftStatus.Open || shift.status === ShiftStatus.Reopened;
-            const shiftSalesTotals = shiftSalesTotalsQuery.data?.[shift.id];
+            const shiftSalesTotals = shiftSalesTotalsById[shift.id];
             const shiftSalesTotal = shiftSalesTotals?.amount;
-            const salesIsLoading = isClosedShift && shiftSalesTotals == null;
+            const salesIsLoading = isClosedShift && shiftSalesTotalsQuery.isLoading;
             const displayWindow = shiftDisplayWindowById[shift.id];
             const displayStart = displayWindow?.start ?? new Date(shift.startTime);
             const displayEnd = displayWindow?.end;

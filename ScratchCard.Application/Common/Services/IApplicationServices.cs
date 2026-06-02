@@ -349,6 +349,9 @@ public interface IShiftSalesService
     Task<ShiftCloseResultDto> SubmitShiftCloseSalesAsync(Guid shiftId, FinalizeShiftRequest request, CancellationToken cancellationToken = default);
     Task<ShiftCloseResultDto> SyncOfflineShiftCloseAsync(OfflineSyncShiftCloseRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<ShiftSalesEntryDto>> GetShiftSalesAsync(Guid shiftId, CancellationToken cancellationToken = default);
+    /// <summary>Per-shift sales totals for every shift on a business day, in a single grouped query
+    /// (replaces fetching each shift's sales individually).</summary>
+    Task<IReadOnlyCollection<ShiftSalesTotalDto>> GetDayShiftSalesTotalsAsync(Guid businessDayId, CancellationToken cancellationToken = default);
     Task SendShiftCloseNotificationsAsync(Guid shiftId, bool includeManualEntryNotifications, CancellationToken cancellationToken = default);
     /// <summary>Uploads shift-close attachments and persists their rows. Runs off the request
     /// (via the background queue) so the close call isn't blocked on blob uploads.</summary>

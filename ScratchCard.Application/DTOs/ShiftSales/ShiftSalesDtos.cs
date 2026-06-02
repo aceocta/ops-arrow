@@ -90,3 +90,12 @@ public class ShiftSalesEntryDto
     public bool IsFlaggedForReview { get; set; }
     public bool NotificationSent { get; set; }
 }
+
+/// <summary>Per-shift scratch-card sales totals for a whole business day, returned in one grouped
+/// query so the day-management screen doesn't fetch each shift's sales individually.</summary>
+public class ShiftSalesTotalDto
+{
+    public Guid ShiftId { get; set; }
+    public int SoldQuantity { get; set; }
+    public decimal SalesAmount { get; set; }
+}

@@ -38,6 +38,15 @@ public class ShiftSalesController : BaseApiController
         return Success(result);
     }
 
+    // Per-shift sales totals for a whole business day in one query — used by the day-management
+    // screen instead of fetching each shift's sales separately.
+    [HttpGet("day-totals")]
+    public async Task<IActionResult> GetDayShiftSalesTotals([FromQuery] Guid businessDayId, CancellationToken cancellationToken)
+    {
+        var result = await _shiftSalesService.GetDayShiftSalesTotalsAsync(businessDayId, cancellationToken);
+        return Success(result);
+    }
+
     // --- Closing-number staging store (entered on the dedicated screen, consumed by finalize) ---
 
     [HttpGet("{shiftId:guid}/closing-numbers")]

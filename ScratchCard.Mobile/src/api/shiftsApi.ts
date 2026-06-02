@@ -111,6 +111,21 @@ export async function getShiftSales(shiftId: string) {
   return response.data.data;
 }
 
+export type ShiftSalesTotal = {
+  shiftId: string;
+  soldQuantity: number;
+  salesAmount: number;
+};
+
+// Per-shift sales totals for a whole business day in one request (replaces fetching each shift's
+// sales individually on the day-management screen).
+export async function getDayShiftSalesTotals(businessDayId: string) {
+  const response = await apiClient.get<ApiResponse<ShiftSalesTotal[]>>("/shift-sales/day-totals", {
+    params: { businessDayId },
+  });
+  return response.data.data;
+}
+
 export async function getShiftCloseAttachmentContent(attachmentId: string) {
   const response = await apiClient.get<ApiResponse<string | null>>(`/shifts/attachments/${attachmentId}/content`);
   return response.data.data ?? undefined;
