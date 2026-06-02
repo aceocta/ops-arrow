@@ -2171,6 +2171,10 @@ public class BusinessDayService : IBusinessDayService
         sb.Append($"<tr><td>Business Date</td><td>{day.BusinessDate:yyyy-MM-dd}</td></tr>");
         sb.Append($"<tr><td>Closed Time</td><td>{(day.ClosedOn?.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ?? "-")} UTC</td></tr>");
         sb.Append($"<tr><td>Shifts Closed</td><td>{shiftCount}</td></tr>");
+        if (scratchCardEnabled)
+        {
+            sb.Append($"<tr><td>Missing Scratch Card Tickets</td><td>{missingOpeningTicketCount.ToString(CultureInfo.InvariantCulture)}</td></tr>");
+        }
         sb.Append("</tbody></table>");
         if (!string.IsNullOrWhiteSpace(day.Notes))
         {

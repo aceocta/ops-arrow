@@ -323,12 +323,15 @@ public class ShiftService : IShiftService
             return [];
         }
 
-        var attachmentsByShiftId = await GetCloseAttachmentsByShiftIdAsync(
-            shiftRows.Select(x => x.Id).ToArray(),
-            cancellationToken);
+        var shiftIds = shiftRows.Select(x => x.Id).ToArray();
+        var attachmentsByShiftId = await GetCloseAttachmentsByShiftIdAsync(shiftIds, cancellationToken);
+        var missingByShiftId = await GetMissingTicketsByShiftIdAsync(shiftIds, cancellationToken);
 
         return shiftRows
-            .Select(row => ToShiftDto(row, attachmentsByShiftId.GetValueOrDefault(row.Id, [])))
+            .Select(row => ToShiftDto(
+                row,
+                attachmentsByShiftId.GetValueOrDefault(row.Id, []),
+                missingByShiftId.GetValueOrDefault(row.Id)))
             .ToArray();
     }
 
@@ -426,7 +429,11 @@ public class ShiftService : IShiftService
             ?? throw new AppException("shift_not_found", "Shift not found.", 404);
 
         var attachmentsByShiftId = await GetCloseAttachmentsByShiftIdAsync([shiftRow.Id], cancellationToken);
-        return ToShiftDto(shiftRow, attachmentsByShiftId.GetValueOrDefault(shiftRow.Id, []));
+        var missingByShiftId = await GetMissingTicketsByShiftIdAsync([shiftRow.Id], cancellationToken);
+        return ToShiftDto(
+            shiftRow,
+            attachmentsByShiftId.GetValueOrDefault(shiftRow.Id, []),
+            missingByShiftId.GetValueOrDefault(shiftRow.Id));
     }
 
     public async Task<string?> GetCloseAttachmentDataUrlAsync(Guid attachmentId, CancellationToken cancellationToken = default)
@@ -558,7 +565,7 @@ public class ShiftService : IShiftService
                     .ToArray());
     }
 
-    private static ShiftDto ToShiftDto(ShiftQueryRow row, IReadOnlyCollection<CloseAttachmentDto> attachments) => new()
+    private static ShiftDto ToShiftDto(ShiftQueryRow row, IReadOnlyCollection<CloseAttachmentDto> attachments, int missingOpeningTicketCount) => new()
     {
         Id = row.Id,
         BusinessDayId = row.BusinessDayId,
@@ -575,8 +582,27 @@ public class ShiftService : IShiftService
             ? templateId
             : null,
         CloseNote = row.CloseNote,
+        MissingOpeningTicketCount = missingOpeningTicketCount,
         CloseAttachments = attachments
     };
+
+    // Sum of missing opening tickets per shift (expected − actual opening serials confirmed at open).
+    private async Task<Dictionary<Guid, int>> GetMissingTicketsByShiftIdAsync(
+        IReadOnlyCollection<Guid> shiftIds,
+        CancellationToken cancellationToken)
+    {
+        if (shiftIds.Count == 0)
+        {
+            return new Dictionary<Guid, int>();
+        }
+
+        return await _shiftOpeningSerialRepository.Query()
+            .AsNoTracking()
+            .Where(x => shiftIds.Contains(x.ShiftId))
+            .GroupBy(x => x.ShiftId)
+            .Select(group => new { ShiftId = group.Key, Missing = group.Sum(x => x.MissingQuantity) })
+            .ToDictionaryAsync(x => x.ShiftId, x => x.Missing, cancellationToken);
+    }
 
     private static IReadOnlyCollection<ResolvedOpeningSerialEntry> ResolveOpeningSerialEntries(
         IReadOnlyCollection<OpenShiftPackSerialConfirmationRequest>? confirmations,

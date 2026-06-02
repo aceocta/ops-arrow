@@ -47,6 +47,9 @@ public class ShiftDto
     public string? AutoTemplateId { get; set; }
     // The free-text note captured at shift close (lives on the ShiftReconciliation row).
     public string? CloseNote { get; set; }
+    // Missing scratch-card tickets for this shift — the sum of (expected − actual) opening serials
+    // confirmed when the shift was opened (a discrepancy from the previous closing).
+    public int MissingOpeningTicketCount { get; set; }
     public IReadOnlyCollection<CloseAttachmentDto> CloseAttachments { get; set; } = [];
 }
 

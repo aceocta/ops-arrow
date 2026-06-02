@@ -646,6 +646,9 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
                   icon="albums-outline"
                   right={
                     <>
+                      {(shift?.missingOpeningTicketCount ?? 0) > 0 ? (
+                        <StatusBadge label={`${shift?.missingOpeningTicketCount} missing`} tone="danger" />
+                      ) : null}
                       <StatusBadge
                         label={
                           closingProgress.pending > 0
@@ -677,8 +680,15 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
                 title="Scratch Card Summary"
                 icon="stats-chart-outline"
                 right={
-                  totals.flaggedCount > 0 ? (
-                    <StatusBadge label={`${totals.flaggedCount} flagged`} tone="warning" />
+                  (shift?.missingOpeningTicketCount ?? 0) > 0 || totals.flaggedCount > 0 ? (
+                    <>
+                      {(shift?.missingOpeningTicketCount ?? 0) > 0 ? (
+                        <StatusBadge label={`${shift?.missingOpeningTicketCount} missing`} tone="danger" />
+                      ) : null}
+                      {totals.flaggedCount > 0 ? (
+                        <StatusBadge label={`${totals.flaggedCount} flagged`} tone="warning" />
+                      ) : null}
+                    </>
                   ) : undefined
                 }
               />

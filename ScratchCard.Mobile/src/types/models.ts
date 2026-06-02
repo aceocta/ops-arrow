@@ -361,6 +361,7 @@ export type Shift = {
   isAutoCreated?: boolean;
   autoTemplateId?: string;
   closeNote?: string;
+  missingOpeningTicketCount?: number;
   closeAttachments?: Array<{
     id: string;
     fileName: string;

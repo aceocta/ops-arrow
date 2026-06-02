@@ -1084,6 +1084,12 @@ public class ShiftSalesService : IShiftSalesService
             .Select(x => x.Notes)
             .FirstOrDefaultAsync(cancellationToken);
 
+        // Missing scratch-card tickets for this shift (expected − actual opening serials at open).
+        var missingOpeningTicketCount = await _shiftOpeningSerialRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShiftId == shift.Id)
+            .SumAsync(x => (int?)x.MissingQuantity, cancellationToken) ?? 0;
+
         var safeDropManagementEnabled = await IsSafeDropManagementEnabledAsync(shift.ShopId, cancellationToken);
         var safeDropRows = safeDropManagementEnabled
             ? await _canisterDropRepository.Query()
@@ -1115,7 +1121,8 @@ public class ShiftSalesService : IShiftSalesService
             safeDropManagementEnabled,
             temperatureRows,
             reportGeneratedOnUtc,
-            shiftNote);
+            shiftNote,
+            missingOpeningTicketCount);
 
         // One PDF per report section, attached as separate files (Scratch Card, Temperature,
         // Safe Drop). The HTML email body still carries every section inline.
@@ -1195,7 +1202,8 @@ public class ShiftSalesService : IShiftSalesService
                 safeDropRows,
                 safeDropManagementEnabled,
                 temperatureRows,
-                shiftNote);
+                shiftNote,
+                missingOpeningTicketCount);
 
             foreach (var recipientPhone in whatsAppRecipients)
             {
@@ -1338,7 +1346,8 @@ public class ShiftSalesService : IShiftSalesService
         IReadOnlyCollection<SafeDropSummaryRow> safeDropRows,
         bool safeDropManagementEnabled,
         IReadOnlyCollection<TemperatureSummaryRow> temperatureRows,
-        string? shiftNote)
+        string? shiftNote,
+        int missingOpeningTicketCount)
     {
         var totalSales = summaryRows.Sum(r => r.SalesAmount);
         var totalTicketsSold = summaryRows.Sum(r => r.SoldQuantity);
@@ -1352,6 +1361,11 @@ public class ShiftSalesService : IShiftSalesService
             $"Scratch sales: £{totalSales:N2}",
             $"Tickets sold: {totalTicketsSold} across {packCount} pack{(packCount == 1 ? string.Empty : "s")}",
         };
+
+        if (missingOpeningTicketCount > 0)
+        {
+            lines.Add($"Missing scratch card tickets: {missingOpeningTicketCount}");
+        }
 
         if (safeDropManagementEnabled)
         {
@@ -1811,7 +1825,8 @@ public class ShiftSalesService : IShiftSalesService
         bool safeDropManagementEnabled,
         IReadOnlyCollection<TemperatureSummaryRow> temperatureRows,
         DateTimeOffset reportGeneratedOnUtc,
-        string? shiftNote)
+        string? shiftNote,
+        int missingOpeningTicketCount)
     {
         var reportDateText = reportGeneratedOnUtc.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
         var shiftDetail = $"{shift.ShiftName} ({businessDay.BusinessDate:yyyy-MM-dd})";
@@ -1927,6 +1942,7 @@ sb.Append("<tbody>");
 sb.Append($"<tr><td>Shop Name</td><td>{WebUtility.HtmlEncode(shopName)}</td></tr>");
 sb.Append($"<tr><td>Shift Detail</td><td>{WebUtility.HtmlEncode(shiftDetail)}</td></tr>");
 sb.Append($"<tr><td>Report Date</td><td>{WebUtility.HtmlEncode(reportDateText)} UTC</td></tr>");
+sb.Append($"<tr><td>Missing Scratch Card Tickets</td><td>{missingOpeningTicketCount.ToString(CultureInfo.InvariantCulture)}</td></tr>");
 if (!string.IsNullOrWhiteSpace(shiftNote))
 {
     var noteHtml = WebUtility.HtmlEncode(shiftNote.Trim()).Replace("\r\n", "<br />").Replace("\n", "<br />");

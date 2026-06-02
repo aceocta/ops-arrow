@@ -1914,7 +1914,14 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           <SectionHeader
             title="Scratch Card Summary"
             icon="albums-outline"
-            right={<Ionicons name="chevron-forward" size={18} color={appTheme.colors.textSubtle} />}
+            right={
+              <>
+                {missingOpeningTicketCount > 0 ? (
+                  <StatusBadge label={`${missingOpeningTicketCount} missing`} tone="danger" />
+                ) : null}
+                <Ionicons name="chevron-forward" size={18} color={appTheme.colors.textSubtle} />
+              </>
+            }
           />
           {hasTillPayoutVariance ? (
             <View
