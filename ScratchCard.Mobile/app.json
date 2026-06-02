@@ -104,7 +104,7 @@
       ]
     ],
     "extra": {
-      "apiBaseUrl": "http://localhost:5268/api",
+      "apiBaseUrl": "https://wa-ops-arrow-uat-dvdrbjf9fraydwdd.canadacentral-01.azurewebsites.net/api",
       "appDisplayName": "Ops Arrow",
       "enableDevAuthBypass": false,
       "devBypassEmail": "dev.shopowner@scratchcard.local",

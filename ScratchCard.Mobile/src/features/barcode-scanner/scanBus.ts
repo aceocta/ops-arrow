@@ -4,6 +4,9 @@ type ScanPayload = {
   rawBarcode: string;
   parsedSerial: string;
   barcodeType?: string;
+  // Scanner mode that produced this scan. "auto" = the bulk "Scan Any Pack" flow, which is allowed
+  // to overwrite an already-recorded pack; "single" = targeted per-pack scan.
+  mode?: "single" | "auto";
 };
 
 type Listener = (payload: ScanPayload) => void;

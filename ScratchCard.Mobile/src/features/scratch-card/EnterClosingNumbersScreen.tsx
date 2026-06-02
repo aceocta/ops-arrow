@@ -302,7 +302,8 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
       return;
     }
     if (params.mode === "auto" && (params.pendingPacks?.length ?? 0) === 0) {
-      setScanStatus("All packs are already scanned.");
+      // No candidates at all (shift has no active packs) — nothing the scanner could match.
+      setScanStatus("No active packs to scan.");
       return;
     }
 
@@ -477,13 +478,7 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
         const normalizedParsedSerial = normalizeScannedSerial(payload.parsedSerial);
         if (payload.packId && fallbackSerial) {
           const targetPackId = payload.packId;
-          // "Already set" means the user has already entered/scanned a closing — not just the
-          // seeded opening default. Use the touched set, not the value, to gate re-scanning.
-          if (touchedPackIdsRef.current.has(targetPackId)) {
-            setScanStatus("Closing serial is already set. Clear the textbox first if you need to rescan.");
-            return;
-          }
-
+          // A scan always overwrites the current value — no need to clear the textbox first.
           setScanStatus(`Captured ${fallbackSerial}. Pack is loading, verify and finalise.`);
           setEntries((previous) => ({
             ...previous,
@@ -499,11 +494,6 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
         }
 
         setScanStatus(`No active pack matched scanned code: ${payload.rawBarcode}`);
-        return;
-      }
-
-      if (touchedPackIdsRef.current.has(matchedPack.id)) {
-        // Already user-set — silently ignore so a stray rescan doesn't overwrite work.
         return;
       }
 
@@ -628,18 +618,26 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
   const errorRows = computedRows.filter((row) => row.hasError).length;
   const pendingRows = computedRows.filter((row) => !isRowReady(row) && !row.hasError).length;
   const scannedRows = computedRows.length - pendingRows;
+  const toPackHint = (row: typeof computedRows[number]) => ({
+    packId: row.pack.id,
+    packNumber: row.pack.packNumber,
+    label: `Display ${row.pack.displayNumber != null ? `#${row.pack.displayNumber}` : "-"} | Pack ${row.pack.packNumber}`,
+  });
   const pendingPackHints = useMemo(
     () =>
       computedRows
         .filter((row) => !isRowReady(row) && !row.hasError)
-        .map((row) => ({
-          packId: row.pack.id,
-          packNumber: row.pack.packNumber,
-          label: `Display ${row.pack.displayNumber != null ? `#${row.pack.displayNumber}` : "-"} | Pack ${row.pack.packNumber}`,
-        })),
+        .map(toPackHint),
     // isRowReady reads from entries + touchedPackIds — both already in deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [computedRows, touchedPackIds, entries]
+  );
+  // Every active pack, used so "Scan Any Pack" still works once everything is already scanned —
+  // the operator can re-open the scanner to re-check/correct any pack regardless of pending state.
+  const allPackHints = useMemo(
+    () => computedRows.map(toPackHint),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [computedRows]
   );
   // A shift with zero active packs is finalisable as a no-sales close — there's nothing for
   // the shopkeeper to scan or enter, so blocking them would leave the shift in limbo.
@@ -819,7 +817,8 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
               onPress={() =>
                 openBarcodeScanner({
                   mode: "auto",
-                  pendingPacks: pendingPackHints,
+                  // Fall back to every pack once nothing is pending, so the button still scans.
+                  pendingPacks: pendingPackHints.length > 0 ? pendingPackHints : allPackHints,
                 })
               }
               disabled={isSubmitting}

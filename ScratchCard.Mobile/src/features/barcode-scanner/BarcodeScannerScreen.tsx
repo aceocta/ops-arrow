@@ -334,6 +334,7 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
       parsedPackNumber: `${parsed.gameCode}-${parsed.packComponent}`,
       parsedSerial: "",
       barcodeType: result.type,
+      mode,
     });
 
     setLastScanMessage(`Scanned game ${parsed.gameCode}, pack ${parsed.packComponent}.`);
@@ -440,6 +441,7 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
         rawBarcode: parsedFromText.rawBarcode,
         parsedSerial: parsedFromText.parsedSerial,
         barcodeType: "mlkit-text",
+        mode,
       });
 
       const rotationMessage = matchedRotation === 0 ? "" : ` (rotated ${matchedRotation}deg)`;
