@@ -327,7 +327,7 @@ public class CompanySignupService : ICompanySignupService
             PrimaryCompanyId = company.Id
         };
 
-        var token = _jwtTokenService.CreateToken(user, [RoleNames.CompanyOwner]);
+        var token = await _jwtTokenService.CreateTokenAsync(user, [RoleNames.CompanyOwner], cancellationToken);
         token.Profile = profile;
 
         await _auditService.LogAsync(

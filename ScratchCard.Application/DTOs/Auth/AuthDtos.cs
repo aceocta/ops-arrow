@@ -76,6 +76,19 @@ public class AuthTokenResponseDto
     public string AccessToken { get; set; } = string.Empty;
     public DateTimeOffset ExpiresOn { get; set; }
     public string TokenType { get; set; } = "Bearer";
+    /// <summary>Long-lived rotating refresh token. The client stores this and exchanges it for a
+    /// new access token (via /auth/refresh-token) when the access token expires.</summary>
+    public string RefreshToken { get; set; } = string.Empty;
     public CurrentUserProfileDto Profile { get; set; } = new();
+}
+
+public class RefreshAccessTokenRequest
+{
+    public string RefreshToken { get; set; } = string.Empty;
+}
+
+public class LogoutRequest
+{
+    public string RefreshToken { get; set; } = string.Empty;
 }
 

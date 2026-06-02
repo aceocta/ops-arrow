@@ -28,6 +28,7 @@ public class AuthService : IAuthService
     private readonly ICurrentUserService _currentUserService;
     private readonly IPasswordHashService _passwordHashService;
     private readonly IJwtTokenService _jwtTokenService;
+    private readonly IRefreshTokenService _refreshTokenService;
     private readonly IInvitationTokenService _tokenService;
     private readonly IEmailSender _emailSender;
     private readonly IAuditService _auditService;
@@ -45,6 +46,7 @@ public class AuthService : IAuthService
         ICurrentUserService currentUserService,
         IPasswordHashService passwordHashService,
         IJwtTokenService jwtTokenService,
+        IRefreshTokenService refreshTokenService,
         IInvitationTokenService tokenService,
         IEmailSender emailSender,
         IAuditService auditService,
@@ -61,6 +63,7 @@ public class AuthService : IAuthService
         _currentUserService = currentUserService;
         _passwordHashService = passwordHashService;
         _jwtTokenService = jwtTokenService;
+        _refreshTokenService = refreshTokenService;
         _tokenService = tokenService;
         _emailSender = emailSender;
         _auditService = auditService;
@@ -252,7 +255,7 @@ public class AuthService : IAuthService
 
         var roles = new[] { RoleNames.CompanyOwner };
         var profile = await BuildProfileAsync(user, roles, cancellationToken);
-        var token = _jwtTokenService.CreateToken(user, roles);
+        var token = await _jwtTokenService.CreateTokenAsync(user, roles, cancellationToken);
         token.Profile = profile;
 
         await _auditService.LogAsync(nameof(User), user.Id, "UserSignedUp", newValue: normalizedEmail, cancellationToken: cancellationToken);
@@ -311,7 +314,7 @@ public class AuthService : IAuthService
         var roles = await ResolveEffectiveRoleNamesAsync(user.Id, shopUsers, cancellationToken);
         var profile = await BuildProfileAsync(user, roles, cancellationToken, shopUsers);
 
-        var token = _jwtTokenService.CreateToken(user, roles);
+        var token = await _jwtTokenService.CreateTokenAsync(user, roles, cancellationToken);
         token.Profile = profile;
 
         await _auditService.LogAsync(nameof(User), user.Id, "UserLogin", cancellationToken: cancellationToken);
@@ -441,7 +444,7 @@ public class AuthService : IAuthService
 
         var profile = await BuildProfileAsync(user, roles, cancellationToken, activeShopUsers);
 
-        var token = _jwtTokenService.CreateToken(user, roles);
+        var token = await _jwtTokenService.CreateTokenAsync(user, roles, cancellationToken);
         token.Profile = profile;
 
         await _auditService.LogAsync(
@@ -578,11 +581,84 @@ public class AuthService : IAuthService
         var roles = await ResolveEffectiveRoleNamesAsync(user.Id, shopUsers, cancellationToken);
 
         var profile = await BuildProfileAsync(user, roles, cancellationToken, shopUsers);
-        var token = _jwtTokenService.CreateToken(user, roles);
+        var token = await _jwtTokenService.CreateTokenAsync(user, roles, cancellationToken);
         token.Profile = profile;
 
         await _auditService.LogAsync(nameof(User), user.Id, "UserTokenRefreshed", cancellationToken: cancellationToken);
         return token;
+    }
+
+    public async Task<AuthTokenResponseDto> RefreshAccessTokenAsync(string refreshToken, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(refreshToken))
+        {
+            throw new AppException("invalid_refresh_token", "Refresh token is required.", 401);
+        }
+
+        var existing = await _refreshTokenService.FindByRawAsync(refreshToken, cancellationToken)
+            ?? throw new AppException("invalid_refresh_token", "Refresh token is invalid.", 401);
+
+        var now = DateTimeOffset.UtcNow;
+
+        // Reuse/theft signal: an already-rotated (revoked) token was replayed. Revoke the user's
+        // whole active set so a stolen-but-rotated token can't be parlayed into a live session.
+        if (existing.RevokedOn is not null)
+        {
+            await _refreshTokenService.RevokeAllActiveForUserAsync(existing.UserId, cancellationToken);
+            throw new AppException("refresh_token_reused", "Refresh token has already been used. Please sign in again.", 401);
+        }
+
+        if (existing.ExpiresOn <= now)
+        {
+            throw new AppException("refresh_token_expired", "Refresh token has expired. Please sign in again.", 401);
+        }
+
+        var user = await _userRepository.Query()
+            .FirstOrDefaultAsync(x => x.Id == existing.UserId && x.IsActive, cancellationToken)
+            ?? throw new AppException("user_not_found", "User profile not found.", 404);
+
+        var shopUsers = await _shopUserRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.UserId == user.Id && x.IsActive)
+            .Include(x => x.Role)
+            .Include(x => x.Shop)
+                .ThenInclude(x => x.Company)
+            .ToListAsync(cancellationToken);
+
+        var roles = await ResolveEffectiveRoleNamesAsync(user.Id, shopUsers, cancellationToken);
+        var profile = await BuildProfileAsync(user, roles, cancellationToken, shopUsers);
+
+        // Mints the new access token and a fresh refresh token (rotation).
+        var token = await _jwtTokenService.CreateTokenAsync(user, roles, cancellationToken);
+        token.Profile = profile;
+
+        // Rotate: revoke the presented token and link it to its successor for chain auditing.
+        existing.RevokedOn = now;
+        existing.ReplacedByTokenHash = _refreshTokenService.Hash(token.RefreshToken);
+        existing.ModifiedOn = now;
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _auditService.LogAsync(nameof(User), user.Id, "AccessTokenRefreshed", cancellationToken: cancellationToken);
+        return token;
+    }
+
+    public async Task RevokeRefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(refreshToken))
+        {
+            return;
+        }
+
+        var existing = await _refreshTokenService.FindByRawAsync(refreshToken, cancellationToken);
+        if (existing is null || existing.RevokedOn is not null)
+        {
+            // Unknown or already-revoked token — nothing to do (logout is best-effort, idempotent).
+            return;
+        }
+
+        existing.RevokedOn = DateTimeOffset.UtcNow;
+        existing.ModifiedOn = existing.RevokedOn;
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<CurrentUserProfileDto> GetCurrentUserProfileAsync(CancellationToken cancellationToken = default)

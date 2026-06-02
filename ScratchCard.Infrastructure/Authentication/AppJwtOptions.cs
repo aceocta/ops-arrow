@@ -6,4 +6,5 @@ public class AppJwtOptions
     public string Audience { get; set; } = "ScratchCard.Mobile";
     public string Secret { get; set; } = string.Empty;
     public int AccessTokenExpiryMinutes { get; set; } = 480;
+    public int RefreshTokenExpiryDays { get; set; } = 30;
 }

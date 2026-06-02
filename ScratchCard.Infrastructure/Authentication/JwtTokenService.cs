@@ -13,13 +13,18 @@ namespace ScratchCard.Infrastructure.Authentication;
 public class JwtTokenService : IJwtTokenService
 {
     private readonly AppJwtOptions _options;
+    private readonly IRefreshTokenService _refreshTokenService;
 
-    public JwtTokenService(IOptions<AppJwtOptions> options)
+    public JwtTokenService(IOptions<AppJwtOptions> options, IRefreshTokenService refreshTokenService)
     {
         _options = options.Value;
+        _refreshTokenService = refreshTokenService;
     }
 
-    public AuthTokenResponseDto CreateToken(User user, IReadOnlyCollection<string> roles)
+    public async Task<AuthTokenResponseDto> CreateTokenAsync(
+        User user,
+        IReadOnlyCollection<string> roles,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(_options.Secret) || _options.Secret.Length < 32)
         {
@@ -57,10 +62,13 @@ public class JwtTokenService : IJwtTokenService
         var handler = new JwtSecurityTokenHandler();
         var token = handler.CreateToken(tokenDescriptor);
 
+        var refreshToken = await _refreshTokenService.IssueAsync(user.Id, cancellationToken);
+
         return new AuthTokenResponseDto
         {
             AccessToken = handler.WriteToken(token),
-            ExpiresOn = expiresOn
+            ExpiresOn = expiresOn,
+            RefreshToken = refreshToken
         };
     }
 

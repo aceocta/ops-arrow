@@ -94,6 +94,10 @@ public interface IAuthService
     Task RequestPasswordResetAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default);
     Task ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default);
     Task<AuthTokenResponseDto> RefreshTokenAsync(CancellationToken cancellationToken = default);
+    /// <summary>Exchanges a (rotating) refresh token for a new access + refresh token pair.</summary>
+    Task<AuthTokenResponseDto> RefreshAccessTokenAsync(string refreshToken, CancellationToken cancellationToken = default);
+    /// <summary>Revokes a refresh token on logout. Best-effort and idempotent.</summary>
+    Task RevokeRefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default);
     Task<CurrentUserProfileDto> GetCurrentUserProfileAsync(CancellationToken cancellationToken = default);
 }
 

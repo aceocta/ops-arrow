@@ -3,13 +3,15 @@ import { AppState, AppStateStatus } from "react-native";
 import {
   AuthTokenResult,
   getCurrentUserProfile,
-  refreshAuthToken,
+  logout as logoutApi,
+  refreshAccessToken,
   signInWithDevBypass,
   signInWithPassword as signInWithPasswordApi,
   signUpCompany as signUpCompanyApi,
   signUpWithPassword as signUpWithPasswordApi,
 } from "../api/authApi";
 import { registerPushToken } from "../api/notificationsApi";
+import { onSessionExpired } from "./authEvents";
 import { resolveFirebasePushTokenAsync } from "../notifications/pushRegistration";
 import { AuthProfile } from "../types/models";
 import { reportError } from "../utils/crashReporter";
@@ -19,12 +21,15 @@ import {
   clearAccessToken,
   clearAuthProfile,
   clearActiveShopId,
+  clearRefreshToken,
   getAuthProfile,
   getAccessToken,
   getActiveShopId,
+  getRefreshToken,
   saveAuthProfile,
   saveAccessToken,
   saveActiveShopId,
+  saveRefreshToken,
 } from "./tokenStorage";
 
 type AuthShop = AuthProfile["shops"][number];
@@ -83,9 +88,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const refresh = async (reason: string) => {
       try {
-        const refreshed = await refreshAuthToken();
+        const storedRefreshToken = await getRefreshToken();
+        if (!storedRefreshToken) {
+          return;
+        }
+        // Rotating refresh: returns a new access + refresh pair and revokes the old refresh token.
+        const refreshed = await refreshAccessToken(storedRefreshToken);
         if (refreshed.accessToken) {
           await saveAccessToken(refreshed.accessToken);
+          if (refreshed.refreshToken) {
+            await saveRefreshToken(refreshed.refreshToken);
+          }
           lastRefreshRef.current = Date.now();
         }
       } catch (error) {
@@ -122,6 +135,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       resetAnalytics();
     }
   }, [profile?.userId, profile?.email]);
+
+  // When the API interceptor can't refresh the access token, the session is unrecoverable —
+  // sign out so the navigator returns to Login.
+  useEffect(() => {
+    return onSessionExpired(() => {
+      void signOut();
+    });
+  }, []);
 
   useEffect(() => {
     if (!profile?.userId || !activeShopId) {
@@ -308,9 +329,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function refreshProfile(preferredShopId?: string | null, refreshTokenClaims = false) {
     if (refreshTokenClaims) {
-      const refreshed = await refreshAuthToken();
-      await applyAuthTokenResult(refreshed, preferredShopId ?? activeShopId);
-      return;
+      // Rotate the token to pick up fresh role/claim changes (e.g. after company/shop setup).
+      const storedRefreshToken = await getRefreshToken();
+      if (storedRefreshToken) {
+        const refreshed = await refreshAccessToken(storedRefreshToken);
+        await applyAuthTokenResult(refreshed, preferredShopId ?? activeShopId);
+        return;
+      }
     }
 
     const currentUser = await getCurrentUserProfile();
@@ -327,7 +352,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signOut() {
+    // Best-effort server-side revoke of the refresh token before clearing local state.
+    try {
+      const refreshToken = await getRefreshToken();
+      if (refreshToken) {
+        await logoutApi(refreshToken);
+      }
+    } catch {
+      // Logout is best-effort; never block sign-out on a network/server error.
+    }
     await clearAccessToken();
+    await clearRefreshToken();
     await clearAuthProfile();
     await clearActiveShopId();
     setProfile(null);
@@ -363,6 +398,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function applyAuthTokenResult(result: AuthTokenResult, preferredShopId?: string | null) {
     await saveAccessToken(result.accessToken);
+    if (result.refreshToken) {
+      await saveRefreshToken(result.refreshToken);
+    }
     const resolvedProfile = result.profile ?? await getCurrentUserProfile();
     const nextShopId = resolveActiveShopId(resolvedProfile, preferredShopId);
     setProfile(resolvedProfile);

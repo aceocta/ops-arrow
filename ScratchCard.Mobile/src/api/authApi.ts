@@ -3,6 +3,7 @@ import { AuthProfile } from "../types/models";
 
 export type AuthTokenResult = {
   accessToken: string;
+  refreshToken?: string;
   expiresOn?: string;
   tokenType: string;
   profile?: AuthProfile | null;
@@ -13,6 +14,8 @@ type RawAuthPayload = {
   AccessToken?: string;
   token?: string;
   Token?: string;
+  refreshToken?: string;
+  RefreshToken?: string;
   expiresOn?: string;
   ExpiresOn?: string;
   tokenType?: string;
@@ -32,10 +35,23 @@ function parseAuthTokenResult(rawResponse: unknown): AuthTokenResult {
 
   return {
     accessToken,
+    refreshToken: rawPayload?.refreshToken ?? rawPayload?.RefreshToken ?? undefined,
     expiresOn: rawPayload?.expiresOn ?? rawPayload?.ExpiresOn,
     tokenType: rawPayload?.tokenType ?? rawPayload?.TokenType ?? "Bearer",
     profile: rawPayload?.profile ?? rawPayload?.Profile ?? null,
   };
+}
+
+// Exchange a refresh token for a new access + refresh pair. The 401 interceptor skips its own
+// refresh loop for this endpoint to avoid recursion.
+export async function refreshAccessToken(refreshToken: string) {
+  const response = await apiClient.post("/auth/refresh-token", { refreshToken });
+  return parseAuthTokenResult(response.data);
+}
+
+// Best-effort server-side revoke of the refresh token on sign-out.
+export async function logout(refreshToken: string) {
+  await apiClient.post("/auth/logout", { refreshToken });
 }
 
 export async function getCurrentUserProfile() {

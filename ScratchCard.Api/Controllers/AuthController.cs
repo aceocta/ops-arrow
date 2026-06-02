@@ -201,6 +201,26 @@ public class AuthController : BaseApiController
         return Success(token);
     }
 
+    // Anonymous: the access token is expired by the time the client calls this, so identity comes
+    // from the refresh token itself (validated server-side), not from the Authorization header.
+    [HttpPost("refresh-token")]
+    [AllowAnonymous]
+    public async Task<IActionResult> RefreshToken([FromBody] RefreshAccessTokenRequest request, CancellationToken cancellationToken)
+    {
+        var token = await _authService.RefreshAccessTokenAsync(request.RefreshToken, cancellationToken);
+        return Success(token);
+    }
+
+    // Anonymous + best-effort: revokes the refresh token on sign-out. Tolerates an expired access
+    // token so logout still cleans up server-side state.
+    [HttpPost("logout")]
+    [AllowAnonymous]
+    public async Task<IActionResult> Logout([FromBody] LogoutRequest request, CancellationToken cancellationToken)
+    {
+        await _authService.RevokeRefreshTokenAsync(request.RefreshToken, cancellationToken);
+        return Success(new { }, "Logged out.");
+    }
+
     private static (string? FirstName, string? LastName) ParseName(string? fullName)
     {
         if (string.IsNullOrWhiteSpace(fullName))

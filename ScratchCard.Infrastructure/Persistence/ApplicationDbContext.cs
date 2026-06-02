@@ -50,6 +50,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<BusinessDayCloseAttachment> BusinessDayCloseAttachments => Set<BusinessDayCloseAttachment>();
     public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
     public DbSet<UserPushToken> UserPushTokens => Set<UserPushToken>();
+    public DbSet<UserRefreshToken> UserRefreshTokens => Set<UserRefreshToken>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<TemperatureMonitoringUnit> TemperatureMonitoringUnits => Set<TemperatureMonitoringUnit>();
     public DbSet<TemperatureReading> TemperatureReadings => Set<TemperatureReading>();
@@ -580,6 +581,15 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.DeviceName).HasMaxLength(120);
             entity.Property(x => x.IsActive).HasDefaultValue(true);
             entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId);
+            entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId);
+        });
+
+        modelBuilder.Entity<UserRefreshToken>(entity =>
+        {
+            entity.HasIndex(x => x.TokenHash).IsUnique();
+            entity.HasIndex(x => new { x.UserId, x.RevokedOn });
+            entity.Property(x => x.TokenHash).HasMaxLength(120).IsRequired();
+            entity.Property(x => x.ReplacedByTokenHash).HasMaxLength(120);
             entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId);
         });
 

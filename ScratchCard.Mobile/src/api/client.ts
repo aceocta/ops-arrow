@@ -1,6 +1,7 @@
 import axios, { AxiosError, AxiosRequestConfig } from "axios";
 import Constants from "expo-constants";
-import { getAccessToken } from "../auth/tokenStorage";
+import { getAccessToken, getRefreshToken, saveAccessToken, saveRefreshToken } from "../auth/tokenStorage";
+import { emitSessionExpired } from "../auth/authEvents";
 import { classifySubscriptionError, emitSubscriptionError } from "../features/subscription/subscriptionErrorBus";
 
 // Resolve order:
@@ -59,7 +60,63 @@ apiClient.interceptors.request.use(async (config) => {
   return config;
 });
 
-type RetryableConfig = AxiosRequestConfig & { __retryAttempted?: boolean };
+type RetryableConfig = AxiosRequestConfig & { __retryAttempted?: boolean; __refreshAttempted?: boolean };
+
+// Endpoints where a 401 is expected/terminal and must NOT trigger a token refresh:
+// credential checks (login/signup) return 401 for bad credentials, and the refresh/logout calls
+// can't themselves be refreshed.
+function isAuthFlowEndpoint(url: string | undefined): boolean {
+  if (!url) return false;
+  return (
+    url.includes("/auth/login") ||
+    url.includes("/auth/dev-login") ||
+    url.includes("/auth/signup") ||
+    url.includes("/companies/signup") ||
+    url.includes("/auth/refresh-token") ||
+    url.includes("/auth/refresh") ||
+    url.includes("/auth/logout") ||
+    url.includes("/auth/forgot-password") ||
+    url.includes("/auth/reset-password")
+  );
+}
+
+// Single-flight refresh: concurrent 401s share one /auth/refresh-token call rather than each
+// firing their own. Uses a bare axios call (not apiClient) to avoid this interceptor + import cycle.
+let refreshPromise: Promise<string | null> | null = null;
+
+async function performTokenRefresh(): Promise<string | null> {
+  const refreshToken = await getRefreshToken();
+  if (!refreshToken) {
+    return null;
+  }
+  try {
+    const response = await axios.post(`${baseURL}/auth/refresh-token`, { refreshToken }, { timeout: 30000 });
+    const payload = (response.data?.data ?? response.data) as
+      | { accessToken?: string; AccessToken?: string; refreshToken?: string; RefreshToken?: string }
+      | undefined;
+    const newAccessToken = payload?.accessToken ?? payload?.AccessToken;
+    const newRefreshToken = payload?.refreshToken ?? payload?.RefreshToken;
+    if (!newAccessToken) {
+      return null;
+    }
+    await saveAccessToken(newAccessToken);
+    if (newRefreshToken) {
+      await saveRefreshToken(newRefreshToken);
+    }
+    return newAccessToken;
+  } catch {
+    return null;
+  }
+}
+
+function refreshAccessTokenSingleFlight(): Promise<string | null> {
+  if (!refreshPromise) {
+    refreshPromise = performTokenRefresh().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
 
 apiClient.interceptors.response.use(
   (response) => response,
@@ -76,10 +133,24 @@ apiClient.interceptors.response.use(
       }
     }
 
-    // One transparent retry on transient 5xx / network errors (covers Azure cold-start blips,
-    // dropped wifi packets). Only safe for idempotent verbs — POST/PUT/PATCH/DELETE are skipped.
     const config = error.config as RetryableConfig | undefined;
     const status = error.response?.status;
+
+    // 401: the access token is missing/expired. Try a one-shot refresh-token exchange, then replay
+    // the original request. If refresh fails, the session is unrecoverable → sign the user out.
+    if (status === 401 && config && !config.__refreshAttempted && !isAuthFlowEndpoint(config.url)) {
+      config.__refreshAttempted = true;
+      const newAccessToken = await refreshAccessTokenSingleFlight();
+      if (newAccessToken) {
+        config.headers = { ...(config.headers as Record<string, string> | undefined), Authorization: `Bearer ${newAccessToken}` };
+        return apiClient.request(config);
+      }
+      emitSessionExpired();
+      return Promise.reject(error);
+    }
+
+    // One transparent retry on transient 5xx / network errors (covers Azure cold-start blips,
+    // dropped wifi packets). Only safe for idempotent verbs — POST/PUT/PATCH/DELETE are skipped.
     const isNetwork = !error.response;
     const isServerSlip = typeof status === "number" && status >= 500 && status <= 599;
     const verb = (config?.method ?? "get").toLowerCase();

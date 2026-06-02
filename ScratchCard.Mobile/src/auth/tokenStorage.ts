@@ -3,9 +3,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { AuthProfile } from "../types/models";
 
 const ACCESS_TOKEN_KEY = "scratchcard_access_token";
+const REFRESH_TOKEN_KEY = "scratchcard_refresh_token";
 const ACTIVE_SHOP_ID_KEY = "scratchcard_active_shop_id";
 const AUTH_PROFILE_KEY = "scratchcard_auth_profile";
 let accessTokenCache: string | null | undefined;
+let refreshTokenCache: string | null | undefined;
 let activeShopIdCache: string | null | undefined;
 let authProfileCache: AuthProfile | null | undefined;
 
@@ -26,6 +28,25 @@ export async function getAccessToken() {
 export async function clearAccessToken() {
   accessTokenCache = null;
   await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
+}
+
+export async function saveRefreshToken(token: string) {
+  refreshTokenCache = token;
+  await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, token);
+}
+
+export async function getRefreshToken() {
+  if (refreshTokenCache !== undefined) {
+    return refreshTokenCache;
+  }
+
+  refreshTokenCache = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+  return refreshTokenCache;
+}
+
+export async function clearRefreshToken() {
+  refreshTokenCache = null;
+  await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
 }
 
 export async function saveActiveShopId(shopId: string) {
