@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { RouteProp, useRoute } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
@@ -823,7 +823,10 @@ export function TemperatureLogScreen() {
             tempInputRef.current?.focus();
           }}
         >
-          <View style={styles.modalBackdrop}>
+          <KeyboardAvoidingView
+            style={styles.modalBackdrop}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
             <ModalBackdropBlur />
             <View style={styles.modalCard}>
               <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalScrollContent} keyboardShouldPersistTaps="handled">
@@ -1009,27 +1012,32 @@ export function TemperatureLogScreen() {
                 </View>
               ) : null}
 
-              <PrimaryButton
-                label={
-                  recordMutation.isPending
-                    ? "Saving..."
-                    : nextUnitId
-                      ? "Save & Next Unit"
-                      : "Save Reading"
-                }
-                onPress={() => triggerSave(nextUnitId ? "next" : "close")}
-                disabled={recordMutation.isPending || !shopId || !selectedUnit}
-              />
-              <View style={styles.modalActionRow}>
-                <Pressable
-                  style={[styles.modalActionButton, styles.modalActionSecondary]}
-                  onPress={closeLogEntryModal}
-                  disabled={recordMutation.isPending}
-                >
-                  <Text style={styles.modalActionSecondaryText}>Close</Text>
-                </Pressable>
-              </View>
               </ScrollView>
+
+              {/* Action buttons live outside the ScrollView so they stay pinned above the
+                  keyboard (the KeyboardAvoidingView lifts the whole card) while typing. */}
+              <View style={styles.modalFooter}>
+                <PrimaryButton
+                  label={
+                    recordMutation.isPending
+                      ? "Saving..."
+                      : nextUnitId
+                        ? "Save & Next Unit"
+                        : "Save Reading"
+                  }
+                  onPress={() => triggerSave(nextUnitId ? "next" : "close")}
+                  disabled={recordMutation.isPending || !shopId || !selectedUnit}
+                />
+                <View style={styles.modalActionRow}>
+                  <Pressable
+                    style={[styles.modalActionButton, styles.modalActionSecondary]}
+                    onPress={closeLogEntryModal}
+                    disabled={recordMutation.isPending}
+                  >
+                    <Text style={styles.modalActionSecondaryText}>Close</Text>
+                  </Pressable>
+                </View>
+              </View>
 
               {textEditorField ? (
                 <View style={styles.inlineEditorOverlay}>
@@ -1065,7 +1073,7 @@ export function TemperatureLogScreen() {
                 </View>
               ) : null}
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
       </View>
     </ScreenContainer>
@@ -1786,6 +1794,10 @@ const styles = StyleSheet.create({
   },
   modalTextArea: {
     minHeight: 132,
+  },
+  modalFooter: {
+    gap: appTheme.spacing.sm,
+    paddingTop: appTheme.spacing.sm,
   },
   modalActionRow: {
     flexDirection: "row",
