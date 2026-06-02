@@ -770,7 +770,7 @@ public class BusinessDayService : IBusinessDayService
 
         await SendDayClosePushNotificationsAsync(day, cancellationToken);
         await SendDayCloseSummaryToOwnersAsync(day, shifts, daySalesEntries, cancellationToken);
-        await SendManualEntrySummaryByShiftOnDayCloseAsync(day, shifts, daySalesEntries, cancellationToken);
+        // Manual-entry summary report is no longer sent on day close (disabled per product request).
     }
 
     public async Task<BusinessDayDto> ReopenAsync(Guid id, ReopenBusinessDayRequest request, CancellationToken cancellationToken = default)
