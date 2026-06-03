@@ -285,6 +285,7 @@ public class TemperatureLogService : ITemperatureLogService
             var (claimedId, late) = await ResolveScheduleAsync(
                 request.ShopId,
                 request.ScheduleId,
+                request.ReadingDate,
                 request.ReadingTime,
                 cancellationToken);
             scheduleId = claimedId;
@@ -511,6 +512,7 @@ public class TemperatureLogService : ITemperatureLogService
     private async Task<(Guid? ScheduleId, bool IsLate)> ResolveScheduleAsync(
         Guid shopId,
         Guid? explicitScheduleId,
+        DateOnly readingDate,
         TimeOnly readingTime,
         CancellationToken cancellationToken)
     {
@@ -522,7 +524,11 @@ public class TemperatureLogService : ITemperatureLogService
                 ?? throw new AppException("temperature_schedule_not_found", "Selected temperature schedule not found.", 404);
             if (!picked.IsRandom)
             {
-                return (picked.Id, TemperatureScheduleWindows.IsOutsideTolerance(picked, readingTime));
+                // Late only applies to today or past days. A reading dated in the future can't be
+                // late — its scheduled time hasn't arrived — so don't flag it.
+                var isFuture = readingDate > DateOnly.FromDateTime(DateTime.UtcNow);
+                var isLate = !isFuture && TemperatureScheduleWindows.IsOutsideTolerance(picked, readingTime);
+                return (picked.Id, isLate);
             }
         }
 

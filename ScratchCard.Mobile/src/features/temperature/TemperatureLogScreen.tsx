@@ -314,7 +314,9 @@ function buildScheduledSlots(
 
       const chosenMinutes = parseTimeToMinutes(chosen.readingTime);
       let state: ScheduledSlotView["state"] = "OnTime";
-      if (chosenMinutes != null && expectedMinutes != null) {
+      // Early/Late only make sense for today or past days. A reading logged for a future date can't
+      // be "late" — its scheduled time hasn't arrived — so leave it OnTime regardless of clock time.
+      if (selectedDate <= today && chosenMinutes != null && expectedMinutes != null) {
         if (chosenMinutes < expectedMinutes - tolerance) state = "Early";
         else if (chosenMinutes > expectedMinutes + tolerance) state = "Late";
       }
