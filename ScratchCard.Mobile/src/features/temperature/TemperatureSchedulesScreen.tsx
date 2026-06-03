@@ -61,10 +61,34 @@ export function TemperatureSchedulesScreen() {
   const minuteRef = React.useRef<TextInput>(null);
   const [tolerance, setTolerance] = React.useState(30);
   const [unitId, setUnitId] = React.useState<string | undefined>(undefined);
+  // When set, the top form edits this existing slot instead of adding a new one.
+  const [editingId, setEditingId] = React.useState<string | null>(null);
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["temperature-schedules", shopId] });
   };
+
+  function resetForm() {
+    setLabel("");
+    setHour("10");
+    setMinute("00");
+    setTolerance(30);
+    setUnitId(undefined);
+  }
+
+  function beginEdit(schedule: TemperatureSchedule) {
+    setEditingId(schedule.id);
+    setLabel(schedule.label);
+    setHour(schedule.expectedTime.slice(0, 2));
+    setMinute(schedule.expectedTime.slice(3, 5));
+    setTolerance(schedule.toleranceMinutes);
+    setUnitId(schedule.temperatureMonitoringUnitId ?? undefined);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    resetForm();
+  }
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -77,15 +101,32 @@ export function TemperatureSchedulesScreen() {
         isActive: true,
       }),
     onSuccess: () => {
-      setLabel("");
-      setHour("10");
-      setMinute("00");
-      setTolerance(30);
-      setUnitId(undefined);
+      resetForm();
       invalidate();
     },
     onError: (error: any) =>
       Alert.alert("Add failed", error?.response?.data?.message ?? "Could not add this scheduled check."),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: () => {
+      const current = schedulesQuery.data?.find((s) => s.id === editingId);
+      return updateTemperatureSchedule(editingId as string, {
+        shopId: shopId as string,
+        temperatureMonitoringUnitId: unitId,
+        label: label.trim(),
+        expectedTime: toTimeString(hour, minute),
+        toleranceMinutes: tolerance,
+        // Editing the schedule's details shouldn't change whether it's active.
+        isActive: current?.isActive ?? true,
+      });
+    },
+    onSuccess: () => {
+      cancelEdit();
+      invalidate();
+    },
+    onError: (error: any) =>
+      Alert.alert("Update failed", error?.response?.data?.message ?? "Could not update this scheduled check."),
   });
 
   async function confirmDelete(schedule: TemperatureSchedule) {
@@ -120,13 +161,14 @@ export function TemperatureSchedulesScreen() {
 
   const schedules = schedulesQuery.data ?? [];
   const units = unitsQuery.data ?? [];
-  const canAdd =
-    label.trim().length > 0 && hour.length > 0 && minute.length > 0 && !createMutation.isPending && Boolean(shopId);
+  const busy = createMutation.isPending || updateMutation.isPending;
+  const canSubmit =
+    label.trim().length > 0 && hour.length > 0 && minute.length > 0 && !busy && Boolean(shopId);
 
   return (
     <ScreenContainer>
       <View style={ui.card}>
-        <Text style={ui.sectionTitle}>Add a scheduled check</Text>
+        <Text style={ui.sectionTitle}>{editingId ? "Edit scheduled check" : "Add a scheduled check"}</Text>
         <Text style={ui.caption}>
           Tell the system when temperatures should be taken (e.g. "Morning" at 10:00 ±30 min). Readings inside the
           window are on-time; outside the window they're flagged late in the report.
@@ -138,7 +180,7 @@ export function TemperatureSchedulesScreen() {
           onChangeText={setLabel}
           placeholder="Label (e.g. Morning, Evening, Closing)"
           placeholderTextColor={appTheme.colors.textSubtle}
-          editable={!createMutation.isPending}
+          editable={!busy}
           autoCapitalize="words"
           returnKeyType="next"
           submitBehavior="submit"
@@ -156,7 +198,7 @@ export function TemperatureSchedulesScreen() {
             placeholderTextColor={appTheme.colors.textSubtle}
             keyboardType="number-pad"
             maxLength={2}
-            editable={!createMutation.isPending}
+            editable={!busy}
             returnKeyType="next"
             submitBehavior="submit"
             onSubmitEditing={() => minuteRef.current?.focus()}
@@ -171,7 +213,7 @@ export function TemperatureSchedulesScreen() {
             placeholderTextColor={appTheme.colors.textSubtle}
             keyboardType="number-pad"
             maxLength={2}
-            editable={!createMutation.isPending}
+            editable={!busy}
             returnKeyType="done"
           />
         </View>
@@ -219,10 +261,23 @@ export function TemperatureSchedulesScreen() {
         </View>
 
         <PrimaryButton
-          label={createMutation.isPending ? "Adding..." : "Add schedule"}
-          onPress={() => createMutation.mutate()}
-          disabled={!canAdd}
+          label={
+            editingId
+              ? updateMutation.isPending
+                ? "Saving..."
+                : "Save changes"
+              : createMutation.isPending
+                ? "Adding..."
+                : "Add schedule"
+          }
+          onPress={() => (editingId ? updateMutation.mutate() : createMutation.mutate())}
+          disabled={!canSubmit}
         />
+        {editingId ? (
+          <Pressable style={styles.cancelBtn} onPress={cancelEdit} disabled={busy}>
+            <Text style={styles.cancelBtnText}>Cancel</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       <View style={ui.card}>
@@ -244,6 +299,12 @@ export function TemperatureSchedulesScreen() {
                 </Text>
               </View>
               <View style={styles.rowActions}>
+                <Pressable
+                  style={[styles.iconBtn, editingId === schedule.id ? styles.iconBtnActive : null]}
+                  onPress={() => beginEdit(schedule)}
+                >
+                  <Ionicons name="create-outline" size={17} color={appTheme.colors.text} />
+                </Pressable>
                 <Pressable style={styles.iconBtn} onPress={() => void toggleActive(schedule)}>
                   <Ionicons
                     name={schedule.isActive ? "pause-circle-outline" : "play-circle-outline"}
@@ -326,5 +387,19 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.surface,
     alignItems: "center",
     justifyContent: "center",
+  },
+  iconBtnActive: {
+    borderColor: appTheme.colors.primary,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+  },
+  cancelBtn: {
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+  cancelBtnText: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
   },
 });

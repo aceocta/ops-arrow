@@ -347,7 +347,7 @@ select {
 .plan-item-main { display: flex; align-items: center; gap: 8px; }
 .plan-item-sub { font-size: 12px; }
 
-.plan-editor { padding: 22px; }
+.plan-editor { padding: 22px !important; }
 .plan-editor-head {
   display: flex; align-items: flex-start; justify-content: space-between;
   gap: 16px; flex-wrap: wrap; margin-bottom: 8px;
