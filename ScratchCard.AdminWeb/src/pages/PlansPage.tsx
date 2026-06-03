@@ -33,6 +33,27 @@ export function PlansPage() {
       ) : null}
 
       <div className="plans-layout">
+        {/* Mobile plan picker — replaces the card list under the responsive breakpoint. */}
+        <select
+          className="plan-select"
+          aria-label="Select plan"
+          value={selectedPlanId ?? ""}
+          disabled={plansQuery.isLoading || plans.length === 0}
+          onChange={(e) => setSelectedPlanId(e.target.value)}
+        >
+          {plans.length === 0 ? (
+            <option value="">No plans</option>
+          ) : (
+            plans.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} · {p.billingCycle} · {p.includedFeatures.length} feature
+                {p.includedFeatures.length === 1 ? "" : "s"}
+                {p.isActive ? "" : " · Inactive"}
+              </option>
+            ))
+          )}
+        </select>
+
         <div className="card plans-list">
           {plansQuery.isLoading ? (
             <div className="empty-cell">Loading plans…</div>
@@ -163,7 +184,10 @@ function PlanFeatureEditor({ plan, features }: { plan: SubscriptionPlan; feature
       <div className="plan-editor-head">
         <div>
           <h2>{plan.name}</h2>
-          <p className="muted">{enabled.size} of {features.length} features enabled</p>
+          <p className="muted">
+            {enabled.size} of {features.length} features enabled
+            {plan.isActive ? "" : " · Inactive"}
+          </p>
         </div>
         <div className="row-actions">
           {dirty ? <span className="badge badge-warn">Unsaved changes</span> : null}

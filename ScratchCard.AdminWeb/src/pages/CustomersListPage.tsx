@@ -41,6 +41,23 @@ export function CustomersListPage() {
         </form>
       </div>
 
+      {data ? (
+        <div className="list-summary" role="group" aria-label="Customers summary">
+          <div className="list-summary__stat">
+            <span className="list-summary__value">{data.totalCount}</span>
+            <span className="list-summary__label">Total</span>
+          </div>
+          <div className="list-summary__stat">
+            <span className="list-summary__value">{data.items.filter((c) => c.isActive).length}</span>
+            <span className="list-summary__label">Active (page)</span>
+          </div>
+          <div className="list-summary__stat">
+            <span className="list-summary__value">{data.items.filter((c) => !c.isActive).length}</span>
+            <span className="list-summary__label">Inactive (page)</span>
+          </div>
+        </div>
+      ) : null}
+
       {query.isError ? (
         <div className="error-banner">{getApiErrorMessage(query.error, "Failed to load customers.")}</div>
       ) : null}

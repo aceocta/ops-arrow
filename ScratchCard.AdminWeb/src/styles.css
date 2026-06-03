@@ -119,6 +119,19 @@ button { font-family: inherit; }
 }
 .back-link:hover { color: var(--primary); }
 
+/* ---------- List summary (mobile only — revealed in the responsive block below) ---------- */
+.list-summary { display: none; }
+.list-summary__stat {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow-sm);
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; min-width: 0;
+}
+.list-summary__value { font-size: 22px; font-weight: 800; letter-spacing: -0.4px; color: var(--text); }
+.list-summary__label {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--text-subtle);
+}
+
 /* ---------- Card ---------- */
 .card {
   background: var(--surface); border: 1px solid var(--border);
@@ -273,6 +286,9 @@ select {
   .search-row { width: 100%; }
   .search-row input { min-width: 0; flex: 1; }
 
+  /* Quick at-a-glance counts above the reflowed list cards. */
+  .list-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+
   .form-grid { grid-template-columns: 1fr; padding: 18px; }
   .kv { gap: 18px; }
   .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -314,6 +330,13 @@ select {
 }
 
 .plans-list { display: flex; flex-direction: column; padding: 8px; gap: 4px; }
+/* Mobile-only plan picker; shown in place of .plans-list under the responsive breakpoint. */
+.plan-select {
+  display: none; width: 100%; padding: 11px 14px; font: inherit; font-weight: 600;
+  color: var(--text); background: var(--surface);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+}
+.plan-select:disabled { color: var(--text-subtle); background: var(--surface-2); }
 .plan-item {
   display: flex; flex-direction: column; gap: 4px; align-items: flex-start;
   padding: 12px 14px; border: 1px solid transparent; border-radius: 10px;
@@ -365,6 +388,7 @@ select {
 
 @media (max-width: 720px) {
   .plans-layout { grid-template-columns: 1fr; }
-  .plans-list { flex-direction: row; overflow-x: auto; }
-  .plan-item { min-width: 180px; }
+  /* Swap the horizontal card list for a clean native dropdown on small screens. */
+  .plans-list { display: none; }
+  .plan-select { display: block; }
 }
