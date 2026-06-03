@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import {
   getTemperatureDailyLog,
+  listTemperatureSchedules,
   listTemperatureUnits,
   recordTemperatureReading,
 } from "../../api/temperatureLogsApi";
@@ -20,6 +21,12 @@ import { KpiGrid, KpiTile } from "../../components/KpiTile";
 import { Skeleton } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
 import type { MainStackParamList } from "../../types/navigation";
+import type {
+  TemperatureMonitoringUnit,
+  TemperatureReading,
+  TemperatureSchedule,
+  TemperatureScheduleCellState,
+} from "../../types/models";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -170,6 +177,133 @@ function shiftDateByDays(dateValue: string, days: number) {
   return formatDateValue(shifted);
 }
 
+// A scheduled check for one unit on the selected day: the expected slot plus whatever reading
+// (if any) was logged against it. State mirrors the schedule-grid report: OnTime / Late when a
+// reading matched, Pending / Missed when none did.
+type ScheduledSlotView = {
+  scheduleId: string;
+  label: string;
+  expectedTime: string; // "HH:mm"
+  state: TemperatureScheduleCellState | "Pending";
+  reading?: TemperatureReading;
+};
+
+function slotStateMeta(state: ScheduledSlotView["state"]): { label: string; color: string } {
+  switch (state) {
+    case "OnTime":
+      return { label: "On time", color: appTheme.colors.success };
+    case "Late":
+      return { label: "Late", color: appTheme.colors.warning };
+    case "Missed":
+      return { label: "Missed", color: appTheme.colors.danger };
+    default:
+      return { label: "Pending", color: appTheme.colors.textSubtle };
+  }
+}
+
+function parseTimeToMinutes(value: string): number | null {
+  const match = /^(\d{1,2}):(\d{2})/.exec(value.trim());
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+  return hours * 60 + minutes;
+}
+
+// Match the active schedules that apply to this unit (per-unit schedules + shop-wide ones with a
+// null unit id, same rule the grid report uses) against the day's readings via reading.scheduleId.
+// nowMinutes is the current minute-of-day, or null when the selected day isn't today (so past days
+// with no reading read as Missed and future days as Pending without a clock comparison).
+function buildScheduledSlots(
+  unit: TemperatureMonitoringUnit,
+  readings: TemperatureReading[],
+  schedules: TemperatureSchedule[],
+  selectedDate: string,
+  today: string,
+  nowMinutes: number | null,
+): ScheduledSlotView[] {
+  return schedules
+    .filter(
+      (schedule) =>
+        schedule.isActive &&
+        (!schedule.temperatureMonitoringUnitId || schedule.temperatureMonitoringUnitId === unit.id),
+    )
+    .sort((a, b) => a.expectedTime.localeCompare(b.expectedTime))
+    .map((schedule) => {
+      const expectedTime = schedule.expectedTime.slice(0, 5);
+      // Last reading wins when several were logged against the same slot.
+      const matched = readings.filter((reading) => reading.scheduleId === schedule.id).pop();
+
+      if (matched) {
+        return {
+          scheduleId: schedule.id,
+          label: schedule.label,
+          expectedTime,
+          state: matched.isLateForSchedule ? "Late" : "OnTime",
+          reading: matched,
+        };
+      }
+
+      let state: ScheduledSlotView["state"];
+      if (selectedDate < today) {
+        state = "Missed";
+      } else if (selectedDate > today) {
+        state = "Pending";
+      } else {
+        const expectedMinutes = parseTimeToMinutes(schedule.expectedTime);
+        state =
+          expectedMinutes != null && nowMinutes != null && nowMinutes > expectedMinutes + schedule.toleranceMinutes
+            ? "Missed"
+            : "Pending";
+      }
+
+      return { scheduleId: schedule.id, label: schedule.label, expectedTime, state };
+    });
+}
+
+// Renders one row per scheduled check — expected time + label on the left, the logged
+// temperature (coloured by in/out of range) or a Pending/Missed state on the right. Renders
+// nothing when the unit has no schedules, so shops without schedules are unaffected.
+function ScheduledSlotsBlock({ slots }: { slots: ScheduledSlotView[] }) {
+  if (slots.length === 0) return null;
+  return (
+    <View style={styles.scheduleBlock}>
+      <Text style={styles.scheduleBlockTitle}>Scheduled checks</Text>
+      {slots.map((slot) => {
+        const meta = slotStateMeta(slot.state);
+        return (
+          <View key={slot.scheduleId} style={styles.scheduleSlotRow}>
+            <View style={styles.scheduleSlotHead}>
+              <Text style={styles.scheduleSlotTime}>{slot.expectedTime}</Text>
+              <Text style={styles.scheduleSlotLabel} numberOfLines={1}>
+                {slot.label}
+              </Text>
+            </View>
+            <View style={styles.scheduleSlotValueWrap}>
+              {slot.reading ? (
+                <Text
+                  style={[
+                    styles.scheduleSlotTemp,
+                    slot.reading.isOutOfRange ? styles.scheduleSlotDanger : styles.scheduleSlotOk,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {slot.reading.readingTime} · {formatTemperature(Number(slot.reading.temperatureCelsius))}
+                </Text>
+              ) : (
+                <Text style={[styles.scheduleSlotState, { color: meta.color }]}>{meta.label}</Text>
+              )}
+              {slot.reading && slot.state === "Late" ? (
+                <Text style={styles.scheduleSlotLateTag}>Late</Text>
+              ) : null}
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 export function TemperatureLogScreen() {
   const route = useRoute<RouteProp<MainStackParamList, "TemperatureLogs">>();
   const initialDate = route.params?.date ?? formatDateValue(new Date());
@@ -227,6 +361,27 @@ export function TemperatureLogScreen() {
     queryFn: () => getTemperatureDailyLog(shopId as string, selectedDate),
     enabled: Boolean(shopId) && selectedDate.length === 10,
   });
+
+  const schedulesQuery = useQuery({
+    queryKey: ["temperature-schedules", shopId],
+    queryFn: () => listTemperatureSchedules(shopId as string),
+    enabled: Boolean(shopId),
+    staleTime: 10 * 60 * 1000,
+  });
+
+  // Current minute-of-day, only when the selected day is today — drives Pending vs Missed for
+  // slots with no reading. Null on other days so past = Missed, future = Pending without a clock.
+  const nowMinutes = useMemo(() => {
+    if (selectedDate !== today) return null;
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes();
+  }, [selectedDate, today]);
+
+  const scheduledSlotsFor = useCallback(
+    (unit: TemperatureMonitoringUnit, readings: TemperatureReading[]) =>
+      buildScheduledSlots(unit, readings, schedulesQuery.data ?? [], selectedDate, today, nowMinutes),
+    [schedulesQuery.data, selectedDate, today, nowMinutes],
+  );
 
   const onPullRefresh = useCallback(async () => {
     await Promise.all([unitsQuery.refetch(), dailyLogQuery.refetch()]);
@@ -736,6 +891,8 @@ export function TemperatureLogScreen() {
                 </Text>
               </View>
 
+              <ScheduledSlotsBlock slots={scheduledSlotsFor(unitLog.unit, unitLog.readings)} />
+
               <View style={styles.logHeaderRow}>
                 <Text style={[styles.logHeaderCell, styles.logColTime]}>Time</Text>
                 <Text style={[styles.logHeaderCell, styles.logColTemp]}>Temp</Text>
@@ -869,6 +1026,9 @@ export function TemperatureLogScreen() {
                     Range: {formatTemperature(selectedUnit.minTemperatureCelsius)} to {formatTemperature(selectedUnit.maxTemperatureCelsius)}
                   </Text>
                 </View>
+              ) : null}
+              {selectedUnit ? (
+                <ScheduledSlotsBlock slots={scheduledSlotsFor(selectedUnit, selectedUnitLog?.readings ?? [])} />
               ) : null}
               <View style={styles.unitHeaderDivider} />
               <View style={styles.row}>
@@ -1249,6 +1409,72 @@ const styles = StyleSheet.create({
   },
   unitChipLabelActive: {
     color: appTheme.colors.onPrimary,
+  },
+  scheduleBlock: {
+    gap: 4,
+    paddingVertical: appTheme.spacing.xs,
+  },
+  scheduleBlockTitle: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 16,
+    textTransform: "uppercase",
+  },
+  scheduleSlotRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.xs,
+    paddingVertical: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: appTheme.colors.borderSoft,
+  },
+  scheduleSlotHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flex: 1,
+  },
+  scheduleSlotTime: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 17,
+  },
+  scheduleSlotLabel: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
+    flexShrink: 1,
+  },
+  scheduleSlotValueWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  scheduleSlotTemp: {
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 17,
+  },
+  scheduleSlotOk: {
+    color: appTheme.colors.success,
+  },
+  scheduleSlotDanger: {
+    color: appTheme.colors.danger,
+  },
+  scheduleSlotState: {
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 17,
+  },
+  scheduleSlotLateTag: {
+    color: appTheme.colors.warning,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 14,
   },
   unitHeaderDivider: {
     height: 1,
