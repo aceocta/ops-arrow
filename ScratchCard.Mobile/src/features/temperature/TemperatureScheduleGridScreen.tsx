@@ -38,6 +38,7 @@ function shortTime(value?: string) {
 
 const STATE_GLYPH: Record<TemperatureScheduleCellState, string> = {
   OnTime: "✓",
+  Early: "«",
   Late: "⚠",
   Missed: "✗",
   Upcoming: "–",
@@ -47,6 +48,8 @@ function stateStyle(state: TemperatureScheduleCellState) {
   switch (state) {
     case "OnTime":
       return { wrap: styles.cellOnTime, text: styles.cellOnTimeText };
+    case "Early":
+      return { wrap: styles.cellEarly, text: styles.cellEarlyText };
     case "Late":
       return { wrap: styles.cellLate, text: styles.cellLateText };
     case "Missed":
@@ -267,6 +270,7 @@ function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
       <View style={[ui.card, styles.compactCard]}>
         <View style={styles.legendRow}>
           <Text style={[styles.legendItem, styles.cellOnTimeText]}>✓ {grid.onTimeCount}</Text>
+          <Text style={[styles.legendItem, styles.cellEarlyText]}>« {grid.earlyCount}</Text>
           <Text style={[styles.legendItem, styles.cellLateText]}>⚠ {grid.lateCount}</Text>
           <Text style={[styles.legendItem, styles.cellMissedText]}>✗ {grid.missedCount}</Text>
           <Text style={[styles.legendItem, styles.inRangeText]}>● In {inRangeCount}</Text>
@@ -381,6 +385,7 @@ function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
 
 const STATE_LABEL: Record<TemperatureScheduleCellState, string> = {
   OnTime: "On time",
+  Early: "Early",
   Late: "Late",
   Missed: "Missed",
   Upcoming: "Upcoming",
@@ -572,11 +577,13 @@ const styles = StyleSheet.create({
   headerText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 15 },
   headerSubText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 11, lineHeight: 13 },
   cellOnTime: { backgroundColor: appTheme.colors.surfaceSuccessMuted },
+  cellEarly: { backgroundColor: appTheme.colors.surfaceWarningSoft },
   cellLate: { backgroundColor: appTheme.colors.surfaceWarningSoft },
   cellMissed: { backgroundColor: appTheme.colors.surfaceDangerSoft },
   cellUpcoming: { backgroundColor: appTheme.colors.surface },
   cellGlyph: { fontFamily: appTheme.fonts.bodyMedium, fontSize: 15, lineHeight: 18 },
   cellOnTimeText: { color: appTheme.colors.success },
+  cellEarlyText: { color: appTheme.colors.warning },
   cellLateText: { color: appTheme.colors.warning },
   cellMissedText: { color: appTheme.colors.danger },
   cellUpcomingText: { color: appTheme.colors.textSubtle },

@@ -16,6 +16,13 @@ public class CfgTemperatureSchedule : AuditableEntity
     public string Label { get; set; } = string.Empty;
     public bool IsActive { get; set; } = true;
 
+    // True for the single per-shop "Random check" bucket row. A random schedule has no meaningful
+    // ExpectedTime/ToleranceMinutes — readings bound to it are ad-hoc/extra checks that are never
+    // evaluated for early/late/missed. It is excluded from the schedule-management list, the report
+    // grid, the time-window matcher, and missed-alert sweeps. Enforced unique per shop by a filtered
+    // index (see ApplicationDbContext). A shop has at most one.
+    public bool IsRandom { get; set; }
+
     public Shop Shop { get; set; } = null!;
     public TemperatureMonitoringUnit? TemperatureMonitoringUnit { get; set; }
 }

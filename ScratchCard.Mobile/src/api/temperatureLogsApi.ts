@@ -141,6 +141,9 @@ export async function recordTemperatureReading(payload: {
   checkedByInitials?: string;
   notes?: string;
   actionTaken?: string;
+  // Scheduled slot to log against, or the shop's random-check schedule for an ad-hoc check.
+  // Omit to let the server place the reading (window-match a slot, else the random bucket).
+  scheduleId?: string;
 }) {
   const response = await apiClient.post<ApiResponse<TemperatureReading>>("/temperature-logs/readings", payload);
   return mapReading(response.data.data);

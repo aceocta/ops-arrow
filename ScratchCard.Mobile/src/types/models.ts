@@ -809,7 +809,7 @@ export type TemperatureScheduleGridUnit = {
   unitName: string;
 };
 
-export type TemperatureScheduleCellState = "Upcoming" | "OnTime" | "Late" | "Missed";
+export type TemperatureScheduleCellState = "Upcoming" | "OnTime" | "Late" | "Missed" | "Early";
 
 export type TemperatureScheduleGridCell = {
   date: string;
@@ -830,6 +830,7 @@ export type TemperatureScheduleGrid = {
   slots: TemperatureScheduleGridSlot[];
   cells: TemperatureScheduleGridCell[];
   onTimeCount: number;
+  earlyCount: number;
   lateCount: number;
   missedCount: number;
 };

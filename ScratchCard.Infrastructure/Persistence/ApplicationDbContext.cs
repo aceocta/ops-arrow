@@ -899,6 +899,10 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<CfgTemperatureSchedule>(entity =>
         {
             entity.HasIndex(x => new { x.ShopId, x.IsActive });
+            // At most one random-check bucket per shop.
+            entity.HasIndex(x => x.ShopId)
+                .IsUnique()
+                .HasFilter("[IsRandom] = 1");
             entity.Property(x => x.Label).HasMaxLength(200);
             entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(x => x.TemperatureMonitoringUnit).WithMany().HasForeignKey(x => x.TemperatureMonitoringUnitId).OnDelete(DeleteBehavior.SetNull);

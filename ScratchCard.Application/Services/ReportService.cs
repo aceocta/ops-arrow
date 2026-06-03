@@ -152,7 +152,7 @@ public class ReportService : IReportService
 
         var schedules = await _temperatureScheduleRepository.Query()
             .AsNoTracking()
-            .Where(x => x.ShopId == shopId && x.IsActive)
+            .Where(x => x.ShopId == shopId && x.IsActive && !x.IsRandom)
             .OrderBy(x => x.ExpectedTime)
             .ThenBy(x => x.Label)
             .ToListAsync(cancellationToken);
@@ -171,35 +171,40 @@ public class ReportService : IReportService
 
         var readingsQuery = _temperatureReadingRepository.Query()
             .AsNoTracking()
-            .Where(x => x.ShopId == shopId && x.ReadingDate >= from && x.ReadingDate <= to && x.ScheduleId != null);
+            .Where(x => x.ShopId == shopId && x.ReadingDate >= from && x.ReadingDate <= to);
         if (unitId.HasValue)
         {
             readingsQuery = readingsQuery.Where(x => x.TemperatureMonitoringUnitId == unitId.Value);
         }
+        // Re-derive the slot assignment here from reading times (rather than trusting the stored
+        // ScheduleId) so the report follows the same time-window rules as the mobile screen even
+        // for readings recorded under older matching logic.
         var readings = await readingsQuery
-            .Select(x => new
-            {
+            .Select(x => new GridReading(
                 x.Id,
                 x.TemperatureMonitoringUnitId,
-                x.ScheduleId,
                 x.ReadingDate,
                 x.ReadingTime,
                 x.TemperatureCelsius,
-                x.IsOutOfRange,
-                x.IsLateForSchedule
-            })
+                x.IsOutOfRange))
             .ToListAsync(cancellationToken);
 
-        // Index readings by (date, unit, schedule) so the cell builder is O(1) per slot.
-        var readingByKey = readings.ToDictionary(
-            r => (r.ReadingDate, r.TemperatureMonitoringUnitId, r.ScheduleId!.Value),
-            r => r);
+        var readingsByDateUnit = readings
+            .GroupBy(r => (r.ReadingDate, r.UnitId))
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        // Applicable, window-sorted slots per unit — computed once and reused across every date.
+        var slotsByUnit = units.ToDictionary(
+            u => u.UnitId,
+            u => TemperatureScheduleWindows.SortByTime(
+                schedules.Where(s => s.TemperatureMonitoringUnitId == null || s.TemperatureMonitoringUnitId == u.UnitId)));
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var nowTime = TimeOnly.FromDateTime(DateTime.UtcNow);
 
         var cells = new List<TemperatureScheduleGridCellDto>();
         var onTime = 0;
+        var early = 0;
         var late = 0;
         var missed = 0;
 
@@ -207,10 +212,30 @@ public class ReportService : IReportService
         {
             foreach (var unit in units)
             {
-                var applicableSlots = schedules
-                    .Where(s => s.TemperatureMonitoringUnitId == null || s.TemperatureMonitoringUnitId == unit.UnitId);
+                var sorted = slotsByUnit[unit.UnitId];
+                if (sorted.Count == 0) continue;
 
-                foreach (var slot in applicableSlots)
+                // Window-assign this day's readings to slots, keeping the reading closest to each
+                // slot's expected time as the representative shown in the grid.
+                var representativeBySlot = new Dictionary<Guid, GridReading>();
+                if (readingsByDateUnit.TryGetValue((date, unit.UnitId), out var dayReadings))
+                {
+                    foreach (var reading in dayReadings)
+                    {
+                        var index = TemperatureScheduleWindows.AssignIndex(sorted, reading.ReadingTime);
+                        if (index < 0) continue;
+                        var assignedSlot = sorted[index];
+                        if (representativeBySlot.TryGetValue(assignedSlot.Id, out var current)
+                            && TemperatureScheduleWindows.DistanceToExpected(assignedSlot, current.ReadingTime)
+                                <= TemperatureScheduleWindows.DistanceToExpected(assignedSlot, reading.ReadingTime))
+                        {
+                            continue;
+                        }
+                        representativeBySlot[assignedSlot.Id] = reading;
+                    }
+                }
+
+                foreach (var slot in sorted)
                 {
                     var cell = new TemperatureScheduleGridCellDto
                     {
@@ -219,22 +244,30 @@ public class ReportService : IReportService
                         ScheduleId = slot.Id
                     };
 
-                    if (readingByKey.TryGetValue((date, unit.UnitId, slot.Id), out var reading))
+                    if (representativeBySlot.TryGetValue(slot.Id, out var reading))
                     {
                         cell.ReadingId = reading.Id;
                         cell.ReadingTime = reading.ReadingTime;
                         cell.TemperatureCelsius = reading.TemperatureCelsius;
                         cell.IsOutOfRange = reading.IsOutOfRange;
-                        cell.IsLate = reading.IsLateForSchedule;
-                        cell.State = reading.IsLateForSchedule
-                            ? TemperatureScheduleCellState.Late
-                            : TemperatureScheduleCellState.OnTime;
-                        if (cell.State == TemperatureScheduleCellState.Late) late++;
-                        else onTime++;
+                        cell.State = TemperatureScheduleWindows.Classify(slot, reading.ReadingTime);
+                        cell.IsLate = cell.State == TemperatureScheduleCellState.Late;
+                        switch (cell.State)
+                        {
+                            case TemperatureScheduleCellState.Early:
+                                early++;
+                                break;
+                            case TemperatureScheduleCellState.Late:
+                                late++;
+                                break;
+                            default:
+                                onTime++;
+                                break;
+                        }
                     }
                     else
                     {
-                        // No reading yet — Upcoming if the slot's tolerance window hasn't closed.
+                        // No reading in this slot's window — Upcoming until its tolerance window closes, then Missed.
                         var slotCutoff = slot.ExpectedTime.ToTimeSpan() + TimeSpan.FromMinutes(slot.ToleranceMinutes);
                         var stillOpen = date > today
                             || (date == today && nowTime.ToTimeSpan() <= slotCutoff);
@@ -264,10 +297,20 @@ public class ReportService : IReportService
             }).ToArray(),
             Cells = cells,
             OnTimeCount = onTime,
+            EarlyCount = early,
             LateCount = late,
             MissedCount = missed
         };
     }
+
+    // Projection of the reading fields the grid needs, named so it can key a Dictionary.
+    private sealed record GridReading(
+        Guid Id,
+        Guid UnitId,
+        DateOnly ReadingDate,
+        TimeOnly ReadingTime,
+        decimal TemperatureCelsius,
+        bool IsOutOfRange);
 
     public async Task<IReadOnlyCollection<StockReportRowDto>> GetStockReportAsync(Guid shopId, CancellationToken cancellationToken = default)
     {

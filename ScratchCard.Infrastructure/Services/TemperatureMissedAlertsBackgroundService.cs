@@ -82,7 +82,7 @@ public sealed class TemperatureMissedAlertsBackgroundService : BackgroundService
         // shop is skipped. We don't filter by feature here — the per-shop check happens below.
         var schedules = await dbContext.CfgTemperatureSchedules
             .AsNoTracking()
-            .Where(s => s.IsActive)
+            .Where(s => s.IsActive && !s.IsRandom)
             .ToListAsync(cancellationToken);
 
         if (schedules.Count == 0) return;
@@ -105,6 +105,24 @@ public sealed class TemperatureMissedAlertsBackgroundService : BackgroundService
                 .Select(r => new { r.TemperatureMonitoringUnitId, r.ReadingTime })
                 .ToListAsync(cancellationToken);
 
+            // A slot counts as covered when a reading falls into its time window — the same window
+            // assignment the log screen and grid report use — so an early or late reading suppresses
+            // the missed alert, not only one inside the tolerance band. Computed per unit because a
+            // reading's window depends on the full slot sequence applicable to that unit.
+            var coveredScheduleIds = new HashSet<Guid>();
+            foreach (var unitReadings in readings.GroupBy(r => r.TemperatureMonitoringUnitId))
+            {
+                var applicable = TemperatureScheduleWindows.SortByTime(
+                    shopSchedules.Where(s => s.TemperatureMonitoringUnitId == null
+                        || s.TemperatureMonitoringUnitId == unitReadings.Key));
+                if (applicable.Count == 0) continue;
+                foreach (var reading in unitReadings)
+                {
+                    var index = TemperatureScheduleWindows.AssignIndex(applicable, reading.ReadingTime);
+                    if (index >= 0) coveredScheduleIds.Add(applicable[index].Id);
+                }
+            }
+
             // Push-only delivery: every logged-in device for this shop with an active push token.
             // Tokens are registered on login and removed on logout. (Missed alerts used to go out by
             // email; they are now push-only, matching the temperature-log reminder.)
@@ -120,16 +138,12 @@ public sealed class TemperatureMissedAlertsBackgroundService : BackgroundService
             {
                 if (fired.Contains((schedule.Id, today))) continue;
 
-                // Slot has not yet ended.
+                // Slot's tolerance window has not yet ended — not overdue, so nothing to alert on.
                 var slotEnd = schedule.ExpectedTime.AddMinutes(schedule.ToleranceMinutes);
                 if (nowTime < slotEnd) continue;
 
-                // Was there a reading inside the slot window for the right unit?
-                var slotStart = schedule.ExpectedTime.AddMinutes(-schedule.ToleranceMinutes);
-                var hit = readings.Any(r =>
-                    (schedule.TemperatureMonitoringUnitId == null || r.TemperatureMonitoringUnitId == schedule.TemperatureMonitoringUnitId) &&
-                    r.ReadingTime >= slotStart && r.ReadingTime <= slotEnd);
-                if (hit) continue;
+                // A reading fell into this slot's window (early, on time, or late) — not missed.
+                if (coveredScheduleIds.Contains(schedule.Id)) continue;
 
                 fired.Add((schedule.Id, today));
 

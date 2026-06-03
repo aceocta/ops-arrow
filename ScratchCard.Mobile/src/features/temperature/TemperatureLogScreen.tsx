@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { RouteProp, useRoute } from "@react-navigation/native";
+import { NavigationProp, RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -17,7 +17,6 @@ import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SectionHeader } from "../../components/SectionHeader";
-import { KpiGrid, KpiTile } from "../../components/KpiTile";
 import { Skeleton } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
 import type { MainStackParamList } from "../../types/navigation";
@@ -184,7 +183,9 @@ type ScheduledSlotView = {
   scheduleId: string;
   label: string;
   expectedTime: string; // "HH:mm"
-  state: TemperatureScheduleCellState | "Pending";
+  // "Early" = logged before the slot but outside tolerance; "Late" = after. Both derive from the
+  // server's isLateForSchedule flag (which conflates the two) split by reading-vs-expected time.
+  state: TemperatureScheduleCellState | "Pending" | "Early";
   reading?: TemperatureReading;
 };
 
@@ -192,6 +193,8 @@ function slotStateMeta(state: ScheduledSlotView["state"]): { label: string; colo
   switch (state) {
     case "OnTime":
       return { label: "On time", color: appTheme.colors.success };
+    case "Early":
+      return { label: "Early", color: appTheme.colors.warning };
     case "Late":
       return { label: "Late", color: appTheme.colors.warning };
     case "Missed":
@@ -210,10 +213,33 @@ function parseTimeToMinutes(value: string): number | null {
   return hours * 60 + minutes;
 }
 
-// Match the active schedules that apply to this unit (per-unit schedules + shop-wide ones with a
-// null unit id, same rule the grid report uses) against the day's readings via reading.scheduleId.
-// nowMinutes is the current minute-of-day, or null when the selected day isn't today (so past days
-// with no reading read as Missed and future days as Pending without a clock comparison).
+// One selectable check in the entry modal's "Which check?" picker. id is the scheduled slot's id,
+// or null for the "Random / extra check" option (logged against the shop's random bucket server-side).
+type ScheduleOption = { id: string | null; time: string; label: string; expectedMinutes: number | null };
+
+// The scheduled slot whose time window contains readingTime — used to pre-select the most likely
+// check when the entry modal opens (the last slot at or before the reading; readings before the
+// first slot pick it). Returns null (Random) when the unit has no scheduled slots. Slots with a
+// null id (the Random option) are ignored as default targets.
+function defaultScheduleIdForTime(options: ScheduleOption[], readingTime: string): string | null {
+  const minutes = parseTimeToMinutes(readingTime);
+  const slots = options.filter((opt) => opt.id != null);
+  if (minutes == null || slots.length === 0) return null;
+  let chosen = slots[0];
+  for (const slot of slots) {
+    if (slot.expectedMinutes != null && slot.expectedMinutes <= minutes) chosen = slot;
+  }
+  return chosen.id;
+}
+
+// Assigns the day's readings to this unit's scheduled checks. A reading goes to the check it was
+// explicitly logged against (its scheduleId); a Random/extra check (or any id that isn't one of
+// this unit's slots) is left out of the grid. Legacy readings with no scheduleId fall back to the
+// time window they fall in (the last slot at or before the reading; readings before the first slot
+// belong to it). Status within the slot: within tolerance = OnTime, before tolerance = Early, after
+// tolerance = Late. A slot with no reading is Missed once its window has passed (today: past
+// expectedTime + tolerance; earlier days: always), otherwise Pending.
+// nowMinutes is the current minute-of-day, or null when the selected day isn't today.
 function buildScheduledSlots(
   unit: TemperatureMonitoringUnit,
   readings: TemperatureReading[],
@@ -222,87 +248,96 @@ function buildScheduledSlots(
   today: string,
   nowMinutes: number | null,
 ): ScheduledSlotView[] {
-  return schedules
+  const slots = schedules
     .filter(
       (schedule) =>
         schedule.isActive &&
         (!schedule.temperatureMonitoringUnitId || schedule.temperatureMonitoringUnitId === unit.id),
     )
     .sort((a, b) => a.expectedTime.localeCompare(b.expectedTime))
-    .map((schedule) => {
-      const expectedTime = schedule.expectedTime.slice(0, 5);
-      // Last reading wins when several were logged against the same slot.
-      const matched = readings.filter((reading) => reading.scheduleId === schedule.id).pop();
+    .map((schedule) => ({
+      schedule,
+      expectedMinutes: parseTimeToMinutes(schedule.expectedTime),
+      expectedTime: schedule.expectedTime.slice(0, 5),
+    }));
 
-      if (matched) {
-        return {
-          scheduleId: schedule.id,
-          label: schedule.label,
-          expectedTime,
-          state: matched.isLateForSchedule ? "Late" : "OnTime",
-          reading: matched,
-        };
+  if (slots.length === 0) return [];
+
+  // Bucket each reading against the check it was logged for. Prefer the explicit scheduleId binding;
+  // fall back to time-window assignment only for legacy readings that have no binding.
+  const slotIds = new Set(slots.map((slot) => slot.schedule.id));
+  const readingsBySlot = new Map<string, TemperatureReading[]>();
+  for (const reading of readings) {
+    const readingMinutes = parseTimeToMinutes(reading.readingTime);
+    if (readingMinutes == null) continue;
+
+    let slotId: string | null;
+    if (reading.scheduleId) {
+      // Explicit check. If it isn't one of this unit's slots (e.g. a Random/extra check), skip it.
+      slotId = slotIds.has(reading.scheduleId) ? reading.scheduleId : null;
+    } else {
+      // Legacy unbound reading: the last slot whose expected time is at or before it (slot 0 if none).
+      let assignedIndex = 0;
+      for (let i = 0; i < slots.length; i += 1) {
+        const expected = slots[i].expectedMinutes;
+        if (expected != null && expected <= readingMinutes) assignedIndex = i;
+      }
+      slotId = slots[assignedIndex].schedule.id;
+    }
+    if (slotId == null) continue;
+
+    const bucket = readingsBySlot.get(slotId);
+    if (bucket) bucket.push(reading);
+    else readingsBySlot.set(slotId, [reading]);
+  }
+
+  return slots.map(({ schedule, expectedMinutes, expectedTime }) => {
+    const tolerance = Math.max(0, schedule.toleranceMinutes);
+    const assigned = readingsBySlot.get(schedule.id) ?? [];
+
+    if (assigned.length > 0) {
+      // Represent the slot with the reading closest to its expected time, so an on-time reading
+      // wins over a stray early/late one bucketed into the same window.
+      let chosen = assigned[0];
+      let chosenDelta = Number.POSITIVE_INFINITY;
+      for (const reading of assigned) {
+        const readingMinutes = parseTimeToMinutes(reading.readingTime);
+        const delta =
+          readingMinutes != null && expectedMinutes != null
+            ? Math.abs(readingMinutes - expectedMinutes)
+            : Number.POSITIVE_INFINITY;
+        if (delta < chosenDelta) {
+          chosenDelta = delta;
+          chosen = reading;
+        }
       }
 
-      let state: ScheduledSlotView["state"];
-      if (selectedDate < today) {
-        state = "Missed";
-      } else if (selectedDate > today) {
-        state = "Pending";
-      } else {
-        const expectedMinutes = parseTimeToMinutes(schedule.expectedTime);
-        state =
-          expectedMinutes != null && nowMinutes != null && nowMinutes > expectedMinutes + schedule.toleranceMinutes
-            ? "Missed"
-            : "Pending";
+      const chosenMinutes = parseTimeToMinutes(chosen.readingTime);
+      let state: ScheduledSlotView["state"] = "OnTime";
+      if (chosenMinutes != null && expectedMinutes != null) {
+        if (chosenMinutes < expectedMinutes - tolerance) state = "Early";
+        else if (chosenMinutes > expectedMinutes + tolerance) state = "Late";
       }
 
-      return { scheduleId: schedule.id, label: schedule.label, expectedTime, state };
-    });
+      return { scheduleId: schedule.id, label: schedule.label, expectedTime, state, reading: chosen };
+    }
+
+    let state: ScheduledSlotView["state"];
+    if (selectedDate < today) {
+      state = "Missed";
+    } else if (selectedDate > today) {
+      state = "Pending";
+    } else {
+      state =
+        expectedMinutes != null && nowMinutes != null && nowMinutes > expectedMinutes + tolerance
+          ? "Missed"
+          : "Pending";
+    }
+
+    return { scheduleId: schedule.id, label: schedule.label, expectedTime, state };
+  });
 }
 
-// Renders one row per scheduled check — expected time + label on the left, the logged
-// temperature (coloured by in/out of range) or a Pending/Missed state on the right. Renders
-// nothing when the unit has no schedules, so shops without schedules are unaffected.
-function ScheduledSlotsBlock({ slots }: { slots: ScheduledSlotView[] }) {
-  if (slots.length === 0) return null;
-  return (
-    <View style={styles.scheduleBlock}>
-      <Text style={styles.scheduleBlockTitle}>Scheduled checks</Text>
-      {slots.map((slot) => {
-        const meta = slotStateMeta(slot.state);
-        return (
-          <View key={slot.scheduleId} style={styles.scheduleSlotRow}>
-            <View style={styles.scheduleSlotHead}>
-              <Text style={styles.scheduleSlotTime}>{slot.expectedTime}</Text>
-              <Text style={styles.scheduleSlotLabel} numberOfLines={1}>
-                {slot.label}
-              </Text>
-            </View>
-            <View style={styles.scheduleSlotValueWrap}>
-              {slot.reading ? (
-                <Text
-                  style={[
-                    styles.scheduleSlotTemp,
-                    slot.reading.isOutOfRange ? styles.scheduleSlotDanger : styles.scheduleSlotOk,
-                  ]}
-                  numberOfLines={1}
-                >
-                  {slot.reading.readingTime} · {formatTemperature(Number(slot.reading.temperatureCelsius))}
-                </Text>
-              ) : (
-                <Text style={[styles.scheduleSlotState, { color: meta.color }]}>{meta.label}</Text>
-              )}
-              {slot.reading && slot.state === "Late" ? (
-                <Text style={styles.scheduleSlotLateTag}>Late</Text>
-              ) : null}
-            </View>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
 
 type MatrixColumn = { label: string; expectedTime: string };
 type MatrixRow = { unit: TemperatureMonitoringUnit; cells: Array<ScheduledSlotView | null> };
@@ -317,7 +352,7 @@ function DailyScheduleMatrix({
 }: {
   columns: MatrixColumn[];
   rows: MatrixRow[];
-  onCellPress: (unitId: string, expectedTime: string) => void;
+  onCellPress: (unitId: string, scheduleId: string) => void;
 }) {
   if (columns.length === 0 || rows.length === 0) return null;
   return (
@@ -366,7 +401,7 @@ function DailyScheduleMatrix({
                     <Pressable
                       key={`${row.unit.id}|${i}`}
                       style={styles.matrixCell}
-                      onPress={() => onCellPress(row.unit.id, col.expectedTime)}
+                      onPress={() => onCellPress(row.unit.id, cell.scheduleId)}
                       accessibilityRole="button"
                       accessibilityLabel={`${row.unit.unitName}, ${col.label} ${col.expectedTime}, ${meta.label}`}
                     >
@@ -381,15 +416,23 @@ function DailyScheduleMatrix({
                           >
                             {formatTemperature(Number(cell.reading.temperatureCelsius))}
                           </Text>
-                          <Text style={styles.matrixCellMeta} numberOfLines={1}>
-                            {cell.reading.readingTime}
-                            {cell.state === "Late" ? " · Late" : ""}
-                          </Text>
+                          <View style={styles.matrixCellMetaRow}>
+                            <Text style={styles.matrixCellMeta} numberOfLines={1}>
+                              {cell.reading.readingTime}
+                            </Text>
+                            {cell.state === "Late" || cell.state === "Early" ? (
+                              <Text style={styles.scheduleSlotLateTag} numberOfLines={1}>
+                                {cell.state === "Early" ? "Early" : "Late"}
+                              </Text>
+                            ) : null}
+                          </View>
                         </>
                       ) : (
-                        <Text style={[styles.matrixCellState, { color: meta.color }]} numberOfLines={1}>
-                          {meta.label}
-                        </Text>
+                        <>
+                          <Text style={[styles.matrixCellState, { color: meta.color }]} numberOfLines={1}>
+                            {meta.label}
+                          </Text>
+                        </>
                       )}
                     </Pressable>
                   );
@@ -404,6 +447,7 @@ function DailyScheduleMatrix({
 
 export function TemperatureLogScreen() {
   const route = useRoute<RouteProp<MainStackParamList, "TemperatureLogs">>();
+  const navigation = useNavigation<NavigationProp<MainStackParamList>>();
   const initialDate = route.params?.date ?? formatDateValue(new Date());
   const queryClient = useQueryClient();
   const { activeShopId, profile } = useAuth();
@@ -412,6 +456,9 @@ export function TemperatureLogScreen() {
   const [entryDate, setEntryDate] = useState(formatDateValue(new Date()));
   const [readingTime, setReadingTime] = useState(formatTimeValue(new Date()));
   const [selectedUnitId, setSelectedUnitId] = useState("");
+  // Which check the in-progress entry is logged against: a scheduled slot's id, or null = "Random /
+  // extra check" (the server stores it against the shop's random bucket). Pre-selected on open.
+  const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(null);
   const [temperatureCelsius, setTemperatureCelsius] = useState("");
   const [checkedByInitials, setCheckedByInitials] = useState("");
   const [notes, setNotes] = useState("");
@@ -500,6 +547,10 @@ export function TemperatureLogScreen() {
   // Holds the unit we should jump to after a successful save when the user picks "Save & Next".
   // Captured before invoking the mutation so onSuccess can advance even after the form resets.
   const pendingNextUnitRef = useRef<string | null>(null);
+  // Carries an explicit check into the pre-select effect, set by a grid-cell launch or by Save &
+  // Next. undefined = no explicit pick pending (use the time-window default); null = Random;
+  // a string = that slot's schedule id.
+  const pendingScheduleIdRef = useRef<string | null | undefined>(undefined);
   const recordMutation = useMutation({
     mutationFn: async (_postAction: RecordPostAction) => {
       if (!shopId) throw new Error("No shop selected.");
@@ -534,6 +585,8 @@ export function TemperatureLogScreen() {
         checkedByInitials: checkedByInitials.trim() || undefined,
         notes: notes.trim() || undefined,
         actionTaken: normalizedActionTaken || undefined,
+        // null = Random / extra check → omit so the server stores it against the shop's random bucket.
+        scheduleId: selectedScheduleId ?? undefined,
       });
     },
     onSuccess: async (_data, postAction) => {
@@ -553,6 +606,10 @@ export function TemperatureLogScreen() {
         const savedUnitName = selectedUnit?.unitName;
         const nextUnitId = pendingNextUnitRef.current;
         pendingNextUnitRef.current = null;
+        // Carry the chosen check across to the next unit (AM/PM/Random are shop-wide) so the
+        // pre-select effect keeps it instead of recomputing the time-window default. Keeps null
+        // (Random) distinct from undefined so the Random choice survives too.
+        pendingScheduleIdRef.current = selectedScheduleId;
         resetEntryFormForUnit(nextUnitId);
         // Inline "saved" confirmation in the live-status banner (replaces the toast for this flow).
         if (savedFlashTimerRef.current) {
@@ -627,6 +684,42 @@ export function TemperatureLogScreen() {
   }, [dailyUnitLogs, scheduledSlotsFor]);
   const selectedUnitLog = dailyUnitLogs.find((x) => x.unit.id === selectedUnitId);
   const selectedUnit = selectedUnitLog?.unit ?? activeUnits.find((x) => x.id === selectedUnitId);
+
+  // Scheduled checks applicable to the selected unit (its own + shop-wide slots), time-ordered, as
+  // the options for the entry modal's "Which check?" picker. The random bucket is excluded from the
+  // schedules API, so it's offered as a separate null-id option rather than coming from this list.
+  const unitScheduleOptions = useMemo<ScheduleOption[]>(() => {
+    if (!selectedUnit) return [];
+    return (schedulesQuery.data ?? [])
+      .filter(
+        (schedule) =>
+          schedule.isActive &&
+          (!schedule.temperatureMonitoringUnitId || schedule.temperatureMonitoringUnitId === selectedUnit.id),
+      )
+      .map((schedule) => ({
+        id: schedule.id,
+        time: schedule.expectedTime.slice(0, 5),
+        label: schedule.label,
+        expectedMinutes: parseTimeToMinutes(schedule.expectedTime),
+      }))
+      .sort((a, b) => a.time.localeCompare(b.time));
+  }, [schedulesQuery.data, selectedUnit]);
+
+  // Pre-select the check when the modal opens or the unit changes: the slot whose window contains
+  // the reading time, else Random. Intentionally not keyed on readingTime so editing the time after
+  // opening doesn't override a pick the user made by hand.
+  useEffect(() => {
+    if (!isLogEntryModalVisible || !selectedUnit) return;
+    // A grid-cell launch pre-selects that exact slot; otherwise fall back to the time-window default.
+    if (pendingScheduleIdRef.current !== undefined) {
+      setSelectedScheduleId(pendingScheduleIdRef.current);
+      pendingScheduleIdRef.current = undefined;
+    } else {
+      setSelectedScheduleId(defaultScheduleIdForTime(unitScheduleOptions, readingTime));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLogEntryModalVisible, selectedUnitId, unitScheduleOptions]);
+
   const summary = useMemo(() => {
     const total = dailyUnitLogs.length;
     let recorded = 0;
@@ -730,16 +823,24 @@ export function TemperatureLogScreen() {
 
     closeTextEditor();
   };
-  const openLogEntryModal = (unitId: string, prefillTime?: string) => {
+  const openLogEntryModal = (unitId: string, scheduleId?: string | null) => {
     pendingNextUnitRef.current = null;
+    // When launched from a grid cell or a quick-add button, bind the entry to that check (null =
+    // Random); the pre-select effect reads this. undefined falls back to the time-window default.
+    pendingScheduleIdRef.current = scheduleId;
     setEntryDate(selectedDate);
+    // Always default the reading time to "now" (resetEntryFormForUnit handles this). The slot's
+    // early/late/missed status is derived from the entered time, so stamping the tapped slot's
+    // scheduled time would make every entry look on-time regardless of when it was actually logged.
     resetEntryFormForUnit(unitId);
-    // Matrix cell taps pass the slot's expected time so the entry is stamped to that scheduled
-    // check; row taps omit it and keep resetEntryFormForUnit's "now" default.
-    if (prefillTime) {
-      setReadingTime(prefillTime);
-    }
     setIsLogEntryModalVisible(true);
+  };
+  // Quick-add: open the entry popup for a specific check (scheduleId, or null = Random) against the
+  // currently selected unit (or the first active one). The unit can still be switched in the modal.
+  const openQuickEntry = (scheduleId: string | null) => {
+    const unitId = selectedUnitId || activeUnits[0]?.id;
+    if (!unitId) return;
+    openLogEntryModal(unitId, scheduleId);
   };
   const closeLogEntryModal = () => {
     closeTextEditor();
@@ -877,46 +978,74 @@ export function TemperatureLogScreen() {
             ) : null}
           </View>
 
-          <KpiGrid columns={2}>
-            <KpiTile
-              label="Done"
-              value={summary.recorded}
-              tone={summary.total > 0 && summary.recorded === summary.total ? "success" : "default"}
-            />
-            
-            <KpiTile
-              label="Out of range"
-              value={summary.outOfRange}
-              tone={summary.outOfRange > 0 ? "danger" : "default"}
-            />
-          </KpiGrid>
-
-          <View style={styles.filterRow}>
-            {(
-              [
-                { key: "all", label: "All" },
-                // { key: "pending", label: "Pending" },
-                { key: "outOfRange", label: "Out of range" },
-              ] as Array<{ key: DailyFilter; label: string }>
-            ).map((option) => {
-              const selected = dailyFilter === option.key;
-              return (
-                <Pressable
-                  key={option.key}
-                  onPress={() => setDailyFilter(option.key)}
-                  style={[styles.filterChip, selected ? styles.filterChipSelected : null]}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                >
-                  <Text style={[styles.filterChipText, selected ? styles.filterChipTextSelected : null]}>
-                    {option.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
+          <View style={styles.summaryRow}>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryCardLabel} numberOfLines={1}>Done</Text>
+              <Text
+                numberOfLines={1}
+                style={[
+                  styles.summaryCardValue,
+                  summary.total > 0 && summary.recorded === summary.total ? styles.summaryValueSuccess : null,
+                ]}
+              >
+                {summary.recorded}/{summary.total}
+              </Text>
+            </View>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryCardLabel} numberOfLines={1}>Out of range</Text>
+              <Text numberOfLines={1} style={[styles.summaryCardValue, summary.outOfRange > 0 ? styles.summaryValueDanger : null]}>
+                {summary.outOfRange}
+              </Text>
+            </View>
           </View>
+
+          <Text style={styles.quickAddLabel}>Add reading to check</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.quickAddRow}
+            keyboardShouldPersistTaps="handled"
+          >
+            {(schedulesQuery.data ?? [])
+              .slice()
+              .sort((a, b) => a.expectedTime.localeCompare(b.expectedTime))
+              .map((schedule) => (
+                <Pressable
+                  key={schedule.id}
+                  onPress={() => openQuickEntry(schedule.id)}
+                  style={styles.quickAddChip}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Add ${schedule.label} reading`}
+                >
+                  <Ionicons name="add" size={14} color={appTheme.colors.primary} />
+                  <Text style={styles.quickAddChipText}>{schedule.label}</Text>
+                  <Text style={styles.quickAddChipTime}>{schedule.expectedTime.slice(0, 5)}</Text>
+                </Pressable>
+              ))}
+            <Pressable
+              onPress={() => openQuickEntry(null)}
+              style={styles.quickAddChip}
+              accessibilityRole="button"
+              accessibilityLabel="Add random reading"
+            >
+              <Ionicons name="add" size={14} color={appTheme.colors.primary} />
+              <Text style={styles.quickAddChipText}>Random</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => navigation.navigate("TemperatureSchedules")}
+              style={[styles.quickAddChip, styles.quickAddManageChip]}
+              accessibilityRole="button"
+              accessibilityLabel="Add or edit scheduled checks"
+            >
+              <Ionicons name="settings-outline" size={14} color={appTheme.colors.textMuted} />
+              <Text style={styles.quickAddManageText}>Edit</Text>
+            </Pressable>
+          </ScrollView>
         </View>
-<View style={[ui.card, styles.unitsCard]}>
+        {/* Monitoring Units list — hidden on the main screen per request. Code kept intact;
+            flip this `false` to `true` (or a real flag) to bring it back. */}
+        {false ? (
+        <View style={[ui.card, styles.unitsCard]}>
           <SectionHeader
             title="Monitoring Units"
             icon="thermometer-outline"
@@ -1004,6 +1133,7 @@ export function TemperatureLogScreen() {
             ) : null}
           </View>
         </View>
+        ) : null}
 
         <DailyScheduleMatrix
           columns={scheduleMatrix.columns}
@@ -1166,13 +1296,11 @@ export function TemperatureLogScreen() {
                   </Text>
                 </View>
               ) : null}
-              {selectedUnit ? (
-                <ScheduledSlotsBlock slots={scheduledSlotsFor(selectedUnit, selectedUnitLog?.readings ?? [])} />
-              ) : null}
               <View style={styles.unitHeaderDivider} />
-              <View style={styles.row}>
+              <View style={[styles.row, { alignItems: "stretch" }]}>
                 <DateTimeField
-                  style={{ flex: 1 }}
+                  style={{ flex: 4 }}
+                  fieldStyle={{ flex: 1 }}
                   mode="datetime"
                   value={entryDateTimeValue}
                   onChange={(value) => {
@@ -1185,10 +1313,7 @@ export function TemperatureLogScreen() {
                     setReadingTime(formatTimeValue(parsed));
                   }}
                 />
-              </View>
-
-              <View style={styles.entryRow}>
-                <View style={styles.entryColumn}>
+                <View style={{ flex: 1 }}>
                   <FloatingLabelInput
                     ref={initialsRef}
                     label="Initials"
@@ -1198,6 +1323,61 @@ export function TemperatureLogScreen() {
                     returnKeyType="done"
                   />
                 </View>
+              </View>
+
+              {unitScheduleOptions.length > 0 ? (
+                <View style={styles.checkPickerWrap}>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.checkPickerRow}
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    {unitScheduleOptions.map((option) => {
+                      const selected = selectedScheduleId === option.id;
+                      return (
+                        <Pressable
+                          key={option.id ?? "random"}
+                          onPress={() => setSelectedScheduleId(option.id)}
+                          style={[styles.checkChip, selected ? styles.checkChipSelected : null]}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected }}
+                          accessibilityLabel={`${option.label} at ${option.time}`}
+                        >
+                          <Text style={[styles.checkChipTime, selected ? styles.checkChipTextSelected : null]}>
+                            {option.time}
+                          </Text>
+                          <Text
+                            style={[styles.checkChipLabel, selected ? styles.checkChipTextSelected : null]}
+                            numberOfLines={1}
+                          >
+                            {option.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                    <Pressable
+                      onPress={() => setSelectedScheduleId(null)}
+                      style={[styles.checkChip, selectedScheduleId === null ? styles.checkChipSelected : null]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: selectedScheduleId === null }}
+                      accessibilityLabel="Random or extra check"
+                    >
+                      <Text style={[styles.checkChipTime, selectedScheduleId === null ? styles.checkChipTextSelected : null]}>
+                        Random
+                      </Text>
+                      <Text
+                        style={[styles.checkChipLabel, selectedScheduleId === null ? styles.checkChipTextSelected : null]}
+                        numberOfLines={1}
+                      >
+                        Extra check
+                      </Text>
+                    </Pressable>
+                  </ScrollView>
+                </View>
+              ) : null}
+
+              <View style={styles.entryRow}>
                 <View style={styles.entryColumn}>
                   <View style={styles.tempInputRow}>
                       <Pressable
@@ -1549,6 +1729,52 @@ const styles = StyleSheet.create({
   unitChipLabelActive: {
     color: appTheme.colors.onPrimary,
   },
+  checkPickerWrap: {
+    gap: 6,
+  },
+  checkPickerLabel: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 16,
+    textTransform: "uppercase",
+  },
+  checkPickerRow: {
+    flexDirection: "row",
+    gap: appTheme.spacing.xs,
+    paddingVertical: 2,
+  },
+  checkChip: {
+    minWidth: 72,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: 6,
+    borderRadius: appTheme.radius.sm,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surfaceTintAlt,
+    alignItems: "center",
+    gap: 1,
+  },
+  checkChipSelected: {
+    borderColor: appTheme.colors.primary,
+    backgroundColor: appTheme.colors.primary,
+  },
+  checkChipTime: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 16,
+  },
+  checkChipLabel: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 11,
+    lineHeight: 14,
+    maxWidth: 96,
+  },
+  checkChipTextSelected: {
+    color: appTheme.colors.onPrimary,
+  },
   scheduleBlock: {
     gap: 4,
     paddingVertical: appTheme.spacing.xs,
@@ -1713,6 +1939,11 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.body,
     fontSize: 10,
     lineHeight: 12,
+  },
+  matrixCellMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   unitHeaderDivider: {
     height: 1,
@@ -1920,6 +2151,82 @@ const styles = StyleSheet.create({
   filterRow: {
     flexDirection: "row",
     gap: appTheme.spacing.xs,
+  },
+  summaryCard: {
+    flex: 1,
+    flexBasis: 0,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.xs,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: 10,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceTintAlt,
+  },
+  summaryCardLabel: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  summaryCardValue: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 16,
+    lineHeight: 20,
+  },
+  summaryValueSuccess: {
+    color: appTheme.colors.success,
+  },
+  summaryValueDanger: {
+    color: appTheme.colors.danger,
+  },
+  quickAddLabel: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 16,
+    textTransform: "uppercase",
+  },
+  quickAddRow: {
+    flexDirection: "row",
+    gap: appTheme.spacing.xs,
+    paddingVertical: 2,
+  },
+  quickAddChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: 8,
+    borderRadius: appTheme.radius.pill,
+    borderWidth: 1,
+    borderColor: appTheme.colors.primary,
+    backgroundColor: appTheme.colors.surfaceTintAlt,
+  },
+  quickAddChipText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 16,
+  },
+  quickAddChipTime: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  quickAddManageChip: {
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surfaceMuted,
+  },
+  quickAddManageText: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 16,
   },
   filterChip: {
     paddingHorizontal: 12,

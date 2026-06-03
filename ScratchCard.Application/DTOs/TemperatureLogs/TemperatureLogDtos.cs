@@ -69,6 +69,11 @@ public class RecordTemperatureReadingRequest
     public string? CheckedByInitials { get; set; }
     public string? Notes { get; set; }
     public string? ActionTaken { get; set; }
+    // The check this reading is logged against. Pass a scheduled slot's id to bind the reading to
+    // that check (it is still evaluated late if outside the slot's tolerance), or the shop's random
+    // schedule id for an ad-hoc/extra check. Null lets the server place it: it window-matches an
+    // active scheduled slot, falling back to the shop's random-check bucket when none applies.
+    public Guid? ScheduleId { get; set; }
 }
 
 public class TemperatureReadingDto
@@ -100,7 +105,9 @@ public enum TemperatureScheduleCellState
     Upcoming = 0,
     OnTime = 1,
     Late = 2,
-    Missed = 3
+    Missed = 3,
+    // Logged before the slot's tolerance window (the reading still belongs to this slot).
+    Early = 4
 }
 
 public class TemperatureScheduleGridSlotDto
@@ -139,6 +146,7 @@ public class TemperatureScheduleGridDto
     public IReadOnlyCollection<TemperatureScheduleGridSlotDto> Slots { get; set; } = [];
     public IReadOnlyCollection<TemperatureScheduleGridCellDto> Cells { get; set; } = [];
     public int OnTimeCount { get; set; }
+    public int EarlyCount { get; set; }
     public int LateCount { get; set; }
     public int MissedCount { get; set; }
 }

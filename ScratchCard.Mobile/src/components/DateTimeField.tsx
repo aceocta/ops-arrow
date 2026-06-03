@@ -13,6 +13,8 @@ type DateTimeFieldProps = {
   minimumDate?: Date;
   maximumDate?: Date;
   style?: StyleProp<ViewStyle>;
+  /** Extra style for the inner bordered box — e.g. flex/height to match an adjacent field. */
+  fieldStyle?: StyleProp<ViewStyle>;
   borderless?: boolean;
 };
 
@@ -110,6 +112,7 @@ export function DateTimeField({
   minimumDate,
   maximumDate,
   style,
+  fieldStyle,
   borderless = false,
 }: DateTimeFieldProps) {
   const [showPicker, setShowPicker] = useState(false);
@@ -226,7 +229,7 @@ export function DateTimeField({
   return (
     <View style={[styles.wrap, style]}>
       <Pressable
-        style={[styles.field, borderless ? styles.fieldBorderless : null]}
+        style={[styles.field, borderless ? styles.fieldBorderless : null, fieldStyle]}
         onPress={() => {
           if (mode === "datetime" && Platform.OS === "android") {
             setAndroidDateTimeStage("date");

@@ -48,9 +48,11 @@ public class TemperatureLogService : ITemperatureLogService
 
     public async Task<IReadOnlyCollection<TemperatureScheduleDto>> ListSchedulesAsync(Guid shopId, CancellationToken cancellationToken = default)
     {
+        await EnsureDefaultSchedulesAsync(shopId, cancellationToken);
+
         var rows = await _scheduleRepository.Query()
             .AsNoTracking()
-            .Where(x => x.ShopId == shopId)
+            .Where(x => x.ShopId == shopId && !x.IsRandom)
             .OrderBy(x => x.ExpectedTime)
             .ToListAsync(cancellationToken);
         return rows.Select(x => new TemperatureScheduleDto
@@ -272,19 +274,18 @@ public class TemperatureLogService : ITemperatureLogService
                     && x.ReadingTime == request.ReadingTime,
                 cancellationToken);
 
-        // Slot-claim: match the reading to the nearest active schedule for this shop/unit/day
-        // that isn't already claimed by another reading. If outside its tolerance window, the
-        // reading is flagged late. Updates skip claiming (we keep the original slot binding).
+        // Bind the reading to a schedule. If the caller picked one, honor it; otherwise window-match
+        // an active scheduled slot and fall back to the shop's random-check bucket when none applies.
+        // Outside a real slot's tolerance window flags the reading late; random checks are never late.
+        // Updates skip binding (we keep the original schedule binding).
         Guid? scheduleId = null;
         var isLate = false;
         if (existing is null)
         {
-            var (claimedId, late) = await ResolveScheduleClaimAsync(
+            var (claimedId, late) = await ResolveScheduleAsync(
                 request.ShopId,
-                request.TemperatureMonitoringUnitId,
-                request.ReadingDate,
+                request.ScheduleId,
                 request.ReadingTime,
-                excludeReadingId: null,
                 cancellationToken);
             scheduleId = claimedId;
             isLate = late;
@@ -380,6 +381,7 @@ public class TemperatureLogService : ITemperatureLogService
     public async Task<TemperatureDailyLogDto> GetDailyLogAsync(Guid shopId, DateOnly date, CancellationToken cancellationToken = default)
     {
         await EnsureDefaultUnitsAsync(shopId, cancellationToken);
+        await EnsureDefaultSchedulesAsync(shopId, cancellationToken);
 
         var units = await _unitRepository.Query()
             .AsNoTracking()
@@ -499,65 +501,85 @@ public class TemperatureLogService : ITemperatureLogService
     }
 
     /// <summary>
-    /// Picks the closest unsatisfied schedule for this shop+unit on the given date and returns
-    /// (scheduleId, isLate). Schedules that already have a reading for the same unit on the same
-    /// date are skipped — so a single late reading can't claim two slots. Returns (null, false)
-    /// when no schedule matches (shop hasn't configured any, or every slot already satisfied).
+    /// Resolves the schedule a new reading binds to and whether it counts as late.
+    /// When <paramref name="explicitScheduleId"/> names a real scheduled slot the reading binds to
+    /// it and is flagged late if logged outside the slot's tolerance window. When it's omitted, or
+    /// names the shop's random bucket, the reading is an ad-hoc/extra check: it binds to the shop's
+    /// single random-check schedule (created on demand) and is never late. Either way every reading
+    /// is stored against some schedule row.
     /// </summary>
-    private async Task<(Guid? ScheduleId, bool IsLate)> ResolveScheduleClaimAsync(
+    private async Task<(Guid? ScheduleId, bool IsLate)> ResolveScheduleAsync(
         Guid shopId,
-        Guid unitId,
-        DateOnly readingDate,
+        Guid? explicitScheduleId,
         TimeOnly readingTime,
-        Guid? excludeReadingId,
         CancellationToken cancellationToken)
     {
-        var candidates = await _scheduleRepository.Query()
-            .AsNoTracking()
-            .Where(x => x.ShopId == shopId
-                && x.IsActive
-                && (x.TemperatureMonitoringUnitId == null || x.TemperatureMonitoringUnitId == unitId))
-            .ToListAsync(cancellationToken);
-
-        if (candidates.Count == 0)
+        if (explicitScheduleId.HasValue)
         {
-            return (null, false);
-        }
-
-        var alreadyClaimed = await _readingRepository.Query()
-            .AsNoTracking()
-            .Where(x => x.TemperatureMonitoringUnitId == unitId
-                && x.ReadingDate == readingDate
-                && x.ScheduleId != null
-                && (excludeReadingId == null || x.Id != excludeReadingId))
-            .Select(x => x.ScheduleId!.Value)
-            .ToListAsync(cancellationToken);
-
-        var taken = new HashSet<Guid>(alreadyClaimed);
-
-        CfgTemperatureSchedule? closest = null;
-        var closestDelta = TimeSpan.MaxValue;
-        // Prefer the unit-specific schedule when one exists alongside a shop-wide schedule for the
-        // same slot — narrower scope wins on ties.
-        foreach (var schedule in candidates
-            .Where(x => !taken.Contains(x.Id))
-            .OrderBy(x => x.TemperatureMonitoringUnitId.HasValue ? 0 : 1))
-        {
-            var delta = (readingTime.ToTimeSpan() - schedule.ExpectedTime.ToTimeSpan()).Duration();
-            if (delta < closestDelta)
+            var picked = await _scheduleRepository.Query()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == explicitScheduleId.Value && x.ShopId == shopId, cancellationToken)
+                ?? throw new AppException("temperature_schedule_not_found", "Selected temperature schedule not found.", 404);
+            if (!picked.IsRandom)
             {
-                closestDelta = delta;
-                closest = schedule;
+                return (picked.Id, TemperatureScheduleWindows.IsOutsideTolerance(picked, readingTime));
             }
         }
 
-        if (closest is null)
+        // No specific check chosen (or the random bucket chosen explicitly) → ad-hoc/extra check.
+        var randomScheduleId = await EnsureRandomScheduleAsync(shopId, cancellationToken);
+        return (randomScheduleId, false);
+    }
+
+    /// <summary>
+    /// Returns the id of the shop's single random-check bucket schedule, creating it the first time
+    /// it's needed. A filtered unique index keeps it one-per-shop; on a concurrent create the loser's
+    /// insert violates that index, so we swallow it and re-read the winner's row.
+    /// </summary>
+    private async Task<Guid> EnsureRandomScheduleAsync(Guid shopId, CancellationToken cancellationToken)
+    {
+        var existing = await _scheduleRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId && x.IsRandom)
+            .Select(x => (Guid?)x.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (existing.HasValue)
         {
-            return (null, false);
+            return existing.Value;
         }
 
-        var tolerance = TimeSpan.FromMinutes(Math.Max(0, closest.ToleranceMinutes));
-        return (closest.Id, closestDelta > tolerance);
+        var row = new CfgTemperatureSchedule
+        {
+            ShopId = shopId,
+            TemperatureMonitoringUnitId = null,
+            Label = "Random",
+            ExpectedTime = new TimeOnly(0, 0),
+            ToleranceMinutes = 0,
+            IsRandom = true,
+            IsActive = true,
+            CreatedOn = DateTimeOffset.UtcNow,
+            CreatedBy = _currentUserService.UserId
+        };
+
+        try
+        {
+            await _scheduleRepository.AddAsync(row, cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return row.Id;
+        }
+        catch (DbUpdateException)
+        {
+            var winner = await _scheduleRepository.Query()
+                .AsNoTracking()
+                .Where(x => x.ShopId == shopId && x.IsRandom)
+                .Select(x => (Guid?)x.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (winner.HasValue)
+            {
+                return winner.Value;
+            }
+            throw;
+        }
     }
 
     private static void ValidateTemperatureRange(decimal minTemperatureCelsius, decimal maxTemperatureCelsius)
@@ -566,6 +588,63 @@ public class TemperatureLogService : ITemperatureLogService
         {
             throw new AppException("temperature_invalid_range", "Minimum temperature must be lower than maximum temperature.");
         }
+    }
+
+    /// <summary>
+    /// Seeds a shop's starter schedules the first time temperature data is touched: the single
+    /// Random bucket plus an AM (10:00) and PM (17:00) scheduled check. Lazy and idempotent — like
+    /// <see cref="EnsureDefaultUnitsAsync"/>, it no-ops once the shop has any schedule, so a shop
+    /// that has edited its schedules is never re-seeded.
+    /// </summary>
+    private async Task EnsureDefaultSchedulesAsync(Guid shopId, CancellationToken cancellationToken)
+    {
+        var hasSchedules = await _scheduleRepository.Query()
+            .AsNoTracking()
+            .AnyAsync(x => x.ShopId == shopId, cancellationToken);
+        if (hasSchedules)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var createdBy = _currentUserService.UserId;
+        var defaults = new[]
+        {
+            new CfgTemperatureSchedule
+            {
+                ShopId = shopId,
+                Label = "Random",
+                ExpectedTime = new TimeOnly(0, 0),
+                ToleranceMinutes = 0,
+                IsRandom = true,
+                IsActive = true,
+                CreatedOn = now,
+                CreatedBy = createdBy
+            },
+            new CfgTemperatureSchedule
+            {
+                ShopId = shopId,
+                Label = "AM",
+                ExpectedTime = new TimeOnly(10, 0),
+                ToleranceMinutes = 30,
+                IsActive = true,
+                CreatedOn = now,
+                CreatedBy = createdBy
+            },
+            new CfgTemperatureSchedule
+            {
+                ShopId = shopId,
+                Label = "PM",
+                ExpectedTime = new TimeOnly(17, 0),
+                ToleranceMinutes = 30,
+                IsActive = true,
+                CreatedOn = now,
+                CreatedBy = createdBy
+            }
+        };
+
+        await _scheduleRepository.AddRangeAsync(defaults, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
     private async Task EnsureDefaultUnitsAsync(Guid shopId, CancellationToken cancellationToken)
