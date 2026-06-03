@@ -9,6 +9,7 @@ This Privacy Policy explains how **Aceocta Limited** ("**we**", "**us**", "**our
 
 - **Registered address:** 15 Pelham Road South, Gravesend DA11 8QN, UK.
 - **Company number:** 16687119
+- **ICO:** ZC162019
 - **Contact for privacy queries:** support@aceocta.com
 
 For the purposes of the UK GDPR, the Data Protection Act 2018, and the EU GDPR:
@@ -253,7 +254,6 @@ If you reside in California, you also have the right to know what categories of 
 ### 9.2 Complaints
 
 - **UK:** Information Commissioner's Office (ICO) — https://ico.org.uk — Tel 0303 123 1113
-- **EU:** Your local Data Protection Authority — list at https://edpb.europa.eu
 
 We would appreciate the chance to deal with your concerns before you approach the ICO, so please contact us first.
 
