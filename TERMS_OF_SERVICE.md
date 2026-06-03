@@ -1,9 +1,9 @@
 # Terms of Service — Ops Arrow
 
-**Last updated:** 1 June 2026
-**Effective date:** [DATE]
+**Last updated:** 2 June 2026
+**Effective date:** 1 June 2026
 
-> **Important:** This document is a draft prepared to cover the licensing, billing and acceptable-use terms for the Ops Arrow application. It is not legal advice. You must have it reviewed by a qualified solicitor before publishing it. Sections marked **[PLACEHOLDER]** need your input.
+> **Important:** These Terms describe the licensing, billing and acceptable-use terms for the Ops Arrow application. They are not legal advice; we recommend you have them reviewed by a qualified solicitor before relying on them.
 
 ---
 
@@ -11,7 +11,7 @@
 
 These Terms of Service (the "**Terms**") are a binding agreement between:
 
-- **Aceocta Limited**, a company registered in [England and Wales / SCOTLAND — confirm], company number [COMPANIES HOUSE NUMBER], whose registered office is at [COMPANY ADDRESS] ("**Aceocta**", "**we**", "**us**", "**our**"); and
+- **Aceocta Limited**, a company registered in England and Wales, company number 16687119, whose registered office is at 15 Pelham Road South, Gravesend DA11 8QN, UK ("**Aceocta**", "**we**", "**us**", "**our**"); and
 - **you**, the individual or business entity accessing the Ops Arrow mobile application, web application, related APIs, or any documentation, support, or other services we make available (together, the "**Service**").
 
 By creating an account, downloading the app, signing in, or otherwise using the Service, you confirm that you have read, understood and agree to be bound by these Terms and by our **Privacy Policy** (available at [https://opsarrow.com/privacy](https://opsarrow.com/privacy)). If you do not agree, do not use the Service.
@@ -165,7 +165,7 @@ If you provide us with suggestions, ideas, feedback or improvements about the Se
 
 ## 10. Third-party services and content
 
-The Service integrates with third-party services we use to operate it, including but not limited to: **Stripe** (payments), **Microsoft Azure** (hosting), **Microsoft Azure AI Document Intelligence** (OCR), **OpenAI** (AI-assisted parsing), **Google Firebase** (push notifications), **Apple Push Notification service**, **Meta WhatsApp Business Cloud API**, **Brevo** (email), and **Hostinger** (backup email).
+The Service integrates with third-party services we use to operate it, including but not limited to: **Stripe** (payments), **Microsoft Azure** (hosting and storage), **Microsoft Azure AI Document Intelligence** (OCR), **OpenAI** (AI-assisted parsing), **Google Firebase Cloud Messaging** (push notifications, relayed via the Apple Push Notification service on iOS), **Meta WhatsApp Business Cloud API** (optional WhatsApp notifications), and **Hostinger** (email).
 
 Your use of those services through Ops Arrow is also subject to their own terms. We are not responsible for the acts, omissions, availability or performance of third-party services.
 
@@ -353,7 +353,7 @@ You and we agree that the courts of England and Wales have **exclusive jurisdict
 - **No partnership.** Nothing in these Terms creates a partnership, joint venture, employment or agency relationship between us.
 - **Severability.** If any clause is held unenforceable, the rest remains in force.
 - **No waiver.** A failure to enforce a right is not a waiver of that right.
-- **Notices to us:** support@aceocta.com or Aceocta Limited, [COMPANY ADDRESS].
+- **Notices to us:** support@aceocta.com or Aceocta Limited, 15 Pelham Road South, Gravesend DA11 8QN, UK.
 - **Notices to you:** to the email address registered on your Account.
 
 ---
@@ -371,7 +371,7 @@ If you obtained the Ops Arrow mobile application from the **Apple App Store**, t
 - **Product claims.** Aceocta Limited (not Apple) is responsible for addressing any claims by you or any third party relating to Ops Arrow, including: (a) product-liability claims; (b) any claim that Ops Arrow fails to conform to any applicable legal or regulatory requirement; and (c) claims arising under consumer-protection or similar legislation.
 - **Intellectual property.** In the event of any third-party claim that Ops Arrow or your possession and use of it infringes that party's intellectual property rights, Aceocta Limited (not Apple) will be solely responsible for the investigation, defence, settlement and discharge of such claim.
 - **Legal compliance.** You represent and warrant that (a) you are not located in a country subject to a US government embargo or designated by the US government as a "terrorist supporting" country, and (b) you are not listed on any US government list of prohibited or restricted parties.
-- **Developer name and address.** Aceocta Limited, [COMPANY ADDRESS]. Contact: support@aceocta.com.
+- **Developer name and address.** Aceocta Limited, 15 Pelham Road South, Gravesend DA11 8QN, UK. Contact: support@aceocta.com.
 - **Third-party beneficiary.** You acknowledge and agree that **Apple and Apple's subsidiaries are third-party beneficiaries** of these Terms, and that upon your acceptance, Apple will have the right (and will be deemed to have accepted the right) to enforce these Terms against you as a third-party beneficiary.
 
 ### 24.2 Google Play Store
@@ -385,7 +385,7 @@ If you obtained Ops Arrow from the **Google Play Store**, your use is also subje
 If you have any questions about these Terms, please contact us:
 
 - **Email:** support@aceocta.com
-- **Post:** Aceocta Limited, [COMPANY ADDRESS]
+- **Post:** Aceocta Limited, 15 Pelham Road South, Gravesend DA11 8QN, UK
 
 ---
 
