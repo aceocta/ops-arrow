@@ -304,6 +304,104 @@ function ScheduledSlotsBlock({ slots }: { slots: ScheduledSlotView[] }) {
   );
 }
 
+type MatrixColumn = { label: string; expectedTime: string };
+type MatrixRow = { unit: TemperatureMonitoringUnit; cells: Array<ScheduledSlotView | null> };
+
+// Single-day overview: units down the side, scheduled slots across the top — the wall-sheet
+// layout. A null cell means that slot's schedule doesn't apply to that unit (renders blank). The
+// unit column is fixed; the slot columns scroll horizontally when there are many slots.
+function DailyScheduleMatrix({
+  columns,
+  rows,
+  onCellPress,
+}: {
+  columns: MatrixColumn[];
+  rows: MatrixRow[];
+  onCellPress: (unitId: string, expectedTime: string) => void;
+}) {
+  if (columns.length === 0 || rows.length === 0) return null;
+  return (
+    <View style={[ui.card, styles.matrixCard]}>
+      <SectionHeader title="Scheduled Checks" icon="grid-outline" />
+      <View style={styles.matrixRow}>
+        {/* Fixed unit column. */}
+        <View style={styles.matrixUnitCol}>
+          <View style={[styles.matrixUnitCell, styles.matrixCornerCell]}>
+            <Text style={styles.matrixHeaderText}>Unit</Text>
+          </View>
+          {rows.map((row) => (
+            <View key={row.unit.id} style={[styles.matrixUnitCell, styles.matrixUnitBodyCell]}>
+              <Text style={styles.matrixUnitText} numberOfLines={2}>
+                {row.unit.unitName}
+              </Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Slot columns stretch to share the remaining width equally. */}
+        <View style={styles.matrixSlotArea}>
+            <View style={styles.matrixHeaderLine}>
+              {columns.map((col, i) => (
+                <View key={`${col.label}|${col.expectedTime}|${i}`} style={styles.matrixSlotHeaderCell}>
+                  <Text style={styles.matrixHeaderText} numberOfLines={1}>
+                    {col.label}
+                  </Text>
+                  <Text style={styles.matrixHeaderSubText}>{col.expectedTime}</Text>
+                </View>
+              ))}
+            </View>
+            {rows.map((row) => (
+              <View key={row.unit.id} style={styles.matrixBodyRow}>
+                {row.cells.map((cell, i) => {
+                  const col = columns[i];
+                  if (!cell) {
+                    return (
+                      <View key={`${row.unit.id}|${i}`} style={[styles.matrixCell, styles.matrixCellEmpty]}>
+                        <Text style={styles.matrixCellNa}>—</Text>
+                      </View>
+                    );
+                  }
+                  const meta = slotStateMeta(cell.state);
+                  return (
+                    <Pressable
+                      key={`${row.unit.id}|${i}`}
+                      style={styles.matrixCell}
+                      onPress={() => onCellPress(row.unit.id, col.expectedTime)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${row.unit.unitName}, ${col.label} ${col.expectedTime}, ${meta.label}`}
+                    >
+                      {cell.reading ? (
+                        <>
+                          <Text
+                            style={[
+                              styles.matrixCellTemp,
+                              cell.reading.isOutOfRange ? styles.scheduleSlotDanger : styles.scheduleSlotOk,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {formatTemperature(Number(cell.reading.temperatureCelsius))}
+                          </Text>
+                          <Text style={styles.matrixCellMeta} numberOfLines={1}>
+                            {cell.reading.readingTime}
+                            {cell.state === "Late" ? " · Late" : ""}
+                          </Text>
+                        </>
+                      ) : (
+                        <Text style={[styles.matrixCellState, { color: meta.color }]} numberOfLines={1}>
+                          {meta.label}
+                        </Text>
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
 export function TemperatureLogScreen() {
   const route = useRoute<RouteProp<MainStackParamList, "TemperatureLogs">>();
   const initialDate = route.params?.date ?? formatDateValue(new Date());
@@ -495,6 +593,38 @@ export function TemperatureLogScreen() {
 
     return activeUnits.map((unit) => ({ unit, readings: [] }));
   }, [activeUnits, dailyLogQuery.data?.units]);
+
+  // Units × scheduled-slots matrix for the day. Columns are the union of every unit's slots,
+  // de-duplicated by label + time and ordered by time; a unit that has no schedule for a given
+  // column gets a null cell (rendered blank).
+  const scheduleMatrix = useMemo(() => {
+    const perUnit = dailyUnitLogs.map((unitLog) => ({
+      unit: unitLog.unit,
+      views: scheduledSlotsFor(unitLog.unit, unitLog.readings),
+    }));
+
+    const seen = new Set<string>();
+    const columns: MatrixColumn[] = [];
+    for (const entry of perUnit) {
+      for (const view of entry.views) {
+        const key = `${view.label}|${view.expectedTime}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        columns.push({ label: view.label, expectedTime: view.expectedTime });
+      }
+    }
+    columns.sort((a, b) => a.expectedTime.localeCompare(b.expectedTime));
+
+    const rows: MatrixRow[] = perUnit.map((entry) => ({
+      unit: entry.unit,
+      cells: columns.map(
+        (col) =>
+          entry.views.find((view) => view.label === col.label && view.expectedTime === col.expectedTime) ?? null,
+      ),
+    }));
+
+    return { columns, rows };
+  }, [dailyUnitLogs, scheduledSlotsFor]);
   const selectedUnitLog = dailyUnitLogs.find((x) => x.unit.id === selectedUnitId);
   const selectedUnit = selectedUnitLog?.unit ?? activeUnits.find((x) => x.id === selectedUnitId);
   const summary = useMemo(() => {
@@ -600,10 +730,15 @@ export function TemperatureLogScreen() {
 
     closeTextEditor();
   };
-  const openLogEntryModal = (unitId: string) => {
+  const openLogEntryModal = (unitId: string, prefillTime?: string) => {
     pendingNextUnitRef.current = null;
     setEntryDate(selectedDate);
     resetEntryFormForUnit(unitId);
+    // Matrix cell taps pass the slot's expected time so the entry is stamped to that scheduled
+    // check; row taps omit it and keep resetEntryFormForUnit's "now" default.
+    if (prefillTime) {
+      setReadingTime(prefillTime);
+    }
     setIsLogEntryModalVisible(true);
   };
   const closeLogEntryModal = () => {
@@ -870,6 +1005,12 @@ export function TemperatureLogScreen() {
           </View>
         </View>
 
+        <DailyScheduleMatrix
+          columns={scheduleMatrix.columns}
+          rows={scheduleMatrix.rows}
+          onCellPress={openLogEntryModal}
+        />
+
         <View style={styles.readingsSection}>
           <SectionHeader
             title="Daily Readings"
@@ -890,8 +1031,6 @@ export function TemperatureLogScreen() {
                   {formatTemperature(unitLog.unit.minTemperatureCelsius)} to {formatTemperature(unitLog.unit.maxTemperatureCelsius)}
                 </Text>
               </View>
-
-              <ScheduledSlotsBlock slots={scheduledSlotsFor(unitLog.unit, unitLog.readings)} />
 
               <View style={styles.logHeaderRow}>
                 <Text style={[styles.logHeaderCell, styles.logColTime]}>Time</Text>
@@ -1475,6 +1614,105 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 11,
     lineHeight: 14,
+  },
+  matrixCard: {
+    gap: appTheme.spacing.sm,
+  },
+  matrixRow: {
+    flexDirection: "row",
+  },
+  matrixSlotArea: {
+    flex: 1,
+  },
+  matrixUnitCol: {
+    width: 104,
+    borderRightWidth: 1,
+    borderRightColor: appTheme.colors.borderSoft,
+  },
+  matrixUnitCell: {
+    width: 104,
+    paddingHorizontal: 8,
+    justifyContent: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: appTheme.colors.borderSoft,
+  },
+  matrixCornerCell: {
+    height: 38,
+    backgroundColor: appTheme.colors.surfaceMuted,
+  },
+  matrixUnitBodyCell: {
+    height: 50,
+  },
+  matrixUnitText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 15,
+  },
+  matrixHeaderLine: {
+    flexDirection: "row",
+  },
+  matrixSlotHeaderCell: {
+    flex: 1,
+    height: 38,
+    paddingHorizontal: 4,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 1,
+    borderBottomWidth: 1,
+    borderBottomColor: appTheme.colors.borderSoft,
+  },
+  matrixHeaderText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 15,
+  },
+  matrixHeaderSubText: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 11,
+    lineHeight: 13,
+  },
+  matrixBodyRow: {
+    flexDirection: "row",
+    height: 50,
+  },
+  matrixCell: {
+    flex: 1,
+    height: 50,
+    paddingHorizontal: 4,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+    borderBottomWidth: 1,
+    borderBottomColor: appTheme.colors.borderSoft,
+  },
+  matrixCellEmpty: {
+    backgroundColor: appTheme.colors.surfaceMuted,
+  },
+  matrixCellNa: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 13,
+    lineHeight: 16,
+  },
+  matrixCellTemp: {
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 16,
+  },
+  matrixCellState: {
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 15,
+  },
+  matrixCellMeta: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 10,
+    lineHeight: 12,
   },
   unitHeaderDivider: {
     height: 1,
