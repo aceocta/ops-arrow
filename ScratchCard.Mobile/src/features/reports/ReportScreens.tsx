@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { Alert, FlatList, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, FlatList, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -216,27 +216,56 @@ function DateRangeInputs({
         </View>
       </Pressable>
 
-      {pickerStage ? (
-        <View style={styles.rangePickerSurface}>
-          <DateTimePicker
-            mode="date"
-            value={pickerValue}
-            minimumDate={pickerMinimum}
-            onChange={handlePickerChange}
-            display={Platform.OS === "ios" ? "inline" : "default"}
-          />
-          {Platform.OS === "ios" ? (
-            <Pressable
-              style={styles.rangePickerDoneButton}
-              onPress={() => {
-                setPickerStage(null);
-                setPendingFrom(null);
-              }}
-            >
-              <Text style={styles.rangePickerDoneText}>Done</Text>
+      {/* Android: native dialog, never clipped. */}
+      {pickerStage && Platform.OS !== "ios" ? (
+        <DateTimePicker
+          mode="date"
+          value={pickerValue}
+          minimumDate={pickerMinimum}
+          onChange={handlePickerChange}
+          display="default"
+        />
+      ) : null}
+
+      {/* iOS: centered modal so a narrow card can't clip the inline calendar. */}
+      {Platform.OS === "ios" ? (
+        <Modal
+          visible={pickerStage !== null}
+          transparent
+          animationType="fade"
+          onRequestClose={() => {
+            setPickerStage(null);
+            setPendingFrom(null);
+          }}
+        >
+          <Pressable
+            style={styles.rangePickerBackdrop}
+            onPress={() => {
+              setPickerStage(null);
+              setPendingFrom(null);
+            }}
+          >
+            <Pressable style={styles.rangePickerCard} onPress={() => {}}>
+              <DateTimePicker
+                mode="date"
+                value={pickerValue}
+                minimumDate={pickerMinimum}
+                onChange={handlePickerChange}
+                display="inline"
+                style={styles.rangePickerInline}
+              />
+              <Pressable
+                style={styles.rangePickerDoneButton}
+                onPress={() => {
+                  setPickerStage(null);
+                  setPendingFrom(null);
+                }}
+              >
+                <Text style={styles.rangePickerDoneText}>Done</Text>
+              </Pressable>
             </Pressable>
-          ) : null}
-        </View>
+          </Pressable>
+        </Modal>
       ) : null}
     </View>
   );
@@ -1505,6 +1534,23 @@ const styles = StyleSheet.create({
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surface,
     overflow: "hidden",
+  },
+  rangePickerBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  rangePickerCard: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: appTheme.colors.surface,
+    borderRadius: appTheme.radius.md,
+    overflow: "hidden",
+  },
+  rangePickerInline: {
+    alignSelf: "stretch",
   },
   rangePickerDoneButton: {
     borderTopWidth: 1,

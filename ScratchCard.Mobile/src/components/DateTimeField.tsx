@@ -1,6 +1,6 @@
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import React, { useMemo, useState } from "react";
-import { Platform, Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
+import { Modal, Platform, Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
 import { appTheme, resolvedColorScheme } from "../ui/theme";
 
 type DateTimeFieldMode = "date" | "time" | "datetime";
@@ -245,29 +245,48 @@ export function DateTimeField({
         <DateTimeIndicator mode={mode === "time" ? "time" : "date"} />
       </Pressable>
 
-      {showPicker ? (
-        <View style={[styles.pickerWrap, borderless ? styles.pickerWrapBorderless : null]}>
-          <DateTimePicker
-            mode={pickerMode}
-            value={pickerValue}
-            onChange={handleChange}
-            minimumDate={minimumDate}
-            maximumDate={maximumDate}
-            display={Platform.OS === "ios" ? (mode === "date" ? "inline" : "spinner") : "default"}
-            // Pin the picker to the APP theme, not the device appearance — otherwise a light app on
-            // a dark-mode device (or vice versa) renders the calendar text the wrong colour and the
-            // dates become invisible against the picker background.
-            themeVariant={resolvedColorScheme === "dark" ? "dark" : "light"}
-            textColor={appTheme.colors.text}
-            accentColor={appTheme.colors.primary}
-            is24Hour
-          />
-          {Platform.OS === "ios" ? (
-            <Pressable style={[styles.doneButton, borderless ? styles.doneButtonBorderless : null]} onPress={() => setShowPicker(false)}>
-              <Text style={styles.doneText}>Done</Text>
+      {/* Android: native dialog — renders regardless of the field's width, so no clipping. */}
+      {showPicker && Platform.OS !== "ios" ? (
+        <DateTimePicker
+          mode={pickerMode}
+          value={pickerValue}
+          onChange={handleChange}
+          minimumDate={minimumDate}
+          maximumDate={maximumDate}
+          display="default"
+          themeVariant={resolvedColorScheme === "dark" ? "dark" : "light"}
+          textColor={appTheme.colors.text}
+          accentColor={appTheme.colors.primary}
+          is24Hour
+        />
+      ) : null}
+
+      {/* iOS: render the inline/spinner picker in a centered modal so a narrow field can't clip it. */}
+      {Platform.OS === "ios" ? (
+        <Modal visible={showPicker} transparent animationType="fade" onRequestClose={() => setShowPicker(false)}>
+          <Pressable style={styles.iosBackdrop} onPress={() => setShowPicker(false)}>
+            <Pressable style={styles.iosPickerCard} onPress={() => {}}>
+              <DateTimePicker
+                mode={pickerMode}
+                value={pickerValue}
+                onChange={handleChange}
+                minimumDate={minimumDate}
+                maximumDate={maximumDate}
+                display={mode === "date" ? "inline" : "spinner"}
+                // Pin the picker to the APP theme, not the device appearance — otherwise a light app
+                // on a dark-mode device (or vice versa) renders the dates invisible.
+                themeVariant={resolvedColorScheme === "dark" ? "dark" : "light"}
+                textColor={appTheme.colors.text}
+                accentColor={appTheme.colors.primary}
+                is24Hour
+                style={styles.iosPicker}
+              />
+              <Pressable style={styles.doneButton} onPress={() => setShowPicker(false)}>
+                <Text style={styles.doneText}>Done</Text>
+              </Pressable>
             </Pressable>
-          ) : null}
-        </View>
+          </Pressable>
+        </Modal>
       ) : null}
     </View>
   );
@@ -363,5 +382,23 @@ const styles = StyleSheet.create({
     color: appTheme.colors.primary,
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 14,
+  },
+  // iOS picker overlay — centered card wide enough for the inline calendar / spinner.
+  iosBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  iosPickerCard: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: appTheme.colors.surface,
+    borderRadius: appTheme.radius.md,
+    overflow: "hidden",
+  },
+  iosPicker: {
+    alignSelf: "stretch",
   },
 });
