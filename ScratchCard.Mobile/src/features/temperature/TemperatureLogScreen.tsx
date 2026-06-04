@@ -1333,12 +1333,7 @@ export function TemperatureLogScreen() {
               <View style={styles.unitHeaderDivider} />
               {unitScheduleOptions.length > 0 ? (
                 <View style={styles.checkPickerWrap}>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.checkPickerRow}
-                    keyboardShouldPersistTaps="handled"
-                  >
+                  <View style={styles.checkPickerRow}>
                     {unitScheduleOptions.map((option) => {
                       const selected = selectedScheduleId === option.id;
                       return (
@@ -1379,7 +1374,7 @@ export function TemperatureLogScreen() {
                         Extra check
                       </Text>
                     </Pressable>
-                  </ScrollView>
+                  </View>
                 </View>
               ) : null}
 
@@ -1795,10 +1790,15 @@ const styles = StyleSheet.create({
   },
   checkPickerRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: appTheme.spacing.xs,
     paddingVertical: 2,
   },
   checkChip: {
+    // Stretch to fill the row (equal share of available width); wrap to a new line when there are
+    // more checks than fit. minWidth keeps each readable before wrapping.
+    flexGrow: 1,
+    flexBasis: 0,
     minWidth: 72,
     paddingHorizontal: appTheme.spacing.sm,
     paddingVertical: 6,
