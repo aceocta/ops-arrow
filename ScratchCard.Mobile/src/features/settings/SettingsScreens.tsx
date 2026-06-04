@@ -1034,28 +1034,18 @@ function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
                                 <View style={styles.shiftTemplateTimeRow}>
                                   <View style={styles.shiftTemplateTimeColumn}>
                                     <Text style={styles.fieldLabel}>Start Time</Text>
-                                    <TextInput
-                                      style={styles.input}
+                                    <DateTimeField
+                                      mode="time"
                                       value={template.startTime}
-                                      onChangeText={(value) => updateCurrentTemplate({ startTime: value })}
-                                      placeholder="HH:mm"
-                                      keyboardType="numbers-and-punctuation"
-                                      autoCapitalize="none"
-                                      autoCorrect={false}
-                                      maxLength={5}
+                                      onChange={(value) => updateCurrentTemplate({ startTime: value })}
                                     />
                                   </View>
                                   <View style={styles.shiftTemplateTimeColumn}>
                                     <Text style={styles.fieldLabel}>End Time</Text>
-                                    <TextInput
-                                      style={styles.input}
+                                    <DateTimeField
+                                      mode="time"
                                       value={template.endTime}
-                                      onChangeText={(value) => updateCurrentTemplate({ endTime: value })}
-                                      placeholder="HH:mm"
-                                      keyboardType="numbers-and-punctuation"
-                                      autoCapitalize="none"
-                                      autoCorrect={false}
-                                      maxLength={5}
+                                      onChange={(value) => updateCurrentTemplate({ endTime: value })}
                                     />
                                   </View>
                                 </View>

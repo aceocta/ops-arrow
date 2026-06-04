@@ -13,6 +13,7 @@ import {
 import { LoadingState } from "../../components/LoadingState";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
+import { DateTimeField } from "../../components/DateTimeField";
 import { TemperatureSchedule } from "../../types/models";
 import { confirmDestructive } from "../../utils/confirm";
 import { ui } from "../../ui/primitives";
@@ -20,18 +21,9 @@ import { appTheme } from "../../ui/theme";
 
 const TOLERANCE_OPTIONS = [15, 30, 60];
 
-function clampHour(value: string) {
-  const n = Math.max(0, Math.min(23, Number(value) | 0));
-  return String(n).padStart(2, "0");
-}
-
-function clampMinute(value: string) {
-  const n = Math.max(0, Math.min(59, Number(value) | 0));
-  return String(n).padStart(2, "0");
-}
-
-function toTimeString(hour: string, minute: string) {
-  return `${clampHour(hour)}:${clampMinute(minute)}:00`;
+// The time picker yields a validated "HH:MM"; the API expects "HH:MM:00".
+function toExpectedTime(time: string) {
+  return `${time}:00`;
 }
 
 function formatTime(value: string) {
@@ -55,10 +47,7 @@ export function TemperatureSchedulesScreen() {
   });
 
   const [label, setLabel] = React.useState("");
-  const [hour, setHour] = React.useState("10");
-  const [minute, setMinute] = React.useState("00");
-  const hourRef = React.useRef<TextInput>(null);
-  const minuteRef = React.useRef<TextInput>(null);
+  const [time, setTime] = React.useState("10:00");
   const [tolerance, setTolerance] = React.useState(30);
   const [unitId, setUnitId] = React.useState<string | undefined>(undefined);
   // When set, the top form edits this existing slot instead of adding a new one.
@@ -70,8 +59,7 @@ export function TemperatureSchedulesScreen() {
 
   function resetForm() {
     setLabel("");
-    setHour("10");
-    setMinute("00");
+    setTime("10:00");
     setTolerance(30);
     setUnitId(undefined);
   }
@@ -79,8 +67,7 @@ export function TemperatureSchedulesScreen() {
   function beginEdit(schedule: TemperatureSchedule) {
     setEditingId(schedule.id);
     setLabel(schedule.label);
-    setHour(schedule.expectedTime.slice(0, 2));
-    setMinute(schedule.expectedTime.slice(3, 5));
+    setTime(schedule.expectedTime.slice(0, 5));
     setTolerance(schedule.toleranceMinutes);
     setUnitId(schedule.temperatureMonitoringUnitId ?? undefined);
   }
@@ -96,7 +83,7 @@ export function TemperatureSchedulesScreen() {
         shopId: shopId as string,
         temperatureMonitoringUnitId: unitId,
         label: label.trim(),
-        expectedTime: toTimeString(hour, minute),
+        expectedTime: toExpectedTime(time),
         toleranceMinutes: tolerance,
         isActive: true,
       }),
@@ -115,7 +102,7 @@ export function TemperatureSchedulesScreen() {
         shopId: shopId as string,
         temperatureMonitoringUnitId: unitId,
         label: label.trim(),
-        expectedTime: toTimeString(hour, minute),
+        expectedTime: toExpectedTime(time),
         toleranceMinutes: tolerance,
         // Editing the schedule's details shouldn't change whether it's active.
         isActive: current?.isActive ?? true,
@@ -162,8 +149,7 @@ export function TemperatureSchedulesScreen() {
   const schedules = schedulesQuery.data ?? [];
   const units = unitsQuery.data ?? [];
   const busy = createMutation.isPending || updateMutation.isPending;
-  const canSubmit =
-    label.trim().length > 0 && hour.length > 0 && minute.length > 0 && !busy && Boolean(shopId);
+  const canSubmit = label.trim().length > 0 && time.length === 5 && !busy && Boolean(shopId);
 
   return (
     <ScreenContainer>
@@ -182,40 +168,14 @@ export function TemperatureSchedulesScreen() {
           placeholderTextColor={appTheme.colors.textSubtle}
           editable={!busy}
           autoCapitalize="words"
-          returnKeyType="next"
-          submitBehavior="submit"
-          onSubmitEditing={() => hourRef.current?.focus()}
+          returnKeyType="done"
         />
 
         <View style={styles.timeRow}>
           <Text style={styles.timeLabel}>Time</Text>
-          <TextInput
-            ref={hourRef}
-            style={[styles.input, styles.timeInput]}
-            value={hour}
-            onChangeText={(t) => setHour(t.replace(/\D/g, "").slice(0, 2))}
-            placeholder="HH"
-            placeholderTextColor={appTheme.colors.textSubtle}
-            keyboardType="number-pad"
-            maxLength={2}
-            editable={!busy}
-            returnKeyType="next"
-            submitBehavior="submit"
-            onSubmitEditing={() => minuteRef.current?.focus()}
-          />
-          <Text style={styles.timeColon}>:</Text>
-          <TextInput
-            ref={minuteRef}
-            style={[styles.input, styles.timeInput]}
-            value={minute}
-            onChangeText={(t) => setMinute(t.replace(/\D/g, "").slice(0, 2))}
-            placeholder="MM"
-            placeholderTextColor={appTheme.colors.textSubtle}
-            keyboardType="number-pad"
-            maxLength={2}
-            editable={!busy}
-            returnKeyType="done"
-          />
+          <View style={styles.timeFieldWrap}>
+            <DateTimeField mode="time" value={time} onChange={setTime} />
+          </View>
         </View>
 
         <View>
@@ -337,6 +297,7 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
   },
   timeRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  timeFieldWrap: { flex: 1 },
   timeLabel: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, lineHeight: 17, width: 50 },
   timeInput: { flex: 1, textAlign: "center", fontSize: 16 },
   timeColon: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 18, paddingHorizontal: 2 },
