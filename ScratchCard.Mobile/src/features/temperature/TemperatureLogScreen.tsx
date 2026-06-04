@@ -1899,8 +1899,8 @@ const styles = StyleSheet.create({
   matrixUnitText: {
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 12,
-    lineHeight: 15,
+    fontSize: 14,
+    lineHeight: 17,
   },
   matrixUnitType: {
     color: appTheme.colors.textMuted,
