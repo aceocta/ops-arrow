@@ -700,10 +700,8 @@ function buildComplianceMatrixReportHtml(input: {
         <section class="report-shell">
           <section class="hero">
             <h1 class="title">${escapeHtml(input.scope.title)}</h1>
-            <p class="subtitle">${escapeHtml(input.scope.subtitle)}</p>
             <div class="meta">
               <span><strong>Shop:</strong> ${escapeHtml(input.shopName || "-")}</span>
-              <span><strong>Frequency:</strong> ${escapeHtml(input.frequency)}</span>
               <span><strong>Period:</strong> ${escapeHtml(input.scope.periodLabel)}</span>
               <span><strong>Generated:</strong> ${escapeHtml(generatedOnText)}</span>
             </div>
