@@ -352,21 +352,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signOut() {
-    // Best-effort server-side revoke of the refresh token before clearing local state.
+    // Grab the refresh token before clearing storage so we can still revoke it server-side.
+    let refreshToken: string | null = null;
     try {
-      const refreshToken = await getRefreshToken();
-      if (refreshToken) {
-        await logoutApi(refreshToken);
-      }
+      refreshToken = await getRefreshToken();
     } catch {
-      // Logout is best-effort; never block sign-out on a network/server error.
+      refreshToken = null;
     }
+
+    // Clear the local session FIRST so the app signs out instantly — never block the user on a slow
+    // or unreachable backend (the previous order awaited the logout call before clearing state, so a
+    // hung request left the user stuck on the logged-in screen).
     await clearAccessToken();
     await clearRefreshToken();
     await clearAuthProfile();
     await clearActiveShopId();
     setProfile(null);
     setActiveShopId(null);
+
+    // Best-effort server-side revoke in the background; failures don't affect the sign-out.
+    if (refreshToken) {
+      void logoutApi(refreshToken).catch(() => {});
+    }
   }
 
   const activeShop = useMemo(
