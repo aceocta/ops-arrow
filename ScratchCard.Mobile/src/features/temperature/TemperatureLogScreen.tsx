@@ -1321,14 +1321,15 @@ export function TemperatureLogScreen() {
                 </Pressable>
               </View>
               {selectedUnit ? (
-                <View style={styles.rowBetween}>
-                  <Text style={styles.meta}>
-                    {selectedUnit.equipmentType}{selectedUnit.location ? ` | ${selectedUnit.location}` : ""}
-                  </Text>
-                  <Text style={styles.meta}>
-                    Range: {formatTemperature(selectedUnit.minTemperatureCelsius)} to {formatTemperature(selectedUnit.maxTemperatureCelsius)}
-                  </Text>
-                </View>
+                <Text style={styles.unitHeaderMeta} numberOfLines={1}>
+                  {[
+                    selectedUnit.equipmentType,
+                    `${formatTemperature(selectedUnit.minTemperatureCelsius)} – ${formatTemperature(selectedUnit.maxTemperatureCelsius)}`,
+                    selectedUnit.location || null,
+                  ]
+                    .filter(Boolean)
+                    .join("  ·  ")}
+                </Text>
               ) : null}
               <View style={styles.unitHeaderDivider} />
               {unitScheduleOptions.length > 0 ? (
@@ -2053,6 +2054,15 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 13,
   },
+  // Single centered line under the unit name: equipment type · range · location.
+  unitHeaderMeta: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
+    textAlign: "center",
+    marginTop: 2,
+  },
   noteActionTile: {
     flex: 1,
     borderWidth: 0,
@@ -2654,6 +2664,8 @@ const styles = StyleSheet.create({
     // visible as a separator above the action buttons.
     marginHorizontal: -appTheme.spacing.md,
     paddingHorizontal: appTheme.spacing.md,
+    // Breathing room between the form controls and the footer divider/buttons.
+    marginTop: appTheme.spacing.md,
     paddingTop: appTheme.spacing.sm,
     borderTopWidth: 1,
     borderTopColor: appTheme.colors.border,
