@@ -358,7 +358,7 @@ function DailyScheduleMatrix({
 }) {
   if (columns.length === 0 || rows.length === 0) return null;
   return (
-    <View style={[ui.card, styles.matrixCard]}>
+    <View style={styles.matrixCard}>
       <SectionHeader title="Scheduled Checks" icon="grid-outline" />
       <View style={styles.matrixRow}>
         {/* Fixed unit column. */}
@@ -1856,6 +1856,13 @@ const styles = StyleSheet.create({
   },
   matrixRow: {
     flexDirection: "row",
+    // The table now stands on its own (no surrounding card) — frame it with a thin border and
+    // rounded corners, clipping the inner cell borders so it still reads as a clean grid.
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderSoft,
+    borderRadius: appTheme.radius.sm,
+    overflow: "hidden",
+    backgroundColor: appTheme.colors.surface,
   },
   matrixSlotArea: {
     flex: 1,
