@@ -943,6 +943,10 @@ export function ComplianceChecksScreen() {
       });
     },
     onSuccess: async (_result, variables) => {
+      // Did this save upload attachments? Only then do we need the server's records back.
+      const hadAttachments =
+        (variables.attachments ?? attachmentsByItemId[variables.item.id] ?? []).length > 0;
+
       setAttachmentsByItemId((previous) => {
         if (!previous[variables.item.id]) {
           return previous;
@@ -952,7 +956,13 @@ export function ComplianceChecksScreen() {
         delete next[variables.item.id];
         return next;
       });
-      await queryClient.invalidateQueries({ queryKey: ["compliance-period-log", shopId, frequency, effectivePeriodDate] });
+
+      // A plain status/notes save is already reflected by the local draft, so skip the refetch — it
+      // re-seeded every draft and re-rendered the whole list, making it shake/jump after each tap.
+      // Only refetch when attachments were uploaded (to surface their server-side records).
+      if (hadAttachments) {
+        await queryClient.invalidateQueries({ queryKey: ["compliance-period-log", shopId, frequency, effectivePeriodDate] });
+      }
     },
     onError: (error: any) => {
       toastError(error?.response?.data?.message ?? error?.message ?? "Unable to save compliance check.");
