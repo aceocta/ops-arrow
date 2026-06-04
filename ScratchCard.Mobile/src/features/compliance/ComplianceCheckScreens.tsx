@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Image, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -813,6 +813,11 @@ export function ComplianceChecksScreen() {
   const route = useRoute<RouteProp<MainStackParamList, "ComplianceChecks">>();
   const initialDate = route.params?.date ?? formatDateValue(new Date());
   const queryClient = useQueryClient();
+  // Refs for auto-scrolling the next pending check into view after one is answered.
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollWrapRef = useRef<View>(null);
+  const scrollYRef = useRef(0);
+  const itemRefs = useRef<Record<string, View | null>>({});
   const { activeShopId, activeShop, profile } = useAuth();
   const shopId = activeShopId;
   const { isAllowed: canAttachPhotos } = useFeature("compliance.photo_evidence");
@@ -1407,10 +1412,53 @@ export function ComplianceChecksScreen() {
     saveMutation.mutate({ item, draft, attachments: attachmentsOverride });
   }
 
+  // After answering a check (it collapses), bring the next still-pending check into view so the
+  // user can keep going without manually scrolling down to the hidden ones at the bottom.
+  function scrollNextPendingIntoView(answeredItemId: string) {
+    const rows = visiblePeriodGroups.flatMap((g) => g.rows);
+    const startIndex = rows.findIndex((r) => r.item.id === answeredItemId);
+    if (startIndex < 0) return;
+    let nextId: string | null = null;
+    for (let i = startIndex + 1; i < rows.length; i += 1) {
+      if (getDraft(rows[i].item.id).result === "Pending") {
+        nextId = rows[i].item.id;
+        break;
+      }
+    }
+    if (!nextId) return;
+
+    // Measure after the collapse re-render settles. Only nudge the list when the next check sits at
+    // or below the bottom fold — if it's already comfortably on screen, leave the scroll alone (so
+    // it moves up one-by-one as the user reaches the bottom). measureInWindow works on the native
+    // View refs (measureLayout/findNodeHandle is unreliable under the new architecture).
+    const target = nextId ? itemRefs.current[nextId] : null;
+    const wrap = scrollWrapRef.current;
+    if (!target || !wrap) return;
+    requestAnimationFrame(() => {
+      try {
+        wrap.measureInWindow((_wx: number, wrapY: number, _ww: number, wrapHeight: number) => {
+          target.measureInWindow((_ix: number, itemY: number, _iw: number, itemHeight: number) => {
+            const visibleBottom = wrapY + wrapHeight;
+            const itemBottom = itemY + itemHeight;
+            const margin = 16;
+            // Already fully visible above the fold → don't move.
+            if (itemBottom <= visibleBottom - margin) return;
+            // Scroll up just enough to reveal the next check near the bottom.
+            const delta = itemBottom - visibleBottom + margin;
+            scrollRef.current?.scrollTo({ y: Math.max(0, scrollYRef.current + delta), animated: true });
+          });
+        });
+      } catch {
+        // Measurement can fail if a node detached mid-animation — safe to ignore.
+      }
+    });
+  }
+
   function onSelectResult(row: ComplianceCheckPeriodRow, result: ComplianceCheckResult) {
     const nextDraft: EntryDraft = { ...getDraft(row.item.id), result };
     updateDraft(row.item.id, { result });
     saveDraftForItem(row.item, nextDraft);
+    scrollNextPendingIntoView(row.item.id);
   }
 
   function onChangeWeeklyStartDate(value: string) {
@@ -1504,7 +1552,11 @@ export function ComplianceChecksScreen() {
 
   return (
     <ScreenContainer scrollable={false}>
+      <View ref={scrollWrapRef} style={styles.scrollWrap}>
       <ScrollView
+        ref={scrollRef}
+        onScroll={(e) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
+        scrollEventThrottle={16}
         contentContainerStyle={styles.content}
         stickyHeaderIndices={[0]}
         refreshControl={
@@ -1775,6 +1827,7 @@ export function ComplianceChecksScreen() {
                   return (
                     <Pressable
                       key={row.item.id}
+                      ref={(el) => { itemRefs.current[row.item.id] = el as unknown as View | null; }}
                       style={styles.itemCard}
                       onPress={() => setExpandedItemId(row.item.id)}
                       accessibilityRole="button"
@@ -1795,7 +1848,11 @@ export function ComplianceChecksScreen() {
                 }
 
                 return (
-                  <View key={row.item.id} style={styles.itemCard}>
+                  <View
+                    key={row.item.id}
+                    ref={(el) => { itemRefs.current[row.item.id] = el; }}
+                    style={styles.itemCard}
+                  >
                     <View style={[styles.itemCardAccent, accentStyle]} />
                     <View style={styles.itemCardContent}>
                       {isAnswered && draft.result !== "NonCompliant" ? (
@@ -2055,6 +2112,7 @@ export function ComplianceChecksScreen() {
           </View>
         ) : null}
       </ScrollView>
+      </View>
 
       <Modal
         visible={isAttachmentPreviewModalVisible}
@@ -2808,6 +2866,9 @@ export function ComplianceActionsScreen() {
 }
 
 const styles = StyleSheet.create({
+  scrollWrap: {
+    flex: 1,
+  },
   content: {
     gap: appTheme.spacing.sm,
     paddingBottom: appTheme.spacing.sm,
