@@ -1440,10 +1440,12 @@ export function ComplianceChecksScreen() {
           target.measureInWindow((_ix: number, itemY: number, _iw: number, itemHeight: number) => {
             const visibleBottom = wrapY + wrapHeight;
             const itemBottom = itemY + itemHeight;
-            const margin = 16;
-            // Already fully visible above the fold → don't move.
+            // Leave roughly one record's height of space below the next check so at least two
+            // records stay visible after the nudge (clamped so very tall/short cards behave).
+            const margin = Math.min(220, Math.max(96, itemHeight));
+            // Already enough room below it (two-ish records visible) → don't move.
             if (itemBottom <= visibleBottom - margin) return;
-            // Scroll up just enough to reveal the next check near the bottom.
+            // Scroll up just enough to reveal the next check plus the following record.
             const delta = itemBottom - visibleBottom + margin;
             scrollRef.current?.scrollTo({ y: Math.max(0, scrollYRef.current + delta), animated: true });
           });
