@@ -2,11 +2,13 @@ import React, { forwardRef, useCallback, useEffect, useRef, useState } from "rea
 import {
   Animated,
   Pressable,
+  StyleProp,
   StyleSheet,
   Text,
   TextInput,
   TextInputProps,
   View,
+  ViewStyle,
 } from "react-native";
 import { appTheme } from "../ui/theme";
 import { useScrollToFocusedInput } from "./ScreenContainer";
@@ -16,10 +18,12 @@ type Props = Omit<TextInputProps, "placeholder"> & {
   error?: string | null;
   /** Optional currency or unit prefix shown inside the input (e.g. "£"). */
   prefix?: string;
+  /** Extra style for the field container — e.g. to square corners when joined to another control. */
+  containerStyle?: StyleProp<ViewStyle>;
 };
 
 export const FloatingLabelInput = forwardRef<TextInput, Props>(function FloatingLabelInput(
-  { label, error, prefix, value, onFocus, onBlur, ...rest },
+  { label, error, prefix, value, onFocus, onBlur, containerStyle, ...rest },
   ref,
 ) {
   const innerRef = useRef<TextInput>(null);
@@ -72,6 +76,7 @@ export const FloatingLabelInput = forwardRef<TextInput, Props>(function Floating
           styles.container,
           isFocused ? styles.containerFocused : null,
           error ? styles.containerError : null,
+          containerStyle,
         ]}
       >
         <Animated.Text

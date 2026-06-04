@@ -1319,34 +1319,6 @@ export function TemperatureLogScreen() {
                 </View>
               ) : null}
               <View style={styles.unitHeaderDivider} />
-              <View style={[styles.row, { alignItems: "stretch" }]}>
-                <DateTimeField
-                  style={{ flex: 4 }}
-                  fieldStyle={{ flex: 1 }}
-                  mode="datetime"
-                  value={entryDateTimeValue}
-                  onChange={(value) => {
-                    const parsed = parseDateTimeValue(value);
-                    if (!parsed) {
-                      return;
-                    }
-
-                    setEntryDate(formatDateValue(parsed));
-                    setReadingTime(formatTimeValue(parsed));
-                  }}
-                />
-                <View style={{ flex: 1 }}>
-                  <FloatingLabelInput
-                    ref={initialsRef}
-                    label="Initials"
-                    value={checkedByInitials}
-                    onChangeText={setCheckedByInitials}
-                    autoCapitalize="characters"
-                    returnKeyType="done"
-                  />
-                </View>
-              </View>
-
               {unitScheduleOptions.length > 0 ? (
                 <View style={styles.checkPickerWrap}>
                   <ScrollView
@@ -1399,8 +1371,32 @@ export function TemperatureLogScreen() {
                 </View>
               ) : null}
 
-              <View style={styles.entryRow}>
-                <View style={styles.entryColumn}>
+              <DateTimeField
+                mode="datetime"
+                value={entryDateTimeValue}
+                onChange={(value) => {
+                  const parsed = parseDateTimeValue(value);
+                  if (!parsed) {
+                    return;
+                  }
+
+                  setEntryDate(formatDateValue(parsed));
+                  setReadingTime(formatTimeValue(parsed));
+                }}
+              />
+
+              <View style={[styles.row, { alignItems: "stretch" }]}>
+                <View style={styles.entryHalf}>
+                  <FloatingLabelInput
+                    ref={initialsRef}
+                    label="Initials"
+                    value={checkedByInitials}
+                    onChangeText={setCheckedByInitials}
+                    autoCapitalize="characters"
+                    returnKeyType="done"
+                  />
+                </View>
+                <View style={styles.entryHalf}>
                   <View style={styles.tempInputRow}>
                       <Pressable
                       style={styles.tempSignButton}
@@ -1433,6 +1429,7 @@ export function TemperatureLogScreen() {
                       <FloatingLabelInput
                         ref={tempInputRef}
                         label="Temperature"
+                        containerStyle={styles.tempInputFieldContainer}
                         value={temperatureCelsius}
                         onChangeText={(raw) => {
                           // Always show an explicit sign in front of the number so freezer (-)
@@ -1682,19 +1679,33 @@ const styles = StyleSheet.create({
     width: "100%",
     gap: 2,
   },
+  // Half-width cell for the Initials | Temperature row.
+  entryHalf: {
+    flex: 1,
+    gap: 2,
+  },
   tempInputRow: {
     flexDirection: "row",
     alignItems: "stretch",
-    gap: appTheme.spacing.xs,
+    gap: 0,
   },
   tempInputField: {
     flex: 1,
   },
+  // Squares the temperature field's left corners so it sits flush against the ± button.
+  tempInputFieldContainer: {
+    borderTopLeftRadius: 0,
+    borderBottomLeftRadius: 0,
+  },
   tempSignButton: {
     width: 44,
     borderWidth: 1,
+    // No right border/radius — it shares the seam with the temperature field for a joined control.
+    borderRightWidth: 0,
     borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
     backgroundColor: appTheme.colors.surfaceMuted,
     alignItems: "center",
     justifyContent: "center",
