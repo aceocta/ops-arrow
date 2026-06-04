@@ -86,13 +86,9 @@ If you operate features that capture data about people **other than** your staff
 
 ### 3.5 Subscription and payment data
 
-All paid subscriptions to Ops Arrow are processed by **Stripe**, including those started from the mobile app. On mobile we open Stripe Checkout in your device's in-app browser sheet (Safari View Controller on iOS, Custom Tabs on Android); the payment itself takes place on Stripe's website, not inside the app. We do **not** use Apple In-App Purchase or Google Play Billing.
+Ops Arrow is provided to business customers under paid subscription plans. Subscriptions are purchased and managed through our website using Stripe. Users of the mobile application may access features made available under their organisation’s existing subscription.
 
-We collect:
-
-- Plan tier, subscription status, trial dates, renewal dates.
-- Stripe customer ID, Stripe subscription ID, payment status, last-4 card digits and expiry (received from Stripe — we never see full card numbers).
-- Invoice records and payment transaction history (including raw Stripe response payloads, retained for reconciliation).
+We do not collect or store full payment-card details. Stripe processes payments on our behalf and provides us with limited billing information, such as customer ID, subscription ID, payment status, invoice information, card brand, last four digits and expiry date..
 
 ### 3.6 Technical data collected automatically
 
