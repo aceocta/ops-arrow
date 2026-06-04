@@ -204,6 +204,8 @@ button { font-family: inherit; }
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 .field input:focus, .field select:focus, select:focus { border-color: var(--accent); box-shadow: var(--ring); outline: none; }
+/* Read-only value shown in place of an input (e.g. company overview before editing). */
+.field-value { font-size: 14px; font-weight: 500; color: var(--text); padding: 4px 0; word-break: break-word; }
 select {
   appearance: none; -webkit-appearance: none; padding-right: 30px; cursor: pointer;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235b6b78' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
@@ -265,6 +267,12 @@ select {
 /* ---------- Responsive ---------- */
 @media (max-width: 860px) {
   .nav-toggle { display: inline-flex; }
+
+  /* Inputs below 16px make iOS Safari auto-zoom on focus — keep form controls at 16px on mobile. */
+  input, select, textarea,
+  .field input, .field select, .search-row input, .plan-select {
+    font-size: 16px;
+  }
 
   /* Sidebar becomes an off-canvas drawer toggled by the hamburger. */
   .sidebar {

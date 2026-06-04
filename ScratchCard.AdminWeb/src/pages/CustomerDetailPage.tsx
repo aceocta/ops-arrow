@@ -102,10 +102,14 @@ export function CustomerDetailPage() {
 
 function OverviewTab({ customer, onNotice }: { customer: CustomerDetail; onNotice: (m: string) => void }) {
   const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<AdminUpdateCustomerRequest>(toForm(customer));
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => setForm(toForm(customer)), [customer]);
+  // Keep the form in sync with the latest customer, but never yank it out from under an active edit.
+  useEffect(() => {
+    if (!editing) setForm(toForm(customer));
+  }, [customer, editing]);
 
   const saveMutation = useMutation({
     mutationFn: () => updateCustomer(customer.id, form),
@@ -114,6 +118,7 @@ function OverviewTab({ customer, onNotice }: { customer: CustomerDetail; onNotic
       void queryClient.invalidateQueries({ queryKey: ["customers"] });
       onNotice("Customer details saved.");
       setError(null);
+      setEditing(false);
     },
     onError: (e) => setError(getApiErrorMessage(e, "Failed to save.")),
   });
@@ -130,6 +135,43 @@ function OverviewTab({ customer, onNotice }: { customer: CustomerDetail; onNotic
 
   const set = (k: keyof AdminUpdateCustomerRequest) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const cancelEdit = () => {
+    setForm(toForm(customer));
+    setError(null);
+    setEditing(false);
+  };
+
+  // Read-only details with the creation time and an Edit button — editing is opt-in.
+  if (!editing) {
+    return (
+      <div className="card form-grid">
+        <DetailField label="Company name" value={customer.companyName} />
+        <DetailField label="Email" value={customer.email} />
+        <DetailField label="Registration number" value={customer.registrationNumber} />
+        <DetailField label="Phone" value={customer.phoneNumber} />
+        <DetailField label="Address line 1" value={customer.addressLine1} />
+        <DetailField label="Address line 2" value={customer.addressLine2} />
+        <DetailField label="City" value={customer.city} />
+        <DetailField label="Post code" value={customer.postCode} />
+        <DetailField label="Country" value={customer.country} />
+        <DetailField label="Created" value={formatDateTime(customer.createdOn)} />
+
+        <div className="actions span-2">
+          <button className="btn btn-primary" onClick={() => setEditing(true)}>Edit details</button>
+          {customer.isActive ? (
+            <button className="btn btn-danger" disabled={statusMutation.isPending} onClick={() => statusMutation.mutate(false)}>
+              Suspend customer
+            </button>
+          ) : (
+            <button className="btn btn-success" disabled={statusMutation.isPending} onClick={() => statusMutation.mutate(true)}>
+              Activate customer
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="card form-grid">
@@ -148,18 +190,24 @@ function OverviewTab({ customer, onNotice }: { customer: CustomerDetail; onNotic
         <button className="btn btn-primary" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
           {saveMutation.isPending ? "Saving…" : "Save changes"}
         </button>
-        {customer.isActive ? (
-          <button className="btn btn-danger" disabled={statusMutation.isPending} onClick={() => statusMutation.mutate(false)}>
-            Suspend customer
-          </button>
-        ) : (
-          <button className="btn btn-success" disabled={statusMutation.isPending} onClick={() => statusMutation.mutate(true)}>
-            Activate customer
-          </button>
-        )}
+        <button className="btn" disabled={saveMutation.isPending} onClick={cancelEdit}>Cancel</button>
       </div>
     </div>
   );
+}
+
+function DetailField({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div className="field">
+      <span>{label}</span>
+      <div className="field-value">{value && value.trim() ? value : "—"}</div>
+    </div>
+  );
+}
+
+function formatDateTime(value: string): string {
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleString();
 }
 
 function ShopsTab({ customer, onChanged }: { customer: CustomerDetail; onChanged: (message: string) => void }) {
