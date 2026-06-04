@@ -818,6 +818,9 @@ export function ComplianceChecksScreen() {
   const scrollWrapRef = useRef<View>(null);
   const scrollYRef = useRef(0);
   const itemRefs = useRef<Record<string, View | null>>({});
+  // Quick month/year jump popup for the Monthly view.
+  const [isMonthPickerVisible, setIsMonthPickerVisible] = useState(false);
+  const [monthPickerYear, setMonthPickerYear] = useState(new Date().getFullYear());
   const { activeShopId, activeShop, profile } = useAuth();
   const shopId = activeShopId;
   const { isAllowed: canAttachPhotos } = useFeature("compliance.photo_evidence");
@@ -1463,20 +1466,9 @@ export function ComplianceChecksScreen() {
     scrollNextPendingIntoView(row.item.id);
   }
 
-  function onChangeWeeklyStartDate(value: string) {
-    setSelectedDate(value);
-  }
-
-  function onChangeWeeklyEndDate(value: string) {
-    setSelectedDate(value);
-  }
-
-  function onSelectMonthlyMonth(monthIndex: number) {
-    setSelectedDate(formatDateValue(new Date(selectedMonthYear, monthIndex, 1)));
-  }
-
-  function shiftMonthlyYear(delta: number) {
-    setSelectedDate(formatDateValue(new Date(selectedMonthYear + delta, selectedMonthIndex, 1)));
+  function shiftMonth(delta: number) {
+    // Date normalises month over/underflow into the right year (Dec → Jan next year, etc.).
+    setSelectedDate(formatDateValue(new Date(selectedMonthYear, selectedMonthIndex + delta, 1)));
   }
 
   function shiftDailyDate(delta: number) {
@@ -1680,48 +1672,67 @@ export function ComplianceChecksScreen() {
           ) : null}
           {frequency === "Weekly" ? (
             <View style={styles.periodPickerSection}>
-              <Text style={styles.metaLabel}>Week Start Date</Text>
-              <DateTimeField mode="date" value={weeklyRange.startDate} onChange={onChangeWeeklyStartDate} />
-              <Text style={styles.metaLabel}>Week End Date</Text>
-              <DateTimeField mode="date" value={weeklyRange.endDate} onChange={onChangeWeeklyEndDate} />
-               </View>
-          ) : null}
-          {frequency === "Monthly" ? (
-            <View style={styles.periodPickerSection}>
-              <Text style={styles.metaLabel}>Year</Text>
-              <View style={styles.monthYearPickerRow}>
+              
+              <View style={styles.dailyDateNavRow}>
                 <Pressable
                   style={styles.dailyDateNavButton}
-                  onPress={() => shiftMonthlyYear(-1)}
+                  onPress={() => setSelectedDate((prev) => shiftDateValueByDays(prev, -7))}
                   accessibilityRole="button"
-                  accessibilityLabel="Previous year"
+                  accessibilityLabel="Previous week"
                 >
                   <Ionicons name="chevron-back" size={18} color={appTheme.colors.text} />
                 </Pressable>
-                <Text style={styles.monthYearValue}>{selectedMonthYear}</Text>
+                <DateTimeField
+                  style={{ flex: 1 }}
+                  mode="date"
+                  value={weeklyRange.startDate}
+                  onChange={(value) => setSelectedDate(value)}
+                />
                 <Pressable
                   style={styles.dailyDateNavButton}
-                  onPress={() => shiftMonthlyYear(1)}
+                  onPress={() => setSelectedDate((prev) => shiftDateValueByDays(prev, 7))}
                   accessibilityRole="button"
-                  accessibilityLabel="Next year"
+                  accessibilityLabel="Next week"
                 >
                   <Ionicons name="chevron-forward" size={18} color={appTheme.colors.text} />
                 </Pressable>
               </View>
-              <Text style={styles.metaLabel}>Month</Text>
-              <View style={styles.chipRow}>
-                {monthOptions.map((monthLabel, index) => {
-                  const selected = selectedMonthIndex === index;
-                  return (
-                    <Pressable
-                      key={monthLabel}
-                      style={[styles.choiceChip, styles.monthChoiceChip, selected ? styles.choiceChipSelected : null]}
-                      onPress={() => onSelectMonthlyMonth(index)}
-                    >
-                      <Text style={[styles.choiceChipText, selected ? styles.choiceChipTextSelected : null]}>{monthLabel}</Text>
-                    </Pressable>
-                  );
-                })}
+              <Text style={styles.meta}>
+                {formatDay(weeklyRange.startDate)} – {formatDay(weeklyRange.endDate)}
+              </Text>
+               </View>
+          ) : null}
+          {frequency === "Monthly" ? (
+            <View style={styles.periodPickerSection}>
+              <View style={styles.dailyDateNavRow}>
+                <Pressable
+                  style={styles.dailyDateNavButton}
+                  onPress={() => shiftMonth(-1)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Previous month"
+                >
+                  <Ionicons name="chevron-back" size={18} color={appTheme.colors.text} />
+                </Pressable>
+                <Pressable
+                  style={styles.monthYearValueButton}
+                  onPress={() => {
+                    setMonthPickerYear(selectedMonthYear);
+                    setIsMonthPickerVisible(true);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Pick month and year"
+                >
+                  <Text style={styles.monthYearValue}>{monthOptions[selectedMonthIndex]} {selectedMonthYear}</Text>
+                  <Ionicons name="chevron-down" size={14} color={appTheme.colors.textMuted} />
+                </Pressable>
+                <Pressable
+                  style={styles.dailyDateNavButton}
+                  onPress={() => shiftMonth(1)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Next month"
+                >
+                  <Ionicons name="chevron-forward" size={18} color={appTheme.colors.text} />
+                </Pressable>
               </View>
             </View>
           ) : null}
@@ -2115,6 +2126,56 @@ export function ComplianceChecksScreen() {
         ) : null}
       </ScrollView>
       </View>
+
+      <Modal
+        visible={isMonthPickerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsMonthPickerVisible(false)}
+      >
+        <Pressable style={styles.monthPickerBackdrop} onPress={() => setIsMonthPickerVisible(false)}>
+          <Pressable style={styles.monthPickerCard} onPress={() => {}}>
+            <View style={styles.monthPickerYearRow}>
+              <Pressable
+                style={styles.dailyDateNavButton}
+                onPress={() => setMonthPickerYear((y) => y - 1)}
+                accessibilityRole="button"
+                accessibilityLabel="Previous year"
+              >
+                <Ionicons name="chevron-back" size={18} color={appTheme.colors.text} />
+              </Pressable>
+              <Text style={styles.monthPickerYearText}>{monthPickerYear}</Text>
+              <Pressable
+                style={styles.dailyDateNavButton}
+                onPress={() => setMonthPickerYear((y) => y + 1)}
+                accessibilityRole="button"
+                accessibilityLabel="Next year"
+              >
+                <Ionicons name="chevron-forward" size={18} color={appTheme.colors.text} />
+              </Pressable>
+            </View>
+            <View style={styles.monthPickerGrid}>
+              {monthOptions.map((monthLabel, index) => {
+                const selected = monthPickerYear === selectedMonthYear && selectedMonthIndex === index;
+                return (
+                  <Pressable
+                    key={monthLabel}
+                    style={[styles.monthPickerCell, selected ? styles.monthPickerCellSelected : null]}
+                    onPress={() => {
+                      setSelectedDate(formatDateValue(new Date(monthPickerYear, index, 1)));
+                      setIsMonthPickerVisible(false);
+                    }}
+                  >
+                    <Text style={[styles.monthPickerCellText, selected ? styles.monthPickerCellTextSelected : null]}>
+                      {monthLabel}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <Modal
         visible={isAttachmentPreviewModalVisible}
@@ -3469,14 +3530,76 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: appTheme.spacing.xs,
   },
-  monthYearValue: {
+  monthYearValueButton: {
     flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingVertical: 6,
+  },
+  monthYearValue: {
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 16,
     lineHeight: 20,
-    minWidth: 56,
     textAlign: "center",
+  },
+  monthPickerBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: appTheme.spacing.lg,
+  },
+  monthPickerCard: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: appTheme.colors.surface,
+    borderRadius: appTheme.radius.lg,
+    padding: appTheme.spacing.md,
+    gap: appTheme.spacing.sm,
+  },
+  monthPickerYearRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  monthPickerYearText: {
+    flex: 1,
+    textAlign: "center",
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 17,
+    lineHeight: 22,
+  },
+  monthPickerGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: appTheme.spacing.xs,
+  },
+  monthPickerCell: {
+    flexBasis: "30%",
+    flexGrow: 1,
+    paddingVertical: 12,
+    borderRadius: appTheme.radius.sm,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surface,
+    alignItems: "center",
+  },
+  monthPickerCellSelected: {
+    borderColor: appTheme.colors.primary,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+  },
+  monthPickerCellText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  monthPickerCellTextSelected: {
+    color: appTheme.colors.primary,
   },
   metaLabel: {
     color: appTheme.colors.textSubtle,
