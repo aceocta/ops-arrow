@@ -1836,6 +1836,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                         <View style={styles.shiftNameBlock}>
                           {isOpenShift ? <View style={styles.shiftLiveDot} /> : null}
                           <Text style={styles.shiftName} numberOfLines={1}>{shift.shiftName}</Text>
+                          <StatusBadge label={shift.status} tone={getShiftTone(shift.status)} />
                         </View>
                         {compactSales ? (
                           <Text style={styles.shiftSalesAmount}>{compactSales}</Text>
@@ -1843,20 +1844,13 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                           <View style={styles.shiftSalesSkeleton} accessibilityLabel="Loading sales total" />
                         ) : null}
                       </View>
-                      <View style={styles.shiftMetaRow}>
-                        <StatusBadge label={shift.status} tone={getShiftTone(shift.status)} />
-                        <View style={styles.shiftTimeBlock}>
-                          <Ionicons
-                            name="time-outline"
-                            size={12}
-                            color={appTheme.colors.textSubtle}
-                          />
-                          <Text style={styles.shiftCompactMeta} numberOfLines={1}>
-                            {compactStart}
-                            {compactEnd ? ` – ${compactEnd}` : ""}
-                            {durationLabel ? ` · ${durationLabel}` : ""}
-                          </Text>
-                        </View>
+                      <View style={styles.shiftTimeBlock}>
+                        <Ionicons name="time-outline" size={12} color={appTheme.colors.textSubtle} />
+                        <Text style={styles.shiftCompactMeta} numberOfLines={1}>
+                          {compactStart}
+                          {compactEnd ? ` – ${compactEnd}` : ""}
+                          {durationLabel ? ` · ${durationLabel}` : ""}
+                        </Text>
                       </View>
                     </View>
                     <Ionicons
@@ -3475,9 +3469,8 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.surface,
     gap: 0,
   },
-  shiftItemOpen: {
-    backgroundColor: appTheme.colors.surfaceBrandSoft,
-  },
+  // Open shifts are signalled by the primary accent bar + live dot; no heavy tinted fill needed.
+  shiftItemOpen: {},
   shiftItemClosed: {},
   shiftItemScheduled: {},
   shiftCardAccent: {
@@ -3515,7 +3508,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
   // Small dot rendered before the shift name when the shift is currently open. Subtle,
   // since the open-state already has a tinted background — the dot just reinforces it.
@@ -3557,9 +3550,9 @@ const styles = StyleSheet.create({
   },
   shiftSalesAmount: {
     color: appTheme.colors.text,
-    fontFamily: appTheme.fonts.heading,
-    fontSize: 17,
-    lineHeight: 21,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 15,
+    lineHeight: 19,
   },
   shiftName: {
     color: appTheme.colors.text,
