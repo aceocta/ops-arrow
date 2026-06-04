@@ -50,6 +50,14 @@ public static class TemperatureScheduleWindows
         return delta > tolerance;
     }
 
+    /// <summary>True only when the reading is after the slot's expected time plus tolerance (late);
+    /// an early reading is not late.</summary>
+    public static bool IsLate(CfgTemperatureSchedule slot, TimeOnly readingTime)
+    {
+        var tolerance = TimeSpan.FromMinutes(Math.Max(0, slot.ToleranceMinutes));
+        return readingTime.ToTimeSpan() > slot.ExpectedTime.ToTimeSpan() + tolerance;
+    }
+
     /// <summary>Classifies a reading relative to its assigned slot.</summary>
     public static TemperatureScheduleCellState Classify(CfgTemperatureSchedule slot, TimeOnly readingTime)
     {

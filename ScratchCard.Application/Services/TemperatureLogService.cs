@@ -530,7 +530,8 @@ public class TemperatureLogService : ITemperatureLogService
                 // Late only applies to today or past days. A reading dated in the future can't be
                 // late — its scheduled time hasn't arrived — so don't flag it.
                 var isFuture = readingDate > DateOnly.FromDateTime(DateTime.UtcNow);
-                var isLate = !isFuture && TemperatureScheduleWindows.IsOutsideTolerance(picked, readingTime);
+                // Late strictly means after expected + tolerance; an early reading is not late.
+                var isLate = !isFuture && TemperatureScheduleWindows.IsLate(picked, readingTime);
                 return (picked.Id, isLate);
             }
         }
