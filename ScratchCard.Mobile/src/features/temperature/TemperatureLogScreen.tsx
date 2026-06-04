@@ -1032,12 +1032,14 @@ export function TemperatureLogScreen() {
                 <Pressable
                   key={schedule.id}
                   onPress={() => openQuickEntry(schedule.id)}
-                  style={styles.quickAddChip}
+                  style={[styles.quickAddChip, styles.quickAddChipColumn]}
                   accessibilityRole="button"
                   accessibilityLabel={`Add ${schedule.label} reading`}
                 >
-                  <Ionicons name="add" size={14} color={appTheme.colors.primary} />
-                  <Text style={styles.quickAddChipText}>{schedule.label}</Text>
+                  <View style={styles.quickAddChipTop}>
+                    <Ionicons name="add" size={14} color={appTheme.colors.primary} />
+                    <Text style={styles.quickAddChipText}>{schedule.label}</Text>
+                  </View>
                   <Text style={styles.quickAddChipTime}>{schedule.expectedTime.slice(0, 5)}</Text>
                 </Pressable>
               ))}
@@ -2243,6 +2245,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: appTheme.colors.primary,
     backgroundColor: appTheme.colors.surfaceTintAlt,
+  },
+  quickAddChipColumn: {
+    flexDirection: "column",
+    gap: 1,
+    borderRadius: appTheme.radius.sm,
+  },
+  quickAddChipTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   quickAddChipText: {
     color: appTheme.colors.primary,
