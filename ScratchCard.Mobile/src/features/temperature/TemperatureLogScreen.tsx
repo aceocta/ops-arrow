@@ -1009,7 +1009,7 @@ export function TemperatureLogScreen() {
             </View>
           </View>
 
-          <Text style={styles.quickAddLabel}>Add reading to check</Text>
+          {/* <Text style={styles.quickAddLabel}>Add reading to check</Text> */}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
