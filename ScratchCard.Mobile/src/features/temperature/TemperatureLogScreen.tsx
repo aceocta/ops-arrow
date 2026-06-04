@@ -1879,14 +1879,14 @@ const styles = StyleSheet.create({
   },
   matrixUnitCol: {
     width: 104,
-    borderRightWidth: 1,
+    borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: appTheme.colors.borderSoft,
   },
   matrixUnitCell: {
     width: 104,
     paddingHorizontal: 8,
     justifyContent: "center",
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: appTheme.colors.borderSoft,
   },
   matrixCornerCell: {
@@ -1920,8 +1920,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 1,
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: appTheme.colors.borderSoft,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderRightColor: appTheme.colors.borderSoft,
   },
   matrixHeaderText: {
     color: appTheme.colors.text,
@@ -1946,8 +1948,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 2,
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: appTheme.colors.borderSoft,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderRightColor: appTheme.colors.borderSoft,
   },
   matrixCellEmpty: {
     backgroundColor: appTheme.colors.surfaceMuted,
