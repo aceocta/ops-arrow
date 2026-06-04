@@ -1919,7 +1919,8 @@ const styles = StyleSheet.create({
   },
   matrixUnitCell: {
     width: 104,
-    paddingHorizontal: 8,
+    paddingLeft: 14,
+    paddingRight: 8,
     justifyContent: "center",
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: appTheme.colors.borderSoft,
