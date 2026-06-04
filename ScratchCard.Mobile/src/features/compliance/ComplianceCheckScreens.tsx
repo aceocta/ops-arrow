@@ -122,7 +122,8 @@ type ComplianceMatrixReportScope = {
 };
 
 const frequencyOptions: ComplianceCheckFrequency[] = ["Daily", "Weekly", "Monthly"];
-const resultOptions: ComplianceCheckResult[] = ["Compliant", "NonCompliant", "NotApplicable", "Pending"];
+// Pending is the default (unanswered) state, not a choice — the chips are the three real outcomes.
+const resultOptions: ComplianceCheckResult[] = ["Compliant", "NonCompliant", "NotApplicable"];
 const MAX_COMPLIANCE_ATTACHMENTS = 10;
 const MAX_COMPLIANCE_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const monthOptions = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -248,6 +249,14 @@ function formatResultButtonLabel(result: ComplianceCheckResult) {
   if (result === "NonCompliant") return "Non-Comp";
   if (result === "NotApplicable") return "N/A";
   return "Pending";
+}
+
+// Status text colour for a collapsed (answered) check row.
+function collapsedStatusColor(result: ComplianceCheckResult): { color: string } {
+  if (result === "Compliant") return { color: appTheme.colors.success };
+  if (result === "NonCompliant") return { color: appTheme.colors.danger };
+  if (result === "NotApplicable") return { color: appTheme.colors.textMuted };
+  return { color: appTheme.colors.textSubtle };
 }
 
 function getResultChoiceChipBaseStyle(result: ComplianceCheckResult) {
@@ -820,6 +829,8 @@ export function ComplianceChecksScreen() {
   const [selectedDate, setSelectedDate] = useState(initialDate);
   const [showPendingOnly, setShowPendingOnly] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, EntryDraft>>({});
+  // An answered check collapses to a one-line summary; this holds the one the user re-expanded to edit.
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [editorState, setEditorState] = useState<NoteEditorState>(null);
   const [editorValue, setEditorValue] = useState("");
   const [attachmentsByItemId, setAttachmentsByItemId] = useState<Record<string, ComplianceAttachmentState[]>>({});
@@ -1615,12 +1626,22 @@ export function ComplianceChecksScreen() {
             <View style={styles.periodPickerSection}>
               <Text style={styles.metaLabel}>Year</Text>
               <View style={styles.monthYearPickerRow}>
-                <Pressable style={styles.secondaryButton} onPress={() => shiftMonthlyYear(-1)}>
-                  <Text style={styles.secondaryButtonText}>- Year</Text>
+                <Pressable
+                  style={styles.dailyDateNavButton}
+                  onPress={() => shiftMonthlyYear(-1)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Previous year"
+                >
+                  <Ionicons name="chevron-back" size={18} color={appTheme.colors.text} />
                 </Pressable>
                 <Text style={styles.monthYearValue}>{selectedMonthYear}</Text>
-                <Pressable style={styles.secondaryButton} onPress={() => shiftMonthlyYear(1)}>
-                  <Text style={styles.secondaryButtonText}>+ Year</Text>
+                <Pressable
+                  style={styles.dailyDateNavButton}
+                  onPress={() => shiftMonthlyYear(1)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Next year"
+                >
+                  <Ionicons name="chevron-forward" size={18} color={appTheme.colors.text} />
                 </Pressable>
               </View>
               <Text style={styles.metaLabel}>Month</Text>
@@ -1638,7 +1659,6 @@ export function ComplianceChecksScreen() {
                   );
                 })}
               </View>
-              <Text style={styles.meta}>Selected month: {monthOptions[selectedMonthIndex]} {selectedMonthYear}</Text>
             </View>
           ) : null}
 
@@ -1677,6 +1697,35 @@ export function ComplianceChecksScreen() {
           </View>
         </View>
 
+        {allRows.length > 0 ? (
+          <View style={styles.progressStrip}>
+            <Text style={styles.progressStripText}>
+              <Text style={styles.progressStripStrong}>{summary.completed} of {summary.total}</Text> done
+              {summary.nonCompliant > 0 ? `  ·  ${summary.nonCompliant} non-compliant` : ""}
+            </Text>
+            {summary.pending > 0 || showPendingOnly ? (
+              <Pressable
+                style={[styles.pendingToggle, showPendingOnly ? styles.pendingToggleActive : null]}
+                onPress={() => setShowPendingOnly((value) => !value)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: showPendingOnly }}
+                accessibilityLabel="Show only pending checks"
+              >
+                <Ionicons
+                  name={showPendingOnly ? "funnel" : "funnel-outline"}
+                  size={13}
+                  color={showPendingOnly ? appTheme.colors.primary : appTheme.colors.textMuted}
+                />
+                <Text style={[styles.pendingToggleText, showPendingOnly ? styles.pendingToggleTextActive : null]}>
+                  Pending only
+                </Text>
+              </Pressable>
+            ) : (
+              <Text style={styles.progressStripDone}>All done</Text>
+            )}
+          </View>
+        ) : null}
+
         {logQuery.isLoading ? <Text style={styles.meta}>Loading checks...</Text> : null}
         {visiblePeriodGroups.map((periodGroup) => (
           <View key={periodGroup.group.id} style={[ui.card, styles.periodGroupCardTight]}>
@@ -1706,11 +1755,52 @@ export function ComplianceChecksScreen() {
                       : draft.result === "NotApplicable"
                         ? styles.itemCardAccentNotApplicable
                         : styles.itemCardAccentPending;
+
+                // Answered checks collapse to a one-line summary so only outstanding ones stay open.
+                // Non-compliant stays expanded — it usually needs an action/notes/photo recorded.
+                const isAnswered = draft.result !== "Pending";
+                const isExpanded =
+                  !isAnswered || draft.result === "NonCompliant" || expandedItemId === row.item.id;
+                if (!isExpanded) {
+                  return (
+                    <Pressable
+                      key={row.item.id}
+                      style={styles.itemCard}
+                      onPress={() => setExpandedItemId(row.item.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${row.item.itemName}, ${formatResultButtonLabel(draft.result)}. Tap to edit.`}
+                    >
+                      <View style={[styles.itemCardAccent, accentStyle]} />
+                      <View style={styles.itemCollapsedRow}>
+                        <Text style={styles.itemCollapsedTitle} numberOfLines={1}>{row.item.itemName}</Text>
+                        <View style={styles.itemCollapsedRight}>
+                          <Text style={[styles.itemCollapsedStatus, collapsedStatusColor(draft.result)]} numberOfLines={1}>
+                            {formatResultButtonLabel(draft.result)}
+                          </Text>
+                          <Ionicons name="chevron-down" size={16} color={appTheme.colors.textSubtle} />
+                        </View>
+                      </View>
+                    </Pressable>
+                  );
+                }
+
                 return (
                   <View key={row.item.id} style={styles.itemCard}>
                     <View style={[styles.itemCardAccent, accentStyle]} />
                     <View style={styles.itemCardContent}>
-                      <Text style={styles.itemTitle} numberOfLines={2}>{row.item.itemName}</Text>
+                      {isAnswered && draft.result !== "NonCompliant" ? (
+                        <Pressable
+                          style={styles.itemTitleRow}
+                          onPress={() => setExpandedItemId(null)}
+                          accessibilityRole="button"
+                          accessibilityLabel="Collapse check"
+                        >
+                          <Text style={[styles.itemTitle, { flex: 1 }]} numberOfLines={2}>{row.item.itemName}</Text>
+                          <Ionicons name="chevron-up" size={16} color={appTheme.colors.textSubtle} />
+                        </Pressable>
+                      ) : (
+                        <Text style={styles.itemTitle} numberOfLines={2}>{row.item.itemName}</Text>
+                      )}
 
                       <View style={styles.resultChoiceRow}>
                         {resultOptions.map((resultOption) => {
@@ -1798,17 +1888,9 @@ export function ComplianceChecksScreen() {
 
                     {isAttachmentPanelOpen ? (
                       <View style={styles.inlineAttachmentPanel}>
-                        <Text style={styles.fieldLabel}>Attachments (Optional)</Text>
+                        <Text style={styles.fieldLabel}>Photos (Optional)</Text>
                         {attachmentCount === 0 ? (
-                          <Text style={styles.meta}>No attachments selected.</Text>
-                        ) : (
-                          <Text style={styles.meta}>{attachmentCount} attachment(s) selected.</Text>
-                        )}
-                        {uploadedAttachments.length > 0 ? (
-                          <Text style={styles.meta}>Uploaded: {uploadedAttachments.length}</Text>
-                        ) : null}
-                        {pendingAttachments.length > 0 ? (
-                          <Text style={styles.meta}>Pending upload: {pendingAttachments.length}</Text>
+                          <Text style={styles.meta}>Add a photo as evidence.</Text>
                         ) : null}
 
                         {uploadedAttachments.length > 0 || pendingAttachments.length > 0 ? (
@@ -1832,11 +1914,9 @@ export function ComplianceChecksScreen() {
                                     <Text style={styles.complianceAttachmentFileName} numberOfLines={1}>
                                       {attachment.fileName}
                                     </Text>
-                                    <Text style={styles.meta}>
-                                      {(attachment.contentType ?? "application/octet-stream")}
-                                      {attachment.fileSizeBytes > 0 ? ` | ${formatFileSize(attachment.fileSizeBytes)}` : ""}
-                                    </Text>
-                                    <Text style={styles.meta}>Uploaded {new Date(attachment.uploadedOn).toLocaleString()}</Text>
+                                    {attachment.fileSizeBytes > 0 ? (
+                                      <Text style={styles.meta}>{formatFileSize(attachment.fileSizeBytes)}</Text>
+                                    ) : null}
                                   </View>
                                   <View style={styles.complianceAttachmentActionStack}>
                                     <Pressable
@@ -1882,10 +1962,9 @@ export function ComplianceChecksScreen() {
                                     <Text style={styles.complianceAttachmentFileName} numberOfLines={1}>
                                       {attachment.fileName}
                                     </Text>
-                                    <Text style={styles.meta}>
-                                      {(attachment.contentType ?? "application/octet-stream")}
-                                      {attachment.size ? ` | ${formatFileSize(attachment.size)}` : ""}
-                                    </Text>
+                                    {attachment.size ? (
+                                      <Text style={styles.meta}>{formatFileSize(attachment.size)}</Text>
+                                    ) : null}
                                   </View>
                                   <Pressable
                                     style={styles.complianceAttachmentRemoveButton}
@@ -2803,11 +2882,97 @@ const styles = StyleSheet.create({
   groupRows: {
     gap: appTheme.spacing.xs,
   },
+  progressStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: 8,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceTintAlt,
+  },
+  progressStripText: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  progressStripStrong: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+  },
+  progressStripPending: {
+    color: appTheme.colors.warning,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  progressStripDone: {
+    color: appTheme.colors.success,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  pendingToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: appTheme.radius.pill,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surface,
+  },
+  pendingToggleActive: {
+    borderColor: appTheme.colors.primary,
+    backgroundColor: appTheme.colors.surfaceTintAlt,
+  },
+  pendingToggleText: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12.5,
+    lineHeight: 16,
+  },
+  pendingToggleTextActive: {
+    color: appTheme.colors.primary,
+  },
   itemCard: {
     flexDirection: "row",
     overflow: "hidden",
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceMuted,
+  },
+  itemTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  itemCollapsedRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: 11,
+  },
+  itemCollapsedTitle: {
+    flex: 1,
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  itemCollapsedRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  itemCollapsedStatus: {
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12.5,
+    lineHeight: 16,
   },
   itemCardAccent: {
     width: 4,
@@ -3232,6 +3397,7 @@ const styles = StyleSheet.create({
     gap: appTheme.spacing.xs,
   },
   monthYearValue: {
+    flex: 1,
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 16,
