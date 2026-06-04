@@ -1091,7 +1091,7 @@ function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
                             <Text style={[styles.smallButtonText, styles.smallButtonTextSecondary]}>Add Shift</Text>
                           </Pressable>
                           <Text style={styles.caption}>
-                            Use 24-hour format (HH:mm). Overnight shift is supported; e.g. 22:00 to 06:00 belongs to the starting business day.
+                            Overnight shifts are supported; e.g. 22:00 to 06:00 belongs to the starting business day.
                           </Text>
                         </View>
                       ) : isTimeConfiguration(item, currentValue) ? (
