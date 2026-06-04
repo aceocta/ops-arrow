@@ -484,6 +484,8 @@ export function TemperatureLogScreen() {
   // extra check" (the server stores it against the shop's random bucket). Pre-selected on open.
   const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(null);
   const [temperatureCelsius, setTemperatureCelsius] = useState("");
+  // Mirrors the temperature field's focus so the joined ± button can show the same active state.
+  const [isTempFocused, setIsTempFocused] = useState(false);
   const [checkedByInitials, setCheckedByInitials] = useState("");
   const [notes, setNotes] = useState("");
   const [actionTaken, setActionTaken] = useState("");
@@ -1409,7 +1411,7 @@ export function TemperatureLogScreen() {
                 <View style={styles.entryHalf}>
                   <View style={styles.tempInputRow}>
                       <Pressable
-                      style={styles.tempSignButton}
+                      style={[styles.tempSignButton, isTempFocused ? styles.tempSignButtonActive : null]}
                       onPress={() => {
                         // Flip the explicit sign between "+x" and "-x". Empty starts a "-" entry
                         // so the next keystroke types digits straight after the sign. The
@@ -1433,7 +1435,7 @@ export function TemperatureLogScreen() {
                       accessibilityRole="button"
                       accessibilityLabel="Toggle negative temperature"
                     >
-                      <Text style={styles.tempSignButtonText}>±</Text>
+                      <Text style={[styles.tempSignButtonText, isTempFocused ? styles.tempSignButtonTextActive : null]}>±</Text>
                     </Pressable>
                     <View style={styles.tempInputField}>
                       <FloatingLabelInput
@@ -1464,6 +1466,8 @@ export function TemperatureLogScreen() {
                         keyboardType="decimal-pad"
                         returnKeyType="next"
                         submitBehavior="submit"
+                        onFocus={() => setIsTempFocused(true)}
+                        onBlur={() => setIsTempFocused(false)}
                         onSubmitEditing={() => initialsRef.current?.focus()}
                       />
                     </View>
@@ -1524,26 +1528,26 @@ export function TemperatureLogScreen() {
 
               {/* Action buttons live outside the ScrollView so they stay pinned above the
                   keyboard (the KeyboardAvoidingView lifts the whole card) while typing. */}
-              <View style={styles.modalFooter}>
-                <PrimaryButton
-                  label={
-                    recordMutation.isPending
-                      ? "Saving..."
-                      : nextUnitId
-                        ? "Save & Next Unit"
-                        : "Save Reading"
-                  }
-                  onPress={() => triggerSave(nextUnitId ? "next" : "close")}
-                  disabled={recordMutation.isPending || !shopId || !selectedUnit}
-                />
-                <View style={styles.modalActionRow}>
-                  <Pressable
-                    style={[styles.modalActionButton, styles.modalActionSecondary]}
-                    onPress={closeLogEntryModal}
-                    disabled={recordMutation.isPending}
-                  >
-                    <Text style={styles.modalActionSecondaryText}>Close</Text>
-                  </Pressable>
+              <View style={[styles.modalFooter, styles.modalFooterRow]}>
+                <Pressable
+                  style={[styles.modalActionButton, styles.modalActionSecondary, styles.modalFooterClose]}
+                  onPress={closeLogEntryModal}
+                  disabled={recordMutation.isPending}
+                >
+                  <Text style={styles.modalActionSecondaryText}>Close</Text>
+                </Pressable>
+                <View style={styles.modalFooterSave}>
+                  <PrimaryButton
+                    label={
+                      recordMutation.isPending
+                        ? "Saving..."
+                        : nextUnitId
+                          ? "Save & Next Unit"
+                          : "Save Reading"
+                    }
+                    onPress={() => triggerSave(nextUnitId ? "next" : "close")}
+                    disabled={recordMutation.isPending || !shopId || !selectedUnit}
+                  />
                 </View>
               </View>
 
@@ -1720,11 +1724,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  tempSignButtonActive: {
+    borderColor: appTheme.colors.primary,
+    backgroundColor: appTheme.colors.surface,
+  },
   tempSignButtonText: {
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.heading,
     fontSize: 20,
     lineHeight: 24,
+  },
+  tempSignButtonTextActive: {
+    color: appTheme.colors.primary,
   },
   unitChipRow: {
     gap: 6,
@@ -2007,10 +2018,10 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   unitHeaderDivider: {
-    height: 1,
+    height: StyleSheet.hairlineWidth,
     backgroundColor: appTheme.colors.border,
-    marginTop: appTheme.spacing.sm,
-    marginBottom: appTheme.spacing.xs,
+    marginTop: 2,
+    marginBottom: 2,
   },
   unitHeaderRow: {
     flexDirection: "row",
@@ -2639,7 +2650,24 @@ const styles = StyleSheet.create({
   },
   modalFooter: {
     gap: appTheme.spacing.sm,
+    // Span the divider edge-to-edge across the popup (cancel the card's padding), so it's clearly
+    // visible as a separator above the action buttons.
+    marginHorizontal: -appTheme.spacing.md,
+    paddingHorizontal: appTheme.spacing.md,
     paddingTop: appTheme.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: appTheme.colors.border,
+  },
+  // Close on the left, Save (& Next) on the right — equal 50/50 width.
+  modalFooterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  modalFooterClose: {
+    flex: 1,
+  },
+  modalFooterSave: {
+    flex: 1,
   },
   modalActionRow: {
     flexDirection: "row",
