@@ -2961,8 +2961,8 @@ const styles = StyleSheet.create({
     flex: 1,
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.body,
-    fontSize: 14,
-    lineHeight: 18,
+    fontSize: 13,
+    lineHeight: 17,
   },
   itemCollapsedRight: {
     flexDirection: "row",
@@ -3094,8 +3094,8 @@ const styles = StyleSheet.create({
   itemTitle: {
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 15,
-    lineHeight: 19,
+    fontSize: 13,
+    lineHeight: 17,
     flex: 1,
   },
   checkedByInlineRow: {
