@@ -267,30 +267,31 @@ public class TemperatureLogService : ITemperatureLogService
 
         var now = DateTimeOffset.UtcNow;
         var checkedByInitials = BuildInitials(request.CheckedByInitials, _currentUserService.FullName, _currentUserService.Email);
-        var existing = await _readingRepository.Query()
-            .FirstOrDefaultAsync(
+
+        // One reading per check per unit per day. When the caller picked a specific check, match on
+        // that binding — so logging AM and PM produce two separate readings, and re-logging the same
+        // check updates it. Ad-hoc/random entries have no pick, so they stay unique by reading time.
+        var existing = request.ScheduleId.HasValue
+            ? await _readingRepository.Query().FirstOrDefaultAsync(
+                x => x.TemperatureMonitoringUnitId == request.TemperatureMonitoringUnitId
+                    && x.ReadingDate == request.ReadingDate
+                    && x.ScheduleId == request.ScheduleId,
+                cancellationToken)
+            : await _readingRepository.Query().FirstOrDefaultAsync(
                 x => x.TemperatureMonitoringUnitId == request.TemperatureMonitoringUnitId
                     && x.ReadingDate == request.ReadingDate
                     && x.ReadingTime == request.ReadingTime,
                 cancellationToken);
 
-        // Bind the reading to a schedule. If the caller picked one, honor it; otherwise window-match
-        // an active scheduled slot and fall back to the shop's random-check bucket when none applies.
-        // Outside a real slot's tolerance window flags the reading late; random checks are never late.
-        // Updates skip binding (we keep the original schedule binding).
-        Guid? scheduleId = null;
-        var isLate = false;
-        if (existing is null)
-        {
-            var (claimedId, late) = await ResolveScheduleAsync(
-                request.ShopId,
-                request.ScheduleId,
-                request.ReadingDate,
-                request.ReadingTime,
-                cancellationToken);
-            scheduleId = claimedId;
-            isLate = late;
-        }
+        // Resolve the schedule binding from the caller's pick (a specific slot, or the random bucket
+        // when omitted). Outside a real slot's tolerance flags it late; random checks are never late.
+        // Recomputed on every save so editing a reading re-evaluates its slot and late flag.
+        var (scheduleId, isLate) = await ResolveScheduleAsync(
+            request.ShopId,
+            request.ScheduleId,
+            request.ReadingDate,
+            request.ReadingTime,
+            cancellationToken);
 
         var auditAction = "TemperatureReadingRecorded";
         TemperatureReading reading;
@@ -328,6 +329,8 @@ public class TemperatureLogService : ITemperatureLogService
             existing.RecordedOn = now;
             existing.RecordedByUserId = _currentUserService.UserId;
             existing.RecordedByName = _currentUserService.FullName;
+            existing.ScheduleId = scheduleId;
+            existing.IsLateForSchedule = isLate;
             existing.ModifiedOn = now;
             existing.ModifiedBy = _currentUserService.UserId;
 
