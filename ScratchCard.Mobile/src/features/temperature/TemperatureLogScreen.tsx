@@ -41,6 +41,13 @@ function isOutOfRangeTemperature(temperature: number, min: number, max: number) 
   return temperature < min || temperature > max;
 }
 
+// Pre-fills the temperature box with a leading "-" for units whose whole range sits at or below
+// zero (freezers, e.g. -10 to 0), so the operator just types the digits. The ± button still lets
+// them flip to positive. Units that can read positive start blank.
+function defaultTemperatureEntryForRange(min: number, max: number): string {
+  return max <= 0 && min < 0 ? "-" : "";
+}
+
 // Produces "+4.4° over" or "−1.2° below" so a glance at a row tells the reader how far
 // outside the safe band the reading actually was — the raw "Out of range" badge alone
 // doesn't communicate severity.
@@ -554,11 +561,14 @@ export function TemperatureLogScreen() {
   // Used by chip taps, chevron navigation, and the post-save "advance to next" path.
   const resetEntryFormForUnit = useCallback((unitId: string) => {
     setSelectedUnitId(unitId);
-    setTemperatureCelsius("");
+    const unit = (unitsQuery.data ?? []).find((x) => x.id === unitId);
+    setTemperatureCelsius(
+      unit ? defaultTemperatureEntryForRange(unit.minTemperatureCelsius, unit.maxTemperatureCelsius) : "",
+    );
     setNotes("");
     setActionTaken("");
     setReadingTime(formatTimeValue(new Date()));
-  }, []);
+  }, [unitsQuery.data]);
 
   type RecordPostAction = "close" | "next";
   // Holds the unit we should jump to after a successful save when the user picks "Save & Next".
