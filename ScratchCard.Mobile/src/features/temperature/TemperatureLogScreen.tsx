@@ -350,16 +350,28 @@ type MatrixRow = { unit: TemperatureMonitoringUnit; cells: Array<ScheduledSlotVi
 function DailyScheduleMatrix({
   columns,
   rows,
+  outOfRangeCount,
   onCellPress,
 }: {
   columns: MatrixColumn[];
   rows: MatrixRow[];
+  outOfRangeCount: number;
   onCellPress: (unitId: string, scheduleId: string) => void;
 }) {
   if (columns.length === 0 || rows.length === 0) return null;
   return (
     <View style={styles.matrixCard}>
-      <SectionHeader title="Scheduled Checks" icon="grid-outline" />
+      <SectionHeader
+        title="Scheduled Checks"
+        icon="grid-outline"
+        right={
+          outOfRangeCount > 0 ? (
+            <StatusBadge label={`${outOfRangeCount} out of range`} tone="danger" />
+          ) : (
+            <StatusBadge label="In range" tone="success" />
+          )
+        }
+      />
       <View style={styles.matrixRow}>
         {/* Fixed unit column. */}
         <View style={styles.matrixUnitCol}>
@@ -992,7 +1004,7 @@ export function TemperatureLogScreen() {
           </View>
 
           <View style={styles.summaryRow}>
-            <View style={styles.summaryCard}>
+            {/* <View style={styles.summaryCard}>
               <Text style={styles.summaryCardLabel} numberOfLines={1}>Done</Text>
               <Text
                 numberOfLines={1}
@@ -1003,13 +1015,7 @@ export function TemperatureLogScreen() {
               >
                 {summary.recorded}/{summary.total}
               </Text>
-            </View>
-            <View style={styles.summaryCard}>
-              <Text style={styles.summaryCardLabel} numberOfLines={1}>Out of range</Text>
-              <Text numberOfLines={1} style={[styles.summaryCardValue, summary.outOfRange > 0 ? styles.summaryValueDanger : null]}>
-                {summary.outOfRange}
-              </Text>
-            </View>
+            </View> */}
           </View>
 
           {/* <Text style={styles.quickAddLabel}>Add reading to check</Text> */}
@@ -1151,6 +1157,7 @@ export function TemperatureLogScreen() {
         <DailyScheduleMatrix
           columns={scheduleMatrix.columns}
           rows={scheduleMatrix.rows}
+          outOfRangeCount={summary.outOfRange}
           onCellPress={openLogEntryModal}
         />
 
