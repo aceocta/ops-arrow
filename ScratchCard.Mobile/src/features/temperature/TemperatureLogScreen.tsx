@@ -371,6 +371,9 @@ function DailyScheduleMatrix({
               <Text style={styles.matrixUnitText} numberOfLines={2}>
                 {row.unit.unitName}
               </Text>
+              <Text style={styles.matrixUnitType} numberOfLines={1}>
+                {row.unit.equipmentType}
+              </Text>
             </View>
           ))}
         </View>
@@ -1891,6 +1894,13 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 12,
     lineHeight: 15,
+  },
+  matrixUnitType: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 10,
+    lineHeight: 13,
+    marginTop: 1,
   },
   matrixHeaderLine: {
     flexDirection: "row",

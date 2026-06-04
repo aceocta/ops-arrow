@@ -341,9 +341,9 @@ public class TemperatureLogService : ITemperatureLogService
 
         try
         {
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await _unitOfWork.SaveChangesAsync();
         }
-        catch (DbUpdateException)
+        catch (Exception ex)
         {
             // Surface a clear, actionable message instead of a generic 500 when the write fails
             // (e.g. a transient DB error or a concurrent save of the same check).
