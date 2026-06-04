@@ -339,7 +339,19 @@ public class TemperatureLogService : ITemperatureLogService
             auditAction = "TemperatureReadingUpdated";
         }
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            // Surface a clear, actionable message instead of a generic 500 when the write fails
+            // (e.g. a transient DB error or a concurrent save of the same check).
+            throw new AppException(
+                "temperature_save_failed",
+                "Couldn't save the temperature reading. Please try again.",
+                409);
+        }
 
         await _auditService.LogAsync(
             nameof(TemperatureReading),

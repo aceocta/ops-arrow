@@ -636,7 +636,15 @@ export function TemperatureLogScreen() {
       setIsLogEntryModalVisible(false);
     },
     onError: (error: any) => {
-      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to save reading.");
+      const data = error?.response?.data;
+      const message =
+        // Prefer the server's structured { code, message }; fall back to a clear network/generic note.
+        data?.message ??
+        data?.error ??
+        (error?.message === "Network Error" || error?.code === "ERR_NETWORK"
+          ? "No connection — the reading wasn't saved. Check your network and try again."
+          : "Couldn't save the reading. Please try again.");
+      toastError(message);
     },
   });
 
