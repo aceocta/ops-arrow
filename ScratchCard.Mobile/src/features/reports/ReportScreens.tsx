@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { Alert, FlatList, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -18,8 +18,7 @@ import {
   getStockReport,
 } from "../../api/reportsApi";
 import { listShifts } from "../../api/shiftsApi";
-import { formatDateValue, parseDateValue } from "../../components/DateTimeField";
-import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import { formatDateValue, MonthCalendar, parseDateValue } from "../../components/DateTimeField";
 import { ReportActionButton } from "../../components/ReportActionButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError } from "../../components/toast";
@@ -133,14 +132,7 @@ function DateRangeInputs({
     return undefined;
   }, [from, pendingFrom, pickerStage]);
 
-  const handlePickerChange = (event: DateTimePickerEvent, selected?: Date) => {
-    // Android dismisses by firing event.type === "dismissed" with no selected. Reset both stages.
-    if (event.type === "dismissed" || !selected) {
-      setPickerStage(null);
-      setPendingFrom(null);
-      return;
-    }
-
+  const handleRangeSelect = (selected: Date) => {
     if (pickerStage === "from") {
       const next = formatDateValue(selected);
       setFrom(next);
@@ -149,14 +141,8 @@ function DateRangeInputs({
         setTo(next);
       }
       setPendingFrom(next);
-      // On Android the picker is a one-shot modal — close and re-open for the "to" stage on
-      // the next tick. On iOS it stays inline so we just switch the stage flag.
-      if (Platform.OS === "android") {
-        setPickerStage(null);
-        setTimeout(() => setPickerStage("to"), 50);
-      } else {
-        setPickerStage("to");
-      }
+      // Advance to the "to" step — the custom calendar stays mounted, we just switch the bounds.
+      setPickerStage("to");
       return;
     }
 
@@ -165,6 +151,11 @@ function DateRangeInputs({
       setPickerStage(null);
       setPendingFrom(null);
     }
+  };
+
+  const closeRangePicker = () => {
+    setPickerStage(null);
+    setPendingFrom(null);
   };
 
   const openPicker = () => {
@@ -216,57 +207,31 @@ function DateRangeInputs({
         </View>
       </Pressable>
 
-      {/* Android: native dialog, never clipped. */}
-      {pickerStage && Platform.OS !== "ios" ? (
-        <DateTimePicker
-          mode="date"
-          value={pickerValue}
-          minimumDate={pickerMinimum}
-          onChange={handlePickerChange}
-          display="default"
-        />
-      ) : null}
-
-      {/* iOS: centered modal so a narrow card can't clip the inline calendar. */}
-      {Platform.OS === "ios" ? (
-        <Modal
-          visible={pickerStage !== null}
-          transparent
-          animationType="fade"
-          onRequestClose={() => {
-            setPickerStage(null);
-            setPendingFrom(null);
-          }}
-        >
-          <Pressable
-            style={styles.rangePickerBackdrop}
-            onPress={() => {
-              setPickerStage(null);
-              setPendingFrom(null);
-            }}
-          >
-            <Pressable style={styles.rangePickerCard} onPress={() => {}}>
-              <DateTimePicker
-                mode="date"
+      {/* Date-range picker — our own themed calendar (same on both platforms), two-step from → to. */}
+      <Modal
+        visible={pickerStage !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={closeRangePicker}
+      >
+        <Pressable style={styles.rangePickerBackdrop} onPress={closeRangePicker}>
+          <Pressable style={styles.rangePickerCard} onPress={() => {}}>
+            <Text style={styles.rangePickerStep}>
+              {pickerStage === "to" ? "Pick end date" : "Pick start date"}
+            </Text>
+            {pickerStage ? (
+              <MonthCalendar
                 value={pickerValue}
                 minimumDate={pickerMinimum}
-                onChange={handlePickerChange}
-                display="inline"
-                style={styles.rangePickerInline}
+                onSelect={handleRangeSelect}
               />
-              <Pressable
-                style={styles.rangePickerDoneButton}
-                onPress={() => {
-                  setPickerStage(null);
-                  setPendingFrom(null);
-                }}
-              >
-                <Text style={styles.rangePickerDoneText}>Done</Text>
-              </Pressable>
+            ) : null}
+            <Pressable style={styles.rangePickerDoneButton} onPress={closeRangePicker}>
+              <Text style={styles.rangePickerDoneText}>Done</Text>
             </Pressable>
           </Pressable>
-        </Modal>
-      ) : null}
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -1547,10 +1512,17 @@ const styles = StyleSheet.create({
     maxWidth: 360,
     backgroundColor: appTheme.colors.surface,
     borderRadius: appTheme.radius.md,
-    overflow: "hidden",
+    padding: appTheme.spacing.md,
   },
-  rangePickerInline: {
-    alignSelf: "stretch",
+  rangePickerStep: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 14,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    textAlign: "center",
   },
   rangePickerDoneButton: {
     borderTopWidth: 1,

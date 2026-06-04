@@ -1,7 +1,6 @@
-import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
-import React, { useMemo, useState } from "react";
-import { Modal, Platform, Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
-import { appTheme, resolvedColorScheme } from "../ui/theme";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Modal, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
+import { appTheme } from "../ui/theme";
 
 type DateTimeFieldMode = "date" | "time" | "datetime";
 
@@ -112,7 +111,8 @@ function isSameCalendarDay(a: Date, b: Date) {
 
 // A lightweight, themed month calendar — modern and consistent across iOS/Android, replacing the
 // platform's stock date dialog. Renders a month grid with prev/next navigation and min/max bounds.
-function MonthCalendar({
+// Exported so other screens (e.g. the reports date-range picker) can reuse the same calendar.
+export function MonthCalendar({
   value,
   minimumDate,
   maximumDate,
@@ -208,6 +208,81 @@ function MonthCalendar({
   );
 }
 
+const TIME_ITEM_HEIGHT = 44;
+
+// A custom 24h time picker — two scrollable hour/minute columns with the selection highlighted.
+// Fully in-app (no native picker), so it looks the same on iOS and Android.
+function TimeWheels({ value, onChange }: { value: Date; onChange: (date: Date) => void }) {
+  const hourRef = useRef<ScrollView>(null);
+  const minuteRef = useRef<ScrollView>(null);
+  const selectedHour = value.getHours();
+  const selectedMinute = value.getMinutes();
+
+  useEffect(() => {
+    // Centre the current selection when the picker opens.
+    const id = setTimeout(() => {
+      hourRef.current?.scrollTo({ y: Math.max(0, selectedHour - 2) * TIME_ITEM_HEIGHT, animated: false });
+      minuteRef.current?.scrollTo({ y: Math.max(0, selectedMinute - 2) * TIME_ITEM_HEIGHT, animated: false });
+    }, 0);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const setHour = (h: number) => {
+    const next = new Date(value);
+    next.setHours(h, value.getMinutes(), 0, 0);
+    onChange(next);
+  };
+  const setMinute = (m: number) => {
+    const next = new Date(value);
+    next.setHours(value.getHours(), m, 0, 0);
+    onChange(next);
+  };
+
+  const renderColumn = (
+    label: string,
+    count: number,
+    selected: number,
+    onPick: (n: number) => void,
+    ref: React.RefObject<ScrollView | null>,
+  ) => (
+    <View style={styles.timeColWrap}>
+      <Text style={styles.timeColLabel}>{label}</Text>
+      <ScrollView
+        ref={ref}
+        style={styles.timeScroll}
+        contentContainerStyle={styles.timeScrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {Array.from({ length: count }, (_, n) => {
+          const isSel = n === selected;
+          return (
+            <Pressable
+              key={n}
+              style={[styles.timeOption, isSel ? styles.timeOptionSelected : null]}
+              onPress={() => onPick(n)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: isSel }}
+            >
+              <Text style={[styles.timeOptionText, isSel ? styles.timeOptionTextSelected : null]}>
+                {String(n).padStart(2, "0")}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+
+  return (
+    <View style={styles.timeWheelsRow}>
+      {renderColumn("Hour", 24, selectedHour, setHour, hourRef)}
+      <Text style={styles.timeColon}>:</Text>
+      {renderColumn("Minute", 60, selectedMinute, setMinute, minuteRef)}
+    </View>
+  );
+}
+
 export function DateTimeField({
   mode,
   value,
@@ -288,39 +363,16 @@ export function DateTimeField({
     setDtStage("time");
   };
 
-  // The native time picker changed (used for `time` mode and datetime's time step).
-  const handleTimeChange = (event: DateTimePickerEvent, selected?: Date) => {
-    if (Platform.OS === "android") {
-      const dismissed = event.type === "dismissed" || event.type === "neutralButtonPressed" || !selected;
-      if (dismissed) {
-        closePicker();
-        return;
-      }
-      if (mode === "time") {
-        onChange(formatTimeValue(selected));
-        closePicker();
-        return;
-      }
-      const base = new Date(dtDraft ?? parseDateTimeValue(value) ?? new Date());
-      base.setHours(selected!.getHours(), selected!.getMinutes(), 0, 0);
-      onChange(formatDateTimeValue(base));
-      closePicker();
-      return;
-    }
-
-    // iOS spinner updates live; the Done button commits/closes.
-    if (!selected) return;
+  // A time was picked in the custom time picker. Live-updates as the user taps; Done commits/closes.
+  const handleTimePick = (picked: Date) => {
     if (mode === "time") {
-      onChange(formatTimeValue(selected));
+      onChange(formatTimeValue(picked));
       return;
     }
-    const base = new Date(dtDraft ?? parseDateTimeValue(value) ?? new Date());
-    base.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
-    setDtDraft(base);
+    setDtDraft(picked);
   };
 
-  // iOS Done for the time step.
-  const commitIosTime = () => {
+  const commitTime = () => {
     if (mode === "datetime" && dtDraft) {
       onChange(formatDateTimeValue(dtDraft));
     }
@@ -367,37 +419,14 @@ export function DateTimeField({
         </Modal>
       ) : null}
 
-      {/* Time step — Android native dialog; iOS spinner modal. Used for `time` and datetime's step 2. */}
-      {Platform.OS !== "ios" && timeVisible ? (
-        <DateTimePicker
-          mode="time"
-          value={pickerValue}
-          onChange={handleTimeChange}
-          themeVariant={resolvedColorScheme === "dark" ? "dark" : "light"}
-          textColor={appTheme.colors.text}
-          accentColor={appTheme.colors.primary}
-          is24Hour
-          display="default"
-        />
-      ) : null}
-
-      {Platform.OS === "ios" && (mode === "time" || mode === "datetime") ? (
+      {/* Time step — our own scrollable hour/minute picker (used for `time` and datetime's step 2). */}
+      {mode === "time" || mode === "datetime" ? (
         <Modal visible={timeVisible} transparent animationType="fade" onRequestClose={closePicker}>
           <Pressable style={styles.iosBackdrop} onPress={closePicker}>
-            <Pressable style={styles.iosPickerCard} onPress={() => {}}>
+            <Pressable style={styles.calendarCard} onPress={() => {}}>
               {mode === "datetime" ? <Text style={styles.stepLabel}>Step 2 of 2 · Time</Text> : null}
-              <DateTimePicker
-                mode="time"
-                value={pickerValue}
-                onChange={handleTimeChange}
-                display="spinner"
-                themeVariant={resolvedColorScheme === "dark" ? "dark" : "light"}
-                textColor={appTheme.colors.text}
-                accentColor={appTheme.colors.primary}
-                is24Hour
-                style={styles.iosPicker}
-              />
-              <Pressable style={styles.doneButton} onPress={commitIosTime}>
+              {timeVisible ? <TimeWheels value={pickerValue} onChange={handleTimePick} /> : null}
+              <Pressable style={styles.doneButton} onPress={commitTime}>
                 <Text style={styles.doneText}>Done</Text>
               </Pressable>
             </Pressable>
@@ -613,5 +642,62 @@ const styles = StyleSheet.create({
   calDayTextDisabled: {
     color: appTheme.colors.textSubtle,
     opacity: 0.4,
+  },
+  timeWheelsRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "center",
+    gap: 4,
+  },
+  timeColWrap: {
+    flex: 1,
+    alignItems: "center",
+    gap: 6,
+  },
+  timeColLabel: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 14,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  timeScroll: {
+    alignSelf: "stretch",
+    height: TIME_ITEM_HEIGHT * 5,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceMuted,
+  },
+  timeScrollContent: {
+    paddingVertical: 4,
+  },
+  timeOption: {
+    height: TIME_ITEM_HEIGHT,
+    marginHorizontal: 6,
+    borderRadius: appTheme.radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  timeOptionSelected: {
+    backgroundColor: appTheme.colors.primary,
+  },
+  timeOptionText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 18,
+    lineHeight: 22,
+  },
+  timeOptionTextSelected: {
+    color: appTheme.colors.onPrimary,
+    fontFamily: appTheme.fonts.bodyMedium,
+  },
+  timeColon: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 24,
+    lineHeight: TIME_ITEM_HEIGHT * 5,
+    marginBottom: 0,
   },
 });
