@@ -394,7 +394,7 @@ function DailyScheduleMatrix({
           {rows.map((row) => (
             <View key={row.unit.id} style={[styles.matrixUnitCell, styles.matrixUnitBodyCell]}>
               <Text style={styles.matrixUnitText} numberOfLines={2}>
-                {row.unit.unitName}
+                {row.unit.displayOrder ? `${row.unit.displayOrder}. ` : ""}{row.unit.unitName}
               </Text>
               <Text style={styles.matrixUnitType} numberOfLines={1}>
                 {row.unit.equipmentType}

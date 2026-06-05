@@ -302,7 +302,8 @@ internal static class ServiceMappingExtensions
         MaxTemperatureCelsius = unit.MaxTemperatureCelsius,
         IsActive = unit.IsActive,
         Location = unit.Location,
-        Notes = unit.Notes
+        Notes = unit.Notes,
+        DisplayOrder = unit.DisplayOrder
     };
 
     public static TemperatureReadingDto ToDto(this TemperatureReading reading) => new()

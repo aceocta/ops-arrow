@@ -762,6 +762,7 @@ export type TemperatureMonitoringUnit = {
   isActive: boolean;
   location?: string;
   notes?: string;
+  displayOrder: number;
 };
 
 export type TemperatureReading = {

@@ -27,6 +27,7 @@ function mapUnit(raw: any): TemperatureMonitoringUnit {
     isActive: Boolean(raw.isActive),
     location: raw.location ?? undefined,
     notes: raw.notes ?? undefined,
+    displayOrder: Number(raw.displayOrder ?? 0),
   };
 }
 
@@ -97,6 +98,7 @@ export async function createTemperatureUnit(payload: {
   isActive?: boolean;
   location?: string;
   notes?: string;
+  displayOrder?: number;
 }) {
   const response = await apiClient.post<ApiResponse<TemperatureMonitoringUnit>>("/temperature-logs/units", payload);
   return mapUnit(response.data.data);
@@ -112,6 +114,7 @@ export async function updateTemperatureUnit(
     isActive: boolean;
     location?: string;
     notes?: string;
+    displayOrder?: number;
   }
 ) {
   const response = await apiClient.put<ApiResponse<TemperatureMonitoringUnit>>(`/temperature-logs/units/${unitId}`, payload);

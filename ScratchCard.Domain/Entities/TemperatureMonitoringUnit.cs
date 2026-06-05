@@ -13,6 +13,8 @@ public class TemperatureMonitoringUnit : SoftDeletableAuditableEntity
     public bool IsActive { get; set; } = true;
     public string? Location { get; set; }
     public string? Notes { get; set; }
+    // Operator-defined position for ordering units in the grid/list and entry navigation.
+    public int DisplayOrder { get; set; }
 
     public Shop Shop { get; set; } = null!;
     public ICollection<TemperatureReading> Readings { get; set; } = new List<TemperatureReading>();

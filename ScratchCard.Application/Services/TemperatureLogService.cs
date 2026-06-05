@@ -150,7 +150,8 @@ public class TemperatureLogService : ITemperatureLogService
         var units = await _unitRepository.Query()
             .AsNoTracking()
             .Where(x => x.ShopId == shopId && !x.IsDeleted)
-            .OrderBy(x => x.EquipmentType)
+            .OrderBy(x => x.DisplayOrder)
+            .ThenBy(x => x.EquipmentType)
             .ThenBy(x => x.UnitName)
             .ToListAsync(cancellationToken);
 
@@ -169,6 +170,17 @@ public class TemperatureLogService : ITemperatureLogService
             throw new AppException("temperature_unit_duplicate", "Unit name already exists for this shop.");
         }
 
+        // Honour an explicit order; otherwise drop the unit at the end of the existing list.
+        var displayOrder = request.DisplayOrder;
+        if (displayOrder <= 0)
+        {
+            var maxOrder = await _unitRepository.Query()
+                .Where(x => x.ShopId == request.ShopId && !x.IsDeleted)
+                .Select(x => (int?)x.DisplayOrder)
+                .MaxAsync(cancellationToken) ?? 0;
+            displayOrder = maxOrder + 1;
+        }
+
         var now = DateTimeOffset.UtcNow;
         var unit = new TemperatureMonitoringUnit
         {
@@ -180,6 +192,7 @@ public class TemperatureLogService : ITemperatureLogService
             IsActive = request.IsActive,
             Location = request.Location?.Trim(),
             Notes = request.Notes?.Trim(),
+            DisplayOrder = displayOrder,
             CreatedOn = now,
             CreatedBy = _currentUserService.UserId
         };
@@ -223,6 +236,7 @@ public class TemperatureLogService : ITemperatureLogService
         unit.IsActive = request.IsActive;
         unit.Location = request.Location?.Trim();
         unit.Notes = request.Notes?.Trim();
+        unit.DisplayOrder = request.DisplayOrder;
         unit.ModifiedOn = DateTimeOffset.UtcNow;
         unit.ModifiedBy = _currentUserService.UserId;
 
@@ -402,7 +416,8 @@ public class TemperatureLogService : ITemperatureLogService
         var units = await _unitRepository.Query()
             .AsNoTracking()
             .Where(x => x.ShopId == shopId && x.IsActive && !x.IsDeleted)
-            .OrderBy(x => x.EquipmentType)
+            .OrderBy(x => x.DisplayOrder)
+            .ThenBy(x => x.EquipmentType)
             .ThenBy(x => x.UnitName)
             .ToListAsync(cancellationToken);
 

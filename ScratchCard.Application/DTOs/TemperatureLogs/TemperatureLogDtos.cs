@@ -13,6 +13,7 @@ public class TemperatureMonitoringUnitDto
     public bool IsActive { get; set; }
     public string? Location { get; set; }
     public string? Notes { get; set; }
+    public int DisplayOrder { get; set; }
 }
 
 public class TemperatureScheduleDto
@@ -46,6 +47,7 @@ public class CreateTemperatureMonitoringUnitRequest
     public bool IsActive { get; set; } = true;
     public string? Location { get; set; }
     public string? Notes { get; set; }
+    public int DisplayOrder { get; set; }
 }
 
 public class UpdateTemperatureMonitoringUnitRequest
@@ -57,6 +59,7 @@ public class UpdateTemperatureMonitoringUnitRequest
     public bool IsActive { get; set; } = true;
     public string? Location { get; set; }
     public string? Notes { get; set; }
+    public int DisplayOrder { get; set; }
 }
 
 public class RecordTemperatureReadingRequest

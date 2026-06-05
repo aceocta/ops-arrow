@@ -48,12 +48,14 @@ export function TemperatureUnitsScreen() {
   const [newMinTemp, setNewMinTemp] = useState("0");
   const [newMaxTemp, setNewMaxTemp] = useState("5");
   const [newLocation, setNewLocation] = useState("");
+  const [newDisplayOrder, setNewDisplayOrder] = useState("");
   const [editingUnitId, setEditingUnitId] = useState<string | null>(null);
   const [editUnitName, setEditUnitName] = useState("");
   const [editEquipmentType, setEditEquipmentType] = useState<TemperatureEquipmentType>(TemperatureEquipmentType.Fridge);
   const [editMinTemp, setEditMinTemp] = useState("0");
   const [editMaxTemp, setEditMaxTemp] = useState("5");
   const [editLocation, setEditLocation] = useState("");
+  const [editDisplayOrder, setEditDisplayOrder] = useState("");
   const [editIsActive, setEditIsActive] = useState(true);
 
   const newMinTempRef = useRef<TextInput>(null);
@@ -88,6 +90,7 @@ export function TemperatureUnitsScreen() {
         minTemperatureCelsius: min,
         maxTemperatureCelsius: max,
         location: newLocation.trim() || undefined,
+        displayOrder: newDisplayOrder.trim() ? Number(newDisplayOrder) : undefined,
       });
     },
     onSuccess: async () => {
@@ -96,6 +99,7 @@ export function TemperatureUnitsScreen() {
       setNewMinTemp("0");
       setNewMaxTemp("5");
       setNewLocation("");
+      setNewDisplayOrder("");
       setIsCreateModalVisible(false);
       Alert.alert("Created", "Temperature unit created.");
       await Promise.all([
@@ -115,6 +119,7 @@ export function TemperatureUnitsScreen() {
     setEditMinTemp(String(unit.minTemperatureCelsius));
     setEditMaxTemp(String(unit.maxTemperatureCelsius));
     setEditLocation(unit.location ?? "");
+    setEditDisplayOrder(String(unit.displayOrder ?? 0));
     setEditIsActive(unit.isActive);
   };
 
@@ -125,6 +130,7 @@ export function TemperatureUnitsScreen() {
     setEditMinTemp("0");
     setEditMaxTemp("5");
     setEditLocation("");
+    setEditDisplayOrder("");
     setEditIsActive(true);
   };
 
@@ -145,6 +151,7 @@ export function TemperatureUnitsScreen() {
         maxTemperatureCelsius: max,
         isActive: editIsActive,
         location: editLocation.trim() || undefined,
+        displayOrder: editDisplayOrder.trim() ? Number(editDisplayOrder) : undefined,
       });
     },
     onSuccess: async () => {
@@ -179,7 +186,7 @@ export function TemperatureUnitsScreen() {
         {(unitsQuery.data ?? []).map((unit) => (
           <View key={unit.id} style={styles.unitItem}>
             <View style={styles.unitHeader}>
-              <Text style={styles.unitTitle}>{unit.unitName}</Text>
+              <Text style={styles.unitTitle}>{unit.displayOrder ? `${unit.displayOrder}. ` : ""}{unit.unitName}</Text>
               <StatusBadge label={unit.isActive ? "Active" : "Inactive"} tone={unit.isActive ? "success" : "neutral"} />
             </View>
             <Text style={styles.meta}>
@@ -267,6 +274,13 @@ export function TemperatureUnitsScreen() {
               value={newLocation}
               onChangeText={setNewLocation}
               autoCapitalize="words"
+              returnKeyType="next"
+            />
+            <FloatingLabelInput
+              label="Order number (optional)"
+              value={newDisplayOrder}
+              onChangeText={(value) => setNewDisplayOrder(value.replace(/[^0-9]/g, ""))}
+              keyboardType="number-pad"
               returnKeyType="done"
             />
             <View style={styles.modalActions}>
@@ -355,6 +369,13 @@ export function TemperatureUnitsScreen() {
               value={editLocation}
               onChangeText={setEditLocation}
               autoCapitalize="words"
+              returnKeyType="next"
+            />
+            <FloatingLabelInput
+              label="Order number"
+              value={editDisplayOrder}
+              onChangeText={(value) => setEditDisplayOrder(value.replace(/[^0-9]/g, ""))}
+              keyboardType="number-pad"
               returnKeyType="done"
             />
 
