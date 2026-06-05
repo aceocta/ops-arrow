@@ -32,7 +32,7 @@ export type MainStackParamList = {
   ShopChecklist: undefined;
   ComplianceChecks: { date?: string } | undefined;
   ComplianceConfig: undefined;
-  ComplianceActions: undefined;
+  ComplianceActions: { from?: string; to?: string } | undefined;
   ChecklistConfiguration: undefined;
   ChecklistHistory: undefined;
   Dashboard: undefined;
@@ -55,7 +55,7 @@ export type MainStackParamList = {
   TemperatureUnits: undefined;
   TemperatureUnitEdit: { unitId: string };
   TemperatureSchedules: undefined;
-  TemperatureScheduleGrid: undefined;
+  TemperatureScheduleGrid: { from?: string; to?: string } | undefined;
   RefusalRegister: undefined;
   RefusalRegisterByDay: undefined;
   RefusalReport: undefined;

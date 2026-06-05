@@ -37,8 +37,10 @@ public class OwnerShopOverviewDto
     public int TemperatureChecksDone { get; set; }
     public int TemperatureChecksTotal { get; set; }
     public int TemperatureIssues { get; set; } // late + missed
+    public int TemperatureOutOfRangeUnits { get; set; } // distinct units with an out-of-range reading
     public int TemperatureCompliancePercent { get; set; } // 0-100
-    public int OpenComplianceActions { get; set; }
+    public int ComplianceNonCompliantCount { get; set; } // non-compliant checks in range
+    public int OpenComplianceActions { get; set; } // non-compliant checks not yet closed out
     public int ComplianceScore { get; set; } // 0-100 blended health score
 
     // Inventory & risk

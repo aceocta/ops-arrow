@@ -11,7 +11,7 @@ import { getOwnerOverview } from "../../api/reportsApi";
 import { LoadingState } from "../../components/LoadingState";
 import { formatDateValue } from "../../components/DateTimeField";
 import { toastError } from "../../components/toast";
-import { OwnerOverview, OwnerShopOverview } from "../../types/models";
+import { OwnerOverview } from "../../types/models";
 import { MainStackParamList } from "../../types/navigation";
 import { formatGbp } from "../../utils/currency";
 import { appTheme } from "../../ui/theme";
@@ -52,46 +52,6 @@ function dayStatusLabel(status: string) {
 function salesDelta(current: number, previous: number): number | null {
   if (previous <= 0) return current > 0 ? 100 : null;
   return Math.round(((current - previous) / previous) * 100);
-}
-
-type ShopIssue = { key: string; text: string; icon: keyof typeof Ionicons.glyphMap; route: keyof MainStackParamList };
-
-// Derive the tappable issue rows (with deep-link targets) from a shop's metrics.
-function shopIssues(shop: OwnerShopOverview): ShopIssue[] {
-  const issues: ShopIssue[] = [];
-  if (shop.temperatureIssues > 0) {
-    issues.push({
-      key: "temp",
-      text: `${shop.temperatureIssues} temperature check${shop.temperatureIssues === 1 ? "" : "s"} late/missed`,
-      icon: "thermometer-outline",
-      route: "TemperatureLogs",
-    });
-  }
-  if (shop.openComplianceActions > 0) {
-    issues.push({
-      key: "actions",
-      text: `${shop.openComplianceActions} open compliance action${shop.openComplianceActions === 1 ? "" : "s"}`,
-      icon: "clipboard-outline",
-      route: "ComplianceActions",
-    });
-  }
-  if (shop.lowStockPacks > 0) {
-    issues.push({
-      key: "stock",
-      text: `${shop.lowStockPacks} pack${shop.lowStockPacks === 1 ? "" : "s"} low on stock`,
-      icon: "archive-outline",
-      route: "StockReport",
-    });
-  }
-  if (Math.abs(shop.cashVariance) >= 5) {
-    issues.push({
-      key: "cash",
-      text: `Cash ${shop.cashVariance < 0 ? "short" : "over"} ${formatGbp(Math.abs(shop.cashVariance))}`,
-      icon: "cash-outline",
-      route: "DailySalesReport",
-    });
-  }
-  return issues;
 }
 
 function buildSummaryHtml(overview: OwnerOverview, rangeLabel: string): string {
@@ -148,10 +108,10 @@ export function OwnerOverviewScreen() {
   });
   const overview = overviewQuery.data;
 
-  const goToShop = async (shopId: string, route: keyof MainStackParamList) => {
+  const goToShop = async (shopId: string, route: keyof MainStackParamList, params?: object) => {
     try {
       await setActiveShop(shopId);
-      navigation.navigate(route as never);
+      (navigation.navigate as (name: string, params?: object) => void)(route, params);
     } catch {
       // setActiveShop guards membership; ignore failures.
     }
@@ -171,8 +131,9 @@ export function OwnerOverviewScreen() {
     }
   };
 
-  const attentionShops = overview?.shops.filter((s) => s.needsAttention) ?? [];
   const allShops = overview?.shops ?? [];
+  const tempAttentionShops = allShops.filter((s) => s.temperatureIssues > 0 || s.temperatureOutOfRangeUnits > 0);
+  const compAttentionShops = allShops.filter((s) => s.complianceNonCompliantCount > 0 || s.openComplianceActions > 0);
   const topShop = useMemo(
     () => (allShops.length ? [...allShops].sort((a, b) => b.salesAmount - a.salesAmount)[0] : null),
     [allShops],
@@ -288,29 +249,64 @@ export function OwnerOverviewScreen() {
             </View>
           ) : null}
 
-          {/* Needs attention with per-issue deep links */}
-          {attentionShops.length > 0 ? (
+          {/* Temperature checks needing attention */}
+          {tempAttentionShops.length > 0 ? (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Shops needing attention</Text>
-              {attentionShops.map((shop) => (
-                <View key={shop.shopId} style={[ui.card, styles.attentionCard]}>
-                  <Text style={styles.attentionShop} numberOfLines={1}>{shop.shopName}</Text>
-                  {shopIssues(shop).map((issue) => (
-                    <Pressable key={issue.key} style={styles.issueRow} onPress={() => goToShop(shop.shopId, issue.route)}>
-                      <Ionicons name={issue.icon} size={15} color={appTheme.colors.danger} />
-                      <Text style={styles.issueText}>{issue.text}</Text>
-                      <Ionicons name="chevron-forward" size={15} color={appTheme.colors.textMuted} />
-                    </Pressable>
-                  ))}
-                </View>
+              <Text style={styles.sectionTitle}>Temperature checks — need attention</Text>
+              {tempAttentionShops.map((shop) => (
+                <Pressable
+                  key={shop.shopId}
+                  style={[ui.card, styles.attentionCard]}
+                  onPress={() => goToShop(shop.shopId, "TemperatureScheduleGrid", { from, to })}
+                >
+                  <View style={styles.attentionHeader}>
+                    <Ionicons name="thermometer-outline" size={16} color={appTheme.colors.danger} />
+                    <Text style={styles.attentionShop} numberOfLines={1}>{shop.shopName}</Text>
+                    <Ionicons name="chevron-forward" size={15} color={appTheme.colors.textMuted} />
+                  </View>
+                  {shop.temperatureIssues > 0 ? (
+                    <Text style={styles.issueText}>• {shop.temperatureIssues} late/missed record{shop.temperatureIssues === 1 ? "" : "s"}</Text>
+                  ) : null}
+                  {shop.temperatureOutOfRangeUnits > 0 ? (
+                    <Text style={styles.issueText}>• {shop.temperatureOutOfRangeUnits} unit{shop.temperatureOutOfRangeUnits === 1 ? "" : "s"} have out-of-range records</Text>
+                  ) : null}
+                </Pressable>
               ))}
             </View>
-          ) : (
+          ) : null}
+
+          {/* Compliance needing attention */}
+          {compAttentionShops.length > 0 ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Compliance — need attention</Text>
+              {compAttentionShops.map((shop) => (
+                <Pressable
+                  key={shop.shopId}
+                  style={[ui.card, styles.attentionCard]}
+                  onPress={() => goToShop(shop.shopId, "ComplianceActions", { from, to })}
+                >
+                  <View style={styles.attentionHeader}>
+                    <Ionicons name="clipboard-outline" size={16} color={appTheme.colors.danger} />
+                    <Text style={styles.attentionShop} numberOfLines={1}>{shop.shopName}</Text>
+                    <Ionicons name="chevron-forward" size={15} color={appTheme.colors.textMuted} />
+                  </View>
+                  {shop.complianceNonCompliantCount > 0 ? (
+                    <Text style={styles.issueText}>• {shop.complianceNonCompliantCount} non-compliant check{shop.complianceNonCompliantCount === 1 ? "" : "s"}</Text>
+                  ) : null}
+                  {shop.openComplianceActions > 0 ? (
+                    <Text style={styles.issueText}>• {shop.openComplianceActions} open action{shop.openComplianceActions === 1 ? "" : "s"}</Text>
+                  ) : null}
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+
+          {tempAttentionShops.length === 0 && compAttentionShops.length === 0 ? (
             <View style={[ui.card, styles.allClearCard]}>
               <Ionicons name="checkmark-circle-outline" size={18} color={appTheme.colors.success} />
               <Text style={styles.allClearText}>All shops look good for this period.</Text>
             </View>
-          )}
+          ) : null}
 
           {/* All shops */}
           <View style={styles.section}>
@@ -407,9 +403,9 @@ const styles = StyleSheet.create({
   section: { gap: appTheme.spacing.xs, marginTop: appTheme.spacing.xs },
   sectionTitle: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 15, lineHeight: 20 },
   attentionCard: { gap: 4, borderLeftWidth: 3, borderLeftColor: appTheme.colors.danger },
-  attentionShop: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 15, marginBottom: 2 },
-  issueRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 5 },
-  issueText: { flex: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 13, lineHeight: 18 },
+  attentionHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 },
+  attentionShop: { flex: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 15 },
+  issueText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 13, lineHeight: 18 },
   allClearCard: { flexDirection: "row", alignItems: "center", gap: 8 },
   allClearText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 14 },
   shopCard: { gap: 6 },

@@ -13,5 +13,6 @@ public enum NotificationType
     CanisterLimitExceeded = 9,
     TemperatureMissedLog = 10,
     VisitorInspectorArrival = 11,
-    TemperatureLogReminder = 12
+    TemperatureLogReminder = 12,
+    ComplianceActionRaised = 13
 }

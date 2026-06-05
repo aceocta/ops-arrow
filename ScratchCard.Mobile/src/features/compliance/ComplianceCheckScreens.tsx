@@ -1916,6 +1916,29 @@ export function ComplianceChecksScreen() {
                         })}
                       </View>
 
+                      {/* Action is only relevant for a non-compliant check: surface a clear button to
+                          open/edit it instead of always showing an action field. */}
+                      {draft.result === "NonCompliant" ? (
+                        <Pressable
+                          style={[styles.openActionButton, hasAction ? styles.openActionButtonFilled : null]}
+                          accessibilityRole="button"
+                          accessibilityLabel={hasAction ? "Edit action required" : "Open action"}
+                          onPress={() => openEditor(row.item.id, "actionRequired", row.item.itemName)}
+                        >
+                          <Ionicons
+                            name={hasAction ? "checkmark-circle-outline" : "warning-outline"}
+                            size={16}
+                            color={appTheme.colors.warning}
+                          />
+                          <Text style={styles.openActionButtonText} numberOfLines={1}>
+                            {hasAction ? "Edit action" : "Open action"}
+                          </Text>
+                        </Pressable>
+                      ) : null}
+                      {draft.result === "NonCompliant" && hasAction ? (
+                        <Text style={styles.openActionPreview} numberOfLines={2}>{draft.actionRequired.trim()}</Text>
+                      ) : null}
+
                       <View style={styles.itemActionIconRow}>
                         <Pressable
                           style={[styles.iconActionButton, hasNotes ? styles.iconActionButtonFilled : null]}
@@ -1925,18 +1948,6 @@ export function ComplianceChecksScreen() {
                         >
                           <Ionicons name="create-outline" size={16} color={appTheme.colors.primary} />
                           {hasNotes ? <View style={styles.iconActionDot} /> : null}
-                        </Pressable>
-                        <Pressable
-                          style={[
-                            styles.iconActionButton,
-                            hasAction ? styles.iconActionButtonWarningFilled : null,
-                          ]}
-                          accessibilityRole="button"
-                          accessibilityLabel={hasAction ? "Edit action required" : "Add action required"}
-                          onPress={() => openEditor(row.item.id, "actionRequired", row.item.itemName)}
-                        >
-                          <Ionicons name="warning-outline" size={16} color={appTheme.colors.warning} />
-                          {hasAction ? <View style={[styles.iconActionDot, styles.iconActionDotWarning]} /> : null}
                         </Pressable>
                         <Pressable
                           style={[styles.iconActionButton, attachmentCount > 0 ? styles.iconActionButtonInfoFilled : null]}
@@ -2792,9 +2803,13 @@ export function ComplianceActionsScreen() {
   const queryClient = useQueryClient();
   const { activeShopId } = useAuth();
   const shopId = activeShopId;
+  const route = useRoute<RouteProp<MainStackParamList, "ComplianceActions">>();
   const today = useMemo(() => new Date(), []);
-  const [fromDate, setFromDate] = useState(formatDateValue(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30)));
-  const [toDate, setToDate] = useState(formatDateValue(today));
+  // Open on the range passed in (e.g. from the dashboard), else the last 30 days.
+  const [fromDate, setFromDate] = useState(
+    route.params?.from ?? formatDateValue(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30)),
+  );
+  const [toDate, setToDate] = useState(route.params?.to ?? formatDateValue(today));
   const [openOnly, setOpenOnly] = useState(true);
   const [closeActionState, setCloseActionState] = useState<CloseActionState>(null);
   const [closeNotes, setCloseNotes] = useState("");
@@ -3151,6 +3166,32 @@ const styles = StyleSheet.create({
   },
   iconActionButtonWarningFilled: {
     backgroundColor: appTheme.colors.surfaceWarningSoft,
+  },
+  openActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: appTheme.radius.sm,
+    borderWidth: 1,
+    borderColor: appTheme.colors.warning,
+    backgroundColor: appTheme.colors.surface,
+  },
+  openActionButtonFilled: {
+    backgroundColor: appTheme.colors.surfaceWarningSoft,
+  },
+  openActionButtonText: {
+    color: appTheme.colors.warning,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+  },
+  openActionPreview: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
   },
   iconActionButtonInfoFilled: {
     backgroundColor: appTheme.colors.surfaceInfoSoft,

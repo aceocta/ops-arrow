@@ -131,11 +131,17 @@ public class OwnerOverviewService : IOwnerOverviewService
         var tempDone = onTime + early + late;
         var tempIssues = late + missed;
         var tempPercent = tempTotal > 0 ? (int)Math.Round((decimal)(onTime + early) / tempTotal * 100m) : 100;
+        var outOfRangeUnits = grid?.Cells
+            .Where(c => c.IsOutOfRange == true)
+            .Select(c => c.UnitId)
+            .Distinct()
+            .Count() ?? 0;
 
-        // Open compliance corrective actions.
+        // Compliance: all non-compliant checks in range, and how many of those are still open.
         var actions = await SafeAsync(
-            () => _complianceCheckService.GetActionReportAsync(shopId, from, to, true, cancellationToken),
+            () => _complianceCheckService.GetActionReportAsync(shopId, from, to, false, cancellationToken),
             Array.Empty<ComplianceActionReportRowDto>() as IReadOnlyCollection<ComplianceActionReportRowDto>);
+        var nonCompliantCount = actions.Count;
         var openActions = actions.Count(a => !a.IsActionClosedOut);
 
         // Pack inventory.
@@ -161,6 +167,8 @@ public class OwnerOverviewService : IOwnerOverviewService
 
         var reasons = new List<string>();
         if (tempIssues > 0) reasons.Add($"{tempIssues} temperature check{(tempIssues == 1 ? "" : "s")} late/missed");
+        if (outOfRangeUnits > 0) reasons.Add($"{outOfRangeUnits} unit{(outOfRangeUnits == 1 ? "" : "s")} with out-of-range readings");
+        if (nonCompliantCount > 0) reasons.Add($"{nonCompliantCount} non-compliant check{(nonCompliantCount == 1 ? "" : "s")}");
         if (openActions > 0) reasons.Add($"{openActions} open compliance action{(openActions == 1 ? "" : "s")}");
         if (lowStock > 0) reasons.Add($"{lowStock} pack{(lowStock == 1 ? "" : "s")} low on stock");
         if (Math.Abs(cashVariance) >= CashVarianceAlertThreshold)
@@ -179,7 +187,9 @@ public class OwnerOverviewService : IOwnerOverviewService
             TemperatureChecksDone = tempDone,
             TemperatureChecksTotal = tempTotal,
             TemperatureIssues = tempIssues,
+            TemperatureOutOfRangeUnits = outOfRangeUnits,
             TemperatureCompliancePercent = tempPercent,
+            ComplianceNonCompliantCount = nonCompliantCount,
             OpenComplianceActions = openActions,
             ComplianceScore = complianceScore,
             ActivePacks = activePacks,

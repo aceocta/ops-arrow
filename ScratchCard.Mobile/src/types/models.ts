@@ -465,7 +465,9 @@ export type OwnerShopOverview = {
   temperatureChecksDone: number;
   temperatureChecksTotal: number;
   temperatureIssues: number;
+  temperatureOutOfRangeUnits: number;
   temperatureCompliancePercent: number;
+  complianceNonCompliantCount: number;
   openComplianceActions: number;
   complianceScore: number;
   activePacks: number;

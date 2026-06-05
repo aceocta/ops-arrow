@@ -1,8 +1,10 @@
 ﻿using System.Globalization;
+using System.Net;
 using Microsoft.EntityFrameworkCore;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Extensions;
 using ScratchCard.Application.Common.Interfaces;
+using ScratchCard.Application.Common.Models;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Common;
 using ScratchCard.Application.DTOs.ComplianceChecks;
@@ -25,8 +27,10 @@ public class ComplianceCheckService : IComplianceCheckService
     private readonly IRepository<ComplianceCheckEntry> _entryRepository;
     private readonly IRepository<ComplianceCheckAttachment> _attachmentRepository;
     private readonly IRepository<Shop> _shopRepository;
+    private readonly IRepository<ShopUser> _shopUserRepository;
     private readonly IAttachmentStorageService _attachmentStorageService;
     private readonly IShopMembershipService _shopMembershipService;
+    private readonly INotificationService _notificationService;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
@@ -37,8 +41,10 @@ public class ComplianceCheckService : IComplianceCheckService
         IRepository<ComplianceCheckEntry> entryRepository,
         IRepository<ComplianceCheckAttachment> attachmentRepository,
         IRepository<Shop> shopRepository,
+        IRepository<ShopUser> shopUserRepository,
         IAttachmentStorageService attachmentStorageService,
         IShopMembershipService shopMembershipService,
+        INotificationService notificationService,
         IAuditService auditService,
         ICurrentUserService currentUserService,
         IUnitOfWork unitOfWork)
@@ -48,8 +54,10 @@ public class ComplianceCheckService : IComplianceCheckService
         _entryRepository = entryRepository;
         _attachmentRepository = attachmentRepository;
         _shopRepository = shopRepository;
+        _shopUserRepository = shopUserRepository;
         _attachmentStorageService = attachmentStorageService;
         _shopMembershipService = shopMembershipService;
+        _notificationService = notificationService;
         _auditService = auditService;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
@@ -630,6 +638,13 @@ public class ComplianceCheckService : IComplianceCheckService
                 x => x.ComplianceCheckItemId == request.ComplianceCheckItemId,
                 cancellationToken);
 
+        // Capture the action state before this save so we only fire the alert when an action is newly
+        // OPENED (a corrective action is entered) — not when a check merely changes to non-compliant,
+        // nor on later edits of an already-open action.
+        var priorResult = entry?.Result;
+        var priorActionRequired = entry?.ActionRequired;
+        var priorClosedOut = entry?.IsActionClosedOut ?? false;
+
         var now = DateTimeOffset.UtcNow;
         var companyId = await _shopRepository.Query()
             .AsNoTracking()
@@ -728,7 +743,218 @@ public class ComplianceCheckService : IComplianceCheckService
             ? createdAttachments.Select(x => x.ToDto()).ToArray()
             : existingAttachments.Select(x => x.ToDto()).ToArray();
 
+        // Alert ONLY on the save that actually OPENS an action: the saved check is non-compliant, has a
+        // corrective action entered, and is open (not closed out) — and it wasn't already an open action
+        // before. So marking non-compliant without an action does NOT notify; entering the action does.
+        // Editing an already-open action or closing it does not re-notify. Best-effort; never blocks save.
+        var hadOpenAction = priorResult == ComplianceCheckResult.NonCompliant
+            && !string.IsNullOrWhiteSpace(priorActionRequired)
+            && !priorClosedOut;
+        var hasOpenAction = result == ComplianceCheckResult.NonCompliant
+            && !string.IsNullOrWhiteSpace(entry.ActionRequired)
+            && !entry.IsActionClosedOut;
+        if (hasOpenAction && !hadOpenAction)
+        {
+            var attachmentsForAlert = existingAttachments.Count > 0 ? existingAttachments : createdAttachments;
+            await NotifyComplianceActionRaisedAsync(entry, item, period, attachmentsForAlert, cancellationToken);
+        }
+
         return MapEntry(entry, mappedAttachments);
+    }
+
+    // Sends the "compliance action raised" alert: email (HTML body + the check's photo attachments) to
+    // every CompanyOwner/Manager on the shop, plus a short WhatsApp heads-up to their phones. Each send
+    // is isolated so one failure never blocks the others or the check that triggered it.
+    private async Task NotifyComplianceActionRaisedAsync(
+        ComplianceCheckEntry entry,
+        ComplianceCheckItem item,
+        CompliancePeriod period,
+        IReadOnlyCollection<ComplianceCheckAttachment> attachments,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var shopName = await _shopRepository.Query()
+                .AsNoTracking()
+                .Where(x => x.Id == entry.ShopId)
+                .Select(x => x.ShopName)
+                .FirstOrDefaultAsync(cancellationToken) ?? "Shop";
+
+            var groupName = item.ComplianceCheckGroup?.GroupName ?? "Compliance";
+            var periodLabel = period.StartDate == period.EndDate
+                ? period.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                : $"{period.StartDate:yyyy-MM-dd} – {period.EndDate:yyyy-MM-dd}";
+            var actionText = string.IsNullOrWhiteSpace(entry.ActionRequired) ? "No action detail provided." : entry.ActionRequired!;
+            var checkedBy = string.IsNullOrWhiteSpace(entry.CheckedByName) ? "-" : entry.CheckedByName!;
+            var subject = $"Compliance action raised - {shopName} - {item.ItemName}";
+
+            // Read the check's stored photos into email attachments (best-effort per file).
+            var emailAttachments = new List<EmailAttachment>();
+            foreach (var att in attachments)
+            {
+                try
+                {
+                    var bytes = await _attachmentStorageService.ReadAsync(att.StoredPath, cancellationToken);
+                    if (bytes is { Length: > 0 })
+                    {
+                        emailAttachments.Add(new EmailAttachment
+                        {
+                            FileName = string.IsNullOrWhiteSpace(att.OriginalFileName) ? att.StoredFileName : att.OriginalFileName,
+                            ContentType = string.IsNullOrWhiteSpace(att.ContentType) ? "application/octet-stream" : att.ContentType,
+                            Content = bytes,
+                        });
+                    }
+                }
+                catch
+                {
+                    // A single unreadable attachment must not stop the alert.
+                }
+            }
+
+            var body = BuildComplianceActionEmailHtml(shopName, item.ItemName, groupName, periodLabel, actionText, entry.Notes, checkedBy, emailAttachments.Count);
+
+            var emailRecipients = await _shopUserRepository.Query()
+                .AsNoTracking()
+                .Where(x =>
+                    x.ShopId == entry.ShopId &&
+                    x.IsActive &&
+                    !string.IsNullOrWhiteSpace(x.User.Email) &&
+                    (x.Role.Name == RoleNames.CompanyOwner || x.Role.Name == RoleNames.Manager))
+                .Select(x => x.User.Email!)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            foreach (var recipient in emailRecipients)
+            {
+                try
+                {
+                    await _notificationService.SendAsync(new NotificationMessage
+                    {
+                        ShopId = entry.ShopId,
+                        NotificationType = NotificationType.ComplianceActionRaised,
+                        Channel = NotificationChannel.Email,
+                        Recipient = recipient,
+                        Subject = subject,
+                        Body = body,
+                        IsBodyHtml = true,
+                        Attachments = emailAttachments,
+                        IsPriority = true,
+                        RelatedEntityName = nameof(ComplianceCheckEntry),
+                        RelatedEntityId = entry.Id,
+                    }, cancellationToken);
+                }
+                catch
+                {
+                    // Per-recipient failure must not block the rest.
+                }
+            }
+
+            // WhatsApp heads-up (text only; the photo travels with the email).
+            var phoneRecipients = await _shopUserRepository.Query()
+                .AsNoTracking()
+                .Where(x =>
+                    x.ShopId == entry.ShopId &&
+                    x.IsActive &&
+                    (x.Role.Name == RoleNames.CompanyOwner || x.Role.Name == RoleNames.Manager) &&
+                    !string.IsNullOrWhiteSpace(x.User.PhoneNumber))
+                .Select(x => x.User.PhoneNumber!)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            if (phoneRecipients.Count > 0)
+            {
+                var photoNote = emailAttachments.Count > 0
+                    ? $" {emailAttachments.Count} photo(s) sent to your email."
+                    : string.Empty;
+                var whatsAppBody =
+                    $"Compliance action raised at {shopName}: \"{item.ItemName}\" ({groupName}) marked non-compliant for {periodLabel}. "
+                    + $"Action required: {actionText} Checked by {checkedBy}.{photoNote}";
+
+                foreach (var phone in phoneRecipients)
+                {
+                    try
+                    {
+                        await _notificationService.SendAsync(new NotificationMessage
+                        {
+                            ShopId = entry.ShopId,
+                            NotificationType = NotificationType.ComplianceActionRaised,
+                            Channel = NotificationChannel.WhatsApp,
+                            Recipient = phone,
+                            Subject = subject,
+                            Body = whatsAppBody,
+                            IsBodyHtml = false,
+                            RelatedEntityName = nameof(ComplianceCheckEntry),
+                            RelatedEntityId = entry.Id,
+                        }, cancellationToken);
+                    }
+                    catch
+                    {
+                        // Per-recipient failure must not block the rest.
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // The whole alert is best-effort: a non-compliant check must still save cleanly.
+        }
+    }
+
+    private static string BuildComplianceActionEmailHtml(
+        string shopName,
+        string itemName,
+        string groupName,
+        string periodLabel,
+        string actionRequired,
+        string? notes,
+        string checkedBy,
+        int photoCount)
+    {
+        string Enc(string? v) => WebUtility.HtmlEncode(v ?? string.Empty);
+        var notesRow = string.IsNullOrWhiteSpace(notes)
+            ? string.Empty
+            : $"<tr><td style=\"padding:8px 0;color:#617785;font-size:13px;vertical-align:top;\">Notes</td><td style=\"padding:8px 0;color:#2b3f4a;font-size:14px;\">{Enc(notes)}</td></tr>";
+        var photoRow = photoCount > 0
+            ? $"<tr><td style=\"padding:8px 0;color:#617785;font-size:13px;\">Photos</td><td style=\"padding:8px 0;color:#2b3f4a;font-size:14px;\">{photoCount} attached</td></tr>"
+            : string.Empty;
+
+        return """
+            <!doctype html><html lang="en"><head><meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1" /></head>
+            <body style="margin:0;padding:0;background:#f2f6fb;font-family:Arial,'Segoe UI',sans-serif;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2f6fb;padding:28px 12px;">
+                <tr><td align="center">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border:1px solid #d9e1ec;border-radius:14px;overflow:hidden;">
+                    <tr><td style="background:#8a1c1c;padding:22px 24px;color:#ffffff;">
+                      <div style="font-size:12px;letter-spacing:0.8px;text-transform:uppercase;opacity:0.85;">Ops Arrow · Compliance</div>
+                      <div style="font-size:22px;line-height:28px;font-weight:700;margin-top:6px;">Compliance action raised</div>
+                    </td></tr>
+                    <tr><td style="padding:22px 24px;">
+                      <p style="margin:0 0 16px;color:#4a5f6b;font-size:15px;line-height:22px;">A compliance check was marked <strong>non-compliant</strong> and needs a corrective action.</p>
+                      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+                        <tr><td style="padding:8px 0;color:#617785;font-size:13px;width:120px;">Shop</td><td style="padding:8px 0;color:#0f3d3e;font-size:14px;font-weight:600;">__SHOP__</td></tr>
+                        <tr><td style="padding:8px 0;color:#617785;font-size:13px;">Check</td><td style="padding:8px 0;color:#0f3d3e;font-size:14px;font-weight:600;">__ITEM__</td></tr>
+                        <tr><td style="padding:8px 0;color:#617785;font-size:13px;">Group</td><td style="padding:8px 0;color:#2b3f4a;font-size:14px;">__GROUP__</td></tr>
+                        <tr><td style="padding:8px 0;color:#617785;font-size:13px;">Period</td><td style="padding:8px 0;color:#2b3f4a;font-size:14px;">__PERIOD__</td></tr>
+                        <tr><td style="padding:8px 0;color:#617785;font-size:13px;vertical-align:top;">Action required</td><td style="padding:8px 0;color:#8a1c1c;font-size:14px;font-weight:600;">__ACTION__</td></tr>
+                        __NOTES__
+                        <tr><td style="padding:8px 0;color:#617785;font-size:13px;">Checked by</td><td style="padding:8px 0;color:#2b3f4a;font-size:14px;">__CHECKEDBY__</td></tr>
+                        __PHOTOS__
+                      </table>
+                    </td></tr>
+                  </table>
+                </td></tr>
+              </table>
+            </body></html>
+            """
+            .Replace("__SHOP__", Enc(shopName), StringComparison.Ordinal)
+            .Replace("__ITEM__", Enc(itemName), StringComparison.Ordinal)
+            .Replace("__GROUP__", Enc(groupName), StringComparison.Ordinal)
+            .Replace("__PERIOD__", Enc(periodLabel), StringComparison.Ordinal)
+            .Replace("__ACTION__", Enc(actionRequired), StringComparison.Ordinal)
+            .Replace("__NOTES__", notesRow, StringComparison.Ordinal)
+            .Replace("__CHECKEDBY__", Enc(checkedBy), StringComparison.Ordinal)
+            .Replace("__PHOTOS__", photoRow, StringComparison.Ordinal);
     }
 
     public async Task<ComplianceCheckEntryDto> CloseActionAsync(

@@ -1,5 +1,6 @@
 import React from "react";
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { RouteProp, useRoute } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
@@ -19,6 +20,7 @@ import {
   TemperatureScheduleGrid,
   TemperatureScheduleGridCell,
 } from "../../types/models";
+import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -62,14 +64,16 @@ function stateStyle(state: TemperatureScheduleCellState) {
 export function TemperatureScheduleGridScreen() {
   const { activeShopId } = useAuth();
   const shopId = activeShopId;
+  const route = useRoute<RouteProp<MainStackParamList, "TemperatureScheduleGrid">>();
 
-  // Date filter — defaults to the last 7 days. Pick the same From/To day for a single date.
+  // Date filter — opens on the range passed in (e.g. from the dashboard), else the last 7 days.
   const [fromDate, setFromDate] = React.useState(() => {
+    if (route.params?.from) return route.params.from;
     const d = new Date();
     d.setDate(d.getDate() - 6);
     return formatDateValue(d);
   });
-  const [toDate, setToDate] = React.useState(() => formatDateValue(new Date()));
+  const [toDate, setToDate] = React.useState(() => route.params?.to ?? formatDateValue(new Date()));
 
   const rangeIsValid = React.useMemo(() => {
     const f = parseDateValue(fromDate);
