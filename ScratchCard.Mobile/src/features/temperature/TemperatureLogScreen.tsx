@@ -490,6 +490,8 @@ export function TemperatureLogScreen() {
   // extra check" (the server stores it against the shop's random bucket). Pre-selected on open.
   const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(null);
   const [temperatureCelsius, setTemperatureCelsius] = useState("");
+  // The unit's last reading, used to pre-fill the box, restore it if left blank, and show as a hint.
+  const [previousReadingValue, setPreviousReadingValue] = useState("");
   // Mirrors the temperature field's focus so the joined ± button can show the same active state.
   const [isTempFocused, setIsTempFocused] = useState(false);
   const [checkedByInitials, setCheckedByInitials] = useState("");
@@ -576,12 +578,12 @@ export function TemperatureLogScreen() {
     const unitLog = dailyLogQuery.data?.units?.find((u) => u.unit.id === unitId);
     const previousReading =
       unitLog && unitLog.readings.length > 0 ? unitLog.readings[unitLog.readings.length - 1] : undefined;
+    const previousValue = previousReading
+      ? formatTemperatureEntryValue(Number(previousReading.temperatureCelsius))
+      : "";
+    setPreviousReadingValue(previousValue);
     setTemperatureCelsius(
-      previousReading
-        ? formatTemperatureEntryValue(Number(previousReading.temperatureCelsius))
-        : unit
-          ? defaultTemperatureEntryForRange(unit.minTemperatureCelsius, unit.maxTemperatureCelsius)
-          : "",
+      previousValue || (unit ? defaultTemperatureEntryForRange(unit.minTemperatureCelsius, unit.maxTemperatureCelsius) : ""),
     );
     setNotes("");
     setActionTaken("");
@@ -1476,13 +1478,27 @@ export function TemperatureLogScreen() {
                         keyboardType="decimal-pad"
                         returnKeyType="next"
                         submitBehavior="submit"
-                        onFocus={() => setIsTempFocused(true)}
-                        onBlur={() => setIsTempFocused(false)}
+                        onFocus={() => {
+                          setIsTempFocused(true);
+                          // Tapping in to type a fresh reading clears the pre-filled previous value.
+                          if (previousReadingValue && temperatureCelsius === previousReadingValue) {
+                            setTemperatureCelsius("");
+                          }
+                        }}
+                        onBlur={() => {
+                          setIsTempFocused(false);
+                          // Left blank → keep the previous reading (operator confirmed no change).
+                          if (!temperatureCelsius.trim() && previousReadingValue) {
+                            setTemperatureCelsius(previousReadingValue);
+                          }
+                        }}
                         onSubmitEditing={() => initialsRef.current?.focus()}
                       />
                     </View>
-                  
                   </View>
+                  {previousReadingValue && temperatureCelsius.trim() !== previousReadingValue ? (
+                    <Text style={styles.previousReadingHint}>Previous: {previousReadingValue}°C</Text>
+                  ) : null}
                 </View>
               </View>
 
@@ -1707,6 +1723,13 @@ const styles = StyleSheet.create({
   entryHalf: {
     flex: 1,
     gap: 2,
+  },
+  previousReadingHint: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
+    textAlign: "right",
   },
   tempInputRow: {
     flexDirection: "row",
