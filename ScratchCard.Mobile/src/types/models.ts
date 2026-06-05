@@ -493,6 +493,7 @@ export type OwnerOverview = {
   totalRefusals: number;
   totalVisitors: number;
   averageComplianceScore: number;
+  salesByDay: { date: string; amount: number }[];
 };
 
 export type NotificationLogRow = {

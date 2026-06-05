@@ -54,6 +54,55 @@ function salesDelta(current: number, previous: number): number | null {
   return Math.round(((current - previous) / previous) * 100);
 }
 
+const CHART_HEIGHT = 104;
+
+function shortGbp(value: number): string {
+  if (value >= 1000) return `£${(value / 1000).toFixed(value >= 10000 ? 0 : 1)}k`;
+  return `£${Math.round(value)}`;
+}
+
+type SalesBucket = { label: string; value: number };
+
+// 7-day view → one bar per day; 30-day view → one bar per week (chunks of 7 from the start).
+function buildSalesBuckets(range: RangeKey, points: { date: string; amount: number }[]): SalesBucket[] {
+  if (range === "7d") {
+    return points.map((p) => ({
+      label: new Date(`${p.date}T00:00:00`).toLocaleDateString(undefined, { weekday: "short" }),
+      value: p.amount,
+    }));
+  }
+  if (range === "30d") {
+    const buckets: SalesBucket[] = [];
+    for (let i = 0; i < points.length; i += 7) {
+      const chunk = points.slice(i, i + 7);
+      if (chunk.length === 0) break;
+      buckets.push({
+        label: new Date(`${chunk[0].date}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" }),
+        value: chunk.reduce((sum, p) => sum + p.amount, 0),
+      });
+    }
+    return buckets;
+  }
+  return [];
+}
+
+function SalesBarChart({ buckets }: { buckets: SalesBucket[] }) {
+  const max = Math.max(1, ...buckets.map((b) => b.value));
+  return (
+    <View style={styles.chartRow}>
+      {buckets.map((b, i) => (
+        <View key={i} style={styles.chartCol}>
+          <Text style={styles.chartValue} numberOfLines={1}>{b.value > 0 ? shortGbp(b.value) : ""}</Text>
+          <View style={styles.chartBarTrack}>
+            <View style={[styles.chartBar, { height: Math.max(2, Math.round((b.value / max) * CHART_HEIGHT)) }]} />
+          </View>
+          <Text style={styles.chartLabel} numberOfLines={1}>{b.label}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function buildSummaryHtml(overview: OwnerOverview, rangeLabel: string): string {
   const delta = salesDelta(overview.totalSalesAmount, overview.previousTotalSalesAmount);
   const rows = [...overview.shops]
@@ -217,24 +266,79 @@ export function OwnerOverviewScreen() {
               </View>
               <Text style={styles.kpiHint}>vs previous period</Text>
             </View>
-            <View style={[ui.card, styles.kpiCard]}>
-              <Text style={[styles.kpiValue, { color: scoreColor(overview.averageComplianceScore) }]}>
-                {overview.averageComplianceScore}
-              </Text>
-              <Text style={styles.kpiLabel}>Compliance score</Text>
-              <Text style={styles.kpiHint}>Temperature + open actions (0–100)</Text>
-            </View>
-          </View>
-          <View style={styles.kpiRow}>
-            {isSingleShop && singleShop ? (
+            {/* Multi-shop: compliance score (a comparison aid). Single-shop: refusals & visitors sit
+                beside sales (each stat taps through to its report). */}
+            {!isSingleShop ? (
               <View style={[ui.card, styles.kpiCard]}>
-                <Text style={[styles.kpiValue, singleShop.temperatureIssues > 0 ? styles.kpiWarn : null]}>
-                  {singleShop.temperatureIssues}
+                <Text style={[styles.kpiValue, { color: scoreColor(overview.averageComplianceScore) }]}>
+                  {overview.averageComplianceScore}
                 </Text>
-                <Text style={styles.kpiLabel}>Temperature issues</Text>
-                <Text style={styles.kpiHint}>Late / missed checks</Text>
+                <Text style={styles.kpiLabel}>Compliance score</Text>
+                <Text style={styles.kpiHint}>Temperature + open actions (0–100)</Text>
               </View>
-            ) : (
+            ) : singleShop ? (
+              <Pressable
+                style={[ui.card, styles.dualCard]}
+                onPress={() => goToShop(singleShop.shopId, "TemperatureScheduleGrid", { from, to })}
+              >
+                <Text style={styles.dualTitle}>Temperature</Text>
+                <View style={styles.dualStatsRow}>
+                  <View style={styles.dualStat}>
+                    <Text style={[styles.dualValue, singleShop.temperatureIssues > 0 ? styles.kpiWarn : null]}>
+                      {singleShop.temperatureIssues}
+                    </Text>
+                    <Text style={styles.dualLabel}>Late / missed</Text>
+                  </View>
+                  <View style={styles.dualStat}>
+                    <Text style={[styles.dualValue, singleShop.temperatureOutOfRangeUnits > 0 ? styles.kpiDanger : null]}>
+                      {singleShop.temperatureOutOfRangeUnits}
+                    </Text>
+                    <Text style={styles.dualLabel}>Out of range</Text>
+                  </View>
+                </View>
+              </Pressable>
+            ) : null}
+          </View>
+          {isSingleShop && singleShop ? (
+            // Single shop: two dual-stat cards — Temperature (late/missed + out-of-range) and
+            // Compliance (non-compliant + open actions) — each tappable to its report.
+            <View style={styles.kpiRow}>
+              <View style={[ui.card, styles.dualCard]}>
+                <Text style={styles.dualTitle}>Refusals & visitors</Text>
+                <View style={styles.dualStatsRow}>
+                  <Pressable style={styles.dualStat} onPress={() => goToShop(singleShop.shopId, "RefusalReport")}>
+                    <Text style={styles.dualValue}>{singleShop.refusals}</Text>
+                    <Text style={styles.dualLabel}>Refusals</Text>
+                  </Pressable>
+                  <Pressable style={styles.dualStat} onPress={() => goToShop(singleShop.shopId, "VisitorLogReport")}>
+                    <Text style={styles.dualValue}>{singleShop.visitors}</Text>
+                    <Text style={styles.dualLabel}>Visitors</Text>
+                  </Pressable>
+                </View>
+              </View>
+              <Pressable
+                style={[ui.card, styles.dualCard]}
+                onPress={() => goToShop(singleShop.shopId, "ComplianceActions", { from, to })}
+              >
+                <Text style={styles.dualTitle}>Compliance</Text>
+                <View style={styles.dualStatsRow}>
+                  <View style={styles.dualStat}>
+                    <Text style={[styles.dualValue, singleShop.complianceNonCompliantCount > 0 ? styles.kpiWarn : null]}>
+                      {singleShop.complianceNonCompliantCount}
+                    </Text>
+                    <Text style={styles.dualLabel}>Non-compliant</Text>
+                  </View>
+                  <View style={styles.dualStat}>
+                    <Text style={[styles.dualValue, singleShop.openComplianceActions > 0 ? styles.kpiWarn : null]}>
+                      {singleShop.openComplianceActions}
+                    </Text>
+                    <Text style={styles.dualLabel}>Open actions</Text>
+                  </View>
+                </View>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.kpiRow}>
               <View style={[ui.card, styles.kpiCard]}>
                 <Text style={[styles.kpiValue, overview.shopsNeedingAttention > 0 ? styles.kpiDanger : null]}>
                   {overview.shopsNeedingAttention}
@@ -242,15 +346,45 @@ export function OwnerOverviewScreen() {
                 <Text style={styles.kpiLabel}>Need attention</Text>
                 <Text style={styles.kpiHint}>Temp, action, stock or cash flags</Text>
               </View>
-            )}
-            <View style={[ui.card, styles.kpiCard]}>
-              <Text style={[styles.kpiValue, overview.totalOpenComplianceActions > 0 ? styles.kpiWarn : null]}>
-                {overview.totalOpenComplianceActions}
-              </Text>
-              <Text style={styles.kpiLabel}>Open compliance actions</Text>
-              <Text style={styles.kpiHint}>Failed checks not yet closed out</Text>
+              <View style={[ui.card, styles.kpiCard]}>
+                <Text style={[styles.kpiValue, overview.totalOpenComplianceActions > 0 ? styles.kpiWarn : null]}>
+                  {overview.totalOpenComplianceActions}
+                </Text>
+                <Text style={styles.kpiLabel}>Open compliance actions</Text>
+                <Text style={styles.kpiHint}>Failed checks not yet closed out</Text>
+              </View>
             </View>
-          </View>
+          )}
+
+          {/* Refusals & visitors — per-shop section (multi-shop only; single-shop shows it beside sales). */}
+          {!isSingleShop && allShops.length > 0 ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Refusals & visitors</Text>
+              {allShops.map((shop) => (
+                <View key={shop.shopId} style={[ui.card, styles.shopCard]}>
+                  {!isSingleShop ? <Text style={styles.shopName} numberOfLines={1}>{shop.shopName}</Text> : null}
+                  <View style={styles.shopMetricsRow}>
+                    <Pressable style={styles.shopMetric} onPress={() => goToShop(shop.shopId, "RefusalReport")}>
+                      <Text style={styles.shopMetricValue}>{shop.refusals}</Text>
+                      <Text style={styles.shopMetricLabel}>Refusals</Text>
+                    </Pressable>
+                    <Pressable style={styles.shopMetric} onPress={() => goToShop(shop.shopId, "VisitorLogReport")}>
+                      <Text style={styles.shopMetricValue}>{shop.visitors}</Text>
+                      <Text style={styles.shopMetricLabel}>Visitors</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {/* Sales chart — daily bars for the 7-day view, weekly bars for the 30-day view. */}
+          {range !== "today" && overview.salesByDay.length > 0 ? (
+            <View style={[ui.card, styles.chartCard]}>
+              <Text style={styles.chartTitle}>Scratch card sales · {range === "7d" ? "by day" : "by week"}</Text>
+              <SalesBarChart buckets={buildSalesBuckets(range, overview.salesByDay)} />
+            </View>
+          ) : null}
 
           {/* Top / focus highlights */}
           {allShops.length > 1 && topShop && focusShop ? (
@@ -276,8 +410,9 @@ export function OwnerOverviewScreen() {
             </View>
           ) : null}
 
-          {/* Temperature checks needing attention */}
-          {tempAttentionShops.length > 0 ? (
+          {/* Temperature checks needing attention. Hidden for a single shop — the KPI card above
+              already shows its temperature issues. */}
+          {!isSingleShop && tempAttentionShops.length > 0 ? (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Temperature checks — need attention</Text>
               {tempAttentionShops.map((shop) => (
@@ -328,7 +463,7 @@ export function OwnerOverviewScreen() {
             </View>
           ) : null}
 
-          {tempAttentionShops.length === 0 && compAttentionShops.length === 0 ? (
+          {!isSingleShop && tempAttentionShops.length === 0 && compAttentionShops.length === 0 ? (
             <View style={[ui.card, styles.allClearCard]}>
               <Ionicons name="checkmark-circle-outline" size={18} color={appTheme.colors.success} />
               <Text style={styles.allClearText}>All shops look good for this period.</Text>
@@ -382,27 +517,6 @@ export function OwnerOverviewScreen() {
           </View>
           )}
 
-          {/* Refusals & visitors insights */}
-          {allShops.length > 0 ? (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Refusals & visitors</Text>
-              {allShops.map((shop) => (
-                <View key={shop.shopId} style={[ui.card, styles.shopCard]}>
-                  {!isSingleShop ? <Text style={styles.shopName} numberOfLines={1}>{shop.shopName}</Text> : null}
-                  <View style={styles.shopMetricsRow}>
-                    <Pressable style={styles.shopMetric} onPress={() => goToShop(shop.shopId, "RefusalReport")}>
-                      <Text style={styles.shopMetricValue}>{shop.refusals}</Text>
-                      <Text style={styles.shopMetricLabel}>Refusals</Text>
-                    </Pressable>
-                    <Pressable style={styles.shopMetric} onPress={() => goToShop(shop.shopId, "VisitorLogReport")}>
-                      <Text style={styles.shopMetricValue}>{shop.visitors}</Text>
-                      <Text style={styles.shopMetricLabel}>Visitors</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ))}
-            </View>
-          ) : null}
         </>
       )}
     </ScrollView>
@@ -446,6 +560,20 @@ const styles = StyleSheet.create({
   deltaText: { fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
   kpiDanger: { color: appTheme.colors.danger },
   kpiWarn: { color: appTheme.colors.warning },
+  dualCard: { flex: 1, gap: 8 },
+  dualTitle: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.3 },
+  dualStatsRow: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
+  dualStat: { flex: 1, gap: 1 },
+  dualValue: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 20, lineHeight: 24 },
+  dualLabel: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 11, lineHeight: 14 },
+  chartCard: { gap: appTheme.spacing.sm },
+  chartTitle: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 18 },
+  chartRow: { flexDirection: "row", alignItems: "flex-end", gap: 6 },
+  chartCol: { flex: 1, alignItems: "center", gap: 4 },
+  chartValue: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 9, lineHeight: 12 },
+  chartBarTrack: { width: "100%", height: CHART_HEIGHT, justifyContent: "flex-end", alignItems: "center" },
+  chartBar: { width: "62%", minHeight: 2, borderTopLeftRadius: 4, borderTopRightRadius: 4, backgroundColor: appTheme.colors.primary },
+  chartLabel: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 10, lineHeight: 13 },
   kpiHint: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.body, fontSize: 10, lineHeight: 13, marginTop: 1 },
   highlightCard: { flex: 1, gap: 3, alignItems: "flex-start" },
   highlightHeader: { flexDirection: "row", alignItems: "center", gap: 4 },

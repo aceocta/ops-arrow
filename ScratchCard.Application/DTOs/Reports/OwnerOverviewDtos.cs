@@ -21,6 +21,16 @@ public class OwnerOverviewDto
     public int TotalRefusals { get; set; }
     public int TotalVisitors { get; set; }
     public int AverageComplianceScore { get; set; } // 0-100 across shops
+
+    // Scratch-card sales per day across all shops, one point per day in [From, To] (zeros included).
+    // The client buckets this into daily (7-day view) or weekly (30-day view) bars.
+    public IReadOnlyCollection<OwnerSalesPointDto> SalesByDay { get; set; } = [];
+}
+
+public class OwnerSalesPointDto
+{
+    public DateOnly Date { get; set; }
+    public decimal Amount { get; set; }
 }
 
 public class OwnerShopOverviewDto

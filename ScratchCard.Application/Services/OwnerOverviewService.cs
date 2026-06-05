@@ -63,9 +63,17 @@ public class OwnerOverviewService : IOwnerOverviewService
         var prevFrom = prevTo.AddDays(-(lengthDays - 1));
 
         var shopSummaries = new List<OwnerShopOverviewDto>(shops.Count);
+        var salesByDate = new Dictionary<DateOnly, decimal>();
         foreach (var shop in shops)
         {
-            shopSummaries.Add(await BuildShopSummaryAsync(shop.ShopId, shop.ShopName, from, to, prevFrom, prevTo, cancellationToken));
+            shopSummaries.Add(await BuildShopSummaryAsync(shop.ShopId, shop.ShopName, from, to, prevFrom, prevTo, salesByDate, cancellationToken));
+        }
+
+        // One point per day in range (zeros filled in) so the client can render a continuous chart.
+        var salesByDay = new List<OwnerSalesPointDto>();
+        for (var d = from; d <= to; d = d.AddDays(1))
+        {
+            salesByDay.Add(new OwnerSalesPointDto { Date = d, Amount = salesByDate.GetValueOrDefault(d) });
         }
 
         return new OwnerOverviewDto
@@ -86,6 +94,7 @@ public class OwnerOverviewService : IOwnerOverviewService
             AverageComplianceScore = shopSummaries.Count > 0
                 ? (int)Math.Round(shopSummaries.Average(x => x.ComplianceScore))
                 : 100,
+            SalesByDay = salesByDay,
         };
     }
 
@@ -96,6 +105,7 @@ public class OwnerOverviewService : IOwnerOverviewService
         DateOnly to,
         DateOnly prevFrom,
         DateOnly prevTo,
+        Dictionary<DateOnly, decimal> salesByDate,
         CancellationToken cancellationToken)
     {
         // Day status comes from the business-day roll-up (its TotalSalesAmount mixes in till/store
@@ -116,6 +126,10 @@ public class OwnerOverviewService : IOwnerOverviewService
             Array.Empty<DailySalesReportRowDto>() as IReadOnlyCollection<DailySalesReportRowDto>);
         var salesAmount = dailySales.Sum(r => r.SalesAmount);
         var cashVariance = dailySales.Sum(r => r.Difference);
+        foreach (var row in dailySales)
+        {
+            salesByDate[row.BusinessDate] = salesByDate.GetValueOrDefault(row.BusinessDate) + row.SalesAmount;
+        }
 
         // Previous-period scratch-card sales for the trend indicator.
         var prevSales = await SafeAsync(
