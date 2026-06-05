@@ -1,6 +1,13 @@
 import { apiClient } from "./client";
 import { ApiResponse } from "./types";
-import { AuditLogRow, DailySalesReportRow, ManualEntryReviewRow, NotificationLogRow, StockReportRow, TemperatureReading } from "../types/models";
+import { AuditLogRow, DailySalesReportRow, ManualEntryReviewRow, NotificationLogRow, OwnerOverview, StockReportRow, TemperatureReading } from "../types/models";
+
+export async function getOwnerOverview(from: string, to: string) {
+  const response = await apiClient.get<ApiResponse<OwnerOverview>>("/reports/owner-overview", {
+    params: { from, to },
+  });
+  return response.data.data;
+}
 
 export type SendReportEmailPayload = {
   recipientEmail?: string;

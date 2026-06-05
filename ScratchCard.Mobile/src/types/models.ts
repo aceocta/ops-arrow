@@ -455,6 +455,42 @@ export type StockReportRow = {
   remainingTickets: number;
 };
 
+export type OwnerShopOverview = {
+  shopId: string;
+  shopName: string;
+  salesAmount: number;
+  previousSalesAmount: number;
+  cashVariance: number;
+  dayStatus: string;
+  temperatureChecksDone: number;
+  temperatureChecksTotal: number;
+  temperatureIssues: number;
+  temperatureCompliancePercent: number;
+  openComplianceActions: number;
+  complianceScore: number;
+  activePacks: number;
+  lowStockPacks: number;
+  refusals: number;
+  needsAttention: boolean;
+  attentionReasons: string[];
+};
+
+export type OwnerOverview = {
+  from: string;
+  to: string;
+  shops: OwnerShopOverview[];
+  shopCount: number;
+  totalSalesAmount: number;
+  previousTotalSalesAmount: number;
+  totalCashVariance: number;
+  shopsNeedingAttention: number;
+  totalOpenComplianceActions: number;
+  totalTemperatureIssues: number;
+  totalLowStockPacks: number;
+  totalRefusals: number;
+  averageComplianceScore: number;
+};
+
 export type NotificationLogRow = {
   id: string;
   notificationType: string;

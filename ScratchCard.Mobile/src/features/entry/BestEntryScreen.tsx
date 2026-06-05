@@ -5,6 +5,8 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SubscriptionBanner } from "../subscription/SubscriptionBanner";
+import { useAuth } from "../../auth/AuthContext";
+import { OwnerOverviewScreen } from "../dashboard/OwnerOverviewScreen";
 import { useBestEntry } from "../../navigation/BestEntryContext";
 import { useEntitlements } from "../subscription/useEntitlements";
 import { MainStackParamList } from "../../types/navigation";
@@ -82,10 +84,17 @@ export function BestEntryScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const { selectedOperation, setSelectedOperation } = useBestEntry();
   const { entitlements } = useEntitlements();
+  const { profile } = useAuth();
   const features = entitlements?.features ?? [];
   const visibleOptions = operationOptions.filter(
     (o) => !o.requiredFeature || features.includes(o.requiredFeature)
   );
+
+  // Company owners land on the multi-shop operations dashboard instead of the entry grid.
+  const isCompanyOwner = profile?.roles?.includes("CompanyOwner") ?? false;
+  if (isCompanyOwner) {
+    return <OwnerOverviewScreen />;
+  }
 
   return (
     <ScreenContainer>

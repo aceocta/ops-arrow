@@ -374,6 +374,11 @@ public interface IPrizePayoutService
     Task<PrizePayoutDto> ApproveAsync(Guid id, ApprovePrizePayoutRequest request, CancellationToken cancellationToken = default);
 }
 
+public interface IOwnerOverviewService
+{
+    Task<OwnerOverviewDto> GetAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
+}
+
 public interface IReportService
 {
     Task<IReadOnlyCollection<DailySalesReportRowDto>> GetDailySalesAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
