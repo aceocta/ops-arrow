@@ -288,7 +288,7 @@ function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
         </View>
       </View>
 
-      <View style={ui.card}>
+      <View style={styles.detailSection}>
         <Text style={ui.sectionTitle}>Detail · {shortDate(grid.from)} – {shortDate(grid.to)}</Text>
         <View style={styles.tableRow}>
           {/* Fixed unit column (units as rows). */}
@@ -304,7 +304,7 @@ function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
           </View>
 
           {/* Scrollable dates × slots grid. */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
             <View style={{ width: datesWidth }}>
               {/* Header line 1: dates. */}
               <View style={styles.headerLine}>
@@ -522,14 +522,26 @@ const styles = StyleSheet.create({
   legendRow: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   actionRow: { flexDirection: "row", gap: appTheme.spacing.xs },
   legendItem: { fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, lineHeight: 17 },
-  tableRow: { flexDirection: "row", marginTop: 8 },
+  detailSection: { gap: 4, marginTop: appTheme.spacing.sm },
+  // Framed like the temperature-log scheduled-check table: thin border + rounded corners, clipping
+  // the inner hairline cell borders so it reads as a clean grid.
+  tableRow: {
+    flexDirection: "row",
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderSoft,
+    borderRadius: appTheme.radius.sm,
+    overflow: "hidden",
+    backgroundColor: appTheme.colors.surface,
+  },
   // Fixed left column listing the units (one per row).
-  unitCol: { width: UNIT_W, borderRightWidth: 1, borderRightColor: appTheme.colors.borderSoft },
+  unitCol: { width: UNIT_W, borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: appTheme.colors.borderSoft },
   unitCell: {
     width: UNIT_W,
-    paddingHorizontal: 8,
+    paddingLeft: 14,
+    paddingRight: 8,
     justifyContent: "center",
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: appTheme.colors.borderSoft,
   },
   cornerCell: {
@@ -547,7 +559,7 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.surfaceMuted,
     alignItems: "center",
     justifyContent: "center",
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: appTheme.colors.borderSoft,
   },
   slotHeaderCell: {
@@ -558,8 +570,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 1,
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: appTheme.colors.borderSoft,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderRightColor: appTheme.colors.borderSoft,
   },
   gridBodyRow: { flexDirection: "row", height: ROW_H },
   gridCell: {
@@ -569,8 +583,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 2,
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: appTheme.colors.borderSoft,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderRightColor: appTheme.colors.borderSoft,
   },
   // Vertical separator between consecutive dates (drawn on the first slot of each date).
   dateDivider: { borderLeftWidth: 1, borderLeftColor: appTheme.colors.borderSoft },
