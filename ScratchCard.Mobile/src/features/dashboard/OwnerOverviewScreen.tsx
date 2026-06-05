@@ -103,45 +103,57 @@ function SalesBarChart({ buckets }: { buckets: SalesBucket[] }) {
   );
 }
 
-type TempBucket = { label: string; pct: number; hasData: boolean };
+type TempBucket = { label: string; inRange: number; outOfRange: number };
 
-// Temperature compliance %: daily buckets for 7-day, weekly for 30-day. % = compliant / total.
-function buildTempBuckets(range: RangeKey, points: { date: string; compliant: number; total: number }[]): TempBucket[] {
+// Daily buckets for 7-day, weekly for 30-day. Each bucket carries in-range vs out-of-range counts.
+function buildTempBuckets(range: RangeKey, points: { date: string; inRange: number; outOfRange: number }[]): TempBucket[] {
   const groups = range === "30d"
     ? Array.from({ length: Math.ceil(points.length / 7) }, (_, i) => points.slice(i * 7, i * 7 + 7))
     : points.map((p) => [p]);
   return groups
     .filter((g) => g.length > 0)
     .map((g) => {
-      const compliant = g.reduce((s, p) => s + p.compliant, 0);
-      const total = g.reduce((s, p) => s + p.total, 0);
       const date = new Date(`${g[0].date}T00:00:00`);
       const label = range === "30d"
         ? date.toLocaleDateString(undefined, { day: "numeric", month: "short" })
         : date.toLocaleDateString(undefined, { weekday: "short" });
-      return { label, pct: total > 0 ? Math.round((compliant / total) * 100) : 0, hasData: total > 0 };
+      return {
+        label,
+        inRange: g.reduce((s, p) => s + p.inRange, 0),
+        outOfRange: g.reduce((s, p) => s + p.outOfRange, 0),
+      };
     });
 }
 
-function TempComplianceChart({ buckets }: { buckets: TempBucket[] }) {
+// 100%-stacked bar of readings taken: green = in range, red = out of range. Label = out-of-range %.
+function TempRangeChart({ buckets }: { buckets: TempBucket[] }) {
   return (
     <View style={styles.chartRow}>
-      {buckets.map((b, i) => (
-        <View key={i} style={styles.chartCol}>
-          <Text style={styles.chartValue} numberOfLines={1}>{b.hasData ? `${b.pct}%` : ""}</Text>
-          <View style={styles.chartBarTrack}>
-            {b.hasData ? (
-              <View
-                style={[
-                  styles.chartBar,
-                  { height: Math.max(2, Math.round((b.pct / 100) * CHART_HEIGHT)), backgroundColor: scoreColor(b.pct) },
-                ]}
-              />
-            ) : null}
+      {buckets.map((b, i) => {
+        const taken = b.inRange + b.outOfRange;
+        const outPct = taken > 0 ? Math.round((b.outOfRange / taken) * 100) : 0;
+        const outH = taken > 0 ? Math.round((b.outOfRange / taken) * CHART_HEIGHT) : 0;
+        const inH = taken > 0 ? CHART_HEIGHT - outH : 0;
+        return (
+          <View key={i} style={styles.chartCol}>
+            <Text
+              style={[styles.chartValue, b.outOfRange > 0 ? { color: appTheme.colors.danger } : null]}
+              numberOfLines={1}
+            >
+              {taken > 0 ? `${outPct}%` : ""}
+            </Text>
+            <View style={styles.chartBarTrack}>
+              {taken > 0 ? (
+                <View style={styles.stackBar}>
+                  {outH > 0 ? <View style={[styles.stackOut, { height: outH }]} /> : null}
+                  <View style={[styles.stackIn, { height: Math.max(inH, b.inRange > 0 ? 2 : 0) }]} />
+                </View>
+              ) : null}
+            </View>
+            <Text style={styles.chartLabel} numberOfLines={1}>{b.label}</Text>
           </View>
-          <Text style={styles.chartLabel} numberOfLines={1}>{b.label}</Text>
-        </View>
-      ))}
+        );
+      })}
     </View>
   );
 }
@@ -422,18 +434,28 @@ export function OwnerOverviewScreen() {
           ) : null}
 
           {/* Sales chart — daily bars for the 7-day view, weekly bars for the 30-day view. */}
-          {range !== "today" && overview.salesByDay.length > 0 ? (
+          {range !== "today" && (overview.salesByDay?.length ?? 0) > 0 ? (
             <View style={[ui.card, styles.chartCard]}>
               <Text style={styles.chartTitle}>Scratch card sales · {range === "7d" ? "by day" : "by week"}</Text>
               <SalesBarChart buckets={buildSalesBuckets(range, overview.salesByDay)} />
             </View>
           ) : null}
 
-          {/* Temperature compliance % — green ≥95, amber ≥80, red below. */}
-          {range !== "today" && overview.temperatureByDay.length > 0 ? (
+          {/* Temperature readings in-range vs out-of-range (green = in range, red = out of range). */}
+          {range !== "today" && (overview.temperatureByDay?.length ?? 0) > 0 ? (
             <View style={[ui.card, styles.chartCard]}>
-              <Text style={styles.chartTitle}>Temperature compliance · {range === "7d" ? "by day" : "by week"}</Text>
-              <TempComplianceChart buckets={buildTempBuckets(range, overview.temperatureByDay)} />
+              <Text style={styles.chartTitle}>Temperature range · {range === "7d" ? "by day" : "by week"}</Text>
+              <View style={styles.legendRow}>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendSwatch, { backgroundColor: appTheme.colors.success }]} />
+                  <Text style={styles.legendText}>In range</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendSwatch, { backgroundColor: appTheme.colors.danger }]} />
+                  <Text style={styles.legendText}>Out of range (%)</Text>
+                </View>
+              </View>
+              <TempRangeChart buckets={buildTempBuckets(range, overview.temperatureByDay)} />
             </View>
           ) : null}
 
@@ -625,6 +647,13 @@ const styles = StyleSheet.create({
   chartBarTrack: { width: "100%", height: CHART_HEIGHT, justifyContent: "flex-end", alignItems: "center" },
   chartBar: { width: "62%", minHeight: 2, borderTopLeftRadius: 4, borderTopRightRadius: 4, backgroundColor: appTheme.colors.primary },
   chartLabel: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 10, lineHeight: 13 },
+  stackBar: { width: "62%", height: CHART_HEIGHT, flexDirection: "column", borderRadius: 4, overflow: "hidden" },
+  stackOut: { width: "100%", backgroundColor: appTheme.colors.danger },
+  stackIn: { width: "100%", backgroundColor: appTheme.colors.success },
+  legendRow: { flexDirection: "row", gap: appTheme.spacing.md },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
+  legendSwatch: { width: 10, height: 10, borderRadius: 2 },
+  legendText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 11 },
   kpiHint: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.body, fontSize: 10, lineHeight: 13, marginTop: 1 },
   highlightCard: { flex: 1, gap: 3, alignItems: "flex-start" },
   highlightHeader: { flexDirection: "row", alignItems: "center", gap: 4 },

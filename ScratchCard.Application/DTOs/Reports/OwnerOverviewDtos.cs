@@ -26,16 +26,16 @@ public class OwnerOverviewDto
     // The client buckets this into daily (7-day view) or weekly (30-day view) bars.
     public IReadOnlyCollection<OwnerSalesPointDto> SalesByDay { get; set; } = [];
 
-    // Temperature checks per day across all shops — compliant (on-time/early) vs total (excluding
-    // upcoming). The client buckets and renders the compliance % per day/week.
+    // Temperature readings per day across all shops, split into in-range vs out-of-range. The client
+    // renders the in-range / out-of-range % per day/week.
     public IReadOnlyCollection<OwnerTemperaturePointDto> TemperatureByDay { get; set; } = [];
 }
 
 public class OwnerTemperaturePointDto
 {
     public DateOnly Date { get; set; }
-    public int Compliant { get; set; }
-    public int Total { get; set; }
+    public int InRange { get; set; } // readings taken within the safe range
+    public int OutOfRange { get; set; } // readings taken outside the safe range
 }
 
 public class OwnerSalesPointDto

@@ -494,7 +494,7 @@ export type OwnerOverview = {
   totalVisitors: number;
   averageComplianceScore: number;
   salesByDay: { date: string; amount: number }[];
-  temperatureByDay: { date: string; compliant: number; total: number }[];
+  temperatureByDay: { date: string; inRange: number; outOfRange: number }[];
 };
 
 export type NotificationLogRow = {

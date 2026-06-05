@@ -64,11 +64,11 @@ public class OwnerOverviewService : IOwnerOverviewService
 
         var shopSummaries = new List<OwnerShopOverviewDto>(shops.Count);
         var salesByDate = new Dictionary<DateOnly, decimal>();
-        var tempCompliantByDate = new Dictionary<DateOnly, int>();
-        var tempTotalByDate = new Dictionary<DateOnly, int>();
+        var tempInRangeByDate = new Dictionary<DateOnly, int>();
+        var tempOutOfRangeByDate = new Dictionary<DateOnly, int>();
         foreach (var shop in shops)
         {
-            shopSummaries.Add(await BuildShopSummaryAsync(shop.ShopId, shop.ShopName, from, to, prevFrom, prevTo, salesByDate, tempCompliantByDate, tempTotalByDate, cancellationToken));
+            shopSummaries.Add(await BuildShopSummaryAsync(shop.ShopId, shop.ShopName, from, to, prevFrom, prevTo, salesByDate, tempInRangeByDate, tempOutOfRangeByDate, cancellationToken));
         }
 
         // One point per day in range (zeros filled in) so the client can render a continuous chart.
@@ -80,8 +80,8 @@ public class OwnerOverviewService : IOwnerOverviewService
             temperatureByDay.Add(new OwnerTemperaturePointDto
             {
                 Date = d,
-                Compliant = tempCompliantByDate.GetValueOrDefault(d),
-                Total = tempTotalByDate.GetValueOrDefault(d),
+                InRange = tempInRangeByDate.GetValueOrDefault(d),
+                OutOfRange = tempOutOfRangeByDate.GetValueOrDefault(d),
             });
         }
 
@@ -116,8 +116,8 @@ public class OwnerOverviewService : IOwnerOverviewService
         DateOnly prevFrom,
         DateOnly prevTo,
         Dictionary<DateOnly, decimal> salesByDate,
-        Dictionary<DateOnly, int> tempCompliantByDate,
-        Dictionary<DateOnly, int> tempTotalByDate,
+        Dictionary<DateOnly, int> tempInRangeByDate,
+        Dictionary<DateOnly, int> tempOutOfRangeByDate,
         CancellationToken cancellationToken)
     {
         // Day status comes from the business-day roll-up (its TotalSalesAmount mixes in till/store
@@ -167,19 +167,21 @@ public class OwnerOverviewService : IOwnerOverviewService
             .Distinct()
             .Count() ?? 0;
 
-        // Per-day temperature compliance counts for the trend chart (exclude upcoming/not-yet-due).
-        if (grid != null)
+        // Per-day in-range vs out-of-range from EVERY temperature reading taken that day (the overall
+        // record for the day — not the per-slot grid representative). Each reading carries IsOutOfRange,
+        // computed against its unit's safe range when it was logged.
+        var readings = await SafeAsync(
+            () => _reportService.GetTemperatureLogsReportAsync(shopId, from, to, null, cancellationToken),
+            Array.Empty<DTOs.TemperatureLogs.TemperatureReadingDto>() as IReadOnlyCollection<DTOs.TemperatureLogs.TemperatureReadingDto>);
+        foreach (var reading in readings)
         {
-            foreach (var cell in grid.Cells)
+            if (reading.IsOutOfRange)
             {
-                var state = cell.State;
-                if (state == DTOs.TemperatureLogs.TemperatureScheduleCellState.Upcoming) continue;
-                tempTotalByDate[cell.Date] = tempTotalByDate.GetValueOrDefault(cell.Date) + 1;
-                if (state == DTOs.TemperatureLogs.TemperatureScheduleCellState.OnTime
-                    || state == DTOs.TemperatureLogs.TemperatureScheduleCellState.Early)
-                {
-                    tempCompliantByDate[cell.Date] = tempCompliantByDate.GetValueOrDefault(cell.Date) + 1;
-                }
+                tempOutOfRangeByDate[reading.ReadingDate] = tempOutOfRangeByDate.GetValueOrDefault(reading.ReadingDate) + 1;
+            }
+            else
+            {
+                tempInRangeByDate[reading.ReadingDate] = tempInRangeByDate.GetValueOrDefault(reading.ReadingDate) + 1;
             }
         }
 
