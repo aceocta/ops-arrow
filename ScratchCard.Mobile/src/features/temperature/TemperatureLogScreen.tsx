@@ -1699,7 +1699,8 @@ const styles = StyleSheet.create({
   },
   // Container for the Daily Readings section: header + one card per unit.
   readingsSection: {
-    gap: appTheme.spacing.sm,
+    gap: appTheme.spacing.md,
+    marginTop:appTheme.spacing.lg
   },
   heroCard: {
     backgroundColor: appTheme.colors.primary,
@@ -1992,12 +1993,13 @@ const styles = StyleSheet.create({
     width: 104,
     paddingLeft: 14,
     paddingRight: 8,
+    paddingVertical:14,
     justifyContent: "center",
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: appTheme.colors.borderSoft,
   },
   matrixCornerCell: {
-    height: 38,
+    height: 45,
     backgroundColor: appTheme.colors.surfaceMuted,
   },
   matrixUnitBodyCell: {
@@ -2006,7 +2008,7 @@ const styles = StyleSheet.create({
   matrixUnitText: {
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 14,
+    fontSize: 12,
     lineHeight: 17,
   },
   matrixUnitType: {
@@ -2021,7 +2023,7 @@ const styles = StyleSheet.create({
   },
   matrixSlotHeaderCell: {
     flex: 1,
-    height: 38,
+    height: 45,
     paddingHorizontal: 4,
     backgroundColor: appTheme.colors.surfaceMuted,
     alignItems: "center",

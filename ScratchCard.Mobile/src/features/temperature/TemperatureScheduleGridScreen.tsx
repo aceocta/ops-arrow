@@ -540,6 +540,7 @@ const styles = StyleSheet.create({
     width: UNIT_W,
     paddingLeft: 14,
     paddingRight: 8,
+    paddingVertical: 14,
     justifyContent: "center",
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: appTheme.colors.borderSoft,
