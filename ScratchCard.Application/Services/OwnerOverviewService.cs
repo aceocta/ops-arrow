@@ -24,6 +24,7 @@ public class OwnerOverviewService : IOwnerOverviewService
     private readonly IBusinessDayService _businessDayService;
     private readonly IComplianceCheckService _complianceCheckService;
     private readonly IRefusalRegisterService _refusalRegisterService;
+    private readonly IVisitorLogService _visitorLogService;
 
     public OwnerOverviewService(
         ICurrentUserService currentUserService,
@@ -31,7 +32,8 @@ public class OwnerOverviewService : IOwnerOverviewService
         IReportService reportService,
         IBusinessDayService businessDayService,
         IComplianceCheckService complianceCheckService,
-        IRefusalRegisterService refusalRegisterService)
+        IRefusalRegisterService refusalRegisterService,
+        IVisitorLogService visitorLogService)
     {
         _currentUserService = currentUserService;
         _shopUserRepository = shopUserRepository;
@@ -39,6 +41,7 @@ public class OwnerOverviewService : IOwnerOverviewService
         _businessDayService = businessDayService;
         _complianceCheckService = complianceCheckService;
         _refusalRegisterService = refusalRegisterService;
+        _visitorLogService = visitorLogService;
     }
 
     public async Task<OwnerOverviewDto> GetAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
@@ -79,6 +82,7 @@ public class OwnerOverviewService : IOwnerOverviewService
             TotalTemperatureIssues = shopSummaries.Sum(x => x.TemperatureIssues),
             TotalLowStockPacks = shopSummaries.Sum(x => x.LowStockPacks),
             TotalRefusals = shopSummaries.Sum(x => x.Refusals),
+            TotalVisitors = shopSummaries.Sum(x => x.Visitors),
             AverageComplianceScore = shopSummaries.Count > 0
                 ? (int)Math.Round(shopSummaries.Average(x => x.ComplianceScore))
                 : 100,
@@ -159,6 +163,12 @@ public class OwnerOverviewService : IOwnerOverviewService
             Array.Empty<DTOs.RefusalRegister.RefusalRegisterEntryDto>() as IReadOnlyCollection<DTOs.RefusalRegister.RefusalRegisterEntryDto>);
         var refusalCount = refusals.Count;
 
+        // Visitors in range.
+        var visitors = await SafeAsync(
+            () => _visitorLogService.ListEntriesByRangeAsync(shopId, from, to, cancellationToken),
+            Array.Empty<DTOs.VisitorLog.VisitorLogEntryDto>() as IReadOnlyCollection<DTOs.VisitorLog.VisitorLogEntryDto>);
+        var visitorCount = visitors.Count;
+
         // Blended compliance health score (0-100): temperature compliance is the backbone (70%),
         // with the remaining 30% earned by having no open corrective actions.
         var actionsFactor = openActions == 0 ? 1m : openActions <= 2 ? 0.5m : 0m;
@@ -195,6 +205,7 @@ public class OwnerOverviewService : IOwnerOverviewService
             ActivePacks = activePacks,
             LowStockPacks = lowStock,
             Refusals = refusalCount,
+            Visitors = visitorCount,
             NeedsAttention = reasons.Count > 0,
             AttentionReasons = reasons,
         };

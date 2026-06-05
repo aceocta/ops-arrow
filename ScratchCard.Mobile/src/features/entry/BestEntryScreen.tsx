@@ -108,30 +108,29 @@ export function BestEntryScreen() {
     <ScreenContainer>
       <SubscriptionBanner />
 
-      {/* Active shop + quick switch */}
-      <Pressable
-        style={[ui.card, styles.shopCard]}
-        onPress={() => canSwitchShop && setSwitchOpen(true)}
-        disabled={!canSwitchShop}
-        accessibilityRole="button"
-        accessibilityLabel="Active shop. Tap to switch."
-      >
-        <View style={styles.shopCardIcon}>
-          <Ionicons name="storefront-outline" size={20} color={appTheme.colors.primary} />
-        </View>
-        <View style={styles.shopCardText}>
-          <Text style={styles.shopCardLabel}>Active shop</Text>
-          <Text style={styles.shopCardName} numberOfLines={1}>
-            {activeShop?.shopName ?? "No shop selected"}
-          </Text>
-        </View>
-        {canSwitchShop ? (
+      {/* Active shop + quick switch — only relevant when the user belongs to more than one shop. */}
+      {canSwitchShop ? (
+        <Pressable
+          style={[ui.card, styles.shopCard]}
+          onPress={() => setSwitchOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Active shop. Tap to switch."
+        >
+          <View style={styles.shopCardIcon}>
+            <Ionicons name="storefront-outline" size={20} color={appTheme.colors.primary} />
+          </View>
+          <View style={styles.shopCardText}>
+            <Text style={styles.shopCardLabel}>Active shop</Text>
+            <Text style={styles.shopCardName} numberOfLines={1}>
+              {activeShop?.shopName ?? "No shop selected"}
+            </Text>
+          </View>
           <View style={styles.switchPill}>
             <Ionicons name="swap-horizontal" size={14} color={appTheme.colors.primary} />
             <Text style={styles.switchPillText}>Switch</Text>
           </View>
-        ) : null}
-      </Pressable>
+        </Pressable>
+      ) : null}
 
       <View style={styles.featureGrid}>
         {visibleOptions.map((option) => {

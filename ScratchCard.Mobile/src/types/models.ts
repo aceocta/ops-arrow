@@ -473,6 +473,7 @@ export type OwnerShopOverview = {
   activePacks: number;
   lowStockPacks: number;
   refusals: number;
+  visitors: number;
   needsAttention: boolean;
   attentionReasons: string[];
 };
@@ -490,6 +491,7 @@ export type OwnerOverview = {
   totalTemperatureIssues: number;
   totalLowStockPacks: number;
   totalRefusals: number;
+  totalVisitors: number;
   averageComplianceScore: number;
 };
 

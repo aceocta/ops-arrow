@@ -67,6 +67,7 @@ function buildSummaryHtml(overview: OwnerOverview, rangeLabel: string): string {
         <td style="text-align:center">${s.openComplianceActions}</td>
         <td style="text-align:center">${s.activePacks}${s.lowStockPacks > 0 ? ` (${s.lowStockPacks} low)` : ""}</td>
         <td style="text-align:center">${s.refusals}</td>
+        <td style="text-align:center">${s.visitors}</td>
       </tr>`,
     )
     .join("");
@@ -90,7 +91,7 @@ function buildSummaryHtml(overview: OwnerOverview, rangeLabel: string): string {
       <div class="kpi"><div class="v">${overview.totalOpenComplianceActions}</div><div class="l">Open actions</div></div>
     </div>
     <table>
-      <thead><tr><th>Shop</th><th style="text-align:right">Card sales</th><th style="text-align:center">Score</th><th style="text-align:center">Temp</th><th style="text-align:center">Actions</th><th style="text-align:center">Packs</th><th style="text-align:center">Refusals</th></tr></thead>
+      <thead><tr><th>Shop</th><th style="text-align:right">Card sales</th><th style="text-align:center">Score</th><th style="text-align:center">Temp</th><th style="text-align:center">Actions</th><th style="text-align:center">Packs</th><th style="text-align:center">Refusals</th><th style="text-align:center">Visitors</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
   </body></html>`;
@@ -132,6 +133,9 @@ export function OwnerOverviewScreen() {
   };
 
   const allShops = overview?.shops ?? [];
+  // Single-shop owners get a focused scorecard (no cross-shop comparison or "All shops" list).
+  const isSingleShop = allShops.length === 1;
+  const singleShop = isSingleShop ? allShops[0] : null;
   const tempAttentionShops = allShops.filter((s) => s.temperatureIssues > 0 || s.temperatureOutOfRangeUnits > 0);
   const compAttentionShops = allShops.filter((s) => s.complianceNonCompliantCount > 0 || s.openComplianceActions > 0);
   const topShop = useMemo(
@@ -166,6 +170,13 @@ export function OwnerOverviewScreen() {
             </Pressable>
           ))}
         </View>
+        <Pressable
+          style={styles.shareBtn}
+          onPress={() => navigation.navigate("BestEntry")}
+          accessibilityLabel="Go to home"
+        >
+          <Ionicons name="home-outline" size={18} color={appTheme.colors.primary} />
+        </Pressable>
         <Pressable style={styles.shareBtn} onPress={shareSummary} disabled={!overview} accessibilityLabel="Share summary">
           <Ionicons name="share-outline" size={18} color={appTheme.colors.primary} />
         </Pressable>
@@ -179,7 +190,13 @@ export function OwnerOverviewScreen() {
         </View>
       ) : (
         <>
-          {/* Company KPI strip */}
+          {/* {isSingleShop && singleShop ? (
+            <Text style={styles.shopSubtitle} numberOfLines={1}>
+              {singleShop.shopName} · {dayStatusLabel(singleShop.dayStatus)}
+            </Text>
+          ) : null} */}
+
+          {/* KPI strip */}
           <View style={styles.kpiRow}>
             <View style={[ui.card, styles.kpiCard]}>
               <Text style={styles.kpiValue}>{formatGbp(overview.totalSalesAmount)}</Text>
@@ -209,13 +226,23 @@ export function OwnerOverviewScreen() {
             </View>
           </View>
           <View style={styles.kpiRow}>
-            <View style={[ui.card, styles.kpiCard]}>
-              <Text style={[styles.kpiValue, overview.shopsNeedingAttention > 0 ? styles.kpiDanger : null]}>
-                {overview.shopsNeedingAttention}
-              </Text>
-              <Text style={styles.kpiLabel}>Need attention</Text>
-              <Text style={styles.kpiHint}>Temp, action, stock or cash flags</Text>
-            </View>
+            {isSingleShop && singleShop ? (
+              <View style={[ui.card, styles.kpiCard]}>
+                <Text style={[styles.kpiValue, singleShop.temperatureIssues > 0 ? styles.kpiWarn : null]}>
+                  {singleShop.temperatureIssues}
+                </Text>
+                <Text style={styles.kpiLabel}>Temperature issues</Text>
+                <Text style={styles.kpiHint}>Late / missed checks</Text>
+              </View>
+            ) : (
+              <View style={[ui.card, styles.kpiCard]}>
+                <Text style={[styles.kpiValue, overview.shopsNeedingAttention > 0 ? styles.kpiDanger : null]}>
+                  {overview.shopsNeedingAttention}
+                </Text>
+                <Text style={styles.kpiLabel}>Need attention</Text>
+                <Text style={styles.kpiHint}>Temp, action, stock or cash flags</Text>
+              </View>
+            )}
             <View style={[ui.card, styles.kpiCard]}>
               <Text style={[styles.kpiValue, overview.totalOpenComplianceActions > 0 ? styles.kpiWarn : null]}>
                 {overview.totalOpenComplianceActions}
@@ -308,7 +335,8 @@ export function OwnerOverviewScreen() {
             </View>
           ) : null}
 
-          {/* All shops */}
+          {/* All shops — only useful when there's more than one to compare. */}
+          {isSingleShop ? null : (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>All shops ({allShops.length})</Text>
             {allShops.map((shop) => (
@@ -352,6 +380,29 @@ export function OwnerOverviewScreen() {
               </View>
             ) : null}
           </View>
+          )}
+
+          {/* Refusals & visitors insights */}
+          {allShops.length > 0 ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Refusals & visitors</Text>
+              {allShops.map((shop) => (
+                <View key={shop.shopId} style={[ui.card, styles.shopCard]}>
+                  {!isSingleShop ? <Text style={styles.shopName} numberOfLines={1}>{shop.shopName}</Text> : null}
+                  <View style={styles.shopMetricsRow}>
+                    <Pressable style={styles.shopMetric} onPress={() => goToShop(shop.shopId, "RefusalReport")}>
+                      <Text style={styles.shopMetricValue}>{shop.refusals}</Text>
+                      <Text style={styles.shopMetricLabel}>Refusals</Text>
+                    </Pressable>
+                    <Pressable style={styles.shopMetric} onPress={() => goToShop(shop.shopId, "VisitorLogReport")}>
+                      <Text style={styles.shopMetricValue}>{shop.visitors}</Text>
+                      <Text style={styles.shopMetricLabel}>Visitors</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : null}
         </>
       )}
     </ScrollView>
@@ -362,6 +413,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: appTheme.colors.background },
   content: { padding: appTheme.spacing.md, gap: appTheme.spacing.sm, paddingBottom: appTheme.spacing.xl },
   muted: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 13, lineHeight: 18 },
+  shopSubtitle: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 16, lineHeight: 20 },
   topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: appTheme.spacing.sm },
   rangeRow: { flexDirection: "row", gap: appTheme.spacing.xs, flex: 1 },
   rangeChip: {

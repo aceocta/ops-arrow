@@ -19,6 +19,7 @@ public class OwnerOverviewDto
     public int TotalTemperatureIssues { get; set; }
     public int TotalLowStockPacks { get; set; }
     public int TotalRefusals { get; set; }
+    public int TotalVisitors { get; set; }
     public int AverageComplianceScore { get; set; } // 0-100 across shops
 }
 
@@ -47,6 +48,7 @@ public class OwnerShopOverviewDto
     public int ActivePacks { get; set; }
     public int LowStockPacks { get; set; }
     public int Refusals { get; set; }
+    public int Visitors { get; set; }
 
     public bool NeedsAttention { get; set; }
     public IReadOnlyCollection<string> AttentionReasons { get; set; } = [];
