@@ -653,10 +653,11 @@ export function TemperatureLogScreen() {
         const savedUnitName = selectedUnit?.unitName;
         const nextUnitId = pendingNextUnitRef.current;
         pendingNextUnitRef.current = null;
-        // Carry the chosen check across to the next unit (AM/PM/Random are shop-wide) so the
-        // pre-select effect keeps it instead of recomputing the time-window default. Keeps null
-        // (Random) distinct from undefined so the Random choice survives too.
-        pendingScheduleIdRef.current = selectedScheduleId;
+        // Carry the same check to the next unit, but resolve THAT unit's own schedule record for it
+        // (per-unit schedules differ by unit). Null (Random) stays distinct from undefined.
+        pendingScheduleIdRef.current = nextUnitId
+          ? scheduleIdForUnitCheck(nextUnitId, currentCheck)
+          : selectedScheduleId;
         resetEntryFormForUnit(nextUnitId);
         // Inline "saved" confirmation in the live-status banner (replaces the toast for this flow).
         if (savedFlashTimerRef.current) {
@@ -913,35 +914,68 @@ export function TemperatureLogScreen() {
     return latest.isOutOfRange ? "outOfRange" : "recorded";
   };
 
+  // The "check" the popup is currently entering, identified by label + time. Each unit has its OWN
+  // schedule record for a given check, so navigation/counter below are scoped to the units that this
+  // check applies to — that's why "1 of 3" reflects only those units, not every unit.
+  const currentCheck = useMemo(() => {
+    if (!selectedScheduleId) return null;
+    const s = (schedulesQuery.data ?? []).find((x) => x.id === selectedScheduleId);
+    return s ? { label: s.label, time: s.expectedTime.slice(0, 5) } : null;
+  }, [selectedScheduleId, schedulesQuery.data]);
+
+  // Resolve a unit's own schedule record for a given check (label + time). Null for the random bucket.
+  const scheduleIdForUnitCheck = useCallback(
+    (unitId: string, check: { label: string; time: string } | null): string | null => {
+      if (!check) return null;
+      const match = (schedulesQuery.data ?? []).find(
+        (s) =>
+          s.isActive &&
+          s.label === check.label &&
+          s.expectedTime.slice(0, 5) === check.time &&
+          (!s.temperatureMonitoringUnitId || s.temperatureMonitoringUnitId === unitId),
+      );
+      return match?.id ?? null;
+    },
+    [schedulesQuery.data],
+  );
+
+  // Units the current check applies to. Random / no specific check → every unit.
+  const entryUnitLogs = useMemo(() => {
+    if (!currentCheck) return dailyUnitLogs;
+    return dailyUnitLogs.filter((u) => scheduleIdForUnitCheck(u.unit.id, currentCheck) != null);
+  }, [dailyUnitLogs, currentCheck, scheduleIdForUnitCheck]);
+
   const selectedUnitIndex = useMemo(
-    () => dailyUnitLogs.findIndex((x) => x.unit.id === selectedUnitId),
-    [dailyUnitLogs, selectedUnitId],
+    () => entryUnitLogs.findIndex((x) => x.unit.id === selectedUnitId),
+    [entryUnitLogs, selectedUnitId],
   );
 
   // Order of "next" candidates: start at selected+1, wrap around to the start, exclude current.
   // Returns the first pending unit if one exists; otherwise the next unit regardless of status
   // (so the operator can still move forward to review/re-enter).
   const nextUnitId = useMemo(() => {
-    if (dailyUnitLogs.length < 2 || selectedUnitIndex < 0) return null;
+    if (entryUnitLogs.length < 2 || selectedUnitIndex < 0) return null;
     const orderedFromHere = [
-      ...dailyUnitLogs.slice(selectedUnitIndex + 1),
-      ...dailyUnitLogs.slice(0, selectedUnitIndex),
+      ...entryUnitLogs.slice(selectedUnitIndex + 1),
+      ...entryUnitLogs.slice(0, selectedUnitIndex),
     ];
     const pending = orderedFromHere.find((u) => getUnitDailyStatus(u) === "pending");
     return (pending ?? orderedFromHere[0]).unit.id;
-  }, [dailyUnitLogs, selectedUnitIndex]);
+  }, [entryUnitLogs, selectedUnitIndex]);
 
   const prevUnitId = useMemo(() => {
-    if (dailyUnitLogs.length < 2 || selectedUnitIndex < 0) return null;
-    const prevIndex = selectedUnitIndex === 0 ? dailyUnitLogs.length - 1 : selectedUnitIndex - 1;
-    return dailyUnitLogs[prevIndex].unit.id;
-  }, [dailyUnitLogs, selectedUnitIndex]);
+    if (entryUnitLogs.length < 2 || selectedUnitIndex < 0) return null;
+    const prevIndex = selectedUnitIndex === 0 ? entryUnitLogs.length - 1 : selectedUnitIndex - 1;
+    return entryUnitLogs[prevIndex].unit.id;
+  }, [entryUnitLogs, selectedUnitIndex]);
 
-  // Switch to a different unit without saving — used by chip taps and chevron buttons.
+  // Switch to a different unit without saving — used by chip taps and chevron buttons. Carry the
+  // current check across so the next unit opens on ITS schedule record for that same check.
   const switchToUnit = (unitId: string) => {
     if (unitId === selectedUnitId) return;
     closeTextEditor();
     pendingNextUnitRef.current = null;
+    pendingScheduleIdRef.current = scheduleIdForUnitCheck(unitId, currentCheck);
     resetEntryFormForUnit(unitId);
   };
 
@@ -1320,9 +1354,9 @@ export function TemperatureLogScreen() {
                   <Text style={styles.sectionTitle} numberOfLines={1}>
                     {selectedUnit?.unitName ?? "Unit"}
                   </Text>
-                  {dailyUnitLogs.length > 1 && selectedUnitIndex >= 0 ? (
+                  {entryUnitLogs.length > 1 && selectedUnitIndex >= 0 ? (
                     <Text style={styles.unitHeaderCounter}>
-                      {selectedUnitIndex + 1} of {dailyUnitLogs.length}
+                      {selectedUnitIndex + 1} of {entryUnitLogs.length}
                     </Text>
                   ) : null}
                 </View>
