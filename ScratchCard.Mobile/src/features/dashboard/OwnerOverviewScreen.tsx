@@ -232,10 +232,9 @@ function DualCard({ title, children, onPress }: { title: string; children: React
 
 export function OwnerOverviewScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
-  const { profile, setActiveShop } = useAuth();
-  // Single-shop owners open on the 7-day view (a day's snapshot isn't much for one shop); multi-shop
-  // owners open on Today for a quick "how are all shops doing right now" glance.
-  const [range, setRange] = useState<RangeKey>((profile?.shops?.length ?? 0) === 1 ? "7d" : "today");
+  const { setActiveShop } = useAuth();
+  // Default to the last 7 days for all owners — a single day is too little, and the charts need a range.
+  const [range, setRange] = useState<RangeKey>("7d");
   const { from, to } = useMemo(() => rangeDates(range), [range]);
 
   const overviewQuery = useQuery({
