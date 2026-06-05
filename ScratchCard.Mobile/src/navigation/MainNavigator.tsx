@@ -9,6 +9,7 @@ import { useAuth } from "../auth/AuthContext";
 import { NetworkStatusBanner } from "../components/NetworkStatusBanner";
 import { DashboardScreen } from "../features/dashboard/DashboardScreen";
 import { BestEntryScreen } from "../features/entry/BestEntryScreen";
+import { OwnerOverviewScreen } from "../features/dashboard/OwnerOverviewScreen";
 import { UserInvitationsScreen } from "../features/invitations/UserInvitationsScreen";
 import { DeliveriesScreen } from "../features/deliveries/DeliveriesScreen";
 import { ReceiveDeliveryScreen } from "../features/deliveries/ReceiveDeliveryScreen";
@@ -237,6 +238,7 @@ const drawerBottomPaddingWithDock = 92;
 function shouldShowBottomDock(routeName: string | undefined) {
   return !(
     routeName === "BestEntry" ||
+    routeName === "OwnerDashboard" ||
     routeName === "Dashboard" ||
     routeName === "TemperatureLogs" ||
     routeName === "ComplianceChecks" ||
@@ -411,6 +413,7 @@ function MainStackScreens() {
       })}
     >
       <Stack.Screen name="BestEntry" component={BestEntryScreen} options={{ headerTitle: () => <HomeHeaderTitle /> }} />
+      <Stack.Screen name="OwnerDashboard" component={OwnerOverviewScreen} options={{ title: "Dashboard" }} />
       <Stack.Screen name="ShopChecklist" component={ShopChecklistScreen} options={{ title: "Shop Checklist" }} />
       <Stack.Screen name="ComplianceChecks" component={ComplianceChecksScreen} options={{ title: "Compliance Checks" }} />
       <Stack.Screen name="ComplianceConfig" component={ComplianceChecksConfigScreen} options={{ title: "Compliance Setup" }} />
@@ -761,6 +764,11 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
     props.navigation.closeDrawer();
   }
 
+  function onOpenOverview() {
+    props.navigation.navigate("MainStack", { screen: "OwnerDashboard" });
+    props.navigation.closeDrawer();
+  }
+
   function onOpenDayManagement() {
     setSelectedOperation("scratchCard");
     props.navigation.navigate("MainStack", { screen: "Dashboard" });
@@ -848,6 +856,44 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
             />
           </Pressable>
         </View>
+
+        {isCompanyOwner || isManager ? (
+          <View style={styles.drawerTopItemWrap}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.drawerItem,
+                activeScreen === "OwnerDashboard" ? styles.drawerItemActive : null,
+                pressed ? styles.drawerItemPressed : null,
+              ]}
+              onPress={onOpenOverview}
+              accessibilityRole="button"
+              accessibilityLabel="Dashboard"
+            >
+              <View style={styles.drawerItemMain}>
+                <View
+                  style={[
+                    styles.drawerItemIconWrap,
+                    activeScreen === "OwnerDashboard" ? styles.drawerItemIconWrapActive : null,
+                  ]}
+                >
+                  <Ionicons
+                    name="speedometer-outline"
+                    size={15}
+                    color={activeScreen === "OwnerDashboard" ? appTheme.colors.onPrimary : appTheme.colors.textMuted}
+                  />
+                </View>
+                <Text style={[styles.drawerItemText, activeScreen === "OwnerDashboard" ? styles.drawerItemTextActive : null]}>
+                  Dashboard
+                </Text>
+              </View>
+              <Ionicons
+                name={activeScreen === "OwnerDashboard" ? "checkmark-circle" : "chevron-forward"}
+                size={14}
+                color={activeScreen === "OwnerDashboard" ? appTheme.colors.primary : appTheme.colors.textSubtle}
+              />
+            </Pressable>
+          </View>
+        ) : null}
 
         <View style={styles.drawerTopItemWrap}>
           <Pressable

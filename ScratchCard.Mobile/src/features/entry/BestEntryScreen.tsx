@@ -1,12 +1,11 @@
-import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useState } from "react";
+import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SubscriptionBanner } from "../subscription/SubscriptionBanner";
 import { useAuth } from "../../auth/AuthContext";
-import { OwnerOverviewScreen } from "../dashboard/OwnerOverviewScreen";
 import { useBestEntry } from "../../navigation/BestEntryContext";
 import { useEntitlements } from "../subscription/useEntitlements";
 import { MainStackParamList } from "../../types/navigation";
@@ -84,21 +83,56 @@ export function BestEntryScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const { selectedOperation, setSelectedOperation } = useBestEntry();
   const { entitlements } = useEntitlements();
-  const { profile } = useAuth();
+  const { profile, activeShop, activeShopId, setActiveShop } = useAuth();
   const features = entitlements?.features ?? [];
   const visibleOptions = operationOptions.filter(
     (o) => !o.requiredFeature || features.includes(o.requiredFeature)
   );
 
-  // Company owners land on the multi-shop operations dashboard instead of the entry grid.
-  const isCompanyOwner = profile?.roles?.includes("CompanyOwner") ?? false;
-  if (isCompanyOwner) {
-    return <OwnerOverviewScreen />;
-  }
+  const shops = profile?.shops ?? [];
+  const canSwitchShop = shops.length > 1;
+  const [switchOpen, setSwitchOpen] = useState(false);
+
+  const chooseShop = async (shopId: string) => {
+    setSwitchOpen(false);
+    if (shopId !== activeShopId) {
+      try {
+        await setActiveShop(shopId);
+      } catch {
+        // setActiveShop guards membership; ignore failures.
+      }
+    }
+  };
 
   return (
     <ScreenContainer>
       <SubscriptionBanner />
+
+      {/* Active shop + quick switch */}
+      <Pressable
+        style={[ui.card, styles.shopCard]}
+        onPress={() => canSwitchShop && setSwitchOpen(true)}
+        disabled={!canSwitchShop}
+        accessibilityRole="button"
+        accessibilityLabel="Active shop. Tap to switch."
+      >
+        <View style={styles.shopCardIcon}>
+          <Ionicons name="storefront-outline" size={20} color={appTheme.colors.primary} />
+        </View>
+        <View style={styles.shopCardText}>
+          <Text style={styles.shopCardLabel}>Active shop</Text>
+          <Text style={styles.shopCardName} numberOfLines={1}>
+            {activeShop?.shopName ?? "No shop selected"}
+          </Text>
+        </View>
+        {canSwitchShop ? (
+          <View style={styles.switchPill}>
+            <Ionicons name="swap-horizontal" size={14} color={appTheme.colors.primary} />
+            <Text style={styles.switchPillText}>Switch</Text>
+          </View>
+        ) : null}
+      </Pressable>
+
       <View style={styles.featureGrid}>
         {visibleOptions.map((option) => {
           const selected = option.operation ? selectedOperation === option.operation : false;
@@ -121,11 +155,95 @@ export function BestEntryScreen() {
           );
         })}
       </View>
+
+      <Modal visible={switchOpen} transparent animationType="fade" onRequestClose={() => setSwitchOpen(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setSwitchOpen(false)}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Switch shop</Text>
+            {shops.map((shop) => {
+              const active = shop.shopId === activeShopId;
+              return (
+                <Pressable key={shop.shopId} style={styles.shopRow} onPress={() => chooseShop(shop.shopId)}>
+                  <Text style={[styles.shopRowText, active ? styles.shopRowTextActive : null]} numberOfLines={1}>
+                    {shop.shopName}
+                  </Text>
+                  {active ? <Ionicons name="checkmark-circle" size={18} color={appTheme.colors.primary} /> : null}
+                </Pressable>
+              );
+            })}
+          </View>
+        </Pressable>
+      </Modal>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
+  shopCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 12,
+  },
+  shopCardIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: appTheme.radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+  },
+  shopCardText: { flex: 1, gap: 2 },
+  shopCardLabel: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  shopCardName: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 16, lineHeight: 20 },
+  switchPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: appTheme.colors.primary,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+  },
+  switchPillText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    padding: 24,
+  },
+  modalCard: {
+    backgroundColor: appTheme.colors.surface,
+    borderRadius: appTheme.radius.md,
+    padding: 16,
+    gap: 4,
+  },
+  modalTitle: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 16,
+    lineHeight: 20,
+    marginBottom: 6,
+  },
+  shopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    paddingVertical: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: appTheme.colors.borderSoft,
+  },
+  shopRowText: { flex: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 15 },
+  shopRowTextActive: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium },
   featureGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
