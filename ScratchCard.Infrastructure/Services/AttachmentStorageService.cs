@@ -1,3 +1,6 @@
+using Amazon;
+using Amazon.S3;
+using Amazon.S3.Model;
 using Azure;
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.Configuration;
@@ -8,30 +11,79 @@ namespace ScratchCard.Infrastructure.Services;
 
 public sealed class AttachmentStorageOptions
 {
+    /// <summary>
+    /// Which backend to write new attachments to: "AzureBlob", "S3", or "Local".
+    /// When unset, falls back to <see cref="UseBlobStorage"/> (AzureBlob/Local) for compatibility.
+    /// Reads and deletes always route by the stored path's prefix, so switching providers does not
+    /// break access to files written under the previous provider.
+    /// </summary>
+    public string? Provider { get; set; }
+
     public bool UseBlobStorage { get; set; } = true;
     public string? ContainerName { get; set; }
     public string RootFolder { get; set; } = "SignatureUploads";
+
+    // --- AWS S3 settings (used when Provider = "S3", or to read existing s3:// attachments) ---
+    public string? S3BucketName { get; set; }
+    public string? S3Region { get; set; }
+    public string? S3AccessKeyId { get; set; }
+    public string? S3SecretAccessKey { get; set; }
+    /// <summary>Optional custom endpoint for S3-compatible storage (e.g. MinIO). Enables path-style.</summary>
+    public string? S3ServiceUrl { get; set; }
 }
 
 public sealed class AttachmentStorageService : IAttachmentStorageService
 {
     private const string BlobPathPrefix = "blob://";
+    private const string S3PathPrefix = "s3://";
+
+    private enum StorageProvider { Local, AzureBlob, S3 }
+
     private readonly AttachmentStorageOptions _options;
+    private readonly StorageProvider _provider;
     private readonly string? _blobConnectionString;
     private readonly SemaphoreSlim _blobContainerInitLock = new(1, 1);
     private BlobContainerClient? _blobContainerClient;
     private bool _blobContainerInitialized;
 
+    private readonly object _s3Lock = new();
+    private IAmazonS3? _s3Client;
+
     public AttachmentStorageService(IConfiguration configuration, IOptions<AttachmentStorageOptions> options)
     {
         _options = options.Value ?? new AttachmentStorageOptions();
         _blobConnectionString = configuration.GetConnectionString("AttachmentBlobStorage");
+        _provider = ResolveProvider(_options);
 
-        if (_options.UseBlobStorage && string.IsNullOrWhiteSpace(_blobConnectionString))
+        if (_provider == StorageProvider.AzureBlob && string.IsNullOrWhiteSpace(_blobConnectionString))
         {
             throw new InvalidOperationException(
-                "AttachmentStorage is enabled but ConnectionStrings:AttachmentBlobStorage is missing.");
+                "AttachmentStorage provider is AzureBlob but ConnectionStrings:AttachmentBlobStorage is missing.");
         }
+
+        if (_provider == StorageProvider.S3 && string.IsNullOrWhiteSpace(_options.S3BucketName))
+        {
+            throw new InvalidOperationException(
+                "AttachmentStorage provider is S3 but AttachmentStorage:S3BucketName is missing.");
+        }
+    }
+
+    private static StorageProvider ResolveProvider(AttachmentStorageOptions options)
+    {
+        if (!string.IsNullOrWhiteSpace(options.Provider))
+        {
+            return options.Provider.Trim().ToLowerInvariant() switch
+            {
+                "s3" or "aws" or "awss3" => StorageProvider.S3,
+                "azureblob" or "azure" or "blob" => StorageProvider.AzureBlob,
+                "local" or "file" or "filesystem" => StorageProvider.Local,
+                _ => throw new InvalidOperationException(
+                    $"AttachmentStorage:Provider '{options.Provider}' is not recognised. Use AzureBlob, S3, or Local."),
+            };
+        }
+
+        // Backward compatible default: the old UseBlobStorage flag.
+        return options.UseBlobStorage ? StorageProvider.AzureBlob : StorageProvider.Local;
     }
 
     public async Task<string> SaveAsync(byte[] content, string relativePath, CancellationToken cancellationToken = default)
@@ -42,7 +94,25 @@ public sealed class AttachmentStorageService : IAttachmentStorageService
             throw new ArgumentException("Attachment relative path is required.", nameof(relativePath));
         }
 
-        if (ShouldUseBlobStorage())
+        if (_provider == StorageProvider.S3)
+        {
+            var bucket = _options.S3BucketName!;
+            var key = normalizedRelativePath;
+            using var stream = new MemoryStream(content, writable: false);
+            await GetS3Client().PutObjectAsync(
+                new PutObjectRequest
+                {
+                    BucketName = bucket,
+                    Key = key,
+                    InputStream = stream,
+                    AutoCloseStream = false,
+                },
+                cancellationToken);
+
+            return BuildS3StoredPath(bucket, key);
+        }
+
+        if (_provider == StorageProvider.AzureBlob)
         {
             var blobName = normalizedRelativePath;
             var containerClient = await GetContainerClientAsync(cancellationToken);
@@ -70,6 +140,26 @@ public sealed class AttachmentStorageService : IAttachmentStorageService
         if (string.IsNullOrWhiteSpace(storedPath))
         {
             return null;
+        }
+
+        if (TryParseS3StoredPath(storedPath, out var s3Bucket, out var s3Key))
+        {
+            if (!IsS3Configured())
+            {
+                return null;
+            }
+
+            try
+            {
+                using var response = await GetS3Client().GetObjectAsync(s3Bucket, s3Key, cancellationToken);
+                using var output = new MemoryStream();
+                await response.ResponseStream.CopyToAsync(output, cancellationToken);
+                return output.ToArray();
+            }
+            catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return null;
+            }
         }
 
         if (TryParseBlobStoredPath(storedPath, out var containerName, out var blobName))
@@ -116,6 +206,17 @@ public sealed class AttachmentStorageService : IAttachmentStorageService
 
         try
         {
+            if (TryParseS3StoredPath(storedPath, out var s3Bucket, out var s3Key))
+            {
+                if (!IsS3Configured())
+                {
+                    return;
+                }
+
+                await GetS3Client().DeleteObjectAsync(s3Bucket, s3Key, cancellationToken);
+                return;
+            }
+
             if (TryParseBlobStoredPath(storedPath, out var containerName, out var blobName))
             {
                 if (string.IsNullOrWhiteSpace(_blobConnectionString))
@@ -141,9 +242,47 @@ public sealed class AttachmentStorageService : IAttachmentStorageService
         }
     }
 
-    private bool ShouldUseBlobStorage()
+    private bool IsS3Configured()
     {
-        return _options.UseBlobStorage;
+        return !string.IsNullOrWhiteSpace(_options.S3BucketName)
+            || !string.IsNullOrWhiteSpace(_options.S3Region)
+            || !string.IsNullOrWhiteSpace(_options.S3ServiceUrl);
+    }
+
+    private IAmazonS3 GetS3Client()
+    {
+        if (_s3Client is not null)
+        {
+            return _s3Client;
+        }
+
+        lock (_s3Lock)
+        {
+            if (_s3Client is not null)
+            {
+                return _s3Client;
+            }
+
+            var config = new AmazonS3Config();
+            if (!string.IsNullOrWhiteSpace(_options.S3ServiceUrl))
+            {
+                // S3-compatible endpoint (e.g. MinIO/DigitalOcean Spaces) — path-style addressing.
+                config.ServiceURL = _options.S3ServiceUrl;
+                config.ForcePathStyle = true;
+            }
+            else if (!string.IsNullOrWhiteSpace(_options.S3Region))
+            {
+                config.RegionEndpoint = RegionEndpoint.GetBySystemName(_options.S3Region);
+            }
+
+            // Explicit keys when provided; otherwise fall back to the default AWS credential chain
+            // (environment, shared config, IAM role, etc.).
+            _s3Client = !string.IsNullOrWhiteSpace(_options.S3AccessKeyId) && !string.IsNullOrWhiteSpace(_options.S3SecretAccessKey)
+                ? new AmazonS3Client(_options.S3AccessKeyId, _options.S3SecretAccessKey, config)
+                : new AmazonS3Client(config);
+
+            return _s3Client;
+        }
     }
 
     private async Task<BlobContainerClient> GetContainerClientAsync(CancellationToken cancellationToken)
@@ -211,6 +350,33 @@ public sealed class AttachmentStorageService : IAttachmentStorageService
     private static string BuildBlobStoredPath(string containerName, string blobName)
     {
         return $"{BlobPathPrefix}{containerName}/{blobName}";
+    }
+
+    private static string BuildS3StoredPath(string bucketName, string key)
+    {
+        return $"{S3PathPrefix}{bucketName}/{key}";
+    }
+
+    private static bool TryParseS3StoredPath(string storedPath, out string bucketName, out string key)
+    {
+        bucketName = string.Empty;
+        key = string.Empty;
+
+        if (!storedPath.StartsWith(S3PathPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var value = storedPath[S3PathPrefix.Length..].TrimStart('/');
+        var separatorIndex = value.IndexOf('/');
+        if (separatorIndex <= 0 || separatorIndex == value.Length - 1)
+        {
+            return false;
+        }
+
+        bucketName = value[..separatorIndex];
+        key = value[(separatorIndex + 1)..];
+        return true;
     }
 
     private static bool TryParseBlobStoredPath(string storedPath, out string containerName, out string blobName)
