@@ -103,6 +103,49 @@ function SalesBarChart({ buckets }: { buckets: SalesBucket[] }) {
   );
 }
 
+type TempBucket = { label: string; pct: number; hasData: boolean };
+
+// Temperature compliance %: daily buckets for 7-day, weekly for 30-day. % = compliant / total.
+function buildTempBuckets(range: RangeKey, points: { date: string; compliant: number; total: number }[]): TempBucket[] {
+  const groups = range === "30d"
+    ? Array.from({ length: Math.ceil(points.length / 7) }, (_, i) => points.slice(i * 7, i * 7 + 7))
+    : points.map((p) => [p]);
+  return groups
+    .filter((g) => g.length > 0)
+    .map((g) => {
+      const compliant = g.reduce((s, p) => s + p.compliant, 0);
+      const total = g.reduce((s, p) => s + p.total, 0);
+      const date = new Date(`${g[0].date}T00:00:00`);
+      const label = range === "30d"
+        ? date.toLocaleDateString(undefined, { day: "numeric", month: "short" })
+        : date.toLocaleDateString(undefined, { weekday: "short" });
+      return { label, pct: total > 0 ? Math.round((compliant / total) * 100) : 0, hasData: total > 0 };
+    });
+}
+
+function TempComplianceChart({ buckets }: { buckets: TempBucket[] }) {
+  return (
+    <View style={styles.chartRow}>
+      {buckets.map((b, i) => (
+        <View key={i} style={styles.chartCol}>
+          <Text style={styles.chartValue} numberOfLines={1}>{b.hasData ? `${b.pct}%` : ""}</Text>
+          <View style={styles.chartBarTrack}>
+            {b.hasData ? (
+              <View
+                style={[
+                  styles.chartBar,
+                  { height: Math.max(2, Math.round((b.pct / 100) * CHART_HEIGHT)), backgroundColor: scoreColor(b.pct) },
+                ]}
+              />
+            ) : null}
+          </View>
+          <Text style={styles.chartLabel} numberOfLines={1}>{b.label}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function buildSummaryHtml(overview: OwnerOverview, rangeLabel: string): string {
   const delta = salesDelta(overview.totalSalesAmount, overview.previousTotalSalesAmount);
   const rows = [...overview.shops]
@@ -383,6 +426,14 @@ export function OwnerOverviewScreen() {
             <View style={[ui.card, styles.chartCard]}>
               <Text style={styles.chartTitle}>Scratch card sales · {range === "7d" ? "by day" : "by week"}</Text>
               <SalesBarChart buckets={buildSalesBuckets(range, overview.salesByDay)} />
+            </View>
+          ) : null}
+
+          {/* Temperature compliance % — green ≥95, amber ≥80, red below. */}
+          {range !== "today" && overview.temperatureByDay.length > 0 ? (
+            <View style={[ui.card, styles.chartCard]}>
+              <Text style={styles.chartTitle}>Temperature compliance · {range === "7d" ? "by day" : "by week"}</Text>
+              <TempComplianceChart buckets={buildTempBuckets(range, overview.temperatureByDay)} />
             </View>
           ) : null}
 

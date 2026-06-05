@@ -64,16 +64,25 @@ public class OwnerOverviewService : IOwnerOverviewService
 
         var shopSummaries = new List<OwnerShopOverviewDto>(shops.Count);
         var salesByDate = new Dictionary<DateOnly, decimal>();
+        var tempCompliantByDate = new Dictionary<DateOnly, int>();
+        var tempTotalByDate = new Dictionary<DateOnly, int>();
         foreach (var shop in shops)
         {
-            shopSummaries.Add(await BuildShopSummaryAsync(shop.ShopId, shop.ShopName, from, to, prevFrom, prevTo, salesByDate, cancellationToken));
+            shopSummaries.Add(await BuildShopSummaryAsync(shop.ShopId, shop.ShopName, from, to, prevFrom, prevTo, salesByDate, tempCompliantByDate, tempTotalByDate, cancellationToken));
         }
 
         // One point per day in range (zeros filled in) so the client can render a continuous chart.
         var salesByDay = new List<OwnerSalesPointDto>();
+        var temperatureByDay = new List<OwnerTemperaturePointDto>();
         for (var d = from; d <= to; d = d.AddDays(1))
         {
             salesByDay.Add(new OwnerSalesPointDto { Date = d, Amount = salesByDate.GetValueOrDefault(d) });
+            temperatureByDay.Add(new OwnerTemperaturePointDto
+            {
+                Date = d,
+                Compliant = tempCompliantByDate.GetValueOrDefault(d),
+                Total = tempTotalByDate.GetValueOrDefault(d),
+            });
         }
 
         return new OwnerOverviewDto
@@ -95,6 +104,7 @@ public class OwnerOverviewService : IOwnerOverviewService
                 ? (int)Math.Round(shopSummaries.Average(x => x.ComplianceScore))
                 : 100,
             SalesByDay = salesByDay,
+            TemperatureByDay = temperatureByDay,
         };
     }
 
@@ -106,6 +116,8 @@ public class OwnerOverviewService : IOwnerOverviewService
         DateOnly prevFrom,
         DateOnly prevTo,
         Dictionary<DateOnly, decimal> salesByDate,
+        Dictionary<DateOnly, int> tempCompliantByDate,
+        Dictionary<DateOnly, int> tempTotalByDate,
         CancellationToken cancellationToken)
     {
         // Day status comes from the business-day roll-up (its TotalSalesAmount mixes in till/store
@@ -154,6 +166,22 @@ public class OwnerOverviewService : IOwnerOverviewService
             .Select(c => c.UnitId)
             .Distinct()
             .Count() ?? 0;
+
+        // Per-day temperature compliance counts for the trend chart (exclude upcoming/not-yet-due).
+        if (grid != null)
+        {
+            foreach (var cell in grid.Cells)
+            {
+                var state = cell.State;
+                if (state == DTOs.TemperatureLogs.TemperatureScheduleCellState.Upcoming) continue;
+                tempTotalByDate[cell.Date] = tempTotalByDate.GetValueOrDefault(cell.Date) + 1;
+                if (state == DTOs.TemperatureLogs.TemperatureScheduleCellState.OnTime
+                    || state == DTOs.TemperatureLogs.TemperatureScheduleCellState.Early)
+                {
+                    tempCompliantByDate[cell.Date] = tempCompliantByDate.GetValueOrDefault(cell.Date) + 1;
+                }
+            }
+        }
 
         // Compliance: all non-compliant checks in range, and how many of those are still open.
         var actions = await SafeAsync(

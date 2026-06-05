@@ -25,6 +25,17 @@ public class OwnerOverviewDto
     // Scratch-card sales per day across all shops, one point per day in [From, To] (zeros included).
     // The client buckets this into daily (7-day view) or weekly (30-day view) bars.
     public IReadOnlyCollection<OwnerSalesPointDto> SalesByDay { get; set; } = [];
+
+    // Temperature checks per day across all shops — compliant (on-time/early) vs total (excluding
+    // upcoming). The client buckets and renders the compliance % per day/week.
+    public IReadOnlyCollection<OwnerTemperaturePointDto> TemperatureByDay { get; set; } = [];
+}
+
+public class OwnerTemperaturePointDto
+{
+    public DateOnly Date { get; set; }
+    public int Compliant { get; set; }
+    public int Total { get; set; }
 }
 
 public class OwnerSalesPointDto
