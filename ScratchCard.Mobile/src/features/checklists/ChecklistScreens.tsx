@@ -263,7 +263,14 @@ export function ShopChecklistScreen() {
   );
   const canConfigureChecklist = useMemo(() => {
     const roles = profile?.roles ?? [];
-    return roles.includes("PlatformAdmin") || roles.includes("CompanyOwner") || roles.includes("Manager");
+    // Setup is open to all operational roles, incl. Cashier & SalesAssistant.
+    return (
+      roles.includes("PlatformAdmin") ||
+      roles.includes("CompanyOwner") ||
+      roles.includes("Manager") ||
+      roles.includes("Cashier") ||
+      roles.includes("SalesAssistant")
+    );
   }, [profile?.roles]);
 
   if (!shopId) {

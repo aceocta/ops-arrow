@@ -827,7 +827,9 @@ export function ComplianceChecksScreen() {
   // Weekly/Monthly compliance is a Growth+ feature. Starter shops see only the Daily tab.
   const { isAllowed: canUseExtendedFrequencies } = useFeature("compliance.daily_weekly_monthly");
   const userRoles = profile?.roles ?? [];
-  const canManage = isManagerLike(userRoles);
+  // Setup is open to all operational roles (incl. Cashier & SalesAssistant), so show the shortcut.
+  const canManage =
+    isManagerLike(userRoles) || userRoles.includes("Cashier") || userRoles.includes("SalesAssistant");
   const defaultCheckedByName = useMemo(
     () => resolveDefaultCheckedByName(profile ?? undefined),
     [profile?.displayName, profile?.email, profile?.firstName, profile?.lastName],

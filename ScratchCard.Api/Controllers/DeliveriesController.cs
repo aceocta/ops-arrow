@@ -20,8 +20,7 @@ public class DeliveriesController : BaseApiController
     }
 
     [HttpPost]
-    [Authorize(Roles = RoleNames.OwnerAndManager)]
-    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant)]
     public async Task<IActionResult> Create([FromBody] CreateDeliveryRequest request, CancellationToken cancellationToken)
     {
         var result = await _deliveryService.CreateAsync(request, cancellationToken);
@@ -29,8 +28,7 @@ public class DeliveriesController : BaseApiController
     }
 
     [HttpPost("parse-note")]
-    [Authorize(Roles = RoleNames.OwnerAndManager)]
-    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant)]
     [RequestSizeLimit(10 * 1024 * 1024)]
     public async Task<IActionResult> ParseNote([FromForm] ParseDeliveryNoteFormRequest request, CancellationToken cancellationToken)
     {

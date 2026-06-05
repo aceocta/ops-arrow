@@ -13,6 +13,10 @@ namespace ScratchCard.Application.Services;
 public class TemperatureLogService : ITemperatureLogService
 {
     private static readonly string[] TemperatureManagementRoles = [RoleNames.CompanyOwner, RoleNames.Manager];
+    // Setting up monitoring units is an everyday task open to all operational roles (incl. Cashier
+    // and SalesAssistant); scheduled-check setup stays manager-only via TemperatureManagementRoles.
+    private static readonly string[] TemperatureUnitManagementRoles =
+        [RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant];
 
     private readonly IRepository<TemperatureMonitoringUnit> _unitRepository;
     private readonly IRepository<TemperatureReading> _readingRepository;
@@ -222,7 +226,7 @@ public class TemperatureLogService : ITemperatureLogService
             .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken)
             ?? throw new AppException("temperature_unit_not_found", "Temperature unit not found.", 404);
 
-        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(unit.ShopId, TemperatureManagementRoles, cancellationToken);
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(unit.ShopId, TemperatureUnitManagementRoles, cancellationToken);
 
         var unitName = request.UnitName.Trim();
         var duplicateName = await _unitRepository.Query().AnyAsync(
@@ -261,7 +265,7 @@ public class TemperatureLogService : ITemperatureLogService
 
     public async Task ReorderUnitsAsync(ReorderTemperatureUnitsRequest request, CancellationToken cancellationToken = default)
     {
-        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(request.ShopId, TemperatureManagementRoles, cancellationToken);
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(request.ShopId, TemperatureUnitManagementRoles, cancellationToken);
 
         var items = request.Items ?? Array.Empty<TemperatureUnitOrderItem>();
         if (items.Count == 0)

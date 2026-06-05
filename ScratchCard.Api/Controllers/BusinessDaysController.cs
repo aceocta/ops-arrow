@@ -19,8 +19,7 @@ public class BusinessDaysController : BaseApiController
     }
 
     [HttpPost("open")]
-    [Authorize(Roles = RoleNames.OwnerAndManager)]
-    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant)]
     public async Task<IActionResult> Open([FromBody] OpenBusinessDayRequest request, CancellationToken cancellationToken)
     {
         var result = await _businessDayService.OpenAsync(request, cancellationToken);
@@ -74,7 +73,6 @@ public class BusinessDaysController : BaseApiController
     }
 
     [HttpPost("{id:guid}/close")]
-    [Authorize(Roles = RoleNames.OwnerAndManager)]
     public async Task<IActionResult> Close(Guid id, [FromBody] CloseBusinessDayRequest request, CancellationToken cancellationToken)
     {
         var result = await _businessDayService.CloseAsync(id, request, cancellationToken);

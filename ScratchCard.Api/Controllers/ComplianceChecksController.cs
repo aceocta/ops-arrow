@@ -33,8 +33,7 @@ public class ComplianceChecksController : BaseApiController
     }
 
     [HttpPost("groups")]
-    [Authorize(Roles = RoleNames.ManagementAndAbove)]
-    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant)]
     public async Task<IActionResult> CreateGroup([FromBody] CreateComplianceCheckGroupRequest request, CancellationToken cancellationToken)
     {
         // Weekly/Monthly compliance groups require compliance.daily_weekly_monthly (Growth+).
@@ -48,7 +47,6 @@ public class ComplianceChecksController : BaseApiController
     }
 
     [HttpPut("groups/{id:guid}")]
-    [Authorize(Roles = RoleNames.ManagementAndAbove)]
     public async Task<IActionResult> UpdateGroup(Guid id, [FromBody] UpdateComplianceCheckGroupRequest request, CancellationToken cancellationToken)
     {
         var result = await _complianceCheckService.UpdateGroupAsync(id, request, cancellationToken);
@@ -56,8 +54,7 @@ public class ComplianceChecksController : BaseApiController
     }
 
     [HttpPost("groups/reorder")]
-    [Authorize(Roles = RoleNames.ManagementAndAbove)]
-    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant)]
     public async Task<IActionResult> ReorderGroups([FromBody] ReorderComplianceCheckGroupsRequest request, CancellationToken cancellationToken)
     {
         await _complianceCheckService.ReorderGroupsAsync(request, cancellationToken);
@@ -75,8 +72,7 @@ public class ComplianceChecksController : BaseApiController
     }
 
     [HttpPost("items")]
-    [Authorize(Roles = RoleNames.ManagementAndAbove)]
-    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant)]
     public async Task<IActionResult> CreateItem([FromBody] CreateComplianceCheckItemRequest request, CancellationToken cancellationToken)
     {
         var result = await _complianceCheckService.CreateItemAsync(request, cancellationToken);
@@ -84,7 +80,6 @@ public class ComplianceChecksController : BaseApiController
     }
 
     [HttpPut("items/{id:guid}")]
-    [Authorize(Roles = RoleNames.ManagementAndAbove)]
     public async Task<IActionResult> UpdateItem(Guid id, [FromBody] UpdateComplianceCheckItemRequest request, CancellationToken cancellationToken)
     {
         var result = await _complianceCheckService.UpdateItemAsync(id, request, cancellationToken);
@@ -92,8 +87,7 @@ public class ComplianceChecksController : BaseApiController
     }
 
     [HttpPost("items/reorder")]
-    [Authorize(Roles = RoleNames.ManagementAndAbove)]
-    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant)]
     public async Task<IActionResult> ReorderItems([FromBody] ReorderComplianceCheckItemsRequest request, CancellationToken cancellationToken)
     {
         await _complianceCheckService.ReorderItemsAsync(request, cancellationToken);

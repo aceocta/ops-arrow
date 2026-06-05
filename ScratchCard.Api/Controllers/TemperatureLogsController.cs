@@ -33,8 +33,7 @@ public class TemperatureLogsController : BaseApiController
     }
 
     [HttpPost("units")]
-    [Authorize(Roles = RoleNames.OwnerAndManager)]
-    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant)]
     public async Task<IActionResult> CreateUnit([FromBody] CreateTemperatureMonitoringUnitRequest request, CancellationToken cancellationToken)
     {
         var result = await _temperatureLogService.CreateUnitAsync(request, cancellationToken);
@@ -42,7 +41,6 @@ public class TemperatureLogsController : BaseApiController
     }
 
     [HttpPut("units/{id:guid}")]
-    [Authorize(Roles = RoleNames.OwnerAndManager)]
     public async Task<IActionResult> UpdateUnit(Guid id, [FromBody] UpdateTemperatureMonitoringUnitRequest request, CancellationToken cancellationToken)
     {
         var result = await _temperatureLogService.UpdateUnitAsync(id, request, cancellationToken);
@@ -50,7 +48,6 @@ public class TemperatureLogsController : BaseApiController
     }
 
     [HttpPut("units/reorder")]
-    [Authorize(Roles = RoleNames.OwnerAndManager)]
     public async Task<IActionResult> ReorderUnits([FromBody] ReorderTemperatureUnitsRequest request, CancellationToken cancellationToken)
     {
         await _temperatureLogService.ReorderUnitsAsync(request, cancellationToken);

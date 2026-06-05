@@ -43,7 +43,11 @@ export function TemperatureUnitsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const { activeShopId, activeShop, profile } = useAuth();
   const shopId = activeShopId;
-  const canManageUnits = profile?.roles?.some((role) => role === "CompanyOwner" || role === "Manager") ?? false;
+  // Setting up units is open to all operational roles (incl. Cashier & SalesAssistant).
+  const canManageUnits =
+    profile?.roles?.some((role) =>
+      role === "CompanyOwner" || role === "Manager" || role === "Cashier" || role === "SalesAssistant",
+    ) ?? false;
 
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
   const [newUnitName, setNewUnitName] = useState("");

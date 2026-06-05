@@ -574,10 +574,11 @@ public class BusinessDayService : IBusinessDayService
             ?? throw new AppException("business_day_not_found", "Business day not found.", 404);
 
         // Per-shop role gate — closes the cross-shop privilege loophole described in
-        // ShopMembershipService.
+        // ShopMembershipService. Closing the day is an everyday task, so all operational roles
+        // (incl. Cashier and SalesAssistant) may do it.
         await _shopMembershipService.EnsureCurrentUserShopRoleAsync(
             day.ShopId,
-            new[] { RoleNames.CompanyOwner, RoleNames.Manager },
+            new[] { RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant },
             cancellationToken);
 
         var shifts = await _shiftRepository.Query()

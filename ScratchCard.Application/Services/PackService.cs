@@ -16,7 +16,10 @@ public class PackService : IPackService
         @"(?<game>[0-9A-Za-z]{2,20})\s*[-]\s*(?<pack>[0-9A-Za-z]{3,16})",
         RegexOptions.Compiled);
 
-    private static readonly string[] PackManagementRoles = [RoleNames.CompanyOwner, RoleNames.Manager];
+    // Pack management (activate / pause / return / issue / complete / edit) is open to all
+    // operational roles, incl. Cashier and SalesAssistant.
+    private static readonly string[] PackManagementRoles =
+        [RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant];
 
     private readonly IRepository<ScratchCardPack> _packRepository;
     private readonly IRepository<ShopScratchCardGame> _shopGameRepository;

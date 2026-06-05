@@ -15,7 +15,10 @@ namespace ScratchCard.Application.Services;
 
 public class ComplianceCheckService : IComplianceCheckService
 {
-    private static readonly string[] ComplianceManagementRoles = [RoleNames.CompanyOwner, RoleNames.Manager];
+    // Setup (groups/items) is open to all operational roles incl. Cashier & SalesAssistant. The
+    // action report / close-out checks use their own manager-only gate, so they're unaffected.
+    private static readonly string[] ComplianceManagementRoles =
+        [RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant];
 
     private readonly IRepository<ComplianceCheckGroup> _groupRepository;
     private readonly IRepository<ComplianceCheckItem> _itemRepository;

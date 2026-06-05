@@ -124,7 +124,6 @@ const temperatureItems: MenuItem[] = [
     screen: "TemperatureUnits",
     icon: "options-outline",
     mode: "temperature",
-    allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
     requiredFeature: "TemperatureLog",
   },
   // Hidden from the menu (screens/routes remain registered). The Temperature Report above
@@ -162,7 +161,6 @@ const complianceItems: MenuItem[] = [
     screen: "ComplianceConfig",
     icon: "build-outline",
     mode: "compliance",
-    allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
     requiredFeature: "ComplianceChecklist",
   },
   {
@@ -190,7 +188,6 @@ const shopItems: MenuItem[] = [
     screen: "ChecklistConfiguration",
     icon: "construct-outline",
     mode: "checklist",
-    allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
   },
   {
     label: "Checklist History",

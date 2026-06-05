@@ -10,7 +10,10 @@ namespace ScratchCard.Application.Services;
 
 public class ShopChecklistService : IShopChecklistService
 {
-    private static readonly string[] ChecklistManagementRoles = [RoleNames.CompanyOwner, RoleNames.Manager];
+    // Checklist setup (groups/tasks) is open to all operational roles incl. Cashier & SalesAssistant.
+    // History stays manager-only (gated separately at the controller).
+    private static readonly string[] ChecklistManagementRoles =
+        [RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant];
 
     private readonly IRepository<ShopChecklistGroup> _groupRepository;
     private readonly IRepository<ShopChecklistTask> _taskRepository;

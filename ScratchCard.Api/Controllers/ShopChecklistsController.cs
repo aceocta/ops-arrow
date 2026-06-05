@@ -26,8 +26,7 @@ public class ShopChecklistsController : BaseApiController
     }
 
     [HttpPost("groups")]
-    [Authorize(Roles = RoleNames.ManagementAndAbove)]
-    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant)]
     public async Task<IActionResult> CreateGroup([FromBody] CreateShopChecklistGroupRequest request, CancellationToken cancellationToken)
     {
         var result = await _shopChecklistService.CreateGroupAsync(request, cancellationToken);
@@ -35,7 +34,6 @@ public class ShopChecklistsController : BaseApiController
     }
 
     [HttpPut("groups/{id:guid}")]
-    [Authorize(Roles = RoleNames.ManagementAndAbove)]
     public async Task<IActionResult> UpdateGroup(Guid id, [FromBody] UpdateShopChecklistGroupRequest request, CancellationToken cancellationToken)
     {
         var result = await _shopChecklistService.UpdateGroupAsync(id, request, cancellationToken);
@@ -43,8 +41,7 @@ public class ShopChecklistsController : BaseApiController
     }
 
     [HttpPost("groups/reorder")]
-    [Authorize(Roles = RoleNames.ManagementAndAbove)]
-    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant)]
     public async Task<IActionResult> ReorderGroups([FromBody] ReorderChecklistGroupsRequest request, CancellationToken cancellationToken)
     {
         await _shopChecklistService.ReorderGroupsAsync(request, cancellationToken);
@@ -52,8 +49,7 @@ public class ShopChecklistsController : BaseApiController
     }
 
     [HttpPost("tasks")]
-    [Authorize(Roles = RoleNames.ManagementAndAbove)]
-    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant)]
     public async Task<IActionResult> CreateTask([FromBody] CreateShopChecklistTaskRequest request, CancellationToken cancellationToken)
     {
         var result = await _shopChecklistService.CreateTaskAsync(request, cancellationToken);
@@ -61,7 +57,6 @@ public class ShopChecklistsController : BaseApiController
     }
 
     [HttpPut("tasks/{id:guid}")]
-    [Authorize(Roles = RoleNames.ManagementAndAbove)]
     public async Task<IActionResult> UpdateTask(Guid id, [FromBody] UpdateShopChecklistTaskRequest request, CancellationToken cancellationToken)
     {
         var result = await _shopChecklistService.UpdateTaskAsync(id, request, cancellationToken);
@@ -69,8 +64,7 @@ public class ShopChecklistsController : BaseApiController
     }
 
     [HttpPost("tasks/reorder")]
-    [Authorize(Roles = RoleNames.ManagementAndAbove)]
-    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant)]
     public async Task<IActionResult> ReorderTasks([FromBody] ReorderChecklistTasksRequest request, CancellationToken cancellationToken)
     {
         await _shopChecklistService.ReorderTasksAsync(request, cancellationToken);
