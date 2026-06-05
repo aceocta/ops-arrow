@@ -89,7 +89,7 @@ export function ReceiveDeliveryScreen() {
   const userId = profile?.userId;
 
   const [deliveryDate, setDeliveryDate] = useState(formatDateValue(new Date()));
-  const [supplierName, setSupplierName] = useState("");
+  const [supplierName, setSupplierName] = useState("National Lottery");
   const [deliveryReference, setDeliveryReference] = useState("");
   const [notes, setNotes] = useState("");
   const deliveryReferenceRef = useRef<TextInput>(null);
@@ -255,8 +255,8 @@ export function ReceiveDeliveryScreen() {
         throw new Error("User or shop context is missing.");
       }
 
-      if (!supplierName.trim() || !deliveryReference.trim()) {
-        throw new Error("Supplier name and delivery reference are required.");
+      if (!supplierName.trim()) {
+        throw new Error("Supplier name is required.");
       }
 
       if (packRows.length === 0) {
@@ -316,7 +316,7 @@ export function ReceiveDeliveryScreen() {
       });
     },
     onSuccess: () => {
-      setSupplierName("");
+      setSupplierName("National Lottery");
       setDeliveryReference("");
       setNotes("");
       setPackRows([createDefaultPackRow(1, configuredPackSellingOrder)]);
@@ -495,7 +495,7 @@ export function ReceiveDeliveryScreen() {
           />
           <FloatingLabelInput
             ref={deliveryReferenceRef}
-            label="Delivery reference"
+            label="Delivery reference (optional)"
             value={deliveryReference}
             onChangeText={setDeliveryReference}
             returnKeyType="next"
