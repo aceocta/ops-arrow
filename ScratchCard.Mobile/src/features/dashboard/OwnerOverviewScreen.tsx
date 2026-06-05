@@ -295,6 +295,12 @@ export function OwnerOverviewScreen() {
   };
   const shopId = singleShop?.shopId;
 
+  // Shops with the most temperature issues — out-of-range first, then late/missed. Top 5.
+  const topTempShops = [...allShops]
+    .filter((s) => s.temperatureOutOfRangeUnits > 0 || s.temperatureIssues > 0)
+    .sort((a, b) => b.temperatureOutOfRangeUnits - a.temperatureOutOfRangeUnits || b.temperatureIssues - a.temperatureIssues)
+    .slice(0, 5);
+
   return (
     <ScrollView
       style={styles.screen}
@@ -403,21 +409,34 @@ export function OwnerOverviewScreen() {
             </View>
           ) : null}
 
-          {/* Temperature readings in-range vs out-of-range (green = in range, red = out of range). */}
-          {range !== "today" && (overview.temperatureByDay?.length ?? 0) > 0 ? (
-            <View style={[ui.card, styles.chartCard]}>
-              <Text style={styles.chartTitle}>Temperature range · {range === "7d" ? "by day" : "by week"}</Text>
-              <View style={styles.legendRow}>
-                <View style={styles.legendItem}>
-                  <View style={[styles.legendSwatch, { backgroundColor: appTheme.colors.success }]} />
-                  <Text style={styles.legendText}>In range</Text>
+          {/* Top shops by temperature issues — out-of-range first, then late/missed (multi-shop). */}
+          {!isSingleShop && topTempShops.length > 0 ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Top shops — temperature issues</Text>
+              <View style={ui.card}>
+                <View style={styles.tableHead}>
+                  <Text style={styles.thShop}>Shop</Text>
+                  <Text style={styles.thNum}>Out of range</Text>
+                  <Text style={styles.thNum}>Late / missed</Text>
+                  <View style={styles.thChevron} />
                 </View>
-                <View style={styles.legendItem}>
-                  <View style={[styles.legendSwatch, { backgroundColor: appTheme.colors.danger }]} />
-                  <Text style={styles.legendText}>Out of range (%)</Text>
-                </View>
+                {topTempShops.map((shop) => (
+                  <Pressable
+                    key={shop.shopId}
+                    style={styles.tableRow}
+                    onPress={() => goToShop(shop.shopId, "TemperatureScheduleGrid", { from, to })}
+                  >
+                    <Text style={styles.tdShop} numberOfLines={1}>{shop.shopName}</Text>
+                    <Text style={[styles.tdNum, shop.temperatureOutOfRangeUnits > 0 ? styles.kpiDanger : null]}>
+                      {shop.temperatureOutOfRangeUnits}
+                    </Text>
+                    <Text style={[styles.tdNum, shop.temperatureIssues > 0 ? styles.kpiWarn : null]}>
+                      {shop.temperatureIssues}
+                    </Text>
+                    <Ionicons name="chevron-forward" size={16} color={appTheme.colors.textMuted} style={styles.thChevron} />
+                  </Pressable>
+                ))}
               </View>
-              <TempRangeChart buckets={buildTempBuckets(range, overview.temperatureByDay)} />
             </View>
           ) : null}
 
@@ -682,4 +701,18 @@ const styles = StyleSheet.create({
   shopMetric: { alignItems: "center", flex: 1, gap: 2 },
   shopMetricValue: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 16, lineHeight: 20, letterSpacing: -0.2 },
   shopMetricLabel: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 11, lineHeight: 14 },
+  tableHead: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingBottom: 8 },
+  tableRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 11,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: appTheme.colors.borderSoft,
+  },
+  thShop: { flex: 1, color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 },
+  thNum: { width: 74, textAlign: "center", color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11, lineHeight: 14, textTransform: "uppercase", letterSpacing: 0.4 },
+  thChevron: { width: 18 },
+  tdShop: { flex: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
+  tdNum: { width: 74, textAlign: "center", color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 16, lineHeight: 20, letterSpacing: -0.2 },
 });
