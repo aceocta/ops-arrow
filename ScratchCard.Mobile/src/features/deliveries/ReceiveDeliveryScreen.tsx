@@ -8,6 +8,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -37,6 +38,7 @@ type DraftPackRow = {
   isNewGameCandidate: boolean;
   packNumber: string;
   displayNumber: string;
+  activate: boolean;
   ticketPrice: string;
   totalTickets: string;
   startSerialNumber: string;
@@ -72,6 +74,7 @@ function createDefaultPackRow(seed: number, sellingOrder: SellingOrder): DraftPa
     isNewGameCandidate: false,
     packNumber: "",
     displayNumber: "",
+    activate: false,
     ticketPrice: "0",
     totalTickets: "100",
     startSerialNumber: defaults.start,
@@ -206,6 +209,7 @@ export function ReceiveDeliveryScreen() {
           isNewGameCandidate: suggestion.isNewGameCandidate ?? false,
           packNumber: suggestion.packNumber ?? "",
           displayNumber: "",
+          activate: false,
           ticketPrice: `${suggestion.ticketPrice ?? 0}`,
           totalTickets: `${totalTickets}`,
           startSerialNumber: serialDefaults.start,
@@ -275,11 +279,14 @@ export function ReceiveDeliveryScreen() {
         if (!row.gameId && (normalizedGameCode.length < 2 || normalizedGameCode.length > 20)) {
           throw new Error("Game code must be 2 to 20 letters/numbers.");
         }
-        if (row.displayNumber.trim().length > 0) {
-          const parsedDisplayNumber = Number(row.displayNumber);
-          if (!Number.isInteger(parsedDisplayNumber) || parsedDisplayNumber < 0) {
-            throw new Error("Display number must be a non-negative whole number.");
-          }
+        const hasDisplayNumber = row.displayNumber.trim().length > 0;
+        const parsedDisplayNumber = hasDisplayNumber ? Number(row.displayNumber) : undefined;
+        if (hasDisplayNumber && (!Number.isInteger(parsedDisplayNumber!) || parsedDisplayNumber! < 0)) {
+          throw new Error("Display number must be a non-negative whole number.");
+        }
+        // Activating a pack on receipt puts it on the display, so a display number is mandatory.
+        if (row.activate && (!parsedDisplayNumber || parsedDisplayNumber <= 0)) {
+          throw new Error("Enter a display number to activate a pack.");
         }
 
         return {
@@ -287,7 +294,8 @@ export function ReceiveDeliveryScreen() {
           gameCode: normalizedGameCode || undefined,
           gameName: row.gameName.trim() || undefined,
           packNumber: row.packNumber.trim().toUpperCase(),
-          displayNumber: row.displayNumber.trim().length > 0 ? Number(row.displayNumber) : undefined,
+          displayNumber: parsedDisplayNumber,
+          activate: row.activate,
           ticketPrice: Number(row.ticketPrice),
           totalTickets: Number(row.totalTickets),
           startSerialNumber: row.startSerialNumber.trim(),
@@ -451,6 +459,14 @@ export function ReceiveDeliveryScreen() {
       return;
     }
 
+    if (editingRow.activate) {
+      const parsed = Number(editingRow.displayNumber.trim());
+      if (!editingRow.displayNumber.trim() || !Number.isInteger(parsed) || parsed <= 0) {
+        Alert.alert("Display number required", "Enter a display number to activate this pack on receive.");
+        return;
+      }
+    }
+
     const normalizedRow: DraftPackRow = {
       ...editingRow,
       packNumber: editingRow.packNumber.toUpperCase(),
@@ -541,6 +557,10 @@ export function ReceiveDeliveryScreen() {
                 <Text style={styles.meta}>Pack Number: {row.packNumber || "-"}</Text>
                 <Text style={styles.meta}>Price: {formatGbp(Number(row.ticketPrice || 0))} | Tickets: {row.totalTickets || "-"}</Text>
                 <Text style={styles.meta}>Serial: {row.startSerialNumber || "-"} {"->"} {row.endSerialNumber || "-"}</Text>
+                <Text style={styles.meta}>
+                  Status on receive:{" "}
+                  {row.activate ? `Active (display ${row.displayNumber || "?"})` : "Inactive (stock)"}
+                </Text>
                 {needsNewGame ? (
                   <Text style={styles.newGameWarning}>New master game will be created and assigned to this shop on save.</Text>
                 ) : null}
@@ -652,11 +672,21 @@ export function ReceiveDeliveryScreen() {
                 value={editingRow?.packNumber ?? ""}
                 onChangeText={(v) => updateEditingRow((current) => ({ ...current, packNumber: v }))}
               />
+              <View style={styles.activateRow}>
+                <View style={styles.activateTextWrap}>
+                  <Text style={styles.activateTitle}>Activate on receive</Text>
+                  <Text style={styles.activateHint}>Put this pack straight onto the display. Otherwise it's added as stock (inactive).</Text>
+                </View>
+                <Switch
+                  value={editingRow?.activate ?? false}
+                  onValueChange={(value) => updateEditingRow((current) => ({ ...current, activate: value }))}
+                />
+              </View>
               <FloatingLabelInput
-                label="Display number (optional)"
+                label={editingRow?.activate ? "Display number (required)" : "Display number (optional)"}
                 value={editingRow?.displayNumber ?? ""}
                 keyboardType="number-pad"
-                onChangeText={(v) => updateEditingRow((current) => ({ ...current, displayNumber: v }))}
+                onChangeText={(v) => updateEditingRow((current) => ({ ...current, displayNumber: v.replace(/[^0-9]/g, "") }))}
               />
               <FloatingLabelInput
                 label="Ticket price"
@@ -693,6 +723,26 @@ export function ReceiveDeliveryScreen() {
 }
 
 const styles = StyleSheet.create({
+  activateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.sm,
+    paddingVertical: 4,
+  },
+  activateTextWrap: { flex: 1, gap: 2 },
+  activateTitle: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  activateHint: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
+  },
   title: { fontSize: 24, lineHeight: 28, fontFamily: appTheme.fonts.heading, color: appTheme.colors.text },
   sectionTitle: { fontSize: 17, lineHeight: 22, fontFamily: appTheme.fonts.bodyMedium, color: appTheme.colors.text },
   fieldLabel: {

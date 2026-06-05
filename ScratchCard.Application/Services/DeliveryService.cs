@@ -200,19 +200,30 @@ public class DeliveryService : IDeliveryService
         foreach (var row in resolvedRows)
         {
             var packRequest = row.PackRequest;
+
+            // Optionally put the pack straight onto the display on receipt. An active pack must have a
+            // valid display number; a freshly received pack starts at its first serial.
+            var displayNumber = packRequest.DisplayNumber;
+            if (packRequest.Activate)
+            {
+                displayNumber = ResolveRequiredDisplayNumber(packRequest.DisplayNumber, packSetup.DisplayCount);
+            }
+
             var pack = new ScratchCardPack
             {
                 ShopId = request.ShopId,
                 GameId = row.ShopGame.MasterGameId,
                 PackNumber = row.NormalizedPackNumber,
-                DisplayNumber = packRequest.DisplayNumber,
+                DisplayNumber = displayNumber,
                 TicketPrice = packRequest.TicketPrice,
                 TotalTickets = packRequest.TotalTickets,
                 StartSerialNumber = packRequest.StartSerialNumber,
                 EndSerialNumber = packRequest.EndSerialNumber,
                 SellingOrder = packSetup.SellingOrder,
                 CurrentSerialNumber = GetDefaultOpeningSerial(packRequest.StartSerialNumber, packRequest.EndSerialNumber, packSetup.SellingOrder),
-                Status = PackStatus.InStock,
+                Status = packRequest.Activate ? PackStatus.Active : PackStatus.InStock,
+                ActivatedDate = packRequest.Activate ? request.DeliveryDate : null,
+                ActivatedByUserId = packRequest.Activate ? _currentUserService.UserId : null,
                 IsManuallyAdded = false,
                 ReceivedDate = request.DeliveryDate,
                 Notes = packRequest.Notes,
@@ -568,5 +579,27 @@ public class DeliveryService : IDeliveryService
         return sellingOrder == SellingOrder.Descending
             ? startNo >= endNo ? start : end
             : startNo <= endNo ? start : end;
+    }
+
+    // Mirrors PackService: an active pack must carry a valid display slot number.
+    private static int ResolveRequiredDisplayNumber(int? requestedDisplayNumber, int configuredDisplayCount)
+    {
+        if (!requestedDisplayNumber.HasValue)
+        {
+            throw new AppException("display_number_required", "Display number is required to activate a pack.");
+        }
+
+        var displayNumber = requestedDisplayNumber.Value;
+        if (displayNumber <= 0)
+        {
+            throw new AppException("invalid_display_number", "Display number must be a whole number 1 or greater.");
+        }
+
+        if (configuredDisplayCount > 0 && displayNumber > configuredDisplayCount)
+        {
+            throw new AppException("invalid_display_number", $"Display number must be between 1 and {configuredDisplayCount}.");
+        }
+
+        return displayNumber;
     }
 }

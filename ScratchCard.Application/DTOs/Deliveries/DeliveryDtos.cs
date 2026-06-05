@@ -21,6 +21,9 @@ public class CreateDeliveryPackRequest
     public string? GameName { get; set; }
     public string PackNumber { get; set; } = string.Empty;
     public int? DisplayNumber { get; set; }
+    // When true the pack is put straight onto the display (Active) on receipt instead of InStock.
+    // Activating requires a valid DisplayNumber.
+    public bool Activate { get; set; }
     public decimal TicketPrice { get; set; }
     public int TotalTickets { get; set; }
     public string StartSerialNumber { get; set; } = string.Empty;

@@ -10,6 +10,7 @@ export type CreateDeliveryPackPayload = {
   gameName?: string;
   packNumber: string;
   displayNumber?: number;
+  activate?: boolean;
   ticketPrice: number;
   totalTickets: number;
   startSerialNumber: string;
