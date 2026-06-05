@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Modal, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
 import { appTheme } from "../ui/theme";
 
@@ -233,123 +233,162 @@ function scrollLoopToSelected(
 
 // A custom 24h time picker — two infinitely-scrolling hour/minute columns with the selection
 // highlighted. Fully in-app (no native picker), so it looks the same on iOS and Android.
-function TimeWheels({ value, onChange }: { value: Date; onChange: (date: Date) => void }) {
-  const hourRef = useRef<ScrollView>(null);
-  const minuteRef = useRef<ScrollView>(null);
-  const hourScrollY = useRef(new Animated.Value(0)).current;
-  const minuteScrollY = useRef(new Animated.Value(0)).current;
-  const selectedHour = value.getHours();
-  const selectedMinute = value.getMinutes();
+type TimeColumnProps = {
+  label: string;
+  count: number;
+  repeat: number;
+  scrollY: Animated.Value;
+  scrollRef: React.RefObject<ScrollView | null>;
+  verticalPadding: number;
+  onPick: (n: number) => void;
+  onMeasure: (height: number) => void;
+};
 
-  // Measure the actual column height so the centre band and the row padding line up exactly,
-  // regardless of borders / device rounding (this is what keeps the value inside the highlight).
-  const [viewportHeight, setViewportHeight] = useState(TIME_ITEM_HEIGHT * 5);
-  const verticalPadding = (viewportHeight - TIME_ITEM_HEIGHT) / 2;
+// Memoised so picking a value (which re-renders the parent) doesn't rebuild the hundreds of rows —
+// that rebuild was what made setting the value feel slow. The rows are computed once; scrolling and
+// the fade are driven natively off `scrollY`.
+const TimeColumn = React.memo(function TimeColumn({
+  label,
+  count,
+  repeat,
+  scrollY,
+  scrollRef,
+  verticalPadding,
+  onPick,
+  onMeasure,
+}: TimeColumnProps) {
+  const middleBlock = Math.floor(repeat / 2);
 
-  useEffect(() => {
-    // Park the current selection in the centre band — re-run when the measured height settles.
-    const id = setTimeout(() => {
-      scrollLoopToSelected(hourRef, 24, selectedHour, HOUR_REPEAT);
-      scrollLoopToSelected(minuteRef, 60, selectedMinute, MINUTE_REPEAT);
-    }, 0);
-    return () => clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewportHeight]);
+  const rows = useMemo(
+    () =>
+      Array.from({ length: count * repeat }, (_, i) => {
+        const n = i % count;
+        // Row i is centred when scrollY === i * itemHeight; fade + shrink as it moves away to get
+        // the iOS rotating-drum look.
+        const opacity = scrollY.interpolate({
+          inputRange: [(i - 2) * TIME_ITEM_HEIGHT, (i - 1) * TIME_ITEM_HEIGHT, i * TIME_ITEM_HEIGHT, (i + 1) * TIME_ITEM_HEIGHT, (i + 2) * TIME_ITEM_HEIGHT],
+          outputRange: [0.25, 0.55, 1, 0.55, 0.25],
+          extrapolate: "clamp",
+        });
+        const scale = scrollY.interpolate({
+          inputRange: [(i - 1) * TIME_ITEM_HEIGHT, i * TIME_ITEM_HEIGHT, (i + 1) * TIME_ITEM_HEIGHT],
+          outputRange: [0.84, 1, 0.84],
+          extrapolate: "clamp",
+        });
+        return (
+          <Animated.View key={i} style={{ opacity, transform: [{ scale }] }}>
+            <Pressable
+              style={styles.timeOption}
+              onPress={() => {
+                scrollRef.current?.scrollTo({ y: i * TIME_ITEM_HEIGHT, animated: true });
+                onPick(n);
+              }}
+              accessibilityRole="button"
+            >
+              <Text style={styles.timeOptionText}>{String(n).padStart(2, "0")}</Text>
+            </Pressable>
+          </Animated.View>
+        );
+      }),
+    [count, repeat, scrollY, scrollRef, onPick],
+  );
 
-  const setHour = (h: number) => {
-    const next = new Date(value);
-    next.setHours(h, value.getMinutes(), 0, 0);
-    onChange(next);
-  };
-  const setMinute = (m: number) => {
-    const next = new Date(value);
-    next.setHours(value.getHours(), m, 0, 0);
-    onChange(next);
-  };
-
-  const renderColumn = (
-    label: string,
-    count: number,
-    selected: number,
-    onPick: (n: number) => void,
-    ref: React.RefObject<ScrollView | null>,
-    scrollY: Animated.Value,
-    repeat: number,
-  ) => {
-    const middleBlock = Math.floor(repeat / 2);
-    // Re-park in the middle copy only once the scroll has fully stopped (never mid-scroll, which
-    // would interrupt the momentum and feel like a skip). Same value → invisible whole-block jump.
-    const repark = (y: number) => {
-      const index = Math.round(y / TIME_ITEM_HEIGHT);
-      const picked = ((index % count) + count) % count;
-      onPick(picked);
-      ref.current?.scrollTo({ y: (middleBlock * count + picked) * TIME_ITEM_HEIGHT, animated: false });
-    };
-    return (
+  return (
     <View style={styles.timeColWrap}>
       <Text style={styles.timeColLabel}>{label}</Text>
       <View style={styles.timeScrollWrap}>
-        {/* Highlight band over the centre row = the selected value. Positioned from the measured
-            height so it always lines up with the resting row. */}
+        {/* Highlight band over the centre row = the selected value. */}
         <View pointerEvents="none" style={[styles.timeCenterBand, { top: verticalPadding, height: TIME_ITEM_HEIGHT }]} />
         <Animated.ScrollView
-          ref={ref}
+          ref={scrollRef}
           style={styles.timeScroll}
           contentContainerStyle={{ paddingVertical: verticalPadding }}
           showsVerticalScrollIndicator={false}
           snapToInterval={TIME_ITEM_HEIGHT}
           decelerationRate="fast"
           scrollEventThrottle={16}
-          onLayout={(e) => {
-            const h = e.nativeEvent.layout.height;
-            if (h > 0 && Math.abs(h - viewportHeight) > 0.5) setViewportHeight(h);
+          onLayout={(e) => onMeasure(e.nativeEvent.layout.height)}
+          onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
+          onMomentumScrollEnd={(e) => {
+            // Re-park in the middle copy only once the scroll has fully stopped (never mid-scroll,
+            // which would interrupt momentum and feel like a skip). Same value → invisible jump.
+            const y = e.nativeEvent.contentOffset.y;
+            const index = Math.round(y / TIME_ITEM_HEIGHT);
+            const picked = ((index % count) + count) % count;
+            onPick(picked);
+            scrollRef.current?.scrollTo({ y: (middleBlock * count + picked) * TIME_ITEM_HEIGHT, animated: false });
           }}
-          onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
-            useNativeDriver: true,
-          })}
-          onMomentumScrollEnd={(e) => repark(e.nativeEvent.contentOffset.y)}
         >
-          {Array.from({ length: count * repeat }, (_, i) => {
-            const n = i % count;
-            // Row i is centred when scrollY === i * itemHeight; fade + shrink as it moves away to
-            // get the iOS rotating-drum look.
-            const opacity = scrollY.interpolate({
-              inputRange: [(i - 2) * TIME_ITEM_HEIGHT, (i - 1) * TIME_ITEM_HEIGHT, i * TIME_ITEM_HEIGHT, (i + 1) * TIME_ITEM_HEIGHT, (i + 2) * TIME_ITEM_HEIGHT],
-              outputRange: [0.25, 0.55, 1, 0.55, 0.25],
-              extrapolate: "clamp",
-            });
-            const scale = scrollY.interpolate({
-              inputRange: [(i - 1) * TIME_ITEM_HEIGHT, i * TIME_ITEM_HEIGHT, (i + 1) * TIME_ITEM_HEIGHT],
-              outputRange: [0.84, 1, 0.84],
-              extrapolate: "clamp",
-            });
-            return (
-              <Animated.View key={i} style={{ opacity, transform: [{ scale }] }}>
-                <Pressable
-                  style={styles.timeOption}
-                  onPress={() => {
-                    ref.current?.scrollTo({ y: i * TIME_ITEM_HEIGHT, animated: true });
-                    onPick(n);
-                  }}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: n === selected }}
-                >
-                  <Text style={styles.timeOptionText}>{String(n).padStart(2, "0")}</Text>
-                </Pressable>
-              </Animated.View>
-            );
-          })}
+          {rows}
         </Animated.ScrollView>
       </View>
     </View>
-    );
-  };
+  );
+});
+
+function TimeWheels({ value, onChange }: { value: Date; onChange: (date: Date) => void }) {
+  const hourRef = useRef<ScrollView>(null);
+  const minuteRef = useRef<ScrollView>(null);
+  const hourScrollY = useRef(new Animated.Value(0)).current;
+  const minuteScrollY = useRef(new Animated.Value(0)).current;
+
+  // Measure the actual column height so the centre band and the row padding line up exactly.
+  const [viewportHeight, setViewportHeight] = useState(TIME_ITEM_HEIGHT * 5);
+  const verticalPadding = (viewportHeight - TIME_ITEM_HEIGHT) / 2;
+
+  // Stable refs so the pick handlers keep the same identity → the columns stay memoised across
+  // selections (this is what removes the lag when a value is set).
+  const valueRef = useRef(value);
+  valueRef.current = value;
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  const setHour = useCallback((h: number) => {
+    const next = new Date(valueRef.current);
+    next.setHours(h, valueRef.current.getMinutes(), 0, 0);
+    onChangeRef.current(next);
+  }, []);
+  const setMinute = useCallback((m: number) => {
+    const next = new Date(valueRef.current);
+    next.setHours(valueRef.current.getHours(), m, 0, 0);
+    onChangeRef.current(next);
+  }, []);
+  const handleMeasure = useCallback((h: number) => {
+    if (h > 0) setViewportHeight((prev) => (Math.abs(h - prev) > 0.5 ? h : prev));
+  }, []);
+
+  useEffect(() => {
+    // Park the current selection in the centre band — re-run when the measured height settles.
+    const id = setTimeout(() => {
+      scrollLoopToSelected(hourRef, 24, valueRef.current.getHours(), HOUR_REPEAT);
+      scrollLoopToSelected(minuteRef, 60, valueRef.current.getMinutes(), MINUTE_REPEAT);
+    }, 0);
+    return () => clearTimeout(id);
+  }, [viewportHeight]);
 
   return (
     <View style={styles.timeWheelsRow}>
-      {renderColumn("Hour", 24, selectedHour, setHour, hourRef, hourScrollY, HOUR_REPEAT)}
+      <TimeColumn
+        label="Hour"
+        count={24}
+        repeat={HOUR_REPEAT}
+        scrollY={hourScrollY}
+        scrollRef={hourRef}
+        verticalPadding={verticalPadding}
+        onPick={setHour}
+        onMeasure={handleMeasure}
+      />
       <Text style={styles.timeColon}>:</Text>
-      {renderColumn("Minute", 60, selectedMinute, setMinute, minuteRef, minuteScrollY, MINUTE_REPEAT)}
+      <TimeColumn
+        label="Minute"
+        count={60}
+        repeat={MINUTE_REPEAT}
+        scrollY={minuteScrollY}
+        scrollRef={minuteRef}
+        verticalPadding={verticalPadding}
+        onPick={setMinute}
+        onMeasure={handleMeasure}
+      />
     </View>
   );
 }
