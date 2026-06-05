@@ -1,7 +1,10 @@
 ﻿import React, { useRef, useState } from "react";
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createTemperatureUnit, listTemperatureUnits, updateTemperatureUnit } from "../../api/temperatureLogsApi";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { createTemperatureUnit, listTemperatureUnits } from "../../api/temperatureLogsApi";
+import { MainStackParamList } from "../../types/navigation";
 import { useAuth } from "../../auth/AuthContext";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -10,7 +13,6 @@ import { toastError } from "../../components/toast";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { TemperatureEquipmentType } from "../../types/enums";
-import { TemperatureMonitoringUnit } from "../../types/models";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -38,6 +40,7 @@ function formatTemperature(value: number) {
 
 export function TemperatureUnitsScreen() {
   const queryClient = useQueryClient();
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const { activeShopId, activeShop, profile } = useAuth();
   const shopId = activeShopId;
   const canManageUnits = profile?.roles?.some((role) => role === "CompanyOwner" || role === "Manager") ?? false;
@@ -49,21 +52,10 @@ export function TemperatureUnitsScreen() {
   const [newMaxTemp, setNewMaxTemp] = useState("5");
   const [newLocation, setNewLocation] = useState("");
   const [newDisplayOrder, setNewDisplayOrder] = useState("");
-  const [editingUnitId, setEditingUnitId] = useState<string | null>(null);
-  const [editUnitName, setEditUnitName] = useState("");
-  const [editEquipmentType, setEditEquipmentType] = useState<TemperatureEquipmentType>(TemperatureEquipmentType.Fridge);
-  const [editMinTemp, setEditMinTemp] = useState("0");
-  const [editMaxTemp, setEditMaxTemp] = useState("5");
-  const [editLocation, setEditLocation] = useState("");
-  const [editDisplayOrder, setEditDisplayOrder] = useState("");
-  const [editIsActive, setEditIsActive] = useState(true);
 
   const newMinTempRef = useRef<TextInput>(null);
   const newMaxTempRef = useRef<TextInput>(null);
   const newLocationRef = useRef<TextInput>(null);
-  const editMinTempRef = useRef<TextInput>(null);
-  const editMaxTempRef = useRef<TextInput>(null);
-  const editLocationRef = useRef<TextInput>(null);
 
   const unitsQuery = useQuery({
     queryKey: ["temperature-units", shopId],
@@ -73,7 +65,7 @@ export function TemperatureUnitsScreen() {
   });
 
   const createUnitMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (shiftConflicts: boolean) => {
       if (!shopId) throw new Error("No shop selected.");
       if (!newUnitName.trim()) throw new Error("Unit name is required.");
 
@@ -91,6 +83,7 @@ export function TemperatureUnitsScreen() {
         maxTemperatureCelsius: max,
         location: newLocation.trim() || undefined,
         displayOrder: newDisplayOrder.trim() ? Number(newDisplayOrder) : undefined,
+        shiftConflicts,
       });
     },
     onSuccess: async () => {
@@ -107,63 +100,19 @@ export function TemperatureUnitsScreen() {
         queryClient.invalidateQueries({ queryKey: ["temperature-daily-log", shopId] }),
       ]);
     },
-    onError: (error: any) => {
-      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to create unit.");
-    },
-  });
-
-  const openEditModal = (unit: TemperatureMonitoringUnit) => {
-    setEditingUnitId(unit.id);
-    setEditUnitName(unit.unitName);
-    setEditEquipmentType(unit.equipmentType);
-    setEditMinTemp(String(unit.minTemperatureCelsius));
-    setEditMaxTemp(String(unit.maxTemperatureCelsius));
-    setEditLocation(unit.location ?? "");
-    setEditDisplayOrder(String(unit.displayOrder ?? 0));
-    setEditIsActive(unit.isActive);
-  };
-
-  const closeEditModal = () => {
-    setEditingUnitId(null);
-    setEditUnitName("");
-    setEditEquipmentType(TemperatureEquipmentType.Fridge);
-    setEditMinTemp("0");
-    setEditMaxTemp("5");
-    setEditLocation("");
-    setEditDisplayOrder("");
-    setEditIsActive(true);
-  };
-
-  const updateUnitMutation = useMutation({
-    mutationFn: async () => {
-      if (!editingUnitId) throw new Error("No unit selected.");
-
-      const min = Number(editMinTemp);
-      const max = Number(editMaxTemp);
-      if (Number.isNaN(min) || Number.isNaN(max)) {
-        throw new Error("Temperature range must be numeric.");
+    onError: (error: any, shiftConflicts: boolean) => {
+      if (!shiftConflicts && error?.response?.data?.code === "temperature_unit_order_duplicate") {
+        Alert.alert(
+          "Order number in use",
+          `${error.response.data.message}\n\nShift the other units down to make room?`,
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Shift & Save", onPress: () => createUnitMutation.mutate(true) },
+          ],
+        );
+        return;
       }
-
-      return updateTemperatureUnit(editingUnitId, {
-        unitName: editUnitName.trim(),
-        equipmentType: editEquipmentType,
-        minTemperatureCelsius: min,
-        maxTemperatureCelsius: max,
-        isActive: editIsActive,
-        location: editLocation.trim() || undefined,
-        displayOrder: editDisplayOrder.trim() ? Number(editDisplayOrder) : undefined,
-      });
-    },
-    onSuccess: async () => {
-      closeEditModal();
-      Alert.alert("Updated", "Temperature unit updated.");
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["temperature-units", shopId] }),
-        queryClient.invalidateQueries({ queryKey: ["temperature-daily-log", shopId] }),
-      ]);
-    },
-    onError: (error: any) => {
-      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to update unit.");
+      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to create unit.");
     },
   });
 
@@ -197,7 +146,7 @@ export function TemperatureUnitsScreen() {
             </Text>
             {canManageUnits ? (
               <View style={styles.unitActions}>
-                <Pressable style={styles.editButton} onPress={() => openEditModal(unit)}>
+                <Pressable style={styles.editButton} onPress={() => navigation.navigate("TemperatureUnitEdit", { unitId: unit.id })}>
                   <Text style={styles.editButtonText}>Edit Unit</Text>
                 </Pressable>
               </View>
@@ -286,7 +235,7 @@ export function TemperatureUnitsScreen() {
             <View style={styles.modalActions}>
               <PrimaryButton
                 label={createUnitMutation.isPending ? "Creating..." : "Create Unit"}
-                onPress={() => createUnitMutation.mutate()}
+                onPress={() => createUnitMutation.mutate(false)}
                 disabled={createUnitMutation.isPending || !shopId}
                 size="sm"
               />
@@ -296,113 +245,6 @@ export function TemperatureUnitsScreen() {
                 size="sm"
                 onPress={() => setIsCreateModalVisible(false)}
                 disabled={createUnitMutation.isPending}
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        visible={editingUnitId != null}
-        transparent
-        animationType="fade"
-        onRequestClose={closeEditModal}
-      >
-        <View style={styles.modalBackdrop}>
-          <ModalBackdropBlur />
-          <View style={styles.modalCard}>
-            <Text style={styles.sectionTitle}>Edit Unit</Text>
-            <FloatingLabelInput
-              label="Unit name"
-              value={editUnitName}
-              onChangeText={setEditUnitName}
-              autoCapitalize="words"
-              returnKeyType="next"
-              submitBehavior="submit"
-              onSubmitEditing={() => editMinTempRef.current?.focus()}
-            />
-            <Text style={styles.fieldLabel}>Equipment Type</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.choiceRow}>
-              {equipmentTypeOptions.map((option) => (
-                <Pressable
-                  key={option}
-                  style={[styles.choice, option === editEquipmentType ? styles.choiceSelected : null]}
-                  onPress={() => setEditEquipmentType(option)}
-                >
-                  <Text style={[styles.choiceText, option === editEquipmentType ? styles.choiceTextSelected : null]}>
-                    {option}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-
-            <View style={styles.row}>
-              <View style={{ flex: 1 }}>
-                <FloatingLabelInput
-                  ref={editMinTempRef}
-                  label="Min °C"
-                  value={editMinTemp}
-                  onChangeText={(value) => setEditMinTemp(sanitizeSignedDecimal(value))}
-                  keyboardType="numbers-and-punctuation"
-                  returnKeyType="next"
-                  submitBehavior="submit"
-                  onSubmitEditing={() => editMaxTempRef.current?.focus()}
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <FloatingLabelInput
-                  ref={editMaxTempRef}
-                  label="Max °C"
-                  value={editMaxTemp}
-                  onChangeText={(value) => setEditMaxTemp(sanitizeSignedDecimal(value))}
-                  keyboardType="numbers-and-punctuation"
-                  returnKeyType="next"
-                  submitBehavior="submit"
-                  onSubmitEditing={() => editLocationRef.current?.focus()}
-                />
-              </View>
-            </View>
-
-            <FloatingLabelInput
-              ref={editLocationRef}
-              label="Location (optional)"
-              value={editLocation}
-              onChangeText={setEditLocation}
-              autoCapitalize="words"
-              returnKeyType="next"
-            />
-            <FloatingLabelInput
-              label="Order number"
-              value={editDisplayOrder}
-              onChangeText={(value) => setEditDisplayOrder(value.replace(/[^0-9]/g, ""))}
-              keyboardType="number-pad"
-              returnKeyType="done"
-            />
-
-            <Text style={styles.fieldLabel}>Status</Text>
-            <View style={styles.statusToggleRow}>
-              <Text style={styles.statusToggleText}>{editIsActive ? "Active" : "Inactive"}</Text>
-              <Switch
-                value={editIsActive}
-                onValueChange={setEditIsActive}
-                trackColor={{ false: appTheme.colors.borderStrong, true: appTheme.colors.primary }}
-                thumbColor={appTheme.colors.onPrimary}
-              />
-            </View>
-
-            <View style={styles.modalActions}>
-              <PrimaryButton
-                label={updateUnitMutation.isPending ? "Saving..." : "Save Changes"}
-                onPress={() => updateUnitMutation.mutate()}
-                disabled={updateUnitMutation.isPending}
-                size="sm"
-              />
-              <PrimaryButton
-                label="Cancel"
-                tone="neutral"
-                size="sm"
-                onPress={closeEditModal}
-                disabled={updateUnitMutation.isPending}
               />
             </View>
           </View>

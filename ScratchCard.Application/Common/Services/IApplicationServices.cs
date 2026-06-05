@@ -412,6 +412,7 @@ public interface ITemperatureLogService
     Task<IReadOnlyCollection<TemperatureMonitoringUnitDto>> ListUnitsAsync(Guid shopId, CancellationToken cancellationToken = default);
     Task<TemperatureMonitoringUnitDto> CreateUnitAsync(CreateTemperatureMonitoringUnitRequest request, CancellationToken cancellationToken = default);
     Task<TemperatureMonitoringUnitDto> UpdateUnitAsync(Guid id, UpdateTemperatureMonitoringUnitRequest request, CancellationToken cancellationToken = default);
+    Task ReorderUnitsAsync(ReorderTemperatureUnitsRequest request, CancellationToken cancellationToken = default);
     Task<TemperatureReadingDto> RecordReadingAsync(RecordTemperatureReadingRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<TemperatureReadingDto>> ListReadingsAsync(Guid shopId, DateOnly from, DateOnly to, Guid? unitId = null, CancellationToken cancellationToken = default);
     Task<TemperatureDailyLogDto> GetDailyLogAsync(Guid shopId, DateOnly date, CancellationToken cancellationToken = default);

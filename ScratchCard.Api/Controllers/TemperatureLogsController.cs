@@ -49,6 +49,14 @@ public class TemperatureLogsController : BaseApiController
         return Success(result);
     }
 
+    [HttpPut("units/reorder")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
+    public async Task<IActionResult> ReorderUnits([FromBody] ReorderTemperatureUnitsRequest request, CancellationToken cancellationToken)
+    {
+        await _temperatureLogService.ReorderUnitsAsync(request, cancellationToken);
+        return Success(true, "Temperature units reordered.");
+    }
+
     [HttpPost("readings")]
     public async Task<IActionResult> RecordReading([FromBody] RecordTemperatureReadingRequest request, CancellationToken cancellationToken)
     {

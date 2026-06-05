@@ -180,6 +180,10 @@ public class TemperatureLogService : ITemperatureLogService
                 .MaxAsync(cancellationToken) ?? 0;
             displayOrder = maxOrder + 1;
         }
+        else
+        {
+            await ResolveDisplayOrderConflictAsync(request.ShopId, displayOrder, null, request.ShiftConflicts, cancellationToken);
+        }
 
         var now = DateTimeOffset.UtcNow;
         var unit = new TemperatureMonitoringUnit
@@ -229,6 +233,8 @@ public class TemperatureLogService : ITemperatureLogService
             throw new AppException("temperature_unit_duplicate", "Unit name already exists for this shop.");
         }
 
+        await ResolveDisplayOrderConflictAsync(unit.ShopId, request.DisplayOrder, id, request.ShiftConflicts, cancellationToken);
+
         unit.UnitName = unitName;
         unit.EquipmentType = request.EquipmentType;
         unit.MinTemperatureCelsius = request.MinTemperatureCelsius;
@@ -251,6 +257,47 @@ public class TemperatureLogService : ITemperatureLogService
             cancellationToken: cancellationToken);
 
         return unit.ToDto();
+    }
+
+    public async Task ReorderUnitsAsync(ReorderTemperatureUnitsRequest request, CancellationToken cancellationToken = default)
+    {
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(request.ShopId, TemperatureManagementRoles, cancellationToken);
+
+        var items = request.Items ?? Array.Empty<TemperatureUnitOrderItem>();
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        if (items.Any(x => x.DisplayOrder <= 0))
+        {
+            throw new AppException("invalid_display_order", "Order numbers must be 1 or greater.");
+        }
+
+        var duplicate = items.GroupBy(x => x.DisplayOrder).FirstOrDefault(g => g.Count() > 1);
+        if (duplicate != null)
+        {
+            throw new AppException(
+                "temperature_unit_order_duplicate",
+                $"Order number {duplicate.Key} is used more than once. Give each unit a different number.");
+        }
+
+        var orderByUnitId = items.ToDictionary(x => x.UnitId, x => x.DisplayOrder);
+        var unitIds = orderByUnitId.Keys.ToList();
+        var units = await _unitRepository.Query()
+            .Where(x => x.ShopId == request.ShopId && !x.IsDeleted && unitIds.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+
+        var now = DateTimeOffset.UtcNow;
+        foreach (var unit in units)
+        {
+            unit.DisplayOrder = orderByUnitId[unit.Id];
+            unit.ModifiedOn = now;
+            unit.ModifiedBy = _currentUserService.UserId;
+            _unitRepository.Update(unit);
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<TemperatureReadingDto> RecordReadingAsync(RecordTemperatureReadingRequest request, CancellationToken cancellationToken = default)
@@ -624,6 +671,59 @@ public class TemperatureLogService : ITemperatureLogService
         if (minTemperatureCelsius >= maxTemperatureCelsius)
         {
             throw new AppException("temperature_invalid_range", "Minimum temperature must be lower than maximum temperature.");
+        }
+    }
+
+    // Order numbers are unique within a shop (0 = "unset", not enforced). On a clash we either reject
+    // or, when shiftConflicts is set, bump the unit at that slot and everything below it down by one
+    // to make room. Shifted entities are tracked and persisted by the caller's SaveChanges.
+    private async Task ResolveDisplayOrderConflictAsync(
+        Guid shopId,
+        int displayOrder,
+        Guid? excludeUnitId,
+        bool shiftConflicts,
+        CancellationToken cancellationToken)
+    {
+        if (displayOrder <= 0)
+        {
+            return;
+        }
+
+        var conflicting = await _unitRepository.Query()
+            .Where(x => x.ShopId == shopId
+                && !x.IsDeleted
+                && x.DisplayOrder == displayOrder
+                && (excludeUnitId == null || x.Id != excludeUnitId))
+            .ToListAsync(cancellationToken);
+
+        if (conflicting.Count == 0)
+        {
+            return;
+        }
+
+        if (!shiftConflicts)
+        {
+            throw new AppException(
+                "temperature_unit_order_duplicate",
+                $"Order number {displayOrder} is already used by \"{conflicting[0].UnitName}\". Choose a different number.");
+        }
+
+        // Insert at this slot: shift the occupant and everything at/after it down by one. Descending
+        // order avoids transient collisions if a unique index is added later.
+        var toShift = await _unitRepository.Query()
+            .Where(x => x.ShopId == shopId
+                && !x.IsDeleted
+                && x.DisplayOrder >= displayOrder
+                && (excludeUnitId == null || x.Id != excludeUnitId))
+            .OrderByDescending(x => x.DisplayOrder)
+            .ToListAsync(cancellationToken);
+
+        foreach (var unit in toShift)
+        {
+            unit.DisplayOrder += 1;
+            unit.ModifiedOn = DateTimeOffset.UtcNow;
+            unit.ModifiedBy = _currentUserService.UserId;
+            _unitRepository.Update(unit);
         }
     }
 

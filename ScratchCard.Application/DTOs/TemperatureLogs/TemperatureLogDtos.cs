@@ -48,6 +48,20 @@ public class CreateTemperatureMonitoringUnitRequest
     public string? Location { get; set; }
     public string? Notes { get; set; }
     public int DisplayOrder { get; set; }
+    // When true, taking an order number already in use shifts the other units down instead of failing.
+    public bool ShiftConflicts { get; set; }
+}
+
+public class ReorderTemperatureUnitsRequest
+{
+    public Guid ShopId { get; set; }
+    public IReadOnlyCollection<TemperatureUnitOrderItem> Items { get; set; } = [];
+}
+
+public class TemperatureUnitOrderItem
+{
+    public Guid UnitId { get; set; }
+    public int DisplayOrder { get; set; }
 }
 
 public class UpdateTemperatureMonitoringUnitRequest
@@ -60,6 +74,8 @@ public class UpdateTemperatureMonitoringUnitRequest
     public string? Location { get; set; }
     public string? Notes { get; set; }
     public int DisplayOrder { get; set; }
+    // When true, taking an order number already in use shifts the other units down instead of failing.
+    public bool ShiftConflicts { get; set; }
 }
 
 public class RecordTemperatureReadingRequest

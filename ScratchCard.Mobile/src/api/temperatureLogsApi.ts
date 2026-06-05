@@ -99,6 +99,7 @@ export async function createTemperatureUnit(payload: {
   location?: string;
   notes?: string;
   displayOrder?: number;
+  shiftConflicts?: boolean;
 }) {
   const response = await apiClient.post<ApiResponse<TemperatureMonitoringUnit>>("/temperature-logs/units", payload);
   return mapUnit(response.data.data);
@@ -115,10 +116,18 @@ export async function updateTemperatureUnit(
     location?: string;
     notes?: string;
     displayOrder?: number;
+    shiftConflicts?: boolean;
   }
 ) {
   const response = await apiClient.put<ApiResponse<TemperatureMonitoringUnit>>(`/temperature-logs/units/${unitId}`, payload);
   return mapUnit(response.data.data);
+}
+
+export async function reorderTemperatureUnits(
+  shopId: string,
+  items: { unitId: string; displayOrder: number }[],
+) {
+  await apiClient.put("/temperature-logs/units/reorder", { shopId, items });
 }
 
 export async function getTemperatureDailyLog(shopId: string, date: string) {
