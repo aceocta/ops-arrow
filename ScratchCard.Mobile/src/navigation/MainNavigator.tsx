@@ -771,15 +771,13 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
       contentContainerStyle={[styles.drawerScrollContent, { paddingBottom: drawerBottomPadding }]}
     >
         <View style={[styles.drawerHeader, { paddingTop: appTheme.spacing.md + insets.top }]}>
-          <Text style={styles.drawerEyebrow}>Navigation</Text>
-          <Text style={styles.drawerTitle}>Menu</Text>
         <Text style={styles.drawerSubtle}>{currentUser}</Text>
         <Text style={styles.drawerShopName}>{activeShop?.shopName ?? "No active shop selected"}</Text>
         <View style={styles.drawerPillRow}>
-          <View style={styles.drawerModePill}>
+          {/* <View style={styles.drawerModePill}>
             <Ionicons name="compass-outline" size={12} color={appTheme.colors.primary} />
             <Text style={styles.drawerModePillText}>{operationLabel}</Text>
-          </View>
+          </View> */}
           <View style={styles.drawerRolePill}>
             <Text style={styles.drawerRolePillText}>{roleLabel}</Text>
           </View>
