@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import * as Print from "expo-print";
@@ -56,14 +56,15 @@ function isValidRange(from: string, to: string) {
 
 export function RefusalReportScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const route = useRoute<RouteProp<MainStackParamList, "RefusalReport">>();
   const { activeShopId, activeShop, profile } = useAuth();
   const shopId = activeShopId;
   // The date-range refusal report is a Pro analytics feature.
   const analyticsFeature = useFeature("refusal_log.analytics");
 
   const today = useMemo(() => new Date(), []);
-  const [fromDate, setFromDate] = useState(formatDateValue(monthAgo(today)));
-  const [toDate, setToDate] = useState(formatDateValue(today));
+  const [fromDate, setFromDate] = useState(route.params?.from ?? formatDateValue(monthAgo(today)));
+  const [toDate, setToDate] = useState(route.params?.to ?? formatDateValue(today));
 
   const rangeIsValid = isValidRange(fromDate, toDate);
 

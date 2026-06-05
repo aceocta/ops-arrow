@@ -380,12 +380,12 @@ export function OwnerOverviewScreen() {
               <StatItem
                 value={summary.refusals}
                 label="Refusals"
-                onPress={shopId ? () => goToShop(shopId, "RefusalReport") : undefined}
+                onPress={shopId ? () => goToShop(shopId, "RefusalReport", { from, to }) : undefined}
               />
               <StatItem
                 value={summary.visitors}
                 label="Visitors"
-                onPress={shopId ? () => goToShop(shopId, "VisitorLogReport") : undefined}
+                onPress={shopId ? () => goToShop(shopId, "VisitorLogReport", { from, to }) : undefined}
               />
             </DualCard>
             <DualCard
@@ -444,11 +444,11 @@ export function OwnerOverviewScreen() {
                 <View key={shop.shopId} style={[ui.card, styles.shopCard]}>
                   {!isSingleShop ? <Text style={styles.shopName} numberOfLines={1}>{shop.shopName}</Text> : null}
                   <View style={styles.shopMetricsRow}>
-                    <Pressable style={styles.shopMetric} onPress={() => goToShop(shop.shopId, "RefusalReport")}>
+                    <Pressable style={styles.shopMetric} onPress={() => goToShop(shop.shopId, "RefusalReport", { from, to })}>
                       <Text style={styles.shopMetricValue}>{shop.refusals}</Text>
                       <Text style={styles.shopMetricLabel}>Refusals</Text>
                     </Pressable>
-                    <Pressable style={styles.shopMetric} onPress={() => goToShop(shop.shopId, "VisitorLogReport")}>
+                    <Pressable style={styles.shopMetric} onPress={() => goToShop(shop.shopId, "VisitorLogReport", { from, to })}>
                       <Text style={styles.shopMetricValue}>{shop.visitors}</Text>
                       <Text style={styles.shopMetricLabel}>Visitors</Text>
                     </Pressable>

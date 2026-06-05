@@ -59,13 +59,13 @@ export type MainStackParamList = {
   TemperatureScheduleGrid: { from?: string; to?: string } | undefined;
   RefusalRegister: undefined;
   RefusalRegisterByDay: undefined;
-  RefusalReport: undefined;
+  RefusalReport: { from?: string; to?: string } | undefined;
   RefusalManagerReview: undefined;
   RefusalEntryDetails: { entryId: string };
   RefusalEntryEdit: { entryId: string };
   VisitorLog: undefined;
   VisitorLogEntryEdit: { entryId?: string } | undefined;
-  VisitorLogReport: undefined;
+  VisitorLogReport: { from?: string; to?: string } | undefined;
   ScratchCardPacks: undefined;
   ManualPackCreate: { autoOpenScanner?: boolean } | undefined;
   PackDetails: { packId: string };

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigation } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
@@ -67,13 +67,15 @@ function buildReportHtml(shopName: string, from: string, to: string, entries: Vi
 export function VisitorLogReportScreen() {
   const { activeShopId, activeShop, profile } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const route = useRoute<RouteProp<MainStackParamList, "VisitorLogReport">>();
   const queryClient = useQueryClient();
   const [fromDate, setFromDate] = useState(() => {
+    if (route.params?.from) return route.params.from;
     const d = new Date();
     d.setDate(d.getDate() - 6);
     return formatDateValue(d);
   });
-  const [toDate, setToDate] = useState(() => formatDateValue(new Date()));
+  const [toDate, setToDate] = useState(() => route.params?.to ?? formatDateValue(new Date()));
   const [emailing, setEmailing] = useState(false);
 
   const signOutMutation = useMutation({
