@@ -49,7 +49,9 @@ export function TemperatureSchedulesScreen() {
   const [label, setLabel] = React.useState("");
   const [time, setTime] = React.useState("10:00");
   const [tolerance, setTolerance] = React.useState(30);
-  const [unitId, setUnitId] = React.useState<string | undefined>(undefined);
+  // Units this scheduled check applies to. Empty = "All units". When adding you can pick several and
+  // one schedule record is created per unit; when editing a single record only one unit applies.
+  const [selectedUnitIds, setSelectedUnitIds] = React.useState<string[]>([]);
   // When set, the top form edits this existing slot instead of adding a new one.
   const [editingId, setEditingId] = React.useState<string | null>(null);
 
@@ -61,7 +63,7 @@ export function TemperatureSchedulesScreen() {
     setLabel("");
     setTime("10:00");
     setTolerance(30);
-    setUnitId(undefined);
+    setSelectedUnitIds([]);
   }
 
   function beginEdit(schedule: TemperatureSchedule) {
@@ -69,7 +71,18 @@ export function TemperatureSchedulesScreen() {
     setLabel(schedule.label);
     setTime(schedule.expectedTime.slice(0, 5));
     setTolerance(schedule.toleranceMinutes);
-    setUnitId(schedule.temperatureMonitoringUnitId ?? undefined);
+    setSelectedUnitIds(schedule.temperatureMonitoringUnitId ? [schedule.temperatureMonitoringUnitId] : []);
+  }
+
+  // "All units" clears the selection. Otherwise toggle membership when adding; when editing a single
+  // record, selecting a unit replaces the choice (one record can only target one unit).
+  function toggleUnit(id: string) {
+    setSelectedUnitIds((prev) => {
+      if (editingId) {
+        return [id];
+      }
+      return prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+    });
   }
 
   function cancelEdit() {
@@ -78,15 +91,20 @@ export function TemperatureSchedulesScreen() {
   }
 
   const createMutation = useMutation({
-    mutationFn: () =>
-      createTemperatureSchedule({
-        shopId: shopId as string,
-        temperatureMonitoringUnitId: unitId,
-        label: label.trim(),
-        expectedTime: toExpectedTime(time),
-        toleranceMinutes: tolerance,
-        isActive: true,
-      }),
+    mutationFn: async () => {
+      // No specific units → one "All units" schedule; otherwise one schedule per chosen unit.
+      const targets: (string | undefined)[] = selectedUnitIds.length > 0 ? selectedUnitIds : [undefined];
+      for (const target of targets) {
+        await createTemperatureSchedule({
+          shopId: shopId as string,
+          temperatureMonitoringUnitId: target,
+          label: label.trim(),
+          expectedTime: toExpectedTime(time),
+          toleranceMinutes: tolerance,
+          isActive: true,
+        });
+      }
+    },
     onSuccess: () => {
       resetForm();
       invalidate();
@@ -100,7 +118,7 @@ export function TemperatureSchedulesScreen() {
       const current = schedulesQuery.data?.find((s) => s.id === editingId);
       return updateTemperatureSchedule(editingId as string, {
         shopId: shopId as string,
-        temperatureMonitoringUnitId: unitId,
+        temperatureMonitoringUnitId: selectedUnitIds[0],
         label: label.trim(),
         expectedTime: toExpectedTime(time),
         toleranceMinutes: tolerance,
@@ -197,27 +215,32 @@ export function TemperatureSchedulesScreen() {
         </View>
 
         <View>
-          <Text style={styles.fieldLabel}>Unit (optional)</Text>
+          <Text style={styles.fieldLabel}>
+            Units {editingId ? "(pick one, or All units)" : "(pick one or more, or All units)"}
+          </Text>
           <View style={styles.chipRow}>
             <Pressable
-              style={[styles.chip, !unitId ? styles.chipActive : null]}
-              onPress={() => setUnitId(undefined)}
+              style={[styles.chip, selectedUnitIds.length === 0 ? styles.chipActive : null]}
+              onPress={() => setSelectedUnitIds([])}
             >
-              <Text style={[styles.chipText, !unitId ? styles.chipTextActive : null]}>All units</Text>
+              <Text style={[styles.chipText, selectedUnitIds.length === 0 ? styles.chipTextActive : null]}>All units</Text>
             </Pressable>
             {units.map((unit) => {
-              const active = unit.id === unitId;
+              const active = selectedUnitIds.includes(unit.id);
               return (
                 <Pressable
                   key={unit.id}
                   style={[styles.chip, active ? styles.chipActive : null]}
-                  onPress={() => setUnitId(unit.id)}
+                  onPress={() => toggleUnit(unit.id)}
                 >
                   <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>{unit.unitName}</Text>
                 </Pressable>
               );
             })}
           </View>
+          {!editingId && selectedUnitIds.length > 1 ? (
+            <Text style={styles.helperText}>Creates a separate scheduled check for each of the {selectedUnitIds.length} selected units.</Text>
+          ) : null}
         </View>
 
         <PrimaryButton
@@ -228,7 +251,9 @@ export function TemperatureSchedulesScreen() {
                 : "Save changes"
               : createMutation.isPending
                 ? "Adding..."
-                : "Add schedule"
+                : selectedUnitIds.length > 1
+                  ? `Add ${selectedUnitIds.length} schedules`
+                  : "Add schedule"
           }
           onPress={() => (editingId ? updateMutation.mutate() : createMutation.mutate())}
           disabled={!canSubmit}
@@ -309,6 +334,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     textTransform: "uppercase",
     marginBottom: 4,
+  },
+  helperText: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: 6,
   },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
