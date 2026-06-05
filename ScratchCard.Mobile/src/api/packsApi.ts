@@ -60,7 +60,10 @@ export async function updatePackDetails(
   return mapPack(response.data.data);
 }
 
-export async function activatePack(packId: string, payload: { openingSerialNumber: string; sellingOrder?: SellingOrder }) {
+export async function activatePack(
+  packId: string,
+  payload: { openingSerialNumber: string; displayNumber?: number; sellingOrder?: SellingOrder },
+) {
   const { sellingOrder, ...rest } = payload;
   const response = await apiClient.post<ApiResponse<ScratchCardPack>>(`/packs/${packId}/activate`, {
     ...rest,

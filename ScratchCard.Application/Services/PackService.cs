@@ -204,7 +204,14 @@ public class PackService : IPackService
 
         ValidateSerialInRange(request.OpeningSerialNumber, pack.StartSerialNumber, pack.EndSerialNumber);
 
-        pack.SellingOrder = (await _shopConfigurationService.GetPackSetupAsync(pack.ShopId, cancellationToken)).SellingOrder;
+        var packSetup = await _shopConfigurationService.GetPackSetupAsync(pack.ShopId, cancellationToken);
+        // An active pack sits on a physical display slot, so a display number is mandatory here. Take
+        // it from the request when supplied, otherwise keep the one set at creation — but never let a
+        // pack go Active without a valid display number.
+        var displayNumber = ResolveRequiredDisplayNumber(request.DisplayNumber ?? pack.DisplayNumber, packSetup.DisplayCount);
+
+        pack.SellingOrder = packSetup.SellingOrder;
+        pack.DisplayNumber = displayNumber;
         pack.CurrentSerialNumber = request.OpeningSerialNumber;
         pack.Status = PackStatus.Active;
         pack.ActivatedDate = DateTimeOffset.UtcNow;

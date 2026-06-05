@@ -40,6 +40,8 @@ public class CreateManualPackRequest
 public class ActivatePackRequest
 {
     public string OpeningSerialNumber { get; set; } = string.Empty;
+    // Mandatory: an active pack sits on a physical display slot. Resolved/validated in ActivateAsync.
+    public int? DisplayNumber { get; set; }
     public SellingOrder SellingOrder { get; set; }
 }
 

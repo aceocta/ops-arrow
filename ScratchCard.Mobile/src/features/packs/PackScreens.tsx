@@ -1483,6 +1483,8 @@ export function ActivatePackScreen({ route, navigation }: ActivatePackProps) {
   const pack = packQuery.data;
   const [openingSerialNumber, setOpeningSerialNumber] = useState("");
   const [isOpeningSerialInitialized, setIsOpeningSerialInitialized] = useState(false);
+  const [displayNumber, setDisplayNumber] = useState("");
+  const [isDisplayNumberInitialized, setIsDisplayNumberInitialized] = useState(false);
 
   useEffect(() => {
     if (!isOpeningSerialInitialized && pack?.currentSerialNumber) {
@@ -1491,6 +1493,14 @@ export function ActivatePackScreen({ route, navigation }: ActivatePackProps) {
     }
   }, [isOpeningSerialInitialized, pack?.currentSerialNumber]);
 
+  useEffect(() => {
+    // Pre-fill the display number set at creation; the operator can change it before activating.
+    if (!isDisplayNumberInitialized && pack) {
+      setDisplayNumber(pack.displayNumber != null ? String(pack.displayNumber) : "");
+      setIsDisplayNumberInitialized(true);
+    }
+  }, [isDisplayNumberInitialized, pack]);
+
   const activateMutation = useMutation({
     mutationFn: async () => {
       const normalizedOpeningSerial = openingSerialNumber.trim();
@@ -1498,7 +1508,20 @@ export function ActivatePackScreen({ route, navigation }: ActivatePackProps) {
         throw new Error("Opening serial number is required.");
       }
 
-      return activatePack(packId, { openingSerialNumber: normalizedOpeningSerial });
+      // An active pack must sit on a display slot, so the display number is mandatory here.
+      const trimmedDisplayNumber = displayNumber.trim();
+      if (!trimmedDisplayNumber) {
+        throw new Error("Display number is required.");
+      }
+      const parsedDisplayNumber = Number(trimmedDisplayNumber);
+      if (!Number.isInteger(parsedDisplayNumber) || parsedDisplayNumber <= 0) {
+        throw new Error("Display number must be a whole number greater than zero.");
+      }
+
+      return activatePack(packId, {
+        openingSerialNumber: normalizedOpeningSerial,
+        displayNumber: parsedDisplayNumber,
+      });
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pack", packId] });
@@ -1531,6 +1554,14 @@ export function ActivatePackScreen({ route, navigation }: ActivatePackProps) {
 
               setOpeningSerialNumber("");
             }}
+            keyboardType="number-pad"
+            editable={!activateMutation.isPending}
+          />
+
+          <FloatingLabelInput
+            label="Display number"
+            value={displayNumber}
+            onChangeText={(text) => setDisplayNumber(text.replace(/[^0-9]/g, ""))}
             keyboardType="number-pad"
             editable={!activateMutation.isPending}
           />
