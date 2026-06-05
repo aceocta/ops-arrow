@@ -227,7 +227,7 @@ const bottomDockItems: Array<{
   requiredFeature?: string;
 }> = [
   { icon: "home-outline", label: "Home", screen: "BestEntry" },
-  { icon: "albums-outline", label: "Scratch Card", screen: "Dashboard", requiredFeature: "ScratchCardManagement" },
+  { icon: "albums-outline", label: "Day Management", screen: "Dashboard", requiredFeature: "ScratchCardManagement" },
   { icon: "thermometer-outline", label: "Temp", screen: "TemperatureLogs", requiredFeature: "TemperatureLog" },
   { icon: "settings-outline", label: "Settings", screen: "Settings" },
 ];
