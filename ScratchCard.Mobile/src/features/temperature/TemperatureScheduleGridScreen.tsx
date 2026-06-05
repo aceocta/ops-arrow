@@ -9,6 +9,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { getTemperatureScheduleGrid, listTemperatureReadings } from "../../api/temperatureLogsApi";
 import { sendReportEmail } from "../../api/reportsApi";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
+import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
 import { LoadingState } from "../../components/LoadingState";
 import { ReportActionButton } from "../../components/ReportActionButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -104,6 +105,7 @@ export function TemperatureScheduleGridScreen() {
   return (
     <ScreenContainer>
       <View style={[ui.card, styles.compactCard]}>
+        <DateRangeQuickPicks from={fromDate} to={toDate} onSelect={(f, t) => { setFromDate(f); setToDate(t); }} style={{ marginBottom: 8 }} />
         <View style={styles.rangeRow}>
           <DateTimeField style={{ flex: 1 }} mode="date" value={fromDate} onChange={setFromDate} maximumDate={new Date()} />
           <DateTimeField style={{ flex: 1 }} mode="date" value={toDate} onChange={setToDate} maximumDate={new Date()} />

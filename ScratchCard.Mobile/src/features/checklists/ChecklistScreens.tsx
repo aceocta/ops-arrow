@@ -20,6 +20,7 @@ import {
 } from "../../api/checklistsApi";
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
+import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -890,6 +891,7 @@ export function ChecklistHistoryScreen() {
         <View style={ui.card}>
           <Text style={styles.pageTitle}>Checklist History</Text>
           <Text style={styles.meta}>Completion and audit history for selected date range.</Text>
+          <DateRangeQuickPicks from={fromDate} to={toDate} onSelect={(f, t) => { setFromDate(f); setToDate(t); }} style={{ marginBottom: 8 }} />
           <View style={styles.row}>
             <DateTimeField style={{ flex: 1 }} mode="date" value={fromDate} onChange={setFromDate} />
             <DateTimeField style={{ flex: 1 }} mode="date" value={toDate} onChange={setToDate} />

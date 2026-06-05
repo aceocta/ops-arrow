@@ -5,6 +5,7 @@ import { LandscapeSignatureModal } from "../../components/LandscapeSignatureModa
 import { listRefusalEntriesByRange, reviewRefusalEntries } from "../../api/refusalRegisterApi";
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
+import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { RowFlash } from "../../components/RowFlash";
@@ -168,6 +169,7 @@ export function RefusalManagerReviewScreen() {
       <View style={ui.card}>
         {/* <Text style={styles.sectionTitle}>Date Range</Text>
         <Text style={styles.sectionSubtitle}>Filter entries before selecting items for manager review.</Text> */}
+        <DateRangeQuickPicks from={fromDate} to={toDate} onSelect={(f, t) => { setFromDate(f); setToDate(t); }} style={{ marginBottom: 8 }} />
         <View style={styles.row}>
           <DateTimeField style={{ flex: 1 }} mode="date" value={fromDate} onChange={setFromDate} placeholder="From date" />
           <DateTimeField style={{ flex: 1 }} mode="date" value={toDate} onChange={setToDate} placeholder="To date" />

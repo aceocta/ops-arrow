@@ -14,6 +14,7 @@ import {
 } from "../../api/refusalRegisterApi";
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
+import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
 import { ReportActionButton } from "../../components/ReportActionButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError } from "../../components/toast";
@@ -322,6 +323,7 @@ export function RefusalReportScreen() {
           <Text style={styles.sectionTitle}>Report Filters</Text>
           <Text style={styles.sectionSubtitle}>Choose the date range and generate printable output.</Text>
           <Text style={styles.meta}>Report Date Time: {reportDateTime}</Text>
+          <DateRangeQuickPicks from={fromDate} to={toDate} onSelect={(f, t) => { setFromDate(f); setToDate(t); }} style={{ marginBottom: 8 }} />
           <View style={styles.rangeRow}>
             <DateTimeField style={{ flex: 1 }} mode="date" value={fromDate} onChange={setFromDate} />
             <DateTimeField style={{ flex: 1 }} mode="date" value={toDate} onChange={setToDate} />

@@ -7,6 +7,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { getTemperatureLogsReport, sendReportEmail } from "../../api/reportsApi";
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
+import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
 import { ReportActionButton } from "../../components/ReportActionButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SkeletonList } from "../../components/Skeleton";
@@ -260,6 +261,7 @@ export function TemperatureLogsReportScreen() {
           <Text style={styles.sectionTitle}>Temperature Logs Range Report</Text>
           <Text style={styles.subtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
           <Text style={styles.meta}>Report Date Time: {reportDateTime}</Text>
+          <DateRangeQuickPicks from={fromDate} to={toDate} onSelect={(f, t) => { setFromDate(f); setToDate(t); }} style={{ marginBottom: 8 }} />
           <View style={styles.rangeRow}>
             <DateTimeField style={{ flex: 1 }} mode="date" value={fromDate} onChange={setFromDate} />
             <DateTimeField style={{ flex: 1 }} mode="date" value={toDate} onChange={setToDate} />

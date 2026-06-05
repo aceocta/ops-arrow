@@ -7,6 +7,7 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
+import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
 import { LoadingState } from "../../components/LoadingState";
 import { ReportActionButton } from "../../components/ReportActionButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -161,6 +162,7 @@ export function VisitorLogReportScreen() {
       <View style={ui.card}>
         <Text style={styles.title}>Visitors Log Report</Text>
         <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
+        <DateRangeQuickPicks from={fromDate} to={toDate} onSelect={(f, t) => { setFromDate(f); setToDate(t); }} style={{ marginBottom: 8 }} />
         <View style={styles.rangeRow}>
           <DateTimeField style={styles.flex1} mode="date" value={fromDate} onChange={setFromDate} maximumDate={new Date()} />
           <DateTimeField style={styles.flex1} mode="date" value={toDate} onChange={setToDate} maximumDate={new Date()} />
