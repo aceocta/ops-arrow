@@ -329,9 +329,6 @@ export function OwnerOverviewScreen() {
         >
           <Ionicons name="home-outline" size={18} color={appTheme.colors.primary} />
         </Pressable>
-        <Pressable style={styles.shareBtn} onPress={shareSummary} disabled={!overview} accessibilityLabel="Share summary">
-          <Ionicons name="share-outline" size={18} color={appTheme.colors.primary} />
-        </Pressable>
       </View>
 
       {overviewQuery.isLoading ? (
