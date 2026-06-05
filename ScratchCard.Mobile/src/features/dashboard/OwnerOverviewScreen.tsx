@@ -11,7 +11,7 @@ import { getOwnerOverview } from "../../api/reportsApi";
 import { LoadingState } from "../../components/LoadingState";
 import { formatDateValue } from "../../components/DateTimeField";
 import { toastError } from "../../components/toast";
-import { OwnerOverview } from "../../types/models";
+import { OwnerOverview, OwnerShopOverview } from "../../types/models";
 import { MainStackParamList } from "../../types/navigation";
 import { formatGbp } from "../../utils/currency";
 import { appTheme } from "../../ui/theme";
@@ -201,6 +201,35 @@ function buildSummaryHtml(overview: OwnerOverview, rangeLabel: string): string {
   </body></html>`;
 }
 
+// One stat inside a dual card; tappable when an onPress is supplied (single-shop deep links).
+function StatItem({ value, label, tone, onPress }: {
+  value: React.ReactNode;
+  label: string;
+  tone?: "warn" | "danger";
+  onPress?: () => void;
+}) {
+  const Comp: React.ComponentType<any> = onPress ? Pressable : View;
+  return (
+    <Comp style={styles.dualStat} onPress={onPress}>
+      <Text style={[styles.dualValue, tone === "danger" ? styles.kpiDanger : tone === "warn" ? styles.kpiWarn : null]}>
+        {value}
+      </Text>
+      <Text style={styles.dualLabel}>{label}</Text>
+    </Comp>
+  );
+}
+
+// Two-stat summary card; tappable at card level when onPress is supplied.
+function DualCard({ title, children, onPress }: { title: string; children: React.ReactNode; onPress?: () => void }) {
+  const Comp: React.ComponentType<any> = onPress ? Pressable : View;
+  return (
+    <Comp style={[ui.card, styles.dualCard]} onPress={onPress}>
+      <Text style={styles.dualTitle}>{title}</Text>
+      <View style={styles.dualStatsRow}>{children}</View>
+    </Comp>
+  );
+}
+
 export function OwnerOverviewScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const { profile, setActiveShop } = useAuth();
@@ -254,6 +283,18 @@ export function OwnerOverviewScreen() {
   );
   const delta = overview ? salesDelta(overview.totalSalesAmount, overview.previousTotalSalesAmount) : null;
 
+  // Summary-card values: a single shop's own figures, or company totals across all shops.
+  const sum = (pick: (s: OwnerShopOverview) => number) => allShops.reduce((acc, s) => acc + pick(s), 0);
+  const summary = {
+    tempLateMissed: singleShop ? singleShop.temperatureIssues : sum((s) => s.temperatureIssues),
+    tempOutOfRange: singleShop ? singleShop.temperatureOutOfRangeUnits : sum((s) => s.temperatureOutOfRangeUnits),
+    nonCompliant: singleShop ? singleShop.complianceNonCompliantCount : sum((s) => s.complianceNonCompliantCount),
+    openActions: singleShop ? singleShop.openComplianceActions : sum((s) => s.openComplianceActions),
+    refusals: singleShop ? singleShop.refusals : sum((s) => s.refusals),
+    visitors: singleShop ? singleShop.visitors : sum((s) => s.visitors),
+  };
+  const shopId = singleShop?.shopId;
+
   return (
     <ScrollView
       style={styles.screen}
@@ -302,7 +343,8 @@ export function OwnerOverviewScreen() {
             </Text>
           ) : null} */}
 
-          {/* KPI strip */}
+          {/* Top summary: same 4 cards for single & multi shop. Single shop shows its own figures
+              (tappable to reports); multi shop shows company totals across all shops. */}
           <View style={styles.kpiRow}>
             <View style={[ui.card, styles.kpiCard]}>
               <Text style={styles.kpiValue}>{formatGbp(overview.totalSalesAmount)}</Text>
@@ -323,95 +365,35 @@ export function OwnerOverviewScreen() {
               </View>
               <Text style={styles.kpiHint}>vs previous period</Text>
             </View>
-            {/* Multi-shop: compliance score (a comparison aid). Single-shop: refusals & visitors sit
-                beside sales (each stat taps through to its report). */}
-            {!isSingleShop ? (
-              <View style={[ui.card, styles.kpiCard]}>
-                <Text style={[styles.kpiValue, { color: scoreColor(overview.averageComplianceScore) }]}>
-                  {overview.averageComplianceScore}
-                </Text>
-                <Text style={styles.kpiLabel}>Compliance score</Text>
-                <Text style={styles.kpiHint}>Temperature + open actions (0–100)</Text>
-              </View>
-            ) : singleShop ? (
-              <Pressable
-                style={[ui.card, styles.dualCard]}
-                onPress={() => goToShop(singleShop.shopId, "TemperatureScheduleGrid", { from, to })}
-              >
-                <Text style={styles.dualTitle}>Temperature</Text>
-                <View style={styles.dualStatsRow}>
-                  <View style={styles.dualStat}>
-                    <Text style={[styles.dualValue, singleShop.temperatureIssues > 0 ? styles.kpiWarn : null]}>
-                      {singleShop.temperatureIssues}
-                    </Text>
-                    <Text style={styles.dualLabel}>Late / missed</Text>
-                  </View>
-                  <View style={styles.dualStat}>
-                    <Text style={[styles.dualValue, singleShop.temperatureOutOfRangeUnits > 0 ? styles.kpiDanger : null]}>
-                      {singleShop.temperatureOutOfRangeUnits}
-                    </Text>
-                    <Text style={styles.dualLabel}>Out of range</Text>
-                  </View>
-                </View>
-              </Pressable>
-            ) : null}
+            <DualCard
+              title="Temperature"
+              onPress={shopId ? () => goToShop(shopId, "TemperatureScheduleGrid", { from, to }) : undefined}
+            >
+              <StatItem value={summary.tempLateMissed} label="Late / missed" tone={summary.tempLateMissed > 0 ? "warn" : undefined} />
+              <StatItem value={summary.tempOutOfRange} label="Out of range" tone={summary.tempOutOfRange > 0 ? "danger" : undefined} />
+            </DualCard>
           </View>
-          {isSingleShop && singleShop ? (
-            // Single shop: two dual-stat cards — Temperature (late/missed + out-of-range) and
-            // Compliance (non-compliant + open actions) — each tappable to its report.
-            <View style={styles.kpiRow}>
-              <View style={[ui.card, styles.dualCard]}>
-                <Text style={styles.dualTitle}>Refusals & visitors</Text>
-                <View style={styles.dualStatsRow}>
-                  <Pressable style={styles.dualStat} onPress={() => goToShop(singleShop.shopId, "RefusalReport")}>
-                    <Text style={styles.dualValue}>{singleShop.refusals}</Text>
-                    <Text style={styles.dualLabel}>Refusals</Text>
-                  </Pressable>
-                  <Pressable style={styles.dualStat} onPress={() => goToShop(singleShop.shopId, "VisitorLogReport")}>
-                    <Text style={styles.dualValue}>{singleShop.visitors}</Text>
-                    <Text style={styles.dualLabel}>Visitors</Text>
-                  </Pressable>
-                </View>
-              </View>
-              <Pressable
-                style={[ui.card, styles.dualCard]}
-                onPress={() => goToShop(singleShop.shopId, "ComplianceActions", { from, to })}
-              >
-                <Text style={styles.dualTitle}>Compliance</Text>
-                <View style={styles.dualStatsRow}>
-                  <View style={styles.dualStat}>
-                    <Text style={[styles.dualValue, singleShop.complianceNonCompliantCount > 0 ? styles.kpiWarn : null]}>
-                      {singleShop.complianceNonCompliantCount}
-                    </Text>
-                    <Text style={styles.dualLabel}>Non-compliant</Text>
-                  </View>
-                  <View style={styles.dualStat}>
-                    <Text style={[styles.dualValue, singleShop.openComplianceActions > 0 ? styles.kpiWarn : null]}>
-                      {singleShop.openComplianceActions}
-                    </Text>
-                    <Text style={styles.dualLabel}>Open actions</Text>
-                  </View>
-                </View>
-              </Pressable>
-            </View>
-          ) : (
-            <View style={styles.kpiRow}>
-              <View style={[ui.card, styles.kpiCard]}>
-                <Text style={[styles.kpiValue, overview.shopsNeedingAttention > 0 ? styles.kpiDanger : null]}>
-                  {overview.shopsNeedingAttention}
-                </Text>
-                <Text style={styles.kpiLabel}>Need attention</Text>
-                <Text style={styles.kpiHint}>Temp, action, stock or cash flags</Text>
-              </View>
-              <View style={[ui.card, styles.kpiCard]}>
-                <Text style={[styles.kpiValue, overview.totalOpenComplianceActions > 0 ? styles.kpiWarn : null]}>
-                  {overview.totalOpenComplianceActions}
-                </Text>
-                <Text style={styles.kpiLabel}>Open compliance actions</Text>
-                <Text style={styles.kpiHint}>Failed checks not yet closed out</Text>
-              </View>
-            </View>
-          )}
+          <View style={styles.kpiRow}>
+            <DualCard title="Refusals & visitors">
+              <StatItem
+                value={summary.refusals}
+                label="Refusals"
+                onPress={shopId ? () => goToShop(shopId, "RefusalReport") : undefined}
+              />
+              <StatItem
+                value={summary.visitors}
+                label="Visitors"
+                onPress={shopId ? () => goToShop(shopId, "VisitorLogReport") : undefined}
+              />
+            </DualCard>
+            <DualCard
+              title="Compliance"
+              onPress={shopId ? () => goToShop(shopId, "ComplianceActions", { from, to }) : undefined}
+            >
+              <StatItem value={summary.nonCompliant} label="Non-compliant" tone={summary.nonCompliant > 0 ? "warn" : undefined} />
+              <StatItem value={summary.openActions} label="Open actions" tone={summary.openActions > 0 ? "warn" : undefined} />
+            </DualCard>
+          </View>
 
           {/* Refusals & visitors — per-shop section (multi-shop only; single-shop shows it beside sales). */}
           {!isSingleShop && allShops.length > 0 ? (
