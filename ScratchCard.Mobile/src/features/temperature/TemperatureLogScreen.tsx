@@ -1970,6 +1970,8 @@ const styles = StyleSheet.create({
   },
   matrixCard: {
     gap: appTheme.spacing.sm,
+    marginTop:appTheme.spacing.lg
+
   },
   matrixRow: {
     flexDirection: "row",

@@ -2226,10 +2226,10 @@ export function SettingsScreen() {
         <LabeledValue label="Mode" value={__DEV__ ? "Development" : "Production"} />
       </View> */}
 
-      <View style={ui.card}>
+      {/* <View style={ui.card}>
         <Text style={styles.sectionTitle}>About</Text>
         <LabeledValue label="App version" value={appVersion} />
-      </View>
+      </View> */}
 
       <View style={ui.card}>
         <SettingsNavRow

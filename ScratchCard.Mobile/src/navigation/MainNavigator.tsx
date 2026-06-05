@@ -706,6 +706,13 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
     : insets.bottom + appTheme.spacing.md;
   const operationLabel = getOperationLabel(selectedOperation);
   const currentUser = profile?.displayName ?? profile?.email ?? "Signed-in user";
+  const userInitials = useMemo(() => {
+    const source = (profile?.displayName ?? profile?.email ?? "").trim();
+    const parts = source.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return "?";
+  }, [profile?.displayName, profile?.email]);
   const [expandedSections, setExpandedSections] = useState<Record<DrawerSectionKey, boolean>>({
     scratchCard: true,
     temperature: false,
@@ -771,13 +778,18 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
       contentContainerStyle={[styles.drawerScrollContent, { paddingBottom: drawerBottomPadding }]}
     >
         <View style={[styles.drawerHeader, { paddingTop: appTheme.spacing.md + insets.top }]}>
-        <Text style={styles.drawerSubtle}>{currentUser}</Text>
-        <Text style={styles.drawerShopName}>{activeShop?.shopName ?? "No active shop selected"}</Text>
+        <View style={styles.drawerIdentityRow}>
+          <View style={styles.drawerAvatar}>
+            <Text style={styles.drawerAvatarText}>{userInitials}</Text>
+          </View>
+          <View style={styles.drawerIdentityText}>
+            <Text style={styles.drawerUserName} numberOfLines={1}>{currentUser}</Text>
+            <Text style={styles.drawerShopName} numberOfLines={1}>
+              {activeShop?.shopName ?? "No active shop selected"}
+            </Text>
+          </View>
+        </View>
         <View style={styles.drawerPillRow}>
-          {/* <View style={styles.drawerModePill}>
-            <Ionicons name="compass-outline" size={12} color={appTheme.colors.primary} />
-            <Text style={styles.drawerModePillText}>{operationLabel}</Text>
-          </View> */}
           <View style={styles.drawerRolePill}>
             <Text style={styles.drawerRolePillText}>{roleLabel}</Text>
           </View>
@@ -1112,37 +1124,46 @@ const styles = StyleSheet.create({
   },
   drawerHeader: {
     paddingHorizontal: appTheme.spacing.md,
-    paddingVertical: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: appTheme.colors.border,
     backgroundColor: appTheme.colors.surfaceTintAlt,
-    gap: 4,
+    gap: appTheme.spacing.sm,
   },
-  drawerEyebrow: {
-    color: appTheme.colors.textSubtle,
-    fontSize: 11,
-    lineHeight: 14,
-    textTransform: "uppercase",
-    letterSpacing: 0.3,
-    fontFamily: appTheme.fonts.bodyMedium,
+  drawerIdentityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.sm,
   },
-  drawerTitle: {
-    color: appTheme.colors.text,
-    fontSize: 20,
-    lineHeight: 24,
+  drawerAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+  },
+  drawerAvatarText: {
+    color: appTheme.colors.primary,
     fontFamily: appTheme.fonts.heading,
+    fontSize: 16,
+    lineHeight: 20,
   },
-  drawerSubtle: {
-    color: appTheme.colors.textMuted,
-    fontSize: 13,
-    lineHeight: 16,
-    fontFamily: appTheme.fonts.body,
+  drawerIdentityText: {
+    flex: 1,
+    gap: 2,
+  },
+  drawerUserName: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 16,
+    lineHeight: 20,
   },
   drawerShopName: {
-    color: appTheme.colors.text,
-    fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 14,
-    lineHeight: 18,
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 13,
+    lineHeight: 16,
   },
   drawerPillRow: {
     flexDirection: "row",
