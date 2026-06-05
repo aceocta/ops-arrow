@@ -48,6 +48,12 @@ function defaultTemperatureEntryForRange(min: number, max: number): string {
   return max <= 0 && min < 0 ? "-" : "";
 }
 
+// Formats a numeric reading for the entry box, keeping the explicit +/- sign convention the UI uses.
+function formatTemperatureEntryValue(value: number): string {
+  if (!Number.isFinite(value)) return "";
+  return value < 0 ? String(value) : `+${value}`;
+}
+
 // Produces "+4.4° over" or "−1.2° below" so a glance at a row tells the reader how far
 // outside the safe band the reading actually was — the raw "Out of range" badge alone
 // doesn't communicate severity.
@@ -564,13 +570,23 @@ export function TemperatureLogScreen() {
   const resetEntryFormForUnit = useCallback((unitId: string) => {
     setSelectedUnitId(unitId);
     const unit = (unitsQuery.data ?? []).find((x) => x.id === unitId);
+    // Pre-fill with the unit's most recent reading so the operator can confirm or tweak it (they
+    // still have to hit Save to record). Fall back to the freezer "-" hint when there's no prior
+    // reading for the day.
+    const unitLog = dailyLogQuery.data?.units?.find((u) => u.unit.id === unitId);
+    const previousReading =
+      unitLog && unitLog.readings.length > 0 ? unitLog.readings[unitLog.readings.length - 1] : undefined;
     setTemperatureCelsius(
-      unit ? defaultTemperatureEntryForRange(unit.minTemperatureCelsius, unit.maxTemperatureCelsius) : "",
+      previousReading
+        ? formatTemperatureEntryValue(Number(previousReading.temperatureCelsius))
+        : unit
+          ? defaultTemperatureEntryForRange(unit.minTemperatureCelsius, unit.maxTemperatureCelsius)
+          : "",
     );
     setNotes("");
     setActionTaken("");
     setReadingTime(formatTimeValue(new Date()));
-  }, [unitsQuery.data]);
+  }, [unitsQuery.data, dailyLogQuery.data]);
 
   type RecordPostAction = "close" | "next";
   // Holds the unit we should jump to after a successful save when the user picks "Save & Next".
@@ -646,9 +662,8 @@ export function TemperatureLogScreen() {
         }
         setSavedFlash(savedUnitName ? `${savedUnitName} saved` : "Reading saved");
         savedFlashTimerRef.current = setTimeout(() => setSavedFlash(null), 2500);
-        // Keep the keyboard up for the next unit — refocus after the form re-renders so the
-        // operator can keep typing without re-tapping the temperature field.
-        requestAnimationFrame(() => tempInputRef.current?.focus());
+        // No auto-focus: the next unit's box is pre-filled with its last reading, so the operator
+        // only taps in when they actually need to change the value.
         return;
       }
 
@@ -1280,7 +1295,6 @@ export function TemperatureLogScreen() {
           onRequestClose={closeLogEntryModal}
           onShow={() => {
             setSavedFlash(null);
-            tempInputRef.current?.focus();
           }}
         >
           <KeyboardAvoidingView
