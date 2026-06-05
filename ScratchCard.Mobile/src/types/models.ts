@@ -808,6 +808,7 @@ export type TemperatureScheduleGridSlot = {
 export type TemperatureScheduleGridUnit = {
   unitId: string;
   unitName: string;
+  displayOrder: number;
 };
 
 export type TemperatureScheduleCellState = "Upcoming" | "OnTime" | "Late" | "Missed" | "Early";

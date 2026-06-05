@@ -142,6 +142,7 @@ public class TemperatureScheduleGridUnitDto
 {
     public Guid UnitId { get; set; }
     public string UnitName { get; set; } = string.Empty;
+    public int DisplayOrder { get; set; }
 }
 
 public class TemperatureScheduleGridCellDto

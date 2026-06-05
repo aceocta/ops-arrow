@@ -298,7 +298,7 @@ function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
             </View>
             {grid.units.map((unit) => (
               <View key={unit.unitId} style={[styles.unitCell, styles.unitBodyCell]}>
-                <Text style={styles.unitText} numberOfLines={2}>{unit.unitName}</Text>
+                <Text style={styles.unitText} numberOfLines={2}>{unit.displayOrder ? `${unit.displayOrder}. ` : ""}{unit.unitName}</Text>
               </View>
             ))}
           </View>

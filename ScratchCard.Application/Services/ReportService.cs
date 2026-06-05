@@ -160,8 +160,9 @@ public class ReportService : IReportService
         var units = await _temperatureUnitRepository.Query()
             .AsNoTracking()
             .Where(x => x.ShopId == shopId && x.IsActive && !x.IsDeleted)
-            .OrderBy(x => x.UnitName)
-            .Select(x => new TemperatureScheduleGridUnitDto { UnitId = x.Id, UnitName = x.UnitName })
+            .OrderBy(x => x.DisplayOrder)
+            .ThenBy(x => x.UnitName)
+            .Select(x => new TemperatureScheduleGridUnitDto { UnitId = x.Id, UnitName = x.UnitName, DisplayOrder = x.DisplayOrder })
             .ToListAsync(cancellationToken);
 
         if (unitId.HasValue)
