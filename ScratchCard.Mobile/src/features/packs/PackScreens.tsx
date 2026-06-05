@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Keyboard, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -1133,6 +1133,28 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
           {/* <Text style={styles.meta}>From scan: red = game code, green = pack number.</Text> */}
           {scanMessage ? <Text style={styles.meta}>{scanMessage}</Text> : null}
 
+          <View style={styles.activateRow}>
+            <View style={styles.activateTextWrap}>
+              <Text style={styles.activateTitle}>Activate now</Text>
+              <Text style={styles.activateHint}>
+                {canCreateAsActive
+                  ? "Put this pack straight onto the display. Otherwise it's saved as stock (inactive)."
+                  : "Only one active pack per game is allowed — an active pack already exists. Save as stock and activate later."}
+              </Text>
+            </View>
+            <Switch
+              value={activateOnCreate}
+              disabled={!canCreateAsActive}
+              onValueChange={(value) => {
+                if (value && !canCreateAsActive) {
+                  Alert.alert("Not allowed", "An active pack already exists for this game. Keep this pack inactive.");
+                  return;
+                }
+                setActivateOnCreate(value);
+              }}
+            />
+          </View>
+
 
   <Text style={styles.fieldLabel}>Ticket Price (From Selected Game)</Text>
           <TextInput
@@ -1142,95 +1164,51 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
             placeholderTextColor={appTheme.colors.textSubtle}
             editable={false}
           />
-          <View style={styles.splitFieldRow}>
-            <View style={styles.splitFieldCell}>
-              <FloatingLabelInput
-                ref={displayNumberRef}
-                label={maxDisplayCount > 0 ? `Display number (1-${maxDisplayCount})` : "Display number"}
-                value={displayNumber}
-                onChangeText={setDisplayNumber}
-                keyboardType="number-pad"
-                returnKeyType="next"
-                submitBehavior="submit"
-                onSubmitEditing={() => totalTicketsRef.current?.focus()}
-              />
-            </View>
-            <View style={styles.splitFieldCell}>
-              <FloatingLabelInput
-                ref={totalTicketsRef}
-                label="Total tickets"
-                value={totalTickets}
-                onChangeText={setTotalTickets}
-                keyboardType="number-pad"
-                returnKeyType="next"
-                submitBehavior="submit"
-                onSubmitEditing={() => startSerialRef.current?.focus()}
-              />
-            </View>
-          </View>
+          <FloatingLabelInput
+            ref={displayNumberRef}
+            label={maxDisplayCount > 0 ? `Display number (1-${maxDisplayCount})` : "Display number"}
+            value={displayNumber}
+            onChangeText={setDisplayNumber}
+            keyboardType="number-pad"
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => totalTicketsRef.current?.focus()}
+          />
+          <FloatingLabelInput
+            ref={totalTicketsRef}
+            label="Total tickets"
+            value={totalTickets}
+            onChangeText={setTotalTickets}
+            keyboardType="number-pad"
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => startSerialRef.current?.focus()}
+          />
           {/* <Text style={styles.meta}>
             {maxDisplayCount > 0
               ? `Configured displays for this shop: 1 to ${maxDisplayCount}.`
               : "Configure Scratch Card Display Count in App Configuration to set a display range."}
           </Text> */}
 
-          <View style={styles.splitFieldRow}>
-            <View style={styles.splitFieldCell}>
-              <FloatingLabelInput
-                ref={startSerialRef}
-                label="Start serial number"
-                value={startSerialNumber}
-                onChangeText={setStartSerialNumber}
-                returnKeyType="next"
-                submitBehavior="submit"
-                onSubmitEditing={() => endSerialRef.current?.focus()}
-              />
-            </View>
-            <View style={styles.splitFieldCell}>
-              <FloatingLabelInput
-                ref={endSerialRef}
-                label="End serial number"
-                value={endSerialNumber}
-                onChangeText={setEndSerialNumber}
-                returnKeyType="done"
-              />
-            </View>
-          </View>
+          <FloatingLabelInput
+            ref={startSerialRef}
+            label="Start serial number"
+            value={startSerialNumber}
+            onChangeText={setStartSerialNumber}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => endSerialRef.current?.focus()}
+          />
+          <FloatingLabelInput
+            ref={endSerialRef}
+            label="End serial number"
+            value={endSerialNumber}
+            onChangeText={setEndSerialNumber}
+            returnKeyType="done"
+          />
           <Text style={styles.meta}>
             Selling Order: {configuredSerialDefaults.start} {"->"} {configuredSerialDefaults.end}
           </Text>
-
-          <Text style={styles.fieldLabel}>Initial Status</Text>
-          <View style={styles.row}>
-            <Pressable
-              style={[
-                styles.choice,
-                activateOnCreate && styles.choiceSelected,
-                !canCreateAsActive ? styles.choiceDisabled : null,
-              ]}
-              onPress={() => {
-                if (!canCreateAsActive) {
-                  Alert.alert("Not allowed", "An active pack already exists for this game. Keep this pack inactive.");
-                  return;
-                }
-                setActivateOnCreate(true);
-              }}
-            >
-              <Text style={[styles.choiceText, activateOnCreate && styles.choiceTextSelected]}>Active</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.choice, !activateOnCreate && styles.choiceSelected]}
-              onPress={() => setActivateOnCreate(false)}
-            >
-              <Text style={[styles.choiceText, !activateOnCreate && styles.choiceTextSelected]}>Inactive</Text>
-            </Pressable>
-          </View>
-          {!canCreateAsActive ? (
-            <Text style={styles.meta}>
-              Shop setting allows only one active pack per game. Create as inactive, then activate later after closing current active pack.
-            </Text>
-          ) : null}
-          {/* <Text style={styles.meta}>Default is Inactive. You can activate later from pack details.</Text> */}
 
           <FloatingLabelInput
             label="Notes (optional)"
@@ -1284,6 +1262,7 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
   const allowPackPause = shopOperationalSetup.allowPackPause;
   const allowPackReturn = shopOperationalSetup.allowPackReturn;
   const allowIssueMarking = shopOperationalSetup.allowIssueMarking;
+  const maxDisplayCount = shopOperationalSetup.scratchCardDisplayCount;
 
   const actionMutation = useMutation({
     mutationFn: async (action: "pause" | "return" | "issue" | "complete") => {
@@ -1338,8 +1317,13 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
       }
       const trimmedDisplayNumber = editDisplayNumber.trim();
       const parsedDisplayNumber = trimmedDisplayNumber.length > 0 ? Number(trimmedDisplayNumber) : undefined;
-      if (trimmedDisplayNumber.length > 0 && (!Number.isInteger(parsedDisplayNumber) || (parsedDisplayNumber ?? 0) < 0)) {
-        throw new Error("Display number must be a whole number 0 or greater.");
+      if (trimmedDisplayNumber.length > 0) {
+        if (!Number.isInteger(parsedDisplayNumber) || (parsedDisplayNumber ?? 0) <= 0) {
+          throw new Error("Display number must be a whole number greater than zero.");
+        }
+        if (maxDisplayCount > 0 && (parsedDisplayNumber ?? 0) > maxDisplayCount) {
+          throw new Error(`Display number must be between 1 and ${maxDisplayCount}.`);
+        }
       }
       const normalizedPackNumber = normalizeCompositePackNumberByLeadingZeroRule(editPackNumber, allowLeadingZeros);
       if (!normalizedPackNumber) {
@@ -1411,9 +1395,9 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
             <>
               <FloatingLabelInput label="Pack number" value={editPackNumber} onChangeText={setEditPackNumber} />
               <FloatingLabelInput
-                label="Display number (optional)"
+                label={maxDisplayCount > 0 ? `Display number (1-${maxDisplayCount}, optional)` : "Display number (optional)"}
                 value={editDisplayNumber}
-                onChangeText={setEditDisplayNumber}
+                onChangeText={(text) => setEditDisplayNumber(text.replace(/[^0-9]/g, ""))}
                 keyboardType="number-pad"
               />
               <FloatingLabelInput label="Ticket price" prefix="£" value={editTicketPrice} onChangeText={setEditTicketPrice} keyboardType="decimal-pad" />
@@ -1579,6 +1563,26 @@ export function ActivatePackScreen({ route, navigation }: ActivatePackProps) {
 
 const styles = StyleSheet.create({
   screenContent: { gap: appTheme.spacing.sm },
+  activateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.sm,
+    paddingVertical: 4,
+  },
+  activateTextWrap: { flex: 1, gap: 2 },
+  activateTitle: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  activateHint: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
+  },
   headerActionsRow: {
     flexDirection: "row",
     gap: appTheme.spacing.xs,
