@@ -9,7 +9,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
 import { LoadingState } from "../../components/LoadingState";
-import { ReportActionButton } from "../../components/ReportActionButton";
+import { ReportActionBar } from "../../components/ReportActionBar";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError } from "../../components/toast";
 import { listVisitorEntriesByRange, signOutVisitor } from "../../api/visitorLogApi";
@@ -178,11 +178,13 @@ export function VisitorLogReportScreen() {
             <Text style={styles.metricLabel}>Still on site</Text>
           </View>
         </View>
-        <View style={styles.actionRow}>
-          <ReportActionButton icon="print-outline" label="Print" onPress={() => void printReport()} disabled={disabled} />
-          <ReportActionButton icon="mail-outline" label={emailing ? "Sending…" : "Email"} onPress={() => void emailReport()} disabled={disabled || emailing} />
-          <ReportActionButton icon="share-social-outline" label="Share" onPress={() => void shareReport()} disabled={disabled} />
-        </View>
+        <ReportActionBar
+          actions={[
+            { icon: "print-outline", label: "Print", onPress: () => void printReport(), disabled },
+            { icon: "mail-outline", label: emailing ? "Sending…" : "Email", onPress: () => void emailReport(), disabled: disabled || emailing },
+            { icon: "share-social-outline", label: "Share", onPress: () => void shareReport(), disabled },
+          ]}
+        />
       </View>
 
       <View style={ui.card}>

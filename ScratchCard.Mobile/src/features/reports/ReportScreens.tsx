@@ -19,7 +19,7 @@ import {
 } from "../../api/reportsApi";
 import { listShifts } from "../../api/shiftsApi";
 import { formatDateValue, MonthCalendar, parseDateValue } from "../../components/DateTimeField";
-import { ReportActionButton } from "../../components/ReportActionButton";
+import { ReportActionBar } from "../../components/ReportActionBar";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError } from "../../components/toast";
 import { useFeature } from "../subscription/useFeature";
@@ -613,26 +613,28 @@ export function DailySalesReportScreen() {
           ) : null}
 
 
-          <View style={styles.dailyActionRow}>
-            <ReportActionButton
-              icon="print-outline"
-              label="Print"
-              onPress={() => void printReport()}
-              disabled={query.isLoading || totalShifts === 0}
-            />
-            <ReportActionButton
-              icon="mail-outline"
-              label={emailReportMutation.isPending ? "Sending..." : "Email"}
-              onPress={() => void emailReport()}
-              disabled={query.isLoading || totalShifts === 0 || emailReportMutation.isPending}
-            />
-            <ReportActionButton
-              icon="share-social-outline"
-              label="Share"
-              onPress={() => void shareReport()}
-              disabled={query.isLoading || totalShifts === 0}
-            />
-          </View>
+          <ReportActionBar
+            actions={[
+              {
+                icon: "print-outline",
+                label: "Print",
+                onPress: () => void printReport(),
+                disabled: query.isLoading || totalShifts === 0,
+              },
+              {
+                icon: "mail-outline",
+                label: emailReportMutation.isPending ? "Sending..." : "Email",
+                onPress: () => void emailReport(),
+                disabled: query.isLoading || totalShifts === 0 || emailReportMutation.isPending,
+              },
+              {
+                icon: "share-social-outline",
+                label: "Share",
+                onPress: () => void shareReport(),
+                disabled: query.isLoading || totalShifts === 0,
+              },
+            ]}
+          />
 
           {query.isLoading ? <Text style={styles.meta}>Loading report rows...</Text> : null}
           {!query.isLoading && totalShifts === 0 ? (

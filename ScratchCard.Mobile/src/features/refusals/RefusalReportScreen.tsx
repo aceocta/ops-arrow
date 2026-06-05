@@ -15,7 +15,7 @@ import {
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
-import { ReportActionButton } from "../../components/ReportActionButton";
+import { ReportActionBar } from "../../components/ReportActionBar";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError } from "../../components/toast";
 import { SkeletonList } from "../../components/Skeleton";
@@ -329,26 +329,28 @@ export function RefusalReportScreen() {
             <DateTimeField style={{ flex: 1 }} mode="date" value={toDate} onChange={setToDate} />
           </View>
           {!rangeIsValid ? <Text style={styles.warning}>From date must be earlier than or equal to To date.</Text> : null}
-          <View style={styles.reportActionRow}>
-            <ReportActionButton
-              icon="print-outline"
-              label="Print"
-              onPress={() => void printReport()}
-              disabled={!rangeIsValid || rangeQuery.isLoading || entries.length === 0}
-            />
-            <ReportActionButton
-              icon="mail-outline"
-              label={emailReportMutation.isPending ? "Sending..." : "Email"}
-              onPress={() => void emailReport()}
-              disabled={!rangeIsValid || rangeQuery.isLoading || entries.length === 0 || emailReportMutation.isPending}
-            />
-            <ReportActionButton
-              icon="share-social-outline"
-              label="Share"
-              onPress={() => void shareReport()}
-              disabled={!rangeIsValid || rangeQuery.isLoading || entries.length === 0}
-            />
-          </View>
+          <ReportActionBar
+            actions={[
+              {
+                icon: "print-outline",
+                label: "Print",
+                onPress: () => void printReport(),
+                disabled: !rangeIsValid || rangeQuery.isLoading || entries.length === 0,
+              },
+              {
+                icon: "mail-outline",
+                label: emailReportMutation.isPending ? "Sending..." : "Email",
+                onPress: () => void emailReport(),
+                disabled: !rangeIsValid || rangeQuery.isLoading || entries.length === 0 || emailReportMutation.isPending,
+              },
+              {
+                icon: "share-social-outline",
+                label: "Share",
+                onPress: () => void shareReport(),
+                disabled: !rangeIsValid || rangeQuery.isLoading || entries.length === 0,
+              },
+            ]}
+          />
         </View>
 
         <View style={[ui.card, { marginTop: 16 }]}>

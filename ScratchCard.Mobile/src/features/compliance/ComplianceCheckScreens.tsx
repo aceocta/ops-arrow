@@ -33,7 +33,7 @@ import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
-import { ReportActionButton } from "../../components/ReportActionButton";
+import { ReportActionBar } from "../../components/ReportActionBar";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SectionHeader } from "../../components/SectionHeader";
 import { toastError } from "../../components/toast";
@@ -1742,26 +1742,28 @@ export function ComplianceChecksScreen() {
 
           <View style={styles.reportSection}>
             {/* <Text style={styles.metaLabel}>Entry Report</Text> */}
-            <View style={styles.reportButtonRow}>
-              <ReportActionButton
-                icon="print-outline"
-                label={reportActionInProgress === "print" ? "Preparing..." : "Print"}
-                onPress={() => runComplianceReport("print")}
-                disabled={complianceMatrixReportMutation.isPending}
-              />
-              <ReportActionButton
-                icon="share-social-outline"
-                label={reportActionInProgress === "share" ? "Preparing..." : "Share"}
-                onPress={() => runComplianceReport("share")}
-                disabled={complianceMatrixReportMutation.isPending}
-              />
-              <ReportActionButton
-                icon="mail-outline"
-                label={reportActionInProgress === "email" ? "Sending..." : "Email"}
-                onPress={() => runComplianceReport("email")}
-                disabled={complianceMatrixReportMutation.isPending}
-              />
-            </View>
+            <ReportActionBar
+              actions={[
+                {
+                  icon: "print-outline",
+                  label: reportActionInProgress === "print" ? "Preparing..." : "Print",
+                  onPress: () => runComplianceReport("print"),
+                  disabled: complianceMatrixReportMutation.isPending,
+                },
+                {
+                  icon: "share-social-outline",
+                  label: reportActionInProgress === "share" ? "Preparing..." : "Share",
+                  onPress: () => runComplianceReport("share"),
+                  disabled: complianceMatrixReportMutation.isPending,
+                },
+                {
+                  icon: "mail-outline",
+                  label: reportActionInProgress === "email" ? "Sending..." : "Email",
+                  onPress: () => runComplianceReport("email"),
+                  disabled: complianceMatrixReportMutation.isPending,
+                },
+              ]}
+            />
             {/* <View style={styles.row}>
               <Pressable style={styles.secondaryButton} onPress={() => navigation.navigate("ComplianceActions")}>
                 <Text style={styles.secondaryButtonText}>Action Report</Text>

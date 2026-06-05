@@ -11,7 +11,7 @@ import { sendReportEmail } from "../../api/reportsApi";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
 import { LoadingState } from "../../components/LoadingState";
-import { ReportActionButton } from "../../components/ReportActionButton";
+import { ReportActionBar } from "../../components/ReportActionBar";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError } from "../../components/toast";
 import { buildTemperatureRangeReportHtml } from "./temperatureReportUtils";
@@ -282,16 +282,13 @@ function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
           <Text style={[styles.legendItem, styles.inRangeText]}>● In {inRangeCount}</Text>
           <Text style={[styles.legendItem, styles.outOfRangeText]}>▲ Out {outOfRangeCount}</Text>
         </View>
-        <View style={styles.actionRow}>
-          <ReportActionButton icon="print-outline" label="Print" onPress={() => void printReport()} disabled={actionsDisabled} />
-          <ReportActionButton
-            icon="mail-outline"
-            label={emailing ? "Sending…" : "Email"}
-            onPress={() => void emailReport()}
-            disabled={actionsDisabled || emailing}
-          />
-          <ReportActionButton icon="share-social-outline" label="Share" onPress={() => void shareReport()} disabled={actionsDisabled} />
-        </View>
+        <ReportActionBar
+          actions={[
+            { icon: "print-outline", label: "Print", onPress: () => void printReport(), disabled: actionsDisabled },
+            { icon: "mail-outline", label: emailing ? "Sending…" : "Email", onPress: () => void emailReport(), disabled: actionsDisabled || emailing },
+            { icon: "share-social-outline", label: "Share", onPress: () => void shareReport(), disabled: actionsDisabled },
+          ]}
+        />
       </View>
 
       <View style={styles.detailSection}>
