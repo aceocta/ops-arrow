@@ -596,8 +596,9 @@ export function OwnerOverviewScreen() {
   );
 }
 
-// Soft, modern elevation shared by the dashboard cards.
+// Soft, modern elevation shared by the dashboard cards — borderless, separated by shadow alone.
 const cardShadow = {
+  borderWidth: 0,
   shadowColor: "#0f172a",
   shadowOpacity: 0.07,
   shadowRadius: 14,
@@ -641,8 +642,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 999,
     backgroundColor: appTheme.colors.surface,
-    borderWidth: 1,
-    borderColor: appTheme.colors.borderSoft,
     ...cardShadow,
   },
   kpiRow: { flexDirection: "row", gap: appTheme.spacing.sm },
