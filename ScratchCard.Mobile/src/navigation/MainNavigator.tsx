@@ -238,6 +238,7 @@ function shouldShowBottomDock(routeName: string | undefined) {
   return !(
     routeName === "BestEntry" ||
     routeName === "Dashboard" ||
+    routeName === "TemperatureLogs" ||
     routeName === "ComplianceChecks" ||
     routeName === "RefusalRegister" ||
     routeName === "DayEndClose" ||
