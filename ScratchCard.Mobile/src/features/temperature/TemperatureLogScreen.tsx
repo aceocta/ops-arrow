@@ -2003,7 +2003,7 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.surfaceMuted,
   },
   matrixUnitBodyCell: {
-    height: 50,
+    height: 60,
   },
   matrixUnitText: {
     color: appTheme.colors.text,
@@ -2048,11 +2048,11 @@ const styles = StyleSheet.create({
   },
   matrixBodyRow: {
     flexDirection: "row",
-    height: 50,
+    height: 60,
   },
   matrixCell: {
     flex: 1,
-    height: 50,
+    height: 64,
     paddingHorizontal: 4,
     alignItems: "center",
     justifyContent: "center",
