@@ -395,28 +395,6 @@ export function OwnerOverviewScreen() {
             </DualCard>
           </View>
 
-          {/* Refusals & visitors — per-shop section (multi-shop only; single-shop shows it beside sales). */}
-          {!isSingleShop && allShops.length > 0 ? (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Refusals & visitors</Text>
-              {allShops.map((shop) => (
-                <View key={shop.shopId} style={[ui.card, styles.shopCard]}>
-                  {!isSingleShop ? <Text style={styles.shopName} numberOfLines={1}>{shop.shopName}</Text> : null}
-                  <View style={styles.shopMetricsRow}>
-                    <Pressable style={styles.shopMetric} onPress={() => goToShop(shop.shopId, "RefusalReport")}>
-                      <Text style={styles.shopMetricValue}>{shop.refusals}</Text>
-                      <Text style={styles.shopMetricLabel}>Refusals</Text>
-                    </Pressable>
-                    <Pressable style={styles.shopMetric} onPress={() => goToShop(shop.shopId, "VisitorLogReport")}>
-                      <Text style={styles.shopMetricValue}>{shop.visitors}</Text>
-                      <Text style={styles.shopMetricLabel}>Visitors</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ))}
-            </View>
-          ) : null}
-
           {/* Sales chart — daily bars for the 7-day view, weekly bars for the 30-day view. */}
           {range !== "today" && (overview.salesByDay?.length ?? 0) > 0 ? (
             <View style={[ui.card, styles.chartCard]}>
@@ -440,6 +418,28 @@ export function OwnerOverviewScreen() {
                 </View>
               </View>
               <TempRangeChart buckets={buildTempBuckets(range, overview.temperatureByDay)} />
+            </View>
+          ) : null}
+
+          {/* Refusals & visitors — per-shop section (multi-shop only; single-shop shows it beside sales). */}
+          {!isSingleShop && allShops.length > 0 ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Refusals & visitors</Text>
+              {allShops.map((shop) => (
+                <View key={shop.shopId} style={[ui.card, styles.shopCard]}>
+                  {!isSingleShop ? <Text style={styles.shopName} numberOfLines={1}>{shop.shopName}</Text> : null}
+                  <View style={styles.shopMetricsRow}>
+                    <Pressable style={styles.shopMetric} onPress={() => goToShop(shop.shopId, "RefusalReport")}>
+                      <Text style={styles.shopMetricValue}>{shop.refusals}</Text>
+                      <Text style={styles.shopMetricLabel}>Refusals</Text>
+                    </Pressable>
+                    <Pressable style={styles.shopMetric} onPress={() => goToShop(shop.shopId, "VisitorLogReport")}>
+                      <Text style={styles.shopMetricValue}>{shop.visitors}</Text>
+                      <Text style={styles.shopMetricLabel}>Visitors</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ))}
             </View>
           ) : null}
 
