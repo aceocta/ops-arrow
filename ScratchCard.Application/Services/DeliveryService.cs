@@ -244,6 +244,12 @@ public class DeliveryService : IDeliveryService
                 DeliveryId = delivery.Id,
                 ScratchCardPackId = pack.Id
             }, cancellationToken);
+
+            // Mirror the manual activation flow so a pack put straight on the display is auditable.
+            if (pack.Status == PackStatus.Active)
+            {
+                await _auditService.LogAsync(nameof(ScratchCardPack), pack.Id, "PackActivated", pack.ShopId, cancellationToken: cancellationToken);
+            }
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
