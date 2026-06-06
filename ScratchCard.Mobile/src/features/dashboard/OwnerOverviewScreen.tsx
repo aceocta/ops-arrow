@@ -405,6 +405,24 @@ export function OwnerOverviewScreen() {
             </View>
           ) : null}
 
+          {/* Single shop: temperature in-range vs out-of-range chart (green = in range, red = out of range). */}
+          {isSingleShop && range !== "today" && (overview.temperatureByDay?.length ?? 0) > 0 ? (
+            <View style={[ui.card, styles.chartCard]}>
+              <Text style={styles.chartTitle}>Temperature range · {range === "7d" ? "by day" : "by week"}</Text>
+              <View style={styles.legendRow}>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendSwatch, { backgroundColor: appTheme.colors.success }]} />
+                  <Text style={styles.legendText}>In range</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendSwatch, { backgroundColor: appTheme.colors.danger }]} />
+                  <Text style={styles.legendText}>Out of range (%)</Text>
+                </View>
+              </View>
+              <TempRangeChart buckets={buildTempBuckets(range, overview.temperatureByDay)} />
+            </View>
+          ) : null}
+
           {/* Top shops by temperature issues — out-of-range first, then late/missed (multi-shop). */}
           {!isSingleShop && topTempShops.length > 0 ? (
             <View style={styles.section}>
