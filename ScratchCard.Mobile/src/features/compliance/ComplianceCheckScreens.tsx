@@ -1532,7 +1532,6 @@ export function ComplianceChecksScreen() {
     return (
       <ScreenContainer>
         <View style={ui.card}>
-          <Text style={styles.pageTitle}>Compliance Checks</Text>
           <Text style={styles.meta}>Select a shop to load compliance checks.</Text>
         </View>
       </ScreenContainer>
@@ -1567,7 +1566,6 @@ export function ComplianceChecksScreen() {
         {/* <View style={styles.heroCard}>
           <View style={styles.heroHead}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.pageTitle}>Compliance Checks</Text>
               <Text style={styles.meta}>Digital Daily/Weekly/Monthly operational checks by group.</Text>
             </View>
             <StatusBadge label={frequency} tone="neutral" />
@@ -2440,7 +2438,6 @@ export function ComplianceChecksConfigScreen() {
     return (
       <ScreenContainer>
         <View style={ui.card}>
-          <Text style={styles.pageTitle}>Compliance Setup</Text>
           <Text style={styles.meta}>Select a shop to configure compliance groups and items.</Text>
         </View>
       </ScreenContainer>
@@ -2456,7 +2453,6 @@ export function ComplianceChecksConfigScreen() {
               <Ionicons name="shield-checkmark-outline" size={20} color={appTheme.colors.primary} />
             </View>
             <View style={styles.cfgHeroText}>
-              <Text style={styles.pageTitle}>Compliance Setup</Text>
               <Text style={styles.cfgHeroSubtitle}>Organise your checks into groups for each schedule.</Text>
             </View>
           </View>
@@ -2851,7 +2847,6 @@ export function ComplianceActionsScreen() {
     return (
       <ScreenContainer>
         <View style={ui.card}>
-          <Text style={styles.pageTitle}>Compliance Action Report</Text>
           <Text style={styles.meta}>Select a shop to view action report.</Text>
         </View>
       </ScreenContainer>
@@ -2862,7 +2857,6 @@ export function ComplianceActionsScreen() {
     <ScreenContainer>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={ui.card}>
-          <Text style={styles.pageTitle}>Compliance Action Report</Text>
           <Text style={styles.meta}>Track non-compliant checks and close-out actions.</Text>
           <DateRangeQuickPicks from={fromDate} to={toDate} onSelect={(f, t) => { setFromDate(f); setToDate(t); }} style={{ marginBottom: 8 }} />
           <View style={styles.row}>

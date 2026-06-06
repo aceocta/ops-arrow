@@ -64,7 +64,6 @@ export function ShopFeatureTogglesScreen() {
     return (
       <ScreenContainer>
         <View style={ui.card}>
-          <Text style={styles.title}>Feature Toggles</Text>
           <Text style={styles.meta}>Select a shop first.</Text>
         </View>
       </ScreenContainer>
@@ -74,7 +73,6 @@ export function ShopFeatureTogglesScreen() {
   return (
     <ScreenContainer>
       <View style={ui.card}>
-        <Text style={styles.title}>Feature Toggles</Text>
         <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
         <View style={styles.helperRow}>
           <Ionicons name="information-circle-outline" size={14} color={appTheme.colors.textMuted} />

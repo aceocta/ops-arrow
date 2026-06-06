@@ -160,7 +160,6 @@ export function VisitorLogReportScreen() {
   return (
     <ScreenContainer>
       <View style={ui.card}>
-        <Text style={styles.title}>Visitors Log Report</Text>
         <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
         <DateRangeQuickPicks from={fromDate} to={toDate} onSelect={(f, t) => { setFromDate(f); setToDate(t); }} style={{ marginBottom: 8 }} />
         <View style={styles.rangeRow}>

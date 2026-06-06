@@ -278,7 +278,6 @@ export function ShopChecklistScreen() {
     return (
       <ScreenContainer>
         <View style={ui.card}>
-          <Text style={styles.pageTitle}>Shop Checklist</Text>
           <Text style={styles.meta}>Select a shop to load checklist tasks.</Text>
         </View>
       </ScreenContainer>
@@ -291,7 +290,6 @@ export function ShopChecklistScreen() {
         <View style={styles.pageHeaderCard}>
           <View style={styles.pageHeaderTopRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.pageTitle}>Shop Checklist</Text>
               <Text style={styles.pageMeta}>Date: {formatDay(selectedDate)}</Text>
             </View>
             <StatusBadge label={netInfo.isConnected ? "Online" : "Offline"} tone={netInfo.isConnected ? "success" : "warning"} />
@@ -672,7 +670,6 @@ export function ChecklistConfigurationScreen() {
     return (
       <ScreenContainer>
         <View style={ui.card}>
-          <Text style={styles.pageTitle}>Checklist Configuration</Text>
           <Text style={styles.meta}>Select a shop to configure checklist groups and tasks.</Text>
         </View>
       </ScreenContainer>
@@ -684,7 +681,7 @@ export function ChecklistConfigurationScreen() {
       <NestableScrollContainer contentContainerStyle={styles.content}>
         <View style={ui.card}>
           <View style={styles.groupHeader}>
-            <Text style={styles.pageTitle}>Checklist Configuration</Text>
+            <View style={{ flex: 1 }} />
             <Pressable style={styles.secondaryButton} onPress={() => openEditGroupModal()}>
               <Text style={styles.secondaryButtonText}>+ Group</Text>
             </Pressable>
@@ -878,7 +875,6 @@ export function ChecklistHistoryScreen() {
     return (
       <ScreenContainer>
         <View style={ui.card}>
-          <Text style={styles.pageTitle}>Checklist History</Text>
           <Text style={styles.meta}>Select a shop to view checklist completion history.</Text>
         </View>
       </ScreenContainer>
@@ -889,7 +885,6 @@ export function ChecklistHistoryScreen() {
     <ScreenContainer>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={ui.card}>
-          <Text style={styles.pageTitle}>Checklist History</Text>
           <Text style={styles.meta}>Completion and audit history for selected date range.</Text>
           <DateRangeQuickPicks from={fromDate} to={toDate} onSelect={(f, t) => { setFromDate(f); setToDate(t); }} style={{ marginBottom: 8 }} />
           <View style={styles.row}>
