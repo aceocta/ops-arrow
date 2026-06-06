@@ -963,6 +963,18 @@ export function TemperatureLogScreen() {
     return (pending ?? orderedFromHere[0]).unit.id;
   }, [entryUnitLogs, selectedUnitIndex]);
 
+  // The next unit that still needs a reading (excluding the current one), or null when none are
+  // left to log. Drives the Save button: "Save & Next Unit" vs "Save & Finish" (which closes).
+  const nextPendingUnitId = useMemo(() => {
+    if (entryUnitLogs.length < 2 || selectedUnitIndex < 0) return null;
+    const orderedFromHere = [
+      ...entryUnitLogs.slice(selectedUnitIndex + 1),
+      ...entryUnitLogs.slice(0, selectedUnitIndex),
+    ];
+    const pending = orderedFromHere.find((u) => getUnitDailyStatus(u) === "pending");
+    return pending ? pending.unit.id : null;
+  }, [entryUnitLogs, selectedUnitIndex]);
+
   const prevUnitId = useMemo(() => {
     if (entryUnitLogs.length < 2 || selectedUnitIndex < 0) return null;
     const prevIndex = selectedUnitIndex === 0 ? entryUnitLogs.length - 1 : selectedUnitIndex - 1;
@@ -981,7 +993,7 @@ export function TemperatureLogScreen() {
 
   const triggerSave = (postAction: RecordPostAction) => {
     if (postAction === "next") {
-      pendingNextUnitRef.current = nextUnitId;
+      pendingNextUnitRef.current = nextPendingUnitId;
     } else {
       pendingNextUnitRef.current = null;
     }
@@ -1601,11 +1613,11 @@ export function TemperatureLogScreen() {
                     label={
                       recordMutation.isPending
                         ? "Saving..."
-                        : nextUnitId
+                        : nextPendingUnitId
                           ? "Save & Next Unit"
-                          : "Save Reading"
+                          : "Save & Finish"
                     }
-                    onPress={() => triggerSave(nextUnitId ? "next" : "close")}
+                    onPress={() => triggerSave(nextPendingUnitId ? "next" : "close")}
                     disabled={recordMutation.isPending || !shopId || !selectedUnit}
                   />
                 </View>
