@@ -7,6 +7,9 @@ public class Shift : AuditableEntity
 {
     public Guid BusinessDayId { get; set; }
     public Guid ShopId { get; set; }
+    // Optional link to the workforce rota slot this till session belongs to (set when a rostered
+    // person opens the shift). Keeps the rota and trading shift as separate records but connected.
+    public Guid? RotaShiftId { get; set; }
     public string ShiftName { get; set; } = string.Empty;
     public DateTimeOffset StartTime { get; set; }
     public DateTimeOffset? EndTime { get; set; }

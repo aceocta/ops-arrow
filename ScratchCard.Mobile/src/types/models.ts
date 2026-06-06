@@ -485,8 +485,12 @@ export type AttendanceApprovalRow = {
   userName: string;
   shiftName?: string | null;
   shiftDate?: string | null;
+  shiftStart?: string | null; // HH:mm:ss
+  shiftEnd?: string | null; // HH:mm:ss
   checkInAt: string;
   checkOutAt?: string | null;
+  entryMethod: "Clocked" | "Manual";
+  submittedOn: string;
   notes?: string | null;
 };
 
@@ -511,6 +515,40 @@ export type TimesheetRow = {
   shiftsWorked: number;
   openSessions: number;
   totalHours: number;
+};
+
+export type ShiftTimesheetRow = {
+  shiftName: string;
+  date: string; // yyyy-MM-dd
+  startTime?: string | null; // HH:mm:ss
+  endTime?: string | null; // HH:mm:ss
+  staffCount: number;
+  shiftsWorked: number;
+  openSessions: number;
+  totalHours: number;
+};
+
+export type TimesheetSession = {
+  id: string;
+  date: string; // yyyy-MM-dd
+  shiftName?: string | null;
+  checkInAt: string;
+  checkOutAt?: string | null;
+  hours: number;
+  entryMethod: "Clocked" | "Manual";
+  isApproved: boolean;
+};
+
+export type ShiftSession = {
+  id: string;
+  date: string; // yyyy-MM-dd
+  userId: string;
+  userName: string;
+  checkInAt: string;
+  checkOutAt?: string | null;
+  hours: number;
+  entryMethod: "Clocked" | "Manual";
+  isApproved: boolean;
 };
 
 export type BusinessDayStaffRow = {
@@ -553,6 +591,7 @@ export type OwnerShopOverview = {
   refusals: number;
   visitors: number;
   onShiftNow: number;
+  pendingApprovals: number;
   needsAttention: boolean;
   attentionReasons: string[];
 };
@@ -572,6 +611,7 @@ export type OwnerOverview = {
   totalRefusals: number;
   totalVisitors: number;
   totalOnShiftNow: number;
+  totalPendingApprovals: number;
   averageComplianceScore: number;
   salesByDay: { date: string; amount: number }[];
   temperatureByDay: { date: string; inRange: number; outOfRange: number }[];

@@ -90,8 +90,12 @@ public class AttendanceApprovalRowDto
     public string UserName { get; set; } = string.Empty;
     public string? ShiftName { get; set; }
     public DateOnly? ShiftDate { get; set; }
+    public TimeOnly? ShiftStart { get; set; }
+    public TimeOnly? ShiftEnd { get; set; }
     public DateTimeOffset CheckInAt { get; set; }
     public DateTimeOffset? CheckOutAt { get; set; }
+    public string EntryMethod { get; set; } = "Manual";
+    public DateTimeOffset SubmittedOn { get; set; }
     public string? Notes { get; set; }
 }
 
@@ -130,6 +134,46 @@ public class TimesheetRowDto
     public Guid UserId { get; set; }
     public string UserName { get; set; } = string.Empty;
     public int ShiftsWorked { get; set; }      // attendance records that were checked out
+    public int OpenSessions { get; set; }       // checked in but not out
+    public decimal TotalHours { get; set; }     // sum of completed sessions
+}
+
+// One worked session in a staff member's timesheet drill-down.
+public class TimesheetSessionDto
+{
+    public Guid Id { get; set; }
+    public DateOnly Date { get; set; }
+    public string? ShiftName { get; set; }
+    public DateTimeOffset CheckInAt { get; set; }
+    public DateTimeOffset? CheckOutAt { get; set; }
+    public decimal Hours { get; set; }
+    public string EntryMethod { get; set; } = "Clocked";
+    public bool IsApproved { get; set; } = true;
+}
+
+// One worked session in a shift's drill-down (who worked it, when).
+public class ShiftSessionDto
+{
+    public Guid Id { get; set; }
+    public DateOnly Date { get; set; }
+    public Guid UserId { get; set; }
+    public string UserName { get; set; } = string.Empty;
+    public DateTimeOffset CheckInAt { get; set; }
+    public DateTimeOffset? CheckOutAt { get; set; }
+    public decimal Hours { get; set; }
+    public string EntryMethod { get; set; } = "Clocked";
+    public bool IsApproved { get; set; } = true;
+}
+
+// Timesheet grouped by shift (Morning / Evening / Unrostered) instead of by staff.
+public class ShiftTimesheetRowDto
+{
+    public string ShiftName { get; set; } = string.Empty;
+    public DateOnly Date { get; set; }
+    public TimeOnly? StartTime { get; set; }
+    public TimeOnly? EndTime { get; set; }
+    public int StaffCount { get; set; }        // distinct people who worked this shift
+    public int ShiftsWorked { get; set; }      // completed sessions
     public int OpenSessions { get; set; }       // checked in but not out
     public decimal TotalHours { get; set; }     // sum of completed sessions
 }

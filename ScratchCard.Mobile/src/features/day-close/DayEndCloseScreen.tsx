@@ -1711,10 +1711,6 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           </View> */}
         </View>
 
-        {day?.shopId && day?.businessDate ? (
-          <BusinessDayStaffCard shopId={day.shopId} date={day.businessDate} />
-        ) : null}
-
         <View style={[ui.card, styles.sectionCard]}>
           <SectionHeader
             title="Shifts"
@@ -2221,6 +2217,10 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
         ) : null}
 
 
+
+        {day?.shopId && day?.businessDate ? (
+          <BusinessDayStaffCard shopId={day.shopId} date={day.businessDate} />
+        ) : null}
 
         {persistedDayAttachments.length > 0 ? (
           <View style={[ui.card, styles.sectionCard]}>

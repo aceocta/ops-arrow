@@ -15,8 +15,13 @@ import {
   getRota,
   getShiftTemplates,
   getTimesheet,
+  getShiftTimesheet,
+  getStaffSessions,
+  getShiftSessions,
   getPendingApprovals,
   approveAttendance,
+  updateAttendance,
+  rejectAttendance,
   saveManualAttendance,
   updateRotaShift,
   type SaveRotaShiftPayload,
@@ -26,9 +31,10 @@ import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
 import { LoadingState } from "../../components/LoadingState";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { StatusBadge } from "../../components/StatusBadge";
 import { confirmDestructive } from "../../utils/confirm";
 import { toastError } from "../../components/toast";
-import { RotaShift } from "../../types/models";
+import { AttendanceApprovalRow, RotaShift } from "../../types/models";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -66,6 +72,9 @@ const GRACE_MIN = 5;
 const clockTime = (iso?: string | null) =>
   iso ? new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "";
 
+const dateTimeLabel = (iso?: string | null) =>
+  iso ? new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
+
 // Combine a yyyy-MM-dd date with an HH:mm time (device-local) into a UTC ISO string for the API.
 const toIso = (dateStr: string, hhmm: string) => new Date(`${dateStr}T${hhmm}:00`).toISOString();
 
@@ -95,11 +104,10 @@ function variance(actualIso: string, dateStr: string, schedTimeHHmmss: string, k
   return diff < 0 ? { text: `left ${span} early`, tone: "bad" as const } : { text: `${span} late out`, tone: "neutral" as const };
 }
 
-function vStyle(tone: "good" | "bad" | "neutral" | "on") {
-  if (tone === "bad") return styles.vBad;
-  if (tone === "good") return styles.vGood;
-  if (tone === "on") return styles.vOn;
-  return styles.vNeutral;
+function vTextStyle(tone: "good" | "bad" | "neutral" | "on") {
+  if (tone === "bad") return { color: appTheme.colors.danger };
+  if (tone === "good") return { color: appTheme.colors.success };
+  return { color: appTheme.colors.textMuted };
 }
 
 // ---------------------------------------------------------------------------
@@ -165,20 +173,18 @@ export function MyShiftsScreen() {
 
   const busy = checkInMutation.isPending || checkOutMutation.isPending;
 
-  return (
-    <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.sectionTitle}>My shifts</Text>
-        {isCheckedInSomewhere ? (
-          <Text style={styles.muted}>You're on shift since {clockTime(current?.checkInAt)}. Check out before starting another.</Text>
-        ) : null}
+  // Group my shifts by date so each day has a header.
+  const grouped = useMemo(() => {
+    const map = new Map<string, RotaShift[]>();
+    for (const s of shiftsQuery.data ?? []) {
+      const list = map.get(s.shiftDate) ?? [];
+      list.push(s);
+      map.set(s.shiftDate, list);
+    }
+    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [shiftsQuery.data]);
 
-        {shiftsQuery.isLoading ? <LoadingState inline /> : null}
-        {!shiftsQuery.isLoading && (shiftsQuery.data?.length ?? 0) === 0 ? (
-          <View style={ui.card}><Text style={styles.muted}>No shifts scheduled for the next 2 weeks.</Text></View>
-        ) : null}
-
-        {(shiftsQuery.data ?? []).map((shift) => {
+  const renderShiftCard = (shift: RotaShift) => {
           const att = shift.myAttendance;
           const open = Boolean(att && !att.checkOutAt);
           const completed = Boolean(att && att.checkOutAt);
@@ -186,36 +192,61 @@ export function MyShiftsScreen() {
           const vIn = att ? variance(att.checkInAt, shift.shiftDate, shift.startTime, "in") : null;
           const vOut = att?.checkOutAt ? variance(att.checkOutAt, shift.shiftDate, shift.endTime, "out") : null;
 
+          const statusLabel = open ? "On shift" : completed ? "Completed" : "Upcoming";
+          const statusTone: "success" | "neutral" = open ? "success" : "neutral";
+
           return (
             <View key={shift.id} style={[ui.card, styles.myShiftCard]}>
+              {/* Header: shift name + status chip */}
               <View style={styles.myShiftHeader}>
-                <View style={styles.shiftDateBadge}>
-                  <Text style={styles.shiftDateText}>{dayLabel(shift.shiftDate)}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.shiftTime}>{shift.shiftName || "Shift"}</Text>
-                  <Text style={styles.muted}>
-                    {shortTime(shift.startTime)} – {shortTime(shift.endTime)}{shift.position ? `  ·  ${shift.position}` : ""}
-                  </Text>
-                </View>
-                {open ? <View style={[styles.dot, styles.dotOn]} /> : completed ? <Ionicons name="checkmark-done" size={18} color={appTheme.colors.success} /> : null}
+                <Text style={styles.myShiftName} numberOfLines={1}>{shift.shiftName || "Shift"}</Text>
+                <StatusBadge label={statusLabel} tone={statusTone} />
               </View>
 
+              {/* Schedule line */}
+              <View style={styles.metaLine}>
+                <Ionicons name="time-outline" size={14} color={appTheme.colors.textMuted} />
+                <Text style={styles.metaText}>{shortTime(shift.startTime)}–{shortTime(shift.endTime)}</Text>
+                {shift.position ? (
+                  <>
+                    <Text style={styles.metaDivider}>·</Text>
+                    <Text style={styles.metaText}>{shift.position}</Text>
+                  </>
+                ) : null}
+              </View>
+
+              {/* Attendance summary */}
               {att ? (
-                <View style={styles.attRow}>
-                  <Text style={styles.attText}>
-                    {open ? `On shift · in ${clockTime(att.checkInAt)}` : `${clockTime(att.checkInAt)} – ${clockTime(att.checkOutAt)} · ${workedLabel(att.checkInAt, att.checkOutAt!)}`}
-                  </Text>
-                  {vIn ? <Text style={[styles.vPill, vStyle(vIn.tone)]}>in {vIn.text}</Text> : null}
-                  {vOut ? <Text style={[styles.vPill, vStyle(vOut.tone)]}>{vOut.text}</Text> : null}
+                <View style={styles.attBlock}>
+                  <View style={styles.attMainRow}>
+                    <Ionicons
+                      name={open ? "ellipse" : "checkmark-circle"}
+                      size={14}
+                      color={open ? appTheme.colors.success : appTheme.colors.textMuted}
+                    />
+                    <Text style={styles.attMain}>
+                      {open
+                        ? `Checked in ${clockTime(att.checkInAt)}`
+                        : `${clockTime(att.checkInAt)} → ${clockTime(att.checkOutAt)}`}
+                    </Text>
+                    {!open ? <Text style={styles.attWorked}>{workedLabel(att.checkInAt, att.checkOutAt!)}</Text> : null}
+                  </View>
+                  {(vIn && vIn.tone !== "on") || (vOut && vOut.tone !== "on") ? (
+                    <Text style={styles.attVariance}>
+                      {vIn && vIn.tone !== "on" ? <Text style={vTextStyle(vIn.tone)}>in {vIn.text}</Text> : null}
+                      {vIn && vIn.tone !== "on" && vOut && vOut.tone !== "on" ? "  ·  " : ""}
+                      {vOut && vOut.tone !== "on" ? <Text style={vTextStyle(vOut.tone)}>{vOut.text}</Text> : null}
+                    </Text>
+                  ) : null}
                   {att.entryMethod === "Manual" ? (
-                    <Text style={[styles.vPill, att.isApproved ? styles.vNeutral : styles.vBad]}>
-                      {att.isApproved ? "manual" : "pending approval"}
+                    <Text style={[styles.attNote, att.isApproved ? null : styles.attNotePending]}>
+                      {att.isApproved ? "Manually entered" : "Manually entered · pending approval"}
                     </Text>
                   ) : null}
                 </View>
               ) : null}
 
+              {/* Actions */}
               <View style={styles.actionsRow}>
                 {open ? (
                   <Pressable style={[styles.actBtn, styles.actBtnOut]} onPress={() => checkOutMutation.mutate()} disabled={busy}>
@@ -237,17 +268,52 @@ export function MyShiftsScreen() {
                   <Text style={styles.actGhostText}>{att ? "Edit times" : "Enter times"}</Text>
                 </Pressable>
               </View>
+              {onAnotherShift ? <Text style={styles.mutedSmall}>Check out of your current shift first.</Text> : null}
             </View>
-          );
-        })}
+    );
+  };
+
+  return (
+    <ScreenContainer>
+      <ScrollView contentContainerStyle={styles.content}>
+        {/* <Text style={styles.sectionTitle}>My shifts</Text> */}
+        {isCheckedInSomewhere ? (
+          <Text style={styles.muted}>You're on shift since {clockTime(current?.checkInAt)}. Check out before starting another.</Text>
+        ) : null}
+
+        {shiftsQuery.isLoading ? <LoadingState inline /> : null}
+        {!shiftsQuery.isLoading && grouped.length === 0 ? (
+          <View style={ui.card}><Text style={styles.muted}>No shifts scheduled for the next 2 weeks.</Text></View>
+        ) : null}
+
+        {grouped.map(([date, shifts]) => (
+          <View key={date} style={styles.dayGroup}>
+            <Text style={styles.dayHeader}>{dayLabel(date)}</Text>
+            {shifts.map(renderShiftCard)}
+          </View>
+        ))}
       </ScrollView>
 
       {/* Manual time entry */}
       <Modal visible={manualShift !== null} transparent animationType="fade" onRequestClose={() => setManualShift(null)}>
         <View style={styles.sheetBackdrop}>
           <View style={styles.sheetCard}>
-            <Text style={styles.modalTitleSm}>Enter times</Text>
-            <Text style={styles.muted}>{manualShift?.shiftName} · {dayLabel(manualShift?.shiftDate ?? "")}</Text>
+            <View style={styles.sheetHeader}>
+              <View style={styles.sheetIcon}>
+                <Ionicons name="time-outline" size={22} color={appTheme.colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitleSm}>{manualShift?.myAttendance ? "Edit your hours" : "Log your hours"}</Text>
+                <Text style={styles.muted} numberOfLines={1}>
+                  {manualShift?.shiftName || "Shift"} · {dayLabel(manualShift?.shiftDate ?? "")}
+                </Text>
+              </View>
+            </View>
+
+            {manualShift ? (
+              <Text style={styles.mutedSmall}>Scheduled {shortTime(manualShift.startTime)}–{shortTime(manualShift.endTime)}</Text>
+            ) : null}
+
             <View style={styles.row}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.fieldLabel}>Check in</Text>
@@ -258,8 +324,25 @@ export function MyShiftsScreen() {
                 <DateTimeField mode="time" value={manualOut} onChange={setManualOut} />
               </View>
             </View>
-            <Text style={styles.muted}>Manually entered times are sent to your manager for approval.</Text>
-            <PrimaryButton label={manualMutation.isPending ? "Saving..." : "Save times"} onPress={() => manualMutation.mutate()} disabled={manualMutation.isPending} />
+
+            {manualShift && manualOut > manualIn ? (
+              <Text style={styles.previewText}>
+                Total worked: {workedLabel(toIso(manualShift.shiftDate, manualIn), toIso(manualShift.shiftDate, manualOut))}
+              </Text>
+            ) : manualShift && manualOut <= manualIn ? (
+              <Text style={[styles.mutedSmall, { color: appTheme.colors.danger }]}>Check-out must be after check-in.</Text>
+            ) : null}
+
+            <View style={styles.noticeRow}>
+              <Ionicons name="information-circle-outline" size={15} color={appTheme.colors.textMuted} />
+              <Text style={styles.mutedSmall}>Manually entered times are sent to your manager for approval.</Text>
+            </View>
+
+            <PrimaryButton
+              label={manualMutation.isPending ? "Saving..." : "Save hours"}
+              onPress={() => manualMutation.mutate()}
+              disabled={manualMutation.isPending || !manualShift || manualOut <= manualIn}
+            />
             <PrimaryButton label="Cancel" tone="neutral" onPress={() => setManualShift(null)} disabled={manualMutation.isPending} />
           </View>
         </View>
@@ -566,56 +649,42 @@ function initials(name: string) {
 export function RotaTimesheetScreen() {
   const { activeShopId } = useAuth();
   const shopId = activeShopId;
-  const queryClient = useQueryClient();
   const [range, setRange] = useState(() => last7());
+  const [view, setView] = useState<"staff" | "shift">("staff");
+  const [selectedStaff, setSelectedStaff] = useState<{ userId: string; name: string } | null>(null);
+  const [selectedShift, setSelectedShift] = useState<{ shiftName: string; date: string } | null>(null);
+
+  const sessionsQuery = useQuery({
+    queryKey: ["rota-staff-sessions", shopId, selectedStaff?.userId, range.from, range.to],
+    queryFn: () => getStaffSessions(shopId as string, selectedStaff!.userId, range.from, range.to),
+    enabled: Boolean(shopId) && Boolean(selectedStaff),
+  });
+  const shiftSessionsQuery = useQuery({
+    queryKey: ["rota-shift-sessions", shopId, selectedShift?.shiftName, selectedShift?.date],
+    queryFn: () => getShiftSessions(shopId as string, selectedShift!.shiftName, selectedShift!.date, selectedShift!.date),
+    enabled: Boolean(shopId) && Boolean(selectedShift),
+  });
 
   const timesheetQuery = useQuery({
     queryKey: ["rota-timesheet", shopId, range.from, range.to],
     queryFn: () => getTimesheet(shopId as string, range.from, range.to),
-    enabled: Boolean(shopId),
+    enabled: Boolean(shopId) && view === "staff",
   });
-  const pendingQuery = useQuery({
-    queryKey: ["rota-pending", shopId],
-    queryFn: () => getPendingApprovals(shopId as string),
-    enabled: Boolean(shopId),
-  });
-
-  const approveMutation = useMutation({
-    mutationFn: (id: string) => approveAttendance(id),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["rota-pending", shopId] });
-      void queryClient.invalidateQueries({ queryKey: ["rota-timesheet", shopId] });
-    },
-    onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't approve."),
+  const shiftTimesheetQuery = useQuery({
+    queryKey: ["rota-timesheet-by-shift", shopId, range.from, range.to],
+    queryFn: () => getShiftTimesheet(shopId as string, range.from, range.to),
+    enabled: Boolean(shopId) && view === "shift",
   });
 
-  const totalHours = (timesheetQuery.data ?? []).reduce((s, r) => s + r.totalHours, 0);
+  const staffRows = timesheetQuery.data ?? [];
+  const shiftRows = shiftTimesheetQuery.data ?? [];
+  const loading = view === "staff" ? timesheetQuery.isLoading : shiftTimesheetQuery.isLoading;
+  const rowCount = view === "staff" ? staffRows.length : shiftRows.length;
+  const totalHours = (view === "staff" ? staffRows : shiftRows).reduce((s: number, r: { totalHours: number }) => s + r.totalHours, 0);
 
   return (
     <ScreenContainer>
       <ScrollView contentContainerStyle={styles.content}>
-        {(pendingQuery.data?.length ?? 0) > 0 ? (
-          <View style={ui.card}>
-            <Text style={styles.sectionTitle}>Pending approvals ({pendingQuery.data?.length})</Text>
-            <Text style={styles.muted}>Manually entered times awaiting your approval.</Text>
-            {(pendingQuery.data ?? []).map((p) => (
-              <View key={p.id} style={styles.pendingRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.userName} numberOfLines={1}>{p.userName}</Text>
-                  <Text style={styles.muted} numberOfLines={1}>
-                    {p.shiftName ? `${p.shiftName} · ` : ""}{p.shiftDate ? dayLabel(p.shiftDate) : ""}
-                    {`  ·  ${clockTime(p.checkInAt)}${p.checkOutAt ? `–${clockTime(p.checkOutAt)}` : ""}`}
-                  </Text>
-                </View>
-                <Pressable style={styles.approveBtn} onPress={() => approveMutation.mutate(p.id)} disabled={approveMutation.isPending}>
-                  <Ionicons name="checkmark" size={16} color={appTheme.colors.onPrimary} />
-                  <Text style={styles.actBtnText}>Approve</Text>
-                </Pressable>
-              </View>
-            ))}
-          </View>
-        ) : null}
-
         <View style={ui.card}>
           <DateRangeQuickPicks from={range.from} to={range.to} onSelect={(from, to) => setRange({ from, to })} style={{ marginBottom: 8 }} />
           <View style={styles.row}>
@@ -624,25 +693,57 @@ export function RotaTimesheetScreen() {
           </View>
         </View>
 
-        {timesheetQuery.isLoading ? <LoadingState inline /> : null}
-        {!timesheetQuery.isLoading && (timesheetQuery.data?.length ?? 0) === 0 ? (
+        {/* View toggle */}
+        <View style={styles.segment}>
+          {(["staff", "shift"] as const).map((v) => (
+            <Pressable key={v} style={[styles.segmentBtn, view === v ? styles.segmentBtnActive : null]} onPress={() => setView(v)}>
+              <Text style={[styles.segmentText, view === v ? styles.segmentTextActive : null]}>
+                {v === "staff" ? "By staff" : "By shift"}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {loading ? <LoadingState inline /> : null}
+        {!loading && rowCount === 0 ? (
           <View style={ui.card}><Text style={styles.muted}>No clocked hours in this range.</Text></View>
         ) : null}
 
-        {(timesheetQuery.data?.length ?? 0) > 0 ? (
+        {rowCount > 0 ? (
           <View style={ui.card}>
             <View style={styles.tHead}>
-              <Text style={styles.thName}>Staff</Text>
-              <Text style={styles.thNum}>Shifts</Text>
+              <Text style={styles.thName}>{view === "staff" ? "Staff" : "Shift"}</Text>
+              <Text style={styles.thNum}>{view === "staff" ? "Shifts" : "Staff"}</Text>
               <Text style={styles.thNum}>Hours</Text>
             </View>
-            {(timesheetQuery.data ?? []).map((row) => (
-              <View key={row.userId} style={styles.tRow}>
-                <Text style={styles.tdName} numberOfLines={1}>{row.userName}</Text>
-                <Text style={styles.tdNum}>{row.shiftsWorked}{row.openSessions > 0 ? ` (+${row.openSessions})` : ""}</Text>
-                <Text style={styles.tdNum}>{row.totalHours.toFixed(1)}</Text>
-              </View>
-            ))}
+            {view === "staff"
+              ? staffRows.map((row) => (
+                  <Pressable
+                    key={row.userId}
+                    style={({ pressed }) => [styles.tRow, pressed ? styles.tRowPressed : null]}
+                    onPress={() => setSelectedStaff({ userId: row.userId, name: row.userName })}
+                  >
+                    <Text style={[styles.tdName, styles.tdLink]} numberOfLines={1}>{row.userName}</Text>
+                    <Text style={styles.tdNum}>{row.shiftsWorked}{row.openSessions > 0 ? ` (+${row.openSessions})` : ""}</Text>
+                    <Text style={styles.tdNum}>{row.totalHours.toFixed(1)}</Text>
+                  </Pressable>
+                ))
+              : shiftRows.map((row) => (
+                  <Pressable
+                    key={`${row.date}-${row.shiftName}`}
+                    style={({ pressed }) => [styles.tRow, pressed ? styles.tRowPressed : null]}
+                    onPress={() => setSelectedShift({ shiftName: row.shiftName, date: row.date })}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.tdName, styles.tdLink]} numberOfLines={1}>{row.shiftName}</Text>
+                      <Text style={styles.tdSub}>
+                        {dayLabel(row.date)}{row.startTime ? ` · ${shortTime(row.startTime)}–${shortTime(row.endTime ?? "")}` : ""}
+                      </Text>
+                    </View>
+                    <Text style={styles.tdNum}>{row.staffCount}</Text>
+                    <Text style={styles.tdNum}>{row.totalHours.toFixed(1)}</Text>
+                  </Pressable>
+                ))}
             <View style={[styles.tRow, styles.tTotal]}>
               <Text style={[styles.tdName, styles.tTotalText]}>Total</Text>
               <Text style={styles.tdNum} />
@@ -650,8 +751,287 @@ export function RotaTimesheetScreen() {
             </View>
           </View>
         ) : null}
-        <Text style={styles.muted}>“Shifts” counts completed check-outs; (+n) shows sessions still open (not yet checked out).</Text>
+        <Text style={styles.muted}>
+          {view === "staff"
+            ? "“Shifts” counts completed check-outs; (+n) shows sessions still open. Tap a row for details."
+            : "“Staff” counts distinct people who worked each shift. Tap a row to see who worked it."}
+        </Text>
       </ScrollView>
+
+      {/* Staff sessions drill-down */}
+      <Modal visible={selectedStaff !== null} transparent animationType="slide" onRequestClose={() => setSelectedStaff(null)}>
+        <View style={styles.sheetBackdrop}>
+          <View style={[styles.sheetCard, { maxHeight: "80%" }]}>
+            <View style={styles.sheetHeader}>
+              <View style={styles.sheetIcon}>
+                <Ionicons name="person-outline" size={22} color={appTheme.colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitleSm}>{selectedStaff?.name}</Text>
+                <Text style={styles.muted}>{dayLabel(range.from)} – {dayLabel(range.to)}</Text>
+              </View>
+              <Pressable onPress={() => setSelectedStaff(null)} style={styles.editorHeaderBtn}>
+                <Ionicons name="close" size={22} color={appTheme.colors.text} />
+              </Pressable>
+            </View>
+
+            {sessionsQuery.isLoading ? <LoadingState inline /> : null}
+            {!sessionsQuery.isLoading && (sessionsQuery.data?.length ?? 0) === 0 ? (
+              <Text style={styles.muted}>No sessions in this range.</Text>
+            ) : null}
+
+            <ScrollView contentContainerStyle={{ gap: 2 }}>
+              {(sessionsQuery.data ?? []).map((s) => (
+                <View key={s.id} style={styles.sessionRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.sessionDate}>{dayLabel(s.date)}</Text>
+                    <Text style={styles.muted} numberOfLines={1}>
+                      {s.shiftName ? `${s.shiftName} · ` : ""}{clockTime(s.checkInAt)} → {s.checkOutAt ? clockTime(s.checkOutAt) : "—"}
+                      {s.entryMethod === "Manual" ? (s.isApproved ? "  · manual" : "  · pending") : ""}
+                    </Text>
+                  </View>
+                  <Text style={styles.sessionHours}>{s.checkOutAt ? workedLabel(s.checkInAt, s.checkOutAt) : "open"}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Shift sessions drill-down (who worked this shift) */}
+      <Modal visible={selectedShift !== null} transparent animationType="slide" onRequestClose={() => setSelectedShift(null)}>
+        <View style={styles.sheetBackdropLight}>
+          <View style={[styles.sheetCard, { maxHeight: "80%" }]}>
+            <View style={styles.sheetHeader}>
+              <View style={styles.sheetIcon}>
+                <Ionicons name="time-outline" size={22} color={appTheme.colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitleSm}>{selectedShift?.shiftName}</Text>
+                <Text style={styles.muted}>{selectedShift ? dayLabel(selectedShift.date) : ""}</Text>
+              </View>
+              <Pressable onPress={() => setSelectedShift(null)} style={styles.editorHeaderBtn}>
+                <Ionicons name="close" size={22} color={appTheme.colors.text} />
+              </Pressable>
+            </View>
+
+            {shiftSessionsQuery.isLoading ? <LoadingState inline /> : null}
+            {!shiftSessionsQuery.isLoading && (shiftSessionsQuery.data?.length ?? 0) === 0 ? (
+              <Text style={styles.muted}>No sessions in this range.</Text>
+            ) : null}
+
+            <ScrollView contentContainerStyle={{ gap: 2 }}>
+              {(shiftSessionsQuery.data ?? []).map((s) => (
+                <View key={s.id} style={styles.sessionRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.sessionDate}>{s.userName}</Text>
+                    <Text style={styles.muted} numberOfLines={1}>
+                      {clockTime(s.checkInAt)} → {s.checkOutAt ? clockTime(s.checkOutAt) : "—"}
+                      {s.entryMethod === "Manual" ? (s.isApproved ? "  · manual" : "  · pending") : ""}
+                    </Text>
+                  </View>
+                  <Text style={styles.sessionHours}>{s.checkOutAt ? workedLabel(s.checkInAt, s.checkOutAt) : "open"}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </ScreenContainer>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Manual time approvals (manager)
+// ---------------------------------------------------------------------------
+export function RotaApprovalsScreen() {
+  const { activeShopId } = useAuth();
+  const shopId = activeShopId;
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState<AttendanceApprovalRow | null>(null);
+  const [editIn, setEditIn] = useState("09:00");
+  const [editOut, setEditOut] = useState("17:00");
+
+  const pendingQuery = useQuery({
+    queryKey: ["rota-pending", shopId],
+    queryFn: () => getPendingApprovals(shopId as string),
+    enabled: Boolean(shopId),
+  });
+
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ["rota-pending", shopId] });
+    void queryClient.invalidateQueries({ queryKey: ["rota-timesheet", shopId] });
+  };
+
+  const approveMutation = useMutation({
+    mutationFn: (id: string) => approveAttendance(id),
+    onSuccess: refresh,
+    onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't approve."),
+  });
+  const rejectMutation = useMutation({
+    mutationFn: (id: string) => rejectAttendance(id),
+    onSuccess: refresh,
+    onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't reject."),
+  });
+  const adjustMutation = useMutation({
+    mutationFn: () => {
+      const dateStr = editing!.shiftDate ?? formatDateValue(new Date(editing!.checkInAt));
+      return updateAttendance(editing!.id, {
+        checkInAt: toIso(dateStr, editIn),
+        checkOutAt: editOut ? toIso(dateStr, editOut) : undefined,
+      });
+    },
+    onSuccess: () => { setEditing(null); refresh(); },
+    onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't save times."),
+  });
+
+  const openAdjust = (p: AttendanceApprovalRow) => {
+    setEditIn(toHHmm(p.checkInAt));
+    setEditOut(p.checkOutAt ? toHHmm(p.checkOutAt) : p.shiftEnd ? shortTime(p.shiftEnd) : "");
+    setEditing(p);
+  };
+
+  const confirmReject = async (p: AttendanceApprovalRow) => {
+    const ok = await confirmDestructive({
+      title: "Reject entry",
+      message: `Discard ${p.userName}'s manually entered times for ${p.shiftName ?? "this shift"}? They can re-enter them.`,
+    });
+    if (ok) rejectMutation.mutate(p.id);
+  };
+
+  const pending = pendingQuery.data ?? [];
+
+  return (
+    <ScreenContainer>
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.muted}>Manually entered times awaiting your approval.</Text>
+
+        {pendingQuery.isLoading ? <LoadingState inline /> : null}
+        {!pendingQuery.isLoading && pending.length === 0 ? (
+          <View style={[ui.card, styles.emptyCard]}>
+            <Ionicons name="checkmark-done-circle-outline" size={32} color={appTheme.colors.success} />
+            <Text style={styles.emptyText}>All caught up — no times to approve.</Text>
+          </View>
+        ) : null}
+
+        {pending.map((p) => {
+          const vIn = p.shiftStart && p.shiftDate ? variance(p.checkInAt, p.shiftDate, p.shiftStart, "in") : null;
+          const vOut = p.shiftEnd && p.shiftDate && p.checkOutAt ? variance(p.checkOutAt, p.shiftDate, p.shiftEnd, "out") : null;
+          return (
+            <View key={p.id} style={[ui.card, styles.approvalCard]}>
+              {/* Who + when */}
+              <View style={styles.approvalRow}>
+                <View style={[styles.userAvatar, styles.userAvatarOn]}>
+                  <Text style={styles.userAvatarText}>{initials(p.userName)}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.userName} numberOfLines={1}>{p.userName}</Text>
+                  <Text style={styles.muted} numberOfLines={1}>
+                    {p.shiftName ? `${p.shiftName} · ` : ""}{p.shiftDate ? dayLabel(p.shiftDate) : "Not rostered"}
+                  </Text>
+                </View>
+                <Text style={styles.manualPill}>Manual</Text>
+              </View>
+
+              {/* Scheduled vs entered */}
+              <View style={styles.detailGrid}>
+                <View style={styles.detailCol}>
+                  <Text style={styles.detailLabel}>Scheduled</Text>
+                  <Text style={styles.detailValue}>
+                    {p.shiftStart ? `${shortTime(p.shiftStart)}–${shortTime(p.shiftEnd ?? "")}` : "—"}
+                  </Text>
+                </View>
+                <View style={styles.detailCol}>
+                  <Text style={styles.detailLabel}>Entered</Text>
+                  <Text style={styles.detailValue}>
+                    {clockTime(p.checkInAt)} → {p.checkOutAt ? clockTime(p.checkOutAt) : "—"}
+                  </Text>
+                </View>
+                <View style={styles.detailCol}>
+                  <Text style={styles.detailLabel}>Worked</Text>
+                  <Text style={styles.detailValue}>{p.checkOutAt ? workedLabel(p.checkInAt, p.checkOutAt) : "—"}</Text>
+                </View>
+              </View>
+
+              {/* Variance vs schedule */}
+              {(vIn && vIn.tone !== "on") || (vOut && vOut.tone !== "on") ? (
+                <Text style={styles.varianceLine}>
+                  {vIn && vIn.tone !== "on" ? <Text style={vTextStyle(vIn.tone)}>in {vIn.text}</Text> : null}
+                  {vIn && vIn.tone !== "on" && vOut && vOut.tone !== "on" ? "   " : ""}
+                  {vOut && vOut.tone !== "on" ? <Text style={vTextStyle(vOut.tone)}>{vOut.text}</Text> : null}
+                </Text>
+              ) : p.checkOutAt ? (
+                <Text style={[styles.varianceLine, vTextStyle("good")]}>On schedule</Text>
+              ) : (
+                <Text style={[styles.varianceLine, vTextStyle("bad")]}>No check-out entered</Text>
+              )}
+
+              {p.notes ? <Text style={styles.noteQuote} numberOfLines={3}>“{p.notes}”</Text> : null}
+              <Text style={styles.submittedLine}>Submitted {dateTimeLabel(p.submittedOn)}</Text>
+
+              <View style={styles.approvalActions}>
+                <Pressable style={styles.rejectBtn} onPress={() => confirmReject(p)} disabled={rejectMutation.isPending}>
+                  <Ionicons name="close" size={16} color={appTheme.colors.danger} />
+                  <Text style={styles.rejectBtnText}>Reject</Text>
+                </Pressable>
+                <Pressable style={styles.adjustBtn} onPress={() => openAdjust(p)}>
+                  <Ionicons name="create-outline" size={16} color={appTheme.colors.primary} />
+                  <Text style={styles.adjustBtnText}>Adjust</Text>
+                </Pressable>
+                <Pressable style={styles.approveBtnFlex} onPress={() => approveMutation.mutate(p.id)} disabled={approveMutation.isPending}>
+                  <Ionicons name="checkmark" size={16} color={appTheme.colors.onPrimary} />
+                  <Text style={styles.actBtnText}>{approveMutation.isPending ? "..." : "Approve"}</Text>
+                </Pressable>
+              </View>
+            </View>
+          );
+        })}
+      </ScrollView>
+
+      {/* Adjust times before approving */}
+      <Modal visible={editing !== null} transparent animationType="fade" onRequestClose={() => setEditing(null)}>
+        <View style={styles.sheetBackdrop}>
+          <View style={styles.sheetCard}>
+            <View style={styles.sheetHeader}>
+              <View style={styles.sheetIcon}>
+                <Ionicons name="create-outline" size={22} color={appTheme.colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitleSm}>Adjust times</Text>
+                <Text style={styles.muted} numberOfLines={1}>
+                  {editing?.userName} · {editing?.shiftName || "Shift"}
+                </Text>
+              </View>
+            </View>
+            {editing?.shiftStart ? (
+              <Text style={styles.mutedSmall}>Scheduled {shortTime(editing.shiftStart)}–{shortTime(editing.shiftEnd ?? "")}</Text>
+            ) : null}
+            <View style={styles.row}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.fieldLabel}>Check in</Text>
+                <DateTimeField mode="time" value={editIn} onChange={setEditIn} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.fieldLabel}>Check out</Text>
+                <DateTimeField mode="time" value={editOut} onChange={setEditOut} />
+              </View>
+            </View>
+            {editIn && editOut && editOut <= editIn ? (
+              <Text style={[styles.mutedSmall, { color: appTheme.colors.danger }]}>Check-out must be after check-in.</Text>
+            ) : null}
+            <View style={styles.noticeRow}>
+              <Ionicons name="information-circle-outline" size={15} color={appTheme.colors.textMuted} />
+              <Text style={styles.mutedSmall}>Saving approves this entry with the adjusted times.</Text>
+            </View>
+            <PrimaryButton
+              label={adjustMutation.isPending ? "Saving..." : "Save & approve"}
+              onPress={() => adjustMutation.mutate()}
+              disabled={adjustMutation.isPending || !editIn || (!!editOut && editOut <= editIn)}
+            />
+            <PrimaryButton label="Cancel" tone="neutral" onPress={() => setEditing(null)} disabled={adjustMutation.isPending} />
+          </View>
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -680,17 +1060,27 @@ const styles = StyleSheet.create({
   iconBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceMuted },
 
   // My Shifts cards
+  dayGroup: { gap: appTheme.spacing.xs },
+  dayHeader: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 19, marginTop: 4 },
   myShiftCard: { gap: 10 },
-  myShiftHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
-  dot: { width: 10, height: 10, borderRadius: 999, backgroundColor: appTheme.colors.textSubtle },
-  dotOn: { backgroundColor: appTheme.colors.success },
-  attRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6 },
-  attText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 13 },
-  vPill: { overflow: "hidden", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11 },
-  vGood: { backgroundColor: appTheme.colors.badgeSuccessBg, color: appTheme.colors.success },
-  vBad: { backgroundColor: appTheme.colors.badgeDangerBg, color: appTheme.colors.danger },
-  vNeutral: { backgroundColor: appTheme.colors.surfaceMuted, color: appTheme.colors.textMuted },
-  vOn: { backgroundColor: appTheme.colors.surfaceMuted, color: appTheme.colors.textMuted },
+  myShiftHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  myShiftName: { flex: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 16, lineHeight: 21 },
+  metaLine: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 5 },
+  metaText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 13 },
+  metaDivider: { color: appTheme.colors.textSubtle, fontSize: 13 },
+  attBlock: {
+    gap: 3,
+    paddingTop: 9,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: appTheme.colors.borderSoft,
+  },
+  attMainRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  attMain: { flex: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
+  attWorked: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 14 },
+  attVariance: { fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, marginLeft: 20 },
+  attNote: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, marginLeft: 20 },
+  attNotePending: { color: appTheme.colors.danger },
+  mutedSmall: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12 },
   actionsRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   actBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, backgroundColor: appTheme.colors.primary },
   actBtnOut: { backgroundColor: appTheme.colors.danger },
@@ -700,9 +1090,44 @@ const styles = StyleSheet.create({
   actGhostText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
   pendingRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
   approveBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: appTheme.colors.success },
+  emptyCard: { alignItems: "center", gap: 8, paddingVertical: appTheme.spacing.lg },
+  emptyText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 14 },
+  approvalCard: { gap: 10 },
+  approvalRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  manualPill: { overflow: "hidden", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, backgroundColor: appTheme.colors.surfaceMuted, color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11 },
+  detailGrid: { flexDirection: "row", gap: 8, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
+  detailCol: { flex: 1, gap: 2 },
+  detailLabel: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4 },
+  detailValue: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
+  varianceLine: { fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
+  noteQuote: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 13, fontStyle: "italic" },
+  submittedLine: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.body, fontSize: 11 },
+  approveBtnWide: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 999, backgroundColor: appTheme.colors.success },
+  segment: { flexDirection: "row", backgroundColor: appTheme.colors.surfaceMuted, borderRadius: appTheme.radius.md, padding: 3 },
+  segmentBtn: { flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: appTheme.radius.sm },
+  segmentBtnActive: { backgroundColor: appTheme.colors.surface, borderWidth: 1, borderColor: appTheme.colors.border },
+  segmentText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
+  segmentTextActive: { color: appTheme.colors.text },
+  tRowPressed: { opacity: 0.6 },
+  tdLink: { color: appTheme.colors.primary },
+  tdSub: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, lineHeight: 15 },
+  sessionRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
+  sessionDate: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
+  sessionHours: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 14 },
+  approvalActions: { flexDirection: "row", alignItems: "center", gap: 8, paddingTop: 2 },
+  rejectBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 999, borderWidth: 1, borderColor: appTheme.colors.danger },
+  rejectBtnText: { color: appTheme.colors.danger, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
+  adjustBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 999, borderWidth: 1, borderColor: appTheme.colors.border },
+  adjustBtnText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
+  approveBtnFlex: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 999, backgroundColor: appTheme.colors.success },
   sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", padding: appTheme.spacing.md },
+  sheetBackdropLight: { flex: 1, backgroundColor: "rgba(0,0,0,0.18)", justifyContent: "center", padding: appTheme.spacing.md },
   sheetCard: { backgroundColor: appTheme.colors.background, borderRadius: appTheme.radius.lg, padding: appTheme.spacing.md, gap: appTheme.spacing.sm },
+  sheetHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+  sheetIcon: { width: 42, height: 42, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: appTheme.colors.surfaceBrandSoft },
   modalTitleSm: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 18 },
+  previewText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
+  noticeRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
 
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: { alignItems: "center", gap: 1, paddingHorizontal: 14, paddingVertical: 8, borderRadius: appTheme.radius.md, borderWidth: 1, borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surface },

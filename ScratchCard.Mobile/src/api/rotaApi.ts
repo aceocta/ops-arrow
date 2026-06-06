@@ -1,6 +1,6 @@
 import { apiClient } from "./client";
 import { ApiResponse } from "./types";
-import { AssignableUser, AttendanceApprovalRow, BusinessDayStaff, RotaShift, RotaShiftTemplate, ShiftAttendance, TimesheetRow } from "../types/models";
+import { AssignableUser, AttendanceApprovalRow, BusinessDayStaff, RotaShift, RotaShiftTemplate, ShiftAttendance, ShiftSession, ShiftTimesheetRow, TimesheetRow, TimesheetSession } from "../types/models";
 
 export async function getBusinessDayStaff(shopId: string, date: string) {
   const response = await apiClient.get<ApiResponse<BusinessDayStaff>>("/rota/day-staff", { params: { shopId, date } });
@@ -50,6 +50,21 @@ export async function getTimesheet(shopId: string, from: string, to: string) {
   return response.data.data;
 }
 
+export async function getShiftTimesheet(shopId: string, from: string, to: string) {
+  const response = await apiClient.get<ApiResponse<ShiftTimesheetRow[]>>("/rota/timesheet/by-shift", { params: { shopId, from, to } });
+  return response.data.data;
+}
+
+export async function getStaffSessions(shopId: string, userId: string, from: string, to: string) {
+  const response = await apiClient.get<ApiResponse<TimesheetSession[]>>("/rota/timesheet/staff", { params: { shopId, userId, from, to } });
+  return response.data.data;
+}
+
+export async function getShiftSessions(shopId: string, shiftName: string, from: string, to: string) {
+  const response = await apiClient.get<ApiResponse<ShiftSession[]>>("/rota/timesheet/by-shift/sessions", { params: { shopId, shiftName, from, to } });
+  return response.data.data;
+}
+
 export async function getMyShifts(shopId: string, from: string, to: string) {
   const response = await apiClient.get<ApiResponse<RotaShift[]>>("/rota/mine", { params: { shopId, from, to } });
   return response.data.data;
@@ -96,4 +111,8 @@ export async function approveAttendance(id: string) {
 export async function updateAttendance(id: string, payload: { checkInAt: string; checkOutAt?: string; notes?: string }) {
   const response = await apiClient.put<ApiResponse<ShiftAttendance>>(`/rota/attendance/${id}`, payload);
   return response.data.data;
+}
+
+export async function rejectAttendance(id: string) {
+  await apiClient.delete<ApiResponse<boolean>>(`/rota/attendance/${id}`);
 }

@@ -33,6 +33,7 @@ export type MainStackParamList = {
   MyShifts: undefined;
   RotaManage: undefined;
   RotaTimesheet: undefined;
+  RotaApprovals: undefined;
   ShopChecklist: undefined;
   ComplianceChecks: { date?: string } | undefined;
   ComplianceConfig: undefined;

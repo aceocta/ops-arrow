@@ -292,6 +292,7 @@ export function OwnerOverviewScreen() {
     refusals: singleShop ? singleShop.refusals : sum((s) => s.refusals),
     visitors: singleShop ? singleShop.visitors : sum((s) => s.visitors),
     onShiftNow: singleShop ? singleShop.onShiftNow : sum((s) => s.onShiftNow),
+    pendingApprovals: singleShop ? singleShop.pendingApprovals : sum((s) => s.pendingApprovals),
   };
   const shopId = singleShop?.shopId;
 
@@ -406,6 +407,22 @@ export function OwnerOverviewScreen() {
               {summary.onShiftNow > 0 ? `${summary.onShiftNow} on shift now` : "No one on shift now"}
             </Text>
           </View>
+
+          {/* Manual time entries awaiting approval — tap to review. */}
+          {summary.pendingApprovals > 0 ? (
+            <Pressable style={[ui.card, styles.approvalsTile]} onPress={() => navigation.navigate("RotaApprovals")}>
+              <View style={styles.approvalsBadge}>
+                <Text style={styles.approvalsBadgeText}>{summary.pendingApprovals}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.onShiftText}>Time approvals due</Text>
+                <Text style={styles.approvalsHint}>
+                  {summary.pendingApprovals} manual {summary.pendingApprovals === 1 ? "entry" : "entries"} awaiting approval
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={appTheme.colors.textMuted} />
+            </Pressable>
+          ) : null}
 
           {/* Sales chart — daily bars for the 7-day view, weekly bars for the 30-day view. */}
           {range !== "today" && (overview.salesByDay?.length ?? 0) > 0 ? (
@@ -682,6 +699,10 @@ const styles = StyleSheet.create({
   kpiWarn: { color: appTheme.colors.warning },
   dualCard: { flex: 1, gap: 10, ...cardShadow },
   onShiftChip: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 12, ...cardShadow },
+  approvalsTile: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, ...cardShadow },
+  approvalsBadge: { minWidth: 28, height: 28, paddingHorizontal: 8, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: appTheme.colors.danger },
+  approvalsBadgeText: { color: appTheme.colors.onPrimary, fontFamily: appTheme.fonts.heading, fontSize: 14 },
+  approvalsHint: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, lineHeight: 16 },
   onShiftDot: { width: 9, height: 9, borderRadius: 999, backgroundColor: appTheme.colors.textSubtle },
   onShiftDotOn: { backgroundColor: appTheme.colors.success },
   onShiftText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },

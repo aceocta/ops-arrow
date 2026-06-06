@@ -445,6 +445,8 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.Notes).HasMaxLength(1000);
             entity.HasOne(x => x.BusinessDay).WithMany(x => x.Shifts).HasForeignKey(x => x.BusinessDayId);
             entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId);
+            entity.HasIndex(x => x.RotaShiftId);
+            entity.HasOne<RotaShift>().WithMany().HasForeignKey(x => x.RotaShiftId).OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<Canister>(entity =>

@@ -5,12 +5,14 @@ import { createDrawerNavigator, DrawerContentScrollView, type DrawerContentCompo
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthContext";
+import { getPendingApprovals } from "../api/rotaApi";
 import { NetworkStatusBanner } from "../components/NetworkStatusBanner";
 import { DashboardScreen } from "../features/dashboard/DashboardScreen";
 import { BestEntryScreen } from "../features/entry/BestEntryScreen";
 import { OwnerOverviewScreen } from "../features/dashboard/OwnerOverviewScreen";
-import { MyShiftsScreen, RotaManageScreen, RotaTimesheetScreen } from "../features/rota/RotaScreens";
+import { MyShiftsScreen, RotaManageScreen, RotaTimesheetScreen, RotaApprovalsScreen } from "../features/rota/RotaScreens";
 import { UserInvitationsScreen } from "../features/invitations/UserInvitationsScreen";
 import { DeliveriesScreen } from "../features/deliveries/DeliveriesScreen";
 import { ReceiveDeliveryScreen } from "../features/deliveries/ReceiveDeliveryScreen";
@@ -179,6 +181,7 @@ const complianceItems: MenuItem[] = [
 const shiftItems: MenuItem[] = [
   { label: "My Shifts", screen: "MyShifts", icon: "time-outline" },
   { label: "Shift Rota", screen: "RotaManage", icon: "calendar-number-outline", allowedRoles: ["CompanyOwner", "Manager"] },
+  { label: "Time Approvals", screen: "RotaApprovals", icon: "checkmark-done-outline", allowedRoles: ["CompanyOwner", "Manager"] },
   { label: "Timesheet", screen: "RotaTimesheet", icon: "documents-outline", allowedRoles: ["CompanyOwner", "Manager"] },
 ];
 
@@ -425,6 +428,7 @@ function MainStackScreens() {
       <Stack.Screen name="MyShifts" component={MyShiftsScreen} options={{ title: "My Shifts" }} />
       <Stack.Screen name="RotaManage" component={RotaManageScreen} options={{ title: "Shift Rota" }} />
       <Stack.Screen name="RotaTimesheet" component={RotaTimesheetScreen} options={{ title: "Timesheet" }} />
+      <Stack.Screen name="RotaApprovals" component={RotaApprovalsScreen} options={{ title: "Time Approvals" }} />
       <Stack.Screen name="ShopChecklist" component={ShopChecklistScreen} options={{ title: "Shop Checklist" }} />
       <Stack.Screen name="ComplianceChecks" component={ComplianceChecksScreen} options={{ title: "Compliance Checks" }} />
       <Stack.Screen name="ComplianceConfig" component={ComplianceChecksConfigScreen} options={{ title: "Compliance Setup" }} />
@@ -591,6 +595,8 @@ type DrawerSectionProps = {
   accentColor: string;
   accentSoftBackground: string;
   icon: keyof typeof Ionicons.glyphMap;
+  /** Optional per-screen count badges (e.g. pending approvals on Time Approvals). */
+  badges?: Partial<Record<keyof MainStackParamList, number>>;
 };
 
 const DrawerSection = React.memo(function DrawerSection({
@@ -607,6 +613,7 @@ const DrawerSection = React.memo(function DrawerSection({
   accentColor,
   accentSoftBackground,
   icon,
+  badges,
 }: DrawerSectionProps) {
   // Menu is grouped by feature now — no longer filtered by the active operation chip.
   // Items still respect role and feature gates.
@@ -684,11 +691,18 @@ const DrawerSection = React.memo(function DrawerSection({
                   {item.label}
                 </Text>
               </View>
-              <Ionicons
-                name={activeScreen === item.screen ? "checkmark-circle" : "chevron-forward"}
-                size={14}
-                color={activeScreen === item.screen ? appTheme.colors.primary : appTheme.colors.textMuted}
-              />
+              <View style={styles.drawerItemRight}>
+                {(badges?.[item.screen] ?? 0) > 0 ? (
+                  <View style={styles.drawerItemBadge}>
+                    <Text style={styles.drawerItemBadgeText}>{badges?.[item.screen]}</Text>
+                  </View>
+                ) : null}
+                <Ionicons
+                  name={activeScreen === item.screen ? "checkmark-circle" : "chevron-forward"}
+                  size={14}
+                  color={activeScreen === item.screen ? appTheme.colors.primary : appTheme.colors.textMuted}
+                />
+              </View>
             </Pressable>
           ))}
         </View>
@@ -700,7 +714,7 @@ const DrawerSection = React.memo(function DrawerSection({
 function DrawerMenuContent(props: DrawerContentComponentProps) {
   const { selectedOperation, setSelectedOperation } = useBestEntry();
   const insets = useSafeAreaInsets();
-  const { profile, activeShop, signOut } = useAuth();
+  const { profile, activeShop, activeShopId, signOut } = useAuth();
   const { entitlements } = useEntitlements();
   // Stabilise these arrays by content so the React.memo'd DrawerSection doesn't re-render on
   // every entitlements refetch even when the actual feature set is unchanged.
@@ -712,6 +726,19 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
   const isPlatformAdmin = userRoles.some((role) => role === "PlatformAdmin");
   const isManager = userRoles.some((role) => role === "Manager");
   const roleLabel = isPlatformAdmin ? "Admin" : isCompanyOwner ? getRoleDisplayName("CompanyOwner") : isManager ? "Manager" : "Staff";
+
+  // Pending manual-time approvals → badge on the Time Approvals menu item (managers/owners only).
+  const canApproveTimes = isCompanyOwner || isManager;
+  const pendingApprovalsQuery = useQuery({
+    queryKey: ["rota-pending", activeShopId],
+    queryFn: () => getPendingApprovals(activeShopId as string),
+    enabled: Boolean(activeShopId) && canApproveTimes,
+    refetchInterval: 60_000,
+  });
+  const shiftBadges = useMemo(
+    () => ({ RotaApprovals: pendingApprovalsQuery.data?.length ?? 0 }),
+    [pendingApprovalsQuery.data],
+  );
   const activeRouteName = getDeepestRouteName(props.state);
   const activeScreen = activeRouteName as keyof MainStackParamList | undefined;
   const showBottomDock = shouldShowBottomDock(activeRouteName);
@@ -1030,6 +1057,7 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
           accentColor={appTheme.colors.info}
           accentSoftBackground={appTheme.colors.surfaceInfoMuted}
           items={shiftItems}
+          badges={shiftBadges}
           isCompanyOwner={isCompanyOwner}
           userRoles={userRoles}
           features={features}
@@ -1407,6 +1435,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: appTheme.spacing.sm,
     flex: 1,
+  },
+  drawerItemRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  drawerItemBadge: {
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 6,
+    borderRadius: appTheme.radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: appTheme.colors.danger,
+  },
+  drawerItemBadgeText: {
+    color: appTheme.colors.onPrimary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 14,
   },
   drawerItemIconWrap: {
     width: 30,

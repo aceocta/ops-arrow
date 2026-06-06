@@ -52,6 +52,18 @@ public class RotaController : BaseApiController
     public async Task<IActionResult> GetTimesheet([FromQuery] Guid shopId, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken cancellationToken)
         => Success(await _rotaService.GetTimesheetAsync(shopId, from, to, cancellationToken));
 
+    [HttpGet("timesheet/by-shift")]
+    public async Task<IActionResult> GetShiftTimesheet([FromQuery] Guid shopId, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken cancellationToken)
+        => Success(await _rotaService.GetShiftTimesheetAsync(shopId, from, to, cancellationToken));
+
+    [HttpGet("timesheet/staff")]
+    public async Task<IActionResult> GetStaffSessions([FromQuery] Guid shopId, [FromQuery] Guid userId, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken cancellationToken)
+        => Success(await _rotaService.GetStaffSessionsAsync(shopId, userId, from, to, cancellationToken));
+
+    [HttpGet("timesheet/by-shift/sessions")]
+    public async Task<IActionResult> GetShiftSessions([FromQuery] Guid shopId, [FromQuery] string shiftName, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken cancellationToken)
+        => Success(await _rotaService.GetShiftSessionsAsync(shopId, shiftName, from, to, cancellationToken));
+
     // --- Staff ---
 
     [HttpGet("day-staff")]
@@ -91,4 +103,11 @@ public class RotaController : BaseApiController
     [HttpPut("attendance/{id:guid}")]
     public async Task<IActionResult> UpdateAttendance(Guid id, [FromBody] UpdateAttendanceRequest request, CancellationToken cancellationToken)
         => Success(await _rotaService.UpdateAttendanceAsync(id, request, cancellationToken));
+
+    [HttpDelete("attendance/{id:guid}")]
+    public async Task<IActionResult> RejectAttendance(Guid id, CancellationToken cancellationToken)
+    {
+        await _rotaService.RejectAttendanceAsync(id, cancellationToken);
+        return Success(true, "Attendance entry rejected.");
+    }
 }

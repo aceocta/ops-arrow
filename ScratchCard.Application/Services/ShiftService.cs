@@ -21,6 +21,8 @@ public class ShiftService : IShiftService
 
     private readonly IRepository<Shift> _shiftRepository;
     private readonly IRepository<BusinessDay> _businessDayRepository;
+    private readonly IRepository<RotaShift> _rotaShiftRepository;
+    private readonly IRepository<ShiftAssignment> _shiftAssignmentRepository;
     private readonly IRepository<ScratchCardPack> _packRepository;
     private readonly IRepository<ShiftOpeningSerial> _shiftOpeningSerialRepository;
     private readonly IRepository<ShiftCloseAttachment> _shiftCloseAttachmentRepository;
@@ -35,6 +37,8 @@ public class ShiftService : IShiftService
     public ShiftService(
         IRepository<Shift> shiftRepository,
         IRepository<BusinessDay> businessDayRepository,
+        IRepository<RotaShift> rotaShiftRepository,
+        IRepository<ShiftAssignment> shiftAssignmentRepository,
         IRepository<ScratchCardPack> packRepository,
         IRepository<ShiftOpeningSerial> shiftOpeningSerialRepository,
         IRepository<ShiftCloseAttachment> shiftCloseAttachmentRepository,
@@ -48,6 +52,8 @@ public class ShiftService : IShiftService
     {
         _shiftRepository = shiftRepository;
         _businessDayRepository = businessDayRepository;
+        _rotaShiftRepository = rotaShiftRepository;
+        _shiftAssignmentRepository = shiftAssignmentRepository;
         _packRepository = packRepository;
         _shiftOpeningSerialRepository = shiftOpeningSerialRepository;
         _shiftCloseAttachmentRepository = shiftCloseAttachmentRepository;
@@ -158,14 +164,21 @@ public class ShiftService : IShiftService
             activePacks,
             packSetup.SellingOrder);
 
+        // Link this till session to a rota slot. If the shop doesn't use the rota at all, the shift
+        // is allowed without one; otherwise it always gets a related rota shift (see helper).
+        var openerUserId = _currentUserService.UserId ?? Guid.Empty;
+        var rotaShiftId = await ResolveOrCreateRotaShiftAsync(
+            request.ShopId, businessDay, openerUserId, shiftName, setup, shopNow.TimeOfDay, utcNow, cancellationToken);
+
         var shift = new Shift
         {
             BusinessDayId = request.BusinessDayId,
             ShopId = request.ShopId,
+            RotaShiftId = rotaShiftId,
             ShiftName = shiftName,
             StartTime = utcNow,
             OpenedOn = utcNow,
-            OpenedByUserId = _currentUserService.UserId ?? Guid.Empty,
+            OpenedByUserId = openerUserId,
             Status = ShiftStatus.Open,
             SyncStatus = SyncStatus.Synced,
             CreatedOn = utcNow,
@@ -829,6 +842,95 @@ public class ShiftService : IShiftService
             ".txt" => "text/plain",
             _ => "application/octet-stream"
         };
+    }
+
+    private static bool ShiftWindowContains(ShopShiftTemplate template, TimeSpan time)
+    {
+        var start = template.StartTime;
+        var end = template.EndTime;
+        return end <= start
+            ? time >= start || time < end   // overnight window
+            : time >= start && time < end;
+    }
+
+    // Decide the rota shift a till session belongs to:
+    //  1. the opener's rostered slot for the day, if any;
+    //  2. otherwise — only if the shop uses the rota — attach to (or create) the matching slot and
+    //     put the opener on it, so the shift always has a related rota shift;
+    //  3. if the shop doesn't use the rota at all, return null (shift allowed without one).
+    private async Task<Guid?> ResolveOrCreateRotaShiftAsync(
+        Guid shopId,
+        BusinessDay businessDay,
+        Guid openerUserId,
+        string shiftName,
+        ShopShiftSetup setup,
+        TimeSpan shopTimeOfDay,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var rostered = await _rotaShiftRepository.Query()
+            .Where(x => x.ShopId == shopId && !x.IsDeleted && x.ShiftDate == businessDay.BusinessDate
+                && x.Assignments.Any(a => a.UserId == openerUserId))
+            .OrderBy(x => x.StartTime)
+            .Select(x => (Guid?)x.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (rostered is not null)
+        {
+            return rostered;
+        }
+
+        var shopUsesRota = await _rotaShiftRepository.Query()
+            .AnyAsync(x => x.ShopId == shopId && !x.IsDeleted, cancellationToken);
+        if (!shopUsesRota)
+        {
+            return null; // shop doesn't roster — allow the shift without a rota link
+        }
+
+        // Pick the slot's template: by matching name, then the window containing "now", then first active.
+        var template = setup.ShiftTemplates.FirstOrDefault(t => t.IsActive && string.Equals(t.Name, shiftName, StringComparison.OrdinalIgnoreCase))
+            ?? setup.ShiftTemplates.FirstOrDefault(t => t.IsActive && ShiftWindowContains(t, shopTimeOfDay))
+            ?? setup.ShiftTemplates.FirstOrDefault(t => t.IsActive);
+        if (template is null)
+        {
+            return null; // no templates configured — nothing to link to
+        }
+
+        var slot = await _rotaShiftRepository.Query()
+            .FirstOrDefaultAsync(x => x.ShopId == shopId && !x.IsDeleted
+                && x.ShiftDate == businessDay.BusinessDate && x.ShiftTemplateId == template.TemplateId, cancellationToken);
+        if (slot is null)
+        {
+            slot = new RotaShift
+            {
+                ShopId = shopId,
+                ShiftDate = businessDay.BusinessDate,
+                BusinessDayId = businessDay.Id,
+                ShiftTemplateId = template.TemplateId,
+                ShiftName = template.Name,
+                StartTime = TimeOnly.FromTimeSpan(template.StartTime),
+                EndTime = TimeOnly.FromTimeSpan(template.EndTime),
+                CreatedOn = now,
+                CreatedBy = openerUserId,
+            };
+            await _rotaShiftRepository.AddAsync(slot, cancellationToken);
+        }
+
+        // Ensure the opener is on this slot (they're working it).
+        var alreadyAssigned = await _shiftAssignmentRepository.Query()
+            .AnyAsync(a => a.RotaShiftId == slot.Id && a.UserId == openerUserId, cancellationToken);
+        if (!alreadyAssigned)
+        {
+            await _shiftAssignmentRepository.AddAsync(new ShiftAssignment
+            {
+                RotaShiftId = slot.Id,
+                ShopId = shopId,
+                UserId = openerUserId,
+                CreatedOn = now,
+                CreatedBy = openerUserId,
+            }, cancellationToken);
+        }
+
+        return slot.Id;
     }
 
     private static string ResolveShiftName(string? requestedShiftName, ShopShiftSetup setup)

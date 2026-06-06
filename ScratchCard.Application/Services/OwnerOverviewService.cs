@@ -104,6 +104,7 @@ public class OwnerOverviewService : IOwnerOverviewService
             TotalRefusals = shopSummaries.Sum(x => x.Refusals),
             TotalVisitors = shopSummaries.Sum(x => x.Visitors),
             TotalOnShiftNow = shopSummaries.Sum(x => x.OnShiftNow),
+            TotalPendingApprovals = shopSummaries.Sum(x => x.PendingApprovals),
             AverageComplianceScore = shopSummaries.Count > 0
                 ? (int)Math.Round(shopSummaries.Average(x => x.ComplianceScore))
                 : 100,
@@ -222,6 +223,11 @@ public class OwnerOverviewService : IOwnerOverviewService
             () => _attendanceRepository.Query().CountAsync(a => a.ShopId == shopId && a.CheckOutAt == null, cancellationToken),
             0);
 
+        // Manual time entries awaiting manager approval.
+        var pendingApprovals = await SafeAsync(
+            () => _attendanceRepository.Query().CountAsync(a => a.ShopId == shopId && !a.IsApproved, cancellationToken),
+            0);
+
         // Blended compliance health score (0-100): temperature compliance is the backbone (70%),
         // with the remaining 30% earned by having no open corrective actions.
         var actionsFactor = openActions == 0 ? 1m : openActions <= 2 ? 0.5m : 0m;
@@ -260,6 +266,7 @@ public class OwnerOverviewService : IOwnerOverviewService
             Refusals = refusalCount,
             Visitors = visitorCount,
             OnShiftNow = onShiftNow,
+            PendingApprovals = pendingApprovals,
             NeedsAttention = reasons.Count > 0,
             AttentionReasons = reasons,
         };
