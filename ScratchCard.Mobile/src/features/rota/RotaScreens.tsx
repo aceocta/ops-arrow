@@ -78,6 +78,41 @@ const dateTimeLabel = (iso?: string | null) =>
 // Combine a yyyy-MM-dd date with an HH:mm time (device-local) into a UTC ISO string for the API.
 const toIso = (dateStr: string, hhmm: string) => new Date(`${dateStr}T${hhmm}:00`).toISOString();
 
+function nextDayStr(dateStr: string) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + 1);
+  return formatDateValue(d);
+}
+
+// Build check-in/out ISO timestamps for a shift on dateStr. If the out time isn't after the in
+// time, the shift runs overnight, so check-out lands on the next day (app convention: end <= start
+// means the next day).
+function sessionIsos(dateStr: string, inHHmm: string, outHHmm: string) {
+  const outDate = outHHmm > inHHmm ? dateStr : nextDayStr(dateStr);
+  return { checkInAt: toIso(dateStr, inHHmm), checkOutAt: toIso(outDate, outHHmm) };
+}
+
+// True when the two HH:mm[:ss] times describe an overnight shift (end not after start).
+const isOvernight = (startHHmm: string, endHHmm: string) => Boolean(startHHmm) && Boolean(endHHmm) && endHHmm <= startHHmm;
+
+// Display a start–end range, flagging overnight shifts that finish the next day.
+function timeRange(start?: string | null, end?: string | null) {
+  if (!start) return "";
+  const s = shortTime(start);
+  const e = shortTime(end ?? "");
+  return isOvernight(s, e) ? `${s}–${e} (+1d)` : `${s}–${e}`;
+}
+
+const weekday = (date?: string | null) => {
+  if (!date) return "";
+  const d = new Date(`${date}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? date : d.toLocaleDateString(undefined, { weekday: "short" });
+};
+
+// " · ends Wed" suffix for an overnight shift (endDate after the start date), else "".
+const overnightSuffix = (shiftDate?: string | null, endDate?: string | null) =>
+  endDate && shiftDate && endDate > shiftDate ? ` · ends ${weekday(endDate)}` : "";
+
 // Worked duration as "5h 24m" (or "24m" when under an hour).
 function workedLabel(inIso: string, outIso: string) {
   const mins = Math.max(0, Math.round((new Date(outIso).getTime() - new Date(inIso).getTime()) / 60000));
@@ -92,9 +127,11 @@ function toHHmm(iso: string) {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-// Variance of an actual time vs the scheduled time, with a small grace window.
-function variance(actualIso: string, dateStr: string, schedTimeHHmmss: string, kind: "in" | "out") {
-  const sched = new Date(`${dateStr}T${schedTimeHHmmss}`).getTime();
+// Variance of an actual time vs the scheduled time, with a small grace window. The caller passes the
+// exact calendar date the scheduled time falls on (the shift's start date for check-in, its end date
+// for check-out) so overnight shifts compare correctly.
+function variance(actualIso: string, schedDateStr: string, schedTimeHHmmss: string, kind: "in" | "out") {
+  const sched = new Date(`${schedDateStr}T${schedTimeHHmmss}`).getTime();
   const diff = Math.round((new Date(actualIso).getTime() - sched) / 60000); // minutes, +late / -early
   if (Math.abs(diff) <= GRACE_MIN) return { text: "on time", tone: "on" as const };
   const mag = Math.abs(diff);
@@ -152,13 +189,15 @@ export function MyShiftsScreen() {
     onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't check out."),
   });
   const manualMutation = useMutation({
-    mutationFn: () =>
-      saveManualAttendance({
+    mutationFn: () => {
+      const { checkInAt, checkOutAt } = sessionIsos(manualShift!.shiftDate, manualIn, manualOut);
+      return saveManualAttendance({
         shopId: shopId as string,
         rotaShiftId: manualShift!.id,
-        checkInAt: toIso(manualShift!.shiftDate, manualIn),
-        checkOutAt: manualOut ? toIso(manualShift!.shiftDate, manualOut) : undefined,
-      }),
+        checkInAt,
+        checkOutAt: manualOut ? checkOutAt : undefined,
+      });
+    },
     onSuccess: () => { setManualShift(null); refresh(); },
     onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't save times."),
   });
@@ -190,7 +229,7 @@ export function MyShiftsScreen() {
           const completed = Boolean(att && att.checkOutAt);
           const onAnotherShift = isCheckedInSomewhere && current?.rotaShiftId !== shift.id;
           const vIn = att ? variance(att.checkInAt, shift.shiftDate, shift.startTime, "in") : null;
-          const vOut = att?.checkOutAt ? variance(att.checkOutAt, shift.shiftDate, shift.endTime, "out") : null;
+          const vOut = att?.checkOutAt ? variance(att.checkOutAt, shift.endDate, shift.endTime, "out") : null;
 
           const statusLabel = open ? "On shift" : completed ? "Completed" : "Upcoming";
           const statusTone: "success" | "neutral" = open ? "success" : "neutral";
@@ -206,7 +245,7 @@ export function MyShiftsScreen() {
               {/* Schedule line */}
               <View style={styles.metaLine}>
                 <Ionicons name="time-outline" size={14} color={appTheme.colors.textMuted} />
-                <Text style={styles.metaText}>{shortTime(shift.startTime)}–{shortTime(shift.endTime)}</Text>
+                <Text style={styles.metaText}>{timeRange(shift.startTime, shift.endTime)}{overnightSuffix(shift.shiftDate, shift.endDate)}</Text>
                 {shift.position ? (
                   <>
                     <Text style={styles.metaDivider}>·</Text>
@@ -311,7 +350,7 @@ export function MyShiftsScreen() {
             </View>
 
             {manualShift ? (
-              <Text style={styles.mutedSmall}>Scheduled {shortTime(manualShift.startTime)}–{shortTime(manualShift.endTime)}</Text>
+              <Text style={styles.mutedSmall}>Scheduled {timeRange(manualShift.startTime, manualShift.endTime)}</Text>
             ) : null}
 
             <View style={styles.row}>
@@ -325,12 +364,13 @@ export function MyShiftsScreen() {
               </View>
             </View>
 
-            {manualShift && manualOut > manualIn ? (
+            {manualShift && manualOut && manualOut !== manualIn ? (
               <Text style={styles.previewText}>
-                Total worked: {workedLabel(toIso(manualShift.shiftDate, manualIn), toIso(manualShift.shiftDate, manualOut))}
+                Total worked: {workedLabel(sessionIsos(manualShift.shiftDate, manualIn, manualOut).checkInAt, sessionIsos(manualShift.shiftDate, manualIn, manualOut).checkOutAt)}
+                {isOvernight(manualIn, manualOut) ? "  · ends next day" : ""}
               </Text>
-            ) : manualShift && manualOut <= manualIn ? (
-              <Text style={[styles.mutedSmall, { color: appTheme.colors.danger }]}>Check-out must be after check-in.</Text>
+            ) : manualShift && manualOut === manualIn ? (
+              <Text style={[styles.mutedSmall, { color: appTheme.colors.danger }]}>Check-in and check-out can’t be the same.</Text>
             ) : null}
 
             <View style={styles.noticeRow}>
@@ -341,7 +381,7 @@ export function MyShiftsScreen() {
             <PrimaryButton
               label={manualMutation.isPending ? "Saving..." : "Save hours"}
               onPress={() => manualMutation.mutate()}
-              disabled={manualMutation.isPending || !manualShift || manualOut <= manualIn}
+              disabled={manualMutation.isPending || !manualShift || manualOut === manualIn}
             />
             <PrimaryButton label="Cancel" tone="neutral" onPress={() => setManualShift(null)} disabled={manualMutation.isPending} />
           </View>
@@ -502,7 +542,7 @@ export function RotaManageScreen() {
               <View key={shift.id} style={[ui.card, styles.shiftCard]}>
                 <View style={{ flex: 1, gap: 3 }}>
                   <Text style={styles.shiftTime}>
-                    {shift.shiftName ? `${shift.shiftName} · ` : ""}{shortTime(shift.startTime)}–{shortTime(shift.endTime)}
+                    {shift.shiftName ? `${shift.shiftName} · ` : ""}{timeRange(shift.startTime, shift.endTime)}{overnightSuffix(shift.shiftDate, shift.endDate)}
                     {shift.position ? <Text style={styles.muted}>  ·  {shift.position}</Text> : null}
                   </Text>
                   <Text style={styles.muted} numberOfLines={2}>
@@ -556,7 +596,7 @@ export function RotaManageScreen() {
                   >
                     <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>{t.name}</Text>
                     <Text style={[styles.chipSubText, active ? styles.chipSubTextActive : null]}>
-                      {shortTime(t.startTime)}–{shortTime(t.endTime)}
+                      {timeRange(t.startTime, t.endTime)}
                     </Text>
                   </Pressable>
                 );
@@ -737,7 +777,7 @@ export function RotaTimesheetScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.tdName, styles.tdLink]} numberOfLines={1}>{row.shiftName}</Text>
                       <Text style={styles.tdSub}>
-                        {dayLabel(row.date)}{row.startTime ? ` · ${shortTime(row.startTime)}–${shortTime(row.endTime ?? "")}` : ""}
+                        {dayLabel(row.date)}{row.startTime ? ` · ${timeRange(row.startTime, row.endTime)}` : ""}
                       </Text>
                     </View>
                     <Text style={styles.tdNum}>{row.staffCount}</Text>
@@ -876,9 +916,10 @@ export function RotaApprovalsScreen() {
   const adjustMutation = useMutation({
     mutationFn: () => {
       const dateStr = editing!.shiftDate ?? formatDateValue(new Date(editing!.checkInAt));
+      const { checkInAt, checkOutAt } = sessionIsos(dateStr, editIn, editOut);
       return updateAttendance(editing!.id, {
-        checkInAt: toIso(dateStr, editIn),
-        checkOutAt: editOut ? toIso(dateStr, editOut) : undefined,
+        checkInAt,
+        checkOutAt: editOut ? checkOutAt : undefined,
       });
     },
     onSuccess: () => { setEditing(null); refresh(); },
@@ -916,7 +957,9 @@ export function RotaApprovalsScreen() {
 
         {pending.map((p) => {
           const vIn = p.shiftStart && p.shiftDate ? variance(p.checkInAt, p.shiftDate, p.shiftStart, "in") : null;
-          const vOut = p.shiftEnd && p.shiftDate && p.checkOutAt ? variance(p.checkOutAt, p.shiftDate, p.shiftEnd, "out") : null;
+          const vOut = p.shiftEnd && p.checkOutAt && (p.shiftEndDate ?? p.shiftDate)
+            ? variance(p.checkOutAt, (p.shiftEndDate ?? p.shiftDate) as string, p.shiftEnd, "out")
+            : null;
           return (
             <View key={p.id} style={[ui.card, styles.approvalCard]}>
               {/* Who + when */}
@@ -938,7 +981,7 @@ export function RotaApprovalsScreen() {
                 <View style={styles.detailCol}>
                   <Text style={styles.detailLabel}>Scheduled</Text>
                   <Text style={styles.detailValue}>
-                    {p.shiftStart ? `${shortTime(p.shiftStart)}–${shortTime(p.shiftEnd ?? "")}` : "—"}
+                    {p.shiftStart ? timeRange(p.shiftStart, p.shiftEnd) : "—"}
                   </Text>
                 </View>
                 <View style={styles.detailCol}>
@@ -1004,7 +1047,7 @@ export function RotaApprovalsScreen() {
               </View>
             </View>
             {editing?.shiftStart ? (
-              <Text style={styles.mutedSmall}>Scheduled {shortTime(editing.shiftStart)}–{shortTime(editing.shiftEnd ?? "")}</Text>
+              <Text style={styles.mutedSmall}>Scheduled {timeRange(editing.shiftStart, editing.shiftEnd)}</Text>
             ) : null}
             <View style={styles.row}>
               <View style={{ flex: 1 }}>
@@ -1016,8 +1059,10 @@ export function RotaApprovalsScreen() {
                 <DateTimeField mode="time" value={editOut} onChange={setEditOut} />
               </View>
             </View>
-            {editIn && editOut && editOut <= editIn ? (
-              <Text style={[styles.mutedSmall, { color: appTheme.colors.danger }]}>Check-out must be after check-in.</Text>
+            {editIn && editOut && isOvernight(editIn, editOut) && editOut !== editIn ? (
+              <Text style={styles.mutedSmall}>Overnight — check-out is on the next day.</Text>
+            ) : editIn && editOut === editIn ? (
+              <Text style={[styles.mutedSmall, { color: appTheme.colors.danger }]}>Check-in and check-out can’t be the same.</Text>
             ) : null}
             <View style={styles.noticeRow}>
               <Ionicons name="information-circle-outline" size={15} color={appTheme.colors.textMuted} />
@@ -1026,7 +1071,7 @@ export function RotaApprovalsScreen() {
             <PrimaryButton
               label={adjustMutation.isPending ? "Saving..." : "Save & approve"}
               onPress={() => adjustMutation.mutate()}
-              disabled={adjustMutation.isPending || !editIn || (!!editOut && editOut <= editIn)}
+              disabled={adjustMutation.isPending || !editIn || editOut === editIn}
             />
             <PrimaryButton label="Cancel" tone="neutral" onPress={() => setEditing(null)} disabled={adjustMutation.isPending} />
           </View>

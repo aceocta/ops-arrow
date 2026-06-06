@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
+using ScratchCard.Application.Common.Models;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Rota;
 using ScratchCard.Domain.Constants;
@@ -20,8 +21,11 @@ public class RotaService : IRotaService
     private readonly IRepository<ShiftAttendance> _attendanceRepository;
     private readonly IRepository<ShopUser> _shopUserRepository;
     private readonly IRepository<BusinessDay> _businessDayRepository;
+    private readonly IRepository<UserPushToken> _pushTokenRepository;
     private readonly IShopMembershipService _shopMembershipService;
     private readonly IShopConfigurationService _shopConfigurationService;
+    private readonly IFeatureGateService _featureGateService;
+    private readonly INotificationService _notificationService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -31,8 +35,11 @@ public class RotaService : IRotaService
         IRepository<ShiftAttendance> attendanceRepository,
         IRepository<ShopUser> shopUserRepository,
         IRepository<BusinessDay> businessDayRepository,
+        IRepository<UserPushToken> pushTokenRepository,
         IShopMembershipService shopMembershipService,
         IShopConfigurationService shopConfigurationService,
+        IFeatureGateService featureGateService,
+        INotificationService notificationService,
         ICurrentUserService currentUserService,
         IUnitOfWork unitOfWork)
     {
@@ -41,10 +48,26 @@ public class RotaService : IRotaService
         _attendanceRepository = attendanceRepository;
         _shopUserRepository = shopUserRepository;
         _businessDayRepository = businessDayRepository;
+        _pushTokenRepository = pushTokenRepository;
         _shopMembershipService = shopMembershipService;
         _shopConfigurationService = shopConfigurationService;
+        _featureGateService = featureGateService;
+        _notificationService = notificationService;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
+    }
+
+    // Role + subscription-feature gates. Management = CompanyOwner/Manager; staff = operational roles.
+    private async Task EnsureManageAsync(Guid shopId, CancellationToken ct, string feature = FeatureKeys.StaffRotaBasic)
+    {
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(shopId, ManagementRoles, ct);
+        await _featureGateService.EnsureFeatureAsync(shopId, feature, ct);
+    }
+
+    private async Task EnsureStaffAsync(Guid shopId, CancellationToken ct, string feature = FeatureKeys.StaffRotaBasic)
+    {
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(shopId, StaffRoles, ct);
+        await _featureGateService.EnsureFeatureAsync(shopId, feature, ct);
     }
 
     // Resolve an active configured shift template for the shop (or throw with a clear message).
@@ -62,6 +85,10 @@ public class RotaService : IRotaService
 
     private static string FullName(User user) => $"{user.FirstName} {user.LastName}".Trim();
 
+    // A shift whose end time is on or before its start time finishes the next day (overnight).
+    private static DateOnly ResolveEndDate(DateOnly shiftDate, TimeOnly start, TimeOnly end) =>
+        end <= start ? shiftDate.AddDays(1) : shiftDate;
+
     // The shop's business day for a calendar date, if one exists (null when not yet opened).
     private Task<Guid?> ResolveBusinessDayIdAsync(Guid shopId, DateOnly date, CancellationToken cancellationToken) =>
         _businessDayRepository.Query()
@@ -74,6 +101,7 @@ public class RotaService : IRotaService
         Id = shift.Id,
         ShopId = shift.ShopId,
         ShiftDate = shift.ShiftDate,
+        EndDate = shift.EndDate,
         BusinessDayId = shift.BusinessDayId,
         ShiftTemplateId = shift.ShiftTemplateId,
         ShiftName = shift.ShiftName,
@@ -89,7 +117,7 @@ public class RotaService : IRotaService
 
     public async Task<IReadOnlyCollection<RotaShiftDto>> GetRotaAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
     {
-        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(shopId, ManagementRoles, cancellationToken);
+        await EnsureManageAsync(shopId, cancellationToken);
         var shifts = await _shiftRepository.Query()
             .AsNoTracking()
             .Where(x => x.ShopId == shopId && !x.IsDeleted && x.ShiftDate >= from && x.ShiftDate <= to)
@@ -134,21 +162,24 @@ public class RotaService : IRotaService
 
     public async Task<RotaShiftDto> CreateShiftAsync(CreateRotaShiftRequest request, CancellationToken cancellationToken = default)
     {
-        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(request.ShopId, ManagementRoles, cancellationToken);
+        await EnsureManageAsync(request.ShopId, cancellationToken);
         var template = await ResolveTemplateAsync(request.ShopId, request.ShiftTemplateId, cancellationToken);
         await EnsureNoShiftConflictAsync(request.ShopId, request.ShiftDate, template.TemplateId,
             TimeOnly.FromTimeSpan(template.StartTime), TimeOnly.FromTimeSpan(template.EndTime), null, cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
+        var startTime = TimeOnly.FromTimeSpan(template.StartTime);
+        var endTime = TimeOnly.FromTimeSpan(template.EndTime);
         var shift = new RotaShift
         {
             ShopId = request.ShopId,
             ShiftDate = request.ShiftDate,
+            EndDate = ResolveEndDate(request.ShiftDate, startTime, endTime),
             BusinessDayId = await ResolveBusinessDayIdAsync(request.ShopId, request.ShiftDate, cancellationToken),
             ShiftTemplateId = template.TemplateId,
             ShiftName = template.Name,
-            StartTime = TimeOnly.FromTimeSpan(template.StartTime),
-            EndTime = TimeOnly.FromTimeSpan(template.EndTime),
+            StartTime = startTime,
+            EndTime = endTime,
             Position = string.IsNullOrWhiteSpace(request.Position) ? null : request.Position.Trim(),
             Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim(),
             CreatedOn = now,
@@ -179,18 +210,19 @@ public class RotaService : IRotaService
             .FirstOrDefaultAsync(x => x.Id == shiftId && !x.IsDeleted, cancellationToken)
             ?? throw new AppException("rota_shift_not_found", "Shift not found.", 404);
 
-        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(shift.ShopId, ManagementRoles, cancellationToken);
+        await EnsureManageAsync(shift.ShopId, cancellationToken);
         var template = await ResolveTemplateAsync(shift.ShopId, request.ShiftTemplateId, cancellationToken);
         await EnsureNoShiftConflictAsync(shift.ShopId, request.ShiftDate, template.TemplateId,
             TimeOnly.FromTimeSpan(template.StartTime), TimeOnly.FromTimeSpan(template.EndTime), shiftId, cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
         shift.ShiftDate = request.ShiftDate;
+        shift.StartTime = TimeOnly.FromTimeSpan(template.StartTime);
+        shift.EndTime = TimeOnly.FromTimeSpan(template.EndTime);
+        shift.EndDate = ResolveEndDate(request.ShiftDate, shift.StartTime, shift.EndTime);
         shift.BusinessDayId = await ResolveBusinessDayIdAsync(shift.ShopId, request.ShiftDate, cancellationToken);
         shift.ShiftTemplateId = template.TemplateId;
         shift.ShiftName = template.Name;
-        shift.StartTime = TimeOnly.FromTimeSpan(template.StartTime);
-        shift.EndTime = TimeOnly.FromTimeSpan(template.EndTime);
         shift.Position = string.IsNullOrWhiteSpace(request.Position) ? null : request.Position.Trim();
         shift.Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
         shift.ModifiedOn = now;
@@ -227,7 +259,7 @@ public class RotaService : IRotaService
             .FirstOrDefaultAsync(x => x.Id == shiftId && !x.IsDeleted, cancellationToken)
             ?? throw new AppException("rota_shift_not_found", "Shift not found.", 404);
 
-        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(shift.ShopId, ManagementRoles, cancellationToken);
+        await EnsureManageAsync(shift.ShopId, cancellationToken);
         foreach (var assignment in shift.Assignments.ToList())
         {
             _assignmentRepository.Remove(assignment);
@@ -241,7 +273,7 @@ public class RotaService : IRotaService
 
     public async Task<IReadOnlyCollection<AssignableUserDto>> GetAssignableUsersAsync(Guid shopId, CancellationToken cancellationToken = default)
     {
-        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(shopId, ManagementRoles, cancellationToken);
+        await EnsureManageAsync(shopId, cancellationToken);
         var members = await _shopUserRepository.Query()
             .AsNoTracking()
             .Where(x => x.ShopId == shopId && x.IsActive)
@@ -260,7 +292,7 @@ public class RotaService : IRotaService
 
     public async Task<IReadOnlyCollection<RotaShiftTemplateDto>> GetShiftTemplatesAsync(Guid shopId, CancellationToken cancellationToken = default)
     {
-        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(shopId, ManagementRoles, cancellationToken);
+        await EnsureManageAsync(shopId, cancellationToken);
         var setup = await _shopConfigurationService.GetShiftSetupAsync(shopId, cancellationToken);
         return setup.ShiftTemplates
             .Where(t => t.IsActive)
@@ -276,7 +308,7 @@ public class RotaService : IRotaService
 
     public async Task<IReadOnlyCollection<TimesheetRowDto>> GetTimesheetAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
     {
-        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(shopId, ManagementRoles, cancellationToken);
+        await EnsureManageAsync(shopId, cancellationToken);
         var fromBound = new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
         var toExclusive = new DateTimeOffset(to.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
 
@@ -311,7 +343,7 @@ public class RotaService : IRotaService
 
     public async Task<IReadOnlyCollection<ShiftTimesheetRowDto>> GetShiftTimesheetAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
     {
-        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(shopId, ManagementRoles, cancellationToken);
+        await EnsureManageAsync(shopId, cancellationToken);
         var fromBound = new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
         var toExclusive = new DateTimeOffset(to.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
 
@@ -370,7 +402,7 @@ public class RotaService : IRotaService
 
     public async Task<IReadOnlyCollection<TimesheetSessionDto>> GetStaffSessionsAsync(Guid shopId, Guid userId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
     {
-        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(shopId, ManagementRoles, cancellationToken);
+        await EnsureManageAsync(shopId, cancellationToken);
         var fromBound = new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
         var toExclusive = new DateTimeOffset(to.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
 
@@ -404,7 +436,7 @@ public class RotaService : IRotaService
 
     public async Task<IReadOnlyCollection<ShiftSessionDto>> GetShiftSessionsAsync(Guid shopId, string shiftName, DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
     {
-        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(shopId, ManagementRoles, cancellationToken);
+        await EnsureManageAsync(shopId, cancellationToken);
         var fromBound = new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
         var toExclusive = new DateTimeOffset(to.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
         var unrostered = string.Equals(shiftName, "Unrostered", StringComparison.OrdinalIgnoreCase);
@@ -442,7 +474,7 @@ public class RotaService : IRotaService
 
     public async Task<BusinessDayStaffDto> GetBusinessDayStaffAsync(Guid shopId, DateOnly date, CancellationToken cancellationToken = default)
     {
-        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(shopId, StaffRoles, cancellationToken);
+        await EnsureStaffAsync(shopId, cancellationToken);
 
         var day = await _businessDayRepository.Query()
             .AsNoTracking()
@@ -525,7 +557,7 @@ public class RotaService : IRotaService
 
     public async Task<IReadOnlyCollection<RotaShiftDto>> GetMyShiftsAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
     {
-        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(shopId, StaffRoles, cancellationToken);
+        await EnsureStaffAsync(shopId, cancellationToken);
         var userId = CurrentUserId;
         var shifts = await _shiftRepository.Query()
             .AsNoTracking()
@@ -558,7 +590,7 @@ public class RotaService : IRotaService
 
     public async Task<ShiftAttendanceDto?> GetMyCurrentAttendanceAsync(Guid shopId, CancellationToken cancellationToken = default)
     {
-        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(shopId, StaffRoles, cancellationToken);
+        await EnsureStaffAsync(shopId, cancellationToken);
         var userId = CurrentUserId;
         var open = await _attendanceRepository.Query()
             .AsNoTracking()
@@ -570,6 +602,7 @@ public class RotaService : IRotaService
 
     public async Task<ShiftAttendanceDto> CheckInAsync(Guid shopId, Guid? rotaShiftId, CancellationToken cancellationToken = default)
     {
+        // Check-in/out are role-gated only (no subscription feature gate) so attendance always works.
         await _shopMembershipService.EnsureCurrentUserShopRoleAsync(shopId, StaffRoles, cancellationToken);
         var userId = CurrentUserId;
 
@@ -628,6 +661,7 @@ public class RotaService : IRotaService
 
     public async Task<ShiftAttendanceDto> CheckOutAsync(Guid shopId, CancellationToken cancellationToken = default)
     {
+        // Role-gated only (see CheckInAsync) — check-out must always be possible.
         await _shopMembershipService.EnsureCurrentUserShopRoleAsync(shopId, StaffRoles, cancellationToken);
         var userId = CurrentUserId;
 
@@ -662,7 +696,7 @@ public class RotaService : IRotaService
 
     public async Task<ShiftAttendanceDto> SaveManualAttendanceAsync(ManualAttendanceRequest request, CancellationToken cancellationToken = default)
     {
-        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(request.ShopId, StaffRoles, cancellationToken);
+        await EnsureStaffAsync(request.ShopId, cancellationToken, FeatureKeys.StaffRotaManualApproval);
         var userId = CurrentUserId;
 
         if (request.CheckOutAt is DateTimeOffset outAt && outAt <= request.CheckInAt)
@@ -714,12 +748,56 @@ public class RotaService : IRotaService
         attendance.ApprovedOn = null;
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Notify managers/owners that a manual entry needs approval (push; non-blocking).
+        await NotifyManagersOfManualEntryAsync(request.ShopId, _currentUserService.FullName, cancellationToken);
+
         return MapAttendance(attendance, _currentUserService.FullName);
+    }
+
+    // Push the shop's managers/owners that a staff member submitted manual times for approval.
+    private async Task NotifyManagersOfManualEntryAsync(Guid shopId, string staffName, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var managerUserIds = await _shopUserRepository.Query()
+                .AsNoTracking()
+                .Where(x => x.ShopId == shopId && x.IsActive
+                    && (x.Role.Name == RoleNames.CompanyOwner || x.Role.Name == RoleNames.Manager))
+                .Select(x => x.UserId)
+                .ToListAsync(cancellationToken);
+            if (managerUserIds.Count == 0) return;
+
+            var tokens = await _pushTokenRepository.Query()
+                .AsNoTracking()
+                .Where(t => t.ShopId == shopId && t.IsActive && t.PushToken != "" && managerUserIds.Contains(t.UserId))
+                .Select(t => t.PushToken)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            foreach (var token in tokens)
+            {
+                await _notificationService.SendAsync(new NotificationMessage
+                {
+                    ShopId = shopId,
+                    NotificationType = NotificationType.ShiftManualEntrySubmitted,
+                    Channel = NotificationChannel.InApp,
+                    Recipient = token,
+                    Subject = "Time approval needed",
+                    Body = $"{staffName} submitted manual times for approval.",
+                    RelatedEntityName = nameof(ShiftAttendance),
+                }, cancellationToken);
+            }
+        }
+        catch
+        {
+            // Notification failures must not block the staff member's submission.
+        }
     }
 
     public async Task<IReadOnlyCollection<AttendanceApprovalRowDto>> GetPendingApprovalsAsync(Guid shopId, CancellationToken cancellationToken = default)
     {
-        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(shopId, ManagementRoles, cancellationToken);
+        await EnsureManageAsync(shopId, cancellationToken, FeatureKeys.StaffRotaManualApproval);
         var rows = await _attendanceRepository.Query()
             .AsNoTracking()
             .Where(x => x.ShopId == shopId && !x.IsApproved)
@@ -743,7 +821,7 @@ public class RotaService : IRotaService
         var shiftInfo = await _shiftRepository.Query()
             .AsNoTracking()
             .Where(x => shiftIds.Contains(x.Id))
-            .Select(x => new { x.Id, x.ShiftName, x.ShiftDate, x.StartTime, x.EndTime })
+            .Select(x => new { x.Id, x.ShiftName, x.ShiftDate, x.EndDate, x.StartTime, x.EndTime })
             .ToDictionaryAsync(x => x.Id, cancellationToken);
 
         return rows.Select(r =>
@@ -756,6 +834,7 @@ public class RotaService : IRotaService
                 UserName = $"{r.FirstName} {r.LastName}".Trim(),
                 ShiftName = s?.ShiftName,
                 ShiftDate = s?.ShiftDate,
+                ShiftEndDate = s?.EndDate,
                 ShiftStart = s?.StartTime,
                 ShiftEnd = s?.EndTime,
                 CheckInAt = r.CheckInAt,
@@ -773,7 +852,7 @@ public class RotaService : IRotaService
             .Include(x => x.User)
             .FirstOrDefaultAsync(x => x.Id == attendanceId, cancellationToken)
             ?? throw new AppException("rota_attendance_not_found", "Attendance record not found.", 404);
-        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(attendance.ShopId, ManagementRoles, cancellationToken);
+        await EnsureManageAsync(attendance.ShopId, cancellationToken, FeatureKeys.StaffRotaManualApproval);
 
         var now = DateTimeOffset.UtcNow;
         attendance.IsApproved = true;
@@ -792,7 +871,7 @@ public class RotaService : IRotaService
             .Include(x => x.User)
             .FirstOrDefaultAsync(x => x.Id == attendanceId, cancellationToken)
             ?? throw new AppException("rota_attendance_not_found", "Attendance record not found.", 404);
-        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(attendance.ShopId, ManagementRoles, cancellationToken);
+        await EnsureManageAsync(attendance.ShopId, cancellationToken, FeatureKeys.StaffRotaManualApproval);
 
         if (request.CheckOutAt is DateTimeOffset outAt && outAt <= request.CheckInAt)
         {
@@ -818,7 +897,7 @@ public class RotaService : IRotaService
         var attendance = await _attendanceRepository.Query()
             .FirstOrDefaultAsync(x => x.Id == attendanceId, cancellationToken)
             ?? throw new AppException("rota_attendance_not_found", "Attendance record not found.", 404);
-        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(attendance.ShopId, ManagementRoles, cancellationToken);
+        await EnsureManageAsync(attendance.ShopId, cancellationToken, FeatureKeys.StaffRotaManualApproval);
 
         // Reject = discard the (manual) entry entirely.
         _attendanceRepository.Remove(attendance);

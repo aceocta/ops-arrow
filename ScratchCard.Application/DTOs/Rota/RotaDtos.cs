@@ -20,6 +20,7 @@ public class RotaShiftDto
     public Guid Id { get; set; }
     public Guid ShopId { get; set; }
     public DateOnly ShiftDate { get; set; }
+    public DateOnly EndDate { get; set; }
     public Guid? BusinessDayId { get; set; }
     public string? ShiftTemplateId { get; set; }
     public string ShiftName { get; set; } = string.Empty;
@@ -90,6 +91,7 @@ public class AttendanceApprovalRowDto
     public string UserName { get; set; } = string.Empty;
     public string? ShiftName { get; set; }
     public DateOnly? ShiftDate { get; set; }
+    public DateOnly? ShiftEndDate { get; set; }
     public TimeOnly? ShiftStart { get; set; }
     public TimeOnly? ShiftEnd { get; set; }
     public DateTimeOffset CheckInAt { get; set; }

@@ -11,7 +11,10 @@ namespace ScratchCard.Domain.Entities;
 public class RotaShift : SoftDeletableAuditableEntity
 {
     public Guid ShopId { get; set; }
+    // The shift spans ShiftDate@StartTime → EndDate@EndTime. For an overnight shift (EndTime on or
+    // before StartTime) EndDate is the day after ShiftDate; otherwise EndDate equals ShiftDate.
     public DateOnly ShiftDate { get; set; }
+    public DateOnly EndDate { get; set; }
     // The shop's business day for ShiftDate, linked when that day exists (rosters are often created
     // before the day is opened, so this stays null until a matching business day is present).
     public Guid? BusinessDayId { get; set; }
@@ -22,6 +25,11 @@ public class RotaShift : SoftDeletableAuditableEntity
     public TimeOnly EndTime { get; set; }
     public string? Position { get; set; }
     public string? Notes { get; set; }
+    // When the pre-shift push reminder was sent, so the reminder job fires at most once per shift.
+    public DateTimeOffset? ReminderSentOn { get; set; }
+
+    /// <summary>True when the shift finishes on the day after it starts (overnight).</summary>
+    public bool IsOvernight => EndDate > ShiftDate;
 
     public Shop Shop { get; set; } = null!;
     public ICollection<ShiftAssignment> Assignments { get; set; } = new List<ShiftAssignment>();

@@ -900,15 +900,18 @@ public class ShiftService : IShiftService
                 && x.ShiftDate == businessDay.BusinessDate && x.ShiftTemplateId == template.TemplateId, cancellationToken);
         if (slot is null)
         {
+            var slotStart = TimeOnly.FromTimeSpan(template.StartTime);
+            var slotEnd = TimeOnly.FromTimeSpan(template.EndTime);
             slot = new RotaShift
             {
                 ShopId = shopId,
                 ShiftDate = businessDay.BusinessDate,
+                EndDate = slotEnd <= slotStart ? businessDay.BusinessDate.AddDays(1) : businessDay.BusinessDate,
                 BusinessDayId = businessDay.Id,
                 ShiftTemplateId = template.TemplateId,
                 ShiftName = template.Name,
-                StartTime = TimeOnly.FromTimeSpan(template.StartTime),
-                EndTime = TimeOnly.FromTimeSpan(template.EndTime),
+                StartTime = slotStart,
+                EndTime = slotEnd,
                 CreatedOn = now,
                 CreatedBy = openerUserId,
             };

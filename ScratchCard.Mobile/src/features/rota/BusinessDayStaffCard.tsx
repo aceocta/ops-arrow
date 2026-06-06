@@ -24,6 +24,13 @@ function statusTone(status: string): "neutral" | "warning" | "danger" | "success
 }
 
 const hhmm = (t?: string | null) => (t ? t.slice(0, 5) : "");
+// Start–end range, flagging overnight shifts that finish the next day (end <= start).
+function timeRange(start?: string | null, end?: string | null) {
+  if (!start) return "";
+  const s = hhmm(start);
+  const e = hhmm(end);
+  return e && e <= s ? `${s}–${e} (+1d)` : `${s}–${e}`;
+}
 const clock = (iso?: string | null) =>
   iso ? new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "";
 
@@ -51,7 +58,7 @@ export function BusinessDayStaffCard({ shopId, date }: { shopId: string; date: s
             <Text style={styles.name} numberOfLines={1}>{row.userName}</Text>
             <Text style={styles.meta} numberOfLines={1}>
               {row.shiftName ? `${row.shiftName} · ` : ""}
-              {row.startTime ? `${hhmm(row.startTime)}–${hhmm(row.endTime)}` : "Not rostered"}
+              {row.startTime ? timeRange(row.startTime, row.endTime) : "Not rostered"}
               {row.checkInAt ? `  ·  in ${clock(row.checkInAt)}` : ""}
               {row.checkOutAt ? ` – out ${clock(row.checkOutAt)}` : ""}
             </Text>

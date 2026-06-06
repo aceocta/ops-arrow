@@ -14,5 +14,8 @@ public enum NotificationType
     TemperatureMissedLog = 10,
     VisitorInspectorArrival = 11,
     TemperatureLogReminder = 12,
-    ComplianceActionRaised = 13
+    ComplianceActionRaised = 13,
+    ShiftManualEntrySubmitted = 14,
+    ShiftReminder = 15,
+    WeeklyTimesheet = 16
 }

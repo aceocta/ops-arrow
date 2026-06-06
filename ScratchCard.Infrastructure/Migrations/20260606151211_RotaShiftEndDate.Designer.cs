@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ScratchCard.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using ScratchCard.Infrastructure.Persistence;
 namespace ScratchCard.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260606151211_RotaShiftEndDate")]
+    partial class RotaShiftEndDate
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -851,9 +854,6 @@ namespace ScratchCard.Infrastructure.Migrations
 
                     b.Property<bool?>("RequireShiftClose")
                         .HasColumnType("bit");
-
-                    b.Property<int?>("RotaReminderLeadMinutes")
-                        .HasColumnType("int");
 
                     b.Property<string>("ShiftDefaultName")
                         .HasMaxLength(100)
@@ -2021,9 +2021,6 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Property<string>("Position")
                         .HasMaxLength(120)
                         .HasColumnType("nvarchar(120)");
-
-                    b.Property<DateTimeOffset?>("ReminderSentOn")
-                        .HasColumnType("datetimeoffset");
 
                     b.Property<DateOnly>("ShiftDate")
                         .HasColumnType("date");

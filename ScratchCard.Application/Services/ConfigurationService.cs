@@ -122,6 +122,7 @@ public class ConfigurationService : IConfigurationService
         AddItem(items, shopId, ShiftGroup, ConfigurationKeys.ShiftTemplates, Resolve(shopShift?.ShiftTemplates, globalShift?.ShiftTemplates, "[{\"id\":\"morning\",\"name\":\"Morning Shift\",\"startTime\":\"06:00\",\"endTime\":\"14:00\",\"isActive\":true},{\"id\":\"evening\",\"name\":\"Evening Shift\",\"startTime\":\"14:00\",\"endTime\":\"22:00\",\"isActive\":true}]"), "json", "Shop shift templates. Supports multiple shifts and overnight windows (end time earlier than start means next day).");
         AddItem(items, shopId, ShiftGroup, ConfigurationKeys.EnforceShiftTimeWindow, ToConfigString(Resolve(shopShift?.EnforceShiftTimeWindow, globalShift?.EnforceShiftTimeWindow, false)), "bool", "Allow opening shifts only inside configured start/end time window");
         AddItem(items, shopId, ShiftGroup, ConfigurationKeys.AllowCustomShiftName, ToConfigString(Resolve(shopShift?.AllowCustomShiftName, globalShift?.AllowCustomShiftName, true)), "bool", "Allow manually entering shift name when opening a shift");
+        AddItem(items, shopId, ShiftGroup, ConfigurationKeys.RotaReminderLeadMinutes, Resolve(shopShift?.RotaReminderLeadMinutes?.ToString(), globalShift?.RotaReminderLeadMinutes?.ToString(), "120"), "int", "Minutes before a rota shift starts to push a reminder to assigned staff (default 120 = 2 hours)");
         AddItem(items, shopId, ShiftGroup, "RequireReasonForManualClosingSerial", ToConfigString(Resolve(shopShift?.RequireReasonForManualClosingSerial, globalShift?.RequireReasonForManualClosingSerial, false)), "bool", null);
         AddItem(items, shopId, ShiftGroup, "NotifyOnManualClosingSerialEntry", ToConfigString(Resolve(shopShift?.NotifyOnManualClosingSerialEntry, globalShift?.NotifyOnManualClosingSerialEntry, true)), "bool", null);
         AddItem(items, shopId, ShiftGroup, "NotifyOnScannedSerialEdit", ToConfigString(Resolve(shopShift?.NotifyOnScannedSerialEdit, globalShift?.NotifyOnScannedSerialEdit, true)), "bool", null);
@@ -410,6 +411,9 @@ public class ConfigurationService : IConfigurationService
                 break;
             case ConfigurationKeys.AllowCustomShiftName:
                 target.AllowCustomShiftName = ParseBool(value, key);
+                break;
+            case ConfigurationKeys.RotaReminderLeadMinutes:
+                target.RotaReminderLeadMinutes = int.TryParse(value, out var leadMins) ? leadMins : null;
                 break;
             case "RequireReasonForManualClosingSerial":
                 target.RequireReasonForManualClosingSerial = ParseBool(value, key);

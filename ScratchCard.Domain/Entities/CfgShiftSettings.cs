@@ -14,4 +14,6 @@ public class CfgShiftSettings : CfgSettingsBase
     public bool? RequireReasonForManualClosingSerial { get; set; }
     public bool? NotifyOnManualClosingSerialEntry { get; set; }
     public bool? NotifyOnScannedSerialEdit { get; set; }
+    // Minutes before a rota shift's start that assigned staff get a push reminder (default 120 = 2h).
+    public int? RotaReminderLeadMinutes { get; set; }
 }

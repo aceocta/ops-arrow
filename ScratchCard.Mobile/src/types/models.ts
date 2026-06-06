@@ -467,7 +467,8 @@ export type RotaShiftTemplate = {
 export type RotaShift = {
   id: string;
   shopId: string;
-  shiftDate: string; // yyyy-MM-dd
+  shiftDate: string; // yyyy-MM-dd (start date)
+  endDate: string; // yyyy-MM-dd (next day for overnight shifts)
   businessDayId?: string | null;
   shiftTemplateId?: string | null;
   shiftName: string;
@@ -485,6 +486,7 @@ export type AttendanceApprovalRow = {
   userName: string;
   shiftName?: string | null;
   shiftDate?: string | null;
+  shiftEndDate?: string | null;
   shiftStart?: string | null; // HH:mm:ss
   shiftEnd?: string | null; // HH:mm:ss
   checkInAt: string;

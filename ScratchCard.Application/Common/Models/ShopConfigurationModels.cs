@@ -19,6 +19,7 @@ public class ShopShiftSetup
     public string DefaultShiftName { get; set; } = "Main Shift";
     public bool EnforceShiftTimeWindow { get; set; }
     public bool AllowCustomShiftName { get; set; } = true;
+    public int ReminderLeadMinutes { get; set; } = 120;
     public IReadOnlyCollection<ShopShiftTemplate> ShiftTemplates { get; set; } = Array.Empty<ShopShiftTemplate>();
 }
 

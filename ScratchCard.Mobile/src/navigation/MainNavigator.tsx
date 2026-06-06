@@ -179,10 +179,10 @@ const complianceItems: MenuItem[] = [
 
 // --- Shifts (staff rota & attendance) ---
 const shiftItems: MenuItem[] = [
-  { label: "My Shifts", screen: "MyShifts", icon: "time-outline" },
-  { label: "Shift Rota", screen: "RotaManage", icon: "calendar-number-outline", allowedRoles: ["CompanyOwner", "Manager"] },
-  { label: "Time Approvals", screen: "RotaApprovals", icon: "checkmark-done-outline", allowedRoles: ["CompanyOwner", "Manager"] },
-  { label: "Timesheet", screen: "RotaTimesheet", icon: "documents-outline", allowedRoles: ["CompanyOwner", "Manager"] },
+  { label: "My Shifts", screen: "MyShifts", icon: "time-outline", requiredFeature: "StaffRota" },
+  { label: "Shift Rota", screen: "RotaManage", icon: "calendar-number-outline", allowedRoles: ["CompanyOwner", "Manager"], requiredFeature: "StaffRota" },
+  { label: "Time Approvals", screen: "RotaApprovals", icon: "checkmark-done-outline", allowedRoles: ["CompanyOwner", "Manager"], requiredFeature: "staff_rota.manual_approval" },
+  { label: "Timesheet", screen: "RotaTimesheet", icon: "documents-outline", allowedRoles: ["CompanyOwner", "Manager"], requiredFeature: "StaffRota" },
 ];
 
 // --- Shop (cross-cutting items not tied to a single feature module) ---
@@ -727,8 +727,9 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
   const isManager = userRoles.some((role) => role === "Manager");
   const roleLabel = isPlatformAdmin ? "Admin" : isCompanyOwner ? getRoleDisplayName("CompanyOwner") : isManager ? "Manager" : "Staff";
 
-  // Pending manual-time approvals → badge on the Time Approvals menu item (managers/owners only).
-  const canApproveTimes = isCompanyOwner || isManager;
+  // Pending manual-time approvals → badge on the Time Approvals menu item (managers/owners only,
+  // and only when the shop is entitled to the manual-approval sub-feature).
+  const canApproveTimes = (isCompanyOwner || isManager) && features.includes("staff_rota.manual_approval");
   const pendingApprovalsQuery = useQuery({
     queryKey: ["rota-pending", activeShopId],
     queryFn: () => getPendingApprovals(activeShopId as string),

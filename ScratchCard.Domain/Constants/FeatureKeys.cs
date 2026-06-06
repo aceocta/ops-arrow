@@ -12,6 +12,7 @@ public static class FeatureKeys
     public const string SafeDropManagement = "SafeDropManagement";
     public const string StoreSales = "StoreSales";
     public const string VisitorsLog = "VisitorsLog";
+    public const string StaffRota = "StaffRota";
 
     // --- Scratch Card Management ---
     public const string ScratchCardBasic = "scratch_card.basic";
@@ -56,6 +57,12 @@ public static class FeatureKeys
     public const string VisitorLogInspectorAlerts = "visitor_log.inspector_alerts";
     public const string VisitorLogReports = "visitor_log.reports";
 
+    // --- Staff Rota ---
+    public const string StaffRotaBasic = "staff_rota.basic";
+    public const string StaffRotaManualApproval = "staff_rota.manual_approval";
+    public const string StaffRotaShiftReminders = "staff_rota.shift_reminders";
+    public const string StaffRotaTimesheetExport = "staff_rota.timesheet_export";
+
     // --- Notifications ---
     public const string NotificationsEmail = "notifications.email";
     public const string NotificationsPush = "notifications.push";
@@ -93,6 +100,7 @@ public static class FeatureKeys
         new FeatureCatalogEntry(SafeDropManagement, "Safe Drop Management", "Modules", "Top-level Safe Drop module.", 5),
         new FeatureCatalogEntry(StoreSales, "Store Sales", "Modules", "Top-level Store Sales / till-report import module.", 6),
         new FeatureCatalogEntry(VisitorsLog, "Visitors Log", "Modules", "Top-level Visitors / contractor sign-in module.", 7),
+        new FeatureCatalogEntry(StaffRota, "Staff Rota", "Modules", "Top-level staff rota, attendance & timesheets module.", 8),
 
         // Scratch Card.
         new FeatureCatalogEntry(ScratchCardBasic, "Basic Scratch Card", "Scratch Card", null, 10),
@@ -137,6 +145,12 @@ public static class FeatureKeys
         new FeatureCatalogEntry(VisitorLogInspectorAlerts, "Inspector alerts", "Visitors Log", "Notify managers when an inspector signs in.", 60),
         new FeatureCatalogEntry(VisitorLogReports, "Visitor reports", "Visitors Log", "Date-range register report with print / share / email.", 61),
 
+        // Staff Rota.
+        new FeatureCatalogEntry(StaffRotaBasic, "Basic Staff Rota", "Staff Rota", "Roster, check-in/out, my shifts, timesheets.", 64),
+        new FeatureCatalogEntry(StaffRotaManualApproval, "Manual entry & approval", "Staff Rota", "Staff manual time entry with manager approval.", 65),
+        new FeatureCatalogEntry(StaffRotaShiftReminders, "Shift reminders", "Staff Rota", "Push reminder before a staff member's shift starts.", 66),
+        new FeatureCatalogEntry(StaffRotaTimesheetExport, "Weekly timesheet export", "Staff Rota", "Weekly timesheet sent by email / WhatsApp.", 67),
+
         // Notifications.
         new FeatureCatalogEntry(NotificationsEmail, "Email notifications", "Notifications", null, 60),
         new FeatureCatalogEntry(NotificationsPush, "Push notifications", "Notifications", null, 61),
@@ -166,6 +180,7 @@ public static class FeatureKeys
         new FeatureCatalogEntry(ComplianceChecklist,   "Compliance Check", "Modules", "Daily / weekly / monthly compliance checklists.", 5),
         new FeatureCatalogEntry(StoreSales,             "Store Sales",  "Modules", "Till-report capture, OCR/AI categorisation, tender tracking.", 6),
         new FeatureCatalogEntry(VisitorsLog,            "Visitors Log", "Modules", "Visitor / contractor sign-in, on-site roll call, reports.", 7),
+        new FeatureCatalogEntry(StaffRota,              "Staff Rota",   "Modules", "Staff rota, check-in/out, attendance approvals, timesheets.", 8),
     };
 
     // Modules that start OFF for a newly created shop — the owner opts in via Feature Toggles when
@@ -210,6 +225,10 @@ public static class FeatureKeys
             {
                 VisitorLogBasic, VisitorLogAttachments, VisitorLogContractorPermits,
                 VisitorLogInspectorAlerts, VisitorLogReports,
+            },
+            [StaffRota] = new[]
+            {
+                StaffRotaBasic, StaffRotaManualApproval, StaffRotaShiftReminders, StaffRotaTimesheetExport,
             },
         };
 

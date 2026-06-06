@@ -19,6 +19,7 @@ public static class PlanFeatureCatalogue
         FeatureKeys.ComplianceBasic,
         FeatureKeys.SafeDropBasic,
         FeatureKeys.VisitorLogBasic,
+        FeatureKeys.StaffRota, FeatureKeys.StaffRotaBasic,
         FeatureKeys.NotificationsEmail,
     };
 
@@ -33,6 +34,7 @@ public static class PlanFeatureCatalogue
         FeatureKeys.DashboardBasic,
         FeatureKeys.AuditLogBasic,
         FeatureKeys.StoreSales, FeatureKeys.StoreSalesBasic,
+        FeatureKeys.StaffRotaManualApproval, FeatureKeys.StaffRotaShiftReminders, FeatureKeys.StaffRotaTimesheetExport,
     }).ToArray();
 
     public static readonly IReadOnlyList<string> Pro = ((IEnumerable<string>)Growth).Concat(new[]

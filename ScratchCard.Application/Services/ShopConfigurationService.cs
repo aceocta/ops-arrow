@@ -54,6 +54,7 @@ public class ShopConfigurationService : IShopConfigurationService
             DefaultShiftName = firstTemplate.Name,
             EnforceShiftTimeWindow = Resolve(shopShift?.EnforceShiftTimeWindow, globalShift?.EnforceShiftTimeWindow, false),
             AllowCustomShiftName = Resolve(shopShift?.AllowCustomShiftName, globalShift?.AllowCustomShiftName, true),
+            ReminderLeadMinutes = shopShift?.RotaReminderLeadMinutes ?? globalShift?.RotaReminderLeadMinutes ?? 120,
             ShiftTemplates = templates
         };
     }
