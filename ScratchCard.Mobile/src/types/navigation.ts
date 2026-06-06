@@ -30,6 +30,9 @@ export type RootStackParamList = {
 export type MainStackParamList = {
   BestEntry: undefined;
   OwnerDashboard: undefined;
+  MyShifts: undefined;
+  RotaManage: undefined;
+  RotaTimesheet: undefined;
   ShopChecklist: undefined;
   ComplianceChecks: { date?: string } | undefined;
   ComplianceConfig: undefined;

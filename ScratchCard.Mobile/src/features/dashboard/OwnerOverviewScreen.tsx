@@ -291,6 +291,7 @@ export function OwnerOverviewScreen() {
     openActions: singleShop ? singleShop.openComplianceActions : sum((s) => s.openComplianceActions),
     refusals: singleShop ? singleShop.refusals : sum((s) => s.refusals),
     visitors: singleShop ? singleShop.visitors : sum((s) => s.visitors),
+    onShiftNow: singleShop ? singleShop.onShiftNow : sum((s) => s.onShiftNow),
   };
   const shopId = singleShop?.shopId;
 
@@ -395,6 +396,15 @@ export function OwnerOverviewScreen() {
               <StatItem value={summary.nonCompliant} label="Non-compliant" tone={summary.nonCompliant > 0 ? "warn" : undefined} />
               <StatItem value={summary.openActions} label="Open actions" tone={summary.openActions > 0 ? "warn" : undefined} />
             </DualCard>
+          </View>
+
+          {/* Staff currently clocked in. */}
+          <View style={[ui.card, styles.onShiftChip]}>
+            <View style={[styles.onShiftDot, summary.onShiftNow > 0 ? styles.onShiftDotOn : null]} />
+            <Ionicons name="people-outline" size={16} color={appTheme.colors.textMuted} />
+            <Text style={styles.onShiftText}>
+              {summary.onShiftNow > 0 ? `${summary.onShiftNow} on shift now` : "No one on shift now"}
+            </Text>
           </View>
 
           {/* Sales chart — daily bars for the 7-day view, weekly bars for the 30-day view. */}
@@ -671,6 +681,10 @@ const styles = StyleSheet.create({
   kpiDanger: { color: appTheme.colors.danger },
   kpiWarn: { color: appTheme.colors.warning },
   dualCard: { flex: 1, gap: 10, ...cardShadow },
+  onShiftChip: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 12, ...cardShadow },
+  onShiftDot: { width: 9, height: 9, borderRadius: 999, backgroundColor: appTheme.colors.textSubtle },
+  onShiftDotOn: { backgroundColor: appTheme.colors.success },
+  onShiftText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
   dualTitle: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.6 },
   dualStatsRow: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
   dualStat: { flex: 1, gap: 1 },

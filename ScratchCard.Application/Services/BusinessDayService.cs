@@ -18,6 +18,7 @@ public class BusinessDayService : IBusinessDayService
 {
     private readonly IRepository<BusinessDay> _businessDayRepository;
     private readonly IRepository<Shift> _shiftRepository;
+    private readonly IRepository<RotaShift> _rotaShiftRepository;
     private readonly IRepository<Canister> _canisterRepository;
     private readonly IRepository<ShiftOpeningSerial> _shiftOpeningSerialRepository;
     private readonly IRepository<ShiftScratchCardSale> _salesRepository;
@@ -48,6 +49,7 @@ public class BusinessDayService : IBusinessDayService
     public BusinessDayService(
         IRepository<BusinessDay> businessDayRepository,
         IRepository<Shift> shiftRepository,
+        IRepository<RotaShift> rotaShiftRepository,
         IRepository<Canister> canisterRepository,
         IRepository<ShiftOpeningSerial> shiftOpeningSerialRepository,
         IRepository<ShiftScratchCardSale> salesRepository,
@@ -77,6 +79,7 @@ public class BusinessDayService : IBusinessDayService
     {
         _businessDayRepository = businessDayRepository;
         _shiftRepository = shiftRepository;
+        _rotaShiftRepository = rotaShiftRepository;
         _canisterRepository = canisterRepository;
         _shiftOpeningSerialRepository = shiftOpeningSerialRepository;
         _salesRepository = salesRepository;
@@ -130,12 +133,39 @@ public class BusinessDayService : IBusinessDayService
         await _businessDayRepository.AddAsync(day, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         await AutoCreateScheduledShiftsAsync(day, cancellationToken);
+        await LinkRotaShiftsToBusinessDayAsync(day, cancellationToken);
 
         await _auditService.LogAsync(nameof(BusinessDay), day.Id, "BusinessDayOpened", day.ShopId, cancellationToken: cancellationToken);
         var openedDayDto = day.ToDto();
         openedDayDto.MissingOpeningTicketCount = 0;
         openedDayDto.MissingOpeningTicketDetails = [];
         return openedDayDto;
+    }
+
+    // Attach any rota shifts rostered for this date (created before the day was opened) to the new
+    // business day, so the rota and the trading day are linked. Best-effort; never blocks open.
+    private async Task LinkRotaShiftsToBusinessDayAsync(BusinessDay day, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var pending = await _rotaShiftRepository.Query()
+                .Where(x => x.ShopId == day.ShopId && x.ShiftDate == day.BusinessDate && !x.IsDeleted && x.BusinessDayId == null)
+                .ToListAsync(cancellationToken);
+            if (pending.Count == 0)
+            {
+                return;
+            }
+            foreach (var shift in pending)
+            {
+                shift.BusinessDayId = day.Id;
+                _rotaShiftRepository.Update(shift);
+            }
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            // Linking is non-critical — a failure must not stop the business day from opening.
+        }
     }
 
     private async Task<DateOnly> ResolveNextCreatableBusinessDateAsync(

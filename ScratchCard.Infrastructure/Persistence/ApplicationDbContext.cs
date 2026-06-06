@@ -55,6 +55,9 @@ public class ApplicationDbContext : DbContext
     public DbSet<TemperatureMonitoringUnit> TemperatureMonitoringUnits => Set<TemperatureMonitoringUnit>();
     public DbSet<TemperatureReading> TemperatureReadings => Set<TemperatureReading>();
     public DbSet<TemperatureDailySignoff> TemperatureDailySignoffs => Set<TemperatureDailySignoff>();
+    public DbSet<RotaShift> RotaShifts => Set<RotaShift>();
+    public DbSet<ShiftAssignment> ShiftAssignments => Set<ShiftAssignment>();
+    public DbSet<ShiftAttendance> ShiftAttendances => Set<ShiftAttendance>();
     public DbSet<SignupEmailVerification> SignupEmailVerifications => Set<SignupEmailVerification>();
     public DbSet<ShopChecklistGroup> ShopChecklistGroups => Set<ShopChecklistGroup>();
     public DbSet<ShopChecklistTask> ShopChecklistTasks => Set<ShopChecklistTask>();
@@ -634,6 +637,34 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.SignedByName).HasMaxLength(200).IsRequired();
             entity.Property(x => x.Notes).HasMaxLength(1000);
             entity.HasOne(x => x.Shop).WithMany(x => x.TemperatureDailySignoffs).HasForeignKey(x => x.ShopId);
+        });
+
+        modelBuilder.Entity<RotaShift>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.ShiftDate, x.IsDeleted });
+            entity.HasIndex(x => x.BusinessDayId);
+            entity.HasOne<BusinessDay>().WithMany().HasForeignKey(x => x.BusinessDayId).OnDelete(DeleteBehavior.NoAction);
+            entity.Property(x => x.ShiftTemplateId).HasMaxLength(80);
+            entity.Property(x => x.ShiftName).HasMaxLength(120);
+            entity.Property(x => x.Position).HasMaxLength(120);
+            entity.Property(x => x.Notes).HasMaxLength(1000);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        modelBuilder.Entity<ShiftAssignment>(entity =>
+        {
+            entity.HasIndex(x => new { x.RotaShiftId, x.UserId }).IsUnique();
+            entity.HasIndex(x => new { x.ShopId, x.UserId });
+            entity.HasOne(x => x.RotaShift).WithMany(x => x.Assignments).HasForeignKey(x => x.RotaShiftId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        modelBuilder.Entity<ShiftAttendance>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.UserId, x.CheckInAt });
+            entity.Property(x => x.Notes).HasMaxLength(1000);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<ShopChecklistGroup>(entity =>

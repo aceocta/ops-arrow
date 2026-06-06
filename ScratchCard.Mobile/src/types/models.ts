@@ -455,6 +455,84 @@ export type StockReportRow = {
   remainingTickets: number;
 };
 
+export type RotaAssignee = { userId: string; name: string };
+
+export type RotaShiftTemplate = {
+  templateId: string;
+  name: string;
+  startTime: string; // HH:mm:ss
+  endTime: string; // HH:mm:ss
+};
+
+export type RotaShift = {
+  id: string;
+  shopId: string;
+  shiftDate: string; // yyyy-MM-dd
+  businessDayId?: string | null;
+  shiftTemplateId?: string | null;
+  shiftName: string;
+  startTime: string; // HH:mm:ss
+  endTime: string; // HH:mm:ss
+  position?: string | null;
+  notes?: string | null;
+  assignees: RotaAssignee[];
+  myAttendance?: ShiftAttendance | null;
+};
+
+export type AttendanceApprovalRow = {
+  id: string;
+  userId: string;
+  userName: string;
+  shiftName?: string | null;
+  shiftDate?: string | null;
+  checkInAt: string;
+  checkOutAt?: string | null;
+  notes?: string | null;
+};
+
+export type AssignableUser = { userId: string; name: string; role: string };
+
+export type ShiftAttendance = {
+  id: string;
+  shopId: string;
+  userId: string;
+  userName: string;
+  rotaShiftId?: string | null;
+  businessDayId?: string | null;
+  checkInAt: string;
+  checkOutAt?: string | null;
+  entryMethod: "Clocked" | "Manual";
+  isApproved: boolean;
+};
+
+export type TimesheetRow = {
+  userId: string;
+  userName: string;
+  shiftsWorked: number;
+  openSessions: number;
+  totalHours: number;
+};
+
+export type BusinessDayStaffRow = {
+  userId: string;
+  userName: string;
+  shiftName?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  checkInAt?: string | null;
+  checkOutAt?: string | null;
+  hours: number;
+  status: "Scheduled" | "OnShift" | "Completed" | "Unplanned";
+};
+
+export type BusinessDayStaff = {
+  date: string;
+  dayStatus: string;
+  totalHours: number;
+  onShiftCount: number;
+  rows: BusinessDayStaffRow[];
+};
+
 export type OwnerShopOverview = {
   shopId: string;
   shopName: string;
@@ -474,6 +552,7 @@ export type OwnerShopOverview = {
   lowStockPacks: number;
   refusals: number;
   visitors: number;
+  onShiftNow: number;
   needsAttention: boolean;
   attentionReasons: string[];
 };
@@ -492,6 +571,7 @@ export type OwnerOverview = {
   totalLowStockPacks: number;
   totalRefusals: number;
   totalVisitors: number;
+  totalOnShiftNow: number;
   averageComplianceScore: number;
   salesByDay: { date: string; amount: number }[];
   temperatureByDay: { date: string; inRange: number; outOfRange: number }[];

@@ -46,6 +46,7 @@ public static class DependencyInjection
         services.AddScoped<IPrizePayoutService, PrizePayoutService>();
         services.AddScoped<IReportService, ReportService>();
         services.AddScoped<IOwnerOverviewService, OwnerOverviewService>();
+        services.AddScoped<IRotaService, RotaService>();
         services.AddScoped<INotificationLogService, NotificationLogService>();
         services.AddScoped<ILookupService, LookupService>();
         services.AddScoped<ITemperatureLogService, TemperatureLogService>();

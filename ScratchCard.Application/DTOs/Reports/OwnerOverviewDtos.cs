@@ -20,6 +20,7 @@ public class OwnerOverviewDto
     public int TotalLowStockPacks { get; set; }
     public int TotalRefusals { get; set; }
     public int TotalVisitors { get; set; }
+    public int TotalOnShiftNow { get; set; }
     public int AverageComplianceScore { get; set; } // 0-100 across shops
 
     // Scratch-card sales per day across all shops, one point per day in [From, To] (zeros included).
@@ -70,6 +71,7 @@ public class OwnerShopOverviewDto
     public int LowStockPacks { get; set; }
     public int Refusals { get; set; }
     public int Visitors { get; set; }
+    public int OnShiftNow { get; set; }
 
     public bool NeedsAttention { get; set; }
     public IReadOnlyCollection<string> AttentionReasons { get; set; } = [];

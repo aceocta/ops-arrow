@@ -10,6 +10,7 @@ import { NetworkStatusBanner } from "../components/NetworkStatusBanner";
 import { DashboardScreen } from "../features/dashboard/DashboardScreen";
 import { BestEntryScreen } from "../features/entry/BestEntryScreen";
 import { OwnerOverviewScreen } from "../features/dashboard/OwnerOverviewScreen";
+import { MyShiftsScreen, RotaManageScreen, RotaTimesheetScreen } from "../features/rota/RotaScreens";
 import { UserInvitationsScreen } from "../features/invitations/UserInvitationsScreen";
 import { DeliveriesScreen } from "../features/deliveries/DeliveriesScreen";
 import { ReceiveDeliveryScreen } from "../features/deliveries/ReceiveDeliveryScreen";
@@ -92,7 +93,7 @@ type MenuItem = {
   requiredFeature?: string;
 };
 
-type DrawerSectionKey = "scratchCard" | "temperature" | "refusals" | "visitors" | "compliance" | "shop" | "admin";
+type DrawerSectionKey = "scratchCard" | "temperature" | "refusals" | "visitors" | "compliance" | "shifts" | "shop" | "admin";
 
 const Drawer = createDrawerNavigator<MainDrawerParamList>();
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -172,6 +173,13 @@ const complianceItems: MenuItem[] = [
     allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
     requiredFeature: "ComplianceChecklist",
   },
+];
+
+// --- Shifts (staff rota & attendance) ---
+const shiftItems: MenuItem[] = [
+  { label: "My Shifts", screen: "MyShifts", icon: "time-outline" },
+  { label: "Shift Rota", screen: "RotaManage", icon: "calendar-number-outline", allowedRoles: ["CompanyOwner", "Manager"] },
+  { label: "Timesheet", screen: "RotaTimesheet", icon: "documents-outline", allowedRoles: ["CompanyOwner", "Manager"] },
 ];
 
 // --- Shop (cross-cutting items not tied to a single feature module) ---
@@ -414,6 +422,9 @@ function MainStackScreens() {
     >
       <Stack.Screen name="BestEntry" component={BestEntryScreen} options={{ headerTitle: () => <HomeHeaderTitle /> }} />
       <Stack.Screen name="OwnerDashboard" component={OwnerOverviewScreen} options={{ title: "Dashboard" }} />
+      <Stack.Screen name="MyShifts" component={MyShiftsScreen} options={{ title: "My Shifts" }} />
+      <Stack.Screen name="RotaManage" component={RotaManageScreen} options={{ title: "Shift Rota" }} />
+      <Stack.Screen name="RotaTimesheet" component={RotaTimesheetScreen} options={{ title: "Timesheet" }} />
       <Stack.Screen name="ShopChecklist" component={ShopChecklistScreen} options={{ title: "Shop Checklist" }} />
       <Stack.Screen name="ComplianceChecks" component={ComplianceChecksScreen} options={{ title: "Compliance Checks" }} />
       <Stack.Screen name="ComplianceConfig" component={ComplianceChecksConfigScreen} options={{ title: "Compliance Setup" }} />
@@ -722,6 +733,7 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
     refusals: false,
     visitors: false,
     compliance: false,
+    shifts: false,
     shop: false,
     admin: false,
   });
@@ -1007,6 +1019,22 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
           features={features}
           onPress={goTo}
           expanded={expandedSections.compliance}
+          onToggle={toggleSection}
+          activeScreen={activeScreen}
+        />
+
+        <DrawerSection
+          sectionKey="shifts"
+          title="Shifts"
+          icon="time-outline"
+          accentColor={appTheme.colors.info}
+          accentSoftBackground={appTheme.colors.surfaceInfoMuted}
+          items={shiftItems}
+          isCompanyOwner={isCompanyOwner}
+          userRoles={userRoles}
+          features={features}
+          onPress={goTo}
+          expanded={expandedSections.shifts}
           onToggle={toggleSection}
           activeScreen={activeScreen}
         />

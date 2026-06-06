@@ -5,6 +5,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import { listBusinessDays, openBusinessDay } from "../../api/businessDaysApi";
+import { BusinessDayStaffCard } from "../rota/BusinessDayStaffCard";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError } from "../../components/toast";
@@ -27,6 +28,7 @@ function isActiveStatus(status?: string) {
   const s = (status ?? "").toLowerCase();
   return s === "open" || s === "reopened" || s === "readytoclose";
 }
+
 
 export function BusinessDayScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
@@ -126,6 +128,8 @@ export function BusinessDayScreen() {
             </Pressable>
           </View>
         </View>
+
+        {shopId ? <BusinessDayStaffCard shopId={shopId} date={businessDate} /> : null}
 
         {viewMode === "open" ? (
           <View style={ui.card}>

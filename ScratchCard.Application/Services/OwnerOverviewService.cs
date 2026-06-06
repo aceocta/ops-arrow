@@ -20,6 +20,7 @@ public class OwnerOverviewService : IOwnerOverviewService
 
     private readonly ICurrentUserService _currentUserService;
     private readonly IRepository<ShopUser> _shopUserRepository;
+    private readonly IRepository<ShiftAttendance> _attendanceRepository;
     private readonly IReportService _reportService;
     private readonly IBusinessDayService _businessDayService;
     private readonly IComplianceCheckService _complianceCheckService;
@@ -33,7 +34,8 @@ public class OwnerOverviewService : IOwnerOverviewService
         IBusinessDayService businessDayService,
         IComplianceCheckService complianceCheckService,
         IRefusalRegisterService refusalRegisterService,
-        IVisitorLogService visitorLogService)
+        IVisitorLogService visitorLogService,
+        IRepository<ShiftAttendance> attendanceRepository)
     {
         _currentUserService = currentUserService;
         _shopUserRepository = shopUserRepository;
@@ -42,6 +44,7 @@ public class OwnerOverviewService : IOwnerOverviewService
         _complianceCheckService = complianceCheckService;
         _refusalRegisterService = refusalRegisterService;
         _visitorLogService = visitorLogService;
+        _attendanceRepository = attendanceRepository;
     }
 
     public async Task<OwnerOverviewDto> GetAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
@@ -100,6 +103,7 @@ public class OwnerOverviewService : IOwnerOverviewService
             TotalLowStockPacks = shopSummaries.Sum(x => x.LowStockPacks),
             TotalRefusals = shopSummaries.Sum(x => x.Refusals),
             TotalVisitors = shopSummaries.Sum(x => x.Visitors),
+            TotalOnShiftNow = shopSummaries.Sum(x => x.OnShiftNow),
             AverageComplianceScore = shopSummaries.Count > 0
                 ? (int)Math.Round(shopSummaries.Average(x => x.ComplianceScore))
                 : 100,
@@ -213,6 +217,11 @@ public class OwnerOverviewService : IOwnerOverviewService
             Array.Empty<DTOs.VisitorLog.VisitorLogEntryDto>() as IReadOnlyCollection<DTOs.VisitorLog.VisitorLogEntryDto>);
         var visitorCount = visitors.Count;
 
+        // Staff currently on shift (checked in, not yet out).
+        var onShiftNow = await SafeAsync(
+            () => _attendanceRepository.Query().CountAsync(a => a.ShopId == shopId && a.CheckOutAt == null, cancellationToken),
+            0);
+
         // Blended compliance health score (0-100): temperature compliance is the backbone (70%),
         // with the remaining 30% earned by having no open corrective actions.
         var actionsFactor = openActions == 0 ? 1m : openActions <= 2 ? 0.5m : 0m;
@@ -250,6 +259,7 @@ public class OwnerOverviewService : IOwnerOverviewService
             LowStockPacks = lowStock,
             Refusals = refusalCount,
             Visitors = visitorCount,
+            OnShiftNow = onShiftNow,
             NeedsAttention = reasons.Count > 0,
             AttentionReasons = reasons,
         };

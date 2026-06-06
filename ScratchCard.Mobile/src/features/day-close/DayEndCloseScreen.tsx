@@ -31,6 +31,7 @@ import { getDayShiftSalesTotals, listShifts, openShift, reopenShift, startSchedu
 import { getTillDaySummary } from "../../api/tillReportsApi";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { BusinessDayStaffCard } from "../rota/BusinessDayStaffCard";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { deriveShopOperationalSetup } from "../settings/shopConfiguration";
 import { formatGbpOrDash, formatSignedGbp } from "../../utils/currency";
@@ -1709,6 +1710,10 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
            
           </View> */}
         </View>
+
+        {day?.shopId && day?.businessDate ? (
+          <BusinessDayStaffCard shopId={day.shopId} date={day.businessDate} />
+        ) : null}
 
         <View style={[ui.card, styles.sectionCard]}>
           <SectionHeader

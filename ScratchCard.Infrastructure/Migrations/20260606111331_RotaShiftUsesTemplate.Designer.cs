@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ScratchCard.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using ScratchCard.Infrastructure.Persistence;
 namespace ScratchCard.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260606111331_RotaShiftUsesTemplate")]
+    partial class RotaShiftUsesTemplate
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1987,9 +1990,6 @@ namespace ScratchCard.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("BusinessDayId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<Guid?>("CreatedBy")
                         .HasColumnType("uniqueidentifier");
 
@@ -2035,8 +2035,6 @@ namespace ScratchCard.Infrastructure.Migrations
                         .HasColumnType("time");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("BusinessDayId");
 
                     b.HasIndex("ShopId", "ShiftDate", "IsDeleted");
 
@@ -2398,12 +2396,6 @@ namespace ScratchCard.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("ApprovedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset?>("ApprovedOn")
-                        .HasColumnType("datetimeoffset");
-
                     b.Property<Guid?>("BusinessDayId")
                         .HasColumnType("uniqueidentifier");
 
@@ -2418,12 +2410,6 @@ namespace ScratchCard.Infrastructure.Migrations
 
                     b.Property<DateTimeOffset>("CreatedOn")
                         .HasColumnType("datetimeoffset");
-
-                    b.Property<int>("EntryMethod")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsApproved")
-                        .HasColumnType("bit");
 
                     b.Property<Guid?>("ModifiedBy")
                         .HasColumnType("uniqueidentifier");
@@ -5158,11 +5144,6 @@ namespace ScratchCard.Infrastructure.Migrations
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.RotaShift", b =>
                 {
-                    b.HasOne("ScratchCard.Domain.Entities.BusinessDay", null)
-                        .WithMany()
-                        .HasForeignKey("BusinessDayId")
-                        .OnDelete(DeleteBehavior.NoAction);
-
                     b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
                         .WithMany()
                         .HasForeignKey("ShopId")
