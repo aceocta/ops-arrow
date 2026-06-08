@@ -27,7 +27,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-full items-center justify-center bg-gradient-to-br from-brand-50 to-slate-100 p-4">
+    <div className="flex min-h-full items-center justify-center bg-gradient-to-br from-brand-50 to-slate-100 p-4 dark:from-slate-900 dark:to-slate-950">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
           <img src="/logo.png" alt="Ops Arrow" className="mx-auto mb-3 h-16 w-16 rounded-xl object-contain" />

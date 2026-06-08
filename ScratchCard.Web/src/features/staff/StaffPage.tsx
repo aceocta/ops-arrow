@@ -29,7 +29,7 @@ export default function StaffPage() {
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {members.map((m) => (
-          <button key={m.id} className="card flex items-center gap-3 p-4 text-left hover:border-brand-200" onClick={() => setEditing(m)}>
+          <button key={m.id} className="card card-hover flex items-center gap-3 p-4 text-left hover:border-brand-200" onClick={() => setEditing(m)}>
             <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100 font-semibold text-brand-700">
               {m.name.slice(0, 1).toUpperCase()}
             </span>

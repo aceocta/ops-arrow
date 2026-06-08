@@ -37,7 +37,7 @@ export default function ShopsPage() {
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {shops.map((s) => (
-          <div key={s.id} className="card flex items-start gap-3 p-4">
+          <div key={s.id} className="card card-hover flex items-start gap-3 p-4">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600"><Store className="h-5 w-5" /></span>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">

@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api, unwrap } from "../../lib/api";
 import type { OwnerOverview } from "../../lib/types";
 import { downloadCsv } from "../../lib/csv";
+import { useIsDark } from "../../lib/theme";
 import ExportButton from "../../components/ExportButton";
 import {
   PoundSterling,
@@ -54,6 +55,23 @@ export default function DashboardPage() {
   const chartData = (data?.salesByDay ?? []).map((p) => ({ label: dayLabel(p.date), amount: p.amount }));
   const tempData = (data?.temperatureByDay ?? []).map((p) => ({ label: dayLabel(p.date), inRange: p.inRange, outOfRange: p.outOfRange }));
   const hasTempData = tempData.some((p) => p.inRange + p.outOfRange > 0);
+
+  const dark = useIsDark();
+  const chart = dark
+    ? {
+        grid: "#1e293b",
+        axis: "#64748b",
+        cursor: "rgba(255,255,255,0.05)",
+        tooltip: { background: "#121829", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, color: "#e2e8f0" },
+        tooltipLabel: { color: "#e2e8f0" },
+      }
+    : {
+        grid: "#eef2f7",
+        axis: "#94a3b8",
+        cursor: "#f1f5f9",
+        tooltip: { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, color: "#0f172a" },
+        tooltipLabel: { color: "#0f172a" },
+      };
 
   const exportShops = () => {
     if (!data) return;
@@ -138,11 +156,11 @@ export default function DashboardPage() {
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f7" />
-                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                    <Tooltip formatter={(v: number) => gbp(v)} cursor={{ fill: "#f1f5f9" }} />
-                    <Bar dataKey="amount" fill="#1f47f5" radius={[4, 4, 0, 0]} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chart.grid} />
+                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: chart.axis }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: chart.axis }} axisLine={false} tickLine={false} />
+                    <Tooltip formatter={(v: number) => gbp(v)} cursor={{ fill: chart.cursor }} contentStyle={chart.tooltip} labelStyle={chart.tooltipLabel} itemStyle={chart.tooltipLabel} />
+                    <Bar dataKey="amount" fill="#6366f1" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -160,10 +178,10 @@ export default function DashboardPage() {
                 {hasTempData ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={tempData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f7" />
-                      <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} allowDecimals={false} />
-                      <Tooltip cursor={{ fill: "#f1f5f9" }} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chart.grid} />
+                      <XAxis dataKey="label" tick={{ fontSize: 11, fill: chart.axis }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 11, fill: chart.axis }} axisLine={false} tickLine={false} allowDecimals={false} />
+                      <Tooltip cursor={{ fill: chart.cursor }} contentStyle={chart.tooltip} labelStyle={chart.tooltipLabel} itemStyle={chart.tooltipLabel} />
                       <Bar dataKey="inRange" stackId="t" fill="#10b981" radius={[0, 0, 0, 0]} name="In range" />
                       <Bar dataKey="outOfRange" stackId="t" fill="#ef4444" radius={[4, 4, 0, 0]} name="Out of range" />
                     </BarChart>

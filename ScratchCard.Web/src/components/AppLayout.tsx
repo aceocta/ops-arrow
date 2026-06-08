@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { useQuery } from "@tanstack/react-query";
@@ -17,6 +17,8 @@ import {
   ChevronDown,
   LogOut,
   Store,
+  Sun,
+  Moon,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -35,6 +37,24 @@ const NAV: NavItem[] = [
   { to: "/shops", label: "Shops", icon: Store },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
+
+function ThemeToggle() {
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains("dark"));
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", dark);
+    try { localStorage.setItem("oa.web.theme", dark ? "dark" : "light"); } catch { /* ignore */ }
+  }, [dark]);
+  return (
+    <button
+      onClick={() => setDark((d) => !d)}
+      className="rounded-lg border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-800"
+      aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+      title={dark ? "Light mode" : "Dark mode"}
+    >
+      {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+    </button>
+  );
+}
 
 function ShopSwitcher() {
   const { profile, activeShop, activeShopId, setActiveShopId } = useAuth();
@@ -135,6 +155,7 @@ export default function AppLayout() {
         <header className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200/70 bg-white/70 px-6 py-3 backdrop-blur-md">
           <ShopSwitcher />
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <div className="text-right">
               <div className="text-sm font-medium text-slate-800">{name}</div>
               <div className="text-xs text-slate-400">{profile?.roles?.[0]}</div>

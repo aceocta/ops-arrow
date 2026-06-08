@@ -70,3 +70,83 @@
     @apply text-2xl font-bold tracking-tight text-slate-900;
   }
 }
+
+/* ───────────────────────────── Dark mode ─────────────────────────────
+   Applied when <html class="dark">. Overrides the shared components plus the
+   common neutral utilities so existing pages flip without per-page edits.
+   Accent colours (brand/emerald/amber/red) are softened, not changed. */
+html.dark body {
+  background-color: #0a0e1a;
+  background-image:
+    radial-gradient(60rem 60rem at 110% -10%, rgba(99, 102, 241, 0.12), transparent 60%),
+    radial-gradient(50rem 50rem at -10% 0%, rgba(6, 182, 212, 0.08), transparent 55%);
+  color: #cbd5e1;
+}
+
+.dark .card {
+  background-color: #121829;
+  border-color: rgba(255, 255, 255, 0.07);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px -14px rgba(0, 0, 0, 0.7);
+}
+.dark .input {
+  background-color: #0f1626;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+}
+.dark .input::placeholder { color: #64748b; }
+.dark .btn-ghost {
+  background-color: #121829;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+}
+.dark .btn-ghost:hover { background-color: #1a2236; border-color: rgba(255, 255, 255, 0.16); }
+.dark .label { color: #8b91a7; }
+
+/* Neutral text */
+.dark .text-slate-900 { color: #f1f5f9 !important; }
+.dark .text-slate-800 { color: #e2e8f0 !important; }
+.dark .text-slate-700 { color: #cbd5e1 !important; }
+.dark .text-slate-600 { color: #aab2c5 !important; }
+.dark .text-slate-500 { color: #99a2b6 !important; }
+.dark .text-slate-400 { color: #7c869b !important; }
+.dark .text-slate-300 { color: #5b647a !important; }
+
+/* Surfaces */
+.dark .bg-white { background-color: #121829 !important; }
+.dark .bg-white\/80 { background-color: rgba(13, 18, 33, 0.8) !important; }
+.dark .bg-white\/70 { background-color: rgba(13, 18, 33, 0.7) !important; }
+.dark .bg-slate-50 { background-color: rgba(255, 255, 255, 0.03) !important; }
+.dark .bg-slate-50\/60 { background-color: rgba(255, 255, 255, 0.03) !important; }
+.dark .bg-slate-100 { background-color: rgba(255, 255, 255, 0.07) !important; }
+.dark .hover\:bg-slate-50:hover { background-color: rgba(255, 255, 255, 0.04) !important; }
+.dark .hover\:bg-slate-100\/70:hover { background-color: rgba(255, 255, 255, 0.06) !important; }
+
+/* Borders / dividers */
+.dark .border-slate-100 { border-color: rgba(255, 255, 255, 0.06) !important; }
+.dark .border-slate-200 { border-color: rgba(255, 255, 255, 0.08) !important; }
+.dark .border-slate-200\/70 { border-color: rgba(255, 255, 255, 0.08) !important; }
+.dark .border-slate-300 { border-color: rgba(255, 255, 255, 0.12) !important; }
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(255, 255, 255, 0.06) !important; }
+.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(255, 255, 255, 0.08) !important; }
+
+/* Brand + status tints, softened for dark */
+.dark .bg-brand-50 { background-color: rgba(99, 102, 241, 0.16) !important; }
+.dark .text-brand-700 { color: #a5b4fc !important; }
+.dark .text-brand-600 { color: #a5b4fc !important; }
+.dark .ring-brand-100 { --tw-ring-color: rgba(99, 102, 241, 0.3) !important; }
+.dark .bg-emerald-100 { background-color: rgba(16, 185, 129, 0.18) !important; }
+.dark .text-emerald-700 { color: #6ee7b7 !important; }
+.dark .text-emerald-600 { color: #34d399 !important; }
+.dark .bg-amber-100 { background-color: rgba(245, 158, 11, 0.18) !important; }
+.dark .text-amber-700 { color: #fcd34d !important; }
+.dark .text-amber-600 { color: #fbbf24 !important; }
+.dark .bg-amber-50\/50 { background-color: rgba(245, 158, 11, 0.08) !important; }
+.dark .bg-red-100 { background-color: rgba(239, 68, 68, 0.18) !important; }
+.dark .text-red-700 { color: #fca5a5 !important; }
+.dark .text-red-600 { color: #f87171 !important; }
+.dark .bg-red-500 { background-color: #ef4444 !important; }
+.dark .bg-red-50 { background-color: rgba(239, 68, 68, 0.12) !important; }
+.dark .bg-emerald-50 { background-color: rgba(16, 185, 129, 0.12) !important; }
+.dark .border-emerald-200 { border-color: rgba(16, 185, 129, 0.3) !important; }
+.dark .text-emerald-800 { color: #6ee7b7 !important; }
+.dark .bg-amber-50 { background-color: rgba(245, 158, 11, 0.12) !important; }
