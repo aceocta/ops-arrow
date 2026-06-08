@@ -115,8 +115,11 @@ export function buildTemperatureRangeReportHtml(input: {
   readings: TemperatureReading[];
   // When false, the reading-time column is omitted (shop setting / non-owner). Defaults to true.
   showReadingTime?: boolean;
+  // When false, the deviation/status columns and in/out-range counts are omitted. Defaults to true.
+  showRange?: boolean;
 }) {
   const showReadingTime = input.showReadingTime !== false;
+  const showRange = input.showRange !== false;
   const generatedAt = input.generatedOn ? new Date(input.generatedOn) : new Date();
   const reportDateTime = Number.isNaN(generatedAt.getTime())
     ? input.generatedOn ?? "-"
@@ -161,15 +164,13 @@ export function buildTemperatureRangeReportHtml(input: {
               const rangeLabel = `${formatTemperature(minTemperature)} to ${formatTemperature(maxTemperature)}`;
               const deviationLabel = formatDeviation(recordedTemperature, minTemperature, maxTemperature);
               return `
-                <tr class="${reading.isOutOfRange ? "row-out" : ""}">
+                <tr class="${showRange && reading.isOutOfRange ? "row-out" : ""}">
                   ${showReadingTime ? `<td>${escapeHtml(reading.readingTime || "--:--")}</td>` : ""}
                   <td>${escapeHtml(reading.equipmentType)}</td>
                   <td>${escapeHtml(rangeLabel)}</td>
                   <td>${escapeHtml(formatTemperature(recordedTemperature))}</td>
-                  <td class="${reading.isOutOfRange ? "deviation-out" : "deviation-in"}">${escapeHtml(deviationLabel)}</td>
-                  <td class="${reading.isOutOfRange ? "status-out" : "status-in"}">${escapeHtml(
-                    reading.isOutOfRange ? "Out of range" : "In range"
-                  )}</td>
+                  ${showRange ? `<td class="${reading.isOutOfRange ? "deviation-out" : "deviation-in"}">${escapeHtml(deviationLabel)}</td>` : ""}
+                  ${showRange ? `<td class="${reading.isOutOfRange ? "status-out" : "status-in"}">${escapeHtml(reading.isOutOfRange ? "Out of range" : "In range")}</td>` : ""}
                   <td>${escapeHtml(reading.recordedByName ?? reading.checkedByInitials ?? "-")}</td>
                   <td>${escapeHtml(reading.actionTaken ?? "-")}</td>
                   <td>${escapeHtml(reading.notes ?? "-")}</td>
@@ -179,7 +180,7 @@ export function buildTemperatureRangeReportHtml(input: {
             .join("");
 
           return `
-            <div class="unit-title">Unit: ${escapeHtml(unitGroup.unitName)} | Type: ${escapeHtml(sample?.equipmentType ?? "-")} | Range: ${escapeHtml(sampleRange)} | Total: ${unitGroup.entries.length} | In range: ${unitInRange} | Out of range: ${unitOutOfRange}</div>
+            <div class="unit-title">Unit: ${escapeHtml(unitGroup.unitName)} | Type: ${escapeHtml(sample?.equipmentType ?? "-")} | Range: ${escapeHtml(sampleRange)} | Total: ${unitGroup.entries.length}${showRange ? ` | In range: ${unitInRange} | Out of range: ${unitOutOfRange}` : ""}</div>
             <table>
               <thead>
                 <tr>
@@ -187,15 +188,15 @@ export function buildTemperatureRangeReportHtml(input: {
                   <th class="col-type">Type</th>
                   <th class="col-range">Allowed Range</th>
                   <th class="col-temp">Recorded Temp</th>
-                  <th class="col-deviation">Deviation</th>
-                  <th class="col-status">Status</th>
+                  ${showRange ? '<th class="col-deviation">Deviation</th>' : ""}
+                  ${showRange ? '<th class="col-status">Status</th>' : ""}
                   <th class="col-by">Checked By</th>
                   <th class="col-action">Action</th>
                   <th class="col-notes">Notes</th>
                 </tr>
               </thead>
               <tbody>
-                ${rowsHtml || `<tr><td colspan="${showReadingTime ? 9 : 8}">No readings found for this unit.</td></tr>`}
+                ${rowsHtml || `<tr><td colspan="${9 - (showReadingTime ? 0 : 1) - (showRange ? 0 : 2)}">No readings found for this unit.</td></tr>`}
               </tbody>
             </table>
           `;
@@ -203,7 +204,7 @@ export function buildTemperatureRangeReportHtml(input: {
         .join("");
 
       return `
-        <div class="date-title">Date: ${escapeHtml(formatReportDate(dateGroup.date))} | Total: ${dateEntries.length} | In range: ${dateInRange} | Out of range: ${dateOutOfRange}</div>
+        <div class="date-title">Date: ${escapeHtml(formatReportDate(dateGroup.date))} | Total: ${dateEntries.length}${showRange ? ` | In range: ${dateInRange} | Out of range: ${dateOutOfRange}` : ""}</div>
         ${unitSectionsHtml}
       `;
     })
@@ -310,7 +311,7 @@ export function buildTemperatureRangeReportHtml(input: {
         <div class="title">Temperature Logs Range Report</div>
         <div class="subtitle">Shop: ${escapeHtml(input.shopName)} | Date Range: ${escapeHtml(formatReportDate(input.from))} to ${escapeHtml(formatReportDate(input.to))}</div>
         <div class="meta">Report Date Time: ${escapeHtml(reportDateTime)}</div>
-        <div class="meta">Total: ${input.readings.length} | In range: ${inRangeCount} | Out of range: ${outOfRangeCount}</div>
+        <div class="meta">Total: ${input.readings.length}${showRange ? ` | In range: ${inRangeCount} | Out of range: ${outOfRangeCount}` : ""}</div>
         ${dateSectionsHtml || "<div>No readings found for this date range.</div>"}
       </body>
     </html>

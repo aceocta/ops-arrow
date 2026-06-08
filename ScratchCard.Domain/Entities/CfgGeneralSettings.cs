@@ -13,4 +13,6 @@ public class CfgGeneralSettings : CfgSettingsBase
     public bool? ShowTemperatureTimingStatus { get; set; }
     // When true, the temperature log shows the reading time (company-owner only on the client).
     public bool? ShowTemperatureReadingTime { get; set; }
+    // When true, the temperature log shows in-range / out-of-range status (company-owner only).
+    public bool? ShowTemperatureRangeStatus { get; set; }
 }

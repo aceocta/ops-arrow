@@ -111,17 +111,7 @@ export function TemperatureScheduleGridScreen() {
           <DateTimeField style={{ flex: 1 }} mode="date" value={fromDate} onChange={setFromDate} maximumDate={new Date()} />
           <DateTimeField style={{ flex: 1 }} mode="date" value={toDate} onChange={setToDate} maximumDate={new Date()} />
         </View>
-        <View style={styles.quickRow}>
-          <Pressable style={styles.quickBtn} onPress={setToday}>
-            <Text style={styles.quickBtnText}>Today</Text>
-          </Pressable>
-          <Pressable style={styles.quickBtn} onPress={() => setLastDays(7)}>
-            <Text style={styles.quickBtnText}>7 days</Text>
-          </Pressable>
-          <Pressable style={styles.quickBtn} onPress={() => setLastDays(30)}>
-            <Text style={styles.quickBtnText}>30 days</Text>
-          </Pressable>
-        </View>
+      
         {!rangeIsValid ? (
           <Text style={styles.warning}>From date must be on or before To date.</Text>
         ) : null}
@@ -153,7 +143,7 @@ type SelectedCell = {
 
 function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
   const { activeShopId, activeShop, profile } = useAuth();
-  const { showTiming, showReadingTime } = useTemperatureDisplaySettings();
+  const { showTiming, showReadingTime, showRange } = useTemperatureDisplaySettings();
   const [selected, setSelected] = React.useState<SelectedCell | null>(null);
   const [emailing, setEmailing] = React.useState(false);
 
@@ -189,6 +179,7 @@ function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
       generatedOn: new Date().toISOString(),
       readings,
       showReadingTime,
+      showRange,
     });
 
   const printReport = async () => {
@@ -372,10 +363,10 @@ function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
                           ) : null}
                           {cell?.temperatureCelsius != null ? (
                             <Text
-                              style={[styles.cellTemp, cell.isOutOfRange ? styles.outOfRangeText : styles.inRangeText]}
+                              style={[styles.cellTemp, !showRange ? null : cell.isOutOfRange ? styles.outOfRangeText : styles.inRangeText]}
                               numberOfLines={1}
                             >
-                              {cell.isOutOfRange ? "▲ " : "● "}
+                              {showRange ? (cell.isOutOfRange ? "▲ " : "● ") : ""}
                               {cell.temperatureCelsius.toFixed(1)}°
                             </Text>
                           ) : null}
@@ -431,7 +422,7 @@ function rangeDeviation(reading: TemperatureReading) {
 }
 
 function CellDetailModal({ selected, onClose }: { selected: SelectedCell | null; onClose: () => void }) {
-  const { showTiming, showReadingTime } = useTemperatureDisplaySettings();
+  const { showTiming, showReadingTime, showRange } = useTemperatureDisplaySettings();
   const reading = selected?.reading;
   const cell = selected?.cell;
   const rawState = cell?.state ?? "Upcoming";
@@ -465,17 +456,21 @@ function CellDetailModal({ selected, onClose }: { selected: SelectedCell | null;
                       label="Allowed range"
                       value={`${reading.minTemperatureCelsius.toFixed(1)} – ${reading.maxTemperatureCelsius.toFixed(1)} °C`}
                     />
-                    <DetailRow
-                      label="Status"
-                      value={reading.isOutOfRange ? "Out of range" : "In range"}
-                      danger={reading.isOutOfRange}
-                    />
-                    {(() => {
-                      const dev = rangeDeviation(reading);
-                      return dev ? (
-                        <DetailRow label="Out by" value={`${dev.amount.toFixed(1)} °C ${dev.dir}`} danger />
-                      ) : null;
-                    })()}
+                    {showRange ? (
+                      <DetailRow
+                        label="Status"
+                        value={reading.isOutOfRange ? "Out of range" : "In range"}
+                        danger={reading.isOutOfRange}
+                      />
+                    ) : null}
+                    {showRange
+                      ? (() => {
+                          const dev = rangeDeviation(reading);
+                          return dev ? (
+                            <DetailRow label="Out by" value={`${dev.amount.toFixed(1)} °C ${dev.dir}`} danger />
+                          ) : null;
+                        })()
+                      : null}
                     <DetailRow label="Equipment" value={reading.equipmentType} />
                     <DetailRow label="Checked by" value={reading.recordedByName ?? reading.checkedByInitials} />
                     <DetailRow
@@ -492,7 +487,7 @@ function CellDetailModal({ selected, onClose }: { selected: SelectedCell | null;
                     {cell.temperatureCelsius != null ? (
                       <DetailRow label="Temperature" value={`${cell.temperatureCelsius.toFixed(1)} °C`} />
                     ) : null}
-                    <DetailRow label="Status" value={cell.isOutOfRange ? "Out of range" : "In range"} />
+                    {showRange ? <DetailRow label="Status" value={cell.isOutOfRange ? "Out of range" : "In range"} /> : null}
                     <Text style={styles.modalNote}>Loading full details…</Text>
                   </>
                 ) : (

@@ -367,6 +367,7 @@ function DailyScheduleMatrix({
   outOfRangeCount,
   showTiming,
   showReadingTime,
+  showRange,
   onCellPress,
 }: {
   columns: MatrixColumn[];
@@ -376,6 +377,8 @@ function DailyScheduleMatrix({
   showTiming: boolean;
   // The reading clock-time is likewise owner-only + shop-setting controlled.
   showReadingTime: boolean;
+  // In/out-of-range status (header badge + cell colour) is owner-only + shop-setting controlled.
+  showRange: boolean;
   onCellPress: (unitId: string, scheduleId: string) => void;
 }) {
   if (columns.length === 0 || rows.length === 0) return null;
@@ -385,7 +388,7 @@ function DailyScheduleMatrix({
         title="Scheduled Checks"
         icon="grid-outline"
         right={
-          outOfRangeCount > 0 ? (
+          !showRange ? undefined : outOfRangeCount > 0 ? (
             <StatusBadge label={`${outOfRangeCount} out of range`} tone="danger" />
           ) : (
             <StatusBadge label="In range" tone="success" />
@@ -449,7 +452,7 @@ function DailyScheduleMatrix({
                           <Text
                             style={[
                               styles.matrixCellTemp,
-                              cell.reading.isOutOfRange ? styles.scheduleSlotDanger : styles.scheduleSlotOk,
+                              !showRange ? null : cell.reading.isOutOfRange ? styles.scheduleSlotDanger : styles.scheduleSlotOk,
                             ]}
                             numberOfLines={1}
                           >
@@ -559,7 +562,7 @@ export function TemperatureLogScreen() {
     staleTime: 10 * 60 * 1000,
   });
 
-  const { showTiming, showReadingTime } = useTemperatureDisplaySettings();
+  const { showTiming, showReadingTime, showRange } = useTemperatureDisplaySettings();
 
   // Current minute-of-day, only when the selected day is today — drives Pending vs Missed for
   // slots with no reading. Null on other days so past = Missed, future = Pending without a clock.
@@ -1250,6 +1253,7 @@ export function TemperatureLogScreen() {
           outOfRangeCount={summary.outOfRange}
           showTiming={showTiming}
           showReadingTime={showReadingTime}
+          showRange={showRange}
           onCellPress={openLogEntryModal}
         />
 

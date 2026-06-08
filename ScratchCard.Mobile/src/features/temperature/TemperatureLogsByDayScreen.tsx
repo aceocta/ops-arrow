@@ -27,7 +27,7 @@ function shiftDate(value: string, days: number) {
 
 export function TemperatureLogsByDayScreen() {
   const { activeShopId, activeShop } = useAuth();
-  const { showReadingTime } = useTemperatureDisplaySettings();
+  const { showReadingTime, showRange } = useTemperatureDisplaySettings();
   const shopId = activeShopId;
   const [selectedDate, setSelectedDate] = useState(formatDateValue(new Date()));
 
@@ -117,10 +117,12 @@ export function TemperatureLogsByDayScreen() {
                       <Text style={styles.readingTime}>{reading.readingTime || "--:--"}</Text>
                     ) : null}
                     <Text style={styles.readingTemp}>{formatTemperature(Number(reading.temperatureCelsius))}</Text>
-                    <StatusBadge
-                      label={reading.isOutOfRange ? "Out of range" : "In range"}
-                      tone={reading.isOutOfRange ? "danger" : "success"}
-                    />
+                    {showRange ? (
+                      <StatusBadge
+                        label={reading.isOutOfRange ? "Out of range" : "In range"}
+                        tone={reading.isOutOfRange ? "danger" : "success"}
+                      />
+                    ) : null}
                   </View>
                   <Text style={styles.meta}>Initial: {reading.checkedByInitials || "-"}</Text>
                   {reading.actionTaken ? <Text style={styles.meta}>Action: {reading.actionTaken}</Text> : null}

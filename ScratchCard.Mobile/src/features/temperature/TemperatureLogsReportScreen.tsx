@@ -72,7 +72,7 @@ type FlatReadingRow =
 
 export function TemperatureLogsReportScreen() {
   const { activeShopId, activeShop, profile } = useAuth();
-  const { showReadingTime } = useTemperatureDisplaySettings();
+  const { showReadingTime, showRange } = useTemperatureDisplaySettings();
   const shopId = activeShopId;
 
   const today = useMemo(() => new Date(), []);
@@ -129,6 +129,7 @@ export function TemperatureLogsReportScreen() {
         generatedOn: new Date().toISOString(),
         readings,
         showReadingTime,
+        showRange,
       });
 
       const { uri } = await Print.printToFileAsync({
@@ -162,6 +163,7 @@ export function TemperatureLogsReportScreen() {
       generatedOn: new Date().toISOString(),
       readings,
       showReadingTime,
+      showRange,
     });
 
   const printReport = async () => {
@@ -238,10 +240,12 @@ export function TemperatureLogsReportScreen() {
       <View style={styles.entryCard}>
         <View style={styles.entryHeader}>
           <Text style={styles.entryUnit}>{reading.equipmentType}</Text>
-          <StatusBadge
-            label={reading.isOutOfRange ? "Out of range" : "In range"}
-            tone={reading.isOutOfRange ? "danger" : "success"}
-          />
+          {showRange ? (
+            <StatusBadge
+              label={reading.isOutOfRange ? "Out of range" : "In range"}
+              tone={reading.isOutOfRange ? "danger" : "success"}
+            />
+          ) : null}
         </View>
         {showReadingTime ? <Text style={styles.entryMeta}>{reading.readingTime || "--:--"}</Text> : null}
         <Text style={styles.entryTemp}>
@@ -256,7 +260,7 @@ export function TemperatureLogsReportScreen() {
         {reading.notes ? <Text style={styles.meta}>Notes: {reading.notes}</Text> : null}
       </View>
     );
-  }, [showReadingTime]);
+  }, [showReadingTime, showRange]);
 
   const ListHeader = useMemo(
     () => (
@@ -276,14 +280,18 @@ export function TemperatureLogsReportScreen() {
               <Text style={styles.metricValue}>{readings.length}</Text>
               <Text style={styles.metricLabel}>Total</Text>
             </View>
-            <View style={styles.metricCard}>
-              <Text style={styles.metricValue}>{inRangeCount}</Text>
-              <Text style={styles.metricLabel}>In range</Text>
-            </View>
-            <View style={styles.metricCard}>
-              <Text style={styles.metricValue}>{outOfRangeCount}</Text>
-              <Text style={styles.metricLabel}>Out of range</Text>
-            </View>
+            {showRange ? (
+              <>
+                <View style={styles.metricCard}>
+                  <Text style={styles.metricValue}>{inRangeCount}</Text>
+                  <Text style={styles.metricLabel}>In range</Text>
+                </View>
+                <View style={styles.metricCard}>
+                  <Text style={styles.metricValue}>{outOfRangeCount}</Text>
+                  <Text style={styles.metricLabel}>Out of range</Text>
+                </View>
+              </>
+            ) : null}
           </View>
           <ReportActionBar
             actions={[
@@ -327,6 +335,7 @@ export function TemperatureLogsReportScreen() {
       readings.length,
       inRangeCount,
       outOfRangeCount,
+      showRange,
       readingsQuery.isLoading,
       emailReportMutation.isPending,
     ]

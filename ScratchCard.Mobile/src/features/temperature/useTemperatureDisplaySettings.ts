@@ -19,5 +19,6 @@ export function useTemperatureDisplaySettings() {
   return {
     showTiming: isCompanyOwner && valueOf("ShowTemperatureTimingStatus") !== "false",
     showReadingTime: isCompanyOwner && valueOf("ShowTemperatureReadingTime") !== "false",
+    showRange: isCompanyOwner && valueOf("ShowTemperatureRangeStatus") !== "false",
   };
 }
