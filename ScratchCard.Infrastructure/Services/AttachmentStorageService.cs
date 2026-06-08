@@ -96,20 +96,30 @@ public sealed class AttachmentStorageService : IAttachmentStorageService
 
         if (_provider == StorageProvider.S3)
         {
-            var bucket = _options.S3BucketName!;
-            var key = normalizedRelativePath;
-            using var stream = new MemoryStream(content, writable: false);
-            await GetS3Client().PutObjectAsync(
-                new PutObjectRequest
-                {
-                    BucketName = bucket,
-                    Key = key,
-                    InputStream = stream,
-                    AutoCloseStream = false,
-                },
-                cancellationToken);
+            try
+            {
+                var bucket = _options.S3BucketName!;
+                var key = normalizedRelativePath;
+                using var stream = new MemoryStream(content, writable: false);
+                await GetS3Client().PutObjectAsync(
+                    new PutObjectRequest
+                    {
+                        BucketName = bucket,
+                        Key = key,
+                        InputStream = stream,
+                        AutoCloseStream = false,
+                    },
+                    cancellationToken);
+                return BuildS3StoredPath(bucket, key);
 
-            return BuildS3StoredPath(bucket, key);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                throw ex;
+            }
+           
+
         }
 
         if (_provider == StorageProvider.AzureBlob)
