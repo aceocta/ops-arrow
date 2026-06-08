@@ -1,5 +1,7 @@
 ﻿import React, { useMemo, useRef, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { RouteProp, useRoute } from "@react-navigation/native";
+import { MainStackParamList } from "../../types/navigation";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
@@ -32,10 +34,11 @@ export function UserInvitationsScreen() {
     profile?.roles?.some((role) => role === "PlatformAdmin" || role === "CompanyOwner" || role === "Manager") ?? false;
   const canCancelInvitations =
     profile?.roles?.some((role) => role === "CompanyOwner") ?? false;
-  const [email, setEmail] = useState("");
+  const route = useRoute<RouteProp<MainStackParamList, "UserInvitations">>();
+  const [email, setEmail] = useState(route.params?.email ?? "");
   const [expiryHours, setExpiryHours] = useState("72");
   const expiryHoursRef = useRef<TextInput>(null);
-  const [selectedRoleId, setSelectedRoleId] = useState<string>("");
+  const [selectedRoleId, setSelectedRoleId] = useState<string>(route.params?.roleId ?? "");
 
   const rolesQuery = useQuery({
     queryKey: ["roles"],

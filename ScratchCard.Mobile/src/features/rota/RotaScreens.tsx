@@ -1,9 +1,13 @@
 import React, { useMemo, useState } from "react";
 import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { MainStackParamList } from "../../types/navigation";
 import { useAuth } from "../../auth/AuthContext";
+import { getRoleOptions } from "../../api/lookupsApi";
 import {
   checkInShift,
   checkOutShift,
@@ -12,6 +16,9 @@ import {
   deleteRotaShift,
   getAssignableUsers,
   createRotaStaffMember,
+  getRotaStaffMembers,
+  updateRotaStaffMember,
+  deleteRotaStaffMember,
   getMyCurrentAttendance,
   getMyShifts,
   getRota,
@@ -36,7 +43,7 @@ import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
 import { confirmDestructive } from "../../utils/confirm";
 import { toastError, toastSuccess } from "../../components/toast";
-import { AssignableUser, AttendanceApprovalRow, RotaAssignee, RotaShift } from "../../types/models";
+import { AssignableUser, AttendanceApprovalRow, RotaAssignee, RotaShift, RotaStaffMember } from "../../types/models";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -1374,6 +1381,135 @@ export function RotaApprovalsScreen() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// External staff members (roster-only people, not Ops Arrow users)
+// ---------------------------------------------------------------------------
+export function RotaStaffMembersScreen() {
+  const { activeShopId } = useAuth();
+  const shopId = activeShopId;
+  const queryClient = useQueryClient();
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const [editing, setEditing] = useState<RotaStaffMember | "new" | null>(null);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("+44 ");
+  const [email, setEmail] = useState("");
+  const [inviteRoleId, setInviteRoleId] = useState("");
+
+  const membersQuery = useQuery({
+    queryKey: ["rota-staff-members", shopId],
+    queryFn: () => getRotaStaffMembers(shopId as string),
+    enabled: Boolean(shopId),
+  });
+  const rolesQuery = useQuery({ queryKey: ["roles"], queryFn: getRoleOptions, enabled: Boolean(shopId) });
+  const inviteRoles = (rolesQuery.data ?? []).filter((r) => r.name.replace(/\s+/g, "").toLowerCase() !== "platformadmin");
+
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ["rota-staff-members", shopId] });
+    void queryClient.invalidateQueries({ queryKey: ["rota-assignable", shopId] });
+  };
+
+  const openNew = () => { setName(""); setPhone("+44 "); setEmail(""); setInviteRoleId(""); setEditing("new"); };
+  const openEdit = (m: RotaStaffMember) => { setName(m.name); setPhone(m.phone || "+44 "); setEmail(m.email || ""); setInviteRoleId(""); setEditing(m); };
+
+  const saveMutation = useMutation({
+    mutationFn: () => {
+      const p = phone.trim();
+      const payload = { shopId: shopId as string, name: name.trim(), phone: p && p !== "+44" ? p : undefined, email: email.trim() || undefined };
+      return editing && editing !== "new" ? updateRotaStaffMember(editing.id, payload) : createRotaStaffMember(payload);
+    },
+    onSuccess: () => { setEditing(null); refresh(); toastSuccess("Saved."); },
+    onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't save."),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteRotaStaffMember(id),
+    onSuccess: () => { setEditing(null); refresh(); },
+    onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't remove."),
+  });
+
+  const confirmDelete = async (m: RotaStaffMember) => {
+    const ok = await confirmDestructive({ title: "Remove staff member", message: `Remove ${m.name}? Past rota/timesheet records are kept.` });
+    if (ok) deleteMutation.mutate(m.id);
+  };
+
+  const members = membersQuery.data ?? [];
+
+  return (
+    <ScreenContainer>
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.muted}>People who aren't Ops Arrow users but you roster &amp; record hours for.</Text>
+        <PrimaryButton label="+ Add external person" onPress={openNew} disabled={!shopId} />
+
+        {membersQuery.isLoading ? <LoadingState inline /> : null}
+        {!membersQuery.isLoading && members.length === 0 ? (
+          <View style={ui.card}><Text style={styles.muted}>No external staff yet.</Text></View>
+        ) : null}
+
+        {members.map((m) => (
+          <Pressable key={m.id} style={[ui.card, styles.memberCard]} onPress={() => openEdit(m)}>
+            <View style={[styles.userAvatar, styles.userAvatarOn]}>
+              <Text style={styles.userAvatarText}>{initials(m.name)}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.userName} numberOfLines={1}>{m.name}</Text>
+              <Text style={styles.muted} numberOfLines={1}>
+                {[m.phone, m.email].filter(Boolean).join("  ·  ") || "No contact details"}
+              </Text>
+            </View>
+            <Ionicons name="create-outline" size={18} color={appTheme.colors.primary} />
+          </Pressable>
+        ))}
+      </ScrollView>
+
+      <Modal visible={editing !== null} transparent animationType="fade" onRequestClose={() => setEditing(null)}>
+        <View style={styles.sheetBackdrop}>
+          <View style={styles.sheetCard}>
+            <Text style={styles.modalTitleSm}>{editing && editing !== "new" ? "Edit external person" : "Add external person"}</Text>
+
+            <Text style={styles.fieldLabel}>Name</Text>
+            <TextInput style={styles.externalInput} value={name} onChangeText={setName} placeholder="Full name" placeholderTextColor={appTheme.colors.textSubtle} autoCapitalize="words" />
+
+            <Text style={styles.fieldLabel}>Phone (optional)</Text>
+            <TextInput style={styles.externalInput} value={phone} onChangeText={setPhone} placeholder="+44 7700 900000" placeholderTextColor={appTheme.colors.textSubtle} keyboardType="phone-pad" />
+
+            <Text style={styles.fieldLabel}>Email (optional)</Text>
+            <TextInput style={styles.externalInput} value={email} onChangeText={setEmail} placeholder="name@example.com" placeholderTextColor={appTheme.colors.textSubtle} autoCapitalize="none" keyboardType="email-address" />
+
+            <PrimaryButton label={saveMutation.isPending ? "Saving..." : "Save"} onPress={() => saveMutation.mutate()} disabled={!name.trim() || saveMutation.isPending} />
+
+            {editing && editing !== "new" ? (
+              <>
+                <Text style={[styles.fieldLabel, { marginTop: appTheme.spacing.sm }]}>Invite to Ops Arrow — role</Text>
+                <View style={styles.chipRow}>
+                  {inviteRoles.map((r) => {
+                    const active = inviteRoleId === r.id;
+                    return (
+                      <Pressable key={r.id} style={[styles.chip, active ? styles.chipActive : null]} onPress={() => setInviteRoleId(r.id)}>
+                        <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>{r.name}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <PrimaryButton
+                  label="Invite to Ops Arrow"
+                  tone="neutral"
+                  onPress={() => {
+                    const e = email.trim();
+                    setEditing(null);
+                    navigation.navigate("UserInvitations", { email: e || undefined, roleId: inviteRoleId || undefined });
+                  }}
+                />
+                <PrimaryButton label="Remove" tone="danger" onPress={() => confirmDelete(editing)} disabled={deleteMutation.isPending} />
+              </>
+            ) : null}
+            <PrimaryButton label="Cancel" tone="neutral" onPress={() => setEditing(null)} disabled={saveMutation.isPending} />
+          </View>
+        </View>
+      </Modal>
+    </ScreenContainer>
+  );
+}
+
 const styles = StyleSheet.create({
   content: { gap: appTheme.spacing.sm, paddingBottom: appTheme.spacing.xl },
   muted: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 13, lineHeight: 18 },
@@ -1418,6 +1554,7 @@ const styles = StyleSheet.create({
   },
   addExternalBtn: { paddingHorizontal: 18, paddingVertical: 11, alignItems: "center", justifyContent: "center", borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.primary },
   addExternalOpenBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: appTheme.spacing.sm, paddingVertical: 11, borderRadius: appTheme.radius.sm, borderWidth: 1, borderColor: appTheme.colors.border },
+  memberCard: { flexDirection: "row", alignItems: "center", gap: 12 },
   contactRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
   contactValue: { flex: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 15 },
   dayCard: { gap: 8 },
@@ -1502,9 +1639,21 @@ const styles = StyleSheet.create({
   adjustBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 999, borderWidth: 1, borderColor: appTheme.colors.border },
   adjustBtnText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
   approveBtnFlex: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 999, backgroundColor: appTheme.colors.success },
-  sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", padding: appTheme.spacing.md },
-  sheetBackdropLight: { flex: 1, backgroundColor: "rgba(0,0,0,0.18)", justifyContent: "center", padding: appTheme.spacing.md },
-  sheetCard: { backgroundColor: appTheme.colors.background, borderRadius: appTheme.radius.lg, padding: appTheme.spacing.md, gap: appTheme.spacing.sm },
+  sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", padding: appTheme.spacing.md },
+  sheetBackdropLight: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", padding: appTheme.spacing.md },
+  sheetCard: {
+    backgroundColor: appTheme.colors.background,
+    borderRadius: appTheme.radius.lg,
+    padding: appTheme.spacing.md,
+    gap: appTheme.spacing.sm,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 12,
+  },
   sheetHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
   sheetIcon: { width: 42, height: 42, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: appTheme.colors.surfaceBrandSoft },
   modalTitleSm: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 18 },

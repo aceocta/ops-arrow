@@ -34,6 +34,7 @@ export type MainStackParamList = {
   RotaManage: undefined;
   RotaTimesheet: undefined;
   RotaApprovals: undefined;
+  RotaStaffMembers: undefined;
   ShopChecklist: undefined;
   ComplianceChecks: { date?: string } | undefined;
   ComplianceConfig: undefined;
@@ -41,7 +42,7 @@ export type MainStackParamList = {
   ChecklistConfiguration: undefined;
   ChecklistHistory: undefined;
   Dashboard: undefined;
-  UserInvitations: undefined;
+  UserInvitations: { email?: string; roleId?: string } | undefined;
   UserManagement: undefined;
   ShopConfiguration: undefined;
   ShopFeatureToggles: undefined;
