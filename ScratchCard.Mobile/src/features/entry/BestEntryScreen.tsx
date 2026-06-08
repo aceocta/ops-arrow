@@ -94,9 +94,16 @@ export function BestEntryScreen() {
   const { entitlements } = useEntitlements();
   const { profile, activeShop, activeShopId, setActiveShop } = useAuth();
   const features = entitlements?.features ?? [];
-  const visibleOptions = operationOptions.filter(
-    (o) => !o.requiredFeature || features.includes(o.requiredFeature)
-  );
+  // Managers / owners manage the rota; everyone else lands on their own shifts.
+  const roles = profile?.roles ?? [];
+  const canManageRota = roles.some((r) => r === "CompanyOwner" || r === "Manager" || r === "PlatformAdmin");
+  const visibleOptions = operationOptions
+    .filter((o) => !o.requiredFeature || features.includes(o.requiredFeature))
+    .map((o) =>
+      o.key === "shifts" && canManageRota
+        ? { ...o, title: "Shift Rota", route: "RotaManage" as keyof MainStackParamList }
+        : o
+    );
 
   const shops = profile?.shops ?? [];
   const canSwitchShop = shops.length > 1;

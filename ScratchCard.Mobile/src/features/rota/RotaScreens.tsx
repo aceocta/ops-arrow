@@ -68,6 +68,25 @@ function weekAhead() {
   return { from: formatDateValue(from), to: formatDateValue(to) };
 }
 
+// Monday that starts the week containing dateStr (weeks run Mon–Sun).
+function mondayOf(dateStr: string) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  const mondayOffset = (d.getDay() + 6) % 7; // 0 = Monday
+  d.setDate(d.getDate() - mondayOffset);
+  return formatDateValue(d);
+}
+
+function addDaysStr(dateStr: string, n: number) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + n);
+  return formatDateValue(d);
+}
+
+const dayOfMonth = (dateStr: string) => {
+  const d = new Date(`${dateStr}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+};
+
 const GRACE_MIN = 5;
 const clockTime = (iso?: string | null) =>
   iso ? new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "";
@@ -412,10 +431,13 @@ export function RotaManageScreen() {
   const shopId = activeShopId;
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
-  const [range, setRange] = useState(() => weekAhead());
+  const [weekStart, setWeekStart] = useState(() => mondayOf(formatDateValue(new Date())));
   const [editorOpen, setEditorOpen] = useState(false);
   const [draft, setDraft] = useState<ShiftDraft>(emptyDraft());
   const [userSearch, setUserSearch] = useState("");
+
+  const range = useMemo(() => ({ from: weekStart, to: addDaysStr(weekStart, 6) }), [weekStart]);
+  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDaysStr(weekStart, i)), [weekStart]);
 
   const rotaQuery = useQuery({
     queryKey: ["rota", shopId, range.from, range.to],
@@ -448,9 +470,8 @@ export function RotaManageScreen() {
       return draft.id ? updateRotaShift(draft.id, payload) : createRotaShift(payload);
     },
     onSuccess: () => {
-      // Make sure the saved shift's date is within the visible range so it shows after saving.
-      const savedDate = draft.shiftDate;
-      setRange((r) => ({ from: savedDate < r.from ? savedDate : r.from, to: savedDate > r.to ? savedDate : r.to }));
+      // Jump to the saved shift's week so it's visible after saving.
+      setWeekStart(mondayOf(draft.shiftDate));
       setEditorOpen(false);
       void invalidate();
     },
@@ -463,7 +484,11 @@ export function RotaManageScreen() {
     onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't delete the shift."),
   });
 
-  const openAdd = () => { setDraft(emptyDraft()); setUserSearch(""); setEditorOpen(true); };
+  const openAdd = (shiftDate?: string) => {
+    setDraft({ ...emptyDraft(), shiftDate: shiftDate ?? emptyDraft().shiftDate });
+    setUserSearch("");
+    setEditorOpen(true);
+  };
   const openEdit = (shift: RotaShift) => {
     setDraft({
       id: shift.id,
@@ -505,60 +530,80 @@ export function RotaManageScreen() {
         : [...d.assigneeUserIds, userId],
     }));
 
-  // Group shifts by date for display.
-  const grouped = useMemo(() => {
+  // Shifts keyed by date (ordered by start time), for the week-grid render.
+  const shiftsByDate = useMemo(() => {
     const map = new Map<string, RotaShift[]>();
     for (const s of rotaQuery.data ?? []) {
       const list = map.get(s.shiftDate) ?? [];
       list.push(s);
       map.set(s.shiftDate, list);
     }
-    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    for (const list of map.values()) list.sort((a, b) => a.startTime.localeCompare(b.startTime));
+    return map;
   }, [rotaQuery.data]);
 
+  const todayStr = formatDateValue(new Date());
+  const weekLabel = `${dayOfMonth(weekStart)} – ${dayOfMonth(addDaysStr(weekStart, 6))}`;
   const canSave = draft.shiftTemplateId.length > 0 && !saveMutation.isPending;
 
   return (
     <ScreenContainer>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={ui.card}>
-          <DateRangeQuickPicks from={range.from} to={range.to} onSelect={(from, to) => setRange({ from, to })} style={{ marginBottom: 8 }} />
-          <View style={styles.row}>
-            <DateTimeField style={{ flex: 1 }} mode="date" value={range.from} onChange={(from) => setRange((r) => ({ ...r, from }))} />
-            <DateTimeField style={{ flex: 1 }} mode="date" value={range.to} onChange={(to) => setRange((r) => ({ ...r, to }))} />
-          </View>
-          <PrimaryButton label="+ Add shift" onPress={openAdd} disabled={!shopId} />
+        {/* Week navigator */}
+        <View style={[ui.card, styles.weekNav]}>
+          <Pressable style={styles.weekNavBtn} onPress={() => setWeekStart((w) => addDaysStr(w, -7))}>
+            <Ionicons name="chevron-back" size={20} color={appTheme.colors.primary} />
+          </Pressable>
+          <Pressable style={{ flex: 1, alignItems: "center" }} onPress={() => setWeekStart(mondayOf(todayStr))}>
+            <Text style={styles.weekNavLabel}>{weekLabel}</Text>
+            <Text style={styles.weekNavHint}>{weekStart === mondayOf(todayStr) ? "This week" : "Tap for this week"}</Text>
+          </Pressable>
+          <Pressable style={styles.weekNavBtn} onPress={() => setWeekStart((w) => addDaysStr(w, 7))}>
+            <Ionicons name="chevron-forward" size={20} color={appTheme.colors.primary} />
+          </Pressable>
         </View>
 
         {rotaQuery.isLoading ? <LoadingState inline /> : null}
-        {!rotaQuery.isLoading && grouped.length === 0 ? (
-          <View style={ui.card}><Text style={styles.muted}>No shifts in this range. Add one above.</Text></View>
-        ) : null}
 
-        {grouped.map(([date, shifts]) => (
-          <View key={date} style={styles.section}>
-            <Text style={styles.sectionTitle}>{dayLabel(date)}</Text>
-            {shifts.map((shift) => (
-              <View key={shift.id} style={[ui.card, styles.shiftCard]}>
-                <View style={{ flex: 1, gap: 3 }}>
-                  <Text style={styles.shiftTime}>
-                    {shift.shiftName ? `${shift.shiftName} · ` : ""}{timeRange(shift.startTime, shift.endTime)}{overnightSuffix(shift.shiftDate, shift.endDate)}
-                    {shift.position ? <Text style={styles.muted}>  ·  {shift.position}</Text> : null}
-                  </Text>
-                  <Text style={styles.muted} numberOfLines={2}>
-                    {shift.assignees.length > 0 ? shift.assignees.map((a) => a.name).join(", ") : "No one assigned"}
-                  </Text>
+        {/* One row per weekday, Mon–Sun, with its shifts + assigned users. */}
+        {weekDays.map((date) => {
+          const shifts = shiftsByDate.get(date) ?? [];
+          const isToday = date === todayStr;
+          return (
+            <View key={date} style={[ui.card, styles.dayCard, isToday ? styles.dayCardToday : null]}>
+              <View style={styles.dayCardHead}>
+                <View>
+                  <Text style={[styles.dayName, isToday ? styles.dayNameToday : null]}>{weekday(date)}</Text>
+                  <Text style={styles.dayDate}>{dayOfMonth(date)}</Text>
                 </View>
-                <Pressable style={styles.iconBtn} onPress={() => openEdit(shift)}>
-                  <Ionicons name="create-outline" size={18} color={appTheme.colors.primary} />
-                </Pressable>
-                <Pressable style={styles.iconBtn} onPress={() => confirmDelete(shift)}>
-                  <Ionicons name="trash-outline" size={18} color={appTheme.colors.danger} />
+                <Pressable style={styles.dayAddBtn} onPress={() => openAdd(date)} disabled={!shopId}>
+                  <Ionicons name="add" size={18} color={appTheme.colors.primary} />
                 </Pressable>
               </View>
-            ))}
-          </View>
-        ))}
+
+              {shifts.length === 0 ? (
+                <Text style={styles.dayEmpty}>No shifts</Text>
+              ) : (
+                shifts.map((shift) => (
+                  <Pressable key={shift.id} style={styles.weekShiftRow} onPress={() => openEdit(shift)}>
+                    <View style={styles.weekShiftBar} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.weekShiftTitle} numberOfLines={1}>
+                        {shift.shiftName ? `${shift.shiftName} · ` : ""}{timeRange(shift.startTime, shift.endTime)}{overnightSuffix(shift.shiftDate, shift.endDate)}
+                      </Text>
+                      <Text style={styles.muted} numberOfLines={2}>
+                        {shift.assignees.length > 0 ? shift.assignees.map((a) => a.name).join(", ") : "No one assigned"}
+                      </Text>
+                    </View>
+                    <Pressable style={styles.iconBtn} onPress={() => confirmDelete(shift)} hitSlop={6}>
+                      <Ionicons name="trash-outline" size={16} color={appTheme.colors.danger} />
+                    </Pressable>
+                  </Pressable>
+                ))
+              )}
+            </View>
+          );
+        })}
       </ScrollView>
 
       <Modal visible={editorOpen} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setEditorOpen(false)}>
@@ -1102,6 +1147,23 @@ const styles = StyleSheet.create({
   shiftDateBadge: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceBrandSoft },
   shiftDateText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
   shiftTime: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 15 },
+
+  // Weekly rota grid
+  weekNav: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10 },
+  weekNavBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceBrandSoft },
+  weekNavLabel: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 16 },
+  weekNavHint: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, marginTop: 1 },
+  dayCard: { gap: 8 },
+  dayCardToday: { borderWidth: 1, borderColor: appTheme.colors.primary },
+  dayCardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  dayName: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 15 },
+  dayNameToday: { color: appTheme.colors.primary },
+  dayDate: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, marginTop: 1 },
+  dayAddBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center", borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceBrandSoft },
+  dayEmpty: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.body, fontSize: 13, fontStyle: "italic" },
+  weekShiftRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
+  weekShiftBar: { width: 3, alignSelf: "stretch", borderRadius: 2, backgroundColor: appTheme.colors.primary },
+  weekShiftTitle: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
   iconBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceMuted },
 
   // My Shifts cards
