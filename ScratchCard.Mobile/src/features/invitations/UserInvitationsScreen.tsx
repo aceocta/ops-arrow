@@ -36,8 +36,8 @@ export function UserInvitationsScreen() {
     profile?.roles?.some((role) => role === "CompanyOwner") ?? false;
   const route = useRoute<RouteProp<MainStackParamList, "UserInvitations">>();
   const [email, setEmail] = useState(route.params?.email ?? "");
-  const [expiryHours, setExpiryHours] = useState("72");
-  const expiryHoursRef = useRef<TextInput>(null);
+  // Invitation link validity is fixed; users no longer set this.
+  const DEFAULT_EXPIRY_HOURS = 72;
   const [selectedRoleId, setSelectedRoleId] = useState<string>(route.params?.roleId ?? "");
 
   const rolesQuery = useQuery({
@@ -96,21 +96,15 @@ export function UserInvitationsScreen() {
         throw new Error("Role selection is required.");
       }
 
-      const parsedExpiry = Number(expiryHours);
-      if (!Number.isFinite(parsedExpiry) || parsedExpiry <= 0) {
-        throw new Error("Expiry hours must be a positive number.");
-      }
-
       return sendInvitation({
         shopId,
         email: email.trim().toLowerCase(),
         roleId: selectedRoleId,
-        expiryHours: parsedExpiry,
+        expiryHours: DEFAULT_EXPIRY_HOURS,
       });
     },
     onSuccess: () => {
       setEmail("");
-      setExpiryHours("72");
       Alert.alert("Invitation sent", "Invitation was created successfully.");
       void queryClient.invalidateQueries({ queryKey: ["invitations", shopId] });
     },
@@ -135,8 +129,8 @@ export function UserInvitationsScreen() {
     <ScreenContainer>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={[ui.card, styles.card]}>
-          <Text style={styles.caption}>Shop: {activeShop?.shopName ?? "-"}</Text>
-          <Text style={styles.subtitle}>Invite managers or cashiers to this shop.</Text>
+          {/* <Text style={styles.caption}>Shop: {activeShop?.shopName ?? "-"}</Text> */}
+          {/* <Text style={styles.subtitle}>Invite managers or cashiers to this shop.</Text> */}
           {!canSendInvitations ? (
             <Text style={styles.caption}>Only Platform Admin, Company Owner, or Manager can send invitations.</Text>
           ) : null}
@@ -157,18 +151,6 @@ export function UserInvitationsScreen() {
             onChangeText={setEmail}
             editable={canSendInvitations}
             autoCorrect={false}
-            returnKeyType="next"
-            submitBehavior="submit"
-            onSubmitEditing={() => expiryHoursRef.current?.focus()}
-          />
-
-          <FloatingLabelInput
-            ref={expiryHoursRef}
-            label="Expiry hours (e.g. 72)"
-            value={expiryHours}
-            keyboardType="number-pad"
-            onChangeText={setExpiryHours}
-            editable={canSendInvitations}
             returnKeyType="done"
           />
 

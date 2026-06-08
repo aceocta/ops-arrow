@@ -265,7 +265,22 @@ function shouldShowBottomDock(routeName: string | undefined) {
     routeName === "TillPaymentSummary" ||
     routeName === "TillsConfig" ||
     routeName === "PaymentTypesConfig" ||
-    routeName === "VisitorLogEntryEdit"
+    routeName === "VisitorLogEntryEdit" ||
+    // Settings / configuration / management screens — no bottom dock (not operational entry).
+    routeName === "Settings" ||
+    routeName === "ShopConfiguration" ||
+    routeName === "AppConfiguration" ||
+    routeName === "UserInvitations" ||
+    routeName === "ComplianceConfig" ||
+    routeName === "ShopFeatureToggles" ||
+    routeName === "UserManagement" ||
+    routeName === "CompanyManagement" ||
+    routeName === "ShopManagement" ||
+    routeName === "NotificationPreferences" ||
+    routeName === "RotaStaffMembers" ||
+    routeName === "TemperatureUnits" ||
+    routeName === "TemperatureUnitEdit" ||
+    routeName === "TemperatureSchedules"
   );
 }
 

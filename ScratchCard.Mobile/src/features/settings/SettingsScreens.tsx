@@ -839,9 +839,29 @@ function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
     },
   });
 
+  const footerNode =
+    hasDraftChanges && !configurationsQuery.isLoading && !configurationsQuery.isError ? (
+      <View style={styles.configFooterBar}>
+        <Pressable
+          style={[styles.secondaryActionButton, { flex: 1 }, saveMutation.isPending ? styles.dateActionButtonDisabled : null]}
+          onPress={() => setDraftValues({})}
+          disabled={saveMutation.isPending}
+        >
+          <Text style={styles.secondaryActionButtonText}>Discard</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.actionButton, { flex: 1 }, saveMutation.isPending ? styles.dateActionButtonDisabled : null]}
+          onPress={() => saveMutation.mutate()}
+          disabled={saveMutation.isPending}
+        >
+          <Text style={styles.actionButtonText}>{saveMutation.isPending ? "Saving..." : "Save Configuration"}</Text>
+        </Pressable>
+      </View>
+    ) : undefined;
+
   return (
-    <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.configPageContent}>
+    <ScreenContainer footer={footerNode}>
+      <>
         <View style={[ui.card, styles.configHeroCard]}>
           <View style={styles.configHeroHeaderRow}>
             <View style={styles.configHeroHeaderTextWrap}>
@@ -1199,31 +1219,9 @@ function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
             {!hasDraftChanges ? (
               <Text style={styles.caption}>No changes to save.</Text>
             ) : null}
-            <View style={styles.configFooterActionRow}>
-              <Pressable
-                style={[
-                  styles.secondaryActionButton,
-                  !hasDraftChanges || saveMutation.isPending ? styles.dateActionButtonDisabled : null,
-                ]}
-                onPress={() => setDraftValues({})}
-                disabled={!hasDraftChanges || saveMutation.isPending}
-              >
-                <Text style={styles.secondaryActionButtonText}>Discard Changes</Text>
-              </Pressable>
-              <Pressable
-                style={[
-                  styles.actionButton,
-                  !hasDraftChanges || saveMutation.isPending ? styles.dateActionButtonDisabled : null,
-                ]}
-                onPress={() => saveMutation.mutate()}
-                disabled={!hasDraftChanges || saveMutation.isPending}
-              >
-                <Text style={styles.actionButtonText}>{saveMutation.isPending ? "Saving..." : "Save Configuration"}</Text>
-              </Pressable>
-            </View>
           </View>
         ) : null}
-      </ScrollView>
+      </>
     </ScreenContainer>
   );
 }
@@ -2741,6 +2739,20 @@ const styles = StyleSheet.create({
   },
   configFooterCard: {
     gap: appTheme.spacing.xs,
+  },
+  configFooterBar: {
+    flexDirection: "row",
+    gap: 8,
+    backgroundColor: appTheme.colors.surface,
+    borderRadius: appTheme.radius.lg,
+    padding: appTheme.spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: appTheme.colors.borderSoft,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
   configFooterActionRow: {
     flexDirection: "row",
