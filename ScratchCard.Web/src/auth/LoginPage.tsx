@@ -30,9 +30,7 @@ export default function LoginPage() {
     <div className="flex min-h-full items-center justify-center bg-gradient-to-br from-brand-50 to-slate-100 p-4">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600 text-lg font-bold text-white">
-            OA
-          </div>
+          <img src="/logo.png" alt="Ops Arrow" className="mx-auto mb-3 h-16 w-16 rounded-xl object-contain" />
           <h1 className="text-2xl font-semibold text-slate-900">Ops Arrow Portal</h1>
           <p className="text-sm text-slate-500">Sign in to manage your shops</p>
         </div>

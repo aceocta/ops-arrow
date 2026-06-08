@@ -38,8 +38,7 @@ builder.Services.AddCors(options =>
                 "http://localhost:8081",
                 "https://gaming-lent-startup.ngrok-free.dev",
                 "https://wa-ops-arrow-uat-dvdrbjf9fraydwdd.canadacentral-01.azurewebsites.net",
-                "https://opsarrow.co.uk",
-                "http://localhost:5173"
+                "https://opsarrow.co.uk"
                 
             )
             .AllowAnyHeader()

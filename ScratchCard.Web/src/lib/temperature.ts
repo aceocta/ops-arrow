@@ -25,9 +25,32 @@ export type TemperatureScheduleGrid = {
   missedCount: number;
 };
 
+export type TemperatureReading = {
+  id: string;
+  unitName: string;
+  minTemperatureCelsius: number;
+  maxTemperatureCelsius: number;
+  readingDate: string;
+  readingTime: string;
+  temperatureCelsius: number;
+  isOutOfRange: boolean;
+  checkedByInitials: string;
+  notes?: string;
+  actionTaken?: string;
+  recordedOn: string;
+  recordedByName?: string;
+  scheduleId?: string;
+  scheduleLabel?: string;
+  isLateForSchedule: boolean;
+};
+
 export const temperatureApi = {
   grid: async (shopId: string, from: string, to: string) =>
     unwrap<TemperatureScheduleGrid>(
       (await api.get("/reports/temperature-schedule-grid", { params: { shopId, from, to } })).data,
+    ),
+  readings: async (shopId: string, from: string, to: string, unitId?: string) =>
+    unwrap<TemperatureReading[]>(
+      (await api.get("/temperature-logs/readings", { params: { shopId, from, to, unitId } })).data,
     ),
 };

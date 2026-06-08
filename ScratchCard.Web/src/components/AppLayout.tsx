@@ -32,6 +32,7 @@ const NAV: NavItem[] = [
   { to: "/compliance", label: "Compliance", icon: ClipboardCheck, feature: "ComplianceChecklist" },
   { to: "/refusals", label: "Refusals", icon: ShieldX, feature: "RefusalNoIdNoSale" },
   { to: "/visitors", label: "Visitors", icon: DoorOpen, feature: "VisitorsLog" },
+  { to: "/shops", label: "Shops", icon: Store },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -96,7 +97,7 @@ export default function AppLayout() {
       {/* Sidebar */}
       <aside className="flex w-64 flex-col border-r border-slate-200 bg-white">
         <div className="flex items-center gap-2 px-5 py-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white">OA</div>
+          <img src="/logo.png" alt="Ops Arrow" className="h-9 w-9 rounded-lg object-contain" />
           <span className="text-lg font-semibold text-slate-900">Ops Arrow</span>
         </div>
         <nav className="flex-1 space-y-1 px-3">

@@ -55,7 +55,11 @@
       "Bash(xargs grep -l \"class RefusalRegisterEntryDto\")",
       "Bash(xargs grep -n \"^namespace\")",
       "Bash(findstr /i \"noUnused extends strict\")",
-      "Bash(node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json)"
+      "Bash(node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json)",
+      "Bash(mkdir -p public)",
+      "Bash(node node_modules/typescript/bin/tsc --noEmit)",
+      "Bash(sed -n '5,40p' ScratchCard.Application/DTOs/Subscriptions/SubscriptionDtos.cs)",
+      "Bash(sed -n '132,175p' ScratchCard.Application/DTOs/Subscriptions/SubscriptionDtos.cs)"
     ]
   }
 }

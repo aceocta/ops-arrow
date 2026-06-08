@@ -1,13 +1,15 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
-import { temperatureApi, type TempCellState } from "../../lib/temperature";
+import { temperatureApi, type TempCellState, type TempGridCell } from "../../lib/temperature";
 import { fmtDate, shortTime, addDays } from "../../lib/rota";
 import { downloadCsv } from "../../lib/csv";
 import ExportButton from "../../components/ExportButton";
+import { X } from "lucide-react";
 import clsx from "clsx";
 
 const GLYPH: Record<TempCellState, string> = { OnTime: "✓", Early: "«", Late: "⚠", Missed: "✗", Upcoming: "–" };
+const STATE_LABEL: Record<TempCellState, string> = { OnTime: "On time", Early: "Early", Late: "Late", Missed: "Missed", Upcoming: "Upcoming" };
 function stateColor(s: TempCellState) {
   if (s === "OnTime") return "text-emerald-600";
   if (s === "Early" || s === "Late") return "text-amber-600";
@@ -18,9 +20,12 @@ function shortDate(d: string) {
   return new Date(`${d}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
 }
 
+type SelectedCell = { cell: TempGridCell; unitName: string; slotLabel: string; expectedTime: string };
+
 export default function TemperaturePage() {
   const { activeShopId } = useAuth();
   const shopId = activeShopId!;
+  const [selected, setSelected] = useState<SelectedCell | null>(null);
   const [range, setRange] = useState(() => {
     const to = new Date();
     const from = new Date();
@@ -149,13 +154,17 @@ export default function TemperaturePage() {
                     slotCols.map((c, i) => {
                       const sid = schedFor(c.label, c.expectedTime, u.unitId);
                       if (!sid) return <td key={`${d}|${c.label}|${i}`} className={clsx("border-t border-slate-100 bg-slate-50/50", i === 0 && "border-l border-slate-200")} />;
-                      const cell = cellMap.get(`${d}|${u.unitId}|${sid}`);
-                      const state = (cell?.state ?? "Upcoming") as TempCellState;
+                      const cell = cellMap.get(`${d}|${u.unitId}|${sid}`) ?? { date: d, unitId: u.unitId, scheduleId: sid, state: "Upcoming" as TempCellState };
+                      const state = cell.state;
                       return (
-                        <td key={`${d}|${c.label}|${i}`} className={clsx("border-t border-slate-100 px-2 py-1.5", i === 0 && "border-l border-slate-200")}>
+                        <td
+                          key={`${d}|${c.label}|${i}`}
+                          onClick={() => setSelected({ cell, unitName: u.unitName, slotLabel: c.label, expectedTime: c.expectedTime })}
+                          className={clsx("cursor-pointer border-t border-slate-100 px-2 py-1.5 transition hover:bg-brand-50", i === 0 && "border-l border-slate-200")}
+                        >
                           <div className={clsx("font-bold", stateColor(state))}>{GLYPH[state]}</div>
-                          {cell?.readingTime ? <div className="text-[10px] text-slate-400">{shortTime(cell.readingTime)}</div> : null}
-                          {cell?.temperatureCelsius != null ? (
+                          {cell.readingTime ? <div className="text-[10px] text-slate-400">{shortTime(cell.readingTime)}</div> : null}
+                          {cell.temperatureCelsius != null ? (
                             <div className={clsx("text-[11px] font-medium", cell.isOutOfRange ? "text-red-600" : "text-emerald-600")}>
                               {cell.temperatureCelsius.toFixed(1)}°
                             </div>
@@ -173,6 +182,84 @@ export default function TemperaturePage() {
           </table>
         </div>
       ) : null}
+
+      {selected ? <TempCellDetail shopId={shopId} selected={selected} onClose={() => setSelected(null)} /> : null}
+    </div>
+  );
+}
+
+function detailRow(label: string, value: React.ReactNode) {
+  return (
+    <div className="flex gap-3">
+      <dt className="w-32 shrink-0 text-xs uppercase tracking-wide text-slate-400">{label}</dt>
+      <dd className="text-slate-800">{value}</dd>
+    </div>
+  );
+}
+
+function TempCellDetail({ shopId, selected, onClose }: { shopId: string; selected: SelectedCell; onClose: () => void }) {
+  const { cell, unitName, slotLabel, expectedTime } = selected;
+  const hasReading = !!cell.readingId;
+
+  const q = useQuery({
+    queryKey: ["temp-reading", shopId, cell.unitId, cell.date],
+    queryFn: () => temperatureApi.readings(shopId, cell.date, cell.date, cell.unitId),
+    enabled: hasReading,
+  });
+  const reading = (q.data ?? []).find((r) => r.id === cell.readingId);
+
+  return (
+    <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4">
+      <div className="card w-full max-w-md p-5">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">{unitName}</h2>
+            <p className="text-sm text-slate-500">{shortDate(cell.date)} · {slotLabel} ({shortTime(expectedTime)})</p>
+          </div>
+          <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
+        </div>
+
+        <div className="mb-4">
+          <span className={clsx("inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium",
+            cell.state === "OnTime" ? "bg-emerald-100 text-emerald-700"
+              : cell.state === "Missed" ? "bg-red-100 text-red-700"
+              : cell.state === "Upcoming" ? "bg-slate-100 text-slate-500"
+              : "bg-amber-100 text-amber-700")}>
+            <span className="font-bold">{GLYPH[cell.state]}</span> {STATE_LABEL[cell.state]}
+          </span>
+        </div>
+
+        {hasReading ? (
+          q.isLoading ? (
+            <div className="py-6 text-center text-sm text-slate-500">Loading reading…</div>
+          ) : reading ? (
+            <dl className="space-y-3 text-sm">
+              {detailRow("Temperature", (
+                <span className={clsx("font-semibold", reading.isOutOfRange ? "text-red-600" : "text-emerald-600")}>
+                  {reading.temperatureCelsius.toFixed(1)}°C {reading.isOutOfRange ? "· out of range" : "· in range"}
+                </span>
+              ))}
+              {detailRow("Target range", `${reading.minTemperatureCelsius}°C to ${reading.maxTemperatureCelsius}°C`)}
+              {detailRow("Reading time", `${shortTime(reading.readingTime)}${reading.isLateForSchedule ? " (late)" : ""}`)}
+              {detailRow("Checked by", `${reading.checkedByInitials}${reading.recordedByName ? ` · ${reading.recordedByName}` : ""}`)}
+              {reading.notes ? detailRow("Notes", reading.notes) : null}
+              {reading.actionTaken ? detailRow("Action taken", reading.actionTaken) : null}
+              {detailRow("Recorded", new Date(reading.recordedOn).toLocaleString("en-GB"))}
+            </dl>
+          ) : (
+            <dl className="space-y-3 text-sm">
+              {detailRow("Temperature", cell.temperatureCelsius != null
+                ? <span className={clsx("font-semibold", cell.isOutOfRange ? "text-red-600" : "text-emerald-600")}>{cell.temperatureCelsius.toFixed(1)}°C</span>
+                : "—")}
+              {cell.readingTime ? detailRow("Reading time", shortTime(cell.readingTime)) : null}
+            </dl>
+          )
+        ) : (
+          <p className="text-sm text-slate-500">
+            {cell.state === "Missed" ? "No reading was recorded for this scheduled check." : "No reading recorded yet for this slot."}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
