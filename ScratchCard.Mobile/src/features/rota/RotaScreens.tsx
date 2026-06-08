@@ -842,6 +842,15 @@ export function RotaManageScreen() {
               );
             })()}
           </ScrollView>
+
+          {/* Always-visible save bar so the action is never missed at the bottom of a long form. */}
+          <View style={[styles.editorFooter, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+            <PrimaryButton
+              label={saveMutation.isPending ? "Saving..." : draft.id ? "Save changes" : "Add shift"}
+              onPress={() => saveMutation.mutate()}
+              disabled={!canSave}
+            />
+          </View>
         </View>
       </Modal>
 
@@ -1570,8 +1579,8 @@ const styles = StyleSheet.create({
   rotaHeadCell: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 },
   rotaBodyRow: { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 10, paddingVertical: 9, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
   rotaShiftCol: { width: 110 },
-  rotaStaffCol: { flex: 1, paddingLeft: 8 },
-  rotaStaffText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 13, lineHeight: 18 },
+  rotaStaffCol: { flex: 1, paddingLeft: 8, gap: 8 },
+  rotaStaffText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 13, lineHeight: 20, paddingVertical: 2 },
   rotaActionCol: { width: 28, alignItems: "flex-end" },
   weekShiftRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
   weekShiftBar: { width: 3, alignSelf: "stretch", borderRadius: 2, backgroundColor: appTheme.colors.primary },
@@ -1669,6 +1678,13 @@ const styles = StyleSheet.create({
   chipSubTextActive: { color: appTheme.colors.primary },
 
   editorScreen: { flex: 1, backgroundColor: appTheme.colors.background },
+  editorFooter: {
+    paddingHorizontal: appTheme.spacing.md,
+    paddingTop: appTheme.spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: appTheme.colors.borderSoft,
+    backgroundColor: appTheme.colors.surface,
+  },
   editorHeader: {
     flexDirection: "row",
     alignItems: "center",
