@@ -659,6 +659,7 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(x => new { x.ShopId, x.IsDeleted });
             entity.Property(x => x.Name).HasMaxLength(120).IsRequired();
             entity.Property(x => x.Phone).HasMaxLength(40);
+            entity.Property(x => x.Email).HasMaxLength(256);
             entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.NoAction);
         });
 

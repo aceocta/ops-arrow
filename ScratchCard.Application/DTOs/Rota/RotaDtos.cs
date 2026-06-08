@@ -6,6 +6,8 @@ public class RotaAssigneeDto
     public Guid? UserId { get; set; }
     public Guid? RotaStaffMemberId { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string? Phone { get; set; }
+    public string? Email { get; set; }
     public bool IsExternal { get; set; }
 }
 
@@ -14,6 +16,7 @@ public class RotaStaffMemberDto
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? Phone { get; set; }
+    public string? Email { get; set; }
     public bool IsActive { get; set; } = true;
 }
 
@@ -71,6 +74,7 @@ public class SaveRotaStaffMemberRequest
     public Guid ShopId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? Phone { get; set; }
+    public string? Email { get; set; }
 }
 
 public class ShiftAttendanceDto

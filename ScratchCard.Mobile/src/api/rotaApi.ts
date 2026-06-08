@@ -56,12 +56,12 @@ export async function getRotaStaffMembers(shopId: string) {
   return response.data.data;
 }
 
-export async function createRotaStaffMember(payload: { shopId: string; name: string; phone?: string }) {
+export async function createRotaStaffMember(payload: { shopId: string; name: string; phone?: string; email?: string }) {
   const response = await apiClient.post<ApiResponse<RotaStaffMember>>("/rota/staff-members", payload);
   return response.data.data;
 }
 
-export async function updateRotaStaffMember(id: string, payload: { shopId: string; name: string; phone?: string }) {
+export async function updateRotaStaffMember(id: string, payload: { shopId: string; name: string; phone?: string; email?: string }) {
   const response = await apiClient.put<ApiResponse<RotaStaffMember>>(`/rota/staff-members/${id}`, payload);
   return response.data.data;
 }

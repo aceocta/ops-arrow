@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -36,7 +36,7 @@ import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
 import { confirmDestructive } from "../../utils/confirm";
 import { toastError, toastSuccess } from "../../components/toast";
-import { AssignableUser, AttendanceApprovalRow, RotaShift } from "../../types/models";
+import { AssignableUser, AttendanceApprovalRow, RotaAssignee, RotaShift } from "../../types/models";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -438,7 +438,11 @@ export function RotaManageScreen() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [draft, setDraft] = useState<ShiftDraft>(emptyDraft());
   const [userSearch, setUserSearch] = useState("");
-  const [newExternalName, setNewExternalName] = useState("");
+  const [addExternalOpen, setAddExternalOpen] = useState(false);
+  const [extName, setExtName] = useState("");
+  const [extPhone, setExtPhone] = useState("+44 ");
+  const [extEmail, setExtEmail] = useState("");
+  const [selectedAssignee, setSelectedAssignee] = useState<{ assignee: RotaAssignee; shift: RotaShift } | null>(null);
   const [recordTarget, setRecordTarget] = useState<{ shift: RotaShift; name: string; memberId: string } | null>(null);
   const [recIn, setRecIn] = useState("09:00");
   const [recOut, setRecOut] = useState("17:00");
@@ -503,10 +507,21 @@ export function RotaManageScreen() {
 
   // Create a roster-only (external/casual) person and assign them to the current draft.
   const addExternalMutation = useMutation({
-    mutationFn: () => createRotaStaffMember({ shopId: shopId as string, name: newExternalName.trim() }),
+    mutationFn: () => {
+      const phone = extPhone.trim();
+      return createRotaStaffMember({
+        shopId: shopId as string,
+        name: extName.trim(),
+        phone: phone && phone !== "+44" ? phone : undefined,
+        email: extEmail.trim() || undefined,
+      });
+    },
     onSuccess: (member) => {
       setDraft((d) => ({ ...d, assigneeStaffMemberIds: [...d.assigneeStaffMemberIds, member.id] }));
-      setNewExternalName("");
+      setExtName("");
+      setExtPhone("+44 ");
+      setExtEmail("");
+      setAddExternalOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["rota-assignable", shopId] });
     },
     onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't add the person."),
@@ -684,15 +699,15 @@ export function RotaManageScreen() {
                       </View>
                       <View style={styles.rotaStaffCol}>
                         {shift.assignees.length > 0 ? (
-                          shift.assignees.map((a) =>
-                            a.isExternal ? (
-                              <Pressable key={a.rotaStaffMemberId} onPress={() => openRecordHours(shift, a)} hitSlop={4}>
-                                <Text style={[styles.rotaStaffText, styles.tdLink]} numberOfLines={1}>{a.name} · log hours</Text>
-                              </Pressable>
-                            ) : (
-                              <Text key={a.userId} style={styles.rotaStaffText} numberOfLines={1}>{a.name}</Text>
-                            ),
-                          )
+                          shift.assignees.map((a) => (
+                            <Pressable
+                              key={a.rotaStaffMemberId ?? a.userId ?? a.name}
+                              onPress={() => setSelectedAssignee({ assignee: a, shift })}
+                              hitSlop={4}
+                            >
+                              <Text style={[styles.rotaStaffText, styles.tdLink]} numberOfLines={1}>{a.name}</Text>
+                            </Pressable>
+                          ))
                         ) : (
                           <Text style={styles.muted}>No one assigned</Text>
                         )}
@@ -812,27 +827,109 @@ export function RotaManageScreen() {
                   ))}
 
                   {/* Add someone who isn't an Ops Arrow user (external / casual). */}
-                  <Text style={[styles.fieldLabel, { marginTop: appTheme.spacing.sm }]}>Add external person</Text>
-                  <View style={styles.row}>
-                    <TextInput
-                      style={[styles.searchInput, styles.externalInput]}
-                      value={newExternalName}
-                      onChangeText={setNewExternalName}
-                      placeholder="Name (not registered)"
-                      placeholderTextColor={appTheme.colors.textSubtle}
-                    />
-                    <Pressable
-                      style={[styles.addExternalBtn, !newExternalName.trim() || addExternalMutation.isPending ? styles.actBtnDisabled : null]}
-                      onPress={() => addExternalMutation.mutate()}
-                      disabled={!newExternalName.trim() || addExternalMutation.isPending}
-                    >
-                      <Text style={styles.actBtnText}>{addExternalMutation.isPending ? "..." : "Add"}</Text>
-                    </Pressable>
-                  </View>
+                  <Pressable style={styles.addExternalOpenBtn} onPress={() => setAddExternalOpen(true)}>
+                    <Ionicons name="person-add-outline" size={16} color={appTheme.colors.primary} />
+                    <Text style={styles.adjustBtnText}>Add external person</Text>
+                  </Pressable>
                 </>
               );
             })()}
           </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Staff contact details — tap a name on the rota to call/email them. */}
+      <Modal visible={selectedAssignee !== null} transparent animationType="fade" onRequestClose={() => setSelectedAssignee(null)}>
+        <View style={styles.sheetBackdrop}>
+          <View style={styles.sheetCard}>
+            <View style={styles.sheetHeader}>
+              <View style={[styles.userAvatar, styles.userAvatarOn]}>
+                <Text style={styles.userAvatarText}>{initials(selectedAssignee?.assignee.name ?? "")}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitleSm}>{selectedAssignee?.assignee.name}</Text>
+                <Text style={styles.muted}>{selectedAssignee?.assignee.isExternal ? "External staff" : "Team member"}</Text>
+              </View>
+            </View>
+
+            {selectedAssignee?.assignee.phone ? (
+              <Pressable style={styles.contactRow} onPress={() => Linking.openURL(`tel:${selectedAssignee.assignee.phone}`)}>
+                <Ionicons name="call-outline" size={18} color={appTheme.colors.primary} />
+                <Text style={styles.contactValue}>{selectedAssignee.assignee.phone}</Text>
+                <Ionicons name="chevron-forward" size={16} color={appTheme.colors.textMuted} />
+              </Pressable>
+            ) : null}
+            {selectedAssignee?.assignee.email ? (
+              <Pressable style={styles.contactRow} onPress={() => Linking.openURL(`mailto:${selectedAssignee.assignee.email}`)}>
+                <Ionicons name="mail-outline" size={18} color={appTheme.colors.primary} />
+                <Text style={styles.contactValue} numberOfLines={1}>{selectedAssignee.assignee.email}</Text>
+                <Ionicons name="chevron-forward" size={16} color={appTheme.colors.textMuted} />
+              </Pressable>
+            ) : null}
+            {!selectedAssignee?.assignee.phone && !selectedAssignee?.assignee.email ? (
+              <Text style={styles.muted}>No contact details on file.</Text>
+            ) : null}
+
+            {selectedAssignee?.assignee.isExternal ? (
+              <PrimaryButton
+                label="Record hours"
+                onPress={() => {
+                  const sel = selectedAssignee;
+                  setSelectedAssignee(null);
+                  if (sel) openRecordHours(sel.shift, sel.assignee);
+                }}
+              />
+            ) : null}
+            <PrimaryButton label="Close" tone="neutral" onPress={() => setSelectedAssignee(null)} />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Add an external (roster-only) person — name required, phone & email optional. */}
+      <Modal visible={addExternalOpen} transparent animationType="fade" onRequestClose={() => setAddExternalOpen(false)}>
+        <View style={styles.sheetBackdrop}>
+          <View style={styles.sheetCard}>
+            <Text style={styles.modalTitleSm}>Add external person</Text>
+            <Text style={styles.muted}>Not an Ops Arrow user — for rostering &amp; recording hours.</Text>
+
+            <Text style={styles.fieldLabel}>Name</Text>
+            <TextInput
+              style={styles.externalInput}
+              value={extName}
+              onChangeText={setExtName}
+              placeholder="Full name"
+              placeholderTextColor={appTheme.colors.textSubtle}
+              autoCapitalize="words"
+            />
+
+            <Text style={styles.fieldLabel}>Phone (optional)</Text>
+            <TextInput
+              style={styles.externalInput}
+              value={extPhone}
+              onChangeText={setExtPhone}
+              placeholder="+44 7700 900000"
+              placeholderTextColor={appTheme.colors.textSubtle}
+              keyboardType="phone-pad"
+            />
+
+            <Text style={styles.fieldLabel}>Email (optional)</Text>
+            <TextInput
+              style={styles.externalInput}
+              value={extEmail}
+              onChangeText={setExtEmail}
+              placeholder="name@example.com"
+              placeholderTextColor={appTheme.colors.textSubtle}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+
+            <PrimaryButton
+              label={addExternalMutation.isPending ? "Adding..." : "Add & assign"}
+              onPress={() => addExternalMutation.mutate()}
+              disabled={!extName.trim() || addExternalMutation.isPending}
+            />
+            <PrimaryButton label="Cancel" tone="neutral" onPress={() => setAddExternalOpen(false)} disabled={addExternalMutation.isPending} />
+          </View>
         </View>
       </Modal>
 
@@ -1306,8 +1403,23 @@ const styles = StyleSheet.create({
   weekNavHint: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, marginTop: 1 },
   generateBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 999, backgroundColor: appTheme.colors.primary },
   generateBtnText: { color: appTheme.colors.onPrimary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
-  externalInput: { flex: 1 },
-  addExternalBtn: { paddingHorizontal: 18, alignItems: "center", justifyContent: "center", borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.primary },
+  externalInput: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 14,
+    backgroundColor: appTheme.colors.surface,
+    textAlignVertical: "center",
+  },
+  addExternalBtn: { paddingHorizontal: 18, paddingVertical: 11, alignItems: "center", justifyContent: "center", borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.primary },
+  addExternalOpenBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: appTheme.spacing.sm, paddingVertical: 11, borderRadius: appTheme.radius.sm, borderWidth: 1, borderColor: appTheme.colors.border },
+  contactRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
+  contactValue: { flex: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 15 },
   dayCard: { gap: 8 },
   dayCardToday: { borderWidth: 1, borderColor: appTheme.colors.primary },
   dayCardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },

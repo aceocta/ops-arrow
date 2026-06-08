@@ -118,6 +118,8 @@ public class RotaService : IRotaService
                 UserId = a.UserId,
                 RotaStaffMemberId = a.RotaStaffMemberId,
                 Name = a.User != null ? FullName(a.User) : (a.RotaStaffMember != null ? a.RotaStaffMember.Name : "—"),
+                Phone = a.User != null ? a.User.PhoneNumber : a.RotaStaffMember != null ? a.RotaStaffMember.Phone : null,
+                Email = a.User != null ? a.User.Email : a.RotaStaffMember != null ? a.RotaStaffMember.Email : null,
                 IsExternal = a.RotaStaffMemberId != null,
             })
             .OrderBy(a => a.Name)
@@ -424,7 +426,7 @@ public class RotaService : IRotaService
             .AsNoTracking()
             .Where(x => x.ShopId == shopId && !x.IsDeleted)
             .OrderBy(x => x.Name)
-            .Select(x => new RotaStaffMemberDto { Id = x.Id, Name = x.Name, Phone = x.Phone, IsActive = x.IsActive })
+            .Select(x => new RotaStaffMemberDto { Id = x.Id, Name = x.Name, Phone = x.Phone, Email = x.Email, IsActive = x.IsActive })
             .ToListAsync(cancellationToken);
     }
 
@@ -441,13 +443,14 @@ public class RotaService : IRotaService
             ShopId = request.ShopId,
             Name = request.Name.Trim(),
             Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim(),
+            Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim(),
             IsActive = true,
             CreatedOn = now,
             CreatedBy = _currentUserService.UserId,
         };
         await _staffMemberRepository.AddAsync(member, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        return new RotaStaffMemberDto { Id = member.Id, Name = member.Name, Phone = member.Phone, IsActive = member.IsActive };
+        return new RotaStaffMemberDto { Id = member.Id, Name = member.Name, Phone = member.Phone, Email = member.Email, IsActive = member.IsActive };
     }
 
     public async Task<RotaStaffMemberDto> UpdateStaffMemberAsync(Guid memberId, SaveRotaStaffMemberRequest request, CancellationToken cancellationToken = default)
@@ -462,11 +465,12 @@ public class RotaService : IRotaService
         }
         member.Name = request.Name.Trim();
         member.Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
+        member.Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim();
         member.ModifiedOn = DateTimeOffset.UtcNow;
         member.ModifiedBy = _currentUserService.UserId;
         _staffMemberRepository.Update(member);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        return new RotaStaffMemberDto { Id = member.Id, Name = member.Name, Phone = member.Phone, IsActive = member.IsActive };
+        return new RotaStaffMemberDto { Id = member.Id, Name = member.Name, Phone = member.Phone, Email = member.Email, IsActive = member.IsActive };
     }
 
     public async Task DeleteStaffMemberAsync(Guid memberId, CancellationToken cancellationToken = default)

@@ -11,7 +11,8 @@ public class RotaStaffMember : SoftDeletableAuditableEntity
 {
     public Guid ShopId { get; set; }
     public string Name { get; set; } = string.Empty;
-    public string? Phone { get; set; }
+    public string? Phone { get; set; } // stored with country code, e.g. +44...
+    public string? Email { get; set; }
     public bool IsActive { get; set; } = true;
 
     public Shop Shop { get; set; } = null!;
