@@ -15,7 +15,7 @@ import { LoadingState } from "../../components/LoadingState";
 import { ReportActionBar } from "../../components/ReportActionBar";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError } from "../../components/toast";
-import { buildTemperatureRangeReportHtml } from "./temperatureReportUtils";
+import { buildTemperatureScheduleGridHtml } from "./temperatureReportUtils";
 import {
   TemperatureReading,
   TemperatureScheduleCellState,
@@ -169,15 +169,14 @@ function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
     return map;
   }, [readings]);
 
-  // Print / share / email reuse the full readings report so the exported PDF carries every
-  // detail (deviation, who checked it, action, notes), grouped by date & unit.
+  // Print / share / email render the SAME schedule grid the user sees on screen (units × date/slot
+  // matrix with glyphs, reading time and temperature), honouring the display settings.
   const buildHtml = () =>
-    buildTemperatureRangeReportHtml({
+    buildTemperatureScheduleGridHtml({
       shopName: activeShop?.shopName ?? "-",
-      from: grid.from,
-      to: grid.to,
+      grid,
       generatedOn: new Date().toISOString(),
-      readings,
+      showTiming,
       showReadingTime,
       showRange,
     });

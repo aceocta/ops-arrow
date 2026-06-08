@@ -1,4 +1,4 @@
-import { TemperatureReading } from "../../types/models";
+import { TemperatureReading, TemperatureScheduleGrid, TemperatureScheduleCellState } from "../../types/models";
 
 export type TemperatureReadingGroup = {
   date: string;
@@ -313,6 +313,154 @@ export function buildTemperatureRangeReportHtml(input: {
         <div class="meta">Report Date Time: ${escapeHtml(reportDateTime)}</div>
         <div class="meta">Total: ${input.readings.length}${showRange ? ` | In range: ${inRangeCount} | Out of range: ${outOfRangeCount}` : ""}</div>
         ${dateSectionsHtml || "<div>No readings found for this date range.</div>"}
+      </body>
+    </html>
+  `;
+}
+
+const GRID_GLYPH: Record<TemperatureScheduleCellState, string> = {
+  OnTime: "✓",
+  Early: "«",
+  Late: "⚠",
+  Missed: "✗",
+  Upcoming: "–",
+};
+
+function gridShortDate(value: string) {
+  const d = new Date(`${value}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString(undefined, { day: "2-digit", month: "short" });
+}
+
+// Builds the schedule-grid report (units × date/slot matrix) so the printed/emailed PDF matches the
+// on-screen grid. Honours the same display settings: showTiming (early/late/missed), showReadingTime
+// (clock time in each cell), showRange (in/out-of-range colour + legend).
+export function buildTemperatureScheduleGridHtml(input: {
+  shopName: string;
+  grid: TemperatureScheduleGrid;
+  generatedOn?: string;
+  showTiming?: boolean;
+  showReadingTime?: boolean;
+  showRange?: boolean;
+}) {
+  const showTiming = input.showTiming !== false;
+  const showReadingTime = input.showReadingTime !== false;
+  const showRange = input.showRange !== false;
+  const grid = input.grid;
+
+  const generatedAt = input.generatedOn ? new Date(input.generatedOn) : new Date();
+  const reportDateTime = Number.isNaN(generatedAt.getTime()) ? input.generatedOn ?? "-" : formatDateTimeValue(generatedAt);
+
+  // Dates spanning the range.
+  const dates: string[] = [];
+  for (let d = new Date(`${grid.from}T00:00:00`); d <= new Date(`${grid.to}T00:00:00`); d.setDate(d.getDate() + 1)) {
+    dates.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+  }
+
+  // Distinct slot columns (label + time), ordered by time.
+  const slotColumns: { label: string; expectedTime: string }[] = [];
+  const seenSlot = new Set<string>();
+  for (const s of [...grid.slots].sort((a, b) => a.expectedTime.localeCompare(b.expectedTime))) {
+    const key = `${s.label}|${s.expectedTime}`;
+    if (seenSlot.has(key)) continue;
+    seenSlot.add(key);
+    slotColumns.push({ label: s.label, expectedTime: s.expectedTime });
+  }
+
+  const scheduleIdFor = (col: { label: string; expectedTime: string }, unitId: string) =>
+    grid.slots.find((s) => s.label === col.label && s.expectedTime === col.expectedTime && (!s.unitId || s.unitId === unitId))?.scheduleId;
+
+  const cellsByKey = new Map<string, (typeof grid.cells)[number]>();
+  for (const c of grid.cells) cellsByKey.set(`${c.date}|${c.unitId}|${c.scheduleId}`, c);
+
+  const stateColor = (state: TemperatureScheduleCellState) => {
+    switch (state) {
+      case "OnTime": return "#137333";
+      case "Early": case "Late": return "#9a6700";
+      case "Missed": return "#b3261e";
+      default: return "#7a8a96";
+    }
+  };
+
+  // Header row 1: Unit (spans both header rows) + a date cell per date spanning its slot columns.
+  const dateHeaderCells = dates
+    .map((date) => `<th colspan="${slotColumns.length}">${escapeHtml(gridShortDate(date))}</th>`)
+    .join("");
+  // Header row 2: slot label + time under each date.
+  const slotHeaderCells = dates
+    .map(() => slotColumns.map((col) => `<th class="slot">${escapeHtml(col.label)}<div class="slot-time">${escapeHtml((col.expectedTime || "").slice(0, 5))}</div></th>`).join(""))
+    .join("");
+
+  const bodyRows = grid.units
+    .map((unit) => {
+      const cells = dates
+        .map((date) =>
+          slotColumns
+            .map((col) => {
+              const scheduleId = scheduleIdFor(col, unit.unitId);
+              if (!scheduleId) return `<td class="na"></td>`;
+              const cell = cellsByKey.get(`${date}|${unit.unitId}|${scheduleId}`);
+              const rawState = cell?.state ?? "Upcoming";
+              const state: TemperatureScheduleCellState = showTiming ? rawState : cell?.readingId ? "OnTime" : "Upcoming";
+              const timeHtml = showReadingTime && cell?.readingTime ? `<div class="c-time">${escapeHtml(cell.readingTime.slice(0, 5))}</div>` : "";
+              const tempColor = !showRange ? "#0f1720" : cell?.isOutOfRange ? "#b3261e" : "#137333";
+              const tempHtml =
+                cell?.temperatureCelsius != null
+                  ? `<div class="c-temp" style="color:${tempColor}">${showRange ? (cell.isOutOfRange ? "▲ " : "● ") : ""}${cell.temperatureCelsius.toFixed(1)}°</div>`
+                  : "";
+              // No tick for on-time cells in the export — the temperature/time already convey "done".
+              const glyph = state === "OnTime" ? "" : GRID_GLYPH[state];
+              const glyphHtml = glyph ? `<div class="c-glyph" style="color:${stateColor(state)}">${glyph}</div>` : "";
+              return `<td>${glyphHtml}${timeHtml}${tempHtml}</td>`;
+            })
+            .join(""),
+        )
+        .join("");
+      return `<tr><th class="unit">${escapeHtml(unit.displayOrder ? `${unit.displayOrder}. ` : "")}${escapeHtml(unit.unitName)}</th>${cells}</tr>`;
+    })
+    .join("");
+
+  const legend = `
+    <div class="legend">
+      ${showTiming ? `<span style="color:#137333">On time ${grid.onTimeCount}</span> <span style="color:#9a6700">« ${grid.earlyCount}</span> <span style="color:#9a6700">⚠ ${grid.lateCount}</span> <span style="color:#b3261e">✗ ${grid.missedCount}</span>` : ""}
+    </div>`;
+
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          @page { size: landscape; margin: 10mm; }
+          body { font-family: Arial, Helvetica, sans-serif; color: #0f1720; margin: 20px; font-size: 11px; }
+          .title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+          .subtitle, .meta { font-size: 11px; color: #425463; margin-bottom: 4px; }
+          .legend { margin: 8px 0; font-size: 12px; font-weight: 700; }
+          .legend span { margin-right: 12px; }
+          table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+          th, td { border: 1px solid #9aa9b5; padding: 3px; text-align: center; vertical-align: top; word-wrap: break-word; }
+          th.unit { text-align: left; width: 110px; background: #f1f4f6; }
+          th.slot { font-size: 10px; }
+          .slot-time { font-weight: 400; color: #425463; font-size: 9px; }
+          td.na { background: #f7f9fa; }
+          .c-glyph { font-size: 12px; font-weight: 700; }
+          .c-time { font-size: 9px; color: #425463; }
+          .c-temp { font-size: 10px; font-weight: 700; }
+        </style>
+      </head>
+      <body>
+        <div class="title">Temperature Schedule Grid</div>
+        <div class="subtitle">Shop: ${escapeHtml(input.shopName)} | Date Range: ${escapeHtml(formatReportDate(grid.from))} to ${escapeHtml(formatReportDate(grid.to))}</div>
+        <div class="meta">Report Date Time: ${escapeHtml(reportDateTime)}</div>
+        ${legend}
+        <table>
+          <thead>
+            <tr><th class="unit" rowspan="2">Unit</th>${dateHeaderCells}</tr>
+            <tr>${slotHeaderCells}</tr>
+          </thead>
+          <tbody>
+            ${bodyRows || `<tr><td colspan="${dates.length * slotColumns.length + 1}">No scheduled checks for this range.</td></tr>`}
+          </tbody>
+        </table>
       </body>
     </html>
   `;
