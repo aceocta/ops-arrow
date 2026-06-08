@@ -6,6 +6,7 @@ import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import { getTemperatureLogsReport, sendReportEmail } from "../../api/reportsApi";
 import { useAuth } from "../../auth/AuthContext";
+import { useTemperatureDisplaySettings } from "./useTemperatureDisplaySettings";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
 import { ReportActionBar } from "../../components/ReportActionBar";
@@ -71,6 +72,7 @@ type FlatReadingRow =
 
 export function TemperatureLogsReportScreen() {
   const { activeShopId, activeShop, profile } = useAuth();
+  const { showReadingTime } = useTemperatureDisplaySettings();
   const shopId = activeShopId;
 
   const today = useMemo(() => new Date(), []);
@@ -126,6 +128,7 @@ export function TemperatureLogsReportScreen() {
         to: toDate,
         generatedOn: new Date().toISOString(),
         readings,
+        showReadingTime,
       });
 
       const { uri } = await Print.printToFileAsync({
@@ -158,6 +161,7 @@ export function TemperatureLogsReportScreen() {
       to: toDate,
       generatedOn: new Date().toISOString(),
       readings,
+      showReadingTime,
     });
 
   const printReport = async () => {
@@ -239,7 +243,7 @@ export function TemperatureLogsReportScreen() {
             tone={reading.isOutOfRange ? "danger" : "success"}
           />
         </View>
-        <Text style={styles.entryMeta}>{reading.readingTime || "--:--"}</Text>
+        {showReadingTime ? <Text style={styles.entryMeta}>{reading.readingTime || "--:--"}</Text> : null}
         <Text style={styles.entryTemp}>
           {formatTemperature(Number(reading.temperatureCelsius))} (Range{" "}
           {formatTemperature(reading.minTemperatureCelsius)} to{" "}
@@ -252,7 +256,7 @@ export function TemperatureLogsReportScreen() {
         {reading.notes ? <Text style={styles.meta}>Notes: {reading.notes}</Text> : null}
       </View>
     );
-  }, []);
+  }, [showReadingTime]);
 
   const ListHeader = useMemo(
     () => (

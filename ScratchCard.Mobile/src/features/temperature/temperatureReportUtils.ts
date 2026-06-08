@@ -113,7 +113,10 @@ export function buildTemperatureRangeReportHtml(input: {
   to: string;
   generatedOn?: string;
   readings: TemperatureReading[];
+  // When false, the reading-time column is omitted (shop setting / non-owner). Defaults to true.
+  showReadingTime?: boolean;
 }) {
+  const showReadingTime = input.showReadingTime !== false;
   const generatedAt = input.generatedOn ? new Date(input.generatedOn) : new Date();
   const reportDateTime = Number.isNaN(generatedAt.getTime())
     ? input.generatedOn ?? "-"
@@ -159,7 +162,7 @@ export function buildTemperatureRangeReportHtml(input: {
               const deviationLabel = formatDeviation(recordedTemperature, minTemperature, maxTemperature);
               return `
                 <tr class="${reading.isOutOfRange ? "row-out" : ""}">
-                  <td>${escapeHtml(reading.readingTime || "--:--")}</td>
+                  ${showReadingTime ? `<td>${escapeHtml(reading.readingTime || "--:--")}</td>` : ""}
                   <td>${escapeHtml(reading.equipmentType)}</td>
                   <td>${escapeHtml(rangeLabel)}</td>
                   <td>${escapeHtml(formatTemperature(recordedTemperature))}</td>
@@ -180,7 +183,7 @@ export function buildTemperatureRangeReportHtml(input: {
             <table>
               <thead>
                 <tr>
-                  <th class="col-time">Time</th>
+                  ${showReadingTime ? '<th class="col-time">Time</th>' : ""}
                   <th class="col-type">Type</th>
                   <th class="col-range">Allowed Range</th>
                   <th class="col-temp">Recorded Temp</th>
@@ -192,7 +195,7 @@ export function buildTemperatureRangeReportHtml(input: {
                 </tr>
               </thead>
               <tbody>
-                ${rowsHtml || '<tr><td colspan="9">No readings found for this unit.</td></tr>'}
+                ${rowsHtml || `<tr><td colspan="${showReadingTime ? 9 : 8}">No readings found for this unit.</td></tr>`}
               </tbody>
             </table>
           `;

@@ -95,6 +95,8 @@ public class ConfigurationService : IConfigurationService
         AddItem(items, shopId, GeneralGroup, ConfigurationKeys.BusinessEndTime, Resolve(shopGeneral?.BusinessEndTime, globalGeneral?.BusinessEndTime, fallbackBusinessEndTime), "string", "Business day end time (HH:mm). Overnight windows are supported.");
         AddItem(items, shopId, GeneralGroup, "BusinessDateCutOffTime", Resolve(shopGeneral?.BusinessDateCutOffTime, globalGeneral?.BusinessDateCutOffTime, "23:59"), "string", "Business date cutoff");
         AddItem(items, shopId, GeneralGroup, "EnableAuditLog", ToConfigString(Resolve(shopGeneral?.EnableAuditLog, globalGeneral?.EnableAuditLog, true)), "bool", "Audit logs enabled");
+        AddItem(items, shopId, GeneralGroup, ConfigurationKeys.ShowTemperatureTimingStatus, ToConfigString(Resolve(shopGeneral?.ShowTemperatureTimingStatus, globalGeneral?.ShowTemperatureTimingStatus, true)), "bool", "Show early / late / missed temperature timing (visible to company owner only)");
+        AddItem(items, shopId, GeneralGroup, ConfigurationKeys.ShowTemperatureReadingTime, ToConfigString(Resolve(shopGeneral?.ShowTemperatureReadingTime, globalGeneral?.ShowTemperatureReadingTime, true)), "bool", "Show the temperature reading time (visible to company owner only)");
 
         AddItem(items, shopId, PackGroup, "DefaultSellingOrder", Resolve(shopPack?.DefaultSellingOrder, globalPack?.DefaultSellingOrder, "Ascending"), "string", null);
         AddItem(items, shopId, PackGroup, ConfigurationKeys.PackSellingOrder, Resolve(shopPack?.PackSellingOrder, globalPack?.PackSellingOrder, "Ascending"), "string", string.Empty);
@@ -312,6 +314,12 @@ public class ConfigurationService : IConfigurationService
                 break;
             case "EnableAuditLog":
                 target.EnableAuditLog = ParseBool(value, key);
+                break;
+            case ConfigurationKeys.ShowTemperatureTimingStatus:
+                target.ShowTemperatureTimingStatus = ParseBool(value, key);
+                break;
+            case ConfigurationKeys.ShowTemperatureReadingTime:
+                target.ShowTemperatureReadingTime = ParseBool(value, key);
                 break;
             default:
                 throw new AppException("configuration_key_not_supported", $"Unsupported configuration key '{key}' in {GeneralGroup}.");
@@ -619,6 +627,8 @@ public class ConfigurationService : IConfigurationService
             ConfigurationKeys.BusinessEndTime => GeneralGroup,
             "BusinessDateCutOffTime" => GeneralGroup,
             "EnableAuditLog" => GeneralGroup,
+            ConfigurationKeys.ShowTemperatureTimingStatus => GeneralGroup,
+            ConfigurationKeys.ShowTemperatureReadingTime => GeneralGroup,
 
             "DefaultSellingOrder" => PackGroup,
             ConfigurationKeys.PackSellingOrder => PackGroup,

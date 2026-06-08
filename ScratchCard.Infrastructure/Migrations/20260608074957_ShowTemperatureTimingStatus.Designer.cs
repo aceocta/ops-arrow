@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ScratchCard.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using ScratchCard.Infrastructure.Persistence;
 namespace ScratchCard.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260608074957_ShowTemperatureTimingStatus")]
+    partial class ShowTemperatureTimingStatus
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -518,9 +521,6 @@ namespace ScratchCard.Infrastructure.Migrations
 
                     b.Property<Guid?>("ShopId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<bool?>("ShowTemperatureReadingTime")
-                        .HasColumnType("bit");
 
                     b.Property<bool?>("ShowTemperatureTimingStatus")
                         .HasColumnType("bit");

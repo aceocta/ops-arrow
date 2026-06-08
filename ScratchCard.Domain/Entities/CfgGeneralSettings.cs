@@ -8,4 +8,9 @@ public class CfgGeneralSettings : CfgSettingsBase
     public string? BusinessEndTime { get; set; }
     public string? BusinessDateCutOffTime { get; set; }
     public bool? EnableAuditLog { get; set; }
+    // When true, the temperature log shows early/late/missed timing status (company-owner only on
+    // the client). When false, those indicators are hidden for everyone.
+    public bool? ShowTemperatureTimingStatus { get; set; }
+    // When true, the temperature log shows the reading time (company-owner only on the client).
+    public bool? ShowTemperatureReadingTime { get; set; }
 }

@@ -10,6 +10,7 @@ import {
   recordTemperatureReading,
 } from "../../api/temperatureLogsApi";
 import { useAuth } from "../../auth/AuthContext";
+import { useTemperatureDisplaySettings } from "./useTemperatureDisplaySettings";
 import { DateTimeField, formatDateValue, formatTimeValue, parseDateTimeValue } from "../../components/DateTimeField";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { toastError, toastSuccess } from "../../components/toast";
@@ -364,11 +365,17 @@ function DailyScheduleMatrix({
   columns,
   rows,
   outOfRangeCount,
+  showTiming,
+  showReadingTime,
   onCellPress,
 }: {
   columns: MatrixColumn[];
   rows: MatrixRow[];
   outOfRangeCount: number;
+  // Early/late/missed timing is only shown to a company owner when the shop setting allows it.
+  showTiming: boolean;
+  // The reading clock-time is likewise owner-only + shop-setting controlled.
+  showReadingTime: boolean;
   onCellPress: (unitId: string, scheduleId: string) => void;
 }) {
   if (columns.length === 0 || rows.length === 0) return null;
@@ -426,7 +433,9 @@ function DailyScheduleMatrix({
                       </View>
                     );
                   }
-                  const meta = slotStateMeta(cell.state);
+                  // Hide early/late/missed timing unless allowed: a no-reading slot shows a neutral
+                  // "Pending" instead of "Missed", and the Early/Late tag is suppressed.
+                  const meta = slotStateMeta(showTiming ? cell.state : cell.reading ? "OnTime" : "Pending");
                   return (
                     <Pressable
                       key={`${row.unit.id}|${i}`}
@@ -447,10 +456,12 @@ function DailyScheduleMatrix({
                             {formatTemperature(Number(cell.reading.temperatureCelsius))}
                           </Text>
                           <View style={styles.matrixCellMetaRow}>
-                            <Text style={styles.matrixCellMeta} numberOfLines={1}>
-                              {cell.reading.readingTime}
-                            </Text>
-                            {cell.state === "Late" || cell.state === "Early" ? (
+                            {showReadingTime ? (
+                              <Text style={styles.matrixCellMeta} numberOfLines={1}>
+                                {cell.reading.readingTime}
+                              </Text>
+                            ) : null}
+                            {showTiming && (cell.state === "Late" || cell.state === "Early") ? (
                               <Text style={styles.scheduleSlotLateTag} numberOfLines={1}>
                                 {cell.state === "Early" ? "Early" : "Late"}
                               </Text>
@@ -547,6 +558,8 @@ export function TemperatureLogScreen() {
     enabled: Boolean(shopId),
     staleTime: 10 * 60 * 1000,
   });
+
+  const { showTiming, showReadingTime } = useTemperatureDisplaySettings();
 
   // Current minute-of-day, only when the selected day is today — drives Pending vs Missed for
   // slots with no reading. Null on other days so past = Missed, future = Pending without a clock.
@@ -1235,6 +1248,8 @@ export function TemperatureLogScreen() {
           columns={scheduleMatrix.columns}
           rows={scheduleMatrix.rows}
           outOfRangeCount={summary.outOfRange}
+          showTiming={showTiming}
+          showReadingTime={showReadingTime}
           onCellPress={openLogEntryModal}
         />
 

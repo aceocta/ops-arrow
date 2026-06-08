@@ -6,6 +6,7 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import { useAuth } from "../../auth/AuthContext";
+import { useTemperatureDisplaySettings } from "./useTemperatureDisplaySettings";
 import { getTemperatureScheduleGrid, listTemperatureReadings } from "../../api/temperatureLogsApi";
 import { sendReportEmail } from "../../api/reportsApi";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
@@ -152,6 +153,7 @@ type SelectedCell = {
 
 function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
   const { activeShopId, activeShop, profile } = useAuth();
+  const { showTiming, showReadingTime } = useTemperatureDisplaySettings();
   const [selected, setSelected] = React.useState<SelectedCell | null>(null);
   const [emailing, setEmailing] = React.useState(false);
 
@@ -186,6 +188,7 @@ function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
       to: grid.to,
       generatedOn: new Date().toISOString(),
       readings,
+      showReadingTime,
     });
 
   const printReport = async () => {
@@ -275,10 +278,14 @@ function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
     <>
       <View style={[ui.card, styles.compactCard]}>
         <View style={styles.legendRow}>
-          <Text style={[styles.legendItem, styles.cellOnTimeText]}>✓ {grid.onTimeCount}</Text>
-          <Text style={[styles.legendItem, styles.cellEarlyText]}>« {grid.earlyCount}</Text>
-          <Text style={[styles.legendItem, styles.cellLateText]}>⚠ {grid.lateCount}</Text>
-          <Text style={[styles.legendItem, styles.cellMissedText]}>✗ {grid.missedCount}</Text>
+          {showTiming ? (
+            <>
+              <Text style={[styles.legendItem, styles.cellOnTimeText]}>✓ {grid.onTimeCount}</Text>
+              <Text style={[styles.legendItem, styles.cellEarlyText]}>« {grid.earlyCount}</Text>
+              <Text style={[styles.legendItem, styles.cellLateText]}>⚠ {grid.lateCount}</Text>
+              <Text style={[styles.legendItem, styles.cellMissedText]}>✗ {grid.missedCount}</Text>
+            </>
+          ) : null}
           <Text style={[styles.legendItem, styles.inRangeText]}>● In {inRangeCount}</Text>
           <Text style={[styles.legendItem, styles.outOfRangeText]}>▲ Out {outOfRangeCount}</Text>
         </View>
@@ -340,7 +347,9 @@ function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
                         );
                       }
                       const cell = cellsByKey.get(`${date}|${unit.unitId}|${scheduleId}`);
-                      const state = cell?.state ?? "Upcoming";
+                      const rawState = cell?.state ?? "Upcoming";
+                      // When timing is hidden, collapse to done (reading present) vs not — no early/late/missed.
+                      const state = showTiming ? rawState : cell?.readingId ? "OnTime" : "Upcoming";
                       const styleSet = stateStyle(state);
                       return (
                         <Pressable
@@ -358,7 +367,7 @@ function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
                           }
                         >
                           <Text style={[styles.cellGlyph, styleSet.text]}>{STATE_GLYPH[state]}</Text>
-                          {cell?.readingTime ? (
+                          {showReadingTime && cell?.readingTime ? (
                             <Text style={styles.cellMeta} numberOfLines={1}>{shortTime(cell.readingTime)}</Text>
                           ) : null}
                           {cell?.temperatureCelsius != null ? (
@@ -422,9 +431,11 @@ function rangeDeviation(reading: TemperatureReading) {
 }
 
 function CellDetailModal({ selected, onClose }: { selected: SelectedCell | null; onClose: () => void }) {
+  const { showTiming, showReadingTime } = useTemperatureDisplaySettings();
   const reading = selected?.reading;
   const cell = selected?.cell;
-  const state = cell?.state ?? "Upcoming";
+  const rawState = cell?.state ?? "Upcoming";
+  const state = showTiming ? rawState : cell?.readingId ? "OnTime" : "Upcoming";
   const styleSet = stateStyle(state);
 
   return (
@@ -448,7 +459,7 @@ function CellDetailModal({ selected, onClose }: { selected: SelectedCell | null;
               <ScrollView style={styles.modalBody}>
                 {reading ? (
                   <>
-                    <DetailRow label="Reading time" value={shortTime(reading.readingTime)} />
+                    {showReadingTime ? <DetailRow label="Reading time" value={shortTime(reading.readingTime)} /> : null}
                     <DetailRow label="Temperature" value={`${reading.temperatureCelsius.toFixed(1)} °C`} />
                     <DetailRow
                       label="Allowed range"
@@ -471,11 +482,11 @@ function CellDetailModal({ selected, onClose }: { selected: SelectedCell | null;
                       label="Recorded on"
                       value={reading.recordedOn ? new Date(reading.recordedOn).toLocaleString() : undefined}
                     />
-                    <DetailRow label="On schedule" value={reading.isLateForSchedule ? "Late" : "On time"} />
+                    {showTiming ? <DetailRow label="On schedule" value={reading.isLateForSchedule ? "Late" : "On time"} /> : null}
                     <DetailRow label="Action taken" value={reading.actionTaken} />
                     <DetailRow label="Notes" value={reading.notes} />
                   </>
-                ) : cell?.readingTime ? (
+                ) : showReadingTime && cell?.readingTime ? (
                   <>
                     <DetailRow label="Reading time" value={shortTime(cell.readingTime)} />
                     {cell.temperatureCelsius != null ? (

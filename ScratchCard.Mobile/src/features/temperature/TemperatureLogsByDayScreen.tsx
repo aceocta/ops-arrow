@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { getTemperatureDailyLog } from "../../api/temperatureLogsApi";
 import { useAuth } from "../../auth/AuthContext";
+import { useTemperatureDisplaySettings } from "./useTemperatureDisplaySettings";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SkeletonList } from "../../components/Skeleton";
@@ -26,6 +27,7 @@ function shiftDate(value: string, days: number) {
 
 export function TemperatureLogsByDayScreen() {
   const { activeShopId, activeShop } = useAuth();
+  const { showReadingTime } = useTemperatureDisplaySettings();
   const shopId = activeShopId;
   const [selectedDate, setSelectedDate] = useState(formatDateValue(new Date()));
 
@@ -111,7 +113,9 @@ export function TemperatureLogsByDayScreen() {
               unitLog.readings.map((reading) => (
                 <View key={reading.id} style={styles.readingRow}>
                   <View style={styles.readingTop}>
-                    <Text style={styles.readingTime}>{reading.readingTime || "--:--"}</Text>
+                    {showReadingTime ? (
+                      <Text style={styles.readingTime}>{reading.readingTime || "--:--"}</Text>
+                    ) : null}
                     <Text style={styles.readingTemp}>{formatTemperature(Number(reading.temperatureCelsius))}</Text>
                     <StatusBadge
                       label={reading.isOutOfRange ? "Out of range" : "In range"}
