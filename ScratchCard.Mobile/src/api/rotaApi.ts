@@ -31,6 +31,11 @@ export async function createRotaShift(payload: SaveRotaShiftPayload) {
   return response.data.data;
 }
 
+export async function generateRotaWeek(shopId: string, weekStart: string) {
+  const response = await apiClient.post<ApiResponse<RotaShift[]>>("/rota/generate-week", null, { params: { shopId, weekStart } });
+  return response.data.data;
+}
+
 export async function updateRotaShift(id: string, payload: SaveRotaShiftPayload) {
   const response = await apiClient.put<ApiResponse<RotaShift>>(`/rota/${id}`, payload);
   return response.data.data;

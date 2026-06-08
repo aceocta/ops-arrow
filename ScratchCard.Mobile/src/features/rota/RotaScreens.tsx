@@ -8,6 +8,7 @@ import {
   checkInShift,
   checkOutShift,
   createRotaShift,
+  generateRotaWeek,
   deleteRotaShift,
   getAssignableUsers,
   getMyCurrentAttendance,
@@ -33,7 +34,7 @@ import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
 import { confirmDestructive } from "../../utils/confirm";
-import { toastError } from "../../components/toast";
+import { toastError, toastSuccess } from "../../components/toast";
 import { AttendanceApprovalRow, RotaShift } from "../../types/models";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -484,6 +485,24 @@ export function RotaManageScreen() {
     onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't delete the shift."),
   });
 
+  const generateMutation = useMutation({
+    mutationFn: () => generateRotaWeek(shopId as string, weekStart),
+    onSuccess: (created) => {
+      void invalidate();
+      toastSuccess(created.length > 0 ? `Added ${created.length} shift${created.length === 1 ? "" : "s"} for this week.` : "This week's rota is already complete.");
+    },
+    onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't generate the week."),
+  });
+
+  const confirmGenerate = async () => {
+    const ok = await confirmDestructive({
+      title: "Generate week",
+      message: "Add a shift for every configured shift on each day this week, copying last week's staff where set? Existing shifts are kept.",
+      confirmLabel: "Generate",
+    });
+    if (ok) generateMutation.mutate();
+  };
+
   const openAdd = (shiftDate?: string) => {
     setDraft({ ...emptyDraft(), shiftDate: shiftDate ?? emptyDraft().shiftDate });
     setUserSearch("");
@@ -562,6 +581,11 @@ export function RotaManageScreen() {
             <Ionicons name="chevron-forward" size={20} color={appTheme.colors.primary} />
           </Pressable>
         </View>
+
+        <Pressable style={styles.generateBtn} onPress={confirmGenerate} disabled={!shopId || generateMutation.isPending}>
+          <Ionicons name="sparkles-outline" size={16} color={appTheme.colors.onPrimary} />
+          <Text style={styles.generateBtnText}>{generateMutation.isPending ? "Generating…" : "Auto-generate this week"}</Text>
+        </Pressable>
 
         {rotaQuery.isLoading ? <LoadingState inline /> : null}
 
@@ -1164,6 +1188,8 @@ const styles = StyleSheet.create({
   weekNavBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceBrandSoft },
   weekNavLabel: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 16 },
   weekNavHint: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, marginTop: 1 },
+  generateBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 999, backgroundColor: appTheme.colors.primary },
+  generateBtnText: { color: appTheme.colors.onPrimary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
   dayCard: { gap: 8 },
   dayCardToday: { borderWidth: 1, borderColor: appTheme.colors.primary },
   dayCardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },

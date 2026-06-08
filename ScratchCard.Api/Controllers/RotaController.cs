@@ -29,6 +29,10 @@ public class RotaController : BaseApiController
     public async Task<IActionResult> Create([FromBody] CreateRotaShiftRequest request, CancellationToken cancellationToken)
         => Success(await _rotaService.CreateShiftAsync(request, cancellationToken));
 
+    [HttpPost("generate-week")]
+    public async Task<IActionResult> GenerateWeek([FromQuery] Guid shopId, [FromQuery] DateOnly weekStart, CancellationToken cancellationToken)
+        => Success(await _rotaService.GenerateWeekAsync(shopId, weekStart, cancellationToken));
+
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateRotaShiftRequest request, CancellationToken cancellationToken)
         => Success(await _rotaService.UpdateShiftAsync(id, request, cancellationToken));

@@ -203,6 +203,84 @@ public class RotaService : IRotaService
         return await GetShiftByIdAsync(shift.Id, cancellationToken);
     }
 
+    public async Task<IReadOnlyCollection<RotaShiftDto>> GenerateWeekAsync(Guid shopId, DateOnly weekStart, CancellationToken cancellationToken = default)
+    {
+        await EnsureManageAsync(shopId, cancellationToken);
+        var setup = await _shopConfigurationService.GetShiftSetupAsync(shopId, cancellationToken);
+        var templates = setup.ShiftTemplates.Where(t => t.IsActive).ToList();
+        var weekEnd = weekStart.AddDays(6);
+        var now = DateTimeOffset.UtcNow;
+
+        // This week's existing shifts (to avoid duplicating a slot) and last week's shifts with
+        // assignees (to copy the recurring staffing pattern forward).
+        var existing = await _shiftRepository.Query()
+            .Where(x => x.ShopId == shopId && !x.IsDeleted && x.ShiftDate >= weekStart && x.ShiftDate <= weekEnd)
+            .Select(x => new { x.ShiftDate, x.ShiftTemplateId })
+            .ToListAsync(cancellationToken);
+        var existingKeys = existing
+            .Select(x => $"{x.ShiftDate:yyyy-MM-dd}|{x.ShiftTemplateId}")
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var prevWeekStart = weekStart.AddDays(-7);
+        var prevWeekEnd = weekStart.AddDays(-1);
+        var prevShifts = await _shiftRepository.Query()
+            .Where(x => x.ShopId == shopId && !x.IsDeleted && x.ShiftDate >= prevWeekStart && x.ShiftDate <= prevWeekEnd)
+            .Include(x => x.Assignments)
+            .ToListAsync(cancellationToken);
+        // Keyed by the matching weekday (date + 7) + template, so we line each day up with last week.
+        var prevByKey = prevShifts.ToDictionary(
+            x => $"{x.ShiftDate.AddDays(7):yyyy-MM-dd}|{x.ShiftTemplateId}",
+            x => x.Assignments.Select(a => a.UserId).Distinct().ToList(),
+            StringComparer.OrdinalIgnoreCase);
+
+        var created = new List<Guid>();
+        for (var offset = 0; offset < 7; offset++)
+        {
+            var date = weekStart.AddDays(offset);
+            foreach (var template in templates)
+            {
+                var key = $"{date:yyyy-MM-dd}|{template.TemplateId}";
+                if (existingKeys.Contains(key)) continue; // already on the rota
+
+                var startTime = TimeOnly.FromTimeSpan(template.StartTime);
+                var endTime = TimeOnly.FromTimeSpan(template.EndTime);
+                var shift = new RotaShift
+                {
+                    ShopId = shopId,
+                    ShiftDate = date,
+                    EndDate = ResolveEndDate(date, startTime, endTime),
+                    BusinessDayId = await ResolveBusinessDayIdAsync(shopId, date, cancellationToken),
+                    ShiftTemplateId = template.TemplateId,
+                    ShiftName = template.Name,
+                    StartTime = startTime,
+                    EndTime = endTime,
+                    CreatedOn = now,
+                    CreatedBy = _currentUserService.UserId,
+                };
+                await _shiftRepository.AddAsync(shift, cancellationToken);
+                created.Add(shift.Id);
+
+                if (prevByKey.TryGetValue(key, out var assignees))
+                {
+                    foreach (var userId in assignees)
+                    {
+                        await _assignmentRepository.AddAsync(new ShiftAssignment
+                        {
+                            RotaShiftId = shift.Id,
+                            ShopId = shopId,
+                            UserId = userId,
+                            CreatedOn = now,
+                            CreatedBy = _currentUserService.UserId,
+                        }, cancellationToken);
+                    }
+                }
+            }
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return await GetRotaAsync(shopId, weekStart, weekEnd, cancellationToken);
+    }
+
     public async Task<RotaShiftDto> UpdateShiftAsync(Guid shiftId, UpdateRotaShiftRequest request, CancellationToken cancellationToken = default)
     {
         var shift = await _shiftRepository.Query()
