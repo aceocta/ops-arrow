@@ -6,6 +6,7 @@ import { visitorsApi, type VisitorEntry } from "../../lib/visitors";
 import { fmtDate, shortTime } from "../../lib/rota";
 import { downloadCsv } from "../../lib/csv";
 import ExportButton from "../../components/ExportButton";
+import { toast } from "../../components/feedback";
 import { X, LogOut, AlertTriangle } from "lucide-react";
 import clsx from "clsx";
 
@@ -138,7 +139,7 @@ function VisitorDetail({
       qc.invalidateQueries({ queryKey: ["visitors", shopId, range.from, range.to] });
       onClose();
     },
-    onError: (e) => alert(apiErrorMessage(e)),
+    onError: (e) => toast(apiErrorMessage(e), "error"),
   });
 
   return (

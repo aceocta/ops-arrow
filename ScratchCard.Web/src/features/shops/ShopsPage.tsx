@@ -4,6 +4,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { apiErrorMessage } from "../../lib/api";
 import { shopsApi, type Shop, type SaveShopPayload } from "../../lib/shops";
 import { subscriptionApi, type SubscriptionPlan } from "../../lib/subscription";
+import { toast } from "../../components/feedback";
 import { Plus, X, Store, Pencil } from "lucide-react";
 import clsx from "clsx";
 
@@ -143,7 +144,7 @@ function ShopModal({
       await shopsApi.create({ ...payload, subscriptionPlanId: planId || undefined });
     },
     onSuccess: onSaved,
-    onError: (e) => alert(apiErrorMessage(e)),
+    onError: (e) => toast(apiErrorMessage(e), "error"),
   });
 
   const valid = shopName.trim() && addressLine1.trim() && city.trim() && postCode.trim() && country.trim() && planId;

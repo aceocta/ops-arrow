@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import { apiErrorMessage } from "../../lib/api";
 import { rotaApi, type RotaStaffMember } from "../../lib/rota";
+import { confirmDialog, toast } from "../../components/feedback";
 import { Plus, X, Trash2, Phone, Mail } from "lucide-react";
 
 export default function StaffPage() {
@@ -62,9 +63,9 @@ function StaffModal({ shopId, member, onClose, onSaved }: { shopId: string; memb
       return member ? rotaApi.updateStaffMember(member.id, payload) : rotaApi.createStaffMember(payload);
     },
     onSuccess: onSaved,
-    onError: (e) => alert(apiErrorMessage(e)),
+    onError: (e) => toast(apiErrorMessage(e), "error"),
   });
-  const deleteM = useMutation({ mutationFn: () => rotaApi.deleteStaffMember(member!.id), onSuccess: onSaved, onError: (e) => alert(apiErrorMessage(e)) });
+  const deleteM = useMutation({ mutationFn: () => rotaApi.deleteStaffMember(member!.id), onSuccess: onSaved, onError: (e) => toast(apiErrorMessage(e), "error") });
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4">
@@ -80,7 +81,7 @@ function StaffModal({ shopId, member, onClose, onSaved }: { shopId: string; memb
         </div>
         <div className="mt-5 flex items-center justify-between">
           {member ? (
-            <button className="btn text-red-600 hover:bg-red-50" onClick={() => { if (confirm(`Remove ${member.name}?`)) deleteM.mutate(); }}><Trash2 className="h-4 w-4" /> Remove</button>
+            <button className="btn text-red-600 hover:bg-red-50" onClick={async () => { if (await confirmDialog({ title: "Remove person?", message: `Remove ${member.name} from external staff?`, confirmLabel: "Remove" })) deleteM.mutate(); }}><Trash2 className="h-4 w-4" /> Remove</button>
           ) : <span />}
           <div className="flex gap-2">
             <button className="btn-ghost" onClick={onClose}>Cancel</button>

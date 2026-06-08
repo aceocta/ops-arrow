@@ -6,6 +6,7 @@ import { refusalsApi, type RefusalEntry } from "../../lib/refusals";
 import { fmtDate, shortTime } from "../../lib/rota";
 import { downloadCsv } from "../../lib/csv";
 import ExportButton from "../../components/ExportButton";
+import { toast } from "../../components/feedback";
 import { X, ShieldCheck, CheckCircle2 } from "lucide-react";
 import clsx from "clsx";
 
@@ -148,7 +149,7 @@ function RefusalDetail({
       qc.invalidateQueries({ queryKey: ["refusals", shopId, range.from, range.to] });
       onReviewed();
     },
-    onError: (e) => alert(apiErrorMessage(e)),
+    onError: (e) => toast(apiErrorMessage(e), "error"),
   });
 
   return (

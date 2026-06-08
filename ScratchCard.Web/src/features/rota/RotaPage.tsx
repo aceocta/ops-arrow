@@ -13,6 +13,7 @@ import {
   weekdayLabel,
   isOvernight,
 } from "../../lib/rota";
+import { confirmDialog, toast } from "../../components/feedback";
 import { ChevronLeft, ChevronRight, Plus, Sparkles, Trash2, X, UserPlus } from "lucide-react";
 import clsx from "clsx";
 
@@ -85,9 +86,9 @@ export default function RotaPage() {
     mutationFn: () => rotaApi.generateWeek(shopId, weekStart),
     onSuccess: (created) => {
       invalidate();
-      alert(created.length ? `Added ${created.length} shift(s) for this week.` : "This week's rota is already complete.");
+      toast(created.length ? `Added ${created.length} shift(s) for this week.` : "This week's rota is already complete.", "success");
     },
-    onError: (e) => alert(apiErrorMessage(e)),
+    onError: (e) => toast(apiErrorMessage(e), "error"),
   });
 
   const openAdd = (date: string, templateId = "") => { setEditorDate(date); setAddTemplateId(templateId); setEditor("new"); };
@@ -265,13 +266,13 @@ function ShiftEditor({
       return shift ? rotaApi.update(shift.id, payload) : rotaApi.create(payload);
     },
     onSuccess: onSaved,
-    onError: (e) => alert(apiErrorMessage(e)),
+    onError: (e) => toast(apiErrorMessage(e), "error"),
   });
 
   const deleteM = useMutation({
     mutationFn: () => rotaApi.remove(shift!.id),
     onSuccess: onSaved,
-    onError: (e) => alert(apiErrorMessage(e)),
+    onError: (e) => toast(apiErrorMessage(e), "error"),
   });
 
   const addExtM = useMutation({
@@ -289,7 +290,7 @@ function ShiftEditor({
       setExtName(""); setExtPhone("+44 "); setExtEmail(""); setShowExt(false);
       qc.invalidateQueries({ queryKey: ["rota-assignable", shopId] });
     },
-    onError: (e) => alert(apiErrorMessage(e)),
+    onError: (e) => toast(apiErrorMessage(e), "error"),
   });
 
   const isAssigned = (u: AssignableUser) =>
@@ -387,7 +388,7 @@ function ShiftEditor({
 
         <div className="mt-5 flex items-center justify-between">
           {shift ? (
-            <button className="btn text-red-600 hover:bg-red-50" onClick={() => { if (confirm("Delete this shift?")) deleteM.mutate(); }}>
+            <button className="btn text-red-600 hover:bg-red-50" onClick={async () => { if (await confirmDialog({ title: "Delete shift?", message: "This removes the shift and its assignments.", confirmLabel: "Delete" })) deleteM.mutate(); }}>
               <Trash2 className="h-4 w-4" /> Delete
             </button>
           ) : <span />}

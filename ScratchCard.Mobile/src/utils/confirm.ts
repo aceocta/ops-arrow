@@ -1,4 +1,4 @@
-import { Alert } from "react-native";
+import { showAppAlert } from "../components/AppAlert";
 
 type DestructiveConfirmOptions = {
   title: string;
@@ -18,14 +18,21 @@ type DestructiveConfirmOptions = {
  */
 export function confirmDestructive(options: DestructiveConfirmOptions): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
-    Alert.alert(
+    let settled = false;
+    const settle = (value: boolean) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    // Routes through the app's modern in-app dialog host (not the native OS alert).
+    showAppAlert(
       options.title,
       options.message,
       [
-        { text: options.cancelLabel ?? "Cancel", style: "cancel", onPress: () => resolve(false) },
-        { text: options.confirmLabel ?? "Delete", style: "destructive", onPress: () => resolve(true) },
+        { text: options.cancelLabel ?? "Cancel", style: "cancel", onPress: () => settle(false) },
+        { text: options.confirmLabel ?? "Delete", style: "destructive", onPress: () => settle(true) },
       ],
-      { cancelable: true, onDismiss: () => resolve(false) },
+      { cancelable: true, onDismiss: () => settle(false) },
     );
   });
 }

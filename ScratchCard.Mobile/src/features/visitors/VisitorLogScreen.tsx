@@ -59,17 +59,17 @@ export function VisitorLogScreen({ navigation }: Props) {
   return (
     <ScreenContainer>
       <View style={[ui.card, styles.headerCard]}>
-        {data ? (
+        {/* {data ? (
           <View style={styles.headerRow}>
             <View style={styles.flex1} />
             <View style={styles.onSitePill}>
               <Text style={styles.onSitePillText}>{data.onSiteCount} on site</Text>
             </View>
           </View>
-        ) : null}
+        ) : null} */}
         <DateTimeField mode="date" value={date} onChange={setDate} maximumDate={new Date()} />
         <PrimaryButton label="Sign in visitor" icon="person-add-outline" onPress={() => navigation.navigate("VisitorLogEntryEdit", {})} />
-        <PrimaryButton label="Report" tone="neutral" icon="document-text-outline" onPress={() => navigation.navigate("VisitorLogReport")} />
+        {/* <PrimaryButton label="Report" tone="neutral" icon="document-text-outline" onPress={() => navigation.navigate("VisitorLogReport")} /> */}
       </View>
 
       {dailyQuery.isLoading ? (

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import { apiErrorMessage } from "../../lib/api";
 import { rotaApi, sessionIsos, shortTime, type AttendanceApprovalRow } from "../../lib/rota";
+import { confirmDialog, toast } from "../../components/feedback";
 import { Check, X, Pencil, CheckCircle2 } from "lucide-react";
 
 function clock(iso?: string | null) {
@@ -33,8 +34,8 @@ export default function ApprovalsPage() {
     qc.invalidateQueries({ queryKey: ["ts-staff", shopId] });
   };
 
-  const approveM = useMutation({ mutationFn: (id: string) => rotaApi.approve(id), onSuccess: refresh, onError: (e) => alert(apiErrorMessage(e)) });
-  const rejectM = useMutation({ mutationFn: (id: string) => rotaApi.reject(id), onSuccess: refresh, onError: (e) => alert(apiErrorMessage(e)) });
+  const approveM = useMutation({ mutationFn: (id: string) => rotaApi.approve(id), onSuccess: refresh, onError: (e) => toast(apiErrorMessage(e), "error") });
+  const rejectM = useMutation({ mutationFn: (id: string) => rotaApi.reject(id), onSuccess: refresh, onError: (e) => toast(apiErrorMessage(e), "error") });
 
   const rows = q.data ?? [];
 
@@ -74,7 +75,7 @@ export default function ApprovalsPage() {
             <div className="mt-1 text-xs text-slate-400">Submitted {dateTime(r.submittedOn)}</div>
 
             <div className="mt-4 flex gap-2">
-              <button className="btn border border-red-200 text-red-600 hover:bg-red-50" onClick={() => { if (confirm(`Reject ${r.userName}'s times?`)) rejectM.mutate(r.id); }}>
+              <button className="btn border border-red-200 text-red-600 hover:bg-red-50" onClick={async () => { if (await confirmDialog({ title: "Reject times?", message: `Reject ${r.userName}'s manually entered times?`, confirmLabel: "Reject" })) rejectM.mutate(r.id); }}>
                 <X className="h-4 w-4" /> Reject
               </button>
               <button className="btn-ghost" onClick={() => setEditing(r)}>
@@ -113,7 +114,7 @@ function AdjustModal({ row, onClose, onSaved }: { row: AttendanceApprovalRow; on
       return rotaApi.adjust(row.id, { checkInAt, checkOutAt: outT ? checkOutAt : undefined });
     },
     onSuccess: onSaved,
-    onError: (e) => alert(apiErrorMessage(e)),
+    onError: (e) => toast(apiErrorMessage(e), "error"),
   });
 
   return (

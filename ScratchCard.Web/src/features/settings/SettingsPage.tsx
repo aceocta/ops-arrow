@@ -5,6 +5,7 @@ import { apiErrorMessage } from "../../lib/api";
 import { configApi, lookupsApi, type ConfigurationItem } from "../../lib/config";
 import clsx from "clsx";
 import { rotaApi, shortTime, isOvernight, type RotaShiftTemplate } from "../../lib/rota";
+import { toast } from "../../components/feedback";
 import { Save, Clock, Plus, Trash2 } from "lucide-react";
 
 const humanize = (name: string) => name.replace(/([a-z])([A-Z])/g, "$1 $2");
@@ -103,7 +104,7 @@ export default function SettingsPage() {
       setSaved(true);
       qc.invalidateQueries({ queryKey: ["configurations", shopId] });
     },
-    onError: (e) => alert(apiErrorMessage(e)),
+    onError: (e) => toast(apiErrorMessage(e), "error"),
   });
 
   const label = (k: string) => k.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/_/g, " ");
@@ -268,7 +269,7 @@ function ShiftTemplatesEditor({ shopId, initial }: { shopId: string; initial: Ro
       qc.invalidateQueries({ queryKey: ["rota-templates", shopId] });
       qc.invalidateQueries({ queryKey: ["configurations", shopId] });
     },
-    onError: (e) => alert(apiErrorMessage(e)),
+    onError: (e) => toast(apiErrorMessage(e), "error"),
   });
 
   return (
