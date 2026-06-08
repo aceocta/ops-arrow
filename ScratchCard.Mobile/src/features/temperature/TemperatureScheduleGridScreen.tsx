@@ -363,7 +363,7 @@ function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
                           ) : null}
                           {cell?.temperatureCelsius != null ? (
                             <Text
-                              style={[styles.cellTemp, !showRange ? null : cell.isOutOfRange ? styles.outOfRangeText : styles.inRangeText]}
+                              style={[styles.cellTemp, !showRange ? styles.cellTempNeutral : cell.isOutOfRange ? styles.outOfRangeText : styles.inRangeText]}
                               numberOfLines={1}
                             >
                               {showRange ? (cell.isOutOfRange ? "▲ " : "● ") : ""}
@@ -615,6 +615,7 @@ const styles = StyleSheet.create({
   cellUpcomingText: { color: appTheme.colors.textSubtle },
   cellMeta: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 10, lineHeight: 12 },
   cellTemp: { fontFamily: appTheme.fonts.bodyMedium, fontSize: 11, lineHeight: 13 },
+  cellTempNeutral: { color: appTheme.colors.text },
   inRangeText: { color: appTheme.colors.success },
   outOfRangeText: { color: appTheme.colors.danger },
   modalOverlay: {

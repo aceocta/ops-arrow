@@ -452,7 +452,7 @@ function DailyScheduleMatrix({
                           <Text
                             style={[
                               styles.matrixCellTemp,
-                              !showRange ? null : cell.reading.isOutOfRange ? styles.scheduleSlotDanger : styles.scheduleSlotOk,
+                              !showRange ? styles.matrixCellTempNeutral : cell.reading.isOutOfRange ? styles.scheduleSlotDanger : styles.scheduleSlotOk,
                             ]}
                             numberOfLines={1}
                           >
@@ -1079,7 +1079,7 @@ export function TemperatureLogScreen() {
             >
               <Ionicons name="chevron-forward" size={18} color={appTheme.colors.text} />
             </Pressable>
-            {!isToday ? (
+            {/* {!isToday ? (
               <Pressable
                 style={styles.todayButton}
                 onPress={() => {
@@ -1091,7 +1091,7 @@ export function TemperatureLogScreen() {
               >
                 <Text style={styles.todayButtonText}>Today</Text>
               </Pressable>
-            ) : null}
+            ) : null} */}
           </View>
 
           <View style={styles.summaryRow}>
@@ -2108,6 +2108,9 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 13,
     lineHeight: 16,
+  },
+  matrixCellTempNeutral: {
+    color: appTheme.colors.text,
   },
   matrixCellState: {
     fontFamily: appTheme.fonts.bodyMedium,
