@@ -331,12 +331,21 @@ function gridShortDate(value: string) {
   return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString(undefined, { day: "2-digit", month: "short" });
 }
 
+function toInitials(value?: string | null) {
+  const parts = (value ?? "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return "";
+}
+
 // Builds the schedule-grid report (units × date/slot matrix) so the printed/emailed PDF matches the
 // on-screen grid. Honours the same display settings: showTiming (early/late/missed), showReadingTime
 // (clock time in each cell), showRange (in/out-of-range colour + legend).
 export function buildTemperatureScheduleGridHtml(input: {
   shopName: string;
   grid: TemperatureScheduleGrid;
+  // Full readings for the range — used to show who recorded each reading (initials + key).
+  readings?: TemperatureReading[];
   generatedOn?: string;
   showTiming?: boolean;
   showReadingTime?: boolean;
@@ -346,6 +355,19 @@ export function buildTemperatureScheduleGridHtml(input: {
   const showReadingTime = input.showReadingTime !== false;
   const showRange = input.showRange !== false;
   const grid = input.grid;
+  const readings = input.readings ?? [];
+
+  // readingId → recorder initials, and the initials → full-name(s) key shown at the bottom.
+  const initialsByReadingId = new Map<string, string>();
+  const namesByInitials = new Map<string, Set<string>>();
+  for (const r of readings) {
+    const name = r.recordedByName?.trim() || "";
+    const initials = (r.checkedByInitials?.trim() || toInitials(name) || "").toUpperCase();
+    if (!initials) continue;
+    initialsByReadingId.set(r.id, initials);
+    if (!namesByInitials.has(initials)) namesByInitials.set(initials, new Set());
+    if (name) namesByInitials.get(initials)!.add(name);
+  }
 
   const generatedAt = input.generatedOn ? new Date(input.generatedOn) : new Date();
   const reportDateTime = Number.isNaN(generatedAt.getTime()) ? input.generatedOn ?? "-" : formatDateTimeValue(generatedAt);
@@ -410,7 +432,9 @@ export function buildTemperatureScheduleGridHtml(input: {
               // No tick for on-time cells in the export — the temperature/time already convey "done".
               const glyph = state === "OnTime" ? "" : GRID_GLYPH[state];
               const glyphHtml = glyph ? `<div class="c-glyph" style="color:${stateColor(state)}">${glyph}</div>` : "";
-              return `<td>${glyphHtml}${timeHtml}${tempHtml}</td>`;
+              const initials = cell?.readingId ? initialsByReadingId.get(cell.readingId) : undefined;
+              const byHtml = initials ? `<div class="c-by">${escapeHtml(initials)}</div>` : "";
+              return `<td>${glyphHtml}${timeHtml}${tempHtml}${byHtml}</td>`;
             })
             .join(""),
         )
@@ -424,6 +448,20 @@ export function buildTemperatureScheduleGridHtml(input: {
       ${showTiming ? `<span style="color:#137333">On time ${grid.onTimeCount}</span> <span style="color:#9a6700">« ${grid.earlyCount}</span> <span style="color:#9a6700">⚠ ${grid.lateCount}</span> <span style="color:#b3261e">✗ ${grid.missedCount}</span>` : ""}
     </div>`;
 
+  // Bottom "Checked by key": each recorder's initials with their full name(s) under it.
+  const keyEntries = [...namesByInitials.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  const checkedByKeyHtml = keyEntries.length > 0
+    ? `
+      <section class="checked-by-key">
+        <strong>Checked by key:</strong>
+        <div class="key-items">
+          ${keyEntries
+            .map(([initials, names]) => `<div class="key-item"><span class="key-initials">${escapeHtml(initials)}</span><span class="key-name">${escapeHtml([...names].join(" / ") || "-")}</span></div>`)
+            .join("")}
+        </div>
+      </section>`
+    : "";
+
   return `
     <!DOCTYPE html>
     <html>
@@ -436,15 +474,21 @@ export function buildTemperatureScheduleGridHtml(input: {
           .subtitle, .meta { font-size: 11px; color: #425463; margin-bottom: 4px; }
           .legend { margin: 8px 0; font-size: 12px; font-weight: 700; }
           .legend span { margin-right: 12px; }
-          table { border-collapse: collapse; width: 100%; table-layout: fixed; }
-          th, td { border: 1px solid #9aa9b5; padding: 3px; text-align: center; vertical-align: top; word-wrap: break-word; }
-          th.unit { text-align: left; width: 110px; background: #f1f4f6; }
-          th.slot { font-size: 10px; }
-          .slot-time { font-weight: 400; color: #425463; font-size: 9px; }
+          table { border-collapse: collapse; width: 100%; table-layout: fixed; font-size: 8px; }
+          th, td { border: 1px solid #9aa9b5; padding: 2px; text-align: center; vertical-align: top; word-wrap: break-word; }
+          th.unit { text-align: left; width: 100px; background: #f1f4f6; font-size: 8px; }
+          th.slot { font-size: 8px; }
+          .slot-time { font-weight: 400; color: #425463; font-size: 7px; }
           td.na { background: #f7f9fa; }
-          .c-glyph { font-size: 12px; font-weight: 700; }
-          .c-time { font-size: 9px; color: #425463; }
-          .c-temp { font-size: 10px; font-weight: 700; }
+          .c-glyph { font-size: 9px; font-weight: 700; }
+          .c-time { font-size: 7px; color: #425463; }
+          .c-temp { font-size: 8px; font-weight: 700; }
+          .c-by { font-size: 7px; color: #1a2a36; font-weight: 700; margin-top: 1px; }
+          .checked-by-key { margin-top: 14px; font-size: 11px; }
+          .key-items { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-top: 6px; }
+          .key-item { text-align: center; min-width: 60px; }
+          .key-initials { display: block; font-weight: 700; font-size: 12px; }
+          .key-name { display: block; color: #425463; font-size: 10px; }
         </style>
       </head>
       <body>
@@ -461,6 +505,7 @@ export function buildTemperatureScheduleGridHtml(input: {
             ${bodyRows || `<tr><td colspan="${dates.length * slotColumns.length + 1}">No scheduled checks for this range.</td></tr>`}
           </tbody>
         </table>
+        ${checkedByKeyHtml}
       </body>
     </html>
   `;

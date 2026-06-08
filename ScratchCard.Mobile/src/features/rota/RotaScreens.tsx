@@ -584,22 +584,33 @@ export function RotaManageScreen() {
               {shifts.length === 0 ? (
                 <Text style={styles.dayEmpty}>No shifts</Text>
               ) : (
-                shifts.map((shift) => (
-                  <Pressable key={shift.id} style={styles.weekShiftRow} onPress={() => openEdit(shift)}>
-                    <View style={styles.weekShiftBar} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.weekShiftTitle} numberOfLines={1}>
-                        {shift.shiftName ? `${shift.shiftName} · ` : ""}{timeRange(shift.startTime, shift.endTime)}{overnightSuffix(shift.shiftDate, shift.endDate)}
-                      </Text>
-                      <Text style={styles.muted} numberOfLines={2}>
-                        {shift.assignees.length > 0 ? shift.assignees.map((a) => a.name).join(", ") : "No one assigned"}
-                      </Text>
-                    </View>
-                    <Pressable style={styles.iconBtn} onPress={() => confirmDelete(shift)} hitSlop={6}>
-                      <Ionicons name="trash-outline" size={16} color={appTheme.colors.danger} />
+                <View style={styles.rotaTable}>
+                  <View style={styles.rotaHeadRow}>
+                    <Text style={[styles.rotaHeadCell, styles.rotaShiftCol]}>Shift</Text>
+                    <Text style={[styles.rotaHeadCell, styles.rotaStaffCol]}>Staff</Text>
+                    <View style={styles.rotaActionCol} />
+                  </View>
+                  {shifts.map((shift) => (
+                    <Pressable key={shift.id} style={styles.rotaBodyRow} onPress={() => openEdit(shift)}>
+                      <View style={styles.rotaShiftCol}>
+                        <Text style={styles.weekShiftTitle} numberOfLines={1}>{shift.shiftName || "Shift"}</Text>
+                        <Text style={styles.tdSub}>{timeRange(shift.startTime, shift.endTime)}{overnightSuffix(shift.shiftDate, shift.endDate)}</Text>
+                      </View>
+                      <View style={styles.rotaStaffCol}>
+                        {shift.assignees.length > 0 ? (
+                          shift.assignees.map((a) => (
+                            <Text key={a.userId} style={styles.rotaStaffText} numberOfLines={1}>{a.name}</Text>
+                          ))
+                        ) : (
+                          <Text style={styles.muted}>No one assigned</Text>
+                        )}
+                      </View>
+                      <Pressable style={styles.rotaActionCol} onPress={() => confirmDelete(shift)} hitSlop={6}>
+                        <Ionicons name="trash-outline" size={16} color={appTheme.colors.danger} />
+                      </Pressable>
                     </Pressable>
-                  </Pressable>
-                ))
+                  ))}
+                </View>
               )}
             </View>
           );
@@ -1161,6 +1172,14 @@ const styles = StyleSheet.create({
   dayDate: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, marginTop: 1 },
   dayAddBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center", borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceBrandSoft },
   dayEmpty: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.body, fontSize: 13, fontStyle: "italic" },
+  rotaTable: { borderWidth: 1, borderColor: appTheme.colors.borderSoft, borderRadius: appTheme.radius.sm, overflow: "hidden" },
+  rotaHeadRow: { flexDirection: "row", alignItems: "center", backgroundColor: appTheme.colors.surfaceMuted, paddingHorizontal: 10, paddingVertical: 7 },
+  rotaHeadCell: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 },
+  rotaBodyRow: { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 10, paddingVertical: 9, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
+  rotaShiftCol: { width: 110 },
+  rotaStaffCol: { flex: 1, paddingLeft: 8 },
+  rotaStaffText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 13, lineHeight: 18 },
+  rotaActionCol: { width: 28, alignItems: "flex-end" },
   weekShiftRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
   weekShiftBar: { width: 3, alignSelf: "stretch", borderRadius: 2, backgroundColor: appTheme.colors.primary },
   weekShiftTitle: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },

@@ -175,6 +175,7 @@ function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
     buildTemperatureScheduleGridHtml({
       shopName: activeShop?.shopName ?? "-",
       grid,
+      readings,
       generatedOn: new Date().toISOString(),
       showTiming,
       showReadingTime,
