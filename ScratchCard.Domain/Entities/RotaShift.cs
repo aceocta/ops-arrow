@@ -35,15 +35,20 @@ public class RotaShift : SoftDeletableAuditableEntity
     public ICollection<ShiftAssignment> Assignments { get; set; } = new List<ShiftAssignment>();
 }
 
-/// <summary>Links a staff member to a rota shift (a shift can have several).</summary>
+/// <summary>
+/// Links someone to a rota shift (a shift can have several). The person is either a registered
+/// <see cref="User"/> (UserId set) or a roster-only <see cref="RotaStaffMember"/> (RotaStaffMemberId set).
+/// </summary>
 public class ShiftAssignment : AuditableEntity
 {
     public Guid RotaShiftId { get; set; }
     public Guid ShopId { get; set; }
-    public Guid UserId { get; set; }
+    public Guid? UserId { get; set; }
+    public Guid? RotaStaffMemberId { get; set; }
 
     public RotaShift RotaShift { get; set; } = null!;
-    public User User { get; set; } = null!;
+    public User? User { get; set; }
+    public RotaStaffMember? RotaStaffMember { get; set; }
 }
 
 /// <summary>
@@ -53,7 +58,9 @@ public class ShiftAssignment : AuditableEntity
 public class ShiftAttendance : AuditableEntity
 {
     public Guid ShopId { get; set; }
-    public Guid UserId { get; set; }
+    // Either a registered user (UserId) or a roster-only member (RotaStaffMemberId) — exactly one.
+    public Guid? UserId { get; set; }
+    public Guid? RotaStaffMemberId { get; set; }
     public Guid? BusinessDayId { get; set; }
     public Guid? RotaShiftId { get; set; }
     public DateTimeOffset CheckInAt { get; set; }
@@ -65,5 +72,6 @@ public class ShiftAttendance : AuditableEntity
     public string? Notes { get; set; }
 
     public Shop Shop { get; set; } = null!;
-    public User User { get; set; } = null!;
+    public User? User { get; set; }
+    public RotaStaffMember? RotaStaffMember { get; set; }
 }

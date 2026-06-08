@@ -2,8 +2,19 @@ namespace ScratchCard.Application.DTOs.Rota;
 
 public class RotaAssigneeDto
 {
-    public Guid UserId { get; set; }
+    // Either UserId (registered) or RotaStaffMemberId (roster-only) is set.
+    public Guid? UserId { get; set; }
+    public Guid? RotaStaffMemberId { get; set; }
     public string Name { get; set; } = string.Empty;
+    public bool IsExternal { get; set; }
+}
+
+public class RotaStaffMemberDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Phone { get; set; }
+    public bool IsActive { get; set; } = true;
 }
 
 // A configured shop shift template (Morning / Evening …) the rota draws from.
@@ -41,6 +52,7 @@ public class CreateRotaShiftRequest
     public string? Position { get; set; }
     public string? Notes { get; set; }
     public IReadOnlyCollection<Guid> AssigneeUserIds { get; set; } = [];
+    public IReadOnlyCollection<Guid> AssigneeStaffMemberIds { get; set; } = [];
 }
 
 public class UpdateRotaShiftRequest
@@ -51,13 +63,23 @@ public class UpdateRotaShiftRequest
     public string? Position { get; set; }
     public string? Notes { get; set; }
     public IReadOnlyCollection<Guid> AssigneeUserIds { get; set; } = [];
+    public IReadOnlyCollection<Guid> AssigneeStaffMemberIds { get; set; } = [];
+}
+
+public class SaveRotaStaffMemberRequest
+{
+    public Guid ShopId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Phone { get; set; }
 }
 
 public class ShiftAttendanceDto
 {
     public Guid Id { get; set; }
     public Guid ShopId { get; set; }
-    public Guid UserId { get; set; }
+    public Guid? UserId { get; set; }
+    public Guid? RotaStaffMemberId { get; set; }
+    public bool IsExternal { get; set; }
     public string UserName { get; set; } = string.Empty;
     public Guid? RotaShiftId { get; set; }
     public Guid? BusinessDayId { get; set; }
@@ -71,6 +93,8 @@ public class ManualAttendanceRequest
 {
     public Guid ShopId { get; set; }
     public Guid? RotaShiftId { get; set; }
+    // When set, a manager is recording hours for a roster-only member (instead of the current user).
+    public Guid? RotaStaffMemberId { get; set; }
     public DateTimeOffset CheckInAt { get; set; }
     public DateTimeOffset? CheckOutAt { get; set; }
     public string? Notes { get; set; }
@@ -87,7 +111,7 @@ public class UpdateAttendanceRequest
 public class AttendanceApprovalRowDto
 {
     public Guid Id { get; set; }
-    public Guid UserId { get; set; }
+    public Guid? UserId { get; set; }
     public string UserName { get; set; } = string.Empty;
     public string? ShiftName { get; set; }
     public DateOnly? ShiftDate { get; set; }
@@ -103,7 +127,10 @@ public class AttendanceApprovalRowDto
 
 public class AssignableUserDto
 {
-    public Guid UserId { get; set; }
+    // For registered users UserId is set; for roster-only members RotaStaffMemberId is set + IsExternal.
+    public Guid? UserId { get; set; }
+    public Guid? RotaStaffMemberId { get; set; }
+    public bool IsExternal { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
 }
@@ -111,7 +138,9 @@ public class AssignableUserDto
 // Rostered-vs-worked view for one business day (shown on the day-close / business-day screen).
 public class BusinessDayStaffRowDto
 {
-    public Guid UserId { get; set; }
+    public Guid? UserId { get; set; }
+    public Guid? RotaStaffMemberId { get; set; }
+    public bool IsExternal { get; set; }
     public string UserName { get; set; } = string.Empty;
     public string? ShiftName { get; set; }
     public TimeOnly? StartTime { get; set; }
@@ -133,7 +162,9 @@ public class BusinessDayStaffDto
 
 public class TimesheetRowDto
 {
-    public Guid UserId { get; set; }
+    public Guid? UserId { get; set; }
+    public Guid? RotaStaffMemberId { get; set; }
+    public bool IsExternal { get; set; }
     public string UserName { get; set; } = string.Empty;
     public int ShiftsWorked { get; set; }      // attendance records that were checked out
     public int OpenSessions { get; set; }       // checked in but not out
@@ -158,7 +189,9 @@ public class ShiftSessionDto
 {
     public Guid Id { get; set; }
     public DateOnly Date { get; set; }
-    public Guid UserId { get; set; }
+    public Guid? UserId { get; set; }
+    public Guid? RotaStaffMemberId { get; set; }
+    public bool IsExternal { get; set; }
     public string UserName { get; set; } = string.Empty;
     public DateTimeOffset CheckInAt { get; set; }
     public DateTimeOffset? CheckOutAt { get; set; }

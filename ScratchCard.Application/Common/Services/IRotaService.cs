@@ -11,10 +11,16 @@ public interface IRotaService
     Task<RotaShiftDto> UpdateShiftAsync(Guid shiftId, UpdateRotaShiftRequest request, CancellationToken cancellationToken = default);
     Task DeleteShiftAsync(Guid shiftId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<AssignableUserDto>> GetAssignableUsersAsync(Guid shopId, CancellationToken cancellationToken = default);
+
+    // Roster-only staff members (not Ops Arrow users).
+    Task<IReadOnlyCollection<RotaStaffMemberDto>> GetStaffMembersAsync(Guid shopId, CancellationToken cancellationToken = default);
+    Task<RotaStaffMemberDto> CreateStaffMemberAsync(SaveRotaStaffMemberRequest request, CancellationToken cancellationToken = default);
+    Task<RotaStaffMemberDto> UpdateStaffMemberAsync(Guid memberId, SaveRotaStaffMemberRequest request, CancellationToken cancellationToken = default);
+    Task DeleteStaffMemberAsync(Guid memberId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<RotaShiftTemplateDto>> GetShiftTemplatesAsync(Guid shopId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<TimesheetRowDto>> GetTimesheetAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<ShiftTimesheetRowDto>> GetShiftTimesheetAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
-    Task<IReadOnlyCollection<TimesheetSessionDto>> GetStaffSessionsAsync(Guid shopId, Guid userId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<TimesheetSessionDto>> GetStaffSessionsAsync(Guid shopId, Guid? userId, Guid? rotaStaffMemberId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<ShiftSessionDto>> GetShiftSessionsAsync(Guid shopId, string shiftName, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<AttendanceApprovalRowDto>> GetPendingApprovalsAsync(Guid shopId, CancellationToken cancellationToken = default);
     Task<ShiftAttendanceDto> ApproveAttendanceAsync(Guid attendanceId, CancellationToken cancellationToken = default);

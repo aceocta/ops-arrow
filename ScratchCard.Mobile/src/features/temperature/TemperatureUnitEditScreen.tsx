@@ -161,7 +161,7 @@ export function TemperatureUnitEditScreen({ route, navigation }: Props) {
   if (unitsQuery.isLoading) {
     return (
       <ScreenContainer>
-        <LoadingState label="Loading unit..." />
+        <LoadingState message="Loading unit..." />
       </ScreenContainer>
     );
   }

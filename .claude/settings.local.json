@@ -54,7 +54,8 @@
       "Bash(node -e \"const fs=require\\('fs'\\);const s=fs.readFileSync\\('src/features/day-close/DayEndCloseScreen.tsx','utf8'\\);for\\(const k of ['modalBackdrop','closeDayModalScroll','closeDayModalScrollContent','modalCard:','modalActionDisabled','modalActionButton:']\\){const i=s.indexOf\\(k\\);if\\(i<0\\){console.log\\(k,'NOT FOUND'\\);continue;}console.log\\('=== '+k+' ==='\\);console.log\\(s.slice\\(i,i+220\\).split\\('},'\\)[0]+'}'\\);}\")",
       "Bash(xargs grep -l \"class RefusalRegisterEntryDto\")",
       "Bash(xargs grep -n \"^namespace\")",
-      "Bash(findstr /i \"noUnused extends strict\")"
+      "Bash(findstr /i \"noUnused extends strict\")",
+      "Bash(node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json)"
     ]
   }
 }

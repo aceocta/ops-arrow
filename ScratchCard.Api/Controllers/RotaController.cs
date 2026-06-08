@@ -48,6 +48,27 @@ public class RotaController : BaseApiController
     public async Task<IActionResult> GetAssignable([FromQuery] Guid shopId, CancellationToken cancellationToken)
         => Success(await _rotaService.GetAssignableUsersAsync(shopId, cancellationToken));
 
+    // --- Roster-only staff members (not Ops Arrow users) ---
+
+    [HttpGet("staff-members")]
+    public async Task<IActionResult> GetStaffMembers([FromQuery] Guid shopId, CancellationToken cancellationToken)
+        => Success(await _rotaService.GetStaffMembersAsync(shopId, cancellationToken));
+
+    [HttpPost("staff-members")]
+    public async Task<IActionResult> CreateStaffMember([FromBody] SaveRotaStaffMemberRequest request, CancellationToken cancellationToken)
+        => Success(await _rotaService.CreateStaffMemberAsync(request, cancellationToken));
+
+    [HttpPut("staff-members/{id:guid}")]
+    public async Task<IActionResult> UpdateStaffMember(Guid id, [FromBody] SaveRotaStaffMemberRequest request, CancellationToken cancellationToken)
+        => Success(await _rotaService.UpdateStaffMemberAsync(id, request, cancellationToken));
+
+    [HttpDelete("staff-members/{id:guid}")]
+    public async Task<IActionResult> DeleteStaffMember(Guid id, CancellationToken cancellationToken)
+    {
+        await _rotaService.DeleteStaffMemberAsync(id, cancellationToken);
+        return Success(true, "Staff member removed.");
+    }
+
     [HttpGet("shift-templates")]
     public async Task<IActionResult> GetShiftTemplates([FromQuery] Guid shopId, CancellationToken cancellationToken)
         => Success(await _rotaService.GetShiftTemplatesAsync(shopId, cancellationToken));
@@ -61,8 +82,8 @@ public class RotaController : BaseApiController
         => Success(await _rotaService.GetShiftTimesheetAsync(shopId, from, to, cancellationToken));
 
     [HttpGet("timesheet/staff")]
-    public async Task<IActionResult> GetStaffSessions([FromQuery] Guid shopId, [FromQuery] Guid userId, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken cancellationToken)
-        => Success(await _rotaService.GetStaffSessionsAsync(shopId, userId, from, to, cancellationToken));
+    public async Task<IActionResult> GetStaffSessions([FromQuery] Guid shopId, [FromQuery] Guid? userId, [FromQuery] Guid? rotaStaffMemberId, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken cancellationToken)
+        => Success(await _rotaService.GetStaffSessionsAsync(shopId, userId, rotaStaffMemberId, from, to, cancellationToken));
 
     [HttpGet("timesheet/by-shift/sessions")]
     public async Task<IActionResult> GetShiftSessions([FromQuery] Guid shopId, [FromQuery] string shiftName, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken cancellationToken)

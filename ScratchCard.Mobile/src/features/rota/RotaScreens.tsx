@@ -11,6 +11,7 @@ import {
   generateRotaWeek,
   deleteRotaShift,
   getAssignableUsers,
+  createRotaStaffMember,
   getMyCurrentAttendance,
   getMyShifts,
   getRota,
@@ -35,7 +36,7 @@ import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
 import { confirmDestructive } from "../../utils/confirm";
 import { toastError, toastSuccess } from "../../components/toast";
-import { AttendanceApprovalRow, RotaShift } from "../../types/models";
+import { AssignableUser, AttendanceApprovalRow, RotaShift } from "../../types/models";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -421,10 +422,11 @@ type ShiftDraft = {
   position: string;
   notes: string;
   assigneeUserIds: string[];
+  assigneeStaffMemberIds: string[];
 };
 
 function emptyDraft(): ShiftDraft {
-  return { id: null, shiftDate: formatDateValue(new Date()), shiftTemplateId: "", position: "", notes: "", assigneeUserIds: [] };
+  return { id: null, shiftDate: formatDateValue(new Date()), shiftTemplateId: "", position: "", notes: "", assigneeUserIds: [], assigneeStaffMemberIds: [] };
 }
 
 export function RotaManageScreen() {
@@ -436,6 +438,10 @@ export function RotaManageScreen() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [draft, setDraft] = useState<ShiftDraft>(emptyDraft());
   const [userSearch, setUserSearch] = useState("");
+  const [newExternalName, setNewExternalName] = useState("");
+  const [recordTarget, setRecordTarget] = useState<{ shift: RotaShift; name: string; memberId: string } | null>(null);
+  const [recIn, setRecIn] = useState("09:00");
+  const [recOut, setRecOut] = useState("17:00");
 
   const range = useMemo(() => ({ from: weekStart, to: addDaysStr(weekStart, 6) }), [weekStart]);
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDaysStr(weekStart, i)), [weekStart]);
@@ -467,6 +473,7 @@ export function RotaManageScreen() {
         position: draft.position.trim() || undefined,
         notes: draft.notes.trim() || undefined,
         assigneeUserIds: draft.assigneeUserIds,
+        assigneeStaffMemberIds: draft.assigneeStaffMemberIds,
       };
       return draft.id ? updateRotaShift(draft.id, payload) : createRotaShift(payload);
     },
@@ -494,6 +501,43 @@ export function RotaManageScreen() {
     onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't generate the week."),
   });
 
+  // Create a roster-only (external/casual) person and assign them to the current draft.
+  const addExternalMutation = useMutation({
+    mutationFn: () => createRotaStaffMember({ shopId: shopId as string, name: newExternalName.trim() }),
+    onSuccess: (member) => {
+      setDraft((d) => ({ ...d, assigneeStaffMemberIds: [...d.assigneeStaffMemberIds, member.id] }));
+      setNewExternalName("");
+      void queryClient.invalidateQueries({ queryKey: ["rota-assignable", shopId] });
+    },
+    onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't add the person."),
+  });
+
+  const openRecordHours = (shift: RotaShift, assignee: { name: string; rotaStaffMemberId?: string | null }) => {
+    setRecIn(shortTime(shift.startTime));
+    setRecOut(shortTime(shift.endTime));
+    setRecordTarget({ shift, name: assignee.name, memberId: assignee.rotaStaffMemberId as string });
+  };
+
+  const recordHoursMutation = useMutation({
+    mutationFn: () => {
+      const { checkInAt, checkOutAt } = sessionIsos(recordTarget!.shift.shiftDate, recIn, recOut);
+      return saveManualAttendance({
+        shopId: shopId as string,
+        rotaShiftId: recordTarget!.shift.id,
+        rotaStaffMemberId: recordTarget!.memberId,
+        checkInAt,
+        checkOutAt,
+      });
+    },
+    onSuccess: () => {
+      setRecordTarget(null);
+      void queryClient.invalidateQueries({ queryKey: ["rota-timesheet", shopId] });
+      void queryClient.invalidateQueries({ queryKey: ["rota-timesheet-by-shift", shopId] });
+      toastSuccess("Hours recorded.");
+    },
+    onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't record hours."),
+  });
+
   const confirmGenerate = async () => {
     const ok = await confirmDestructive({
       title: "Generate week",
@@ -515,7 +559,8 @@ export function RotaManageScreen() {
       shiftTemplateId: shift.shiftTemplateId ?? "",
       position: shift.position ?? "",
       notes: shift.notes ?? "",
-      assigneeUserIds: shift.assignees.map((a) => a.userId),
+      assigneeUserIds: shift.assignees.filter((a) => a.userId).map((a) => a.userId as string),
+      assigneeStaffMemberIds: shift.assignees.filter((a) => a.rotaStaffMemberId).map((a) => a.rotaStaffMemberId as string),
     });
     setUserSearch("");
     setEditorOpen(true);
@@ -537,17 +582,34 @@ export function RotaManageScreen() {
       id: existing ? existing.id : null,
       position: existing ? existing.position ?? "" : "",
       notes: existing ? existing.notes ?? "" : "",
-      assigneeUserIds: existing ? existing.assignees.map((a) => a.userId) : [],
+      assigneeUserIds: existing ? existing.assignees.filter((a) => a.userId).map((a) => a.userId as string) : [],
+      assigneeStaffMemberIds: existing ? existing.assignees.filter((a) => a.rotaStaffMemberId).map((a) => a.rotaStaffMemberId as string) : [],
     }));
   };
 
-  const toggleAssignee = (userId: string) =>
-    setDraft((d) => ({
-      ...d,
-      assigneeUserIds: d.assigneeUserIds.includes(userId)
-        ? d.assigneeUserIds.filter((x) => x !== userId)
-        : [...d.assigneeUserIds, userId],
-    }));
+  // Toggle a registered user or a roster-only member on the draft.
+  const toggleAssignee = (person: AssignableUser) =>
+    setDraft((d) => {
+      if (person.rotaStaffMemberId) {
+        const id = person.rotaStaffMemberId;
+        return {
+          ...d,
+          assigneeStaffMemberIds: d.assigneeStaffMemberIds.includes(id)
+            ? d.assigneeStaffMemberIds.filter((x) => x !== id)
+            : [...d.assigneeStaffMemberIds, id],
+        };
+      }
+      const id = person.userId as string;
+      return {
+        ...d,
+        assigneeUserIds: d.assigneeUserIds.includes(id)
+          ? d.assigneeUserIds.filter((x) => x !== id)
+          : [...d.assigneeUserIds, id],
+      };
+    });
+
+  const isAssigned = (u: AssignableUser) =>
+    u.rotaStaffMemberId ? draft.assigneeStaffMemberIds.includes(u.rotaStaffMemberId) : draft.assigneeUserIds.includes(u.userId as string);
 
   // Shifts keyed by date (ordered by start time), for the week-grid render.
   const shiftsByDate = useMemo(() => {
@@ -622,9 +684,15 @@ export function RotaManageScreen() {
                       </View>
                       <View style={styles.rotaStaffCol}>
                         {shift.assignees.length > 0 ? (
-                          shift.assignees.map((a) => (
-                            <Text key={a.userId} style={styles.rotaStaffText} numberOfLines={1}>{a.name}</Text>
-                          ))
+                          shift.assignees.map((a) =>
+                            a.isExternal ? (
+                              <Pressable key={a.rotaStaffMemberId} onPress={() => openRecordHours(shift, a)} hitSlop={4}>
+                                <Text style={[styles.rotaStaffText, styles.tdLink]} numberOfLines={1}>{a.name} · log hours</Text>
+                              </Pressable>
+                            ) : (
+                              <Text key={a.userId} style={styles.rotaStaffText} numberOfLines={1}>{a.name}</Text>
+                            ),
+                          )
                         ) : (
                           <Text style={styles.muted}>No one assigned</Text>
                         )}
@@ -704,23 +772,25 @@ export function RotaManageScreen() {
             {(() => {
               const all = usersQuery.data ?? [];
               const q = userSearch.trim().toLowerCase();
-              const match = (u: { name: string; role: string }) => !q || u.name.toLowerCase().includes(q) || u.role.toLowerCase().includes(q);
-              const assigned = all.filter((u) => draft.assigneeUserIds.includes(u.userId) && match(u));
-              const available = all.filter((u) => !draft.assigneeUserIds.includes(u.userId) && match(u));
+              const match = (u: AssignableUser) => !q || u.name.toLowerCase().includes(q) || u.role.toLowerCase().includes(q);
+              const keyOf = (u: AssignableUser) => u.rotaStaffMemberId ?? u.userId ?? u.name;
+              const assigned = all.filter((u) => isAssigned(u) && match(u));
+              const available = all.filter((u) => !isAssigned(u) && match(u));
+              const assignedCount = draft.assigneeUserIds.length + draft.assigneeStaffMemberIds.length;
               return (
                 <>
-                  <Text style={styles.fieldLabel}>Assigned ({draft.assigneeUserIds.length})</Text>
+                  <Text style={styles.fieldLabel}>Assigned ({assignedCount})</Text>
                   {assigned.length === 0 ? (
                     <Text style={styles.muted}>No one assigned yet — add staff from below.</Text>
                   ) : (
                     assigned.map((u) => (
-                      <Pressable key={u.userId} style={styles.userRow} onPress={() => toggleAssignee(u.userId)}>
+                      <Pressable key={keyOf(u)} style={styles.userRow} onPress={() => toggleAssignee(u)}>
                         <View style={[styles.userAvatar, styles.userAvatarOn]}>
                           <Text style={styles.userAvatarText}>{initials(u.name)}</Text>
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.userName} numberOfLines={1}>{u.name}</Text>
-                          <Text style={styles.muted}>{u.role}</Text>
+                          <Text style={styles.muted}>{u.isExternal ? "External" : u.role}</Text>
                         </View>
                         <Ionicons name="checkmark-circle" size={24} color={appTheme.colors.success} />
                       </Pressable>
@@ -728,28 +798,74 @@ export function RotaManageScreen() {
                   )}
 
                   <Text style={[styles.fieldLabel, { marginTop: appTheme.spacing.sm }]}>Available ({available.length})</Text>
-                  {all.length === 0 ? (
-                    <Text style={styles.muted}>No staff found for this shop.</Text>
-                  ) : available.length === 0 ? (
-                    <Text style={styles.muted}>Everyone matching is already assigned.</Text>
-                  ) : (
-                    available.map((u) => (
-                      <Pressable key={u.userId} style={styles.userRow} onPress={() => toggleAssignee(u.userId)}>
-                        <View style={styles.userAvatar}>
-                          <Text style={styles.userAvatarText}>{initials(u.name)}</Text>
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.userName} numberOfLines={1}>{u.name}</Text>
-                          <Text style={styles.muted}>{u.role}</Text>
-                        </View>
-                        <Ionicons name="add-circle-outline" size={24} color={appTheme.colors.primary} />
-                      </Pressable>
-                    ))
-                  )}
+                  {available.map((u) => (
+                    <Pressable key={keyOf(u)} style={styles.userRow} onPress={() => toggleAssignee(u)}>
+                      <View style={styles.userAvatar}>
+                        <Text style={styles.userAvatarText}>{initials(u.name)}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.userName} numberOfLines={1}>{u.name}</Text>
+                        <Text style={styles.muted}>{u.isExternal ? "External" : u.role}</Text>
+                      </View>
+                      <Ionicons name="add-circle-outline" size={24} color={appTheme.colors.primary} />
+                    </Pressable>
+                  ))}
+
+                  {/* Add someone who isn't an Ops Arrow user (external / casual). */}
+                  <Text style={[styles.fieldLabel, { marginTop: appTheme.spacing.sm }]}>Add external person</Text>
+                  <View style={styles.row}>
+                    <TextInput
+                      style={[styles.searchInput, styles.externalInput]}
+                      value={newExternalName}
+                      onChangeText={setNewExternalName}
+                      placeholder="Name (not registered)"
+                      placeholderTextColor={appTheme.colors.textSubtle}
+                    />
+                    <Pressable
+                      style={[styles.addExternalBtn, !newExternalName.trim() || addExternalMutation.isPending ? styles.actBtnDisabled : null]}
+                      onPress={() => addExternalMutation.mutate()}
+                      disabled={!newExternalName.trim() || addExternalMutation.isPending}
+                    >
+                      <Text style={styles.actBtnText}>{addExternalMutation.isPending ? "..." : "Add"}</Text>
+                    </Pressable>
+                  </View>
                 </>
               );
             })()}
           </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Record hours for an external (roster-only) person */}
+      <Modal visible={recordTarget !== null} transparent animationType="fade" onRequestClose={() => setRecordTarget(null)}>
+        <View style={styles.sheetBackdrop}>
+          <View style={styles.sheetCard}>
+            <Text style={styles.modalTitleSm}>Record hours</Text>
+            <Text style={styles.muted} numberOfLines={1}>
+              {recordTarget?.name} · {recordTarget ? `${recordTarget.shift.shiftName || "Shift"} · ${dayLabel(recordTarget.shift.shiftDate)}` : ""}
+            </Text>
+            <View style={styles.row}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.fieldLabel}>Check in</Text>
+                <DateTimeField mode="time" value={recIn} onChange={setRecIn} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.fieldLabel}>Check out</Text>
+                <DateTimeField mode="time" value={recOut} onChange={setRecOut} />
+              </View>
+            </View>
+            {recIn && recOut && recOut === recIn ? (
+              <Text style={[styles.mutedSmall, { color: appTheme.colors.danger }]}>Check-in and check-out can’t be the same.</Text>
+            ) : recIn && recOut && isOvernight(recIn, recOut) ? (
+              <Text style={styles.mutedSmall}>Overnight — check-out is on the next day.</Text>
+            ) : null}
+            <PrimaryButton
+              label={recordHoursMutation.isPending ? "Saving..." : "Save hours"}
+              onPress={() => recordHoursMutation.mutate()}
+              disabled={recordHoursMutation.isPending || recOut === recIn}
+            />
+            <PrimaryButton label="Cancel" tone="neutral" onPress={() => setRecordTarget(null)} disabled={recordHoursMutation.isPending} />
+          </View>
         </View>
       </Modal>
     </ScreenContainer>
@@ -771,12 +887,12 @@ export function RotaTimesheetScreen() {
   const shopId = activeShopId;
   const [range, setRange] = useState(() => last7());
   const [view, setView] = useState<"staff" | "shift">("staff");
-  const [selectedStaff, setSelectedStaff] = useState<{ userId: string; name: string } | null>(null);
+  const [selectedStaff, setSelectedStaff] = useState<{ userId?: string | null; rotaStaffMemberId?: string | null; name: string } | null>(null);
   const [selectedShift, setSelectedShift] = useState<{ shiftName: string; date: string } | null>(null);
 
   const sessionsQuery = useQuery({
-    queryKey: ["rota-staff-sessions", shopId, selectedStaff?.userId, range.from, range.to],
-    queryFn: () => getStaffSessions(shopId as string, selectedStaff!.userId, range.from, range.to),
+    queryKey: ["rota-staff-sessions", shopId, selectedStaff?.userId, selectedStaff?.rotaStaffMemberId, range.from, range.to],
+    queryFn: () => getStaffSessions(shopId as string, { userId: selectedStaff!.userId, rotaStaffMemberId: selectedStaff!.rotaStaffMemberId }, range.from, range.to),
     enabled: Boolean(shopId) && Boolean(selectedStaff),
   });
   const shiftSessionsQuery = useQuery({
@@ -841,7 +957,7 @@ export function RotaTimesheetScreen() {
                   <Pressable
                     key={row.userId}
                     style={({ pressed }) => [styles.tRow, pressed ? styles.tRowPressed : null]}
-                    onPress={() => setSelectedStaff({ userId: row.userId, name: row.userName })}
+                    onPress={() => setSelectedStaff({ userId: row.userId, rotaStaffMemberId: row.rotaStaffMemberId, name: row.userName })}
                   >
                     <Text style={[styles.tdName, styles.tdLink]} numberOfLines={1}>{row.userName}</Text>
                     <Text style={styles.tdNum}>{row.shiftsWorked}{row.openSessions > 0 ? ` (+${row.openSessions})` : ""}</Text>
@@ -1190,6 +1306,8 @@ const styles = StyleSheet.create({
   weekNavHint: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, marginTop: 1 },
   generateBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 999, backgroundColor: appTheme.colors.primary },
   generateBtnText: { color: appTheme.colors.onPrimary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
+  externalInput: { flex: 1 },
+  addExternalBtn: { paddingHorizontal: 18, alignItems: "center", justifyContent: "center", borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.primary },
   dayCard: { gap: 8 },
   dayCardToday: { borderWidth: 1, borderColor: appTheme.colors.primary },
   dayCardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },

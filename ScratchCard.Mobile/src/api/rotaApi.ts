@@ -1,6 +1,6 @@
 import { apiClient } from "./client";
 import { ApiResponse } from "./types";
-import { AssignableUser, AttendanceApprovalRow, BusinessDayStaff, RotaShift, RotaShiftTemplate, ShiftAttendance, ShiftSession, ShiftTimesheetRow, TimesheetRow, TimesheetSession } from "../types/models";
+import { AssignableUser, AttendanceApprovalRow, BusinessDayStaff, RotaShift, RotaShiftTemplate, RotaStaffMember, ShiftAttendance, ShiftSession, ShiftTimesheetRow, TimesheetRow, TimesheetSession } from "../types/models";
 
 export async function getBusinessDayStaff(shopId: string, date: string) {
   const response = await apiClient.get<ApiResponse<BusinessDayStaff>>("/rota/day-staff", { params: { shopId, date } });
@@ -14,6 +14,7 @@ export type SaveRotaShiftPayload = {
   position?: string;
   notes?: string;
   assigneeUserIds: string[];
+  assigneeStaffMemberIds: string[];
 };
 
 export async function getShiftTemplates(shopId: string) {
@@ -50,6 +51,25 @@ export async function getAssignableUsers(shopId: string) {
   return response.data.data;
 }
 
+export async function getRotaStaffMembers(shopId: string) {
+  const response = await apiClient.get<ApiResponse<RotaStaffMember[]>>("/rota/staff-members", { params: { shopId } });
+  return response.data.data;
+}
+
+export async function createRotaStaffMember(payload: { shopId: string; name: string; phone?: string }) {
+  const response = await apiClient.post<ApiResponse<RotaStaffMember>>("/rota/staff-members", payload);
+  return response.data.data;
+}
+
+export async function updateRotaStaffMember(id: string, payload: { shopId: string; name: string; phone?: string }) {
+  const response = await apiClient.put<ApiResponse<RotaStaffMember>>(`/rota/staff-members/${id}`, payload);
+  return response.data.data;
+}
+
+export async function deleteRotaStaffMember(id: string) {
+  await apiClient.delete<ApiResponse<boolean>>(`/rota/staff-members/${id}`);
+}
+
 export async function getTimesheet(shopId: string, from: string, to: string) {
   const response = await apiClient.get<ApiResponse<TimesheetRow[]>>("/rota/timesheet", { params: { shopId, from, to } });
   return response.data.data;
@@ -60,8 +80,10 @@ export async function getShiftTimesheet(shopId: string, from: string, to: string
   return response.data.data;
 }
 
-export async function getStaffSessions(shopId: string, userId: string, from: string, to: string) {
-  const response = await apiClient.get<ApiResponse<TimesheetSession[]>>("/rota/timesheet/staff", { params: { shopId, userId, from, to } });
+export async function getStaffSessions(shopId: string, person: { userId?: string | null; rotaStaffMemberId?: string | null }, from: string, to: string) {
+  const response = await apiClient.get<ApiResponse<TimesheetSession[]>>("/rota/timesheet/staff", {
+    params: { shopId, userId: person.userId ?? undefined, rotaStaffMemberId: person.rotaStaffMemberId ?? undefined, from, to },
+  });
   return response.data.data;
 }
 
@@ -93,6 +115,7 @@ export async function checkOutShift(shopId: string) {
 export type ManualAttendancePayload = {
   shopId: string;
   rotaShiftId?: string;
+  rotaStaffMemberId?: string; // set when a manager records hours for a roster-only member
   checkInAt: string; // ISO
   checkOutAt?: string; // ISO
   notes?: string;

@@ -56,6 +56,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<TemperatureReading> TemperatureReadings => Set<TemperatureReading>();
     public DbSet<TemperatureDailySignoff> TemperatureDailySignoffs => Set<TemperatureDailySignoff>();
     public DbSet<RotaShift> RotaShifts => Set<RotaShift>();
+    public DbSet<RotaStaffMember> RotaStaffMembers => Set<RotaStaffMember>();
     public DbSet<ShiftAssignment> ShiftAssignments => Set<ShiftAssignment>();
     public DbSet<ShiftAttendance> ShiftAttendances => Set<ShiftAttendance>();
     public DbSet<SignupEmailVerification> SignupEmailVerifications => Set<SignupEmailVerification>();
@@ -653,20 +654,32 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.NoAction);
         });
 
+        modelBuilder.Entity<RotaStaffMember>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.IsDeleted });
+            entity.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            entity.Property(x => x.Phone).HasMaxLength(40);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.NoAction);
+        });
+
         modelBuilder.Entity<ShiftAssignment>(entity =>
         {
-            entity.HasIndex(x => new { x.RotaShiftId, x.UserId }).IsUnique();
+            entity.HasIndex(x => new { x.RotaShiftId, x.UserId });
+            entity.HasIndex(x => new { x.RotaShiftId, x.RotaStaffMemberId });
             entity.HasIndex(x => new { x.ShopId, x.UserId });
             entity.HasOne(x => x.RotaShift).WithMany(x => x.Assignments).HasForeignKey(x => x.RotaShiftId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.RotaStaffMember).WithMany().HasForeignKey(x => x.RotaStaffMemberId).OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<ShiftAttendance>(entity =>
         {
             entity.HasIndex(x => new { x.ShopId, x.UserId, x.CheckInAt });
+            entity.HasIndex(x => new { x.ShopId, x.RotaStaffMemberId, x.CheckInAt });
             entity.Property(x => x.Notes).HasMaxLength(1000);
             entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.NoAction);
             entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.RotaStaffMember).WithMany().HasForeignKey(x => x.RotaStaffMemberId).OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<ShopChecklistGroup>(entity =>

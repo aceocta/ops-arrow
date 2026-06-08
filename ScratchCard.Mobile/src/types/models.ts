@@ -455,7 +455,9 @@ export type StockReportRow = {
   remainingTickets: number;
 };
 
-export type RotaAssignee = { userId: string; name: string };
+export type RotaAssignee = { userId?: string | null; rotaStaffMemberId?: string | null; name: string; isExternal?: boolean };
+
+export type RotaStaffMember = { id: string; name: string; phone?: string | null; isActive: boolean };
 
 export type RotaShiftTemplate = {
   templateId: string;
@@ -482,7 +484,7 @@ export type RotaShift = {
 
 export type AttendanceApprovalRow = {
   id: string;
-  userId: string;
+  userId?: string | null;
   userName: string;
   shiftName?: string | null;
   shiftDate?: string | null;
@@ -496,12 +498,14 @@ export type AttendanceApprovalRow = {
   notes?: string | null;
 };
 
-export type AssignableUser = { userId: string; name: string; role: string };
+export type AssignableUser = { userId?: string | null; rotaStaffMemberId?: string | null; isExternal?: boolean; name: string; role: string };
 
 export type ShiftAttendance = {
   id: string;
   shopId: string;
-  userId: string;
+  userId?: string | null;
+  rotaStaffMemberId?: string | null;
+  isExternal?: boolean;
   userName: string;
   rotaShiftId?: string | null;
   businessDayId?: string | null;
@@ -512,7 +516,9 @@ export type ShiftAttendance = {
 };
 
 export type TimesheetRow = {
-  userId: string;
+  userId?: string | null;
+  rotaStaffMemberId?: string | null;
+  isExternal?: boolean;
   userName: string;
   shiftsWorked: number;
   openSessions: number;
@@ -544,7 +550,9 @@ export type TimesheetSession = {
 export type ShiftSession = {
   id: string;
   date: string; // yyyy-MM-dd
-  userId: string;
+  userId?: string | null;
+  rotaStaffMemberId?: string | null;
+  isExternal?: boolean;
   userName: string;
   checkInAt: string;
   checkOutAt?: string | null;
@@ -554,7 +562,9 @@ export type ShiftSession = {
 };
 
 export type BusinessDayStaffRow = {
-  userId: string;
+  userId?: string | null;
+  rotaStaffMemberId?: string | null;
+  isExternal?: boolean;
   userName: string;
   shiftName?: string | null;
   startTime?: string | null;

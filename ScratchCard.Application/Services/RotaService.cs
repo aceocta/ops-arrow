@@ -17,6 +17,7 @@ public class RotaService : IRotaService
         [RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant];
 
     private readonly IRepository<RotaShift> _shiftRepository;
+    private readonly IRepository<RotaStaffMember> _staffMemberRepository;
     private readonly IRepository<ShiftAssignment> _assignmentRepository;
     private readonly IRepository<ShiftAttendance> _attendanceRepository;
     private readonly IRepository<ShopUser> _shopUserRepository;
@@ -31,6 +32,7 @@ public class RotaService : IRotaService
 
     public RotaService(
         IRepository<RotaShift> shiftRepository,
+        IRepository<RotaStaffMember> staffMemberRepository,
         IRepository<ShiftAssignment> assignmentRepository,
         IRepository<ShiftAttendance> attendanceRepository,
         IRepository<ShopUser> shopUserRepository,
@@ -44,6 +46,7 @@ public class RotaService : IRotaService
         IUnitOfWork unitOfWork)
     {
         _shiftRepository = shiftRepository;
+        _staffMemberRepository = staffMemberRepository;
         _assignmentRepository = assignmentRepository;
         _attendanceRepository = attendanceRepository;
         _shopUserRepository = shopUserRepository;
@@ -110,8 +113,14 @@ public class RotaService : IRotaService
         Position = shift.Position,
         Notes = shift.Notes,
         Assignees = shift.Assignments
-            .OrderBy(a => a.User.FirstName)
-            .Select(a => new RotaAssigneeDto { UserId = a.UserId, Name = FullName(a.User) })
+            .Select(a => new RotaAssigneeDto
+            {
+                UserId = a.UserId,
+                RotaStaffMemberId = a.RotaStaffMemberId,
+                Name = a.User != null ? FullName(a.User) : (a.RotaStaffMember != null ? a.RotaStaffMember.Name : "—"),
+                IsExternal = a.RotaStaffMemberId != null,
+            })
+            .OrderBy(a => a.Name)
             .ToArray(),
     };
 
@@ -122,6 +131,7 @@ public class RotaService : IRotaService
             .AsNoTracking()
             .Where(x => x.ShopId == shopId && !x.IsDeleted && x.ShiftDate >= from && x.ShiftDate <= to)
             .Include(x => x.Assignments).ThenInclude(a => a.User)
+            .Include(x => x.Assignments).ThenInclude(a => a.RotaStaffMember)
             .OrderBy(x => x.ShiftDate).ThenBy(x => x.StartTime)
             .ToListAsync(cancellationToken);
         return shifts.Select(MapShift).ToArray();
@@ -199,6 +209,18 @@ public class RotaService : IRotaService
             }, cancellationToken);
         }
 
+        foreach (var memberId in request.AssigneeStaffMemberIds.Distinct())
+        {
+            await _assignmentRepository.AddAsync(new ShiftAssignment
+            {
+                RotaShiftId = shift.Id,
+                ShopId = request.ShopId,
+                RotaStaffMemberId = memberId,
+                CreatedOn = now,
+                CreatedBy = _currentUserService.UserId,
+            }, cancellationToken);
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return await GetShiftByIdAsync(shift.Id, cancellationToken);
     }
@@ -230,7 +252,7 @@ public class RotaService : IRotaService
         // Keyed by the matching weekday (date + 7) + template, so we line each day up with last week.
         var prevByKey = prevShifts.ToDictionary(
             x => $"{x.ShiftDate.AddDays(7):yyyy-MM-dd}|{x.ShiftTemplateId}",
-            x => x.Assignments.Select(a => a.UserId).Distinct().ToList(),
+            x => x.Assignments.Select(a => (a.UserId, a.RotaStaffMemberId)).ToList(),
             StringComparer.OrdinalIgnoreCase);
 
         var created = new List<Guid>();
@@ -262,13 +284,14 @@ public class RotaService : IRotaService
 
                 if (prevByKey.TryGetValue(key, out var assignees))
                 {
-                    foreach (var userId in assignees)
+                    foreach (var (userId, memberId) in assignees)
                     {
                         await _assignmentRepository.AddAsync(new ShiftAssignment
                         {
                             RotaShiftId = shift.Id,
                             ShopId = shopId,
                             UserId = userId,
+                            RotaStaffMemberId = memberId,
                             CreatedOn = now,
                             CreatedBy = _currentUserService.UserId,
                         }, cancellationToken);
@@ -307,22 +330,35 @@ public class RotaService : IRotaService
         shift.ModifiedBy = _currentUserService.UserId;
         _shiftRepository.Update(shift);
 
-        var desired = request.AssigneeUserIds.Distinct().ToHashSet();
+        var desiredUsers = request.AssigneeUserIds.Distinct().ToHashSet();
+        var desiredMembers = request.AssigneeStaffMemberIds.Distinct().ToHashSet();
         var current = shift.Assignments.ToList();
-        foreach (var existing in current.Where(a => !desired.Contains(a.UserId)))
+
+        // Remove assignments no longer wanted (registered users + roster members).
+        foreach (var existing in current.Where(a =>
+            (a.UserId != null && !desiredUsers.Contains(a.UserId.Value)) ||
+            (a.RotaStaffMemberId != null && !desiredMembers.Contains(a.RotaStaffMemberId.Value))))
         {
             _assignmentRepository.Remove(existing);
         }
-        var currentIds = current.Select(a => a.UserId).ToHashSet();
-        foreach (var userId in desired.Where(id => !currentIds.Contains(id)))
+
+        var currentUserIds = current.Where(a => a.UserId != null).Select(a => a.UserId!.Value).ToHashSet();
+        foreach (var userId in desiredUsers.Where(id => !currentUserIds.Contains(id)))
         {
             await _assignmentRepository.AddAsync(new ShiftAssignment
             {
-                RotaShiftId = shift.Id,
-                ShopId = shift.ShopId,
-                UserId = userId,
-                CreatedOn = now,
-                CreatedBy = _currentUserService.UserId,
+                RotaShiftId = shift.Id, ShopId = shift.ShopId, UserId = userId,
+                CreatedOn = now, CreatedBy = _currentUserService.UserId,
+            }, cancellationToken);
+        }
+
+        var currentMemberIds = current.Where(a => a.RotaStaffMemberId != null).Select(a => a.RotaStaffMemberId!.Value).ToHashSet();
+        foreach (var memberId in desiredMembers.Where(id => !currentMemberIds.Contains(id)))
+        {
+            await _assignmentRepository.AddAsync(new ShiftAssignment
+            {
+                RotaShiftId = shift.Id, ShopId = shift.ShopId, RotaStaffMemberId = memberId,
+                CreatedOn = now, CreatedBy = _currentUserService.UserId,
             }, cancellationToken);
         }
 
@@ -357,15 +393,94 @@ public class RotaService : IRotaService
             .Where(x => x.ShopId == shopId && x.IsActive)
             .Select(x => new { x.UserId, x.User.FirstName, x.User.LastName, RoleName = x.Role.Name })
             .ToListAsync(cancellationToken);
-        return members
+        var users = members
             .Select(m => new AssignableUserDto
             {
                 UserId = m.UserId,
                 Name = $"{m.FirstName} {m.LastName}".Trim(),
                 Role = m.RoleName,
+            });
+
+        // Roster-only (external/casual) members — not Ops Arrow users.
+        var rosterMembers = await _staffMemberRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId && !x.IsDeleted && x.IsActive)
+            .Select(x => new AssignableUserDto
+            {
+                RotaStaffMemberId = x.Id,
+                IsExternal = true,
+                Name = x.Name,
+                Role = "External",
             })
-            .OrderBy(m => m.Name)
-            .ToArray();
+            .ToListAsync(cancellationToken);
+
+        return users.Concat(rosterMembers).OrderBy(m => m.Name).ToArray();
+    }
+
+    public async Task<IReadOnlyCollection<RotaStaffMemberDto>> GetStaffMembersAsync(Guid shopId, CancellationToken cancellationToken = default)
+    {
+        await EnsureManageAsync(shopId, cancellationToken);
+        return await _staffMemberRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId && !x.IsDeleted)
+            .OrderBy(x => x.Name)
+            .Select(x => new RotaStaffMemberDto { Id = x.Id, Name = x.Name, Phone = x.Phone, IsActive = x.IsActive })
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<RotaStaffMemberDto> CreateStaffMemberAsync(SaveRotaStaffMemberRequest request, CancellationToken cancellationToken = default)
+    {
+        await EnsureManageAsync(request.ShopId, cancellationToken);
+        if (string.IsNullOrWhiteSpace(request.Name))
+        {
+            throw new AppException("rota_staff_name_required", "Enter a name for the staff member.");
+        }
+        var now = DateTimeOffset.UtcNow;
+        var member = new RotaStaffMember
+        {
+            ShopId = request.ShopId,
+            Name = request.Name.Trim(),
+            Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim(),
+            IsActive = true,
+            CreatedOn = now,
+            CreatedBy = _currentUserService.UserId,
+        };
+        await _staffMemberRepository.AddAsync(member, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return new RotaStaffMemberDto { Id = member.Id, Name = member.Name, Phone = member.Phone, IsActive = member.IsActive };
+    }
+
+    public async Task<RotaStaffMemberDto> UpdateStaffMemberAsync(Guid memberId, SaveRotaStaffMemberRequest request, CancellationToken cancellationToken = default)
+    {
+        var member = await _staffMemberRepository.Query()
+            .FirstOrDefaultAsync(x => x.Id == memberId && !x.IsDeleted, cancellationToken)
+            ?? throw new AppException("rota_staff_not_found", "Staff member not found.", 404);
+        await EnsureManageAsync(member.ShopId, cancellationToken);
+        if (string.IsNullOrWhiteSpace(request.Name))
+        {
+            throw new AppException("rota_staff_name_required", "Enter a name for the staff member.");
+        }
+        member.Name = request.Name.Trim();
+        member.Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
+        member.ModifiedOn = DateTimeOffset.UtcNow;
+        member.ModifiedBy = _currentUserService.UserId;
+        _staffMemberRepository.Update(member);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return new RotaStaffMemberDto { Id = member.Id, Name = member.Name, Phone = member.Phone, IsActive = member.IsActive };
+    }
+
+    public async Task DeleteStaffMemberAsync(Guid memberId, CancellationToken cancellationToken = default)
+    {
+        var member = await _staffMemberRepository.Query()
+            .FirstOrDefaultAsync(x => x.Id == memberId && !x.IsDeleted, cancellationToken)
+            ?? throw new AppException("rota_staff_not_found", "Staff member not found.", 404);
+        await EnsureManageAsync(member.ShopId, cancellationToken);
+        member.IsActive = false;
+        member.IsDeleted = true;
+        member.ModifiedOn = DateTimeOffset.UtcNow;
+        member.ModifiedBy = _currentUserService.UserId;
+        _staffMemberRepository.Update(member);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyCollection<RotaShiftTemplateDto>> GetShiftTemplatesAsync(Guid shopId, CancellationToken cancellationToken = default)
@@ -396,24 +511,32 @@ public class RotaService : IRotaService
             .Select(x => new
             {
                 x.UserId,
-                x.User.FirstName,
-                x.User.LastName,
+                UserFirstName = x.User != null ? x.User.FirstName : null,
+                UserLastName = x.User != null ? x.User.LastName : null,
+                x.RotaStaffMemberId,
+                MemberName = x.RotaStaffMember != null ? x.RotaStaffMember.Name : null,
                 x.CheckInAt,
                 x.CheckOutAt,
             })
             .ToListAsync(cancellationToken);
 
         return rows
-            .GroupBy(x => new { x.UserId, Name = $"{x.FirstName} {x.LastName}" })
-            .Select(g => new TimesheetRowDto
+            .GroupBy(x => x.UserId != null ? $"u:{x.UserId}" : $"m:{x.RotaStaffMemberId}")
+            .Select(g =>
             {
-                UserId = g.Key.UserId,
-                UserName = g.Key.Name.Trim(),
-                ShiftsWorked = g.Count(x => x.CheckOutAt != null),
-                OpenSessions = g.Count(x => x.CheckOutAt == null),
-                TotalHours = Math.Round(
-                    (decimal)g.Where(x => x.CheckOutAt != null).Sum(x => (x.CheckOutAt!.Value - x.CheckInAt).TotalHours),
-                    2),
+                var sample = g.First();
+                return new TimesheetRowDto
+                {
+                    UserId = sample.UserId,
+                    RotaStaffMemberId = sample.RotaStaffMemberId,
+                    IsExternal = sample.RotaStaffMemberId != null,
+                    UserName = (sample.UserId != null ? $"{sample.UserFirstName} {sample.UserLastName}" : sample.MemberName ?? "—").Trim(),
+                    ShiftsWorked = g.Count(x => x.CheckOutAt != null),
+                    OpenSessions = g.Count(x => x.CheckOutAt == null),
+                    TotalHours = Math.Round(
+                        (decimal)g.Where(x => x.CheckOutAt != null).Sum(x => (x.CheckOutAt!.Value - x.CheckInAt).TotalHours),
+                        2),
+                };
             })
             .OrderBy(x => x.UserName)
             .ToArray();
@@ -428,7 +551,7 @@ public class RotaService : IRotaService
         var rows = await _attendanceRepository.Query()
             .AsNoTracking()
             .Where(x => x.ShopId == shopId && x.CheckInAt >= fromBound && x.CheckInAt < toExclusive)
-            .Select(x => new { x.UserId, x.CheckInAt, x.CheckOutAt, x.RotaShiftId })
+            .Select(x => new { x.UserId, x.RotaStaffMemberId, x.CheckInAt, x.CheckOutAt, x.RotaShiftId })
             .ToListAsync(cancellationToken);
 
         var shiftIds = rows.Where(r => r.RotaShiftId != null).Select(r => r.RotaShiftId!.Value).Distinct().ToList();
@@ -452,7 +575,7 @@ public class RotaService : IRotaService
                     Date = info.ShiftDate,
                     StartTime = info.StartTime,
                     EndTime = info.EndTime,
-                    StaffCount = g.Select(x => x.UserId).Distinct().Count(),
+                    StaffCount = g.Select(x => x.UserId != null ? $"u:{x.UserId}" : $"m:{x.RotaStaffMemberId}").Distinct().Count(),
                     ShiftsWorked = g.Count(x => x.CheckOutAt != null),
                     OpenSessions = g.Count(x => x.CheckOutAt == null),
                     TotalHours = Math.Round((decimal)g.Where(x => x.CheckOutAt != null).Sum(x => (x.CheckOutAt!.Value - x.CheckInAt).TotalHours), 2),
@@ -478,7 +601,7 @@ public class RotaService : IRotaService
             .ToArray();
     }
 
-    public async Task<IReadOnlyCollection<TimesheetSessionDto>> GetStaffSessionsAsync(Guid shopId, Guid userId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyCollection<TimesheetSessionDto>> GetStaffSessionsAsync(Guid shopId, Guid? userId, Guid? rotaStaffMemberId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
     {
         await EnsureManageAsync(shopId, cancellationToken);
         var fromBound = new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
@@ -486,7 +609,8 @@ public class RotaService : IRotaService
 
         var rows = await _attendanceRepository.Query()
             .AsNoTracking()
-            .Where(x => x.ShopId == shopId && x.UserId == userId && x.CheckInAt >= fromBound && x.CheckInAt < toExclusive)
+            .Where(x => x.ShopId == shopId && x.CheckInAt >= fromBound && x.CheckInAt < toExclusive
+                && (rotaStaffMemberId != null ? x.RotaStaffMemberId == rotaStaffMemberId : x.UserId == userId))
             .OrderByDescending(x => x.CheckInAt)
             .Select(x => new { x.Id, x.CheckInAt, x.CheckOutAt, x.EntryMethod, x.IsApproved, x.RotaShiftId })
             .ToListAsync(cancellationToken);
@@ -533,7 +657,19 @@ public class RotaService : IRotaService
             .Where(x => x.ShopId == shopId && x.CheckInAt >= fromBound && x.CheckInAt < toExclusive
                 && (unrostered ? x.RotaShiftId == null : x.RotaShiftId != null && shiftIds.Contains(x.RotaShiftId.Value)))
             .OrderByDescending(x => x.CheckInAt)
-            .Select(x => new { x.Id, x.UserId, x.User.FirstName, x.User.LastName, x.CheckInAt, x.CheckOutAt, x.EntryMethod, x.IsApproved })
+            .Select(x => new
+            {
+                x.Id,
+                x.UserId,
+                UserFirstName = x.User != null ? x.User.FirstName : null,
+                UserLastName = x.User != null ? x.User.LastName : null,
+                x.RotaStaffMemberId,
+                MemberName = x.RotaStaffMember != null ? x.RotaStaffMember.Name : null,
+                x.CheckInAt,
+                x.CheckOutAt,
+                x.EntryMethod,
+                x.IsApproved,
+            })
             .ToListAsync(cancellationToken);
 
         return rows.Select(r => new ShiftSessionDto
@@ -541,7 +677,9 @@ public class RotaService : IRotaService
             Id = r.Id,
             Date = DateOnly.FromDateTime(r.CheckInAt.UtcDateTime),
             UserId = r.UserId,
-            UserName = $"{r.FirstName} {r.LastName}".Trim(),
+            RotaStaffMemberId = r.RotaStaffMemberId,
+            IsExternal = r.RotaStaffMemberId != null,
+            UserName = (r.UserId != null ? $"{r.UserFirstName} {r.UserLastName}" : r.MemberName ?? "—").Trim(),
             CheckInAt = r.CheckInAt,
             CheckOutAt = r.CheckOutAt,
             Hours = r.CheckOutAt != null ? Math.Round((decimal)(r.CheckOutAt.Value - r.CheckInAt).TotalHours, 2) : 0,
@@ -565,6 +703,7 @@ public class RotaService : IRotaService
             .AsNoTracking()
             .Where(x => x.ShopId == shopId && !x.IsDeleted && x.ShiftDate == date)
             .Include(x => x.Assignments).ThenInclude(a => a.User)
+            .Include(x => x.Assignments).ThenInclude(a => a.RotaStaffMember)
             .ToListAsync(cancellationToken);
 
         // Attendance for the day — by the linked business day if present, else by calendar date.
@@ -577,25 +716,34 @@ public class RotaService : IRotaService
             .Select(x => new
             {
                 x.UserId,
-                x.User.FirstName,
-                x.User.LastName,
+                UserFirstName = x.User != null ? x.User.FirstName : null,
+                UserLastName = x.User != null ? x.User.LastName : null,
+                x.RotaStaffMemberId,
+                MemberName = x.RotaStaffMember != null ? x.RotaStaffMember.Name : null,
                 x.CheckInAt,
                 x.CheckOutAt,
             })
             .ToListAsync(cancellationToken);
 
-        var rows = new Dictionary<Guid, BusinessDayStaffRowDto>();
+        // Rows keyed by person ("u:<userId>" or "m:<memberId>") so users and roster members coexist.
+        var rows = new Dictionary<string, BusinessDayStaffRowDto>();
 
         foreach (var shift in shifts)
         {
             foreach (var a in shift.Assignments)
             {
-                if (!rows.TryGetValue(a.UserId, out var row))
+                var key = a.UserId != null ? $"u:{a.UserId}" : $"m:{a.RotaStaffMemberId}";
+                if (!rows.TryGetValue(key, out var row))
                 {
-                    row = new BusinessDayStaffRowDto { UserId = a.UserId, UserName = FullName(a.User) };
-                    rows[a.UserId] = row;
+                    row = new BusinessDayStaffRowDto
+                    {
+                        UserId = a.UserId,
+                        RotaStaffMemberId = a.RotaStaffMemberId,
+                        IsExternal = a.RotaStaffMemberId != null,
+                        UserName = a.User != null ? FullName(a.User) : (a.RotaStaffMember?.Name ?? "—"),
+                    };
+                    rows[key] = row;
                 }
-                // Keep the earliest-starting rostered shift as the displayed one.
                 if (row.StartTime is null || shift.StartTime < row.StartTime)
                 {
                     row.ShiftName = shift.ShiftName;
@@ -605,12 +753,19 @@ public class RotaService : IRotaService
             }
         }
 
-        foreach (var group in attendance.GroupBy(x => new { x.UserId, Name = $"{x.FirstName} {x.LastName}" }))
+        foreach (var group in attendance.GroupBy(x => x.UserId != null ? $"u:{x.UserId}" : $"m:{x.RotaStaffMemberId}"))
         {
-            if (!rows.TryGetValue(group.Key.UserId, out var row))
+            var sample = group.First();
+            if (!rows.TryGetValue(group.Key, out var row))
             {
-                row = new BusinessDayStaffRowDto { UserId = group.Key.UserId, UserName = group.Key.Name.Trim() };
-                rows[group.Key.UserId] = row;
+                row = new BusinessDayStaffRowDto
+                {
+                    UserId = sample.UserId,
+                    RotaStaffMemberId = sample.RotaStaffMemberId,
+                    IsExternal = sample.RotaStaffMemberId != null,
+                    UserName = (sample.UserId != null ? $"{sample.UserFirstName} {sample.UserLastName}" : sample.MemberName ?? "—").Trim(),
+                };
+                rows[group.Key] = row;
             }
             row.CheckInAt = group.Min(x => x.CheckInAt);
             var hasOpen = group.Any(x => x.CheckOutAt == null);
@@ -642,6 +797,7 @@ public class RotaService : IRotaService
             .Where(x => x.ShopId == shopId && !x.IsDeleted && x.ShiftDate >= from && x.ShiftDate <= to
                 && x.Assignments.Any(a => a.UserId == userId))
             .Include(x => x.Assignments).ThenInclude(a => a.User)
+            .Include(x => x.Assignments).ThenInclude(a => a.RotaStaffMember)
             .OrderBy(x => x.ShiftDate).ThenBy(x => x.StartTime)
             .ToListAsync(cancellationToken);
 
@@ -763,6 +919,8 @@ public class RotaService : IRotaService
         Id = a.Id,
         ShopId = a.ShopId,
         UserId = a.UserId,
+        RotaStaffMemberId = a.RotaStaffMemberId,
+        IsExternal = a.RotaStaffMemberId != null,
         UserName = userName,
         RotaShiftId = a.RotaShiftId,
         BusinessDayId = a.BusinessDayId,
@@ -774,13 +932,19 @@ public class RotaService : IRotaService
 
     public async Task<ShiftAttendanceDto> SaveManualAttendanceAsync(ManualAttendanceRequest request, CancellationToken cancellationToken = default)
     {
-        await EnsureStaffAsync(request.ShopId, cancellationToken, FeatureKeys.StaffRotaManualApproval);
-        var userId = CurrentUserId;
-
         if (request.CheckOutAt is DateTimeOffset outAt && outAt <= request.CheckInAt)
         {
             throw new AppException("rota_invalid_times", "Check-out time must be after check-in time.");
         }
+
+        // A manager recording hours for a roster-only member (auto-approved, manager-authoritative).
+        if (request.RotaStaffMemberId is Guid memberId)
+        {
+            return await RecordMemberAttendanceAsync(request, memberId, cancellationToken);
+        }
+
+        await EnsureStaffAsync(request.ShopId, cancellationToken, FeatureKeys.StaffRotaManualApproval);
+        var userId = CurrentUserId;
 
         // Update the user's existing record for this shift if there is one, else create a new manual entry.
         ShiftAttendance? attendance = null;
@@ -831,6 +995,61 @@ public class RotaService : IRotaService
         await NotifyManagersOfManualEntryAsync(request.ShopId, _currentUserService.FullName, cancellationToken);
 
         return MapAttendance(attendance, _currentUserService.FullName);
+    }
+
+    // Manager records (or edits) worked hours for a roster-only member. Manager-authoritative, so it's
+    // saved already-approved (no self-entry approval needed).
+    private async Task<ShiftAttendanceDto> RecordMemberAttendanceAsync(ManualAttendanceRequest request, Guid memberId, CancellationToken cancellationToken)
+    {
+        await EnsureManageAsync(request.ShopId, cancellationToken, FeatureKeys.StaffRotaManualApproval);
+        var member = await _staffMemberRepository.Query()
+            .FirstOrDefaultAsync(x => x.Id == memberId && x.ShopId == request.ShopId && !x.IsDeleted, cancellationToken)
+            ?? throw new AppException("rota_staff_not_found", "Staff member not found.", 404);
+
+        var now = DateTimeOffset.UtcNow;
+        var businessDayId = request.RotaShiftId is Guid shiftId
+            ? await _shiftRepository.Query().Where(x => x.Id == shiftId).Select(x => x.BusinessDayId).FirstOrDefaultAsync(cancellationToken)
+            : null;
+
+        ShiftAttendance? attendance = null;
+        if (request.RotaShiftId is Guid sid)
+        {
+            attendance = await _attendanceRepository.Query()
+                .Where(x => x.ShopId == request.ShopId && x.RotaStaffMemberId == memberId && x.RotaShiftId == sid)
+                .OrderByDescending(x => x.CheckInAt)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        if (attendance is null)
+        {
+            attendance = new ShiftAttendance
+            {
+                ShopId = request.ShopId,
+                RotaStaffMemberId = memberId,
+                RotaShiftId = request.RotaShiftId,
+                BusinessDayId = businessDayId,
+                CreatedOn = now,
+                CreatedBy = _currentUserService.UserId,
+            };
+            await _attendanceRepository.AddAsync(attendance, cancellationToken);
+        }
+        else
+        {
+            attendance.ModifiedOn = now;
+            attendance.ModifiedBy = _currentUserService.UserId;
+            _attendanceRepository.Update(attendance);
+        }
+
+        attendance.CheckInAt = request.CheckInAt;
+        attendance.CheckOutAt = request.CheckOutAt;
+        attendance.Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
+        attendance.EntryMethod = AttendanceEntryMethod.Manual;
+        attendance.IsApproved = true; // manager-recorded — authoritative
+        attendance.ApprovedByUserId = _currentUserService.UserId;
+        attendance.ApprovedOn = now;
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return MapAttendance(attendance, member.Name);
     }
 
     // Push the shop's managers/owners that a staff member submitted manual times for approval.
@@ -884,8 +1103,8 @@ public class RotaService : IRotaService
             {
                 x.Id,
                 x.UserId,
-                x.User.FirstName,
-                x.User.LastName,
+                FirstName = x.User != null ? x.User.FirstName : null,
+                LastName = x.User != null ? x.User.LastName : null,
                 x.CheckInAt,
                 x.CheckOutAt,
                 x.EntryMethod,
@@ -924,10 +1143,14 @@ public class RotaService : IRotaService
         }).ToArray();
     }
 
+    private static string AttendanceName(ShiftAttendance a) =>
+        a.User != null ? $"{a.User.FirstName} {a.User.LastName}".Trim() : (a.RotaStaffMember?.Name ?? "—");
+
     public async Task<ShiftAttendanceDto> ApproveAttendanceAsync(Guid attendanceId, CancellationToken cancellationToken = default)
     {
         var attendance = await _attendanceRepository.Query()
             .Include(x => x.User)
+            .Include(x => x.RotaStaffMember)
             .FirstOrDefaultAsync(x => x.Id == attendanceId, cancellationToken)
             ?? throw new AppException("rota_attendance_not_found", "Attendance record not found.", 404);
         await EnsureManageAsync(attendance.ShopId, cancellationToken, FeatureKeys.StaffRotaManualApproval);
@@ -940,13 +1163,14 @@ public class RotaService : IRotaService
         attendance.ModifiedBy = _currentUserService.UserId;
         _attendanceRepository.Update(attendance);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        return MapAttendance(attendance, $"{attendance.User.FirstName} {attendance.User.LastName}".Trim());
+        return MapAttendance(attendance, AttendanceName(attendance));
     }
 
     public async Task<ShiftAttendanceDto> UpdateAttendanceAsync(Guid attendanceId, UpdateAttendanceRequest request, CancellationToken cancellationToken = default)
     {
         var attendance = await _attendanceRepository.Query()
             .Include(x => x.User)
+            .Include(x => x.RotaStaffMember)
             .FirstOrDefaultAsync(x => x.Id == attendanceId, cancellationToken)
             ?? throw new AppException("rota_attendance_not_found", "Attendance record not found.", 404);
         await EnsureManageAsync(attendance.ShopId, cancellationToken, FeatureKeys.StaffRotaManualApproval);
@@ -967,7 +1191,7 @@ public class RotaService : IRotaService
         attendance.ModifiedBy = _currentUserService.UserId;
         _attendanceRepository.Update(attendance);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        return MapAttendance(attendance, $"{attendance.User.FirstName} {attendance.User.LastName}".Trim());
+        return MapAttendance(attendance, AttendanceName(attendance));
     }
 
     public async Task RejectAttendanceAsync(Guid attendanceId, CancellationToken cancellationToken = default)
@@ -987,6 +1211,7 @@ public class RotaService : IRotaService
         var shift = await _shiftRepository.Query()
             .AsNoTracking()
             .Include(x => x.Assignments).ThenInclude(a => a.User)
+            .Include(x => x.Assignments).ThenInclude(a => a.RotaStaffMember)
             .FirstAsync(x => x.Id == shiftId, cancellationToken);
         return MapShift(shift);
     }
