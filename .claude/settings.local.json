@@ -59,7 +59,9 @@
       "Bash(mkdir -p public)",
       "Bash(node node_modules/typescript/bin/tsc --noEmit)",
       "Bash(sed -n '5,40p' ScratchCard.Application/DTOs/Subscriptions/SubscriptionDtos.cs)",
-      "Bash(sed -n '132,175p' ScratchCard.Application/DTOs/Subscriptions/SubscriptionDtos.cs)"
+      "Bash(sed -n '132,175p' ScratchCard.Application/DTOs/Subscriptions/SubscriptionDtos.cs)",
+      "Bash(curl -sS -m 20 -i -X OPTIONS \"http://ops-arrow-env.eba-xacrpuqg.eu-west-2.elasticbeanstalk.com/api/auth/login\" -H \"Origin: http://localhost:5173\" -H \"Access-Control-Request-Method: POST\" -H \"Access-Control-Request-Headers: content-type,authorization\")",
+      "Bash(echo \"=== exit: $? ===\")"
     ]
   }
 }

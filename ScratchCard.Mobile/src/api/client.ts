@@ -9,7 +9,8 @@ import { classifySubscriptionError, emitSubscriptionError } from "../features/su
 // 2. expoConfig.extra.apiBaseUrl (app.json / app.config.js)
 // 3. Hardcoded fallback (kept as a last resort so dev still works without env wiring)
 // const FALLBACK_BASE_URL = "https://wa-ops-arrow-uat-dvdrbjf9fraydwdd.canadacentral-01.azurewebsites.net/api";
-const FALLBACK_BASE_URL = "https://gaming-lent-startup.ngrok-free.dev/api";
+// const FALLBACK_BASE_URL = "https://gaming-lent-startup.ngrok-free.dev/api";
+const FALLBACK_BASE_URL = "https://api.opsarrow.co.uk/api";
 const envBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
 const extraBaseUrl = (Constants.expoConfig?.extra as any)?.apiBaseUrl?.toString().trim();
 const configuredBaseUrl = envBaseUrl || FALLBACK_BASE_URL || extraBaseUrl  ;

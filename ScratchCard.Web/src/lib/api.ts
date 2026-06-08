@@ -19,9 +19,10 @@ export const tokens = {
   },
 };
 
-// `ngrok-skip-browser-warning` bypasses the ngrok free-tier HTML interstitial (ERR_NGROK_6024)
-// that otherwise breaks browser calls. Harmless against non-ngrok hosts.
-const defaultHeaders = { "ngrok-skip-browser-warning": "true" };
+// `ngrok-skip-browser-warning` bypasses the ngrok free-tier HTML interstitial (ERR_NGROK_6024).
+// Only send it when actually pointing at an ngrok host — elsewhere it just forces an
+// unnecessary CORS preflight (it's a custom header).
+const defaultHeaders: Record<string, string> = /ngrok/i.test(baseURL) ? { "ngrok-skip-browser-warning": "true" } : {};
 
 export const api = axios.create({ baseURL, timeout: 30000, headers: defaultHeaders });
 

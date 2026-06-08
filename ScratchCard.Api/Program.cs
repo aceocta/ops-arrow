@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using ScratchCard.Api.Middleware;
 using ScratchCard.Application;
 using ScratchCard.Infrastructure;
+using ScratchCard.Infrastructure.Persistence;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
 using System.Text;
@@ -29,18 +31,38 @@ builder.Services.AddSwaggerGen(options =>
 
 builder.Services.AddCors(options =>
 {
+    // Default origins baked in; extra ones can be added per-environment via the
+    // "Cors:AllowedOrigins" config array (e.g. env var Cors__AllowedOrigins__0=https://...)
+    // so a new front-end host doesn't require a code change.
+    var defaultOrigins = new[]
+    {
+        "http://localhost:4200",
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:8081",
+        "https://gaming-lent-startup.ngrok-free.dev",
+        "https://wa-ops-arrow-uat-dvdrbjf9fraydwdd.canadacentral-01.azurewebsites.net",
+        "https://opsarrow.co.uk",
+        "https://app.opsarrow.co.uk",
+        "https://opsarrow.com",
+        "https://app.opsarrow.com",
+        "http://ops-arrow-env.eba-xacrpuqg.eu-west-2.elasticbeanstalk.com",
+        "https://ops-arrow-env.eba-xacrpuqg.eu-west-2.elasticbeanstalk.com",
+        "https://app.opsarrow.co.uk",
+        "https://admin.opsarrow.co.uk"
+
+    };
+    var configuredOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+    var allowedOrigins = defaultOrigins.Concat(configuredOrigins)
+        .Where(o => !string.IsNullOrWhiteSpace(o))
+        .Select(o => o.TrimEnd('/'))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
     options.AddPolicy("AllowFrontend", policy =>
     {
         policy
-            .WithOrigins(
-                "http://localhost:4200",
-                "http://localhost:5173",
-                "http://localhost:8081",
-                "https://gaming-lent-startup.ngrok-free.dev",
-                "https://wa-ops-arrow-uat-dvdrbjf9fraydwdd.canadacentral-01.azurewebsites.net",
-                "https://opsarrow.co.uk"
-                
-            )
+            .WithOrigins(allowedOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
@@ -120,17 +142,48 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-//if (builder.Configuration.GetValue<bool>("SeedOnStartup"))
-//{
+// Migrate + seed on startup. Wrapped so a transient DB/connectivity problem logs loudly but does
+// NOT crash the process — otherwise the app never starts and nginx returns 502 with no diagnostics.
+// Set "FailFastOnSeedError=true" to keep the old crash-on-failure behaviour.
 {
     var seedStopwatch = System.Diagnostics.Stopwatch.StartNew();
-    await app.Services.SeedDatabaseAsync();
-    seedStopwatch.Stop();
-    app.Logger.LogInformation(
-        "Database migrate + seed completed in {ElapsedMs} ms.",
-        seedStopwatch.ElapsedMilliseconds);
+    try
+    {
+        await app.Services.SeedDatabaseAsync();
+        seedStopwatch.Stop();
+        app.Logger.LogInformation(
+            "Database migrate + seed completed in {ElapsedMs} ms.",
+            seedStopwatch.ElapsedMilliseconds);
+    }
+    catch (Exception ex)
+    {
+        seedStopwatch.Stop();
+        app.Logger.LogError(ex, "Database migrate + seed FAILED after {ElapsedMs} ms. The API will start anyway; check the connection string and database reachability.", seedStopwatch.ElapsedMilliseconds);
+        if (builder.Configuration.GetValue<bool>("FailFastOnSeedError"))
+        {
+            throw;
+        }
+    }
 }
-//}
+
+// Liveness probe — no DB, no auth. Use this to tell "app is up" from "DB is down".
+app.MapGet("/api/health", () => Results.Ok(new { status = "ok", utc = DateTimeOffset.UtcNow }));
+
+// DB readiness probe — pings the database and reports the real error if it can't connect.
+// TODO: remove (or lock down) once the environment is healthy; it surfaces the DB error message.
+app.MapGet("/api/health/db", async (ApplicationDbContext db) =>
+{
+    try
+    {
+        var canConnect = await db.Database.CanConnectAsync();
+        var pending = canConnect ? (await db.Database.GetPendingMigrationsAsync()).ToList() : new List<string>();
+        return Results.Ok(new { db = canConnect ? "ok" : "unreachable", pendingMigrations = pending });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { db = "error", message = ex.Message, inner = ex.InnerException?.Message }, statusCode: 500);
+    }
+});
 
 app.UseCors("AllowFrontend");
 
