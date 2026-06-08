@@ -95,7 +95,7 @@ export default function AppLayout() {
   return (
     <div className="flex h-full">
       {/* Sidebar */}
-      <aside className="flex w-64 flex-col border-r border-slate-200 bg-white">
+      <aside className="flex w-64 flex-col border-r border-slate-200/70 bg-white/80 backdrop-blur">
         <div className="flex items-center gap-2 px-5 py-5">
           <img src="/logo.png" alt="Ops Arrow" className="h-9 w-9 rounded-lg object-contain" />
           <span className="text-lg font-semibold text-slate-900">Ops Arrow</span>
@@ -108,8 +108,10 @@ export default function AppLayout() {
               end={i.to === "/"}
               className={({ isActive }) =>
                 clsx(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
-                  isActive ? "bg-brand-50 text-brand-700" : "text-slate-600 hover:bg-slate-50",
+                  "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition",
+                  isActive
+                    ? "bg-brand-50 text-brand-700 shadow-sm ring-1 ring-brand-100"
+                    : "text-slate-500 hover:bg-slate-100/70 hover:text-slate-900",
                 )
               }
             >
@@ -130,20 +132,22 @@ export default function AppLayout() {
 
       {/* Main */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3">
+        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200/70 bg-white/70 px-6 py-3 backdrop-blur-md">
           <ShopSwitcher />
           <div className="flex items-center gap-3">
             <div className="text-right">
               <div className="text-sm font-medium text-slate-800">{name}</div>
               <div className="text-xs text-slate-400">{profile?.roles?.[0]}</div>
             </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-semibold text-white shadow-sm">
               {(name ?? "?").slice(0, 1).toUpperCase()}
             </div>
           </div>
         </header>
-        <main className="flex-1 overflow-auto p-6">
-          <Outlet />
+        <main className="flex-1 overflow-auto p-6 lg:p-8">
+          <div className="mx-auto max-w-7xl">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>
