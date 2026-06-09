@@ -34,6 +34,27 @@ export type ReconciliationLine = {
   notes?: string | null;
 };
 
+export type ProofOfCash = {
+  cashIn: number;
+  paidOut: number;
+  safeDrop: number;
+  banking: number;
+  pickup: number;
+  cashback: number;
+  prizesPaid: number;
+  expectedDrawer: number;
+  countedDrawer: number;
+  variance: number;
+  accountedFor: boolean;
+};
+
+export type SafeDropCrossCheck = {
+  declaredOnReport: number;
+  recordedInSafeModule: number;
+  difference: number;
+  matches: boolean;
+};
+
 export type ReconciliationSummary = {
   cashTender: number;
   cardTender: number;
@@ -44,6 +65,8 @@ export type ReconciliationSummary = {
   refunds: number;
   unmappedCount: number;
   unverifiedCount: number;
+  proofOfCash: ProofOfCash;
+  safeDropCrossCheck?: SafeDropCrossCheck | null;
 };
 
 export type Reconciliation = {

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker";
@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { compressForUpload } from "../../utils/imageCompression";
 import { useAuth } from "../../auth/AuthContext";
 import { useFeature } from "../subscription/useFeature";
+import { listTills } from "../../api/tillsApi";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
@@ -64,12 +65,28 @@ export function TillReconciliationScreen() {
   const [businessDate, setBusinessDate] = useState(formatDateValue(new Date()));
   const [editingLine, setEditingLine] = useState<ReconciliationLine | "new" | null>(null);
   const [cashOpen, setCashOpen] = useState(false);
+  const [tillId, setTillId] = useState<string | undefined>(undefined);
 
-  const key = ["till-recon", shopId, businessDate];
+  // The shop's tills. With 0–1 tills we stay single-drawer (tillId undefined); with several, the
+  // cashier picks which till they're reconciling and each gets its own reconciliation.
+  const tillsQ = useQuery({
+    queryKey: ["tills", shopId],
+    queryFn: () => listTills(shopId),
+    enabled: Boolean(shopId),
+  });
+  const tills = tillsQ.data ?? [];
+  const multiTill = tills.length > 1;
+  // Default to the first till once they load (only in multi-till shops).
+  useEffect(() => {
+    if (multiTill && !tillId) setTillId(tills[0].id);
+  }, [multiTill, tillId, tills]);
+
+  const effectiveTillId = multiTill ? tillId : undefined;
+  const key = ["till-recon", shopId, businessDate, effectiveTillId ?? "single"];
   const q = useQuery({
     queryKey: key,
-    queryFn: () => getOrCreateReconciliation({ shopId, businessDate, reportType: "DayEnd" }),
-    enabled: Boolean(shopId),
+    queryFn: () => getOrCreateReconciliation({ shopId, businessDate, reportType: "DayEnd", tillId: effectiveTillId }),
+    enabled: Boolean(shopId) && (!multiTill || Boolean(effectiveTillId)),
   });
   const data = q.data;
   const setData = (r: Reconciliation) => qc.setQueryData(key, r);
@@ -135,6 +152,22 @@ export function TillReconciliationScreen() {
           {data ? <StatusPill status={data.status} /> : null}
         </View>
 
+        {multiTill ? (
+          <View style={ui.card}>
+            <Text style={styles.label}>Till</Text>
+            <View style={styles.chipWrap}>
+              {tills.map((t) => {
+                const active = effectiveTillId === t.id;
+                return (
+                  <Pressable key={t.id} onPress={() => setTillId(t.id)} style={[styles.chip, active ? styles.chipActive : null]}>
+                    <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>{t.name}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
         {q.isLoading ? <LoadingState inline /> : null}
 
         {data && !locked && canOcr ? (
@@ -170,6 +203,9 @@ export function TillReconciliationScreen() {
                 <Text style={styles.countBtnText}>{data.countedCash != null ? "Edit cash count" : "Count cash"}</Text>
               </Pressable>
             </View>
+
+            {/* Proof of cash — where the cash came from and where it went */}
+            {data.countedCash != null ? <ProofOfCashCard data={data} /> : null}
 
             {/* Income / owed */}
             {(data.summary.commissionIncome !== 0 || data.summary.owedToProviders.length > 0) ? (
@@ -272,6 +308,41 @@ function Row({ k, v, muted }: { k: string; v: string; muted?: boolean }) {
     <View style={styles.kvRow}>
       <Text style={[styles.kvKey, muted ? styles.muted : null]}>{k}</Text>
       <Text style={[styles.kvVal, muted ? styles.muted : null]}>{v}</Text>
+    </View>
+  );
+}
+
+function ProofOfCashCard({ data }: { data: Reconciliation }) {
+  const p = data.summary.proofOfCash;
+  const x = data.summary.safeDropCrossCheck;
+  if (!p) return null; // older API build without proof-of-cash
+  return (
+    <View style={ui.card}>
+      <Text style={ui.sectionTitle}>Proof of cash</Text>
+      <Row k="Cash in (float + takings)" v={gbp(p.cashIn)} />
+      {p.paidOut !== 0 ? <Row k="Paid out" v={`− ${gbp(p.paidOut)}`} muted /> : null}
+      {p.safeDrop !== 0 ? <Row k="Safe drop" v={`− ${gbp(p.safeDrop)}`} muted /> : null}
+      {p.banking !== 0 ? <Row k="Banking" v={`− ${gbp(p.banking)}`} muted /> : null}
+      {p.pickup !== 0 ? <Row k="Pickup" v={`− ${gbp(p.pickup)}`} muted /> : null}
+      {p.cashback !== 0 ? <Row k="Cashback" v={`− ${gbp(p.cashback)}`} muted /> : null}
+      {p.prizesPaid !== 0 ? <Row k="Prizes paid" v={`− ${gbp(p.prizesPaid)}`} muted /> : null}
+      <View style={styles.divider} />
+      <Row k="Expected in drawer" v={gbp(p.expectedDrawer)} />
+      <Row k="Counted in drawer" v={gbp(p.countedDrawer)} />
+      <Text style={[styles.proofFlag, { color: p.accountedFor ? appTheme.colors.success : appTheme.colors.danger }]}>
+        {p.accountedFor ? "✓ All cash accounted for" : `✗ Unaccounted: ${p.variance >= 0 ? "+" : "−"}${gbp(Math.abs(p.variance))}`}
+      </Text>
+
+      {x ? (
+        <View style={[styles.crossCheck, { borderColor: x.matches ? appTheme.colors.borderSoft : appTheme.colors.danger }]}>
+          <Text style={styles.muted}>Safe-drop cross-check</Text>
+          <Row k="Declared on report" v={gbp(x.declaredOnReport)} muted />
+          <Row k="Recorded in Safe Drop" v={gbp(x.recordedInSafeModule)} muted />
+          <Text style={[styles.proofFlag, { color: x.matches ? appTheme.colors.success : appTheme.colors.danger }]}>
+            {x.matches ? "✓ Matches the safe" : `✗ Off by ${gbp(Math.abs(x.difference))} — drop not backed by the safe`}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -440,6 +511,8 @@ const styles = StyleSheet.create({
   captureText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   verifyDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: appTheme.colors.warning },
   verifyHint: { color: appTheme.colors.warning, fontFamily: appTheme.fonts.body, fontSize: 11, marginTop: 2 },
+  proofFlag: { fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, marginTop: 8 },
+  crossCheck: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: appTheme.colors.borderSoft, borderRadius: appTheme.radius.sm, borderWidth: 1, padding: 10 },
   countBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 10, paddingVertical: 10, borderRadius: appTheme.radius.sm, borderWidth: 1, borderColor: appTheme.colors.border },
   countBtnText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   lineRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },

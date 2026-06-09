@@ -6,6 +6,7 @@ export type ReconStatus = "Draft" | "NeedsVerification" | "Reconciled" | "Approv
 export type RollupTill = {
   id: string;
   tillId?: string | null;
+  tillName: string;
   status: ReconStatus;
   expectedCash: number;
   countedCash?: number | null;

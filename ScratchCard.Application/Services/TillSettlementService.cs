@@ -196,10 +196,13 @@ public sealed class TillSettlementService : ITillSettlementService
 
         switch (s.Provider)
         {
+            // PayPoint/Payzone: the full transaction value is owed to the provider by DD,
+            // INDEPENDENT of how the customer paid (cash sits in the drawer via the Cash tender;
+            // card settles to the merchant account) — so never reduce it for the card-paid portion.
             case SettlementProvider.PayPoint:
                 s.CapturedSales = Sum(TillCanonicalField.PayPoint);
                 s.CapturedPrizes = 0;
-                s.CapturedOwed = s.CapturedSales; // cash collected, owed by DD
+                s.CapturedOwed = s.CapturedSales;
                 break;
             case SettlementProvider.Payzone:
                 s.CapturedSales = Sum(TillCanonicalField.Payzone);

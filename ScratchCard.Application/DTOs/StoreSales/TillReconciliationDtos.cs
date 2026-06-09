@@ -72,6 +72,34 @@ public class ProviderOwedDto
     public decimal Amount { get; set; }
 }
 
+/// <summary>"Proof of cash" — accounts for every pound: where cash came from and where it went.
+/// CashIn = ExpectedDrawer + all documented outflows, so it ties by construction; each outflow must
+/// be backed by its own record (safe count, banking slip, paid-out receipt).</summary>
+public class ProofOfCashDto
+{
+    public decimal CashIn { get; set; }          // opening float + cash takings (+ any drawer-counted counter)
+    public decimal PaidOut { get; set; }
+    public decimal SafeDrop { get; set; }
+    public decimal Banking { get; set; }
+    public decimal Pickup { get; set; }
+    public decimal Cashback { get; set; }
+    public decimal PrizesPaid { get; set; }
+    public decimal ExpectedDrawer { get; set; }
+    public decimal CountedDrawer { get; set; }
+    public decimal Variance { get; set; }
+    public bool AccountedFor { get; set; }
+}
+
+/// <summary>Cross-checks the safe-drop figure declared on the reconciliation against what was
+/// actually recorded in the Safe Drop module — so a fabricated drop can't hide a shortfall.</summary>
+public class SafeDropCrossCheckDto
+{
+    public decimal DeclaredOnReport { get; set; }
+    public decimal RecordedInSafeModule { get; set; }
+    public decimal Difference { get; set; }
+    public bool Matches { get; set; }
+}
+
 public class TillReconciliationSummaryDto
 {
     public decimal CashTender { get; set; }
@@ -83,6 +111,8 @@ public class TillReconciliationSummaryDto
     public decimal Refunds { get; set; }
     public int UnmappedCount { get; set; }
     public int UnverifiedCount { get; set; }
+    public ProofOfCashDto ProofOfCash { get; set; } = new();
+    public SafeDropCrossCheckDto? SafeDropCrossCheck { get; set; }
 }
 
 // ---- Day rollup (multi-till) ----
@@ -91,6 +121,7 @@ public class TillRollupTillDto
 {
     public Guid Id { get; set; }
     public Guid? TillId { get; set; }
+    public string TillName { get; set; } = string.Empty;
     public TillReconciliationStatus Status { get; set; }
     public decimal ExpectedCash { get; set; }
     public decimal? CountedCash { get; set; }

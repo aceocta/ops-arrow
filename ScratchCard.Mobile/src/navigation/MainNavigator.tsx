@@ -96,7 +96,7 @@ type MenuItem = {
   requiredFeature?: string;
 };
 
-type DrawerSectionKey = "scratchCard" | "temperature" | "refusals" | "visitors" | "compliance" | "shifts" | "shop" | "admin";
+type DrawerSectionKey = "scratchCard" | "temperature" | "refusals" | "visitors" | "compliance" | "shifts" | "till" | "shop" | "admin";
 
 const Drawer = createDrawerNavigator<MainDrawerParamList>();
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -196,7 +196,6 @@ const shopItems: MenuItem[] = [
   //   allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
   //   requiredFeature: "StoreSales",
   // },
-  { label: "Till Reconciliation", screen: "TillReconciliation", icon: "cash-outline", requiredFeature: "StoreSales" },
   // { label: "Shop Checklist", screen: "ShopChecklist", icon: "checkmark-done-outline", mode: "checklist" },
   {
     label: "Checklist Setup",
@@ -228,9 +227,14 @@ const adminItems: MenuItem[] = [
     allowedRoles: ["PlatformAdmin", "CompanyOwner"],
   },
   { label: "Shop Configuration", screen: "ShopConfiguration", icon: "storefront-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"] },
-  { label: "Tills", screen: "TillsConfig", icon: "cash-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"] },
-  { label: "Payment Types", screen: "PaymentTypesConfig", icon: "card-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"] },
   { label: "App Configuration", screen: "AppConfiguration", icon: "construct-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner"] },
+];
+
+// --- Till / Store Sales ---
+const tillItems: MenuItem[] = [
+  { label: "Till Reconciliation", screen: "TillReconciliation", icon: "cash-outline", requiredFeature: "StoreSales" },
+  { label: "Tills", screen: "TillsConfig", icon: "albums-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"] },
+  { label: "Payment Types", screen: "PaymentTypesConfig", icon: "card-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"] },
 ];
 
 const bottomDockItems: Array<{
@@ -782,6 +786,7 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
     visitors: false,
     compliance: false,
     shifts: false,
+    till: false,
     shop: false,
     admin: false,
   });
@@ -1084,6 +1089,22 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
           features={features}
           onPress={goTo}
           expanded={expandedSections.shifts}
+          onToggle={toggleSection}
+          activeScreen={activeScreen}
+        />
+
+        <DrawerSection
+          sectionKey="till"
+          title="Till / Store Sales"
+          icon="cash-outline"
+          accentColor={appTheme.colors.textBrandStrong}
+          accentSoftBackground={appTheme.colors.surfaceTintSoft}
+          items={tillItems}
+          isCompanyOwner={isCompanyOwner}
+          userRoles={userRoles}
+          features={features}
+          onPress={goTo}
+          expanded={expandedSections.till}
           onToggle={toggleSection}
           activeScreen={activeScreen}
         />

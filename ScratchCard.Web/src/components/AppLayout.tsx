@@ -14,6 +14,7 @@ import {
   ShieldX,
   DoorOpen,
   Receipt,
+  Calculator,
   Settings,
   ChevronDown,
   LogOut,
@@ -24,20 +25,45 @@ import {
 import clsx from "clsx";
 
 type NavItem = { to: string; label: string; icon: React.ComponentType<{ className?: string }>; feature?: string };
+type NavGroup = { group: string; items: NavItem[] };
 
-const NAV: NavItem[] = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/rota", label: "Rota", icon: CalendarDays, feature: "StaffRota" },
-  { to: "/timesheets", label: "Timesheets", icon: Clock, feature: "StaffRota" },
-  { to: "/approvals", label: "Time Approvals", icon: CheckCheck, feature: "staff_rota.manual_approval" },
-  { to: "/staff", label: "External Staff", icon: UsersRound, feature: "StaffRota" },
-  { to: "/temperature", label: "Temperature", icon: Thermometer, feature: "TemperatureLog" },
-  { to: "/compliance", label: "Compliance", icon: ClipboardCheck, feature: "ComplianceChecklist" },
-  { to: "/refusals", label: "Refusals", icon: ShieldX, feature: "RefusalNoIdNoSale" },
-  { to: "/visitors", label: "Visitors", icon: DoorOpen, feature: "VisitorsLog" },
-  { to: "/till", label: "Till Reconciliation", icon: Receipt, feature: "store_sales.dashboard" },
-  { to: "/shops", label: "Shops", icon: Store },
-  { to: "/settings", label: "Settings", icon: Settings },
+const NAV: NavGroup[] = [
+  {
+    group: "Overview",
+    items: [{ to: "/", label: "Dashboard", icon: LayoutDashboard }],
+  },
+  {
+    group: "Staff",
+    items: [
+      { to: "/rota", label: "Rota", icon: CalendarDays, feature: "StaffRota" },
+      { to: "/timesheets", label: "Timesheets", icon: Clock, feature: "StaffRota" },
+      { to: "/approvals", label: "Time Approvals", icon: CheckCheck, feature: "staff_rota.manual_approval" },
+      { to: "/staff", label: "External Staff", icon: UsersRound, feature: "StaffRota" },
+    ],
+  },
+  {
+    group: "Compliance",
+    items: [
+      { to: "/temperature", label: "Temperature", icon: Thermometer, feature: "TemperatureLog" },
+      { to: "/compliance", label: "Compliance", icon: ClipboardCheck, feature: "ComplianceChecklist" },
+      { to: "/refusals", label: "Refusals", icon: ShieldX, feature: "RefusalNoIdNoSale" },
+      { to: "/visitors", label: "Visitors", icon: DoorOpen, feature: "VisitorsLog" },
+    ],
+  },
+  {
+    group: "Till",
+    items: [
+      { to: "/till", label: "Reconciliation", icon: Receipt, feature: "store_sales.dashboard" },
+      { to: "/till/tills", label: "Tills", icon: Calculator, feature: "store_sales.dashboard" },
+    ],
+  },
+  {
+    group: "Setup",
+    items: [
+      { to: "/shops", label: "Shops", icon: Store },
+      { to: "/settings", label: "Settings", icon: Settings },
+    ],
+  },
 ];
 
 function ThemeToggle() {
@@ -103,7 +129,9 @@ function ShopSwitcher() {
 export default function AppLayout() {
   const { profile, features, activeShopId, logout } = useAuth();
   const navigate = useNavigate();
-  const items = NAV.filter((i) => !i.feature || features.includes(i.feature));
+  const groups = NAV
+    .map((g) => ({ ...g, items: g.items.filter((i) => !i.feature || features.includes(i.feature)) }))
+    .filter((g) => g.items.length > 0);
 
   const pendingQ = useQuery({
     queryKey: ["rota-pending", activeShopId],
@@ -122,28 +150,32 @@ export default function AppLayout() {
           <img src="/logo.png" alt="Ops Arrow" className="h-9 w-9 rounded-xl object-contain shadow-sm" />
           <span className="bg-gradient-to-r from-brand-700 to-brand-500 bg-clip-text text-lg font-bold tracking-tight text-transparent">Ops Arrow</span>
         </div>
-        <div className="px-5 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Menu</div>
-        <nav className="flex-1 space-y-0.5 px-3">
-          {items.map((i) => (
-            <NavLink
-              key={i.to}
-              to={i.to}
-              end={i.to === "/"}
-              className={({ isActive }) =>
-                clsx(
-                  "relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
-                  isActive
-                    ? "bg-brand-50 text-brand-700 shadow-sm ring-1 ring-brand-100 before:absolute before:left-0 before:top-1/2 before:h-5 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-brand-600"
-                    : "text-slate-500 hover:bg-slate-100/70 hover:text-slate-900",
-                )
-              }
-            >
-              <i.icon className="h-[18px] w-[18px]" />
-              <span className="flex-1">{i.label}</span>
-              {i.to === "/approvals" && pendingCount > 0 ? (
-                <span className="rounded-full bg-red-500 px-1.5 text-[11px] font-semibold text-white">{pendingCount}</span>
-              ) : null}
-            </NavLink>
+        <nav className="flex-1 space-y-4 overflow-y-auto px-3 pb-4">
+          {groups.map((g) => (
+            <div key={g.group} className="space-y-0.5">
+              <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{g.group}</div>
+              {g.items.map((i) => (
+                <NavLink
+                  key={i.to}
+                  to={i.to}
+                  end={i.to === "/" || i.to === "/till"}
+                  className={({ isActive }) =>
+                    clsx(
+                      "relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
+                      isActive
+                        ? "bg-brand-50 text-brand-700 shadow-sm ring-1 ring-brand-100 before:absolute before:left-0 before:top-1/2 before:h-5 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-brand-600"
+                        : "text-slate-500 hover:bg-slate-100/70 hover:text-slate-900",
+                    )
+                  }
+                >
+                  <i.icon className="h-[18px] w-[18px]" />
+                  <span className="flex-1">{i.label}</span>
+                  {i.to === "/approvals" && pendingCount > 0 ? (
+                    <span className="rounded-full bg-red-500 px-1.5 text-[11px] font-semibold text-white">{pendingCount}</span>
+                  ) : null}
+                </NavLink>
+              ))}
+            </div>
           ))}
         </nav>
         <div className="border-t border-slate-200 p-3">

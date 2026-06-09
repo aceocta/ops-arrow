@@ -31,6 +31,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
     private readonly IShopMembershipService _shopMembership;
     private readonly IFeatureGateService _featureGate;
     private readonly IRepository<ShopServiceCounterConfig> _counterConfigs;
+    private readonly IRepository<CanisterDrop> _canisterDrops;
     private readonly IRepository<ShopUser> _shopUsers;
     private readonly IRepository<Shop> _shops;
     private readonly INotificationService _notifications;
@@ -49,6 +50,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         IShopMembershipService shopMembership,
         IFeatureGateService featureGate,
         IRepository<ShopServiceCounterConfig> counterConfigs,
+        IRepository<CanisterDrop> canisterDrops,
         IRepository<ShopUser> shopUsers,
         IRepository<Shop> shops,
         INotificationService notifications,
@@ -66,6 +68,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         _shopMembership = shopMembership;
         _featureGate = featureGate;
         _counterConfigs = counterConfigs;
+        _canisterDrops = canisterDrops;
         _shopUsers = shopUsers;
         _shops = shops;
         _notifications = notifications;
@@ -93,7 +96,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
 
         if (existing is not null)
         {
-            return Map(existing);
+            return await MapAsync(existing, cancellationToken);
         }
 
         var created = new TillReconciliation
@@ -110,14 +113,14 @@ public sealed class TillReconciliationService : ITillReconciliationService
         };
         await _reconciliations.AddAsync(created, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        return Map(created);
+        return await MapAsync(created, cancellationToken);
     }
 
     public async Task<TillReconciliationDto> GetAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var rec = await LoadAsync(id, cancellationToken);
         await EnsureAccessAsync(rec.ShopId, StaffRoles, FeatureKeys.StoreSalesBasic, cancellationToken);
-        return Map(rec);
+        return await MapAsync(rec, cancellationToken);
     }
 
     public async Task<IReadOnlyCollection<TillReconciliationDto>> ListAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
@@ -166,7 +169,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         await RecomputeAsync(rec, cancellationToken);
         _reconciliations.Update(rec);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        return Map(rec);
+        return await MapAsync(rec, cancellationToken);
     }
 
     public async Task<TillReconciliationDto> DeleteLineAsync(Guid lineId, CancellationToken cancellationToken = default)
@@ -181,7 +184,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         await RecomputeAsync(rec, cancellationToken);
         _reconciliations.Update(rec);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        return Map(rec);
+        return await MapAsync(rec, cancellationToken);
     }
 
     public async Task<TillReconciliationDto> SetCashCountAsync(SetCashCountRequest request, CancellationToken cancellationToken = default)
@@ -197,7 +200,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         if (rec.Status == TillReconciliationStatus.Draft) rec.Status = TillReconciliationStatus.NeedsVerification;
         _reconciliations.Update(rec);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        return Map(rec);
+        return await MapAsync(rec, cancellationToken);
     }
 
     public async Task<TillReconciliationDto> SetVarianceReasonAsync(SetVarianceReasonRequest request, CancellationToken cancellationToken = default)
@@ -208,7 +211,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         rec.VarianceNotes = request.Notes;
         _reconciliations.Update(rec);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        return Map(rec);
+        return await MapAsync(rec, cancellationToken);
     }
 
     public async Task<TillReconciliationDto> SetStatusAsync(Guid id, TillReconciliationStatus status, CancellationToken cancellationToken = default)
@@ -239,7 +242,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         {
             await MaybeSendVarianceAlertAsync(rec, cancellationToken);
         }
-        return Map(rec);
+        return await MapAsync(rec, cancellationToken);
     }
 
     /// <summary>Notify shop managers/owners when a reconciliation lands in the Alert variance band
@@ -354,13 +357,14 @@ public sealed class TillReconciliationService : ITillReconciliationService
         await RecomputeAsync(rec, cancellationToken);
         _reconciliations.Update(rec);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        return Map(rec);
+        return await MapAsync(rec, cancellationToken);
     }
 
     public async Task<TillRollupDto> GetRollupAsync(Guid shopId, DateOnly businessDate, CancellationToken cancellationToken = default)
     {
         await EnsureAccessAsync(shopId, ManagementRoles, FeatureKeys.StoreSalesMultiTill, cancellationToken);
         var recs = await Query()
+            .Include(r => r.Till)
             .Where(r => r.ShopId == shopId && r.BusinessDate == businessDate)
             .ToListAsync(cancellationToken);
 
@@ -390,6 +394,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
             {
                 Id = r.Id,
                 TillId = r.TillId,
+                TillName = r.Till?.Name ?? (r.TillId == null ? "Single drawer" : "Till"),
                 Status = r.Status,
                 ExpectedCash = r.ExpectedCash,
                 CountedCash = r.CountedCash,
@@ -494,6 +499,33 @@ public sealed class TillReconciliationService : ITillReconciliationService
         return TillVarianceStatus.Alert;
     }
 
+    /// <summary>Maps to DTO and enriches with the safe-drop cross-check (needs a DB lookup against
+    /// the Safe Drop module), so a fabricated drop can't quietly absorb a shortfall.</summary>
+    private async Task<TillReconciliationDto> MapAsync(TillReconciliation rec, CancellationToken cancellationToken)
+    {
+        var dto = Map(rec);
+        var declared = dto.Summary.ProofOfCash.SafeDrop;
+
+        var start = new DateTimeOffset(rec.BusinessDate.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+        var end = start.AddDays(1);
+        var recorded = await _canisterDrops.Query().AsNoTracking()
+            .Where(d => d.ShopId == rec.ShopId && d.DroppedOn >= start && d.DroppedOn < end)
+            .SumAsync(d => (decimal?)d.Amount, cancellationToken) ?? 0m;
+
+        // Only surface the check when there's something to compare (a declared drop or a recorded one).
+        if (declared != 0 || recorded != 0)
+        {
+            dto.Summary.SafeDropCrossCheck = new SafeDropCrossCheckDto
+            {
+                DeclaredOnReport = declared,
+                RecordedInSafeModule = recorded,
+                Difference = declared - recorded,
+                Matches = Math.Abs(declared - recorded) <= 0.01m,
+            };
+        }
+        return dto;
+    }
+
     private static TillReconciliationDto Map(TillReconciliation r)
     {
         var varianceStatus = VarianceStatusOf(r.CashVariance);
@@ -559,8 +591,33 @@ public sealed class TillReconciliationService : ITillReconciliationService
         if (payzone != 0) owed.Add(new ProviderOwedDto { Provider = "Payzone", Amount = payzone });
         if (lotteryNet != 0) owed.Add(new ProviderOwedDto { Provider = "Lottery (net)", Amount = lotteryNet });
 
+        // Proof of cash: every documented outflow + the counted drawer should account for all cash in.
+        // CashIn is derived from ExpectedDrawer so it ties even when a per-shop counter is drawer-counted.
+        var paidOut = Sum(TillCanonicalField.PaidOut);
+        var safeDrop = Sum(TillCanonicalField.SafeDrop);
+        var banking = Sum(TillCanonicalField.Banking);
+        var pickup = Sum(TillCanonicalField.Pickup);
+        var cashback = Sum(TillCanonicalField.Cashback);
+        var prizesPaid = Sum(TillCanonicalField.LotteryPrizes, TillCanonicalField.ScratchcardPrizes);
+        var totalOut = paidOut + safeDrop + banking + pickup + cashback + prizesPaid;
+        var proof = new ProofOfCashDto
+        {
+            CashIn = r.ExpectedCash + totalOut,
+            PaidOut = paidOut,
+            SafeDrop = safeDrop,
+            Banking = banking,
+            Pickup = pickup,
+            Cashback = cashback,
+            PrizesPaid = prizesPaid,
+            ExpectedDrawer = r.ExpectedCash,
+            CountedDrawer = r.CountedCash ?? 0,
+            Variance = r.CashVariance,
+            AccountedFor = Math.Abs(r.CashVariance) <= VarianceTolerance,
+        };
+
         return new TillReconciliationSummaryDto
         {
+            ProofOfCash = proof,
             CashTender = Sum(TillCanonicalField.Cash),
             CardTender = Sum(TillCanonicalField.Card, TillCanonicalField.CardDebit, TillCanonicalField.CardCredit, TillCanonicalField.CardContactless),
             CommissionIncome = r.Lines.Where(l => TillCanonicalCatalogue.Meta(l.CanonicalField).IsCommissionIncome).Sum(l => l.VerifiedAmount),

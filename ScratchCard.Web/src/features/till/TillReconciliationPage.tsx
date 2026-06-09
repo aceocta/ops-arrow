@@ -87,9 +87,9 @@ export default function TillReconciliationPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {r.tills.map((t, i) => (
+                {r.tills.map((t) => (
                   <tr key={t.id} className="hover:bg-slate-50">
-                    <td className="px-5 py-3 font-medium text-slate-800">{t.tillId ? `Till ${i + 1}` : "Single till"}</td>
+                    <td className="px-5 py-3 font-medium text-slate-800">{t.tillName}</td>
                     <td className="px-5 py-3">
                       <span className={clsx("badge", statusBadge[t.status])}>{t.status}</span>
                     </td>
