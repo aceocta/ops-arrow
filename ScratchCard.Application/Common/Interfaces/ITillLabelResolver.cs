@@ -31,4 +31,11 @@ public interface ITillLabelResolver
         Guid? scopeId,
         string? section = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Remove any learned mapping for this label at the given scope (undo a learned assign/ignore).</summary>
+    Task ForgetAsync(
+        string rawLabel,
+        TillMappingScope scope,
+        Guid? scopeId,
+        CancellationToken cancellationToken = default);
 }

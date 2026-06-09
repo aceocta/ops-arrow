@@ -132,6 +132,11 @@ export async function deleteReconciliationLine(lineId: string) {
   return response.data.data;
 }
 
+export async function restoreReconciliationLine(lineId: string) {
+  const response = await apiClient.post<ApiResponse<Reconciliation>>(`/till-reconciliation/lines/${lineId}/restore`);
+  return response.data.data;
+}
+
 export async function setReconciliationCashCount(payload: {
   reconciliationId: string;
   openingFloat?: number;

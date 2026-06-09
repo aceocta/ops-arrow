@@ -30,6 +30,7 @@ import {
   getOrCreateReconciliation,
   saveReconciliationLine,
   deleteReconciliationLine,
+  restoreReconciliationLine,
   setReconciliationCashCount,
   setReconciliationVarianceReason,
   setReconciliationStatus,
@@ -159,6 +160,7 @@ export function TillReconciliationScreen() {
             quantity: line.quantity ?? undefined,
             captureMethod: line.captureMethod,
             status: "Verified",
+            learnMapping: true,
           });
         }
       }
@@ -190,14 +192,36 @@ export function TillReconciliationScreen() {
     onError: (e: any) => toastError(e?.response?.data?.message ?? e?.message ?? "Couldn't read the photo."),
   });
 
+  // Auto-ignored lines (labels the user previously removed) are shown in their own strip, not the groups.
+  const autoIgnored = useMemo(() => (data?.lines ?? []).filter((l) => l.canonicalField === "SubtotalIgnore"), [data?.lines]);
+  const [showIgnored, setShowIgnored] = useState(false);
+
   const grouped = useMemo(() => {
     const map = new Map<string, ReconciliationLine[]>();
     for (const l of data?.lines ?? []) {
+      if (l.canonicalField === "SubtotalIgnore") continue;
       const g = l.group;
       map.set(g, [...(map.get(g) ?? []), l]);
     }
     return [...map.entries()];
   }, [data?.lines]);
+
+  // Summary counts for the origin banner.
+  const counts = useMemo(() => {
+    const ls = data?.lines ?? [];
+    return {
+      history: ls.filter((l) => l.notes === "history" && l.canonicalField !== "SubtotalIgnore" && l.canonicalField !== "Unmapped").length,
+      ai: ls.filter((l) => (l.notes ?? "").includes("ai")).length,
+      newCount: ls.filter((l) => l.canonicalField === "Unmapped").length,
+      ignored: autoIgnored.length,
+    };
+  }, [data?.lines, autoIgnored]);
+
+  const restoreMutation = useMutation({
+    mutationFn: (lineId: string) => restoreReconciliationLine(lineId),
+    onSuccess: (r) => { setData(r); toastSuccess("Restored — assign it below."); },
+    onError: (e: any) => toastError(e?.response?.data?.message ?? "Couldn't restore."),
+  });
 
   if (!shopId) {
     return <ScreenContainer><Text style={styles.muted}>Select a shop first.</Text></ScreenContainer>;
@@ -308,6 +332,15 @@ export function TillReconciliationScreen() {
 
         {data && data.attachments.length > 0 ? <AttachmentsCard attachments={data.attachments} /> : null}
 
+        {data && (counts.history + counts.ai + counts.newCount + counts.ignored) > 0 ? (
+          <View style={styles.banner}>
+            {counts.history > 0 ? <Text style={styles.bannerChip}>✓ {counts.history} auto-mapped</Text> : null}
+            {counts.ai > 0 ? <Text style={[styles.bannerChip, { color: appTheme.colors.warning }]}>🤖 {counts.ai} AI</Text> : null}
+            {counts.newCount > 0 ? <Text style={[styles.bannerChip, { color: appTheme.colors.warning }]}>● {counts.newCount} new</Text> : null}
+            {counts.ignored > 0 ? <Text style={[styles.bannerChip, { color: appTheme.colors.textSubtle }]}>🚫 {counts.ignored} ignored</Text> : null}
+          </View>
+        ) : null}
+
         {data ? (
           <>
             {/* Summary */}
@@ -382,9 +415,12 @@ export function TillReconciliationScreen() {
                         {l.status !== "Verified" ? <View style={styles.verifyDot} /> : null}
                         <Pressable style={styles.lineBody} onPress={() => !locked && setEditingLine(l)} disabled={locked}>
                           <View style={{ flex: 1 }}>
-                            <Text style={styles.lineName}>
-                              {l.canonicalField === "Unmapped" ? (l.rawLabel || "Unmapped") : l.fieldName}
-                            </Text>
+                            <View style={styles.lineNameRow}>
+                              <Text style={styles.lineName}>
+                                {l.canonicalField === "Unmapped" ? (l.rawLabel || "Unmapped") : l.fieldName}
+                              </Text>
+                              <OriginBadge line={l} />
+                            </View>
                             {l.rawLabel && l.canonicalField !== "Unmapped" ? <Text style={styles.muted} numberOfLines={1}>{l.rawLabel}</Text> : null}
                             {l.status !== "Verified" ? <Text style={styles.verifyHint}>Tap to verify</Text> : null}
                           </View>
@@ -402,6 +438,27 @@ export function TillReconciliationScreen() {
                 </View>
               );
             })}
+
+            {/* Auto-ignored (labels the user removed before) — collapsed, with restore */}
+            {autoIgnored.length > 0 ? (
+              <View style={ui.card}>
+                <Pressable style={styles.ignoredHeader} onPress={() => setShowIgnored((s) => !s)}>
+                  <Text style={styles.muted}>🚫 Auto-ignored ({autoIgnored.length})</Text>
+                  <Ionicons name={showIgnored ? "chevron-up" : "chevron-down"} size={16} color={appTheme.colors.textSubtle} />
+                </Pressable>
+                {showIgnored ? autoIgnored.map((l) => (
+                  <View key={l.id} style={styles.lineRow}>
+                    <Text style={[styles.lineName, { flex: 1, color: appTheme.colors.textMuted }]} numberOfLines={1}>{l.rawLabel || "—"}</Text>
+                    {!locked ? (
+                      <Pressable style={styles.restoreBtn} onPress={() => restoreMutation.mutate(l.id)} disabled={restoreMutation.isPending}>
+                        <Ionicons name="arrow-undo-outline" size={15} color={appTheme.colors.primary} />
+                        <Text style={styles.restoreText}>Restore</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                )) : null}
+              </View>
+            ) : null}
 
             {/* Exceptions chips */}
             {(data.summary.noSaleCount > 0 || data.summary.voids !== 0 || data.summary.refunds !== 0) ? (
@@ -491,6 +548,22 @@ function MoveLinesModal({ count, busy, onPick, onClose }: {
         </View>
       </View>
     </Modal>
+  );
+}
+
+function OriginBadge({ line }: { line: ReconciliationLine }) {
+  const notes = line.notes ?? "";
+  let label: string | null = null;
+  let color = appTheme.colors.textSubtle;
+  if (line.canonicalField === "Unmapped") { label = "new"; color = appTheme.colors.warning; }
+  else if (notes === "history") { label = "auto"; color = appTheme.colors.success; }
+  else if (notes.includes("ai")) { label = "AI"; color = appTheme.colors.warning; }
+  else if (notes.includes("fuzzy")) { label = "~"; color = appTheme.colors.textSubtle; }
+  if (!label) return null;
+  return (
+    <View style={[styles.originBadge, { borderColor: color }]}>
+      <Text style={[styles.originBadgeText, { color }]}>{label}</Text>
+    </View>
   );
 }
 
@@ -638,10 +711,12 @@ function LineEditor({ reconciliationId, line, onClose, onSaved }: {
       reconciliationId,
       lineId: line?.id,
       canonicalField: field!,
+      rawLabel: line?.rawLabel ?? undefined,
       verifiedAmount: isCount ? 0 : num(amount),
       quantity: isCount ? Math.round(num(quantity)) : undefined,
       captureMethod: "Manual",
       status: "Verified",
+      learnMapping: true,
     }),
     onSuccess: onSaved,
     onError: (e: any) => toastError(e?.response?.data?.message ?? "Couldn't save line."),
@@ -808,6 +883,14 @@ const styles = StyleSheet.create({
   countBtnText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   lineRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
   lineBody: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
+  lineNameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  originBadge: { borderWidth: 1, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  originBadgeText: { fontFamily: appTheme.fonts.bodyMedium, fontSize: 10 },
+  banner: { flexDirection: "row", flexWrap: "wrap", gap: 10, paddingHorizontal: 4 },
+  bannerChip: { color: appTheme.colors.success, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
+  ignoredHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  restoreBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4 },
+  restoreText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   sectionTotalRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4, paddingTop: 8, borderTopWidth: 1, borderTopColor: appTheme.colors.border },
   sectionTotalLabel: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   sectionTotal: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 14 },

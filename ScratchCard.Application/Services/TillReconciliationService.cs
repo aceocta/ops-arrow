@@ -189,16 +189,16 @@ public sealed class TillReconciliationService : ITillReconciliationService
         line.Quantity = request.Quantity;
         line.CaptureMethod = request.CaptureMethod;
         line.Status = request.Status;
-        line.Notes = request.Notes;
+        line.Notes = request.Notes;  // a user edit clears the origin tag (history/ai/fuzzy)
 
-        // Teach the resolver this till's wording when the user confirms a mapping from a raw label.
+        // Teach the shop this wording when the user confirms/moves a label to a field — so next
+        // import auto-maps it. Shop scope so every till at the shop benefits.
         if (request.LearnMapping && !string.IsNullOrWhiteSpace(request.RawLabel) &&
             request.CanonicalField != TillCanonicalField.Unmapped)
         {
             await _resolver.LearnAsync(
                 request.RawLabel!, request.CanonicalField,
-                rec.TillId is { } ? TillMappingScope.Till : TillMappingScope.Shop,
-                rec.TillId ?? rec.ShopId, request.Section, cancellationToken);
+                TillMappingScope.Shop, rec.ShopId, request.Section, cancellationToken);
         }
 
         await RecomputeAsync(rec, cancellationToken);
@@ -214,8 +214,41 @@ public sealed class TillReconciliationService : ITillReconciliationService
         var rec = await LoadAsync(line.TillReconciliationId, cancellationToken);
         await EnsureAccessAsync(rec.ShopId, StaffRoles, FeatureKeys.StoreSalesBasic, cancellationToken);
         var toRemove = rec.Lines.First(l => l.Id == lineId);
+
+        // Remember the removal: an auto-captured (not user-verified) labelled line the user removes
+        // becomes a shop-level "ignore" so the same junk label is auto-dropped next import.
+        if (!string.IsNullOrWhiteSpace(toRemove.RawLabel) && toRemove.Status != TillLineStatus.Verified)
+        {
+            await _resolver.LearnAsync(toRemove.RawLabel!, TillCanonicalField.SubtotalIgnore,
+                TillMappingScope.Shop, rec.ShopId, toRemove.Section, cancellationToken);
+        }
+
         rec.Lines.Remove(toRemove);
         _lines.Remove(toRemove);
+        await RecomputeAsync(rec, cancellationToken);
+        _reconciliations.Update(rec);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return await MapAsync(rec, cancellationToken);
+    }
+
+    public async Task<TillReconciliationDto> RestoreLineAsync(Guid lineId, CancellationToken cancellationToken = default)
+    {
+        var line = await _lines.Query().FirstOrDefaultAsync(l => l.Id == lineId, cancellationToken)
+            ?? throw new AppException("line_not_found", "Reconciliation line not found.", 404);
+        var rec = await LoadAsync(line.TillReconciliationId, cancellationToken);
+        await EnsureAccessAsync(rec.ShopId, StaffRoles, FeatureKeys.StoreSalesBasic, cancellationToken);
+
+        var target = rec.Lines.First(l => l.Id == lineId);
+        // Forget the learned ignore rule so this label isn't auto-dropped again, and surface the line
+        // as Unmapped for the user to decide.
+        if (!string.IsNullOrWhiteSpace(target.RawLabel))
+        {
+            await _resolver.ForgetAsync(target.RawLabel!, TillMappingScope.Shop, rec.ShopId, cancellationToken);
+        }
+        target.CanonicalField = TillCanonicalField.Unmapped;
+        target.Status = TillLineStatus.Captured;
+        target.Notes = null;
+
         await RecomputeAsync(rec, cancellationToken);
         _reconciliations.Update(rec);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -353,8 +386,18 @@ public sealed class TillReconciliationService : ITillReconciliationService
             var resolution = await _resolver.ResolveAsync(
                 ocrLine.Description, rec.ShopId, rec.TillId, section: null, cancellationToken);
 
-            // Skip totals/subtotals so they don't double-count.
-            if (resolution.Field == TillCanonicalField.SubtotalIgnore) continue;
+            var learned = resolution.Source == TillMappingSource.Learned;
+
+            // A structural total/subtotal from the dictionary is dropped silently. A label the user
+            // previously REMOVED (learned → SubtotalIgnore) is kept as a visible "auto-ignored" line
+            // so they can see/restore it.
+            if (resolution.Field == TillCanonicalField.SubtotalIgnore && !learned) continue;
+
+            // Origin tag (drives the UI badge). History is trusted (Verified); everything else needs review.
+            var origin = resolution.Field == TillCanonicalField.Unmapped ? null
+                : learned ? "history"
+                : resolution.Source == TillMappingSource.Fuzzy ? "fuzzy"
+                : null;
 
             var line = new TillReconciliationLine
             {
@@ -364,8 +407,8 @@ public sealed class TillReconciliationService : ITillReconciliationService
                 ExtractedAmount = ocrLine.Amount,
                 VerifiedAmount = ocrLine.Amount,
                 CaptureMethod = TillCaptureMethod.Photo,
-                Status = TillLineStatus.Captured,
-                Notes = resolution.Source == TillMappingSource.Fuzzy ? $"fuzzy {resolution.Confidence:P0}" : null,
+                Status = learned ? TillLineStatus.Verified : TillLineStatus.Captured,
+                Notes = origin,
             };
             created.Add(line);
             rec.Lines.Add(line);

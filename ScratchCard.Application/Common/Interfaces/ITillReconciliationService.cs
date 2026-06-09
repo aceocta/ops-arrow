@@ -14,6 +14,9 @@ public interface ITillReconciliationService
     Task<TillReconciliationDto> SaveLineAsync(SaveReconciliationLineRequest request, CancellationToken cancellationToken = default);
     Task<TillReconciliationDto> DeleteLineAsync(Guid lineId, CancellationToken cancellationToken = default);
 
+    /// <summary>Undo an auto-ignored line: bring it back as Unmapped and forget the learned ignore rule.</summary>
+    Task<TillReconciliationDto> RestoreLineAsync(Guid lineId, CancellationToken cancellationToken = default);
+
     Task<TillReconciliationDto> SetCashCountAsync(SetCashCountRequest request, CancellationToken cancellationToken = default);
     Task<TillReconciliationDto> SetVarianceReasonAsync(SetVarianceReasonRequest request, CancellationToken cancellationToken = default);
     Task<TillReconciliationDto> SetStatusAsync(Guid id, TillReconciliationStatus status, CancellationToken cancellationToken = default);

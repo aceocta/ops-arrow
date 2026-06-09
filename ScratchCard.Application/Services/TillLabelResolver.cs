@@ -107,6 +107,19 @@ public sealed class TillLabelResolver : ITillLabelResolver
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task ForgetAsync(string rawLabel, TillMappingScope scope, Guid? scopeId, CancellationToken cancellationToken = default)
+    {
+        var normalized = TillLabelNormalizer.Normalize(rawLabel);
+        if (string.IsNullOrEmpty(normalized)) return;
+
+        var rows = await _mappings.Query()
+            .Where(m => m.Scope == scope && m.ScopeId == scopeId && m.NormalizedLabel == normalized)
+            .ToListAsync(cancellationToken);
+        if (rows.Count == 0) return;
+        foreach (var row in rows) _mappings.Remove(row);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
     private static bool SectionMatches(string? mappingSection, string? requested)
         => string.IsNullOrEmpty(mappingSection) || string.Equals(mappingSection, requested, StringComparison.OrdinalIgnoreCase);
 

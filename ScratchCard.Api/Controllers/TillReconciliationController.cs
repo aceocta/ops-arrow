@@ -39,6 +39,10 @@ public class TillReconciliationController : BaseApiController
     public async Task<IActionResult> DeleteLine(Guid lineId, CancellationToken cancellationToken)
         => Success(await _service.DeleteLineAsync(lineId, cancellationToken));
 
+    [HttpPost("lines/{lineId:guid}/restore")]
+    public async Task<IActionResult> RestoreLine(Guid lineId, CancellationToken cancellationToken)
+        => Success(await _service.RestoreLineAsync(lineId, cancellationToken));
+
     [HttpPost("cash-count")]
     public async Task<IActionResult> SetCashCount([FromBody] SetCashCountRequest request, CancellationToken cancellationToken)
         => Success(await _service.SetCashCountAsync(request, cancellationToken));
