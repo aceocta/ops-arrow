@@ -28,7 +28,7 @@ import type {
   TemperatureScheduleCellState,
 } from "../../types/models";
 import { ui } from "../../ui/primitives";
-import { appTheme } from "../../ui/theme";
+import { appTheme, surfaceShadow } from "../../ui/theme";
 
 function formatTemperature(value: number) {
   return `${value.toFixed(1)}°C`;
@@ -2001,13 +2001,18 @@ const styles = StyleSheet.create({
   },
   matrixCard: {
     gap: appTheme.spacing.sm,
-    marginTop:appTheme.spacing.lg
-
+    marginTop: appTheme.spacing.lg,
+    backgroundColor: appTheme.colors.surface,
+    borderRadius: appTheme.radius.md,
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderSoft,
+    padding: appTheme.spacing.md,
+    ...surfaceShadow,
   },
   matrixRow: {
     flexDirection: "row",
-    // The table now stands on its own (no surrounding card) — frame it with a thin border and
-    // rounded corners, clipping the inner cell borders so it still reads as a clean grid.
+    // Framed grid; clipped corners. The soft elevation lives on the section card (matrixCard)
+    // because overflow:hidden here would clip a shadow on iOS.
     borderWidth: 1,
     borderColor: appTheme.colors.borderSoft,
     borderRadius: appTheme.radius.sm,
