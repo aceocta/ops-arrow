@@ -10,6 +10,8 @@ import { compressForUpload } from "../../utils/imageCompression";
 import { useAuth } from "../../auth/AuthContext";
 import { useFeature } from "../subscription/useFeature";
 import { listTills } from "../../api/tillsApi";
+import { listShifts } from "../../api/shiftsApi";
+import { listBusinessDays } from "../../api/businessDaysApi";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
@@ -71,6 +73,8 @@ export function TillReconciliationScreen() {
   const [editingLine, setEditingLine] = useState<ReconciliationLine | "new" | null>(null);
   const [cashOpen, setCashOpen] = useState(false);
   const [tillId, setTillId] = useState<string | undefined>(undefined);
+  const [reportType, setReportType] = useState<"DayEnd" | "Shift">("DayEnd");
+  const [shiftId, setShiftId] = useState<string | undefined>(undefined);
 
   // The shop's tills. With 0–1 tills we stay single-drawer (tillId undefined); with several, the
   // cashier picks which till they're reconciling and each gets its own reconciliation.
@@ -86,12 +90,31 @@ export function TillReconciliationScreen() {
     if (multiTill && !tillId) setTillId(tills[0].id);
   }, [multiTill, tillId, tills]);
 
+  // Shifts for the selected date (used only when reconciling shift-wise). Resolve the business day
+  // for the date, then its shifts.
+  const businessDayQ = useQuery({
+    queryKey: ["recon-bizday", shopId, businessDate],
+    queryFn: () => listBusinessDays(shopId, { from: businessDate, to: businessDate }),
+    enabled: Boolean(shopId) && reportType === "Shift",
+  });
+  const businessDayId = businessDayQ.data?.[0]?.id;
+  const shiftsQ = useQuery({
+    queryKey: ["recon-shifts", shopId, businessDayId],
+    queryFn: () => listShifts(shopId, businessDayId),
+    enabled: Boolean(shopId) && reportType === "Shift" && Boolean(businessDayId),
+  });
+  const shifts = shiftsQ.data ?? [];
+  useEffect(() => {
+    if (reportType === "Shift" && !shiftId && shifts.length > 0) setShiftId(shifts[0].id);
+  }, [reportType, shiftId, shifts]);
+
   const effectiveTillId = multiTill ? tillId : undefined;
-  const key = ["till-recon", shopId, businessDate, effectiveTillId ?? "single"];
+  const effectiveShiftId = reportType === "Shift" ? shiftId : undefined;
+  const key = ["till-recon", shopId, businessDate, effectiveTillId ?? "single", reportType, effectiveShiftId ?? "day"];
   const q = useQuery({
     queryKey: key,
-    queryFn: () => getOrCreateReconciliation({ shopId, businessDate, reportType: "DayEnd", tillId: effectiveTillId }),
-    enabled: Boolean(shopId) && (!multiTill || Boolean(effectiveTillId)),
+    queryFn: () => getOrCreateReconciliation({ shopId, businessDate, reportType, tillId: effectiveTillId, shiftId: effectiveShiftId }),
+    enabled: Boolean(shopId) && (!multiTill || Boolean(effectiveTillId)) && (reportType !== "Shift" || Boolean(effectiveShiftId)),
   });
   const data = q.data;
   const setData = (r: Reconciliation) => qc.setQueryData(key, r);
@@ -177,10 +200,44 @@ export function TillReconciliationScreen() {
           <View style={styles.row}>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Business date</Text>
-              <DateTimeField mode="date" value={businessDate} onChange={setBusinessDate} />
+              <DateTimeField mode="date" value={businessDate} onChange={(d) => { setBusinessDate(d); setShiftId(undefined); }} />
             </View>
             {data ? <StatusPill status={data.status} /> : null}
           </View>
+
+          <View style={styles.tillPickerBlock}>
+            <Text style={styles.label}>Reconcile by</Text>
+            <View style={styles.chipWrap}>
+              {(["DayEnd", "Shift"] as const).map((rt) => {
+                const active = reportType === rt;
+                return (
+                  <Pressable key={rt} onPress={() => setReportType(rt)} style={[styles.chip, active ? styles.chipActive : null]}>
+                    <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>{rt === "DayEnd" ? "Day-end" : "Shift"}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          {reportType === "Shift" ? (
+            <View style={styles.tillPickerBlock}>
+              <Text style={styles.label}>Shift</Text>
+              {shifts.length === 0 ? (
+                <Text style={styles.muted}>{shiftsQ.isLoading || businessDayQ.isLoading ? "Loading shifts…" : "No shifts for this date."}</Text>
+              ) : (
+                <View style={styles.chipWrap}>
+                  {shifts.map((s) => {
+                    const active = effectiveShiftId === s.id;
+                    return (
+                      <Pressable key={s.id} onPress={() => setShiftId(s.id)} style={[styles.chip, active ? styles.chipActive : null]}>
+                        <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>{s.shiftName}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          ) : null}
 
           {multiTill ? (
             <View style={styles.tillPickerBlock}>

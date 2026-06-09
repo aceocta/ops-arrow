@@ -33,6 +33,8 @@ public sealed class TillReconciliationService : ITillReconciliationService
     private readonly IRepository<ShopServiceCounterConfig> _counterConfigs;
     private readonly IRepository<CanisterDrop> _canisterDrops;
     private readonly IRepository<Till> _tills;
+    private readonly IRepository<BusinessDay> _businessDays;
+    private readonly IRepository<Shift> _shifts;
     private readonly IRepository<ShopUser> _shopUsers;
     private readonly IRepository<Shop> _shops;
     private readonly INotificationService _notifications;
@@ -53,6 +55,8 @@ public sealed class TillReconciliationService : ITillReconciliationService
         IRepository<ShopServiceCounterConfig> counterConfigs,
         IRepository<CanisterDrop> canisterDrops,
         IRepository<Till> tills,
+        IRepository<BusinessDay> businessDays,
+        IRepository<Shift> shifts,
         IRepository<ShopUser> shopUsers,
         IRepository<Shop> shops,
         INotificationService notifications,
@@ -72,6 +76,8 @@ public sealed class TillReconciliationService : ITillReconciliationService
         _counterConfigs = counterConfigs;
         _canisterDrops = canisterDrops;
         _tills = tills;
+        _businessDays = businessDays;
+        _shifts = shifts;
         _shopUsers = shopUsers;
         _shops = shops;
         _notifications = notifications;
@@ -90,12 +96,32 @@ public sealed class TillReconciliationService : ITillReconciliationService
     public async Task<TillReconciliationDto> GetOrCreateAsync(GetOrCreateReconciliationRequest request, CancellationToken cancellationToken = default)
     {
         await EnsureAccessAsync(request.ShopId, StaffRoles, FeatureKeys.StoreSalesBasic, cancellationToken);
+
+        // Resolve the business-day / shift linkage.
+        var businessDate = request.BusinessDate;
+        var shiftId = request.ReportType == TillReportType.Shift ? request.ShiftId : null;
+        Guid? businessDayId = request.BusinessDayId;
+
+        if (request.ReportType == TillReportType.Shift)
+        {
+            if (shiftId is null) throw new AppException("shift_required", "Select a shift to reconcile.", 400);
+            var shift = await _shifts.Query().AsNoTracking().FirstOrDefaultAsync(s => s.Id == shiftId, cancellationToken)
+                ?? throw new AppException("shift_not_found", "Shift not found.", 404);
+            businessDayId = shift.BusinessDayId;
+        }
+
+        // Fall back to (or, for day-end, look up) the business day for this shop + date.
+        businessDayId ??= await _businessDays.Query().AsNoTracking()
+            .Where(d => d.ShopId == request.ShopId && d.BusinessDate == businessDate)
+            .Select(d => (Guid?)d.Id).FirstOrDefaultAsync(cancellationToken);
+
         var existing = await Query()
             .FirstOrDefaultAsync(r =>
                 r.ShopId == request.ShopId &&
-                r.BusinessDate == request.BusinessDate &&
+                r.BusinessDate == businessDate &&
                 r.TillId == request.TillId &&
-                r.ReportType == request.ReportType, cancellationToken);
+                r.ReportType == request.ReportType &&
+                r.ShiftId == shiftId, cancellationToken);
 
         if (existing is not null)
         {
@@ -112,9 +138,9 @@ public sealed class TillReconciliationService : ITillReconciliationService
             ShopId = request.ShopId,
             TillId = request.TillId,
             ReportType = request.ReportType,
-            ShiftId = request.ShiftId,
-            BusinessDayId = request.BusinessDayId,
-            BusinessDate = request.BusinessDate,
+            ShiftId = shiftId,
+            BusinessDayId = businessDayId,
+            BusinessDate = businessDate,
             Status = TillReconciliationStatus.Draft,
             OpeningFloat = openingFloat,
             CreatedOn = DateTimeOffset.UtcNow,

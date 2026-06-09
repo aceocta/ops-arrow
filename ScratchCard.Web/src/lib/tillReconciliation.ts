@@ -49,11 +49,46 @@ export type Analytics = {
   staff: StaffAnalyticsRow[];
 };
 
+// ---- Single reconciliation detail (drill-down) ----
+export type ReconLine = {
+  id: string;
+  canonicalField: string;
+  fieldName: string;
+  group: string;
+  rawLabel?: string | null;
+  verifiedAmount: number;
+  quantity?: number | null;
+  status: "Captured" | "Verified";
+};
+export type ReconAttachment = { id: string; sourceLabel?: string | null; fileName: string };
+export type ProofOfCash = {
+  cashIn: number; paidOut: number; safeDrop: number; banking: number; pickup: number;
+  cashback: number; prizesPaid: number; expectedDrawer: number; countedDrawer: number;
+  variance: number; accountedFor: boolean;
+};
+export type ReconSummary = {
+  cashTender: number; cardTender: number; commissionIncome: number;
+  owedToProviders: { provider: string; amount: number }[];
+  noSaleCount: number; voids: number; refunds: number; unmappedCount: number; unverifiedCount: number;
+  proofOfCash: ProofOfCash;
+  safeDropCrossCheck?: { declaredOnReport: number; recordedInSafeModule: number; difference: number; matches: boolean } | null;
+};
+export type Reconciliation = {
+  id: string; shopId: string; tillId?: string | null; businessDate: string; status: ReconStatus;
+  openingFloat: number; countedCash?: number | null; expectedCash: number; cashVariance: number;
+  varianceStatus: VarianceStatus; varianceReasonCode?: string | null; confirmedOn?: string | null;
+  lines: ReconLine[]; attachments: ReconAttachment[]; summary: ReconSummary;
+};
+
 export const tillReconApi = {
   rollup: async (shopId: string, date: string) =>
     unwrap<Rollup>((await api.get("/till-reconciliation/rollup", { params: { shopId, date } })).data),
   analytics: async (shopId: string, from: string, to: string) =>
     unwrap<Analytics>((await api.get("/till-reconciliation/analytics", { params: { shopId, from, to } })).data),
+  get: async (id: string) =>
+    unwrap<Reconciliation>((await api.get(`/till-reconciliation/${id}`)).data),
+  attachment: async (attachmentId: string) =>
+    unwrap<string>((await api.get(`/till-reconciliation/attachments/${attachmentId}/content`)).data),
 };
 
 // ---- Phase 3: Post Office balance ----

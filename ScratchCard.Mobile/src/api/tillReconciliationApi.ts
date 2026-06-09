@@ -103,6 +103,7 @@ export async function getOrCreateReconciliation(payload: {
   businessDate: string;
   tillId?: string;
   reportType?: TillReportType;
+  shiftId?: string;
 }) {
   const response = await apiClient.post<ApiResponse<Reconciliation>>("/till-reconciliation", payload);
   return response.data.data;

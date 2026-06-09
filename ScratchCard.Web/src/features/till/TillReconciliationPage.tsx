@@ -8,7 +8,7 @@ import {
 } from "../../lib/tillReconciliation";
 import { apiErrorMessage } from "../../lib/api";
 import { toast } from "../../components/feedback";
-import { PoundSterling, AlertTriangle, CheckCircle2, Receipt, Users, Building2, Landmark, Calculator, Download } from "lucide-react";
+import { PoundSterling, AlertTriangle, CheckCircle2, Receipt, Users, Building2, Landmark, Calculator, Download, X } from "lucide-react";
 import clsx from "clsx";
 
 const gbp = (n: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n || 0);
@@ -27,6 +27,7 @@ export default function TillReconciliationPage() {
   const { activeShopId, features } = useAuth();
   const shopId = activeShopId!;
   const has = (f: string) => features.includes(f);
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [date, setDate] = useState(fmtDate(new Date()));
   const [range, setRange] = useState(() => {
     const to = new Date();
@@ -88,7 +89,7 @@ export default function TillReconciliationPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {r.tills.map((t) => (
-                  <tr key={t.id} className="hover:bg-slate-50">
+                  <tr key={t.id} className="cursor-pointer hover:bg-slate-50" onClick={() => setDetailId(t.id)}>
                     <td className="px-5 py-3 font-medium text-slate-800">{t.tillName}</td>
                     <td className="px-5 py-3">
                       <span className={clsx("badge", statusBadge[t.status])}>{t.status}</span>
@@ -157,8 +158,101 @@ export default function TillReconciliationPage() {
           </tbody>
         </table>
       </div>
+
+      {detailId ? <ReconciliationDetail id={detailId} onClose={() => setDetailId(null)} /> : null}
     </div>
   );
+}
+
+function ReconciliationDetail({ id, onClose }: { id: string; onClose: () => void }) {
+  const q = useQuery({ queryKey: ["recon-detail", id], queryFn: () => tillReconApi.get(id) });
+  const [viewImg, setViewImg] = useState<string | null>(null);
+  const r = q.data;
+  const p = r?.summary.proofOfCash;
+
+  return (
+    <div className="fixed inset-0 z-30 flex items-start justify-center overflow-auto bg-black/40 p-4" onClick={onClose}>
+      <div className="card my-6 w-full max-w-2xl p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-800">Reconciliation · {r ? r.businessDate : ""}</h2>
+          <button className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100" onClick={onClose}><X className="h-5 w-5" /></button>
+        </div>
+        {!r ? <div className="py-10 text-center text-sm text-slate-500">Loading…</div> : (
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 text-sm">
+              <Stat k="Opening float" v={gbp(r.openingFloat)} />
+              <Stat k="Expected" v={gbp(r.expectedCash)} />
+              <Stat k="Counted" v={r.countedCash != null ? gbp(r.countedCash) : "—"} />
+              <Stat k="Over / Short" v={`${r.cashVariance >= 0 ? "+" : "−"}${gbp(Math.abs(r.cashVariance))}`} tone={r.varianceStatus === "Ok" ? "emerald" : r.varianceStatus === "Warning" ? "amber" : "red"} />
+            </div>
+
+            {/* Captured images */}
+            {r.attachments.length > 0 ? (
+              <div>
+                <div className="mb-2 text-sm font-semibold text-slate-700">Captured images ({r.attachments.length})</div>
+                <div className="flex flex-wrap gap-2">
+                  {r.attachments.map((a) => <AttachmentThumb key={a.id} id={a.id} onView={setViewImg} />)}
+                </div>
+              </div>
+            ) : null}
+
+            {/* Proof of cash */}
+            {p ? (
+              <div className="rounded-xl border border-slate-100 p-4 text-sm">
+                <div className="mb-2 font-semibold text-slate-700">Proof of cash</div>
+                <Row k="Cash in (float + takings)" v={gbp(p.cashIn)} />
+                {p.paidOut ? <Row k="Paid out" v={`− ${gbp(p.paidOut)}`} muted /> : null}
+                {p.safeDrop ? <Row k="Safe drop" v={`− ${gbp(p.safeDrop)}`} muted /> : null}
+                {p.prizesPaid ? <Row k="Prizes paid" v={`− ${gbp(p.prizesPaid)}`} muted /> : null}
+                <Row k="Expected in drawer" v={gbp(p.expectedDrawer)} />
+                <Row k="Counted in drawer" v={gbp(p.countedDrawer)} />
+                <div className={clsx("mt-2 text-sm font-semibold", p.accountedFor ? "text-emerald-600" : "text-red-600")}>
+                  {p.accountedFor ? "✓ All cash accounted for" : `✗ Unaccounted ${gbp(Math.abs(p.variance))}`}
+                </div>
+                {r.summary.safeDropCrossCheck && !r.summary.safeDropCrossCheck.matches ? (
+                  <div className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+                    ✗ Safe-drop off by {gbp(Math.abs(r.summary.safeDropCrossCheck.difference))} — declared {gbp(r.summary.safeDropCrossCheck.declaredOnReport)} vs safe {gbp(r.summary.safeDropCrossCheck.recordedInSafeModule)}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {/* Lines */}
+            <div>
+              <div className="mb-2 text-sm font-semibold text-slate-700">Lines ({r.lines.length})</div>
+              <table className="w-full text-sm">
+                <tbody className="divide-y divide-slate-100">
+                  {r.lines.map((l) => (
+                    <tr key={l.id}>
+                      <td className="py-2 text-slate-700">{l.canonicalField === "Unmapped" ? (l.rawLabel || "Unmapped") : l.fieldName}{l.status !== "Verified" ? <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700">unverified</span> : null}</td>
+                      <td className="py-2 text-right font-medium text-slate-800">{l.canonicalField === "NoSale" ? `× ${l.quantity ?? 0}` : gbp(l.verifiedAmount)}</td>
+                    </tr>
+                  ))}
+                  {r.lines.length === 0 ? <tr><td className="py-4 text-center text-slate-400">No lines.</td></tr> : null}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {viewImg ? (
+        <div className="fixed inset-0 z-40 flex flex-col bg-black/90" onClick={() => setViewImg(null)}>
+          <div className="flex justify-end gap-3 p-4">
+            <a href={viewImg} download className="rounded-lg bg-white/10 p-2 text-white hover:bg-white/20" onClick={(e) => e.stopPropagation()}><Download className="h-5 w-5" /></a>
+            <button className="rounded-lg bg-white/10 p-2 text-white hover:bg-white/20" onClick={() => setViewImg(null)}><X className="h-5 w-5" /></button>
+          </div>
+          <img src={viewImg} alt="" className="mx-auto max-h-[85vh] max-w-[95vw] object-contain" onClick={(e) => e.stopPropagation()} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AttachmentThumb({ id, onView }: { id: string; onView: (dataUrl: string) => void }) {
+  const q = useQuery({ queryKey: ["recon-att", id], queryFn: () => tillReconApi.attachment(id), staleTime: 300000 });
+  if (!q.data) return <div className="h-20 w-20 animate-pulse rounded-lg bg-slate-100" />;
+  return <img src={q.data} alt="" className="h-20 w-20 cursor-pointer rounded-lg border border-slate-200 object-cover" onClick={() => onView(q.data!)} />;
 }
 
 function PostOfficeCard({ shopId, date }: { shopId: string; date: string }) {
@@ -341,6 +435,15 @@ function Stat({ k, v, tone }: { k: string; v: string; tone?: "emerald" | "amber"
     <div>
       <div className="text-xs text-slate-400">{k}</div>
       <div className={clsx("text-base font-bold", c)}>{v}</div>
+    </div>
+  );
+}
+
+function Row({ k, v, muted }: { k: string; v: string; muted?: boolean }) {
+  return (
+    <div className="flex items-center justify-between py-1">
+      <span className={muted ? "text-slate-400" : "text-slate-600"}>{k}</span>
+      <span className={clsx("font-medium", muted ? "text-slate-500" : "text-slate-800")}>{v}</span>
     </div>
   );
 }
