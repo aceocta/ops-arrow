@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ScratchCard.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using ScratchCard.Infrastructure.Persistence;
 namespace ScratchCard.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260609213006_StaffPayRate")]
+    partial class StaffPayRate
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3016,69 +3019,6 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.HasIndex("ShopId");
 
                     b.ToTable("ShiftScratchCardSales");
-                });
-
-            modelBuilder.Entity("ScratchCard.Domain.Entities.ShiftSwapRequest", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset>("CreatedOn")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid>("FromShiftId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("ModifiedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset?>("ModifiedOn")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("Note")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<Guid>("RequesterUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("RespondedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset?>("RespondedOn")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid>("ShopId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<Guid?>("TargetRotaStaffMemberId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("TargetUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("ToShiftId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FromShiftId");
-
-                    b.HasIndex("RequesterUserId");
-
-                    b.HasIndex("ShopId", "Status");
-
-                    b.ToTable("ShiftSwapRequests");
                 });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.Shop", b =>
@@ -6097,33 +6037,6 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Navigation("Pack");
 
                     b.Navigation("Shift");
-
-                    b.Navigation("Shop");
-                });
-
-            modelBuilder.Entity("ScratchCard.Domain.Entities.ShiftSwapRequest", b =>
-                {
-                    b.HasOne("ScratchCard.Domain.Entities.RotaShift", "FromShift")
-                        .WithMany()
-                        .HasForeignKey("FromShiftId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.HasOne("ScratchCard.Domain.Entities.User", "Requester")
-                        .WithMany()
-                        .HasForeignKey("RequesterUserId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
-                        .WithMany()
-                        .HasForeignKey("ShopId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.Navigation("FromShift");
-
-                    b.Navigation("Requester");
 
                     b.Navigation("Shop");
                 });

@@ -26,8 +26,10 @@ function hm(hours: number) {
 }
 
 export default function TimesheetsPage() {
-  const { activeShopId } = useAuth();
+  const { activeShopId, features } = useAuth();
   const shopId = activeShopId!;
+  const showCost = features.includes("staff_rota.labour_cost");
+  const gbp = (n: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n || 0);
   const [view, setView] = useState<"staff" | "shift">("staff");
   const [range, setRange] = useState(() => {
     const to = new Date();
@@ -136,6 +138,8 @@ export default function TimesheetsPage() {
                 <th className="px-5 py-2 font-medium">Staff</th>
                 <th className="px-5 py-2 font-medium">Shifts</th>
                 <th className="px-5 py-2 font-medium">Hours</th>
+                {showCost ? <th className="px-5 py-2 font-medium">Rate</th> : null}
+                {showCost ? <th className="px-5 py-2 font-medium">Cost</th> : null}
                 <th className="px-5 py-2"></th>
               </tr>
             </thead>
@@ -148,11 +152,13 @@ export default function TimesheetsPage() {
                   </td>
                   <td className="px-5 py-3 text-slate-700">{r.shiftsWorked}{r.openSessions > 0 ? ` (+${r.openSessions})` : ""}</td>
                   <td className="px-5 py-3 font-medium text-slate-800">{hm(r.totalHours)}</td>
+                  {showCost ? <td className="px-5 py-3 text-slate-700">{r.hourlyRate != null ? gbp(r.hourlyRate) : <span className="text-amber-600">— set</span>}</td> : null}
+                  {showCost ? <td className="px-5 py-3 font-medium text-slate-800">{r.labourCost != null ? gbp(r.labourCost) : "—"}</td> : null}
                   <td className="px-5 py-3 text-right"><ChevronRight className="ml-auto h-4 w-4 text-slate-300" /></td>
                 </tr>
               ))}
               {!loading && (staffQ.data?.length ?? 0) === 0 ? (
-                <tr><td colSpan={4} className="px-5 py-6 text-center text-slate-400">No hours in this range.</td></tr>
+                <tr><td colSpan={showCost ? 6 : 4} className="px-5 py-6 text-center text-slate-400">No hours in this range.</td></tr>
               ) : null}
             </tbody>
             {(staffQ.data?.length ?? 0) > 0 ? (
@@ -161,6 +167,8 @@ export default function TimesheetsPage() {
                   <td className="px-5 py-3">Total</td>
                   <td></td>
                   <td className="px-5 py-3">{hm(total)}</td>
+                  {showCost ? <td></td> : null}
+                  {showCost ? <td className="px-5 py-3">{gbp((staffQ.data ?? []).reduce((s, r) => s + (r.labourCost ?? 0), 0))}</td> : null}
                   <td></td>
                 </tr>
               </tfoot>

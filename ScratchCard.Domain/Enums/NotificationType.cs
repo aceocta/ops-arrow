@@ -17,5 +17,8 @@ public enum NotificationType
     ComplianceActionRaised = 13,
     ShiftManualEntrySubmitted = 14,
     ShiftReminder = 15,
-    WeeklyTimesheet = 16
+    WeeklyTimesheet = 16,
+    ShiftSwapRequested = 17,
+    ShiftSwapCompleted = 18,
+    ShiftSwapDeclined = 19
 }

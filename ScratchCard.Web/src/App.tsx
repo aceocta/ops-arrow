@@ -8,6 +8,8 @@ import AppLayout from "./components/AppLayout";
 const DashboardPage = lazy(() => import("./features/dashboard/DashboardPage"));
 const RotaPage = lazy(() => import("./features/rota/RotaPage"));
 const TimesheetsPage = lazy(() => import("./features/timesheets/TimesheetsPage"));
+const PayRatesPage = lazy(() => import("./features/timesheets/PayRatesPage"));
+const ShiftSwapsPage = lazy(() => import("./features/rota/ShiftSwapsPage"));
 const ApprovalsPage = lazy(() => import("./features/approvals/ApprovalsPage"));
 const StaffPage = lazy(() => import("./features/staff/StaffPage"));
 const TemperaturePage = lazy(() => import("./features/temperature/TemperaturePage"));
@@ -42,6 +44,8 @@ export default function App() {
         <Route path="/" element={<Suspense fallback={<Fallback />}><DashboardPage /></Suspense>} />
         <Route path="/rota" element={<Suspense fallback={<Fallback />}><RotaPage /></Suspense>} />
         <Route path="/timesheets" element={<Suspense fallback={<Fallback />}><TimesheetsPage /></Suspense>} />
+        <Route path="/timesheets/rates" element={<Suspense fallback={<Fallback />}><PayRatesPage /></Suspense>} />
+        <Route path="/shift-swaps" element={<Suspense fallback={<Fallback />}><ShiftSwapsPage /></Suspense>} />
         <Route path="/approvals" element={<Suspense fallback={<Fallback />}><ApprovalsPage /></Suspense>} />
         <Route path="/staff" element={<Suspense fallback={<Fallback />}><StaffPage /></Suspense>} />
         <Route path="/temperature" element={<Suspense fallback={<Fallback />}><TemperaturePage /></Suspense>} />

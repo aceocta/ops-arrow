@@ -20,6 +20,7 @@ public class RotaService : IRotaService
     private readonly IRepository<RotaStaffMember> _staffMemberRepository;
     private readonly IRepository<ShiftAssignment> _assignmentRepository;
     private readonly IRepository<ShiftAttendance> _attendanceRepository;
+    private readonly IRepository<StaffPayRate> _payRateRepository;
     private readonly IRepository<ShopUser> _shopUserRepository;
     private readonly IRepository<BusinessDay> _businessDayRepository;
     private readonly IRepository<UserPushToken> _pushTokenRepository;
@@ -35,6 +36,7 @@ public class RotaService : IRotaService
         IRepository<RotaStaffMember> staffMemberRepository,
         IRepository<ShiftAssignment> assignmentRepository,
         IRepository<ShiftAttendance> attendanceRepository,
+        IRepository<StaffPayRate> payRateRepository,
         IRepository<ShopUser> shopUserRepository,
         IRepository<BusinessDay> businessDayRepository,
         IRepository<UserPushToken> pushTokenRepository,
@@ -49,6 +51,7 @@ public class RotaService : IRotaService
         _staffMemberRepository = staffMemberRepository;
         _assignmentRepository = assignmentRepository;
         _attendanceRepository = attendanceRepository;
+        _payRateRepository = payRateRepository;
         _shopUserRepository = shopUserRepository;
         _businessDayRepository = businessDayRepository;
         _pushTokenRepository = pushTokenRepository;
@@ -524,22 +527,48 @@ public class RotaService : IRotaService
             })
             .ToListAsync(cancellationToken);
 
+        // Labour cost (Growth+). Cost is computed per session at the rate effective on that session's
+        // date (effective-dated), then summed — so a mid-period raise doesn't rewrite earlier cost.
+        var showCost = await _featureGateService.HasFeatureAsync(shopId, FeatureKeys.StaffRotaLabourCost, cancellationToken);
+        var rates = showCost
+            ? await _payRateRepository.Query().AsNoTracking().Where(r => r.ShopId == shopId && !r.IsDeleted).ToListAsync(cancellationToken)
+            : new List<StaffPayRate>();
+
+        decimal? RateOn(Guid? userId, Guid? memberId, DateOnly date) =>
+            rates.Where(r => r.UserId == userId && r.RotaStaffMemberId == memberId && r.EffectiveFrom <= date)
+                 .OrderByDescending(r => r.EffectiveFrom)
+                 .Select(r => (decimal?)r.HourlyRate)
+                 .FirstOrDefault();
+
         return rows
             .GroupBy(x => x.UserId != null ? $"u:{x.UserId}" : $"m:{x.RotaStaffMemberId}")
             .Select(g =>
             {
                 var sample = g.First();
+                var completed = g.Where(x => x.CheckOutAt != null).ToList();
+                decimal? cost = null;
+                if (showCost)
+                {
+                    cost = 0;
+                    foreach (var s in completed)
+                    {
+                        var hours = (decimal)(s.CheckOutAt!.Value - s.CheckInAt).TotalHours;
+                        var rate = RateOn(s.UserId, s.RotaStaffMemberId, DateOnly.FromDateTime(s.CheckInAt.UtcDateTime));
+                        cost += hours * (rate ?? 0);
+                    }
+                    cost = Math.Round(cost.Value, 2);
+                }
                 return new TimesheetRowDto
                 {
                     UserId = sample.UserId,
                     RotaStaffMemberId = sample.RotaStaffMemberId,
                     IsExternal = sample.RotaStaffMemberId != null,
                     UserName = (sample.UserId != null ? $"{sample.UserFirstName} {sample.UserLastName}" : sample.MemberName ?? "—").Trim(),
-                    ShiftsWorked = g.Count(x => x.CheckOutAt != null),
+                    ShiftsWorked = completed.Count,
                     OpenSessions = g.Count(x => x.CheckOutAt == null),
-                    TotalHours = Math.Round(
-                        (decimal)g.Where(x => x.CheckOutAt != null).Sum(x => (x.CheckOutAt!.Value - x.CheckInAt).TotalHours),
-                        2),
+                    TotalHours = Math.Round((decimal)completed.Sum(x => (x.CheckOutAt!.Value - x.CheckInAt).TotalHours), 2),
+                    HourlyRate = showCost ? RateOn(sample.UserId, sample.RotaStaffMemberId, to) : null,
+                    LabourCost = cost,
                 };
             })
             .OrderBy(x => x.UserName)

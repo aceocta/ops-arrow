@@ -15,6 +15,8 @@ import {
   DoorOpen,
   Receipt,
   Calculator,
+  PoundSterling,
+  ArrowLeftRight,
   Settings,
   ChevronDown,
   LogOut,
@@ -37,7 +39,9 @@ const NAV: NavGroup[] = [
     items: [
       { to: "/rota", label: "Rota", icon: CalendarDays, feature: "StaffRota" },
       { to: "/timesheets", label: "Timesheets", icon: Clock, feature: "StaffRota" },
+      { to: "/timesheets/rates", label: "Pay Rates", icon: PoundSterling, feature: "staff_rota.labour_cost" },
       { to: "/approvals", label: "Time Approvals", icon: CheckCheck, feature: "staff_rota.manual_approval" },
+      { to: "/shift-swaps", label: "Shift Swaps", icon: ArrowLeftRight, feature: "staff_rota.shift_swap" },
       { to: "/staff", label: "External Staff", icon: UsersRound, feature: "StaffRota" },
     ],
   },

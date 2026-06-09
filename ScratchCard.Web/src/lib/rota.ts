@@ -45,6 +45,8 @@ export type TimesheetRow = {
   shiftsWorked: number;
   openSessions: number;
   totalHours: number;
+  hourlyRate?: number | null;
+  labourCost?: number | null;
 };
 export type ShiftTimesheetRow = {
   shiftName: string;

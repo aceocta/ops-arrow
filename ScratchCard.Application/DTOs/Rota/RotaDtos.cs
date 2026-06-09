@@ -173,6 +173,8 @@ public class TimesheetRowDto
     public int ShiftsWorked { get; set; }      // attendance records that were checked out
     public int OpenSessions { get; set; }       // checked in but not out
     public decimal TotalHours { get; set; }     // sum of completed sessions
+    public decimal? HourlyRate { get; set; }    // current rate (null if labour-cost not entitled / no rate)
+    public decimal? LabourCost { get; set; }    // Σ session hours × rate effective on each session's date
 }
 
 // One worked session in a staff member's timesheet drill-down.

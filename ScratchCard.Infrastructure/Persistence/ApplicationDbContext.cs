@@ -57,6 +57,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<TemperatureDailySignoff> TemperatureDailySignoffs => Set<TemperatureDailySignoff>();
     public DbSet<RotaShift> RotaShifts => Set<RotaShift>();
     public DbSet<RotaStaffMember> RotaStaffMembers => Set<RotaStaffMember>();
+    public DbSet<StaffPayRate> StaffPayRates => Set<StaffPayRate>();
+    public DbSet<ShiftSwapRequest> ShiftSwapRequests => Set<ShiftSwapRequest>();
     public DbSet<ShiftAssignment> ShiftAssignments => Set<ShiftAssignment>();
     public DbSet<ShiftAttendance> ShiftAttendances => Set<ShiftAttendance>();
     public DbSet<SignupEmailVerification> SignupEmailVerifications => Set<SignupEmailVerification>();
@@ -748,6 +750,27 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.Phone).HasMaxLength(40);
             entity.Property(x => x.Email).HasMaxLength(256);
             entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        modelBuilder.Entity<StaffPayRate>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.UserId, x.RotaStaffMemberId, x.EffectiveFrom });
+            entity.Property(x => x.HourlyRate).HasPrecision(9, 2);
+            entity.Property(x => x.Notes).HasMaxLength(300);
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.RotaStaffMember).WithMany().HasForeignKey(x => x.RotaStaffMemberId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        modelBuilder.Entity<ShiftSwapRequest>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.Status });
+            entity.HasIndex(x => x.FromShiftId);
+            entity.Property(x => x.Note).HasMaxLength(500);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.Requester).WithMany().HasForeignKey(x => x.RequesterUserId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.FromShift).WithMany().HasForeignKey(x => x.FromShiftId).OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<ShiftAssignment>(entity =>

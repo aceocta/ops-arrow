@@ -13,6 +13,7 @@ import { DashboardScreen } from "../features/dashboard/DashboardScreen";
 import { BestEntryScreen } from "../features/entry/BestEntryScreen";
 import { OwnerOverviewScreen } from "../features/dashboard/OwnerOverviewScreen";
 import { MyShiftsScreen, RotaManageScreen, RotaTimesheetScreen, RotaApprovalsScreen, RotaStaffMembersScreen } from "../features/rota/RotaScreens";
+import { ShiftSwapsScreen } from "../features/rota/ShiftSwapsScreen";
 import { UserInvitationsScreen } from "../features/invitations/UserInvitationsScreen";
 import { DeliveriesScreen } from "../features/deliveries/DeliveriesScreen";
 import { ReceiveDeliveryScreen } from "../features/deliveries/ReceiveDeliveryScreen";
@@ -181,6 +182,7 @@ const complianceItems: MenuItem[] = [
 // --- Shifts (staff rota & attendance) ---
 const shiftItems: MenuItem[] = [
   { label: "My Shifts", screen: "MyShifts", icon: "time-outline", requiredFeature: "StaffRota" },
+  { label: "Shift Swaps", screen: "ShiftSwaps", icon: "swap-horizontal-outline", requiredFeature: "staff_rota.shift_swap" },
   { label: "Shift Rota", screen: "RotaManage", icon: "calendar-number-outline", allowedRoles: ["CompanyOwner", "Manager"], requiredFeature: "StaffRota" },
   { label: "External Staff", screen: "RotaStaffMembers", icon: "people-circle-outline", allowedRoles: ["CompanyOwner", "Manager"], requiredFeature: "StaffRota" },
   { label: "Time Approvals", screen: "RotaApprovals", icon: "checkmark-done-outline", allowedRoles: ["CompanyOwner", "Manager"], requiredFeature: "staff_rota.manual_approval" },
@@ -270,6 +272,7 @@ function shouldShowBottomDock(routeName: string | undefined) {
     routeName === "TillReportHistory" ||
     routeName === "TillPaymentSummary" ||
     routeName === "TillReconciliation" ||
+    routeName === "ShiftSwaps" ||
     routeName === "TillsConfig" ||
     routeName === "PaymentTypesConfig" ||
     routeName === "VisitorLogEntryEdit" ||
@@ -452,6 +455,7 @@ function MainStackScreens() {
       <Stack.Screen name="RotaManage" component={RotaManageScreen} options={{ title: "Shift Rota" }} />
       <Stack.Screen name="RotaTimesheet" component={RotaTimesheetScreen} options={{ title: "Timesheet" }} />
       <Stack.Screen name="RotaApprovals" component={RotaApprovalsScreen} options={{ title: "Time Approvals" }} />
+      <Stack.Screen name="ShiftSwaps" component={ShiftSwapsScreen} options={{ title: "Shift Swaps" }} />
       <Stack.Screen name="RotaStaffMembers" component={RotaStaffMembersScreen} options={{ title: "External Staff" }} />
       <Stack.Screen name="ShopChecklist" component={ShopChecklistScreen} options={{ title: "Shop Checklist" }} />
       <Stack.Screen name="ComplianceChecks" component={ComplianceChecksScreen} options={{ title: "Compliance Checks" }} />

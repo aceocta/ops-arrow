@@ -72,6 +72,8 @@ public static class FeatureKeys
     public const string StaffRotaManualApproval = "staff_rota.manual_approval";
     public const string StaffRotaShiftReminders = "staff_rota.shift_reminders";
     public const string StaffRotaTimesheetExport = "staff_rota.timesheet_export";
+    public const string StaffRotaLabourCost = "staff_rota.labour_cost";
+    public const string StaffRotaShiftSwap = "staff_rota.shift_swap";
 
     // --- Notifications ---
     public const string NotificationsEmail = "notifications.email";
@@ -168,6 +170,8 @@ public static class FeatureKeys
         new FeatureCatalogEntry(StaffRotaManualApproval, "Manual entry & approval", "Staff Rota", "Staff manual time entry with manager approval.", 65),
         new FeatureCatalogEntry(StaffRotaShiftReminders, "Shift reminders", "Staff Rota", "Push reminder before a staff member's shift starts.", 66),
         new FeatureCatalogEntry(StaffRotaTimesheetExport, "Weekly timesheet export", "Staff Rota", "Weekly timesheet sent by email / WhatsApp.", 67),
+        new FeatureCatalogEntry(StaffRotaLabourCost, "Labour cost & pay rates", "Staff Rota", "Effective-dated hourly rates + wage cost on timesheets.", 68),
+        new FeatureCatalogEntry(StaffRotaShiftSwap, "Shift swap", "Staff Rota", "Staff swap / give-away shifts with peer accept + manager notify.", 69),
 
         // Notifications.
         new FeatureCatalogEntry(NotificationsEmail, "Email notifications", "Notifications", null, 60),
@@ -249,6 +253,7 @@ public static class FeatureKeys
             [StaffRota] = new[]
             {
                 StaffRotaBasic, StaffRotaManualApproval, StaffRotaShiftReminders, StaffRotaTimesheetExport,
+                StaffRotaLabourCost, StaffRotaShiftSwap,
             },
         };
 

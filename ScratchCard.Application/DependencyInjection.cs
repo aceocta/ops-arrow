@@ -26,6 +26,8 @@ public static class DependencyInjection
         services.AddScoped<ITillReconciliationService, TillReconciliationService>();
         services.AddScoped<ITillSettlementService, TillSettlementService>();
         services.AddScoped<ITillAccountingService, TillAccountingService>();
+        services.AddScoped<IStaffPayRateService, StaffPayRateService>();
+        services.AddScoped<IShiftSwapService, ShiftSwapService>();
         services.AddScoped<ISubscriptionCalculationService, SubscriptionCalculationService>();
         services.AddScoped<IInvoiceService, InvoiceService>();
         services.AddScoped<ISubscriptionBillingService, SubscriptionBillingService>();
