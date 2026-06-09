@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
+import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { compressForUpload } from "../../utils/imageCompression";
@@ -632,7 +634,7 @@ function ImageViewerModal({ attachment, onClose }: { attachment: ReconciliationA
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.viewerBackdrop}>
+      <GestureHandlerRootView style={styles.viewerBackdrop}>
         <View style={styles.viewerHeader}>
           <Text style={styles.viewerTitle} numberOfLines={1}>{attachment.sourceLabel || attachment.fileName || "Image"}</Text>
           <View style={styles.viewerActions}>
@@ -645,12 +647,57 @@ function ImageViewerModal({ attachment, onClose }: { attachment: ReconciliationA
           </View>
         </View>
         {q.data ? (
-          <Image source={{ uri: q.data }} style={styles.viewerImg} resizeMode="contain" />
+          <ZoomableImage uri={q.data} />
         ) : (
           <View style={styles.viewerImg}><ActivityIndicator color="#fff" size="large" /></View>
         )}
-      </View>
+        <Text style={styles.viewerHint}>Pinch to zoom · double-tap · drag to pan</Text>
+      </GestureHandlerRootView>
     </Modal>
+  );
+}
+
+// Pinch-zoom + pan + double-tap-to-zoom image (gesture-handler + reanimated).
+function ZoomableImage({ uri }: { uri: string }) {
+  const scale = useSharedValue(1);
+  const savedScale = useSharedValue(1);
+  const tx = useSharedValue(0);
+  const ty = useSharedValue(0);
+  const savedTx = useSharedValue(0);
+  const savedTy = useSharedValue(0);
+
+  const reset = () => {
+    "worklet";
+    scale.value = withTiming(1); savedScale.value = 1;
+    tx.value = withTiming(0); ty.value = withTiming(0); savedTx.value = 0; savedTy.value = 0;
+  };
+
+  const pinch = Gesture.Pinch()
+    .onUpdate((e) => { scale.value = Math.max(1, Math.min(savedScale.value * e.scale, 5)); })
+    .onEnd(() => { savedScale.value = scale.value; if (scale.value <= 1) reset(); });
+
+  const pan = Gesture.Pan()
+    .onUpdate((e) => {
+      if (scale.value <= 1) return;
+      tx.value = savedTx.value + e.translationX;
+      ty.value = savedTy.value + e.translationY;
+    })
+    .onEnd(() => { savedTx.value = tx.value; savedTy.value = ty.value; });
+
+  const doubleTap = Gesture.Tap().numberOfTaps(2).onEnd(() => {
+    if (scale.value > 1) reset();
+    else { scale.value = withTiming(2.5); savedScale.value = 2.5; }
+  });
+
+  const gesture = Gesture.Race(doubleTap, Gesture.Simultaneous(pinch, pan));
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: tx.value }, { translateY: ty.value }, { scale: scale.value }],
+  }));
+
+  return (
+    <GestureDetector gesture={gesture}>
+      <Animated.Image source={{ uri }} style={[styles.viewerImg, animStyle]} resizeMode="contain" />
+    </GestureDetector>
   );
 }
 
@@ -884,6 +931,7 @@ const styles = StyleSheet.create({
   viewerActions: { flexDirection: "row", gap: appTheme.spacing.md },
   viewerAction: { padding: 4 },
   viewerImg: { flex: 1, width: "100%", alignItems: "center", justifyContent: "center" },
+  viewerHint: { textAlign: "center", color: "rgba(255,255,255,0.5)", fontFamily: appTheme.fonts.body, fontSize: 12, paddingVertical: 10 },
   verifyDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: appTheme.colors.warning },
   verifyHint: { color: appTheme.colors.warning, fontFamily: appTheme.fonts.body, fontSize: 11, marginTop: 2 },
   proofFlag: { fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, marginTop: 8 },
