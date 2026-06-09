@@ -169,22 +169,6 @@ if (app.Environment.IsDevelopment())
 // Liveness probe — no DB, no auth. Use this to tell "app is up" from "DB is down".
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok", utc = DateTimeOffset.UtcNow }));
 
-// DB readiness probe — pings the database and reports the real error if it can't connect.
-// TODO: remove (or lock down) once the environment is healthy; it surfaces the DB error message.
-app.MapGet("/api/health/db", async (ApplicationDbContext db) =>
-{
-    try
-    {
-        var canConnect = await db.Database.CanConnectAsync();
-        var pending = canConnect ? (await db.Database.GetPendingMigrationsAsync()).ToList() : new List<string>();
-        return Results.Ok(new { db = canConnect ? "ok" : "unreachable", pendingMigrations = pending });
-    }
-    catch (Exception ex)
-    {
-        return Results.Json(new { db = "error", message = ex.Message, inner = ex.InnerException?.Message }, statusCode: 500);
-    }
-});
-
 app.UseCors("AllowFrontend");
 
 app.UseAuthentication();

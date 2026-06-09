@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using ScratchCard.Application.Common.Interfaces;
+using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.StoreSales;
 using ScratchCard.Domain.Constants;
 using ScratchCard.Domain.Entities;
@@ -11,15 +12,26 @@ namespace ScratchCard.Application.Services;
 
 public sealed class TillAccountingService : ITillAccountingService
 {
-    private readonly IRepository<TillReconciliation> _reconciliations;
+    private static readonly string[] ManagementRoles = [RoleNames.CompanyOwner, RoleNames.Manager];
 
-    public TillAccountingService(IRepository<TillReconciliation> reconciliations)
+    private readonly IRepository<TillReconciliation> _reconciliations;
+    private readonly IShopMembershipService _shopMembership;
+    private readonly IFeatureGateService _featureGate;
+
+    public TillAccountingService(
+        IRepository<TillReconciliation> reconciliations,
+        IShopMembershipService shopMembership,
+        IFeatureGateService featureGate)
     {
         _reconciliations = reconciliations;
+        _shopMembership = shopMembership;
+        _featureGate = featureGate;
     }
 
     public async Task<AccountingSummaryDto> GetSummaryAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
     {
+        await _shopMembership.EnsureCurrentUserShopRoleAsync(shopId, ManagementRoles, cancellationToken);
+        await _featureGate.EnsureFeatureAsync(shopId, FeatureKeys.StoreSales, cancellationToken);
         var recs = await _reconciliations.Query()
             .Include(r => r.Lines)
             .Where(r => r.ShopId == shopId && r.BusinessDate >= from && r.BusinessDate <= to)

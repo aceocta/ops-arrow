@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
+using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.StoreSales;
 using ScratchCard.Domain.Constants;
 using ScratchCard.Domain.Entities;
@@ -14,6 +15,10 @@ public sealed class TillReconciliationService : ITillReconciliationService
     // TODO Phase 2: make per-shop configurable (absolute or % of cash sales).
     private const decimal VarianceTolerance = 5m;
 
+    // Reconciliation is a shop-floor task (cashiers count/capture); managers also approve.
+    private static readonly string[] StaffRoles = [RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant];
+    private static readonly string[] ManagementRoles = [RoleNames.CompanyOwner, RoleNames.Manager];
+
     private readonly IRepository<TillReconciliation> _reconciliations;
     private readonly IRepository<TillReconciliationLine> _lines;
     private readonly IRepository<TillReconciliationAttachment> _attachments;
@@ -22,6 +27,8 @@ public sealed class TillReconciliationService : ITillReconciliationService
     private readonly ITillCanonicalAiClassifier _aiClassifier;
     private readonly ITillReportOcrService _ocr;
     private readonly IAttachmentStorageService _storage;
+    private readonly IShopMembershipService _shopMembership;
+    private readonly IFeatureGateService _featureGate;
     private readonly ICurrentUserService _currentUser;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -34,6 +41,8 @@ public sealed class TillReconciliationService : ITillReconciliationService
         ITillCanonicalAiClassifier aiClassifier,
         ITillReportOcrService ocr,
         IAttachmentStorageService storage,
+        IShopMembershipService shopMembership,
+        IFeatureGateService featureGate,
         ICurrentUserService currentUser,
         IUnitOfWork unitOfWork)
     {
@@ -45,12 +54,23 @@ public sealed class TillReconciliationService : ITillReconciliationService
         _aiClassifier = aiClassifier;
         _ocr = ocr;
         _storage = storage;
+        _shopMembership = shopMembership;
+        _featureGate = featureGate;
         _currentUser = currentUser;
         _unitOfWork = unitOfWork;
     }
 
+    /// <summary>Per-shop authorization: caller must be a member of the shop with an allowed role,
+    /// and the shop must have the Store Sales feature. Stops cross-shop (IDOR) access.</summary>
+    private async Task EnsureAccessAsync(Guid shopId, string[] roles, CancellationToken ct)
+    {
+        await _shopMembership.EnsureCurrentUserShopRoleAsync(shopId, roles, ct);
+        await _featureGate.EnsureFeatureAsync(shopId, FeatureKeys.StoreSales, ct);
+    }
+
     public async Task<TillReconciliationDto> GetOrCreateAsync(GetOrCreateReconciliationRequest request, CancellationToken cancellationToken = default)
     {
+        await EnsureAccessAsync(request.ShopId, StaffRoles, cancellationToken);
         var existing = await Query()
             .FirstOrDefaultAsync(r =>
                 r.ShopId == request.ShopId &&
@@ -81,10 +101,15 @@ public sealed class TillReconciliationService : ITillReconciliationService
     }
 
     public async Task<TillReconciliationDto> GetAsync(Guid id, CancellationToken cancellationToken = default)
-        => Map(await LoadAsync(id, cancellationToken));
+    {
+        var rec = await LoadAsync(id, cancellationToken);
+        await EnsureAccessAsync(rec.ShopId, StaffRoles, cancellationToken);
+        return Map(rec);
+    }
 
     public async Task<IReadOnlyCollection<TillReconciliationDto>> ListAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
     {
+        await EnsureAccessAsync(shopId, StaffRoles, cancellationToken);
         var rows = await Query()
             .Where(r => r.ShopId == shopId && r.BusinessDate >= from && r.BusinessDate <= to)
             .OrderByDescending(r => r.BusinessDate)
@@ -95,6 +120,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
     public async Task<TillReconciliationDto> SaveLineAsync(SaveReconciliationLineRequest request, CancellationToken cancellationToken = default)
     {
         var rec = await LoadAsync(request.ReconciliationId, cancellationToken);
+        await EnsureAccessAsync(rec.ShopId, StaffRoles, cancellationToken);
 
         var line = request.LineId is { } lineId ? rec.Lines.FirstOrDefault(l => l.Id == lineId) : null;
         if (line is null)
@@ -135,6 +161,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         var line = await _lines.Query().FirstOrDefaultAsync(l => l.Id == lineId, cancellationToken)
             ?? throw new AppException("line_not_found", "Reconciliation line not found.", 404);
         var rec = await LoadAsync(line.TillReconciliationId, cancellationToken);
+        await EnsureAccessAsync(rec.ShopId, StaffRoles, cancellationToken);
         var toRemove = rec.Lines.First(l => l.Id == lineId);
         rec.Lines.Remove(toRemove);
         _lines.Remove(toRemove);
@@ -147,6 +174,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
     public async Task<TillReconciliationDto> SetCashCountAsync(SetCashCountRequest request, CancellationToken cancellationToken = default)
     {
         var rec = await LoadAsync(request.ReconciliationId, cancellationToken);
+        await EnsureAccessAsync(rec.ShopId, StaffRoles, cancellationToken);
         if (request.OpeningFloat is { } of) rec.OpeningFloat = of;
         rec.CountedCash = request.CountedCash;
         rec.DenominationJson = request.DenominationJson;
@@ -162,6 +190,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
     public async Task<TillReconciliationDto> SetVarianceReasonAsync(SetVarianceReasonRequest request, CancellationToken cancellationToken = default)
     {
         var rec = await LoadAsync(request.ReconciliationId, cancellationToken);
+        await EnsureAccessAsync(rec.ShopId, StaffRoles, cancellationToken);
         rec.VarianceReasonCode = request.ReasonCode;
         rec.VarianceNotes = request.Notes;
         _reconciliations.Update(rec);
@@ -172,6 +201,8 @@ public sealed class TillReconciliationService : ITillReconciliationService
     public async Task<TillReconciliationDto> SetStatusAsync(Guid id, TillReconciliationStatus status, CancellationToken cancellationToken = default)
     {
         var rec = await LoadAsync(id, cancellationToken);
+        // Approval is a management action; capture/reconcile is staff-level.
+        await EnsureAccessAsync(rec.ShopId, status == TillReconciliationStatus.Approved ? ManagementRoles : StaffRoles, cancellationToken);
 
         // Block approval if a material variance has no reason recorded.
         if (status == TillReconciliationStatus.Approved)
@@ -195,6 +226,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         Guid reconciliationId, byte[] content, string contentType, string fileName, string? sourceLabel, CancellationToken cancellationToken = default)
     {
         var rec = await LoadAsync(reconciliationId, cancellationToken);
+        await EnsureAccessAsync(rec.ShopId, StaffRoles, cancellationToken);
 
         // Store the source image, then OCR it.
         var relativePath = $"till-reconciliation/{rec.ShopId:N}/{rec.Id:N}/{Guid.NewGuid():N}_{SanitizeFileName(fileName)}";
@@ -263,6 +295,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
 
     public async Task<TillRollupDto> GetRollupAsync(Guid shopId, DateOnly businessDate, CancellationToken cancellationToken = default)
     {
+        await EnsureAccessAsync(shopId, ManagementRoles, cancellationToken);
         var recs = await Query()
             .Where(r => r.ShopId == shopId && r.BusinessDate == businessDate)
             .ToListAsync(cancellationToken);
@@ -308,6 +341,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
 
     public async Task<TillAnalyticsDto> GetAnalyticsAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
     {
+        await EnsureAccessAsync(shopId, ManagementRoles, cancellationToken);
         var recs = await Query()
             .Where(r => r.ShopId == shopId && r.BusinessDate >= from && r.BusinessDate <= to)
             .ToListAsync(cancellationToken);

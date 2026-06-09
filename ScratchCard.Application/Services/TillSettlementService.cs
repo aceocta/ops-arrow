@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
+using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.StoreSales;
+using ScratchCard.Domain.Constants;
 using ScratchCard.Domain.Entities;
 using ScratchCard.Domain.Enums;
 
@@ -11,10 +13,13 @@ public sealed class TillSettlementService : ITillSettlementService
 {
     private const decimal PostOfficeTolerance = 5m;     // £ tolerance for PO over/short banding
     private const decimal SettlementTolerance = 1m;     // £ tolerance for DD-vs-captured matching
+    private static readonly string[] ManagementRoles = [RoleNames.CompanyOwner, RoleNames.Manager];
 
     private readonly IRepository<PostOfficeBalance> _postOffice;
     private readonly IRepository<ProviderSettlement> _settlements;
     private readonly IRepository<TillReconciliation> _reconciliations;
+    private readonly IShopMembershipService _shopMembership;
+    private readonly IFeatureGateService _featureGate;
     private readonly ICurrentUserService _currentUser;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -22,20 +27,31 @@ public sealed class TillSettlementService : ITillSettlementService
         IRepository<PostOfficeBalance> postOffice,
         IRepository<ProviderSettlement> settlements,
         IRepository<TillReconciliation> reconciliations,
+        IShopMembershipService shopMembership,
+        IFeatureGateService featureGate,
         ICurrentUserService currentUser,
         IUnitOfWork unitOfWork)
     {
         _postOffice = postOffice;
         _settlements = settlements;
         _reconciliations = reconciliations;
+        _shopMembership = shopMembership;
+        _featureGate = featureGate;
         _currentUser = currentUser;
         _unitOfWork = unitOfWork;
+    }
+
+    private async Task EnsureAccessAsync(Guid shopId, CancellationToken ct)
+    {
+        await _shopMembership.EnsureCurrentUserShopRoleAsync(shopId, ManagementRoles, ct);
+        await _featureGate.EnsureFeatureAsync(shopId, FeatureKeys.StoreSales, ct);
     }
 
     // ---------- Post Office ----------
 
     public async Task<PostOfficeBalanceDto> GetOrCreatePostOfficeAsync(GetOrCreatePostOfficeRequest request, CancellationToken cancellationToken = default)
     {
+        await EnsureAccessAsync(request.ShopId, cancellationToken);
         var existing = await _postOffice.Query()
             .FirstOrDefaultAsync(p => p.ShopId == request.ShopId && p.BusinessDate == request.BusinessDate, cancellationToken);
         if (existing is not null) return MapPo(existing);
@@ -56,6 +72,7 @@ public sealed class TillSettlementService : ITillSettlementService
     public async Task<PostOfficeBalanceDto> SavePostOfficeAsync(SavePostOfficeRequest request, CancellationToken cancellationToken = default)
     {
         var po = await LoadPoAsync(request.Id, cancellationToken);
+        await EnsureAccessAsync(po.ShopId, cancellationToken);
         po.OpeningBalance = request.OpeningBalance;
         po.CashIn = request.CashIn;
         po.CashOut = request.CashOut;
@@ -73,6 +90,7 @@ public sealed class TillSettlementService : ITillSettlementService
     public async Task<PostOfficeBalanceDto> SetPostOfficeStatusAsync(Guid id, TillReconciliationStatus status, CancellationToken cancellationToken = default)
     {
         var po = await LoadPoAsync(id, cancellationToken);
+        await EnsureAccessAsync(po.ShopId, cancellationToken);
         if (status == TillReconciliationStatus.Approved)
         {
             po.ConfirmedByUserId = _currentUser.UserId;
@@ -88,6 +106,7 @@ public sealed class TillSettlementService : ITillSettlementService
 
     public async Task<ProviderSettlementDto> GetOrCreateSettlementAsync(GetOrCreateSettlementRequest request, CancellationToken cancellationToken = default)
     {
+        await EnsureAccessAsync(request.ShopId, cancellationToken);
         var existing = await _settlements.Query().FirstOrDefaultAsync(s =>
             s.ShopId == request.ShopId && s.Provider == request.Provider &&
             s.PeriodStart == request.PeriodStart && s.PeriodEnd == request.PeriodEnd, cancellationToken);
@@ -120,6 +139,7 @@ public sealed class TillSettlementService : ITillSettlementService
     public async Task<ProviderSettlementDto> RefreshCapturedAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var s = await LoadSettlementAsync(id, cancellationToken);
+        await EnsureAccessAsync(s.ShopId, cancellationToken);
         await ApplyCapturedAsync(s, cancellationToken);
         Recompute(s);
         _settlements.Update(s);
@@ -130,6 +150,7 @@ public sealed class TillSettlementService : ITillSettlementService
     public async Task<ProviderSettlementDto> SetStatementAsync(SetStatementRequest request, CancellationToken cancellationToken = default)
     {
         var s = await LoadSettlementAsync(request.Id, cancellationToken);
+        await EnsureAccessAsync(s.ShopId, cancellationToken);
         s.StatementAmount = request.StatementAmount;
         s.StatementCommission = request.StatementCommission;
         s.DdAmount = request.DdAmount;
@@ -144,6 +165,7 @@ public sealed class TillSettlementService : ITillSettlementService
     public async Task<ProviderSettlementDto> SetSettlementStatusAsync(Guid id, SettlementStatus status, CancellationToken cancellationToken = default)
     {
         var s = await LoadSettlementAsync(id, cancellationToken);
+        await EnsureAccessAsync(s.ShopId, cancellationToken);
         s.Status = status;
         _settlements.Update(s);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -152,6 +174,7 @@ public sealed class TillSettlementService : ITillSettlementService
 
     public async Task<IReadOnlyCollection<ProviderSettlementDto>> ListSettlementsAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
     {
+        await EnsureAccessAsync(shopId, cancellationToken);
         var rows = await _settlements.Query()
             .Where(s => s.ShopId == shopId && s.PeriodEnd >= from && s.PeriodStart <= to)
             .OrderByDescending(s => s.PeriodStart)
