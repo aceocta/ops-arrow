@@ -75,6 +75,13 @@ export function TillReconciliationScreen() {
   const [tillId, setTillId] = useState<string | undefined>(undefined);
   const [reportType, setReportType] = useState<"DayEnd" | "Shift">("DayEnd");
   const [shiftId, setShiftId] = useState<string | undefined>(undefined);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [moveOpen, setMoveOpen] = useState(false);
+  const toggleSelect = (id: string) => setSelected((prev) => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
 
   // The shop's tills. With 0–1 tills we stay single-drawer (tillId undefined); with several, the
   // cashier picks which till they're reconciling and each gets its own reconciliation.
@@ -131,6 +138,34 @@ export function TillReconciliationScreen() {
     mutationFn: (status: Reconciliation["status"]) => setReconciliationStatus(data!.id, status),
     onSuccess: (r) => { setData(r); toastSuccess(r.status === "Approved" ? "Approved." : "Saved."); },
     onError: (e: any) => toastError(e?.response?.data?.message ?? "Couldn't update."),
+  });
+
+  // Bulk actions on the checkbox-selected lines: remove them, or reassign them to another field.
+  const bulkMutation = useMutation({
+    mutationFn: async (action: { type: "delete" } | { type: "move"; field: TillCanonicalField }) => {
+      let result: Reconciliation | null = null;
+      for (const id of selected) {
+        if (action.type === "delete") {
+          result = await deleteReconciliationLine(id);
+        } else {
+          const line = data?.lines.find((l) => l.id === id);
+          if (!line) continue;
+          result = await saveReconciliationLine({
+            reconciliationId: data!.id,
+            lineId: id,
+            canonicalField: action.field,
+            rawLabel: line.rawLabel ?? undefined,
+            verifiedAmount: line.verifiedAmount,
+            quantity: line.quantity ?? undefined,
+            captureMethod: line.captureMethod,
+            status: "Verified",
+          });
+        }
+      }
+      return result;
+    },
+    onSuccess: (r) => { if (r) setData(r); setSelected(new Set()); setMoveOpen(false); toastSuccess("Lines updated."); },
+    onError: (e: any) => toastError(e?.response?.data?.message ?? "Couldn't update lines."),
   });
 
   const ingestMutation = useMutation({
@@ -307,27 +342,66 @@ export function TillReconciliationScreen() {
               </View>
             ) : null}
 
-            {/* Lines grouped */}
-            {grouped.map(([group, lines]) => (
-              <View key={group} style={ui.card}>
-                <Text style={ui.sectionTitle}>{GROUP_TITLE[group] ?? group}</Text>
-                {lines.map((l) => (
-                  <Pressable key={l.id} style={styles.lineRow} onPress={() => !locked && setEditingLine(l)} disabled={locked}>
-                    {l.status !== "Verified" ? <View style={styles.verifyDot} /> : null}
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.lineName}>
-                        {l.canonicalField === "Unmapped" ? (l.rawLabel || "Unmapped") : l.fieldName}
-                      </Text>
-                      {l.rawLabel && l.canonicalField !== "Unmapped" ? <Text style={styles.muted} numberOfLines={1}>{l.rawLabel}</Text> : null}
-                      {l.status !== "Verified" ? <Text style={styles.verifyHint}>Tap to verify</Text> : null}
-                    </View>
-                    <Text style={styles.lineAmount}>
-                      {l.canonicalField === "NoSale" ? `× ${l.quantity ?? 0}` : gbp(l.verifiedAmount)}
-                    </Text>
+            {/* Bulk-action bar for checkbox-selected lines */}
+            {!locked && selected.size > 0 ? (
+              <View style={[ui.card, styles.selectBar]}>
+                <Text style={styles.selectCount}>{selected.size} selected</Text>
+                <View style={styles.selectActions}>
+                  <Pressable style={styles.selectBtn} onPress={() => setMoveOpen(true)} disabled={bulkMutation.isPending}>
+                    <Ionicons name="swap-horizontal-outline" size={16} color={appTheme.colors.primary} />
+                    <Text style={styles.selectBtnText}>Move to…</Text>
                   </Pressable>
-                ))}
+                  <Pressable style={styles.selectBtn} onPress={async () => {
+                    if (await confirmDestructive({ title: `Remove ${selected.size} line(s)?`, confirmLabel: "Remove" })) bulkMutation.mutate({ type: "delete" });
+                  }} disabled={bulkMutation.isPending}>
+                    <Ionicons name="trash-outline" size={16} color={appTheme.colors.danger} />
+                    <Text style={[styles.selectBtnText, { color: appTheme.colors.danger }]}>Remove</Text>
+                  </Pressable>
+                  <Pressable style={styles.selectBtn} onPress={() => setSelected(new Set())} disabled={bulkMutation.isPending}>
+                    <Text style={styles.selectBtnText}>Clear</Text>
+                  </Pressable>
+                </View>
               </View>
-            ))}
+            ) : null}
+
+            {/* Lines grouped */}
+            {grouped.map(([group, lines]) => {
+              const subtotal = lines.reduce((s, l) => s + l.verifiedAmount, 0);
+              return (
+                <View key={group} style={ui.card}>
+                  <Text style={ui.sectionTitle}>{GROUP_TITLE[group] ?? group}</Text>
+                  {lines.map((l) => {
+                    const isSel = selected.has(l.id);
+                    return (
+                      <View key={l.id} style={styles.lineRow}>
+                        {!locked ? (
+                          <Pressable hitSlop={8} onPress={() => toggleSelect(l.id)}>
+                            <Ionicons name={isSel ? "checkbox" : "square-outline"} size={20} color={isSel ? appTheme.colors.primary : appTheme.colors.textSubtle} />
+                          </Pressable>
+                        ) : null}
+                        {l.status !== "Verified" ? <View style={styles.verifyDot} /> : null}
+                        <Pressable style={styles.lineBody} onPress={() => !locked && setEditingLine(l)} disabled={locked}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.lineName}>
+                              {l.canonicalField === "Unmapped" ? (l.rawLabel || "Unmapped") : l.fieldName}
+                            </Text>
+                            {l.rawLabel && l.canonicalField !== "Unmapped" ? <Text style={styles.muted} numberOfLines={1}>{l.rawLabel}</Text> : null}
+                            {l.status !== "Verified" ? <Text style={styles.verifyHint}>Tap to verify</Text> : null}
+                          </View>
+                          <Text style={styles.lineAmount}>
+                            {l.canonicalField === "NoSale" ? `× ${l.quantity ?? 0}` : gbp(l.verifiedAmount)}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    );
+                  })}
+                  <View style={styles.sectionTotalRow}>
+                    <Text style={styles.sectionTotalLabel}>Total</Text>
+                    <Text style={styles.sectionTotal}>{gbp(subtotal)}</Text>
+                  </View>
+                </View>
+              );
+            })}
 
             {/* Exceptions chips */}
             {(data.summary.noSaleCount > 0 || data.summary.voids !== 0 || data.summary.refunds !== 0) ? (
@@ -375,7 +449,48 @@ export function TillReconciliationScreen() {
       {cashOpen && data ? (
         <CashCountModal recon={data} onClose={() => setCashOpen(false)} onSaved={(r) => { setData(r); setCashOpen(false); }} />
       ) : null}
+
+      {moveOpen ? (
+        <MoveLinesModal
+          count={selected.size}
+          busy={bulkMutation.isPending}
+          onPick={(field) => bulkMutation.mutate({ type: "move", field })}
+          onClose={() => setMoveOpen(false)}
+        />
+      ) : null}
     </ScreenContainer>
+  );
+}
+
+function MoveLinesModal({ count, busy, onPick, onClose }: {
+  count: number; busy: boolean; onPick: (field: TillCanonicalField) => void; onClose: () => void;
+}) {
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.sheetBackdrop}>
+        <View style={styles.sheet}>
+          <View style={styles.sheetHeader}>
+            <Text style={ui.sectionTitle}>Move {count} line(s) to…</Text>
+            <Pressable onPress={onClose} hitSlop={8}><Ionicons name="close" size={22} color={appTheme.colors.text} /></Pressable>
+          </View>
+          <ScrollView style={{ maxHeight: 380 }}>
+            {FIELD_OPTIONS.map((g) => (
+              <View key={g.group} style={{ marginBottom: 8 }}>
+                <Text style={styles.muted}>{g.group}</Text>
+                <View style={styles.chipWrap}>
+                  {g.fields.map((f) => (
+                    <Pressable key={f.value} onPress={() => onPick(f.value)} disabled={busy} style={[styles.chip, busy ? { opacity: 0.5 } : null]}>
+                      <Text style={styles.chipText}>{f.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+          <PrimaryButton label="Cancel" tone="neutral" onPress={onClose} />
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -692,6 +807,15 @@ const styles = StyleSheet.create({
   countBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 10, paddingVertical: 10, borderRadius: appTheme.radius.sm, borderWidth: 1, borderColor: appTheme.colors.border },
   countBtnText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   lineRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
+  lineBody: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
+  sectionTotalRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4, paddingTop: 8, borderTopWidth: 1, borderTopColor: appTheme.colors.border },
+  sectionTotalLabel: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
+  sectionTotal: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 14 },
+  selectBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderColor: appTheme.colors.primary, borderWidth: 1 },
+  selectCount: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
+  selectActions: { flexDirection: "row", gap: appTheme.spacing.sm },
+  selectBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 6 },
+  selectBtnText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   lineName: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
   lineAmount: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
   addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: appTheme.radius.sm, borderWidth: 1, borderColor: appTheme.colors.border, borderStyle: "dashed" },
