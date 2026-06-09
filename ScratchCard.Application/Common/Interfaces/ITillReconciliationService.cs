@@ -17,4 +17,14 @@ public interface ITillReconciliationService
     Task<TillReconciliationDto> SetCashCountAsync(SetCashCountRequest request, CancellationToken cancellationToken = default);
     Task<TillReconciliationDto> SetVarianceReasonAsync(SetVarianceReasonRequest request, CancellationToken cancellationToken = default);
     Task<TillReconciliationDto> SetStatusAsync(Guid id, TillReconciliationStatus status, CancellationToken cancellationToken = default);
+
+    /// <summary>Phase 2: OCR a captured photo, section + resolve its lines to canonical fields, and
+    /// add them as draft (Captured) lines for the verify step.</summary>
+    Task<TillReconciliationDto> IngestPhotoAsync(Guid reconciliationId, byte[] content, string contentType, string fileName, string? sourceLabel, CancellationToken cancellationToken = default);
+
+    /// <summary>Phase 2: aggregate all of a shop's till reconciliations for a date.</summary>
+    Task<TillRollupDto> GetRollupAsync(Guid shopId, DateOnly businessDate, CancellationToken cancellationToken = default);
+
+    /// <summary>Phase 2: per-staff variance/exception analytics over a date range (loss prevention).</summary>
+    Task<TillAnalyticsDto> GetAnalyticsAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
 }

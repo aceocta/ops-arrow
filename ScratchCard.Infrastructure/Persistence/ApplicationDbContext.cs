@@ -99,6 +99,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<TillReconciliation> TillReconciliations => Set<TillReconciliation>();
     public DbSet<TillReconciliationLine> TillReconciliationLines => Set<TillReconciliationLine>();
     public DbSet<TillReconciliationAttachment> TillReconciliationAttachments => Set<TillReconciliationAttachment>();
+    public DbSet<PostOfficeBalance> PostOfficeBalances => Set<PostOfficeBalance>();
+    public DbSet<ProviderSettlement> ProviderSettlements => Set<ProviderSettlement>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -449,6 +451,30 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(x => x.TillReconciliationId);
             entity.Property(x => x.StoragePath).HasMaxLength(500).IsRequired();
             entity.Property(x => x.SourceLabel).HasMaxLength(80);
+        });
+
+        modelBuilder.Entity<PostOfficeBalance>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.BusinessDate }).IsUnique();
+            foreach (var p in new[] { nameof(PostOfficeBalance.OpeningBalance), nameof(PostOfficeBalance.CashIn), nameof(PostOfficeBalance.CashOut), nameof(PostOfficeBalance.ExpectedBalance), nameof(PostOfficeBalance.CountedBalance), nameof(PostOfficeBalance.Variance) })
+            {
+                entity.Property(p).HasPrecision(18, 2);
+            }
+            entity.Property(x => x.Notes).HasMaxLength(1000);
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        modelBuilder.Entity<ProviderSettlement>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.Provider, x.PeriodStart, x.PeriodEnd }).IsUnique();
+            foreach (var p in new[] { nameof(ProviderSettlement.CapturedSales), nameof(ProviderSettlement.CapturedPrizes), nameof(ProviderSettlement.CapturedCommission), nameof(ProviderSettlement.CapturedOwed), nameof(ProviderSettlement.StatementAmount), nameof(ProviderSettlement.StatementCommission), nameof(ProviderSettlement.DdAmount), nameof(ProviderSettlement.Variance) })
+            {
+                entity.Property(p).HasPrecision(18, 2);
+            }
+            entity.Property(x => x.Notes).HasMaxLength(1000);
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<ScratchCardPack>(entity =>

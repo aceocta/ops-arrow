@@ -123,6 +123,53 @@ export async function setReconciliationStatus(id: string, status: TillReconcilia
   return response.data.data;
 }
 
+export async function ingestReconciliationPhoto(input: { id: string; uri: string; fileName?: string; mimeType?: string; sourceLabel?: string }) {
+  const formData = new FormData();
+  formData.append("file", {
+    uri: input.uri,
+    name: input.fileName ?? `till-${Date.now()}.jpg`,
+    type: input.mimeType ?? "image/jpeg",
+  } as any);
+  if (input.sourceLabel) formData.append("sourceLabel", input.sourceLabel);
+  const response = await apiClient.post<ApiResponse<Reconciliation>>(`/till-reconciliation/${input.id}/ingest-photo`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+    timeout: 90000,
+  });
+  return response.data.data;
+}
+
+export type TillRollupTill = {
+  id: string;
+  tillId?: string | null;
+  status: TillReconciliationStatus;
+  expectedCash: number;
+  countedCash?: number | null;
+  cashVariance: number;
+  varianceStatus: TillVarianceStatus;
+};
+export type TillRollup = {
+  shopId: string;
+  businessDate: string;
+  tillCount: number;
+  reconciledCount: number;
+  approvedCount: number;
+  allReconciled: boolean;
+  totalExpectedCash: number;
+  totalCountedCash: number;
+  totalCashVariance: number;
+  worstVarianceStatus: TillVarianceStatus;
+  totalCommission: number;
+  totalNoSale: number;
+  totalVoids: number;
+  totalRefunds: number;
+  tills: TillRollupTill[];
+};
+
+export async function getReconciliationRollup(shopId: string, date: string) {
+  const response = await apiClient.get<ApiResponse<TillRollup>>("/till-reconciliation/rollup", { params: { shopId, date } });
+  return response.data.data;
+}
+
 // Canonical fields offered in the manual "add line" picker, grouped for the UI.
 export const FIELD_OPTIONS: { group: string; fields: { value: TillCanonicalField; label: string }[] }[] = [
   {

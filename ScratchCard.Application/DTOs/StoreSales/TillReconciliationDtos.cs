@@ -85,6 +85,59 @@ public class TillReconciliationSummaryDto
     public int UnverifiedCount { get; set; }
 }
 
+// ---- Day rollup (multi-till) ----
+
+public class TillRollupTillDto
+{
+    public Guid Id { get; set; }
+    public Guid? TillId { get; set; }
+    public TillReconciliationStatus Status { get; set; }
+    public decimal ExpectedCash { get; set; }
+    public decimal? CountedCash { get; set; }
+    public decimal CashVariance { get; set; }
+    public TillVarianceStatus VarianceStatus { get; set; }
+}
+
+public class TillRollupDto
+{
+    public Guid ShopId { get; set; }
+    public DateOnly BusinessDate { get; set; }
+    public int TillCount { get; set; }
+    public int ReconciledCount { get; set; }
+    public int ApprovedCount { get; set; }
+    public bool AllReconciled { get; set; }
+    public decimal TotalExpectedCash { get; set; }
+    public decimal TotalCountedCash { get; set; }
+    public decimal TotalCashVariance { get; set; }
+    public TillVarianceStatus WorstVarianceStatus { get; set; }
+    public decimal TotalCommission { get; set; }
+    public int TotalNoSale { get; set; }
+    public decimal TotalVoids { get; set; }
+    public decimal TotalRefunds { get; set; }
+    public List<TillRollupTillDto> Tills { get; set; } = new();
+}
+
+// ---- Per-staff analytics (loss prevention) ----
+
+public class TillStaffAnalyticsRow
+{
+    public Guid? UserId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int Count { get; set; }
+    public decimal TotalVariance { get; set; }
+    public int ShortCount { get; set; }
+    public int AlertCount { get; set; }
+    public int NoSaleCount { get; set; }
+}
+
+public class TillAnalyticsDto
+{
+    public Guid ShopId { get; set; }
+    public DateOnly From { get; set; }
+    public DateOnly To { get; set; }
+    public List<TillStaffAnalyticsRow> Staff { get; set; } = new();
+}
+
 public class TillReconciliationDto
 {
     public Guid Id { get; set; }

@@ -50,4 +50,27 @@ public class TillReconciliationController : BaseApiController
     [HttpPost("{id:guid}/status")]
     public async Task<IActionResult> SetStatus(Guid id, [FromQuery] TillReconciliationStatus status, CancellationToken cancellationToken)
         => Success(await _service.SetStatusAsync(id, status, cancellationToken));
+
+    [HttpPost("{id:guid}/ingest-photo")]
+    [RequestSizeLimit(20_000_000)]
+    public async Task<IActionResult> IngestPhoto(Guid id, IFormFile file, [FromForm] string? sourceLabel, CancellationToken cancellationToken)
+    {
+        if (file is null || file.Length == 0)
+        {
+            return BadRequest(new { code = "no_file", message = "An image file is required." });
+        }
+        using var ms = new MemoryStream();
+        await file.CopyToAsync(ms, cancellationToken);
+        var result = await _service.IngestPhotoAsync(
+            id, ms.ToArray(), file.ContentType ?? "application/octet-stream", file.FileName, sourceLabel, cancellationToken);
+        return Success(result);
+    }
+
+    [HttpGet("rollup")]
+    public async Task<IActionResult> Rollup([FromQuery] Guid shopId, [FromQuery] DateOnly date, CancellationToken cancellationToken)
+        => Success(await _service.GetRollupAsync(shopId, date, cancellationToken));
+
+    [HttpGet("analytics")]
+    public async Task<IActionResult> Analytics([FromQuery] Guid shopId, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken cancellationToken)
+        => Success(await _service.GetAnalyticsAsync(shopId, from, to, cancellationToken));
 }

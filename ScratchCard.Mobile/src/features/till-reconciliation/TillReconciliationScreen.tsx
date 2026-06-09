@@ -1,7 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
+import { compressForUpload } from "../../utils/imageCompression";
 import { useAuth } from "../../auth/AuthContext";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -24,6 +26,7 @@ import {
   setReconciliationCashCount,
   setReconciliationVarianceReason,
   setReconciliationStatus,
+  ingestReconciliationPhoto,
 } from "../../api/tillReconciliationApi";
 
 const gbp = (n: number) =>
@@ -83,6 +86,23 @@ export function TillReconciliationScreen() {
     onError: (e: any) => toastError(e?.response?.data?.message ?? "Couldn't update."),
   });
 
+  const ingestMutation = useMutation({
+    mutationFn: async (source: "camera" | "library") => {
+      const perm = source === "camera"
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) throw new Error("Camera/photo permission is required.");
+      const picked = source === "camera"
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: "images", quality: 0.85 })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: "images", quality: 0.85 });
+      if (picked.canceled || picked.assets.length === 0) return null;
+      const out = await compressForUpload(picked.assets[0].uri);
+      return ingestReconciliationPhoto({ id: data!.id, uri: out.uri, mimeType: "image/jpeg" });
+    },
+    onSuccess: (r) => { if (r) { setData(r); toastSuccess("Photo read — verify the amounts."); } },
+    onError: (e: any) => toastError(e?.response?.data?.message ?? e?.message ?? "Couldn't read the photo."),
+  });
+
   const grouped = useMemo(() => {
     const map = new Map<string, ReconciliationLine[]>();
     for (const l of data?.lines ?? []) {
@@ -114,6 +134,19 @@ export function TillReconciliationScreen() {
         </View>
 
         {q.isLoading ? <LoadingState inline /> : null}
+
+        {data && !locked ? (
+          <View style={styles.captureRow}>
+            <Pressable style={styles.captureBtn} onPress={() => ingestMutation.mutate("camera")} disabled={ingestMutation.isPending}>
+              <Ionicons name="camera-outline" size={18} color={appTheme.colors.primary} />
+              <Text style={styles.captureText}>{ingestMutation.isPending ? "Reading…" : "Photo"}</Text>
+            </Pressable>
+            <Pressable style={styles.captureBtn} onPress={() => ingestMutation.mutate("library")} disabled={ingestMutation.isPending}>
+              <Ionicons name="image-outline" size={18} color={appTheme.colors.primary} />
+              <Text style={styles.captureText}>Upload</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         {data ? (
           <>
@@ -152,9 +185,13 @@ export function TillReconciliationScreen() {
                 <Text style={ui.sectionTitle}>{GROUP_TITLE[group] ?? group}</Text>
                 {lines.map((l) => (
                   <Pressable key={l.id} style={styles.lineRow} onPress={() => !locked && setEditingLine(l)} disabled={locked}>
+                    {l.status !== "Verified" ? <View style={styles.verifyDot} /> : null}
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.lineName}>{l.fieldName}</Text>
-                      {l.rawLabel ? <Text style={styles.muted} numberOfLines={1}>{l.rawLabel}</Text> : null}
+                      <Text style={styles.lineName}>
+                        {l.canonicalField === "Unmapped" ? (l.rawLabel || "Unmapped") : l.fieldName}
+                      </Text>
+                      {l.rawLabel && l.canonicalField !== "Unmapped" ? <Text style={styles.muted} numberOfLines={1}>{l.rawLabel}</Text> : null}
+                      {l.status !== "Verified" ? <Text style={styles.verifyHint}>Tap to verify</Text> : null}
                     </View>
                     <Text style={styles.lineAmount}>
                       {l.canonicalField === "NoSale" ? `× ${l.quantity ?? 0}` : gbp(l.verifiedAmount)}
@@ -396,6 +433,11 @@ const styles = StyleSheet.create({
   varianceRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   varianceLabel: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 16 },
   varianceValue: { fontFamily: appTheme.fonts.heading, fontSize: 20 },
+  captureRow: { flexDirection: "row", gap: appTheme.spacing.sm },
+  captureBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: appTheme.radius.sm, borderWidth: 1, borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surface },
+  captureText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
+  verifyDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: appTheme.colors.warning },
+  verifyHint: { color: appTheme.colors.warning, fontFamily: appTheme.fonts.body, fontSize: 11, marginTop: 2 },
   countBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 10, paddingVertical: 10, borderRadius: appTheme.radius.sm, borderWidth: 1, borderColor: appTheme.colors.border },
   countBtnText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   lineRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },

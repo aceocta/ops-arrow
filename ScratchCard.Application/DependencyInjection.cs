@@ -22,7 +22,10 @@ public static class DependencyInjection
         services.AddScoped<ICompanySignupService, CompanySignupService>();
         services.AddScoped<IShopService, ShopService>();
         services.AddScoped<ITillLabelResolver, TillLabelResolver>();
+        services.AddScoped<ITillCanonicalAiClassifier, TillCanonicalAiClassifierAdapter>();
         services.AddScoped<ITillReconciliationService, TillReconciliationService>();
+        services.AddScoped<ITillSettlementService, TillSettlementService>();
+        services.AddScoped<ITillAccountingService, TillAccountingService>();
         services.AddScoped<ISubscriptionCalculationService, SubscriptionCalculationService>();
         services.AddScoped<IInvoiceService, InvoiceService>();
         services.AddScoped<ISubscriptionBillingService, SubscriptionBillingService>();
