@@ -24,8 +24,9 @@ const statusBadge: Record<ReconStatus, string> = {
 };
 
 export default function TillReconciliationPage() {
-  const { activeShopId } = useAuth();
+  const { activeShopId, features } = useAuth();
   const shopId = activeShopId!;
+  const has = (f: string) => features.includes(f);
   const [date, setDate] = useState(fmtDate(new Date()));
   const [range, setRange] = useState(() => {
     const to = new Date();
@@ -108,14 +109,14 @@ export default function TillReconciliationPage() {
         </>
       ) : null}
 
-      {/* Post Office (separate balance) */}
-      <PostOfficeCard shopId={shopId} date={date} />
+      {/* Post Office (separate balance) — Growth+ */}
+      {has("store_sales.post_office") ? <PostOfficeCard shopId={shopId} date={date} /> : null}
 
-      {/* Provider settlements */}
-      <SettlementsCard shopId={shopId} from={range.from} to={range.to} />
+      {/* Provider settlements — Pro */}
+      {has("store_sales.settlement") ? <SettlementsCard shopId={shopId} from={range.from} to={range.to} /> : null}
 
-      {/* Accounting & VAT */}
-      <AccountingCard shopId={shopId} from={range.from} to={range.to} />
+      {/* Accounting & VAT — Growth+ */}
+      {has("store_sales.accounting_export") ? <AccountingCard shopId={shopId} from={range.from} to={range.to} /> : null}
 
       {/* Per-staff analytics */}
       <div className="card overflow-hidden">

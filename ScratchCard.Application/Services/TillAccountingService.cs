@@ -31,7 +31,7 @@ public sealed class TillAccountingService : ITillAccountingService
     public async Task<AccountingSummaryDto> GetSummaryAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
     {
         await _shopMembership.EnsureCurrentUserShopRoleAsync(shopId, ManagementRoles, cancellationToken);
-        await _featureGate.EnsureFeatureAsync(shopId, FeatureKeys.StoreSales, cancellationToken);
+        await _featureGate.EnsureFeatureAsync(shopId, FeatureKeys.StoreSalesAccountingExport, cancellationToken);
         var recs = await _reconciliations.Query()
             .Include(r => r.Lines)
             .Where(r => r.ShopId == shopId && r.BusinessDate >= from && r.BusinessDate <= to)

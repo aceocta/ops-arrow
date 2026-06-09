@@ -49,6 +49,16 @@ public static class FeatureKeys
     // --- Store Sales (till report import) ---
     public const string StoreSalesBasic = "store_sales.basic";
     public const string StoreSalesAi = "store_sales.ai";
+    // Till Report capability tiers. AI mapping is intentionally NOT a separate gate (runs for all
+    // shops that have OCR ingest).
+    public const string StoreSalesCounters = "store_sales.counters";
+    public const string StoreSalesOcr = "store_sales.ocr";
+    public const string StoreSalesMultiTill = "store_sales.multi_till";
+    public const string StoreSalesDashboard = "store_sales.dashboard";
+    public const string StoreSalesAlerts = "store_sales.alerts";
+    public const string StoreSalesPostOffice = "store_sales.post_office";
+    public const string StoreSalesSettlement = "store_sales.settlement";
+    public const string StoreSalesAccountingExport = "store_sales.accounting_export";
 
     // --- Visitors Log ---
     public const string VisitorLogBasic = "visitor_log.basic";
@@ -137,6 +147,14 @@ public static class FeatureKeys
         // Store Sales (till report import).
         new FeatureCatalogEntry(StoreSalesBasic, "Basic Store Sales", "Store Sales", "Capture, manual classify, tender editor.", 55),
         new FeatureCatalogEntry(StoreSalesAi, "AI auto-categorisation", "Store Sales", "AI-driven categorisation of till lines.", 56),
+        new FeatureCatalogEntry(StoreSalesCounters, "Service counters", "Store Sales", "Lottery, PayPoint/Payzone, parcels, carrier-bag reconciliation.", 62),
+        new FeatureCatalogEntry(StoreSalesOcr, "Photo OCR ingest", "Store Sales", "Snap the Z-read; OCR + auto-map lines to verify.", 63),
+        new FeatureCatalogEntry(StoreSalesMultiTill, "Multi-till rollup", "Store Sales", "Day rollup across tills + day-close gating.", 64),
+        new FeatureCatalogEntry(StoreSalesDashboard, "Dashboard & analytics", "Store Sales", "Owner dashboard + per-staff variance analytics.", 65),
+        new FeatureCatalogEntry(StoreSalesAlerts, "Variance alerts", "Store Sales", "Push/email alerts when variance breaches threshold.", 66),
+        new FeatureCatalogEntry(StoreSalesPostOffice, "Post Office balance", "Store Sales", "Separate Post Office (Horizon) balance reconciliation.", 67),
+        new FeatureCatalogEntry(StoreSalesSettlement, "Settlement reconciliation", "Store Sales", "Match provider DD/commission statements to captured totals.", 68),
+        new FeatureCatalogEntry(StoreSalesAccountingExport, "Accounting export", "Store Sales", "VAT-aware accounting journal CSV export.", 69),
 
         // Visitors Log.
         new FeatureCatalogEntry(VisitorLogBasic, "Basic Visitors Log", "Visitors Log", "Sign in/out, on-site roll call, daily register.", 57),
@@ -219,7 +237,9 @@ public static class FeatureKeys
             },
             [StoreSales] = new[]
             {
-                StoreSalesBasic, StoreSalesAi,
+                StoreSalesBasic, StoreSalesAi, StoreSalesCounters, StoreSalesOcr, StoreSalesMultiTill,
+                StoreSalesDashboard, StoreSalesAlerts, StoreSalesPostOffice, StoreSalesSettlement,
+                StoreSalesAccountingExport,
             },
             [VisitorsLog] = new[]
             {

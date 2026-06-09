@@ -8,7 +8,9 @@ const ENTITLEMENTS_CACHE_KEY_PREFIX = "opsarrow_shop_entitlements_v1:";
 // listed below for IDE autocomplete and documentation.
 export type EntitlementFeature =
   | "ScratchCardManagement" | "TemperatureLog" | "RefusalNoIdNoSale" | "ComplianceChecklist" | "SafeDropManagement" | "StoreSales"
-  | "store_sales.basic" | "store_sales.ai"
+  | "store_sales.basic" | "store_sales.ai" | "store_sales.counters" | "store_sales.ocr"
+  | "store_sales.multi_till" | "store_sales.dashboard" | "store_sales.alerts"
+  | "store_sales.post_office" | "store_sales.settlement" | "store_sales.accounting_export"
   | "scratch_card.basic" | "scratch_card.attachments" | "scratch_card.manual_entry_alerts"
   | "scratch_card.advanced_validation" | "scratch_card.suspicious_alerts"
   | "temperature_log.basic" | "temperature_log.missed_alerts" | "temperature_log.scheduled_checks" | "temperature_log.full_history"

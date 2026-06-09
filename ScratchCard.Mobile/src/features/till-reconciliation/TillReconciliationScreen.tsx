@@ -5,6 +5,7 @@ import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { compressForUpload } from "../../utils/imageCompression";
 import { useAuth } from "../../auth/AuthContext";
+import { useFeature } from "../subscription/useFeature";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
@@ -57,6 +58,7 @@ const num = (s: string) => {
 
 export function TillReconciliationScreen() {
   const { activeShopId } = useAuth();
+  const canOcr = useFeature("store_sales.ocr").isAllowed;
   const shopId = activeShopId as string;
   const qc = useQueryClient();
   const [businessDate, setBusinessDate] = useState(formatDateValue(new Date()));
@@ -135,7 +137,7 @@ export function TillReconciliationScreen() {
 
         {q.isLoading ? <LoadingState inline /> : null}
 
-        {data && !locked ? (
+        {data && !locked && canOcr ? (
           <View style={styles.captureRow}>
             <Pressable style={styles.captureBtn} onPress={() => ingestMutation.mutate("camera")} disabled={ingestMutation.isPending}>
               <Ionicons name="camera-outline" size={18} color={appTheme.colors.primary} />

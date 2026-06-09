@@ -21,6 +21,7 @@ public static class PlanFeatureCatalogue
         FeatureKeys.VisitorLogBasic,
         FeatureKeys.StaffRota, FeatureKeys.StaffRotaBasic,
         FeatureKeys.NotificationsEmail,
+        FeatureKeys.StoreSales, FeatureKeys.StoreSalesBasic, FeatureKeys.StoreSalesCounters,
     };
 
     public static readonly IReadOnlyList<string> Growth = ((IEnumerable<string>)Starter).Concat(new[]
@@ -33,7 +34,9 @@ public static class PlanFeatureCatalogue
         FeatureKeys.NotificationsPush, FeatureKeys.NotificationsWhatsApp,
         FeatureKeys.DashboardBasic,
         FeatureKeys.AuditLogBasic,
-        FeatureKeys.StoreSales, FeatureKeys.StoreSalesBasic,
+        // Store Sales (basic + counters inherited from Starter). Growth adds capture automation + oversight.
+        FeatureKeys.StoreSalesOcr, FeatureKeys.StoreSalesMultiTill, FeatureKeys.StoreSalesDashboard,
+        FeatureKeys.StoreSalesAlerts, FeatureKeys.StoreSalesPostOffice, FeatureKeys.StoreSalesAccountingExport,
         FeatureKeys.StaffRotaManualApproval, FeatureKeys.StaffRotaShiftReminders, FeatureKeys.StaffRotaTimesheetExport,
     }).ToArray();
 
@@ -51,6 +54,7 @@ public static class PlanFeatureCatalogue
         FeatureKeys.ReportsAdvanced,
         FeatureKeys.SupportPriority,
         FeatureKeys.StoreSalesAi,
+        FeatureKeys.StoreSalesSettlement,
     }).ToArray();
 
     public static IReadOnlyList<string>? ForTier(string? tier) => tier?.Trim().ToLowerInvariant() switch

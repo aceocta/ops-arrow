@@ -35,7 +35,7 @@ const NAV: NavItem[] = [
   { to: "/compliance", label: "Compliance", icon: ClipboardCheck, feature: "ComplianceChecklist" },
   { to: "/refusals", label: "Refusals", icon: ShieldX, feature: "RefusalNoIdNoSale" },
   { to: "/visitors", label: "Visitors", icon: DoorOpen, feature: "VisitorsLog" },
-  { to: "/till", label: "Till Reconciliation", icon: Receipt, feature: "StoreSales" },
+  { to: "/till", label: "Till Reconciliation", icon: Receipt, feature: "store_sales.dashboard" },
   { to: "/shops", label: "Shops", icon: Store },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
