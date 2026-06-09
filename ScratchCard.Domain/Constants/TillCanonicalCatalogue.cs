@@ -84,6 +84,8 @@ public static class TillCanonicalCatalogue
         M(TillCanonicalField.Discount, TillFieldGroup.Exception, TillCashDirection.None, false, TillVatTreatment.NotApplicable, "Discount"),
         M(TillCanonicalField.ErrorCorrection, TillFieldGroup.Exception, TillCashDirection.None, false, TillVatTreatment.NotApplicable, "Error correction"),
         M(TillCanonicalField.Training, TillFieldGroup.Exception, TillCashDirection.None, false, TillVatTreatment.NotApplicable, "Training mode"),
+        // Drive-off: fuel left without payment. No drawer effect (no cash was ever taken) — it's a loss.
+        M(TillCanonicalField.DriveOff, TillFieldGroup.Exception, TillCashDirection.None, false, TillVatTreatment.NotApplicable, "Drive-off (no pay)"),
 
         // Departments
         M(TillCanonicalField.DeptTobacco, TillFieldGroup.Department, TillCashDirection.None, false, TillVatTreatment.Standard20, "Tobacco & vapes"),

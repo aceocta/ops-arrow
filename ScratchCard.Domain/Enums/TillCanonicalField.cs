@@ -64,6 +64,7 @@ public enum TillCanonicalField
     Discount = 504,
     ErrorCorrection = 505,
     Training = 506,
+    DriveOff = 507,   // fuel pumped, customer left without paying — a loss
 
     // --- Departments (600s) ---
     DeptTobacco = 600,

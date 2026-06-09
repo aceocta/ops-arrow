@@ -737,6 +737,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
             NoSaleCount = r.Lines.Where(l => l.CanonicalField == TillCanonicalField.NoSale).Sum(l => l.Quantity ?? 0),
             Voids = Sum(TillCanonicalField.Void),
             Refunds = Sum(TillCanonicalField.Refund),
+            DriveOffs = Sum(TillCanonicalField.DriveOff),
             UnmappedCount = r.Lines.Count(l => l.CanonicalField == TillCanonicalField.Unmapped),
             UnverifiedCount = r.Lines.Count(l => l.Status != TillLineStatus.Verified),
         };

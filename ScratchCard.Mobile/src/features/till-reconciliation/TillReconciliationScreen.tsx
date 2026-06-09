@@ -438,9 +438,10 @@ export function TillReconciliationScreen() {
             ) : null}
 
             {/* Exceptions chips */}
-            {(data.summary.noSaleCount > 0 || data.summary.voids !== 0 || data.summary.refunds !== 0) ? (
+            {(data.summary.noSaleCount > 0 || data.summary.voids !== 0 || data.summary.refunds !== 0 || data.summary.driveOffs !== 0) ? (
               <Text style={styles.exceptions}>
                 ⚠ No-sale ×{data.summary.noSaleCount} · Voids {gbp(data.summary.voids)} · Refunds {gbp(data.summary.refunds)}
+                {data.summary.driveOffs !== 0 ? ` · Drive-offs ${gbp(data.summary.driveOffs)}` : ""}
               </Text>
             ) : null}
 

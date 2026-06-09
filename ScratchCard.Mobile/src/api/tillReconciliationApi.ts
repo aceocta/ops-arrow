@@ -8,7 +8,7 @@ export type TillCanonicalField =
   | "LotterySales" | "LotteryPrizes" | "LotteryCommission" | "ScratchcardSales" | "ScratchcardPrizes" | "PayPoint" | "Payzone" | "Parcels" | "CarrierBags" | "PostOffice" | "FuelSales" | "Atm"
   | "OpeningFloat" | "PaidIn" | "PaidOut" | "SafeDrop" | "Pickup" | "Banking"
   | "GrossSales" | "NetSales" | "Vat20" | "Vat5" | "Vat0" | "VatExempt" | "TotalSales" | "TransactionCount" | "ItemCount"
-  | "NoSale" | "Void" | "Refund" | "PriceOverride" | "Discount" | "ErrorCorrection" | "Training"
+  | "NoSale" | "Void" | "Refund" | "PriceOverride" | "Discount" | "ErrorCorrection" | "Training" | "DriveOff"
   | "DeptTobacco" | "DeptAlcohol" | "DeptGrocery" | "DeptSoftDrinks" | "DeptConfectionery" | "DeptFoodToGo" | "DeptNewsMag" | "DeptHousehold" | "DeptOther"
   | "SubtotalIgnore";
 
@@ -63,6 +63,7 @@ export type ReconciliationSummary = {
   noSaleCount: number;
   voids: number;
   refunds: number;
+  driveOffs: number;
   unmappedCount: number;
   unverifiedCount: number;
   proofOfCash: ProofOfCash;
@@ -255,6 +256,7 @@ export const FIELD_OPTIONS: { group: string; fields: { value: TillCanonicalField
       { value: "NoSale", label: "No sale (count)" },
       { value: "Void", label: "Voids" },
       { value: "Refund", label: "Refunds" },
+      { value: "DriveOff", label: "Drive-off (no pay)" },
     ],
   },
 ];

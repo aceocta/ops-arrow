@@ -23,8 +23,8 @@ public static class TillAccountingCatalogue
         // Refunds reduce sales.
         TillCanonicalField.Refund => LedgerCategory.Sales,
 
-        // Paid-outs are expenses.
-        TillCanonicalField.PaidOut => LedgerCategory.Expense,
+        // Paid-outs and drive-off losses are expenses.
+        TillCanonicalField.PaidOut or TillCanonicalField.DriveOff => LedgerCategory.Expense,
 
         _ => field switch
         {

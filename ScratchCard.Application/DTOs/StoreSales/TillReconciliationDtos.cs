@@ -109,6 +109,7 @@ public class TillReconciliationSummaryDto
     public int NoSaleCount { get; set; }
     public decimal Voids { get; set; }
     public decimal Refunds { get; set; }
+    public decimal DriveOffs { get; set; }
     public int UnmappedCount { get; set; }
     public int UnverifiedCount { get; set; }
     public ProofOfCashDto ProofOfCash { get; set; } = new();

@@ -73,6 +73,7 @@ public static class TillAliasDictionary
         Add(TillCanonicalField.PriceOverride, "OVERRIDE", "PRICE OVERRIDE");
         Add(TillCanonicalField.Discount, "DISCOUNT", "MARKDOWN", "STAFF DISCOUNT");
         Add(TillCanonicalField.Training, "TRAINING", "TRAINING MODE");
+        Add(TillCanonicalField.DriveOff, "DRIVE OFF", "DRIVE-OFF", "DRIVEOFF", "NO PAY", "NO-PAY", "NOPAY", "FUEL THEFT", "MADE OFF", "BILK", "BILKING", "DRIVE AWAY");
 
         Add(TillCanonicalField.DeptTobacco, "TOBACCO", "CIGS", "CIGARETTES", "TOB", "VAPE", "ECIG");
         Add(TillCanonicalField.DeptAlcohol, "ALCOHOL", "BWS", "BEER WINE SPIRITS", "WINE", "BEER", "SPIRITS");
