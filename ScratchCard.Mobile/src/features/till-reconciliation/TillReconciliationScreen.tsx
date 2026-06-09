@@ -701,6 +701,7 @@ function LineEditor({ reconciliationId, line, onClose, onSaved }: {
   const [amount, setAmount] = useState(line ? String(line.verifiedAmount) : "");
   const [quantity, setQuantity] = useState(line?.quantity != null ? String(line.quantity) : "");
   const isCount = field === "NoSale";
+  const insets = useSafeAreaInsets();
 
   const saveMutation = useMutation({
     mutationFn: () => saveReconciliationLine({
@@ -727,14 +728,14 @@ function LineEditor({ reconciliationId, line, onClose, onSaved }: {
   const valid = field && (isCount ? num(quantity) >= 0 : amount.trim().length > 0);
 
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.sheetBackdrop}>
-        <View style={styles.sheet}>
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={styles.sheetBackdropTop} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <View style={[styles.sheetTop, { paddingTop: insets.top + appTheme.spacing.sm, paddingBottom: insets.bottom + appTheme.spacing.md }]}>
           <View style={styles.sheetHeader}>
             <Text style={ui.sectionTitle}>{line ? "Edit line" : "Add line"}</Text>
             <Pressable onPress={onClose} hitSlop={8}><Ionicons name="close" size={22} color={appTheme.colors.text} /></Pressable>
           </View>
-          <ScrollView style={{ maxHeight: 340 }}>
+          <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: appTheme.spacing.sm }}>
             {FIELD_OPTIONS.map((g) => (
               <View key={g.group} style={{ marginBottom: 8 }}>
                 <Text style={styles.muted}>{g.group}</Text>
@@ -751,21 +752,24 @@ function LineEditor({ reconciliationId, line, onClose, onSaved }: {
               </View>
             ))}
           </ScrollView>
-          {isCount ? (
-            <FloatingLabelInput label="Count" value={quantity} onChangeText={setQuantity} keyboardType="number-pad" />
-          ) : (
-            <FloatingLabelInput label="Amount (£)" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" prefix="£" />
-          )}
-          <View style={{ height: 10 }} />
-          <PrimaryButton label={saveMutation.isPending ? "Saving…" : "Save line"} onPress={() => saveMutation.mutate()} disabled={!valid || saveMutation.isPending} />
-          {line ? (
-            <PrimaryButton label="Remove" tone="danger" onPress={async () => {
-              if (await confirmDestructive({ title: "Remove line?", confirmLabel: "Remove" })) deleteMutation.mutate();
-            }} />
-          ) : null}
-          <PrimaryButton label="Cancel" tone="neutral" onPress={onClose} />
+          <View style={styles.modalInputRow}>
+            {isCount ? (
+              <FloatingLabelInput label="Count" value={quantity} onChangeText={setQuantity} keyboardType="number-pad" />
+            ) : (
+              <FloatingLabelInput label="Amount (£)" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" prefix="£" />
+            )}
+          </View>
+          <View style={styles.modalFooter}>
+            <PrimaryButton label={saveMutation.isPending ? "Saving…" : "Save line"} onPress={() => saveMutation.mutate()} disabled={!valid || saveMutation.isPending} />
+            {line ? (
+              <PrimaryButton label="Remove" tone="danger" onPress={async () => {
+                if (await confirmDestructive({ title: "Remove line?", confirmLabel: "Remove" })) deleteMutation.mutate();
+              }} />
+            ) : null}
+            <PrimaryButton label="Cancel" tone="neutral" onPress={onClose} />
+          </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -820,8 +824,10 @@ function CashCountModal({ recon, onClose, onSaved }: {
                 ))}
                 <View style={styles.kvRow}><Text style={styles.kvKey}>Total</Text><Text style={styles.kvVal}>{gbp(denomTotal)}</Text></View>
               </ScrollView>
-              <PrimaryButton label={`Use ${gbp(denomTotal)}`} onPress={() => { setCounted(String(denomTotal.toFixed(2))); setDenomOpen(false); }} />
-              <PrimaryButton label="Back" tone="neutral" onPress={() => setDenomOpen(false)} />
+              <View style={styles.modalFooter}>
+                <PrimaryButton label={`Use ${gbp(denomTotal)}`} onPress={() => { setCounted(String(denomTotal.toFixed(2))); setDenomOpen(false); }} />
+                <PrimaryButton label="Back" tone="neutral" onPress={() => setDenomOpen(false)} />
+              </View>
             </>
           ) : (
             <>
@@ -835,8 +841,10 @@ function CashCountModal({ recon, onClose, onSaved }: {
                 <FloatingLabelInput label="Float to carry (£)" value={floatToCarry} onChangeText={setFloatToCarry} keyboardType="decimal-pad" prefix="£" />
                 <FloatingLabelInput label="Card terminal total (£)" value={cardCounted} onChangeText={setCardCounted} keyboardType="decimal-pad" prefix="£" />
               </ScrollView>
-              <PrimaryButton label={saveMutation.isPending ? "Saving…" : "Save count"} onPress={() => saveMutation.mutate()} disabled={!counted.trim() || saveMutation.isPending} />
-              <PrimaryButton label="Cancel" tone="neutral" onPress={onClose} />
+              <View style={styles.modalFooter}>
+                <PrimaryButton label={saveMutation.isPending ? "Saving…" : "Save count"} onPress={() => saveMutation.mutate()} disabled={!counted.trim() || saveMutation.isPending} />
+                <PrimaryButton label="Cancel" tone="neutral" onPress={onClose} />
+              </View>
             </>
           )}
         </View>
@@ -924,6 +932,8 @@ const styles = StyleSheet.create({
   sheet: { backgroundColor: appTheme.colors.background, borderTopLeftRadius: appTheme.radius.lg, borderTopRightRadius: appTheme.radius.lg, padding: appTheme.spacing.md, gap: 6 },
   sheetBackdropTop: { flex: 1, backgroundColor: appTheme.colors.background },
   sheetTop: { flex: 1, backgroundColor: appTheme.colors.background, paddingHorizontal: appTheme.spacing.md, gap: 6 },
+  modalInputRow: { paddingTop: appTheme.spacing.sm },
+  modalFooter: { paddingTop: appTheme.spacing.sm, marginTop: appTheme.spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft, gap: appTheme.spacing.sm },
   sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
   denomRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 4 },
   denomLabel: { width: 48, color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
