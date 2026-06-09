@@ -64,6 +64,7 @@ import { SafeDropScreen } from "../features/safe-drop/SafeDropScreen";
 import { CaptureTillReportScreen } from "../features/store-sales/CaptureTillReportScreen";
 import { TillReportReviewScreen } from "../features/store-sales/TillReportReviewScreen";
 import { TillReportsListScreen } from "../features/store-sales/TillReportsListScreen";
+import { TillReconciliationScreen } from "../features/till-reconciliation/TillReconciliationScreen";
 import { TillPaymentSummaryScreen } from "../features/store-sales/TillPaymentSummaryScreen";
 import { TillsConfigScreen } from "../features/store-sales/TillsConfigScreen";
 import { PaymentTypesConfigScreen } from "../features/store-sales/PaymentTypesConfigScreen";
@@ -195,6 +196,7 @@ const shopItems: MenuItem[] = [
   //   allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
   //   requiredFeature: "StoreSales",
   // },
+  { label: "Till Reconciliation", screen: "TillReconciliation", icon: "cash-outline", requiredFeature: "StoreSales" },
   // { label: "Shop Checklist", screen: "ShopChecklist", icon: "checkmark-done-outline", mode: "checklist" },
   {
     label: "Checklist Setup",
@@ -537,6 +539,7 @@ function MainStackScreens() {
       <Stack.Screen name="StoreSales" component={CaptureTillReportScreen} options={{ title: "Store Sales" }} />
       <Stack.Screen name="TillReportReview" component={TillReportReviewScreen} options={{ title: "Review Till Report" }} />
       <Stack.Screen name="TillReportHistory" component={TillReportsListScreen} options={{ title: "Till Reports" }} />
+      <Stack.Screen name="TillReconciliation" component={TillReconciliationScreen} options={{ title: "Till Reconciliation" }} />
       <Stack.Screen name="TillPaymentSummary" component={TillPaymentSummaryScreen} options={{ title: "Payment Totals" }} />
       <Stack.Screen name="TillsConfig" component={TillsConfigScreen} options={{ title: "Tills" }} />
       <Stack.Screen name="PaymentTypesConfig" component={PaymentTypesConfigScreen} options={{ title: "Payment Types" }} />

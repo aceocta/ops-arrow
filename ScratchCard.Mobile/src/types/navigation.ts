@@ -98,5 +98,6 @@ export type MainStackParamList = {
   PaymentTypesConfig: undefined;
   TillReportReview: { reportId: string };
   TillReportHistory: undefined;
+  TillReconciliation: undefined;
   TillPaymentSummary: { businessDayId: string };
 };

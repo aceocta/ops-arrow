@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ScratchCard.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using ScratchCard.Infrastructure.Persistence;
 namespace ScratchCard.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260609090334_TillReportPhase0")]
+    partial class TillReportPhase0
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -4156,176 +4159,6 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.ToTable("TillLabelMappings");
                 });
 
-            modelBuilder.Entity("ScratchCard.Domain.Entities.TillReconciliation", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateOnly>("BusinessDate")
-                        .HasColumnType("date");
-
-                    b.Property<Guid?>("BusinessDayId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal?>("CardCounted")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("CashVariance")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<Guid?>("ConfirmedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset?>("ConfirmedOn")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<decimal?>("CountedCash")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset>("CreatedOn")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("DenominationJson")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal>("ExpectedCash")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal?>("FloatToCarry")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<bool>("IsDeleted")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
-
-                    b.Property<Guid?>("ModifiedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset?>("ModifiedOn")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<decimal>("OpeningFloat")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("ReportType")
-                        .HasColumnType("int");
-
-                    b.Property<Guid?>("ShiftId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("ShopId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<Guid?>("TillId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("VarianceNotes")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<string>("VarianceReasonCode")
-                        .HasMaxLength(60)
-                        .HasColumnType("nvarchar(60)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TillId");
-
-                    b.HasIndex("ShopId", "BusinessDate");
-
-                    b.ToTable("TillReconciliations");
-                });
-
-            modelBuilder.Entity("ScratchCard.Domain.Entities.TillReconciliationAttachment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("OcrRawText")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("SourceLabel")
-                        .HasMaxLength(80)
-                        .HasColumnType("nvarchar(80)");
-
-                    b.Property<string>("StoragePath")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<Guid>("TillReconciliationId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TillReconciliationId");
-
-                    b.ToTable("TillReconciliationAttachments");
-                });
-
-            modelBuilder.Entity("ScratchCard.Domain.Entities.TillReconciliationLine", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("CanonicalField")
-                        .HasColumnType("int");
-
-                    b.Property<int>("CaptureMethod")
-                        .HasColumnType("int");
-
-                    b.Property<decimal?>("ExtractedAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<int?>("Quantity")
-                        .HasColumnType("int");
-
-                    b.Property<string>("RawLabel")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("Section")
-                        .HasMaxLength(60)
-                        .HasColumnType("nvarchar(60)");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("TillReconciliationId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal>("VerifiedAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TillReconciliationId");
-
-                    b.ToTable("TillReconciliationLines");
-                });
-
             modelBuilder.Entity("ScratchCard.Domain.Entities.TillReport", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6101,46 +5934,6 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Navigation("Shop");
                 });
 
-            modelBuilder.Entity("ScratchCard.Domain.Entities.TillReconciliation", b =>
-                {
-                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
-                        .WithMany()
-                        .HasForeignKey("ShopId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.HasOne("ScratchCard.Domain.Entities.Till", "Till")
-                        .WithMany()
-                        .HasForeignKey("TillId")
-                        .OnDelete(DeleteBehavior.NoAction);
-
-                    b.Navigation("Shop");
-
-                    b.Navigation("Till");
-                });
-
-            modelBuilder.Entity("ScratchCard.Domain.Entities.TillReconciliationAttachment", b =>
-                {
-                    b.HasOne("ScratchCard.Domain.Entities.TillReconciliation", "Reconciliation")
-                        .WithMany("Attachments")
-                        .HasForeignKey("TillReconciliationId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.Navigation("Reconciliation");
-                });
-
-            modelBuilder.Entity("ScratchCard.Domain.Entities.TillReconciliationLine", b =>
-                {
-                    b.HasOne("ScratchCard.Domain.Entities.TillReconciliation", "Reconciliation")
-                        .WithMany("Lines")
-                        .HasForeignKey("TillReconciliationId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.Navigation("Reconciliation");
-                });
-
             modelBuilder.Entity("ScratchCard.Domain.Entities.TillReport", b =>
                 {
                     b.HasOne("ScratchCard.Domain.Entities.BusinessDay", "BusinessDay")
@@ -6532,13 +6325,6 @@ namespace ScratchCard.Infrastructure.Migrations
             modelBuilder.Entity("ScratchCard.Domain.Entities.TemperatureMonitoringUnit", b =>
                 {
                     b.Navigation("Readings");
-                });
-
-            modelBuilder.Entity("ScratchCard.Domain.Entities.TillReconciliation", b =>
-                {
-                    b.Navigation("Attachments");
-
-                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.TillReport", b =>

@@ -94,6 +94,11 @@ public class ApplicationDbContext : DbContext
     public DbSet<TillReportAttachment> TillReportAttachments => Set<TillReportAttachment>();
     public DbSet<TillReportPayment> TillReportPayments => Set<TillReportPayment>();
     public DbSet<TillCategoryRule> TillCategoryRules => Set<TillCategoryRule>();
+    public DbSet<TillLabelMapping> TillLabelMappings => Set<TillLabelMapping>();
+    public DbSet<ShopServiceCounterConfig> ShopServiceCounterConfigs => Set<ShopServiceCounterConfig>();
+    public DbSet<TillReconciliation> TillReconciliations => Set<TillReconciliation>();
+    public DbSet<TillReconciliationLine> TillReconciliationLines => Set<TillReconciliationLine>();
+    public DbSet<TillReconciliationAttachment> TillReconciliationAttachments => Set<TillReconciliationAttachment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -389,6 +394,61 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.IsActive).HasDefaultValue(true);
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
             entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId);
+        });
+
+        modelBuilder.Entity<TillLabelMapping>(entity =>
+        {
+            // Fast lookup of a normalized label across the relevant scopes.
+            entity.HasIndex(x => new { x.Scope, x.ScopeId, x.NormalizedLabel });
+            entity.Property(x => x.NormalizedLabel).HasMaxLength(120).IsRequired();
+            entity.Property(x => x.RawSample).HasMaxLength(200);
+            entity.Property(x => x.Section).HasMaxLength(60);
+        });
+
+        modelBuilder.Entity<ShopServiceCounterConfig>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.CounterType }).IsUnique();
+            entity.Property(x => x.Variant).HasMaxLength(40);
+            entity.Property(x => x.Settlement).HasMaxLength(40);
+            entity.Property(x => x.CommissionRate).HasPrecision(9, 4);
+            entity.Property(x => x.IsEnabled).HasDefaultValue(true);
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        modelBuilder.Entity<TillReconciliation>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.BusinessDate });
+            entity.Property(x => x.OpeningFloat).HasPrecision(18, 2);
+            entity.Property(x => x.CountedCash).HasPrecision(18, 2);
+            entity.Property(x => x.FloatToCarry).HasPrecision(18, 2);
+            entity.Property(x => x.CardCounted).HasPrecision(18, 2);
+            entity.Property(x => x.ExpectedCash).HasPrecision(18, 2);
+            entity.Property(x => x.CashVariance).HasPrecision(18, 2);
+            entity.Property(x => x.VarianceReasonCode).HasMaxLength(60);
+            entity.Property(x => x.VarianceNotes).HasMaxLength(1000);
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.Till).WithMany().HasForeignKey(x => x.TillId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasMany(x => x.Lines).WithOne(x => x.Reconciliation).HasForeignKey(x => x.TillReconciliationId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(x => x.Attachments).WithOne(x => x.Reconciliation).HasForeignKey(x => x.TillReconciliationId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<TillReconciliationLine>(entity =>
+        {
+            entity.HasIndex(x => x.TillReconciliationId);
+            entity.Property(x => x.Section).HasMaxLength(60);
+            entity.Property(x => x.RawLabel).HasMaxLength(200);
+            entity.Property(x => x.ExtractedAmount).HasPrecision(18, 2);
+            entity.Property(x => x.VerifiedAmount).HasPrecision(18, 2);
+            entity.Property(x => x.Notes).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<TillReconciliationAttachment>(entity =>
+        {
+            entity.HasIndex(x => x.TillReconciliationId);
+            entity.Property(x => x.StoragePath).HasMaxLength(500).IsRequired();
+            entity.Property(x => x.SourceLabel).HasMaxLength(80);
         });
 
         modelBuilder.Entity<ScratchCardPack>(entity =>
