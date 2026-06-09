@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { compressForUpload } from "../../utils/imageCompression";
@@ -30,6 +32,8 @@ import {
   setReconciliationVarianceReason,
   setReconciliationStatus,
   ingestReconciliationPhoto,
+  getReconciliationAttachment,
+  ReconciliationAttachment,
 } from "../../api/tillReconciliationApi";
 
 const gbp = (n: number) =>
@@ -114,12 +118,17 @@ export function TillReconciliationScreen() {
       if (!perm.granted) throw new Error("Camera/photo permission is required.");
       const picked = source === "camera"
         ? await ImagePicker.launchCameraAsync({ mediaTypes: "images", quality: 0.85 })
-        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: "images", quality: 0.85 });
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: "images", quality: 0.85, allowsMultipleSelection: true, selectionLimit: 10 });
       if (picked.canceled || picked.assets.length === 0) return null;
-      const out = await compressForUpload(picked.assets[0].uri);
-      return ingestReconciliationPhoto({ id: data!.id, uri: out.uri, mimeType: "image/jpeg" });
+      // A report can span several photos — ingest each; each call accumulates lines + attachments.
+      let result: Reconciliation | null = null;
+      for (const asset of picked.assets) {
+        const out = await compressForUpload(asset.uri);
+        result = await ingestReconciliationPhoto({ id: data!.id, uri: out.uri, mimeType: "image/jpeg" });
+      }
+      return result;
     },
-    onSuccess: (r) => { if (r) { setData(r); toastSuccess("Photo read — verify the amounts."); } },
+    onSuccess: (r) => { if (r) { setData(r); toastSuccess("Photo(s) read — verify the amounts."); } },
     onError: (e: any) => toastError(e?.response?.data?.message ?? e?.message ?? "Couldn't read the photo."),
   });
 
@@ -204,6 +213,8 @@ export function TillReconciliationScreen() {
             </Pressable>
           </View>
         ) : null}
+
+        {data && data.attachments.length > 0 ? <AttachmentsCard attachments={data.attachments} /> : null}
 
         {data ? (
           <>
@@ -317,6 +328,88 @@ function Row({ k, v, muted }: { k: string; v: string; muted?: boolean }) {
       <Text style={[styles.kvKey, muted ? styles.muted : null]}>{k}</Text>
       <Text style={[styles.kvVal, muted ? styles.muted : null]}>{v}</Text>
     </View>
+  );
+}
+
+function AttachmentsCard({ attachments }: { attachments: ReconciliationAttachment[] }) {
+  const [viewing, setViewing] = useState<ReconciliationAttachment | null>(null);
+  return (
+    <View style={ui.card}>
+      <Text style={ui.sectionTitle}>Captured images ({attachments.length})</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.thumbRow}>
+        {attachments.map((a) => <AttachmentThumb key={a.id} attachment={a} onPress={() => setViewing(a)} />)}
+      </ScrollView>
+      {viewing ? <ImageViewerModal attachment={viewing} onClose={() => setViewing(null)} /> : null}
+    </View>
+  );
+}
+
+function useAttachmentData(id: string) {
+  return useQuery({
+    queryKey: ["recon-attachment", id],
+    queryFn: () => getReconciliationAttachment(id),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+function AttachmentThumb({ attachment, onPress }: { attachment: ReconciliationAttachment; onPress: () => void }) {
+  const q = useAttachmentData(attachment.id);
+  return (
+    <Pressable style={styles.thumb} onPress={onPress}>
+      {q.data ? (
+        <Image source={{ uri: q.data }} style={styles.thumbImg} resizeMode="cover" />
+      ) : (
+        <View style={styles.thumbLoading}><ActivityIndicator color={appTheme.colors.textSubtle} /></View>
+      )}
+    </Pressable>
+  );
+}
+
+function ImageViewerModal({ attachment, onClose }: { attachment: ReconciliationAttachment; onClose: () => void }) {
+  const q = useAttachmentData(attachment.id);
+  const [busy, setBusy] = useState(false);
+
+  const share = async () => {
+    if (!q.data) return;
+    try {
+      setBusy(true);
+      const base64 = q.data.split(",")[1] ?? "";
+      const ext = q.data.startsWith("data:image/png") ? "png" : "jpg";
+      const fileUri = `${FileSystem.cacheDirectory}${attachment.fileName || `till-${attachment.id}.${ext}`}`;
+      await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri);
+      } else {
+        toastError("Sharing isn't available on this device.");
+      }
+    } catch {
+      toastError("Couldn't share the image.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.viewerBackdrop}>
+        <View style={styles.viewerHeader}>
+          <Text style={styles.viewerTitle} numberOfLines={1}>{attachment.sourceLabel || attachment.fileName || "Image"}</Text>
+          <View style={styles.viewerActions}>
+            <Pressable onPress={share} hitSlop={8} disabled={busy || !q.data} style={styles.viewerAction}>
+              <Ionicons name="download-outline" size={22} color={busy || !q.data ? appTheme.colors.textSubtle : appTheme.colors.onPrimary} />
+            </Pressable>
+            <Pressable onPress={onClose} hitSlop={8} style={styles.viewerAction}>
+              <Ionicons name="close" size={24} color={appTheme.colors.onPrimary} />
+            </Pressable>
+          </View>
+        </View>
+        {q.data ? (
+          <Image source={{ uri: q.data }} style={styles.viewerImg} resizeMode="contain" />
+        ) : (
+          <View style={styles.viewerImg}><ActivityIndicator color="#fff" size="large" /></View>
+        )}
+      </View>
+    </Modal>
   );
 }
 
@@ -525,6 +618,16 @@ const styles = StyleSheet.create({
   captureRow: { flexDirection: "row", gap: appTheme.spacing.sm },
   captureBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: appTheme.radius.sm, borderWidth: 1, borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surface },
   captureText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
+  thumbRow: { gap: appTheme.spacing.sm, paddingVertical: 6 },
+  thumb: { width: 84, height: 84, borderRadius: appTheme.radius.sm, overflow: "hidden", borderWidth: 1, borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceMuted },
+  thumbImg: { width: "100%", height: "100%" },
+  thumbLoading: { flex: 1, alignItems: "center", justifyContent: "center" },
+  viewerBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.92)" },
+  viewerHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 44, paddingHorizontal: appTheme.spacing.md, paddingBottom: appTheme.spacing.sm },
+  viewerTitle: { flex: 1, color: appTheme.colors.onPrimary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 15 },
+  viewerActions: { flexDirection: "row", gap: appTheme.spacing.md },
+  viewerAction: { padding: 4 },
+  viewerImg: { flex: 1, width: "100%", alignItems: "center", justifyContent: "center" },
   verifyDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: appTheme.colors.warning },
   verifyHint: { color: appTheme.colors.warning, fontFamily: appTheme.fonts.body, fontSize: 11, marginTop: 2 },
   proofFlag: { fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, marginTop: 8 },

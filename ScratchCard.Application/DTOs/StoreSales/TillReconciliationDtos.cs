@@ -192,5 +192,13 @@ public class TillReconciliationDto
     public DateTimeOffset? ConfirmedOn { get; set; }
 
     public List<TillReconciliationLineDto> Lines { get; set; } = new();
+    public List<TillReconciliationAttachmentDto> Attachments { get; set; } = new();
     public TillReconciliationSummaryDto Summary { get; set; } = new();
+}
+
+public class TillReconciliationAttachmentDto
+{
+    public Guid Id { get; set; }
+    public string? SourceLabel { get; set; }
+    public string FileName { get; set; } = string.Empty;
 }

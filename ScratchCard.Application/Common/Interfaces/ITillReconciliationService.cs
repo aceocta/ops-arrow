@@ -27,4 +27,7 @@ public interface ITillReconciliationService
 
     /// <summary>Phase 2: per-staff variance/exception analytics over a date range (loss prevention).</summary>
     Task<TillAnalyticsDto> GetAnalyticsAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
+
+    /// <summary>Returns a captured photo as a data URL (base64) for viewing/download.</summary>
+    Task<string?> GetAttachmentContentAsync(Guid attachmentId, CancellationToken cancellationToken = default);
 }

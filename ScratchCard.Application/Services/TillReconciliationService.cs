@@ -450,6 +450,26 @@ public sealed class TillReconciliationService : ITillReconciliationService
         return dto;
     }
 
+    public async Task<string?> GetAttachmentContentAsync(Guid attachmentId, CancellationToken cancellationToken = default)
+    {
+        var att = await _attachments.Query().FirstOrDefaultAsync(a => a.Id == attachmentId, cancellationToken)
+            ?? throw new AppException("attachment_not_found", "Attachment not found.", 404);
+        var rec = await LoadAsync(att.TillReconciliationId, cancellationToken);
+        await EnsureAccessAsync(rec.ShopId, StaffRoles, FeatureKeys.StoreSalesBasic, cancellationToken);
+
+        var bytes = await _storage.ReadAsync(att.StoragePath, cancellationToken);
+        if (bytes is null || bytes.Length == 0) return null;
+        var mime = Path.GetExtension(att.StoragePath).ToLowerInvariant() switch
+        {
+            ".png" => "image/png",
+            ".webp" => "image/webp",
+            ".gif" => "image/gif",
+            ".pdf" => "application/pdf",
+            _ => "image/jpeg",
+        };
+        return $"data:{mime};base64,{Convert.ToBase64String(bytes)}";
+    }
+
     private static string SanitizeFileName(string fileName)
     {
         var name = Path.GetFileName(fileName);
@@ -560,8 +580,22 @@ public sealed class TillReconciliationService : ITillReconciliationService
             Lines = r.Lines
                 .OrderBy(l => (int)TillCanonicalCatalogue.Meta(l.CanonicalField).Group)
                 .Select(MapLine).ToList(),
+            Attachments = r.Attachments
+                .Select(a => new TillReconciliationAttachmentDto
+                {
+                    Id = a.Id,
+                    SourceLabel = a.SourceLabel,
+                    FileName = StripGuidPrefix(Path.GetFileName(a.StoragePath)),
+                }).ToList(),
             Summary = BuildSummary(r),
         };
+    }
+
+    /// <summary>Storage names are "{guid}_{original}.jpg" — show the human part.</summary>
+    private static string StripGuidPrefix(string name)
+    {
+        var idx = name.IndexOf('_');
+        return idx > 0 && idx < name.Length - 1 ? name[(idx + 1)..] : name;
     }
 
     private static TillReconciliationLineDto MapLine(TillReconciliationLine l)

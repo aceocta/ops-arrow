@@ -88,7 +88,14 @@ export type Reconciliation = {
   varianceNotes?: string | null;
   confirmedOn?: string | null;
   lines: ReconciliationLine[];
+  attachments: ReconciliationAttachment[];
   summary: ReconciliationSummary;
+};
+
+export type ReconciliationAttachment = {
+  id: string;
+  sourceLabel?: string | null;
+  fileName: string;
 };
 
 export async function getOrCreateReconciliation(payload: {
@@ -159,6 +166,11 @@ export async function ingestReconciliationPhoto(input: { id: string; uri: string
     timeout: 90000,
   });
   return response.data.data;
+}
+
+export async function getReconciliationAttachment(attachmentId: string) {
+  const response = await apiClient.get<ApiResponse<string>>(`/till-reconciliation/attachments/${attachmentId}/content`);
+  return response.data.data; // data URL (base64)
 }
 
 export type TillRollupTill = {

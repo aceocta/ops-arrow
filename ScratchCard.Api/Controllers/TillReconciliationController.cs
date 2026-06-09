@@ -73,4 +73,8 @@ public class TillReconciliationController : BaseApiController
     [HttpGet("analytics")]
     public async Task<IActionResult> Analytics([FromQuery] Guid shopId, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken cancellationToken)
         => Success(await _service.GetAnalyticsAsync(shopId, from, to, cancellationToken));
+
+    [HttpGet("attachments/{attachmentId:guid}/content")]
+    public async Task<IActionResult> AttachmentContent(Guid attachmentId, CancellationToken cancellationToken)
+        => Success(await _service.GetAttachmentContentAsync(attachmentId, cancellationToken));
 }
