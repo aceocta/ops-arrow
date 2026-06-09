@@ -312,7 +312,7 @@ export function TillReconciliationScreen() {
         {data && (counts.history + counts.ai + counts.newCount + counts.ignored) > 0 ? (
           <View style={styles.banner}>
             {counts.history > 0 ? <Text style={styles.bannerChip}>✓ {counts.history} auto-mapped</Text> : null}
-            {counts.ai > 0 ? <Text style={[styles.bannerChip, { color: appTheme.colors.warning }]}>🤖 {counts.ai} AI</Text> : null}
+            {counts.ai > 0 ? <Text style={[styles.bannerChip, { color: appTheme.colors.warning }]}>🔍 {counts.ai} to review</Text> : null}
             {counts.newCount > 0 ? <Text style={[styles.bannerChip, { color: appTheme.colors.warning }]}>● {counts.newCount} new</Text> : null}
             {counts.ignored > 0 ? <Text style={[styles.bannerChip, { color: appTheme.colors.textSubtle }]}>🚫 {counts.ignored} ignored</Text> : null}
           </View>
@@ -552,7 +552,7 @@ function OriginBadge({ line }: { line: ReconciliationLine }) {
   let color = appTheme.colors.textSubtle;
   if (line.canonicalField === "Unmapped") { label = "new"; color = appTheme.colors.warning; }
   else if (notes === "history") { label = "auto"; color = appTheme.colors.success; }
-  else if (notes.includes("ai")) { label = "AI"; color = appTheme.colors.warning; }
+  else if (notes.includes("ai")) { label = "Review"; color = appTheme.colors.warning; }
   else if (notes.includes("fuzzy")) { label = "~"; color = appTheme.colors.textSubtle; }
   if (!label) return null;
   return (
