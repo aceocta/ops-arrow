@@ -32,6 +32,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
     private readonly IFeatureGateService _featureGate;
     private readonly IRepository<ShopServiceCounterConfig> _counterConfigs;
     private readonly IRepository<CanisterDrop> _canisterDrops;
+    private readonly IRepository<Till> _tills;
     private readonly IRepository<ShopUser> _shopUsers;
     private readonly IRepository<Shop> _shops;
     private readonly INotificationService _notifications;
@@ -51,6 +52,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         IFeatureGateService featureGate,
         IRepository<ShopServiceCounterConfig> counterConfigs,
         IRepository<CanisterDrop> canisterDrops,
+        IRepository<Till> tills,
         IRepository<ShopUser> shopUsers,
         IRepository<Shop> shops,
         INotificationService notifications,
@@ -69,6 +71,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         _featureGate = featureGate;
         _counterConfigs = counterConfigs;
         _canisterDrops = canisterDrops;
+        _tills = tills;
         _shopUsers = shopUsers;
         _shops = shops;
         _notifications = notifications;
@@ -99,6 +102,11 @@ public sealed class TillReconciliationService : ITillReconciliationService
             return await MapAsync(existing, cancellationToken);
         }
 
+        // Pre-fill the opening float from the till's configured default (single-drawer stays 0).
+        var openingFloat = request.TillId is { } tid
+            ? await _tills.Query().AsNoTracking().Where(t => t.Id == tid).Select(t => t.DefaultFloat).FirstOrDefaultAsync(cancellationToken)
+            : 0m;
+
         var created = new TillReconciliation
         {
             ShopId = request.ShopId,
@@ -108,6 +116,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
             BusinessDayId = request.BusinessDayId,
             BusinessDate = request.BusinessDate,
             Status = TillReconciliationStatus.Draft,
+            OpeningFloat = openingFloat,
             CreatedOn = DateTimeOffset.UtcNow,
             CreatedBy = _currentUser.UserId,
         };

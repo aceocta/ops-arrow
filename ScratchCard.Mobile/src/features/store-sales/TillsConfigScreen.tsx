@@ -1,5 +1,5 @@
 import React from "react";
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
@@ -25,13 +25,21 @@ export function TillsConfigScreen() {
 
   const [newName, setNewName] = React.useState("");
   const [newCode, setNewCode] = React.useState("");
+  const [newFloat, setNewFloat] = React.useState("");
+  const [editingTill, setEditingTill] = React.useState<Till | null>(null);
   const codeInputRef = React.useRef<TextInput>(null);
 
+  const refreshTills = () => {
+    void queryClient.invalidateQueries({ queryKey: ["tills", shopId] });
+    void queryClient.invalidateQueries({ queryKey: ["tills", shopId, "all"] });
+  };
+
   const createMutation = useMutation({
-    mutationFn: () => createTill({ shopId: shopId as string, name: newName.trim(), code: newCode.trim() || undefined }),
+    mutationFn: () => createTill({ shopId: shopId as string, name: newName.trim(), code: newCode.trim() || undefined, defaultFloat: Number(newFloat) || 0 }),
     onSuccess: () => {
       setNewName("");
       setNewCode("");
+      setNewFloat("");
       void queryClient.invalidateQueries({ queryKey: ["tills", shopId] });
       void queryClient.invalidateQueries({ queryKey: ["tills", shopId, "all"] });
     },
@@ -56,7 +64,7 @@ export function TillsConfigScreen() {
 
   async function toggleActive(till: Till) {
     try {
-      await updateTill(till.id, { name: till.name, code: till.code, isActive: !till.isActive });
+      await updateTill(till.id, { name: till.name, code: till.code, isActive: !till.isActive, defaultFloat: till.defaultFloat });
       void queryClient.invalidateQueries({ queryKey: ["tills", shopId] });
       void queryClient.invalidateQueries({ queryKey: ["tills", shopId, "all"] });
     } catch (error: any) {
@@ -92,9 +100,20 @@ export function TillsConfigScreen() {
             placeholder="Code (optional)"
             placeholderTextColor={appTheme.colors.textSubtle}
             editable={!createMutation.isPending}
-            returnKeyType="done"
+            returnKeyType="next"
           />
         </View>
+        <View style={{ height: 8 }} />
+        <TextInput
+          style={[styles.input, styles.blockInput]}
+          value={newFloat}
+          onChangeText={setNewFloat}
+          placeholder="Default float (£) — optional"
+          placeholderTextColor={appTheme.colors.textSubtle}
+          editable={!createMutation.isPending}
+          keyboardType="decimal-pad"
+          returnKeyType="done"
+        />
         <PrimaryButton
           label={createMutation.isPending ? "Adding..." : "Add till"}
           onPress={() => createMutation.mutate()}
@@ -115,9 +134,12 @@ export function TillsConfigScreen() {
                 {till.name}
                 {till.code ? ` · ${till.code}` : ""}
               </Text>
-              <Text style={styles.tillMeta}>{till.isActive ? "Active" : "Inactive"}</Text>
+              <Text style={styles.tillMeta}>{till.isActive ? "Active" : "Inactive"} · Float £{(till.defaultFloat ?? 0).toFixed(2)}</Text>
             </View>
             <View style={styles.tillActions}>
+              <Pressable style={styles.iconBtn} onPress={() => setEditingTill(till)}>
+                <Ionicons name="create-outline" size={18} color={appTheme.colors.text} />
+              </Pressable>
               <Pressable style={styles.iconBtn} onPress={() => void toggleActive(till)}>
                 <Ionicons
                   name={till.isActive ? "pause-circle-outline" : "play-circle-outline"}
@@ -132,7 +154,53 @@ export function TillsConfigScreen() {
           </View>
         ))}
       </View>
+
+      {editingTill ? (
+        <EditTillModal
+          till={editingTill}
+          onClose={() => setEditingTill(null)}
+          onSaved={() => { setEditingTill(null); refreshTills(); }}
+        />
+      ) : null}
     </ScreenContainer>
+  );
+}
+
+function EditTillModal({ till, onClose, onSaved }: { till: Till; onClose: () => void; onSaved: () => void }) {
+  const [name, setName] = React.useState(till.name);
+  const [code, setCode] = React.useState(till.code ?? "");
+  const [float, setFloat] = React.useState(String(till.defaultFloat ?? 0));
+
+  const saveMutation = useMutation({
+    mutationFn: () => updateTill(till.id, {
+      name: name.trim(),
+      code: code.trim() || undefined,
+      isActive: till.isActive,
+      defaultFloat: Number(float) || 0,
+    }),
+    onSuccess: onSaved,
+    onError: (error: any) => Alert.alert("Update failed", error?.response?.data?.message ?? "Could not update this till."),
+  });
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalSheet}>
+          <View style={styles.modalHeader}>
+            <Text style={ui.sectionTitle}>Edit till</Text>
+            <Pressable onPress={onClose} hitSlop={8}><Ionicons name="close" size={22} color={appTheme.colors.text} /></Pressable>
+          </View>
+          <TextInput style={[styles.input, styles.blockInput]} value={name} onChangeText={setName} placeholder="Name" placeholderTextColor={appTheme.colors.textSubtle} />
+          <View style={{ height: 8 }} />
+          <TextInput style={[styles.input, styles.blockInput]} value={code} onChangeText={setCode} placeholder="Code (optional)" placeholderTextColor={appTheme.colors.textSubtle} />
+          <View style={{ height: 8 }} />
+          <TextInput style={[styles.input, styles.blockInput]} value={float} onChangeText={setFloat} placeholder="Default float (£)" placeholderTextColor={appTheme.colors.textSubtle} keyboardType="decimal-pad" />
+          <View style={{ height: 12 }} />
+          <PrimaryButton label={saveMutation.isPending ? "Saving..." : "Save changes"} onPress={() => saveMutation.mutate()} disabled={!name.trim() || saveMutation.isPending} />
+          <PrimaryButton label="Cancel" tone="neutral" onPress={onClose} />
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -151,6 +219,9 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
   },
   codeInput: { flex: 0.7 },
+  // styles.input has flex:1 for the add row; in a column (modal / standalone) that collapses to
+  // zero height, so column inputs must opt out of flex and stretch to full width instead.
+  blockInput: { flex: 0, alignSelf: "stretch" },
   tillRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -178,4 +249,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  modalBackdrop: { flex: 1, backgroundColor: appTheme.colors.overlay, justifyContent: "flex-end" },
+  modalSheet: { backgroundColor: appTheme.colors.background, borderTopLeftRadius: appTheme.radius.lg, borderTopRightRadius: appTheme.radius.lg, padding: appTheme.spacing.md },
+  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: appTheme.spacing.sm },
 });

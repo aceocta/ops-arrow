@@ -9,12 +9,12 @@ export async function listTills(shopId: string, includeInactive = false) {
   return response.data.data;
 }
 
-export async function createTill(input: { shopId: string; name: string; code?: string }) {
+export async function createTill(input: { shopId: string; name: string; code?: string; defaultFloat?: number }) {
   const response = await apiClient.post<ApiResponse<Till>>("/tills", input);
   return response.data.data;
 }
 
-export async function updateTill(id: string, input: { name: string; code?: string; isActive: boolean }) {
+export async function updateTill(id: string, input: { name: string; code?: string; isActive: boolean; defaultFloat?: number }) {
   const response = await apiClient.put<ApiResponse<Till>>(`/tills/${id}`, input);
   return response.data.data;
 }

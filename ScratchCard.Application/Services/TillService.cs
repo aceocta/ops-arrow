@@ -92,6 +92,7 @@ public class TillService : ITillService
             Name = name,
             Code = string.IsNullOrWhiteSpace(request.Code) ? null : request.Code.Trim(),
             IsActive = true,
+            DefaultFloat = request.DefaultFloat,
             CreatedOn = DateTimeOffset.UtcNow,
             CreatedBy = _currentUserService.UserId
         };
@@ -127,6 +128,7 @@ public class TillService : ITillService
         till.Name = name;
         till.Code = string.IsNullOrWhiteSpace(request.Code) ? null : request.Code.Trim();
         till.IsActive = request.IsActive;
+        till.DefaultFloat = request.DefaultFloat;
         till.ModifiedOn = DateTimeOffset.UtcNow;
         till.ModifiedBy = _currentUserService.UserId;
 
@@ -164,6 +166,7 @@ public class TillService : ITillService
         ShopId = till.ShopId,
         Name = till.Name,
         Code = till.Code,
-        IsActive = till.IsActive
+        IsActive = till.IsActive,
+        DefaultFloat = till.DefaultFloat
     };
 }

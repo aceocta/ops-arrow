@@ -43,6 +43,7 @@ export type Till = {
   name: string;
   code?: string;
   isActive: boolean;
+  defaultFloat: number;
 };
 
 export type TillReportScopeSummary = {

@@ -6,14 +6,15 @@ export type Till = {
   name: string;
   code?: string | null;
   isActive: boolean;
+  defaultFloat: number;
 };
 
 export const tillsApi = {
   list: async (shopId: string, includeInactive = true) =>
     unwrap<Till[]>((await api.get("/tills", { params: { shopId, includeInactive } })).data),
-  create: async (p: { shopId: string; name: string; code?: string }) =>
+  create: async (p: { shopId: string; name: string; code?: string; defaultFloat: number }) =>
     unwrap<Till>((await api.post("/tills", p)).data),
-  update: async (id: string, p: { name: string; code?: string; isActive: boolean }) =>
+  update: async (id: string, p: { name: string; code?: string; isActive: boolean; defaultFloat: number }) =>
     unwrap<Till>((await api.put(`/tills/${id}`, p)).data),
   remove: async (id: string) => { await api.delete(`/tills/${id}`); },
 };

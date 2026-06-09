@@ -330,6 +330,7 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.Code).HasMaxLength(50);
             entity.Property(x => x.IsActive).HasDefaultValue(true);
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.Property(x => x.DefaultFloat).HasPrecision(18, 2);
             entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId);
         });
 
