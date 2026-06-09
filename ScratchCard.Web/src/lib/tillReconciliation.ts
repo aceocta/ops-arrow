@@ -100,7 +100,7 @@ export type AccountingLine = { field: string; fieldName: string; ledger: LedgerC
 export type VatRateRow = { bucket: string; net: number; vat: number; gross: number };
 export type AccountingSummary = {
   shopId: string; from: string; to: string;
-  turnoverExAgency: number; tendersTotal: number; commissionIncome: number;
+  turnoverExAgency: number; otherTurnover: number; tendersTotal: number; commissionIncome: number;
   agencyLiabilities: number; expenses: number; cashOverShort: number;
   vatByRate: VatRateRow[]; lines: AccountingLine[];
 };

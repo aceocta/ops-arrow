@@ -80,6 +80,7 @@ public sealed class TillAccountingService : ITillAccountingService
                     // Refunds are stored positive but reduce sales.
                     var signed = field == TillCanonicalField.Refund ? -amount : amount;
                     summary.TurnoverExAgency += signed;
+                    if (field == TillCanonicalField.DeptOther) summary.OtherTurnover += signed;
                     AccrueVat(vatBuckets, meta.Vat, signed);
                     break;
             }
@@ -114,6 +115,7 @@ public sealed class TillAccountingService : ITillAccountingService
         sb.AppendLine();
         sb.AppendLine("Totals,Label,Amount");
         sb.AppendLine($",Turnover (ex-agency),{Money(s.TurnoverExAgency)}");
+        if (s.OtherTurnover != 0) sb.AppendLine($",  of which 'Other' (no VAT applied),{Money(s.OtherTurnover)}");
         sb.AppendLine($",Tenders,{Money(s.TendersTotal)}");
         sb.AppendLine($",Commission income,{Money(s.CommissionIncome)}");
         sb.AppendLine($",Agency liabilities,{Money(s.AgencyLiabilities)}");

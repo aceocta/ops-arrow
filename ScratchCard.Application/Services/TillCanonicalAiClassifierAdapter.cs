@@ -70,6 +70,8 @@ public sealed class TillCanonicalAiClassifierAdapter : ITillCanonicalAiClassifie
         "grocery" => TillCanonicalField.DeptGrocery,
         "hot_food" => TillCanonicalField.DeptFoodToGo,
         "newspaper" => TillCanonicalField.DeptNewsMag,
-        _ => TillCanonicalField.DeptOther,
+        // A sale we can't pin to a department stays Unmapped for a human to classify, rather than
+        // silently becoming un-VAT'd "Other" turnover.
+        _ => TillCanonicalField.Unmapped,
     };
 }

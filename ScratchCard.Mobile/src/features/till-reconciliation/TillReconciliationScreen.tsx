@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { compressForUpload } from "../../utils/imageCompression";
 import { useAuth } from "../../auth/AuthContext";
@@ -141,32 +142,53 @@ export function TillReconciliationScreen() {
       : data?.varianceStatus === "Warning" ? appTheme.colors.warning
         : appTheme.colors.danger;
 
-  return (
-    <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={[ui.card, styles.row]}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.label}>Business date</Text>
-            <DateTimeField mode="date" value={businessDate} onChange={setBusinessDate} />
-          </View>
-          {data ? <StatusPill status={data.status} /> : null}
-        </View>
+  const approveDisabled = !data || statusMutation.isPending ||
+    (data.status === "Reconciled" && data.requiresReason && !data.varianceReasonCode);
 
-        {multiTill ? (
-          <View style={ui.card}>
-            <Text style={styles.label}>Till</Text>
-            <View style={styles.chipWrap}>
-              {tills.map((t) => {
-                const active = effectiveTillId === t.id;
-                return (
-                  <Pressable key={t.id} onPress={() => setTillId(t.id)} style={[styles.chip, active ? styles.chipActive : null]}>
-                    <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>{t.name}</Text>
-                  </Pressable>
-                );
-              })}
+  // Sticky action bar — Add line + advance the status. Hidden once approved (read-only).
+  const footerBar = data && !locked ? (
+    <View style={styles.footerRow}>
+      <Pressable style={[styles.footerBtn, styles.footerBtnOutline]} onPress={() => setEditingLine("new")}>
+        <Ionicons name="add-circle-outline" size={18} color={appTheme.colors.primary} />
+        <Text style={styles.footerBtnOutlineText}>Add line</Text>
+      </Pressable>
+      <Pressable
+        style={[styles.footerBtn, styles.footerBtnPrimary, approveDisabled ? styles.footerBtnDisabled : null]}
+        disabled={approveDisabled}
+        onPress={() => statusMutation.mutate(data.status === "Reconciled" ? "Approved" : "Reconciled")}
+      >
+        <Text style={styles.footerBtnPrimaryText}>{data.status === "Reconciled" ? "Approve & lock" : "Mark reconciled"}</Text>
+      </Pressable>
+    </View>
+  ) : undefined;
+
+  return (
+    <ScreenContainer footer={footerBar}>
+        <View style={ui.card}>
+          <View style={styles.row}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Business date</Text>
+              <DateTimeField mode="date" value={businessDate} onChange={setBusinessDate} />
             </View>
+            {data ? <StatusPill status={data.status} /> : null}
           </View>
-        ) : null}
+
+          {multiTill ? (
+            <View style={styles.tillPickerBlock}>
+              <Text style={styles.label}>Till</Text>
+              <View style={styles.chipWrap}>
+                {tills.map((t) => {
+                  const active = effectiveTillId === t.id;
+                  return (
+                    <Pressable key={t.id} onPress={() => setTillId(t.id)} style={[styles.chip, active ? styles.chipActive : null]}>
+                      <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>{t.name}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
+        </View>
 
         {q.isLoading ? <LoadingState inline /> : null}
 
@@ -239,13 +261,6 @@ export function TillReconciliationScreen() {
               </View>
             ))}
 
-            {!locked ? (
-              <Pressable style={styles.addBtn} onPress={() => setEditingLine("new")}>
-                <Ionicons name="add-circle-outline" size={18} color={appTheme.colors.primary} />
-                <Text style={styles.addBtnText}>Add line</Text>
-              </Pressable>
-            ) : null}
-
             {/* Exceptions chips */}
             {(data.summary.noSaleCount > 0 || data.summary.voids !== 0 || data.summary.refunds !== 0) ? (
               <Text style={styles.exceptions}>
@@ -271,21 +286,14 @@ export function TillReconciliationScreen() {
               </View>
             ) : null}
 
-            {/* Status actions */}
-            {!locked ? (
-              <PrimaryButton
-                label={data.status === "Reconciled" ? "Approve & lock" : "Mark reconciled"}
-                onPress={() => statusMutation.mutate(data.status === "Reconciled" ? "Approved" : "Reconciled")}
-                disabled={statusMutation.isPending || (data.status === "Reconciled" && data.requiresReason && !data.varianceReasonCode)}
-              />
-            ) : (
+            {/* Approved (read-only) banner */}
+            {locked ? (
               <View style={[ui.card, { alignItems: "center" }]}>
                 <Text style={styles.approved}>✓ Approved{data.confirmedOn ? ` · ${new Date(data.confirmedOn).toLocaleString("en-GB")}` : ""}</Text>
               </View>
-            )}
+            ) : null}
           </>
         ) : null}
-      </ScrollView>
 
       {editingLine ? (
         <LineEditor
@@ -435,6 +443,7 @@ function CashCountModal({ recon, onClose, onSaved }: {
   const [cardCounted, setCardCounted] = useState(recon.cardCounted != null ? String(recon.cardCounted) : "");
   const [denomOpen, setDenomOpen] = useState(false);
   const [qty, setQty] = useState<Record<number, string>>({});
+  const insets = useSafeAreaInsets();
 
   const denomTotal = useMemo(() => DENOMS.reduce((s, d) => s + d.value * (num(qty[d.value] ?? "")), 0), [qty]);
 
@@ -452,44 +461,50 @@ function CashCountModal({ recon, onClose, onSaved }: {
   });
 
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.sheetBackdrop}>
-        <View style={styles.sheet}>
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        style={styles.sheetBackdropTop}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <View style={[styles.sheetTop, { paddingTop: insets.top + appTheme.spacing.sm, paddingBottom: insets.bottom + appTheme.spacing.md }]}>
           <View style={styles.sheetHeader}>
             <Text style={ui.sectionTitle}>Cash count</Text>
             <Pressable onPress={onClose} hitSlop={8}><Ionicons name="close" size={22} color={appTheme.colors.text} /></Pressable>
           </View>
 
           {denomOpen ? (
-            <ScrollView style={{ maxHeight: 320 }}>
-              {DENOMS.map((d) => (
-                <View key={d.value} style={styles.denomRow}>
-                  <Text style={styles.denomLabel}>{d.label}</Text>
-                  <FloatingLabelInput label="Qty" value={qty[d.value] ?? ""} onChangeText={(t) => setQty((p) => ({ ...p, [d.value]: t }))} keyboardType="number-pad" containerStyle={{ width: 110 }} />
-                  <Text style={styles.denomSub}>{gbp(d.value * num(qty[d.value] ?? ""))}</Text>
-                </View>
-              ))}
-              <View style={styles.kvRow}><Text style={styles.kvKey}>Total</Text><Text style={styles.kvVal}>{gbp(denomTotal)}</Text></View>
+            <>
+              <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: appTheme.spacing.sm }}>
+                {DENOMS.map((d) => (
+                  <View key={d.value} style={styles.denomRow}>
+                    <Text style={styles.denomLabel}>{d.label}</Text>
+                    <FloatingLabelInput label="Qty" value={qty[d.value] ?? ""} onChangeText={(t) => setQty((p) => ({ ...p, [d.value]: t }))} keyboardType="number-pad" containerStyle={{ width: 110 }} />
+                    <Text style={styles.denomSub}>{gbp(d.value * num(qty[d.value] ?? ""))}</Text>
+                  </View>
+                ))}
+                <View style={styles.kvRow}><Text style={styles.kvKey}>Total</Text><Text style={styles.kvVal}>{gbp(denomTotal)}</Text></View>
+              </ScrollView>
               <PrimaryButton label={`Use ${gbp(denomTotal)}`} onPress={() => { setCounted(String(denomTotal.toFixed(2))); setDenomOpen(false); }} />
               <PrimaryButton label="Back" tone="neutral" onPress={() => setDenomOpen(false)} />
-            </ScrollView>
+            </>
           ) : (
             <>
-              <FloatingLabelInput label="Opening float (£)" value={openingFloat} onChangeText={setOpeningFloat} keyboardType="decimal-pad" prefix="£" />
-              <FloatingLabelInput label="Counted cash (£)" value={counted} onChangeText={setCounted} keyboardType="decimal-pad" prefix="£" />
-              <Pressable style={styles.countBtn} onPress={() => setDenomOpen(true)}>
-                <Ionicons name="calculator-outline" size={16} color={appTheme.colors.primary} />
-                <Text style={styles.countBtnText}>Count by denomination</Text>
-              </Pressable>
-              <FloatingLabelInput label="Float to carry (£)" value={floatToCarry} onChangeText={setFloatToCarry} keyboardType="decimal-pad" prefix="£" />
-              <FloatingLabelInput label="Card terminal total (£)" value={cardCounted} onChangeText={setCardCounted} keyboardType="decimal-pad" prefix="£" />
-              <View style={{ height: 10 }} />
+              <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 6, paddingBottom: appTheme.spacing.sm }}>
+                <FloatingLabelInput label="Opening float (£)" value={openingFloat} onChangeText={setOpeningFloat} keyboardType="decimal-pad" prefix="£" />
+                <FloatingLabelInput label="Counted cash (£)" value={counted} onChangeText={setCounted} keyboardType="decimal-pad" prefix="£" />
+                <Pressable style={styles.countBtn} onPress={() => setDenomOpen(true)}>
+                  <Ionicons name="calculator-outline" size={16} color={appTheme.colors.primary} />
+                  <Text style={styles.countBtnText}>Count by denomination</Text>
+                </Pressable>
+                <FloatingLabelInput label="Float to carry (£)" value={floatToCarry} onChangeText={setFloatToCarry} keyboardType="decimal-pad" prefix="£" />
+                <FloatingLabelInput label="Card terminal total (£)" value={cardCounted} onChangeText={setCardCounted} keyboardType="decimal-pad" prefix="£" />
+              </ScrollView>
               <PrimaryButton label={saveMutation.isPending ? "Saving…" : "Save count"} onPress={() => saveMutation.mutate()} disabled={!counted.trim() || saveMutation.isPending} />
               <PrimaryButton label="Cancel" tone="neutral" onPress={onClose} />
             </>
           )}
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -497,6 +512,7 @@ function CashCountModal({ recon, onClose, onSaved }: {
 const styles = StyleSheet.create({
   content: { gap: appTheme.spacing.sm, paddingBottom: appTheme.spacing.xl },
   row: { flexDirection: "row", alignItems: "flex-end", gap: appTheme.spacing.sm },
+  tillPickerBlock: { marginTop: appTheme.spacing.md, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft, paddingTop: appTheme.spacing.sm },
   label: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, marginBottom: 4 },
   muted: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.body, fontSize: 12 },
   kvRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 4 },
@@ -520,6 +536,13 @@ const styles = StyleSheet.create({
   lineAmount: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
   addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: appTheme.radius.sm, borderWidth: 1, borderColor: appTheme.colors.border, borderStyle: "dashed" },
   addBtnText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
+  footerRow: { flexDirection: "row", gap: appTheme.spacing.sm },
+  footerBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: appTheme.radius.md },
+  footerBtnOutline: { flex: 1, borderWidth: 1, borderColor: appTheme.colors.primary, backgroundColor: appTheme.colors.surface },
+  footerBtnOutlineText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 15 },
+  footerBtnPrimary: { flex: 2, backgroundColor: appTheme.colors.primary },
+  footerBtnPrimaryText: { color: appTheme.colors.onPrimary, fontFamily: appTheme.fonts.heading, fontSize: 15 },
+  footerBtnDisabled: { opacity: 0.45 },
   exceptions: { color: appTheme.colors.warning, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, paddingHorizontal: 4 },
   approved: { color: appTheme.colors.success, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
   pill: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
@@ -531,6 +554,8 @@ const styles = StyleSheet.create({
   chipTextActive: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium },
   sheetBackdrop: { flex: 1, backgroundColor: appTheme.colors.overlay, justifyContent: "flex-end" },
   sheet: { backgroundColor: appTheme.colors.background, borderTopLeftRadius: appTheme.radius.lg, borderTopRightRadius: appTheme.radius.lg, padding: appTheme.spacing.md, gap: 6 },
+  sheetBackdropTop: { flex: 1, backgroundColor: appTheme.colors.background },
+  sheetTop: { flex: 1, backgroundColor: appTheme.colors.background, paddingHorizontal: appTheme.spacing.md, gap: 6 },
   sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
   denomRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 4 },
   denomLabel: { width: 48, color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },

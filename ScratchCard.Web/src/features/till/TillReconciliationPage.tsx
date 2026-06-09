@@ -323,6 +323,11 @@ function AccountingCard({ shopId, from, to }: { shopId: string; from: string; to
               </tbody>
             </table>
           ) : <p className="text-sm text-slate-400">No taxable sales lines in this range.</p>}
+          {s.otherTurnover ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              ⚠ {gbp(s.otherTurnover)} sits in <strong>"Other"</strong> — counted as turnover but with no VAT rate applied. Map these lines to a real department for accurate VAT.
+            </div>
+          ) : null}
           <p className="text-xs text-slate-400">Agency throughput (PayPoint, Lottery, Post Office) is excluded from turnover and shown as a liability — only commission is income.</p>
         </div>
       ) : <div className="p-5 text-sm text-slate-500">Loading…</div>}

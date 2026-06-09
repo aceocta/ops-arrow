@@ -27,6 +27,9 @@ public class AccountingSummaryDto
 
     /// <summary>Taxable turnover, excluding agency throughput.</summary>
     public decimal TurnoverExAgency { get; set; }
+    /// <summary>Turnover sitting in the generic "Other" department — counted as sales but with no
+    /// VAT rate applied. Flagged so it can be mapped to a real department for accurate VAT.</summary>
+    public decimal OtherTurnover { get; set; }
     public decimal TendersTotal { get; set; }
     public decimal CommissionIncome { get; set; }
     public decimal AgencyLiabilities { get; set; }
