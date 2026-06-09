@@ -80,7 +80,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 0,
-    overflow: "hidden",
+    // Soft brand-tinted lift so the primary action reads as elevated (iOS colour, Android elevation).
+    shadowColor: appTheme.colors.primary,
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
   },
   buttonSmall: {
     minHeight: 38,
@@ -89,14 +94,20 @@ const styles = StyleSheet.create({
   },
   buttonNeutral: {
     backgroundColor: appTheme.colors.surfaceTintSoft,
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderSoft,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   buttonDanger: {
     backgroundColor: appTheme.colors.danger,
+    shadowColor: appTheme.colors.danger,
   },
   buttonSuccess: {
     backgroundColor: appTheme.colors.success,
+    shadowColor: appTheme.colors.success,
   },
-  disabled: { backgroundColor: appTheme.colors.borderStrong },
+  disabled: { backgroundColor: appTheme.colors.borderStrong, shadowOpacity: 0, elevation: 0 },
   content: {
     flexDirection: "row",
     alignItems: "center",

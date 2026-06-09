@@ -66,7 +66,9 @@
       "Bash(awk -F: '$1>600 && $1<845')",
       "Bash(ls src/*.tsx App.tsx)",
       "Bash(sed -n '1,60p' App.tsx)",
-      "Bash(sed -n '1,60p' src/App.tsx)"
+      "Bash(sed -n '1,60p' src/App.tsx)",
+      "Bash(npx expo *)",
+      "Bash(awk -F: '$1<440')"
     ]
   }
 }

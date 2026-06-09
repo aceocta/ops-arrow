@@ -290,4 +290,12 @@ export const appTheme = {
   },
 } as const;
 
-export const surfaceShadow = {};
+// Subtle, soft elevation applied to every card surface for a modern "floating" feel.
+// Kept low-opacity so stacked cards don't look heavy; Android uses `elevation`.
+export const surfaceShadow = {
+  shadowColor: activeColors.previewBackdrop,
+  shadowOpacity: resolvedColorScheme === "dark" ? 0.35 : 0.07,
+  shadowRadius: 16,
+  shadowOffset: { width: 0, height: 8 },
+  elevation: 3,
+};

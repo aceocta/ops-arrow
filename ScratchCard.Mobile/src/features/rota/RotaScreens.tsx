@@ -38,6 +38,7 @@ import {
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
 import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
 import { LoadingState } from "../../components/LoadingState";
+import { SkeletonList } from "../../components/Skeleton";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -343,12 +344,11 @@ export function MyShiftsScreen() {
   return (
     <ScreenContainer>
       <ScrollView contentContainerStyle={styles.content}>
-        {/* <Text style={styles.sectionTitle}>My shifts</Text> */}
         {isCheckedInSomewhere ? (
           <Text style={styles.muted}>You're on shift since {clockTime(current?.checkInAt)}. Check out before starting another.</Text>
         ) : null}
 
-        {shiftsQuery.isLoading ? <LoadingState inline /> : null}
+        {shiftsQuery.isLoading ? <SkeletonList count={4} /> : null}
         {!shiftsQuery.isLoading && grouped.length === 0 ? (
           <View style={ui.card}><Text style={styles.muted}>No shifts scheduled for the next 2 weeks.</Text></View>
         ) : null}
@@ -671,7 +671,7 @@ export function RotaManageScreen() {
           <Text style={styles.generateBtnText}>{generateMutation.isPending ? "Generating…" : "Auto-generate this week"}</Text>
         </Pressable>
 
-        {rotaQuery.isLoading ? <LoadingState inline /> : null}
+        {rotaQuery.isLoading ? <SkeletonList count={5} /> : null}
 
         {/* One row per weekday, Mon–Sun, with its shifts + assigned users. */}
         {weekDays.map((date) => {
@@ -1449,7 +1449,7 @@ export function RotaStaffMembersScreen() {
         <Text style={styles.muted}>People who aren't Ops Arrow users but you roster &amp; record hours for.</Text>
         <PrimaryButton label="+ Add external person" onPress={openNew} disabled={!shopId} />
 
-        {membersQuery.isLoading ? <LoadingState inline /> : null}
+        {membersQuery.isLoading ? <SkeletonList count={4} /> : null}
         {!membersQuery.isLoading && members.length === 0 ? (
           <View style={ui.card}><Text style={styles.muted}>No external staff yet.</Text></View>
         ) : null}
@@ -1465,7 +1465,7 @@ export function RotaStaffMembersScreen() {
                 {[m.phone, m.email].filter(Boolean).join("  ·  ") || "No contact details"}
               </Text>
             </View>
-            <Ionicons name="create-outline" size={18} color={appTheme.colors.primary} />
+            <Ionicons name="chevron-forward" size={18} color={appTheme.colors.textSubtle} />
           </Pressable>
         ))}
       </ScrollView>
