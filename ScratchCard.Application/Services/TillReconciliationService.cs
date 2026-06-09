@@ -30,6 +30,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
     private readonly IAttachmentStorageService _storage;
     private readonly IShopMembershipService _shopMembership;
     private readonly IFeatureGateService _featureGate;
+    private readonly IRepository<ShopServiceCounterConfig> _counterConfigs;
     private readonly IRepository<ShopUser> _shopUsers;
     private readonly IRepository<Shop> _shops;
     private readonly INotificationService _notifications;
@@ -47,6 +48,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         IAttachmentStorageService storage,
         IShopMembershipService shopMembership,
         IFeatureGateService featureGate,
+        IRepository<ShopServiceCounterConfig> counterConfigs,
         IRepository<ShopUser> shopUsers,
         IRepository<Shop> shops,
         INotificationService notifications,
@@ -63,6 +65,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         _storage = storage;
         _shopMembership = shopMembership;
         _featureGate = featureGate;
+        _counterConfigs = counterConfigs;
         _shopUsers = shopUsers;
         _shops = shops;
         _notifications = notifications;
@@ -160,7 +163,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
                 rec.TillId ?? rec.ShopId, request.Section, cancellationToken);
         }
 
-        Recompute(rec);
+        await RecomputeAsync(rec, cancellationToken);
         _reconciliations.Update(rec);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Map(rec);
@@ -175,7 +178,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         var toRemove = rec.Lines.First(l => l.Id == lineId);
         rec.Lines.Remove(toRemove);
         _lines.Remove(toRemove);
-        Recompute(rec);
+        await RecomputeAsync(rec, cancellationToken);
         _reconciliations.Update(rec);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Map(rec);
@@ -190,7 +193,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         rec.DenominationJson = request.DenominationJson;
         rec.FloatToCarry = request.FloatToCarry;
         rec.CardCounted = request.CardCounted;
-        Recompute(rec);
+        await RecomputeAsync(rec, cancellationToken);
         if (rec.Status == TillReconciliationStatus.Draft) rec.Status = TillReconciliationStatus.NeedsVerification;
         _reconciliations.Update(rec);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -217,7 +220,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         // Block approval if a material variance has no reason recorded.
         if (status == TillReconciliationStatus.Approved)
         {
-            Recompute(rec);
+            await RecomputeAsync(rec, cancellationToken);
             if (VarianceStatusOf(rec.CashVariance) != TillVarianceStatus.Ok && string.IsNullOrWhiteSpace(rec.VarianceReasonCode))
             {
                 throw new AppException("variance_reason_required", "A variance reason is required before approving.", 400);
@@ -348,7 +351,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         }
 
         if (rec.Status == TillReconciliationStatus.Draft) rec.Status = TillReconciliationStatus.NeedsVerification;
-        Recompute(rec);
+        await RecomputeAsync(rec, cancellationToken);
         _reconciliations.Update(rec);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Map(rec);
@@ -448,16 +451,36 @@ public sealed class TillReconciliationService : ITillReconciliationService
         await Query().FirstOrDefaultAsync(r => r.Id == id, cancellationToken)
             ?? throw new AppException("reconciliation_not_found", "Till reconciliation not found.", 404);
 
-    /// <summary>Core engine: expected drawer cash = float + Σ drawer-affecting lines (in − out).</summary>
-    private static void Recompute(TillReconciliation rec)
+    /// <summary>
+    /// Core engine: expected drawer cash = float + Σ drawer-affecting lines (in − out).
+    /// Drawer cash is driven by TENDERS (the Cash total) and cash movements — NOT by sales/counter
+    /// categories, whose cash already arrives via the Cash tender (and may be paid by card). A shop
+    /// whose counter runs on a SEPARATE cash drawer opts that counter back in via
+    /// <see cref="ShopServiceCounterConfig.AffectsRetailDrawer"/>.
+    /// </summary>
+    private async Task RecomputeAsync(TillReconciliation rec, CancellationToken cancellationToken)
     {
+        var overrides = await _counterConfigs.Query().AsNoTracking()
+            .Where(c => c.ShopId == rec.ShopId && !c.IsDeleted)
+            .ToDictionaryAsync(c => c.CounterType, cancellationToken);
+
         decimal drawer = 0;
         foreach (var line in rec.Lines)
         {
             var meta = TillCanonicalCatalogue.Meta(line.CanonicalField);
-            if (!meta.AffectsDrawer) continue;
-            if (meta.CashDirection == TillCashDirection.In) drawer += line.VerifiedAmount;
-            else if (meta.CashDirection == TillCashDirection.Out) drawer -= line.VerifiedAmount;
+            var affects = meta.AffectsDrawer;
+            var direction = meta.CashDirection;
+
+            // Per-shop override: a counter on its own cash drawer can re-enter the retail drawer maths.
+            if (overrides.TryGetValue(line.CanonicalField, out var cfg))
+            {
+                affects = cfg.AffectsRetailDrawer;
+                if (cfg.CashDirection != TillCashDirection.None) direction = cfg.CashDirection;
+            }
+
+            if (!affects) continue;
+            if (direction == TillCashDirection.In) drawer += line.VerifiedAmount;
+            else if (direction == TillCashDirection.Out) drawer -= line.VerifiedAmount;
         }
         rec.ExpectedCash = rec.OpeningFloat + drawer;
         rec.CashVariance = (rec.CountedCash ?? 0) - rec.ExpectedCash;

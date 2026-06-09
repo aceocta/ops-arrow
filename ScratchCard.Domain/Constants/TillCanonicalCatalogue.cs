@@ -39,18 +39,22 @@ public static class TillCanonicalCatalogue
         M(TillCanonicalField.Cheque, TillFieldGroup.Tender, TillCashDirection.None, false, TillVatTreatment.NotApplicable, "Cheque"),
         M(TillCanonicalField.Cashback, TillFieldGroup.Tender, TillCashDirection.Out, true, TillVatTreatment.NotApplicable, "Cashback"),
 
-        // Service counters
-        M(TillCanonicalField.LotterySales, TillFieldGroup.Counter, TillCashDirection.In, true, TillVatTreatment.Exempt, "Lottery sales"),
+        // Service counters.
+        // SALES-type counters do NOT affect the drawer by default: their cash already arrives via the
+        // Cash tender (and they may be paid by card). CashDirection.In is kept as a fallback for shops
+        // whose counter runs on a SEPARATE cash drawer — opted in per-shop via ShopServiceCounterConfig.
+        // PRIZE payouts and ATM dispense are genuine cash OUT of the till, so they stay drawer-affecting.
+        M(TillCanonicalField.LotterySales, TillFieldGroup.Counter, TillCashDirection.In, false, TillVatTreatment.Exempt, "Lottery sales"),
         M(TillCanonicalField.LotteryPrizes, TillFieldGroup.Counter, TillCashDirection.Out, true, TillVatTreatment.Exempt, "Lottery prizes paid"),
         M(TillCanonicalField.LotteryCommission, TillFieldGroup.Income, TillCashDirection.None, false, TillVatTreatment.Exempt, "Lottery commission", commission: true),
-        M(TillCanonicalField.ScratchcardSales, TillFieldGroup.Counter, TillCashDirection.In, true, TillVatTreatment.Exempt, "Scratchcard sales"),
+        M(TillCanonicalField.ScratchcardSales, TillFieldGroup.Counter, TillCashDirection.In, false, TillVatTreatment.Exempt, "Scratchcard sales"),
         M(TillCanonicalField.ScratchcardPrizes, TillFieldGroup.Counter, TillCashDirection.Out, true, TillVatTreatment.Exempt, "Scratchcard prizes paid"),
-        M(TillCanonicalField.PayPoint, TillFieldGroup.Counter, TillCashDirection.In, true, TillVatTreatment.OutOfScope, "PayPoint"),
-        M(TillCanonicalField.Payzone, TillFieldGroup.Counter, TillCashDirection.In, true, TillVatTreatment.OutOfScope, "Payzone"),
+        M(TillCanonicalField.PayPoint, TillFieldGroup.Counter, TillCashDirection.In, false, TillVatTreatment.OutOfScope, "PayPoint"),
+        M(TillCanonicalField.Payzone, TillFieldGroup.Counter, TillCashDirection.In, false, TillVatTreatment.OutOfScope, "Payzone"),
         M(TillCanonicalField.Parcels, TillFieldGroup.Counter, TillCashDirection.None, false, TillVatTreatment.Standard20, "Parcels"),
-        M(TillCanonicalField.CarrierBags, TillFieldGroup.Counter, TillCashDirection.In, true, TillVatTreatment.Standard20, "Carrier bags"),
+        M(TillCanonicalField.CarrierBags, TillFieldGroup.Counter, TillCashDirection.In, false, TillVatTreatment.Standard20, "Carrier bags"),
         M(TillCanonicalField.PostOffice, TillFieldGroup.Counter, TillCashDirection.Separate, false, TillVatTreatment.NotApplicable, "Post Office"),
-        M(TillCanonicalField.FuelSales, TillFieldGroup.Counter, TillCashDirection.In, true, TillVatTreatment.Standard20, "Fuel sales"),
+        M(TillCanonicalField.FuelSales, TillFieldGroup.Counter, TillCashDirection.In, false, TillVatTreatment.Standard20, "Fuel sales"),
         M(TillCanonicalField.Atm, TillFieldGroup.Counter, TillCashDirection.Out, true, TillVatTreatment.NotApplicable, "ATM"),
 
         // Movements
