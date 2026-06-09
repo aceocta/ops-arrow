@@ -116,11 +116,12 @@ export default function AppLayout() {
     <div className="flex h-full">
       {/* Sidebar */}
       <aside className="flex w-64 flex-col border-r border-slate-200/70 bg-white/80 backdrop-blur">
-        <div className="flex items-center gap-2 px-5 py-5">
-          <img src="/logo.png" alt="Ops Arrow" className="h-9 w-9 rounded-lg object-contain" />
-          <span className="text-lg font-semibold text-slate-900">Ops Arrow</span>
+        <div className="flex items-center gap-2.5 px-5 py-5">
+          <img src="/logo.png" alt="Ops Arrow" className="h-9 w-9 rounded-xl object-contain shadow-sm" />
+          <span className="bg-gradient-to-r from-brand-700 to-brand-500 bg-clip-text text-lg font-bold tracking-tight text-transparent">Ops Arrow</span>
         </div>
-        <nav className="flex-1 space-y-1 px-3">
+        <div className="px-5 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Menu</div>
+        <nav className="flex-1 space-y-0.5 px-3">
           {items.map((i) => (
             <NavLink
               key={i.to}
@@ -128,9 +129,9 @@ export default function AppLayout() {
               end={i.to === "/"}
               className={({ isActive }) =>
                 clsx(
-                  "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition",
+                  "relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
                   isActive
-                    ? "bg-brand-50 text-brand-700 shadow-sm ring-1 ring-brand-100"
+                    ? "bg-brand-50 text-brand-700 shadow-sm ring-1 ring-brand-100 before:absolute before:left-0 before:top-1/2 before:h-5 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-brand-600"
                     : "text-slate-500 hover:bg-slate-100/70 hover:text-slate-900",
                 )
               }

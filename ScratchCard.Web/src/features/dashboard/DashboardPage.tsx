@@ -252,20 +252,20 @@ function StatCard({
   tone: "brand" | "amber" | "red" | "emerald";
 }) {
   const tones: Record<string, string> = {
-    brand: "bg-brand-50 text-brand-600",
-    amber: "bg-amber-50 text-amber-600",
-    red: "bg-red-50 text-red-600",
-    emerald: "bg-emerald-50 text-emerald-600",
+    brand: "bg-gradient-to-br from-brand-500 to-brand-600",
+    amber: "bg-gradient-to-br from-amber-400 to-amber-600",
+    red: "bg-gradient-to-br from-rose-400 to-red-600",
+    emerald: "bg-gradient-to-br from-emerald-400 to-emerald-600",
   };
   return (
-    <div className="card p-5">
+    <div className="card card-hover p-5">
       <div className="flex items-center justify-between">
-        <span className="text-sm text-slate-500">{label}</span>
-        <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${tones[tone]}`}>
+        <span className="text-sm font-medium text-slate-500">{label}</span>
+        <span className={`icon-tile ${tones[tone]}`}>
           <Icon className="h-[18px] w-[18px]" />
         </span>
       </div>
-      <div className="mt-3 text-2xl font-semibold text-slate-900">{value}</div>
+      <div className="mt-3 text-[28px] font-bold tracking-tight text-slate-900">{value}</div>
       {sub ? <div className="mt-1 text-xs">{sub}</div> : null}
     </div>
   );
