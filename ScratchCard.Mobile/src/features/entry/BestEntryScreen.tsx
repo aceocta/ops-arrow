@@ -13,7 +13,7 @@ import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
 type OperationOption = {
-  key: "scratchCard" | "temperature" | "refusals" | "checklist" | "compliance" | "visitors" | "shifts";
+  key: "scratchCard" | "temperature" | "refusals" | "checklist" | "compliance" | "visitors" | "shifts" | "till";
   title: string;
   route: keyof MainStackParamList;
   icon: keyof typeof Ionicons.glyphMap;
@@ -85,6 +85,15 @@ const operationOptions: OperationOption[] = [
     iconColor: appTheme.colors.info,
     iconBg: appTheme.colors.surfaceInfoMuted,
     requiredFeature: "StaffRota",
+  },
+  {
+    key: "till",
+    title: "Till Report",
+    route: "TillReconciliation",
+    icon: "receipt-outline",
+    iconColor: appTheme.colors.primary,
+    iconBg: appTheme.colors.surfaceBrandMuted,
+    requiredFeature: "StoreSales",
   }
 ];
 
