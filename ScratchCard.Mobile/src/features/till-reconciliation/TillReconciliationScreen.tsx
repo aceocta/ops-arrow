@@ -266,16 +266,11 @@ export function TillReconciliationScreen() {
 
           <View style={styles.tillPickerBlock}>
             <Text style={styles.label}>Reconcile by</Text>
-            <View style={styles.chipWrap}>
-              {(["DayEnd", "Shift"] as const).map((rt) => {
-                const active = reportType === rt;
-                return (
-                  <Pressable key={rt} onPress={() => setReportType(rt)} style={[styles.chip, active ? styles.chipActive : null]}>
-                    <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>{rt === "DayEnd" ? "Day-end" : "Shift"}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <Segmented
+              options={[{ key: "DayEnd", label: "Day-end" }, { key: "Shift", label: "Shift" }]}
+              value={reportType}
+              onChange={setReportType}
+            />
           </View>
 
           {reportType === "Shift" ? (
@@ -284,16 +279,7 @@ export function TillReconciliationScreen() {
               {shifts.length === 0 ? (
                 <Text style={styles.muted}>{shiftsQ.isLoading || businessDayQ.isLoading ? "Loading shifts…" : "No shifts for this date."}</Text>
               ) : (
-                <View style={styles.chipWrap}>
-                  {shifts.map((s) => {
-                    const active = effectiveShiftId === s.id;
-                    return (
-                      <Pressable key={s.id} onPress={() => setShiftId(s.id)} style={[styles.chip, active ? styles.chipActive : null]}>
-                        <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>{s.shiftName}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
+                <Segmented options={shifts.map((s) => ({ key: s.id, label: s.shiftName }))} value={effectiveShiftId} onChange={setShiftId} />
               )}
             </View>
           ) : null}
@@ -301,16 +287,7 @@ export function TillReconciliationScreen() {
           {multiTill ? (
             <View style={styles.tillPickerBlock}>
               <Text style={styles.label}>Till</Text>
-              <View style={styles.chipWrap}>
-                {tills.map((t) => {
-                  const active = effectiveTillId === t.id;
-                  return (
-                    <Pressable key={t.id} onPress={() => setTillId(t.id)} style={[styles.chip, active ? styles.chipActive : null]}>
-                      <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>{t.name}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+              <Segmented options={tills.map((t) => ({ key: t.id, label: t.name }))} value={effectiveTillId} onChange={setTillId} />
             </View>
           ) : null}
         </View>
@@ -548,6 +525,24 @@ function MoveLinesModal({ count, busy, onPick, onClose }: {
         </View>
       </View>
     </Modal>
+  );
+}
+
+// Segmented pill selector — matches the "Today / 7 days / 30 days" style used across the app.
+function Segmented<T extends string>({ options, value, onChange }: {
+  options: { key: T; label: string }[]; value?: T; onChange: (key: T) => void;
+}) {
+  return (
+    <View style={styles.segRow}>
+      {options.map((o) => {
+        const active = value === o.key;
+        return (
+          <Pressable key={o.key} style={[styles.segChip, active ? styles.segChipActive : null]} onPress={() => onChange(o.key)}>
+            <Text style={[styles.segText, active ? styles.segTextActive : null]} numberOfLines={1}>{o.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
   );
 }
 
@@ -853,6 +848,11 @@ const styles = StyleSheet.create({
   content: { gap: appTheme.spacing.sm, paddingBottom: appTheme.spacing.xl },
   row: { flexDirection: "row", alignItems: "flex-end", gap: appTheme.spacing.sm },
   tillPickerBlock: { marginTop: appTheme.spacing.md, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft, paddingTop: appTheme.spacing.sm },
+  segRow: { flexDirection: "row", gap: 2, padding: 3, borderRadius: 999, backgroundColor: appTheme.colors.surfaceMuted, marginTop: 4 },
+  segChip: { flex: 1, alignItems: "center", paddingVertical: 8, paddingHorizontal: 6, borderRadius: 999 },
+  segChipActive: { backgroundColor: appTheme.colors.surface, shadowColor: "#0f172a", shadowOpacity: 0.1, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
+  segText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
+  segTextActive: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium },
   label: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, marginBottom: 4 },
   muted: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.body, fontSize: 12 },
   kvRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 4 },
