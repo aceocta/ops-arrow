@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker";
@@ -270,11 +271,16 @@ export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
       <View style={ui.card}>
         <Text style={styles.cardTitle}>Signature {isEdit ? "" : "*"}</Text>
         {signaturePreview ? (
-          <Image source={{ uri: signaturePreview }} style={styles.signaturePreview} resizeMode="contain" />
+          <Pressable onPress={() => setSignatureModalOpen(true)} accessibilityRole="button" accessibilityLabel="Tap to re-sign">
+            <Image source={{ uri: signaturePreview }} style={styles.signaturePreview} resizeMode="contain" />
+            <Text style={styles.signatureHint}>Tap to re-sign</Text>
+          </Pressable>
         ) : (
-          <Text style={styles.meta}>No signature captured yet.</Text>
+          <Pressable style={styles.signaturePad} onPress={() => setSignatureModalOpen(true)} accessibilityRole="button" accessibilityLabel="Tap to sign">
+            <Ionicons name="create-outline" size={22} color={appTheme.colors.primary} />
+            <Text style={styles.signaturePadText}>Tap here to sign</Text>
+          </Pressable>
         )}
-        <PrimaryButton label={signaturePreview ? "Recapture signature" : "Capture signature"} tone="neutral" icon="create-outline" onPress={() => setSignatureModalOpen(true)} />
 
         <FloatingLabelInput
           ref={notesRef}
@@ -325,6 +331,9 @@ const styles = StyleSheet.create({
   switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   switchLabel: { color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 14, flex: 1 },
   signaturePreview: { width: "100%", height: 120, backgroundColor: appTheme.colors.surfaceMuted, borderRadius: appTheme.radius.sm },
+  signatureHint: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, textAlign: "center", marginTop: 6 },
+  signaturePad: { height: 120, borderRadius: appTheme.radius.sm, borderWidth: 1, borderStyle: "dashed", borderColor: appTheme.colors.primary, backgroundColor: appTheme.colors.surfaceMuted, alignItems: "center", justifyContent: "center", gap: 6 },
+  signaturePadText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
   photoPreview: { width: "100%", height: 180, backgroundColor: appTheme.colors.surfaceMuted, borderRadius: appTheme.radius.sm },
   suggestBox: { borderWidth: 1, borderColor: appTheme.colors.border, borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surface, marginTop: 4, overflow: "hidden" },
   suggestItem: { paddingHorizontal: 12, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: appTheme.colors.borderSoft },

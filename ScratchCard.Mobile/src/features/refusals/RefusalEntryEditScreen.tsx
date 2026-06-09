@@ -186,25 +186,25 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
             />
 
             <Text style={styles.fieldLabel}>Signature</Text>
-            <View style={styles.signaturePreviewCard}>
+            <Pressable style={styles.signaturePreviewCard} onPress={openSignatureModal} accessibilityRole="button" accessibilityLabel="Tap to sign">
               {signaturePreviewUri ? (
-                <Image source={{ uri: signaturePreviewUri }} style={styles.signaturePreviewImage} resizeMode="contain" />
+                <>
+                  <Image source={{ uri: signaturePreviewUri }} style={styles.signaturePreviewImage} resizeMode="contain" />
+                  <Text style={styles.signatureTapHint}>Tap to re-sign</Text>
+                </>
               ) : (
                 <Text style={styles.signaturePlaceholder}>
-                  {signatureQuery.isLoading ? "Loading signature..." : entry.signatureImagePath ? "Existing signature will be kept." : "No signature on file."}
+                  {signatureQuery.isLoading ? "Loading signature..." : "✍  Tap here to sign"}
                 </Text>
               )}
-            </View>
-            <View style={styles.signatureActionRow}>
-              <Pressable style={styles.secondaryButton} onPress={openSignatureModal}>
-                <Text style={styles.secondaryButtonText}>{signatureDataUrl ? "Re-Capture Signature" : "Capture New Signature"}</Text>
-              </Pressable>
-              {signatureDataUrl ? (
+            </Pressable>
+            {signatureDataUrl ? (
+              <View style={styles.signatureActionRow}>
                 <Pressable style={styles.secondaryButton} onPress={() => setSignatureDataUrl("")}>
                   <Text style={styles.secondaryButtonText}>Clear</Text>
                 </Pressable>
-              ) : null}
-            </View>
+              </View>
+            ) : null}
 
             <PrimaryButton
               label={updateMutation.isPending ? "Saving..." : "Save Changes"}
@@ -347,6 +347,12 @@ const styles = StyleSheet.create({
   signaturePreviewImage: {
     width: "100%",
     height: 110,
+  },
+  signatureTapHint: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    marginTop: 4,
   },
   signaturePlaceholder: {
     color: appTheme.colors.textSubtle,
