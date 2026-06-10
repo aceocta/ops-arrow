@@ -74,8 +74,11 @@ export default function TimesheetsPage() {
     } else {
       downloadCsv(
         `timesheet-by-shift_${range.from}_${range.to}`,
-        ["Date", "Shift", "Start", "End", "Employees", "Total hours"],
-        (shiftQ.data ?? []).map((r) => [r.date, r.shiftName, shortTime(r.startTime), shortTime(r.endTime), r.staffCount, r.totalHours.toFixed(2)]),
+        ["Date", "Shift", "Start", "End", "Employees", "Total hours", ...(showCost ? ["Wage"] : [])],
+        (shiftQ.data ?? []).map((r) => [
+          r.date, r.shiftName, shortTime(r.startTime), shortTime(r.endTime), r.staffCount, r.totalHours.toFixed(2),
+          ...(showCost ? [r.labourCost != null ? r.labourCost.toFixed(2) : ""] : []),
+        ]),
       );
     }
   };
@@ -184,6 +187,7 @@ export default function TimesheetsPage() {
                 <th className="px-5 py-2 font-medium">Shift</th>
                 <th className="px-5 py-2 font-medium">Staff</th>
                 <th className="px-5 py-2 font-medium">Hours</th>
+                {showCost ? <th className="px-5 py-2 font-medium">Wage</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -202,11 +206,12 @@ export default function TimesheetsPage() {
                     </td>
                     <td className="px-5 py-3 text-slate-700">{r.staffCount}</td>
                     <td className="px-5 py-3 font-medium text-slate-800">{hm(r.totalHours)}</td>
+                    {showCost ? <td className="px-5 py-3 font-medium text-slate-800">{r.labourCost != null ? gbp(r.labourCost) : "—"}</td> : null}
                   </tr>
                 )),
               )}
               {!loading && shiftGroups.length === 0 ? (
-                <tr><td colSpan={4} className="px-5 py-6 text-center text-slate-400">No hours in this range.</td></tr>
+                <tr><td colSpan={showCost ? 5 : 4} className="px-5 py-6 text-center text-slate-400">No hours in this range.</td></tr>
               ) : null}
             </tbody>
             {shiftGroups.length > 0 ? (
@@ -216,6 +221,7 @@ export default function TimesheetsPage() {
                   <td></td>
                   <td></td>
                   <td className="px-5 py-3">{hm(total)}</td>
+                  {showCost ? <td className="px-5 py-3">{gbp((shiftQ.data ?? []).reduce((s, r) => s + (r.labourCost ?? 0), 0))}</td> : null}
                 </tr>
               </tfoot>
             ) : null}

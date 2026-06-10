@@ -57,6 +57,7 @@ export type ShiftTimesheetRow = {
   shiftsWorked: number;
   openSessions: number;
   totalHours: number;
+  labourCost?: number | null;
 };
 export type TimesheetSession = {
   id: string;

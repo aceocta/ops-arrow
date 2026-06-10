@@ -615,6 +615,30 @@ public class RotaService : IRotaService
             .ToListAsync(cancellationToken))
             .ToDictionary(x => x.Id, x => x);
 
+        // Labour cost (Growth+): per-session hours × rate effective on that session's date, summed.
+        var showCost = await _featureGateService.HasFeatureAsync(shopId, FeatureKeys.StaffRotaLabourCost, cancellationToken);
+        var rates = showCost
+            ? await _payRateRepository.Query().AsNoTracking().Where(r => r.ShopId == shopId && !r.IsDeleted).ToListAsync(cancellationToken)
+            : new List<StaffPayRate>();
+
+        decimal? RateOn(Guid? userId, Guid? memberId, DateOnly date) =>
+            rates.Where(r => r.UserId == userId && r.RotaStaffMemberId == memberId && r.EffectiveFrom <= date)
+                 .OrderByDescending(r => r.EffectiveFrom)
+                 .Select(r => (decimal?)r.HourlyRate)
+                 .FirstOrDefault();
+
+        decimal? CostFor(IEnumerable<(Guid? UserId, Guid? RotaStaffMemberId, DateTimeOffset CheckInAt, DateTimeOffset? CheckOutAt)> sessions)
+        {
+            if (!showCost) return null;
+            decimal cost = 0;
+            foreach (var s in sessions.Where(x => x.CheckOutAt != null))
+            {
+                var hours = (decimal)(s.CheckOutAt!.Value - s.CheckInAt).TotalHours;
+                cost += hours * (RateOn(s.UserId, s.RotaStaffMemberId, DateOnly.FromDateTime(s.CheckInAt.UtcDateTime)) ?? 0);
+            }
+            return Math.Round(cost, 2);
+        }
+
         // One row per shift instance (a specific day's shift), plus per-day rows for unrostered clock-ins.
         var rostered = rows
             .Where(r => r.RotaShiftId != null && infoById.ContainsKey(r.RotaShiftId!.Value))
@@ -632,6 +656,7 @@ public class RotaService : IRotaService
                     ShiftsWorked = g.Count(x => x.CheckOutAt != null),
                     OpenSessions = g.Count(x => x.CheckOutAt == null),
                     TotalHours = Math.Round((decimal)g.Where(x => x.CheckOutAt != null).Sum(x => (x.CheckOutAt!.Value - x.CheckInAt).TotalHours), 2),
+                    LabourCost = CostFor(g.Select(x => (x.UserId, x.RotaStaffMemberId, x.CheckInAt, x.CheckOutAt))),
                 };
             });
 
@@ -646,6 +671,7 @@ public class RotaService : IRotaService
                 ShiftsWorked = g.Count(x => x.CheckOutAt != null),
                 OpenSessions = g.Count(x => x.CheckOutAt == null),
                 TotalHours = Math.Round((decimal)g.Where(x => x.CheckOutAt != null).Sum(x => (x.CheckOutAt!.Value - x.CheckInAt).TotalHours), 2),
+                LabourCost = CostFor(g.Select(x => (x.UserId, x.RotaStaffMemberId, x.CheckInAt, x.CheckOutAt))),
             });
 
         return rostered.Concat(unrostered)

@@ -217,4 +217,5 @@ public class ShiftTimesheetRowDto
     public int ShiftsWorked { get; set; }      // completed sessions
     public int OpenSessions { get; set; }       // checked in but not out
     public decimal TotalHours { get; set; }     // sum of completed sessions
+    public decimal? LabourCost { get; set; }    // Σ session hours × effective rate (null if not entitled)
 }
