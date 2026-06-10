@@ -81,6 +81,7 @@ export function TillReconciliationScreen() {
   const [shiftId, setShiftId] = useState<string | undefined>(undefined);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [moveOpen, setMoveOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const toggleSelect = (id: string) => setSelected((prev) => {
     const next = new Set(prev);
     next.has(id) ? next.delete(id) : next.add(id);
@@ -130,6 +131,7 @@ export function TillReconciliationScreen() {
   const data = q.data;
   const setData = (r: Reconciliation) => qc.setQueryData(key, r);
   const locked = data?.status === "Approved";
+  const hasLines = (data?.lines?.length ?? 0) > 0;
 
   const reasonMutation = useMutation({
     mutationFn: (p: { reasonCode: string; notes?: string }) =>
@@ -270,6 +272,9 @@ export function TillReconciliationScreen() {
               <DateTimeField mode="date" value={businessDate} onChange={(d) => { setBusinessDate(d); setShiftId(undefined); }} />
             </View>
             {data ? <StatusPill status={data.status} /> : null}
+            <Pressable style={styles.helpBtn} onPress={() => setHelpOpen(true)} hitSlop={8} accessibilityLabel="How till reconciliation works">
+              <Ionicons name="help-circle-outline" size={22} color={appTheme.colors.primary} />
+            </Pressable>
           </View>
 
           <View style={styles.tillPickerBlock}>
@@ -304,8 +309,14 @@ export function TillReconciliationScreen() {
 
         {data && !locked && canOcr ? (
           <View style={[ui.card, styles.groupCard]}>
-            {/* <Text style={[ui.sectionTitle, styles.groupTitle]}>Add till report</Text>
-            <Text style={styles.captureHint}>Snap a photo of the printout or upload one from your gallery — we'll read the figures for you.</Text> */}
+            {!hasLines ? (
+              <>
+                <Text style={[ui.sectionTitle, styles.groupTitle]}>Start here — add your till report</Text>
+                <HowItWorksSteps />
+              </>
+            ) : (
+              <Text style={[ui.sectionTitle, styles.groupTitle]}>Add another photo</Text>
+            )}
             <View style={styles.captureRow}>
               <Pressable
                 style={({ pressed }) => [styles.captureBtn, styles.captureBtnPrimary, pressed && styles.capturePressed, ingestMutation.isPending && styles.captureDisabled]}
@@ -511,7 +522,51 @@ export function TillReconciliationScreen() {
       ) : null}
 
       <IngestOverlay visible={ingestMutation.isPending} />
+      <HowItWorksModal visible={helpOpen} onClose={() => setHelpOpen(false)} />
     </ScreenContainer>
+  );
+}
+
+const HOW_IT_WORKS_STEPS: { icon: keyof typeof Ionicons.glyphMap; title: string; detail: string }[] = [
+  { icon: "camera", title: "Add your till report", detail: "Take a photo of the end-of-day printout, or upload one — we read the figures for you." },
+  { icon: "checkmark-circle", title: "Check the figures", detail: "Tap any line with a dot to confirm the amount. Fix anything the scan got wrong." },
+  { icon: "cash", title: "Count your cash", detail: "Enter your counted drawer so we can work out any over or short." },
+  { icon: "lock-closed", title: "Approve & lock", detail: "Mark it reconciled, then approve to lock the day. Add a reason if there's a variance." },
+];
+
+// Shared 4-step explainer — rendered inline as an intro when the reconciliation is empty, and
+// inside the help modal reopened from the header (?).
+function HowItWorksSteps() {
+  return (
+    <View style={styles.stepsWrap}>
+      {HOW_IT_WORKS_STEPS.map((s, i) => (
+        <View key={s.title} style={styles.stepRow}>
+          <View style={styles.stepNum}><Text style={styles.stepNumText}>{i + 1}</Text></View>
+          <Ionicons name={s.icon} size={18} color={appTheme.colors.primary} style={styles.stepIcon} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.stepTitle}>{s.title}</Text>
+            <Text style={styles.stepDetail}>{s.detail}</Text>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function HowItWorksModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
+      <View style={styles.helpBackdrop}>
+        <View style={styles.helpSheet}>
+          <View style={styles.helpHeader}>
+            <Text style={ui.sectionTitle}>How till reconciliation works</Text>
+            <Pressable onPress={onClose} hitSlop={8}><Ionicons name="close" size={22} color={appTheme.colors.text} /></Pressable>
+          </View>
+          <HowItWorksSteps />
+          <PrimaryButton label="Got it" onPress={onClose} />
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -999,6 +1054,17 @@ const styles = StyleSheet.create({
   captureText: { fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
   captureTextPrimary: { color: appTheme.colors.onPrimary },
   captureTextOutline: { color: appTheme.colors.primary },
+  helpBtn: { paddingLeft: 4, paddingBottom: 2, alignSelf: "flex-end" },
+  stepsWrap: { gap: 12, marginTop: 4, marginBottom: 12 },
+  stepRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  stepNum: { width: 22, height: 22, borderRadius: 11, backgroundColor: appTheme.colors.surfaceBrandSoft, alignItems: "center", justifyContent: "center" },
+  stepNumText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 15 },
+  stepIcon: { marginTop: 1 },
+  stepTitle: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 18 },
+  stepDetail: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, lineHeight: 16, marginTop: 1 },
+  helpBackdrop: { flex: 1, backgroundColor: appTheme.colors.overlay, justifyContent: "flex-end" },
+  helpSheet: { backgroundColor: appTheme.colors.background, borderTopLeftRadius: appTheme.radius.lg, borderTopRightRadius: appTheme.radius.lg, padding: appTheme.spacing.md, gap: 8 },
+  helpHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: appTheme.spacing.sm },
   ingestBackdrop: { flex: 1, backgroundColor: appTheme.colors.overlay, alignItems: "center", justifyContent: "center", padding: appTheme.spacing.lg },
   ingestCard: { width: "100%", maxWidth: 320, alignItems: "center", gap: 10, backgroundColor: appTheme.colors.surface, borderRadius: appTheme.radius.lg, paddingVertical: 28, paddingHorizontal: 24 },
   ingestTitle: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 16, lineHeight: 20, marginTop: 4 },
