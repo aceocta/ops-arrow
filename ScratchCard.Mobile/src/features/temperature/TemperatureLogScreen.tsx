@@ -962,11 +962,14 @@ export function TemperatureLogScreen() {
   const isPendingForCheck = useCallback(
     (unitLog: typeof dailyUnitLogs[number]) => {
       if (!currentCheck) return unitLog.readings.length === 0;
-      const sid = scheduleIdForUnitCheck(unitLog.unit.id, currentCheck);
-      if (!sid) return false;
-      return !unitLog.readings.some((r) => r.scheduleId === sid);
+      // Use the same per-unit slot resolution the grid uses (handles explicit scheduleId AND legacy
+      // time-window readings). A unit is pending for this check if its matching slot has no reading.
+      const view = scheduledSlotsFor(unitLog.unit, unitLog.readings)
+        .find((v) => v.label === currentCheck.label && v.expectedTime === currentCheck.time);
+      if (!view) return false; // this check doesn't apply to this unit
+      return !view.reading;
     },
-    [currentCheck, scheduleIdForUnitCheck],
+    [currentCheck, scheduledSlotsFor],
   );
 
   // Order of "next" candidates: start at selected+1, wrap around to the start, exclude current.
@@ -982,17 +985,15 @@ export function TemperatureLogScreen() {
     return (pending ?? orderedFromHere[0]).unit.id;
   }, [entryUnitLogs, selectedUnitIndex, isPendingForCheck]);
 
-  // The next unit that still needs a reading (excluding the current one), or null when none are
-  // left to log. Drives the Save button: "Save & Next Unit" vs "Save & Finish" (which closes).
+  // Walk through every unit for this check IN ORDER — even units that already have a value — so the
+  // operator can review/confirm each one. "Save & Next Unit" until the last unit; "Save & Finish"
+  // only on the final unit (no wrap-around). Drives the Save button.
   const nextPendingUnitId = useMemo(() => {
-    if (entryUnitLogs.length < 2 || selectedUnitIndex < 0) return null;
-    const orderedFromHere = [
-      ...entryUnitLogs.slice(selectedUnitIndex + 1),
-      ...entryUnitLogs.slice(0, selectedUnitIndex),
-    ];
-    const pending = orderedFromHere.find((u) => isPendingForCheck(u));
-    return pending ? pending.unit.id : null;
-  }, [entryUnitLogs, selectedUnitIndex, isPendingForCheck]);
+    if (entryUnitLogs.length === 0) return null;
+    const idx = entryUnitLogs.findIndex((x) => x.unit.id === selectedUnitId);
+    if (idx < 0) return entryUnitLogs[0].unit.id;
+    return idx < entryUnitLogs.length - 1 ? entryUnitLogs[idx + 1].unit.id : null;
+  }, [entryUnitLogs, selectedUnitId]);
 
   const prevUnitId = useMemo(() => {
     if (entryUnitLogs.length < 2 || selectedUnitIndex < 0) return null;
