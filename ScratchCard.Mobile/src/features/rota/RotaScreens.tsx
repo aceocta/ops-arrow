@@ -272,23 +272,30 @@ export function MyShiftsScreen() {
           const statusLabel = open ? "On shift" : completed ? "Completed" : "Upcoming";
           const statusTone: "success" | "neutral" = open ? "success" : "neutral";
 
+          const dotColor = open ? appTheme.colors.success : completed ? appTheme.colors.textSubtle : appTheme.colors.primary;
+
           return (
-            <View key={shift.id} style={[ui.card, styles.myShiftCard]}>
-              {/* Header: shift name + status chip */}
+            <View key={shift.id} style={[ui.card, styles.myShiftCard, open ? styles.myShiftCardActive : null]}>
+              {/* Header: status dot + shift name + status chip */}
               <View style={styles.myShiftHeader}>
-                <Text style={styles.myShiftName} numberOfLines={1}>{shift.shiftName || "Shift"}</Text>
+                <View style={styles.myShiftTitleWrap}>
+                  <View style={[styles.statusDot, { backgroundColor: dotColor }]} />
+                  <Text style={styles.myShiftName} numberOfLines={1}>{shift.shiftName || "Shift"}</Text>
+                </View>
                 <StatusBadge label={statusLabel} tone={statusTone} />
               </View>
 
-              {/* Schedule line */}
-              <View style={styles.metaLine}>
-                <Ionicons name="time-outline" size={14} color={appTheme.colors.textMuted} />
-                <Text style={styles.metaText}>{timeRange(shift.startTime, shift.endTime)}{overnightSuffix(shift.shiftDate, shift.endDate)}</Text>
+              {/* Schedule chips */}
+              <View style={styles.chipLine}>
+                <View style={styles.infoChip}>
+                  <Ionicons name="time-outline" size={13} color={appTheme.colors.textMuted} />
+                  <Text style={styles.infoChipText}>{timeRange(shift.startTime, shift.endTime)}{overnightSuffix(shift.shiftDate, shift.endDate)}</Text>
+                </View>
                 {shift.position ? (
-                  <>
-                    <Text style={styles.metaDivider}>·</Text>
-                    <Text style={styles.metaText}>{shift.position}</Text>
-                  </>
+                  <View style={styles.infoChip}>
+                    <Ionicons name="briefcase-outline" size={13} color={appTheme.colors.textMuted} />
+                    <Text style={styles.infoChipText}>{shift.position}</Text>
+                  </View>
                 ) : null}
               </View>
 
@@ -326,13 +333,13 @@ export function MyShiftsScreen() {
               {/* Actions */}
               <View style={styles.actionsRow}>
                 {open ? (
-                  <Pressable style={[styles.actBtn, styles.actBtnOut]} onPress={() => checkOutMutation.mutate()} disabled={busy}>
+                  <Pressable style={({ pressed }) => [styles.actBtn, styles.actBtnOut, pressed && styles.actBtnPressed]} onPress={() => checkOutMutation.mutate()} disabled={busy}>
                     <Ionicons name="log-out-outline" size={16} color={appTheme.colors.onPrimary} />
                     <Text style={styles.actBtnText}>{checkOutMutation.isPending ? "..." : "Check out"}</Text>
                   </Pressable>
                 ) : (
                   <Pressable
-                    style={[styles.actBtn, onAnotherShift ? styles.actBtnDisabled : null]}
+                    style={({ pressed }) => [styles.actBtn, onAnotherShift ? styles.actBtnDisabled : null, pressed && !onAnotherShift ? styles.actBtnPressed : null]}
                     onPress={() => checkInMutation.mutate(shift.id)}
                     disabled={busy || onAnotherShift}
                   >
@@ -340,9 +347,9 @@ export function MyShiftsScreen() {
                     <Text style={styles.actBtnText}>{checkInMutation.isPending ? "..." : completed ? "Check in again" : "Check in"}</Text>
                   </Pressable>
                 )}
-                <Pressable style={styles.actGhost} onPress={() => openManual(shift)}>
+                <Pressable style={({ pressed }) => [styles.actGhost, pressed && styles.actGhostPressed]} onPress={() => openManual(shift)}>
                   <Ionicons name="create-outline" size={16} color={appTheme.colors.primary} />
-                  <Text style={styles.actGhostText}>{att ? "Edit times" : "Enter times"}</Text>
+                  <Text style={styles.actGhostText}>{att ? "Edit" : "Enter times"}</Text>
                 </Pressable>
               </View>
               {onAnotherShift ? <Text style={styles.mutedSmall}>Check out of your current shift first.</Text> : null}
@@ -1700,17 +1707,31 @@ const styles = StyleSheet.create({
   // My Shifts cards
   dayGroup: { gap: appTheme.spacing.xs },
   dayHeader: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 19, marginTop: 4 },
-  myShiftCard: { gap: 10 },
+  myShiftCard: { gap: 12 },
+  myShiftCardActive: { borderColor: appTheme.colors.success, borderWidth: 1 },
   myShiftHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  myShiftTitleWrap: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
   myShiftName: { flex: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 16, lineHeight: 21 },
   metaLine: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 5 },
   metaText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 13 },
   metaDivider: { color: appTheme.colors.textSubtle, fontSize: 13 },
+  chipLine: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  infoChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: appTheme.radius.pill,
+  },
+  infoChipText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
   attBlock: {
     gap: 3,
-    paddingTop: 9,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: appTheme.colors.borderSoft,
+    padding: 10,
+    borderRadius: appTheme.radius.md,
+    backgroundColor: appTheme.colors.surfaceMuted,
   },
   attMainRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   attMain: { flex: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
@@ -1719,12 +1740,24 @@ const styles = StyleSheet.create({
   attNote: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, marginLeft: 20 },
   attNotePending: { color: appTheme.colors.danger },
   mutedSmall: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12 },
-  actionsRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  actBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, backgroundColor: appTheme.colors.primary },
+  actionsRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  actBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 11, borderRadius: appTheme.radius.md, backgroundColor: appTheme.colors.primary },
   actBtnOut: { backgroundColor: appTheme.colors.danger },
   actBtnDisabled: { backgroundColor: appTheme.colors.textSubtle },
+  actBtnPressed: { opacity: 0.85 },
   actBtnText: { color: appTheme.colors.onPrimary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
-  actGhost: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 8, paddingVertical: 10 },
+  actGhost: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderRadius: appTheme.radius.md,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surface,
+  },
+  actGhostPressed: { opacity: 0.7 },
   actGhostText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
   pendingRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
   approveBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: appTheme.colors.success },
