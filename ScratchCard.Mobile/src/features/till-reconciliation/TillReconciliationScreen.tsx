@@ -303,15 +303,27 @@ export function TillReconciliationScreen() {
         {q.isLoading ? <LoadingState inline /> : null}
 
         {data && !locked && canOcr ? (
-          <View style={styles.captureRow}>
-            <Pressable style={styles.captureBtn} onPress={() => ingestMutation.mutate("camera")} disabled={ingestMutation.isPending}>
-              <Ionicons name="camera-outline" size={18} color={appTheme.colors.primary} />
-              <Text style={styles.captureText}>{ingestMutation.isPending ? "Reading…" : "Photo"}</Text>
-            </Pressable>
-            <Pressable style={styles.captureBtn} onPress={() => ingestMutation.mutate("library")} disabled={ingestMutation.isPending}>
-              <Ionicons name="image-outline" size={18} color={appTheme.colors.primary} />
-              <Text style={styles.captureText}>Upload</Text>
-            </Pressable>
+          <View style={[ui.card, styles.groupCard]}>
+            {/* <Text style={[ui.sectionTitle, styles.groupTitle]}>Add till report</Text>
+            <Text style={styles.captureHint}>Snap a photo of the printout or upload one from your gallery — we'll read the figures for you.</Text> */}
+            <View style={styles.captureRow}>
+              <Pressable
+                style={({ pressed }) => [styles.captureBtn, styles.captureBtnPrimary, pressed && styles.capturePressed, ingestMutation.isPending && styles.captureDisabled]}
+                onPress={() => ingestMutation.mutate("camera")}
+                disabled={ingestMutation.isPending}
+              >
+                <Ionicons name="camera" size={20} color={appTheme.colors.onPrimary} />
+                <Text style={[styles.captureText, styles.captureTextPrimary]}>{ingestMutation.isPending ? "Reading…" : "Take photo"}</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.captureBtn, styles.captureBtnOutline, pressed && styles.capturePressed, ingestMutation.isPending && styles.captureDisabled]}
+                onPress={() => ingestMutation.mutate("library")}
+                disabled={ingestMutation.isPending}
+              >
+                <Ionicons name="image" size={20} color={appTheme.colors.primary} />
+                <Text style={[styles.captureText, styles.captureTextOutline]}>Upload</Text>
+              </Pressable>
+            </View>
           </View>
         ) : null}
 
@@ -977,9 +989,16 @@ const styles = StyleSheet.create({
   varianceRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   varianceLabel: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 16 },
   varianceValue: { fontFamily: appTheme.fonts.heading, fontSize: 20 },
-  captureRow: { flexDirection: "row", gap: appTheme.spacing.xs },
-  captureBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 7, paddingHorizontal: 12, borderRadius: appTheme.radius.pill, borderWidth: 1, borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surface },
-  captureText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
+  captureHint: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, lineHeight: 16, marginBottom: 10 },
+  captureRow: { flexDirection: "row", gap: appTheme.spacing.sm },
+  captureBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingVertical: 13, paddingHorizontal: 12, borderRadius: appTheme.radius.md, borderWidth: 1 },
+  captureBtnPrimary: { backgroundColor: appTheme.colors.primary, borderColor: appTheme.colors.primary },
+  captureBtnOutline: { backgroundColor: appTheme.colors.surface, borderColor: appTheme.colors.primary },
+  capturePressed: { opacity: 0.8 },
+  captureDisabled: { opacity: 0.5 },
+  captureText: { fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
+  captureTextPrimary: { color: appTheme.colors.onPrimary },
+  captureTextOutline: { color: appTheme.colors.primary },
   ingestBackdrop: { flex: 1, backgroundColor: appTheme.colors.overlay, alignItems: "center", justifyContent: "center", padding: appTheme.spacing.lg },
   ingestCard: { width: "100%", maxWidth: 320, alignItems: "center", gap: 10, backgroundColor: appTheme.colors.surface, borderRadius: appTheme.radius.lg, paddingVertical: 28, paddingHorizontal: 24 },
   ingestTitle: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 16, lineHeight: 20, marginTop: 4 },
