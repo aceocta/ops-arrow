@@ -380,8 +380,8 @@ export function TillReconciliationScreen() {
             {grouped.map(([group, lines]) => {
               const subtotal = lines.reduce((s, l) => s + l.verifiedAmount, 0);
               return (
-                <View key={group} style={ui.card}>
-                  <Text style={ui.sectionTitle}>{GROUP_TITLE[group] ?? group}</Text>
+                <View key={group} style={[ui.card, styles.groupCard]}>
+                  <Text style={[ui.sectionTitle, styles.groupTitle]}>{GROUP_TITLE[group] ?? group}</Text>
                   {lines.map((l) => {
                     const isSel = selected.has(l.id);
                     return (
@@ -420,7 +420,7 @@ export function TillReconciliationScreen() {
 
             {/* Auto-ignored (labels the user removed before) — collapsed, with restore */}
             {autoIgnored.length > 0 ? (
-              <View style={ui.card}>
+              <View style={[ui.card, styles.groupCard]}>
                 <Pressable style={styles.ignoredHeader} onPress={() => setShowIgnored((s) => !s)}>
                   <Text style={styles.muted}>🚫 Auto-ignored ({autoIgnored.length})</Text>
                   <Ionicons name={showIgnored ? "chevron-up" : "chevron-down"} size={16} color={appTheme.colors.textSubtle} />
@@ -909,7 +909,9 @@ function CashCountModal({ recon, onClose, onSaved }: {
 }
 
 const styles = StyleSheet.create({
-  content: { gap: appTheme.spacing.sm, paddingBottom: appTheme.spacing.xl },
+  content: { gap: appTheme.spacing.xs, paddingBottom: appTheme.spacing.xl },
+  groupCard: { paddingVertical: appTheme.spacing.sm, paddingHorizontal: appTheme.spacing.md },
+  groupTitle: { marginBottom: 2 },
   row: { flexDirection: "row", alignItems: "flex-end", gap: appTheme.spacing.sm },
   tillPickerBlock: { marginTop: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft, paddingTop: 2 },
   segRow: { flexDirection: "row", gap: 2, padding: 2, borderRadius: 999, backgroundColor: appTheme.colors.surfaceMuted, marginTop: 2 },
@@ -951,7 +953,7 @@ const styles = StyleSheet.create({
   crossCheck: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: appTheme.colors.borderSoft, borderRadius: appTheme.radius.sm, borderWidth: 1, padding: 10 },
   countBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 10, paddingVertical: 10, borderRadius: appTheme.radius.sm, borderWidth: 1, borderColor: appTheme.colors.border },
   countBtnText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
-  lineRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
+  lineRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 5, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
   lineBody: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
   lineNameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   originBadge: { borderWidth: 1, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
@@ -961,7 +963,7 @@ const styles = StyleSheet.create({
   ignoredHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   restoreBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4 },
   restoreText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
-  sectionTotalRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4, paddingTop: 8, borderTopWidth: 1, borderTopColor: appTheme.colors.border },
+  sectionTotalRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 2, paddingTop: 6, borderTopWidth: 1, borderTopColor: appTheme.colors.border },
   sectionTotalLabel: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   sectionTotal: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 14 },
   selectBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderColor: appTheme.colors.primary, borderWidth: 1 },
