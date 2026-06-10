@@ -123,6 +123,9 @@ export const rotaApi = {
     unwrap<AttendanceApprovalRow[]>((await api.get("/rota/attendance/pending", { params: { shopId } })).data),
   approve: async (id: string) => api.post(`/rota/attendance/${id}/approve`),
   reject: async (id: string) => api.delete(`/rota/attendance/${id}`),
+  // Manager records worked hours for a roster-only (external) staff member — saved already approved.
+  recordManual: async (p: { shopId: string; rotaStaffMemberId: string; rotaShiftId?: string; checkInAt: string; checkOutAt?: string; notes?: string }) =>
+    api.post("/rota/attendance/manual", p),
   adjust: async (id: string, p: { checkInAt: string; checkOutAt?: string; notes?: string }) =>
     api.put(`/rota/attendance/${id}`, p),
 };

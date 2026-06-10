@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
-import { rotaApi, fmtDate, shortTime, type TimesheetRow } from "../../lib/rota";
+import { rotaApi, fmtDate, shortTime, sessionIsos, type TimesheetRow } from "../../lib/rota";
 import { downloadCsv } from "../../lib/csv";
+import { apiErrorMessage } from "../../lib/api";
+import { toast } from "../../components/feedback";
 import ExportButton from "../../components/ExportButton";
-import { X, ChevronRight } from "lucide-react";
+import { X, ChevronRight, Plus } from "lucide-react";
 import clsx from "clsx";
 
 function clock(iso?: string | null) {
@@ -26,11 +28,13 @@ function hm(hours: number) {
 }
 
 export default function TimesheetsPage() {
-  const { activeShopId, features } = useAuth();
+  const { activeShopId, features, isOwner, isManager } = useAuth();
   const shopId = activeShopId!;
   const showCost = features.includes("staff_rota.labour_cost");
+  const canRecord = (isOwner || isManager) && features.includes("staff_rota.manual_approval");
   const gbp = (n: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n || 0);
   const [view, setView] = useState<"staff" | "shift">("staff");
+  const [recordOpen, setRecordOpen] = useState(false);
   const [range, setRange] = useState(() => {
     const to = new Date();
     const from = new Date();
@@ -128,6 +132,9 @@ export default function TimesheetsPage() {
           </div>
           <input type="date" className="input w-auto" value={range.from} onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))} />
           <input type="date" className="input w-auto" value={range.to} onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))} />
+          {canRecord ? (
+            <button className="btn-primary" onClick={() => setRecordOpen(true)}><Plus className="h-4 w-4" /> Record hours</button>
+          ) : null}
           <ExportButton onClick={exportCsv} disabled={loading} />
         </div>
       </div>
@@ -275,6 +282,81 @@ export default function TimesheetsPage() {
       {selected ? (
         <StaffSessions shopId={shopId} row={selected.row} from={range.from} to={range.to} onClose={() => setSelected(null)} />
       ) : null}
+
+      {recordOpen ? <RecordHoursModal shopId={shopId} onClose={() => setRecordOpen(false)} /> : null}
+    </div>
+  );
+}
+
+// Manager records worked hours for an external (roster-only) staff member. Saved already approved.
+function RecordHoursModal({ shopId, onClose }: { shopId: string; onClose: () => void }) {
+  const qc = useQueryClient();
+  const membersQ = useQuery({ queryKey: ["rota-staff-members", shopId], queryFn: () => rotaApi.staffMembers(shopId) });
+  const [memberId, setMemberId] = useState("");
+  const [date, setDate] = useState(fmtDate(new Date()));
+  const [start, setStart] = useState("09:00");
+  const [end, setEnd] = useState("17:00");
+  const [notes, setNotes] = useState("");
+
+  const save = useMutation({
+    mutationFn: () => {
+      const { checkInAt, checkOutAt } = sessionIsos(date, start, end);
+      return rotaApi.recordManual({ shopId, rotaStaffMemberId: memberId, checkInAt, checkOutAt, notes: notes.trim() || undefined });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ts-staff"] });
+      qc.invalidateQueries({ queryKey: ["ts-shift"] });
+      toast("Hours recorded.", "success");
+      onClose();
+    },
+    onError: (e) => toast(apiErrorMessage(e), "error"),
+  });
+
+  const members = membersQ.data ?? [];
+  const valid = memberId && start && end;
+
+  return (
+    <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
+      <div className="card w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-900">Record hours</h2>
+          <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
+        </div>
+        <p className="mb-3 text-sm text-slate-500">For an external (roster-only) staff member. Saved as approved.</p>
+
+        <label className="label">Staff member</label>
+        <select className="input mb-3" value={memberId} onChange={(e) => setMemberId(e.target.value)}>
+          <option value="">Select…</option>
+          {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+        </select>
+        {!membersQ.isLoading && members.length === 0 ? (
+          <p className="mb-3 text-xs text-amber-600">No external staff yet — add them from the Rota when assigning a shift.</p>
+        ) : null}
+
+        <label className="label">Date</label>
+        <input type="date" className="input mb-3" value={date} onChange={(e) => setDate(e.target.value)} />
+
+        <div className="mb-3 grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Start</label>
+            <input type="time" className="input" value={start} onChange={(e) => setStart(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">End {end <= start ? <span className="text-xs text-slate-400">(+1 day)</span> : null}</label>
+            <input type="time" className="input" value={end} onChange={(e) => setEnd(e.target.value)} />
+          </div>
+        </div>
+
+        <label className="label">Notes (optional)</label>
+        <input className="input mb-4" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. covered late shift" />
+
+        <div className="flex justify-end gap-2">
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" disabled={!valid || save.isPending} onClick={() => save.mutate()}>
+            {save.isPending ? "Saving…" : "Record hours"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
