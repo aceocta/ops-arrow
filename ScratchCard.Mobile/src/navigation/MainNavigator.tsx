@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useMemo, useState } from "react";
+﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { DrawerActions, NavigatorScreenParams, useNavigation, useNavigationState } from "@react-navigation/native";
 import { createDrawerNavigator, DrawerContentScrollView, type DrawerContentComponentProps } from "@react-navigation/drawer";
@@ -71,6 +71,7 @@ import { TillsConfigScreen } from "../features/store-sales/TillsConfigScreen";
 import { PaymentTypesConfigScreen } from "../features/store-sales/PaymentTypesConfigScreen";
 import { ScratchCardSummaryScreen } from "../features/scratch-card/ScratchCardSummaryScreen";
 import { BestEntryProvider, EntryOperation, useBestEntry } from "./BestEntryContext";
+import { confirmDestructive } from "../utils/confirm";
 import { HelpProvider, useHelp } from "../help/HelpProvider";
 import { useEntitlements } from "../features/subscription/useEntitlements";
 import { MainStackParamList, RootStackParamList } from "../types/navigation";
@@ -403,6 +404,34 @@ function resolveActiveBottomDockScreen(routeName: string | undefined): keyof Mai
   return "BestEntry";
 }
 
+// Which drawer section owns each menu screen — used to auto-expand the section
+// containing the screen the user is currently on when the drawer opens.
+const SECTION_ITEMS: Record<DrawerSectionKey, MenuItem[]> = {
+  scratchCard: scratchCardItems,
+  temperature: temperatureItems,
+  refusals: refusalItems,
+  visitors: visitorItems,
+  compliance: complianceItems,
+  shifts: shiftItems,
+  till: tillItems,
+  shop: shopItems,
+  admin: adminItems,
+};
+
+function sectionKeyForScreen(screen: string | undefined): DrawerSectionKey | null {
+  if (!screen) return null;
+  for (const [key, items] of Object.entries(SECTION_ITEMS) as [DrawerSectionKey, MenuItem[]][]) {
+    if (items.some((item) => item.screen === screen)) return key;
+  }
+  return null;
+}
+
+function sectionKeyForRoute(routeName: string | undefined): DrawerSectionKey | null {
+  // Deep child routes (details/edit screens) aren't menu items themselves — fall back to
+  // the bottom-dock grouping, which maps them to their feature's root screen.
+  return sectionKeyForScreen(routeName) ?? sectionKeyForScreen(resolveActiveBottomDockScreen(routeName));
+}
+
 function HamburgerButton({ onPress }: { onPress: () => void }) {
   return (
     <Pressable style={styles.menuButton} onPress={onPress} accessibilityRole="button" accessibilityLabel="Open menu">
@@ -678,6 +707,13 @@ const DrawerSection = React.memo(function DrawerSection({
 
   const handleToggle = useCallback(() => onToggle(sectionKey), [onToggle, sectionKey]);
 
+  // Sum of item badges, surfaced on the header when collapsed so pending counts
+  // (e.g. time approvals) stay visible without expanding the section.
+  const badgeTotal = useMemo(
+    () => visibleItems.reduce((sum, item) => sum + (badges?.[item.screen] ?? 0), 0),
+    [visibleItems, badges],
+  );
+
   if (visibleItems.length === 0) {
     return null;
   }
@@ -702,6 +738,11 @@ const DrawerSection = React.memo(function DrawerSection({
           </View>
           <Text style={styles.drawerSectionTitle}>{title}</Text>
         </View>
+        {!expanded && badgeTotal > 0 ? (
+          <View style={styles.drawerItemBadge}>
+            <Text style={styles.drawerItemBadgeText}>{badgeTotal}</Text>
+          </View>
+        ) : null}
         <View style={styles.drawerSectionToggleIconWrap}>
           <Ionicons
             name={expanded ? "chevron-up-outline" : "chevron-down-outline"}
@@ -815,6 +856,16 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
     admin: false,
   });
 
+  // Keep the drawer oriented: whichever section owns the screen the user is on
+  // stays expanded, so the highlighted active item is always visible.
+  const activeSectionKey = useMemo(() => sectionKeyForRoute(activeRouteName), [activeRouteName]);
+  useEffect(() => {
+    if (!activeSectionKey) return;
+    setExpandedSections((previous) =>
+      previous[activeSectionKey] ? previous : { ...previous, [activeSectionKey]: true },
+    );
+  }, [activeSectionKey]);
+
   const goTo = (item: MenuItem) => {
     if (item.rootScreen) {
       const parent = props.navigation.getParent();
@@ -865,6 +916,12 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
   }
 
   async function onSignOut() {
+    const ok = await confirmDestructive({
+      title: "Sign out?",
+      message: "You'll need to sign back in with your account.",
+      confirmLabel: "Sign Out",
+    });
+    if (!ok) return;
     props.navigation.closeDrawer();
     await signOut();
   }
@@ -892,7 +949,7 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
           </View>
           {entitlements?.tier ? (
             <Pressable
-              style={styles.drawerPlanPill}
+              style={({ pressed }) => [styles.drawerPlanPill, pressed ? styles.drawerPlanPillPressed : null]}
               onPress={() => {
                 props.navigation.getParent()?.navigate("SubscriptionSummary" as never);
                 props.navigation.closeDrawer();
@@ -1072,8 +1129,8 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
           sectionKey="visitors"
           title="Visitors Log"
           icon="people-outline"
-          accentColor={appTheme.colors.info}
-          accentSoftBackground={appTheme.colors.surfaceInfoMuted}
+          accentColor={appTheme.colors.textBrandStrong}
+          accentSoftBackground={appTheme.colors.surfaceBrandPale}
           items={visitorItems}
           isCompanyOwner={isCompanyOwner}
           userRoles={userRoles}
@@ -1104,8 +1161,8 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
           sectionKey="shifts"
           title="Shifts"
           icon="time-outline"
-          accentColor={appTheme.colors.info}
-          accentSoftBackground={appTheme.colors.surfaceInfoMuted}
+          accentColor={appTheme.colors.accent}
+          accentSoftBackground={appTheme.colors.surfaceWarningMuted}
           items={shiftItems}
           badges={shiftBadges}
           isCompanyOwner={isCompanyOwner}
@@ -1121,8 +1178,8 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
           sectionKey="till"
           title="Till / Store Sales"
           icon="cash-outline"
-          accentColor={appTheme.colors.textBrandStrong}
-          accentSoftBackground={appTheme.colors.surfaceTintSoft}
+          accentColor={appTheme.colors.textSuccessStrong}
+          accentSoftBackground={appTheme.colors.surfaceSuccessMuted}
           items={tillItems}
           isCompanyOwner={isCompanyOwner}
           userRoles={userRoles}
@@ -1135,10 +1192,10 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
 
         <DrawerSection
           sectionKey="shop"
-          title="Shop"
-          icon="storefront-outline"
-          accentColor={appTheme.colors.textBrandStrong}
-          accentSoftBackground={appTheme.colors.surfaceTintSoft}
+          title="Logs & Records"
+          icon="reader-outline"
+          accentColor={appTheme.colors.textMuted}
+          accentSoftBackground={appTheme.colors.surfaceNeutralSoft}
           items={shopItems}
           isCompanyOwner={isCompanyOwner}
           userRoles={userRoles}
@@ -1386,6 +1443,9 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.surfaceBrandSoft,
     paddingHorizontal: 10,
     paddingVertical: 5,
+  },
+  drawerPlanPillPressed: {
+    opacity: 0.7,
   },
   drawerPlanPillText: {
     color: appTheme.colors.textBrandStrong,
