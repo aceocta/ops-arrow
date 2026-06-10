@@ -7,6 +7,7 @@ import { createTill, deleteTill, listTills, updateTill } from "../../api/tillsAp
 import { LoadingState } from "../../components/LoadingState";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
+import { EmptyState } from "../../components/EmptyState";
 import { Till } from "../../types/models";
 import { confirmDestructive } from "../../utils/confirm";
 import { ui } from "../../ui/primitives";
@@ -125,7 +126,7 @@ export function TillsConfigScreen() {
         <Text style={ui.sectionTitle}>Configured tills</Text>
         {tillsQuery.isLoading ? <LoadingState inline /> : null}
         {!tillsQuery.isLoading && tills.length === 0 ? (
-          <Text style={ui.bodyText}>No tills yet. Add your first one above.</Text>
+          <EmptyState icon="calculator-outline" title="No tills yet" message="Add your first till using the form above — it powers till reconciliation and store sales." />
         ) : null}
         {tills.map((till) => (
           <View key={till.id} style={[styles.tillRow, !till.isActive ? styles.tillRowInactive : null]}>

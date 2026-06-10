@@ -14,6 +14,7 @@ import { LoadingState } from "../../components/LoadingState";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { DateTimeField } from "../../components/DateTimeField";
+import { EmptyState } from "../../components/EmptyState";
 import { TemperatureSchedule } from "../../types/models";
 import { confirmDestructive } from "../../utils/confirm";
 import { ui } from "../../ui/primitives";
@@ -269,7 +270,7 @@ export function TemperatureSchedulesScreen() {
         <Text style={ui.sectionTitle}>Configured slots</Text>
         {schedulesQuery.isLoading ? <LoadingState inline /> : null}
         {!schedulesQuery.isLoading && schedules.length === 0 ? (
-          <Text style={ui.bodyText}>No scheduled checks yet — add one above.</Text>
+          <EmptyState icon="thermometer-outline" title="No scheduled checks yet" message="Add a check time above so staff are prompted to log temperatures (with your tolerance window)." />
         ) : null}
         {schedules.map((schedule) => {
           const unit = units.find((u) => u.id === schedule.temperatureMonitoringUnitId);

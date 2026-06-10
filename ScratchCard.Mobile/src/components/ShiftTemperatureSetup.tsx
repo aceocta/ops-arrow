@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { appTheme } from "../ui/theme";
+import { DateTimeField } from "./DateTimeField";
 
 export type ShopSetupExtras = {
   shiftTemplates: { name: string; startTime: string; endTime: string }[];
@@ -55,10 +56,10 @@ export function ShiftTemperatureSetup({ onChange }: { onChange: (extras: ShopSet
               <View key={i} style={styles.row}>
                 <TextInput style={[styles.cell, { flex: 2 }]} value={s.name} placeholder="Name" placeholderTextColor={appTheme.colors.textSubtle}
                   onChangeText={(t) => setShifts((p) => p.map((x, j) => j === i ? { ...x, name: t } : x))} />
-                <TextInput style={styles.cell} value={s.start} placeholder="06:00" placeholderTextColor={appTheme.colors.textSubtle}
-                  onChangeText={(t) => setShifts((p) => p.map((x, j) => j === i ? { ...x, start: t } : x))} />
-                <TextInput style={styles.cell} value={s.end} placeholder="14:00" placeholderTextColor={appTheme.colors.textSubtle}
-                  onChangeText={(t) => setShifts((p) => p.map((x, j) => j === i ? { ...x, end: t } : x))} />
+                <DateTimeField mode="time" value={s.start} placeholder="06:00" style={styles.timeField}
+                  onChange={(t) => setShifts((p) => p.map((x, j) => j === i ? { ...x, start: t } : x))} />
+                <DateTimeField mode="time" value={s.end} placeholder="14:00" style={styles.timeField}
+                  onChange={(t) => setShifts((p) => p.map((x, j) => j === i ? { ...x, end: t } : x))} />
                 <Pressable onPress={() => setShifts((p) => p.filter((_, j) => j !== i))} hitSlop={6}>
                   <Ionicons name="close-circle" size={20} color={appTheme.colors.danger} />
                 </Pressable>
@@ -85,8 +86,8 @@ export function ShiftTemperatureSetup({ onChange }: { onChange: (extras: ShopSet
               <View key={i} style={styles.row}>
                 <TextInput style={[styles.cell, { flex: 2 }]} value={t.label} placeholder="Label" placeholderTextColor={appTheme.colors.textSubtle}
                   onChangeText={(v) => setTempTimes((p) => p.map((x, j) => j === i ? { ...x, label: v } : x))} />
-                <TextInput style={styles.cell} value={t.time} placeholder="10:00" placeholderTextColor={appTheme.colors.textSubtle}
-                  onChangeText={(v) => setTempTimes((p) => p.map((x, j) => j === i ? { ...x, time: v } : x))} />
+                <DateTimeField mode="time" value={t.time} placeholder="10:00" style={styles.timeField}
+                  onChange={(v) => setTempTimes((p) => p.map((x, j) => j === i ? { ...x, time: v } : x))} />
                 <TextInput style={styles.cell} value={t.tolerance} placeholder="±min" keyboardType="number-pad" placeholderTextColor={appTheme.colors.textSubtle}
                   onChangeText={(v) => setTempTimes((p) => p.map((x, j) => j === i ? { ...x, tolerance: v } : x))} />
                 <Pressable onPress={() => setTempTimes((p) => p.filter((_, j) => j !== i))} hitSlop={6}>
@@ -112,6 +113,7 @@ const styles = StyleSheet.create({
   body: { marginTop: appTheme.spacing.sm, gap: 8 },
   row: { flexDirection: "row", alignItems: "center", gap: 6 },
   cell: { flex: 1, borderWidth: 1, borderColor: appTheme.colors.border, borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceMuted, color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 14, paddingHorizontal: 10, paddingVertical: 8 },
+  timeField: { flex: 1 },
   add: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 6 },
   addText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
 });

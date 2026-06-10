@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, DevSettings, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, DevSettings, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -1425,9 +1425,42 @@ export function CompanyManagementScreen() {
   );
 }
 
+function ShopReadyModal({ shop, onClose, onGo }: { shop: Shop | null; onClose: () => void; onGo: (route: keyof MainStackParamList) => void }) {
+  const nextSteps: { label: string; route: keyof MainStackParamList; icon: keyof typeof Ionicons.glyphMap }[] = [
+    { label: "Add tills", route: "TillsConfig", icon: "calculator-outline" },
+    { label: "Add payment types", route: "PaymentTypesConfig", icon: "card-outline" },
+    { label: "Add your staff", route: "RotaStaffMembers", icon: "people-outline" },
+  ];
+  return (
+    <Modal visible={!!shop} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.readyBackdrop}>
+        <View style={[ui.card, styles.readyCard]}>
+          <View style={styles.readyIcon}>
+            <Ionicons name="checkmark-circle" size={40} color={appTheme.colors.success} />
+          </View>
+          <Text style={styles.readyTitle}>{shop?.shopName} is ready</Text>
+          <Text style={styles.readySubtitle}>Shifts and temperature checks are set. Finish the rest whenever you like:</Text>
+          {nextSteps.map((s) => (
+            <Pressable key={s.route} style={styles.readyStep} onPress={() => onGo(s.route)}>
+              <Ionicons name={s.icon} size={20} color={appTheme.colors.primary} />
+              <Text style={styles.readyStepText}>{s.label}</Text>
+              <Ionicons name="chevron-forward" size={16} color={appTheme.colors.textSubtle} />
+            </Pressable>
+          ))}
+          <Pressable style={[styles.actionButton, { marginTop: 8 }]} onPress={onClose}>
+            <Text style={styles.actionButtonText}>Done</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export function ShopManagementScreen() {
   const queryClient = useQueryClient();
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const { activeShop, profile, refreshProfile } = useAuth();
+  const [createdShop, setCreatedShop] = useState<Shop | null>(null);
   const userRoles = profile?.roles ?? [];
   const canCreateShop = userRoles.some((role) => role === "PlatformAdmin" || role === "CompanyOwner");
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(activeShop?.companyId ?? "");
@@ -1532,7 +1565,8 @@ export function ShopManagementScreen() {
 
       return createShop({ ...basePayload, subscriptionPlanId, shiftTemplates: setupExtras.shiftTemplates, temperatureCheckTimes: setupExtras.temperatureCheckTimes });
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      const wasEditing = !!editingShopId;
       setCreating(false);
       setEditingShopId(null);
       setEditingIsActive(true);
@@ -1546,7 +1580,11 @@ export function ShopManagementScreen() {
       setPackSellingOrder(SellingOrder.Ascending);
       setHasEditedPackSettings(false);
       setSubscriptionPlanId(null);
-      Alert.alert(editingShopId ? "Updated" : "Created", editingShopId ? "Shop updated successfully." : "Shop created successfully.");
+      if (wasEditing) {
+        Alert.alert("Updated", "Shop updated successfully.");
+      } else if (data) {
+        setCreatedShop(data); // show the "shop ready — next steps" panel
+      }
       void Promise.all([queryClient.invalidateQueries({ queryKey: ["shops", resolvedCompanyId] }), refreshProfile()]);
     },
     onError: (error: any) => {
@@ -1834,6 +1872,17 @@ export function ShopManagementScreen() {
         ))}
       </View>
       ) : null}
+
+      <ShopReadyModal
+        shop={createdShop}
+        onClose={() => setCreatedShop(null)}
+        onGo={async (route) => {
+          const target = createdShop;
+          setCreatedShop(null);
+          if (target) { try { await refreshProfile(target.id, true); } catch { /* membership guard */ } }
+          navigation.navigate(route as never);
+        }}
+      />
     </ScreenContainer>
   );
 }
@@ -2496,6 +2545,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
   },
+  readyBackdrop: { flex: 1, backgroundColor: appTheme.colors.overlay, justifyContent: "center", padding: appTheme.spacing.lg },
+  readyCard: { gap: 8 },
+  readyIcon: { alignItems: "center", marginBottom: 4 },
+  readyTitle: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 18, textAlign: "center" },
+  readySubtitle: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 13, textAlign: "center", marginBottom: 8 },
+  readyStep: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 11, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
+  readyStepText: { flex: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 15 },
   createShopCta: {
     flexDirection: "row",
     alignItems: "center",

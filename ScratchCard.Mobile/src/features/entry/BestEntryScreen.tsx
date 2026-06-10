@@ -4,6 +4,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { GetStartedCard } from "../../components/GetStartedCard";
+import { EmptyState } from "../../components/EmptyState";
 import { SubscriptionBanner } from "../subscription/SubscriptionBanner";
 import { useAuth } from "../../auth/AuthContext";
 import { useBestEntry } from "../../navigation/BestEntryContext";
@@ -164,6 +166,20 @@ export function BestEntryScreen() {
             <Text style={styles.switchPillText}>Switch</Text>
           </View>
         </Pressable>
+      ) : null}
+
+      {canManageRota && activeShopId ? (
+        <GetStartedCard shopId={activeShopId} features={features} onGo={(route) => navigation.navigate(route as never)} />
+      ) : null}
+
+      {visibleOptions.length === 0 ? (
+        <EmptyState
+          icon="grid-outline"
+          title="No features enabled yet"
+          message={canManageRota
+            ? "This shop has no active modules. Choose a plan or contact support to enable features."
+            : "Your manager hasn't enabled any features for you yet. Check back soon."}
+        />
       ) : null}
 
       <View style={styles.featureGrid}>

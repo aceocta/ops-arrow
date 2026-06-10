@@ -42,6 +42,7 @@ import { SkeletonList } from "../../components/Skeleton";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
+import { EmptyState } from "../../components/EmptyState";
 import { confirmDestructive } from "../../utils/confirm";
 import { toastError, toastSuccess } from "../../components/toast";
 import { AssignableUser, AttendanceApprovalRow, RotaAssignee, RotaShift, RotaStaffMember } from "../../types/models";
@@ -350,7 +351,7 @@ export function MyShiftsScreen() {
 
         {shiftsQuery.isLoading ? <SkeletonList count={4} /> : null}
         {!shiftsQuery.isLoading && grouped.length === 0 ? (
-          <View style={ui.card}><Text style={styles.muted}>No shifts scheduled for the next 2 weeks.</Text></View>
+          <EmptyState icon="calendar-outline" title="No shifts scheduled" message="No shifts in the next 2 weeks. Add one with the button above to start building your rota." />
         ) : null}
 
         {grouped.map(([date, shifts]) => (
