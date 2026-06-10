@@ -38,6 +38,9 @@ import {
   setReconciliationVarianceReason,
   setReconciliationStatus,
   ingestReconciliationPhoto,
+  deleteReconciliationAttachment,
+  reopenReconciliation,
+  deleteReconciliation,
   getReconciliationAttachment,
   ReconciliationAttachment,
 } from "../../api/tillReconciliationApi";
@@ -69,7 +72,9 @@ const num = (s: string) => {
 };
 
 export function TillReconciliationScreen() {
-  const { activeShopId } = useAuth();
+  const { activeShopId, profile } = useAuth();
+  const myRole = profile?.shops?.find((s) => s.shopId === activeShopId)?.role;
+  const isManager = myRole === "CompanyOwner" || myRole === "Manager";
   const canOcr = useFeature("store_sales.ocr").isAllowed;
   const shopId = activeShopId as string;
   const qc = useQueryClient();
@@ -145,6 +150,35 @@ export function TillReconciliationScreen() {
     onSuccess: (r) => { setData(r); toastSuccess(r.status === "Approved" ? "Approved." : "Saved."); },
     onError: (e: any) => toastError(e?.response?.data?.message ?? "Couldn't update."),
   });
+
+  // Undo a photo upload — removes the photo and the lines it produced.
+  const removePhotoMutation = useMutation({
+    mutationFn: (attachmentId: string) => deleteReconciliationAttachment(attachmentId),
+    onSuccess: (r) => { if (r) setData(r); toastSuccess("Photo removed."); },
+    onError: (e: any) => toastError(e?.response?.data?.message ?? "Couldn't remove the photo."),
+  });
+
+  // Reopen an approved (locked) reconciliation back to editable. Management only.
+  const reopenMutation = useMutation({
+    mutationFn: () => reopenReconciliation(data!.id),
+    onSuccess: (r) => { setData(r); toastSuccess("Reopened for editing."); },
+    onError: (e: any) => toastError(e?.response?.data?.message ?? "Couldn't reopen this reconciliation."),
+  });
+
+  // Erase the whole reconciliation; the query refetches a fresh empty one for the same day/till.
+  const eraseMutation = useMutation({
+    mutationFn: () => deleteReconciliation(data!.id),
+    onSuccess: () => { setSelected(new Set()); void qc.invalidateQueries({ queryKey: key }); toastSuccess("Reconciliation erased."); },
+    onError: (e: any) => toastError(e?.response?.data?.message ?? "Couldn't erase this reconciliation."),
+  });
+
+  async function confirmErase() {
+    const ok = await confirmDestructive({
+      title: "Erase reconciliation",
+      message: "This permanently deletes this reconciliation — its lines, photos and cash count. This cannot be undone.",
+    });
+    if (ok) eraseMutation.mutate();
+  }
 
   // Field picker options come from the data-driven catalogue (built-in + custom), falling back to
   // the bundled defaults until the list loads.
@@ -342,7 +376,14 @@ export function TillReconciliationScreen() {
           </View>
         ) : null}
 
-        {data && data.attachments.length > 0 ? <AttachmentsCard attachments={data.attachments} /> : null}
+        {data && data.attachments.length > 0 ? (
+          <AttachmentsCard
+            attachments={data.attachments}
+            locked={locked}
+            removing={removePhotoMutation.isPending}
+            onRemovePhoto={(id) => removePhotoMutation.mutate(id)}
+          />
+        ) : null}
 
         {data && (counts.history + counts.ai + counts.newCount + counts.ignored) > 0 ? (
           <View style={styles.banner}>
@@ -496,7 +537,27 @@ export function TillReconciliationScreen() {
             {locked ? (
               <View style={[ui.card, styles.groupCard, { alignItems: "center" }]}>
                 <Text style={styles.approved}>✓ Approved{data.confirmedOn ? ` · ${new Date(data.confirmedOn).toLocaleString("en-GB")}` : ""}</Text>
+                {isManager ? (
+                  <View style={styles.lockedActions}>
+                    <Pressable style={[styles.lockedBtn, styles.lockedBtnOutline]} onPress={() => reopenMutation.mutate()} disabled={reopenMutation.isPending}>
+                      <Ionicons name="lock-open-outline" size={16} color={appTheme.colors.primary} />
+                      <Text style={styles.lockedBtnOutlineText}>{reopenMutation.isPending ? "Reopening…" : "Reopen to edit"}</Text>
+                    </Pressable>
+                    <Pressable style={[styles.lockedBtn, styles.lockedBtnDanger]} onPress={confirmErase} disabled={eraseMutation.isPending}>
+                      <Ionicons name="trash-outline" size={16} color={appTheme.colors.danger} />
+                      <Text style={styles.lockedBtnDangerText}>{eraseMutation.isPending ? "Erasing…" : "Erase"}</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
               </View>
+            ) : null}
+
+            {/* Erase (managers) — available pre-approval too, so a wrong import can be wiped and restarted. */}
+            {!locked && isManager ? (
+              <Pressable style={styles.eraseLink} onPress={confirmErase} disabled={eraseMutation.isPending}>
+                <Ionicons name="trash-outline" size={15} color={appTheme.colors.danger} />
+                <Text style={styles.eraseLinkText}>{eraseMutation.isPending ? "Erasing…" : "Erase this reconciliation"}</Text>
+              </Pressable>
             ) : null}
           </>
         ) : null}
@@ -694,10 +755,21 @@ function Row({ k, v, muted }: { k: string; v: string; muted?: boolean }) {
   );
 }
 
-function AttachmentsCard({ attachments }: { attachments: ReconciliationAttachment[] }) {
+function AttachmentsCard({ attachments, locked, removing, onRemovePhoto }: {
+  attachments: ReconciliationAttachment[]; locked: boolean; removing: boolean; onRemovePhoto: (attachmentId: string) => void;
+}) {
   const [viewing, setViewing] = useState<ReconciliationAttachment | null>(null);
   const shown = attachments.slice(0, 3);
   const extra = attachments.length - shown.length;
+
+  async function confirmRemove(att: ReconciliationAttachment) {
+    const ok = await confirmDestructive({
+      title: "Remove this photo?",
+      message: "The photo and the lines its scan added will be removed. Lines you added or edited yourself stay.",
+    });
+    if (ok) { onRemovePhoto(att.id); setViewing(null); }
+  }
+
   return (
     <View style={styles.attachRow}>
       <Ionicons name="images-outline" size={15} color={appTheme.colors.textMuted} />
@@ -710,7 +782,15 @@ function AttachmentsCard({ attachments }: { attachments: ReconciliationAttachmen
           </Pressable>
         ) : null}
       </View>
-      {viewing ? <ImageViewerModal attachment={viewing} onClose={() => setViewing(null)} /> : null}
+      {viewing ? (
+        <ImageViewerModal
+          attachment={viewing}
+          onClose={() => setViewing(null)}
+          canRemove={!locked}
+          removing={removing}
+          onRemove={() => confirmRemove(viewing)}
+        />
+      ) : null}
     </View>
   );
 }
@@ -736,7 +816,9 @@ function AttachmentThumb({ attachment, onPress, size = 56 }: { attachment: Recon
   );
 }
 
-function ImageViewerModal({ attachment, onClose }: { attachment: ReconciliationAttachment; onClose: () => void }) {
+function ImageViewerModal({ attachment, onClose, canRemove, removing, onRemove }: {
+  attachment: ReconciliationAttachment; onClose: () => void; canRemove?: boolean; removing?: boolean; onRemove?: () => void;
+}) {
   const q = useAttachmentData(attachment.id);
   const [busy, setBusy] = useState(false);
 
@@ -766,6 +848,11 @@ function ImageViewerModal({ attachment, onClose }: { attachment: ReconciliationA
         <View style={styles.viewerHeader}>
           <Text style={styles.viewerTitle} numberOfLines={1}>{attachment.sourceLabel || attachment.fileName || "Image"}</Text>
           <View style={styles.viewerActions}>
+            {canRemove && onRemove ? (
+              <Pressable onPress={onRemove} hitSlop={8} disabled={removing} style={styles.viewerAction}>
+                <Ionicons name="trash-outline" size={22} color={removing ? appTheme.colors.textSubtle : "#FCA5A5"} />
+              </Pressable>
+            ) : null}
             <Pressable onPress={share} hitSlop={8} disabled={busy || !q.data} style={styles.viewerAction}>
               <Ionicons name="download-outline" size={22} color={busy || !q.data ? appTheme.colors.textSubtle : appTheme.colors.onPrimary} />
             </Pressable>
@@ -1078,6 +1165,14 @@ const styles = StyleSheet.create({
   ingestMsg: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 18, textAlign: "center" },
   ingestHint: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, lineHeight: 16, textAlign: "center" },
   reasonInput: { marginTop: 6, borderWidth: 1, borderColor: appTheme.colors.border, borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceMuted, color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 14, paddingHorizontal: 12, paddingVertical: 10 },
+  lockedActions: { flexDirection: "row", gap: 8, marginTop: 10 },
+  lockedBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, paddingHorizontal: 14, borderRadius: appTheme.radius.md, borderWidth: 1 },
+  lockedBtnOutline: { borderColor: appTheme.colors.primary, backgroundColor: appTheme.colors.surface },
+  lockedBtnOutlineText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
+  lockedBtnDanger: { borderColor: appTheme.colors.danger, backgroundColor: appTheme.colors.surface },
+  lockedBtnDangerText: { color: appTheme.colors.danger, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
+  eraseLink: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10 },
+  eraseLinkText: { color: appTheme.colors.danger, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   attachRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 },
   attachLabel: { flex: 1, color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 13 },
   attachThumbs: { flexDirection: "row", alignItems: "center", gap: 4 },

@@ -21,6 +21,15 @@ public interface ITillReconciliationService
     Task<TillReconciliationDto> SetVarianceReasonAsync(SetVarianceReasonRequest request, CancellationToken cancellationToken = default);
     Task<TillReconciliationDto> SetStatusAsync(Guid id, TillReconciliationStatus status, CancellationToken cancellationToken = default);
 
+    /// <summary>Undo a photo upload — removes the attachment, its image and the lines it produced.</summary>
+    Task<TillReconciliationDto> DeleteAttachmentAsync(Guid attachmentId, CancellationToken cancellationToken = default);
+
+    /// <summary>Reopen an approved (locked) reconciliation back to editable. Management only.</summary>
+    Task<TillReconciliationDto> ReopenAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>Erase a reconciliation entirely (lines, photos, cash count). Management only.</summary>
+    Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+
     /// <summary>Phase 2: OCR a captured photo, section + resolve its lines to canonical fields, and
     /// add them as draft (Captured) lines for the verify step.</summary>
     Task<TillReconciliationDto> IngestPhotoAsync(Guid reconciliationId, byte[] content, string contentType, string fileName, string? sourceLabel, CancellationToken cancellationToken = default);

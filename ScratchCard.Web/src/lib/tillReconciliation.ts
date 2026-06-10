@@ -89,6 +89,14 @@ export const tillReconApi = {
     unwrap<Reconciliation>((await api.get(`/till-reconciliation/${id}`)).data),
   attachment: async (attachmentId: string) =>
     unwrap<string>((await api.get(`/till-reconciliation/attachments/${attachmentId}/content`)).data),
+  // Undo a photo upload — removes the photo and the lines it produced.
+  deleteAttachment: async (attachmentId: string) =>
+    unwrap<Reconciliation>((await api.delete(`/till-reconciliation/attachments/${attachmentId}`)).data),
+  // Reopen an approved (locked) reconciliation back to editable. Management only.
+  reopen: async (id: string) =>
+    unwrap<Reconciliation>((await api.post(`/till-reconciliation/${id}/reopen`)).data),
+  // Erase a reconciliation entirely. Management only.
+  erase: async (id: string) => { await api.delete(`/till-reconciliation/${id}`); },
 };
 
 // ---- Phase 3: Post Office balance ----

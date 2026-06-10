@@ -8,7 +8,7 @@ import {
 } from "../../lib/tillReconciliation";
 import { apiErrorMessage } from "../../lib/api";
 import { toast } from "../../components/feedback";
-import { PoundSterling, AlertTriangle, CheckCircle2, Receipt, Users, Building2, Landmark, Calculator, Download, X } from "lucide-react";
+import { PoundSterling, AlertTriangle, CheckCircle2, Receipt, Users, Building2, Landmark, Calculator, Download, X, RotateCcw, Trash2 } from "lucide-react";
 import clsx from "clsx";
 
 const gbp = (n: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n || 0);
@@ -165,10 +165,35 @@ export default function TillReconciliationPage() {
 }
 
 function ReconciliationDetail({ id, onClose }: { id: string; onClose: () => void }) {
+  const qc = useQueryClient();
+  const { isOwner, isManager } = useAuth();
+  const canManage = isOwner || isManager;
   const q = useQuery({ queryKey: ["recon-detail", id], queryFn: () => tillReconApi.get(id) });
   const [viewImg, setViewImg] = useState<string | null>(null);
   const r = q.data;
   const p = r?.summary.proofOfCash;
+  const locked = r?.status === "Approved";
+
+  const refresh = () => { qc.invalidateQueries({ queryKey: ["recon-detail", id] }); qc.invalidateQueries({ queryKey: ["till-rollup"] }); };
+
+  const removePhoto = useMutation({
+    mutationFn: (attachmentId: string) => tillReconApi.deleteAttachment(attachmentId),
+    onSuccess: () => { refresh(); toast("Photo removed.", "success"); },
+    onError: (e) => toast(apiErrorMessage(e), "error"),
+  });
+  const reopen = useMutation({
+    mutationFn: () => tillReconApi.reopen(id),
+    onSuccess: () => { refresh(); toast("Reopened for editing.", "success"); },
+    onError: (e) => toast(apiErrorMessage(e), "error"),
+  });
+  const erase = useMutation({
+    mutationFn: () => tillReconApi.erase(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["till-rollup"] }); toast("Reconciliation erased.", "success"); onClose(); },
+    onError: (e) => toast(apiErrorMessage(e), "error"),
+  });
+  const confirmErase = () => {
+    if (confirm("Permanently erase this reconciliation — its lines, photos and cash count? This cannot be undone.")) erase.mutate();
+  };
 
   return (
     <div className="fixed inset-0 z-30 flex items-start justify-center overflow-auto bg-black/40 p-4" onClick={onClose}>
@@ -191,7 +216,15 @@ function ReconciliationDetail({ id, onClose }: { id: string; onClose: () => void
               <div>
                 <div className="mb-2 text-sm font-semibold text-slate-700">Captured images ({r.attachments.length})</div>
                 <div className="flex flex-wrap gap-2">
-                  {r.attachments.map((a) => <AttachmentThumb key={a.id} id={a.id} onView={setViewImg} />)}
+                  {r.attachments.map((a) => (
+                    <AttachmentThumb
+                      key={a.id}
+                      id={a.id}
+                      onView={setViewImg}
+                      onRemove={!locked ? () => { if (confirm("Remove this photo and the lines its scan added?")) removePhoto.mutate(a.id); } : undefined}
+                      removing={removePhoto.isPending}
+                    />
+                  ))}
                 </div>
               </div>
             ) : null}
@@ -232,6 +265,20 @@ function ReconciliationDetail({ id, onClose }: { id: string; onClose: () => void
                 </tbody>
               </table>
             </div>
+
+            {/* Manager actions */}
+            {canManage ? (
+              <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-4">
+                {locked ? (
+                  <button className="btn-ghost" onClick={() => reopen.mutate()} disabled={reopen.isPending}>
+                    <RotateCcw className="h-4 w-4" /> {reopen.isPending ? "Reopening…" : "Reopen to edit"}
+                  </button>
+                ) : null}
+                <button className="btn-ghost text-red-600 hover:bg-red-50" onClick={confirmErase} disabled={erase.isPending}>
+                  <Trash2 className="h-4 w-4" /> {erase.isPending ? "Erasing…" : "Erase reconciliation"}
+                </button>
+              </div>
+            ) : null}
           </div>
         )}
       </div>
@@ -249,10 +296,24 @@ function ReconciliationDetail({ id, onClose }: { id: string; onClose: () => void
   );
 }
 
-function AttachmentThumb({ id, onView }: { id: string; onView: (dataUrl: string) => void }) {
+function AttachmentThumb({ id, onView, onRemove, removing }: { id: string; onView: (dataUrl: string) => void; onRemove?: () => void; removing?: boolean }) {
   const q = useQuery({ queryKey: ["recon-att", id], queryFn: () => tillReconApi.attachment(id), staleTime: 300000 });
   if (!q.data) return <div className="h-20 w-20 animate-pulse rounded-lg bg-slate-100" />;
-  return <img src={q.data} alt="" className="h-20 w-20 cursor-pointer rounded-lg border border-slate-200 object-cover" onClick={() => onView(q.data!)} />;
+  return (
+    <div className="group relative h-20 w-20">
+      <img src={q.data} alt="" className="h-20 w-20 cursor-pointer rounded-lg border border-slate-200 object-cover" onClick={() => onView(q.data!)} />
+      {onRemove ? (
+        <button
+          className="absolute -right-1.5 -top-1.5 rounded-full bg-red-600 p-1 text-white shadow hover:bg-red-700 disabled:opacity-50"
+          title="Remove photo"
+          disabled={removing}
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+        >
+          <X className="h-3 w-3" />
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 function PostOfficeCard({ shopId, date }: { shopId: string; date: string }) {

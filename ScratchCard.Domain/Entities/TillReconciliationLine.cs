@@ -11,6 +11,10 @@ public class TillReconciliationLine : BaseEntity
 {
     public Guid TillReconciliationId { get; set; }
 
+    /// <summary>The source photo this line was OCR'd from, if any. Null for manually-added lines.
+    /// Lets a photo be undone together with the lines it produced.</summary>
+    public Guid? AttachmentId { get; set; }
+
     public TillCanonicalField CanonicalField { get; set; } = TillCanonicalField.Unmapped;
     /// <summary>Authoritative canonical field code (built-in name or custom). The enum above is the
     /// built-in equivalent (Unmapped for custom codes).</summary>

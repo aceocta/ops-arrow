@@ -55,6 +55,24 @@ public class TillReconciliationController : BaseApiController
     public async Task<IActionResult> SetStatus(Guid id, [FromQuery] TillReconciliationStatus status, CancellationToken cancellationToken)
         => Success(await _service.SetStatusAsync(id, status, cancellationToken));
 
+    // Undo a photo upload — removes the photo and the lines it produced.
+    [HttpDelete("attachments/{attachmentId:guid}")]
+    public async Task<IActionResult> DeleteAttachment(Guid attachmentId, CancellationToken cancellationToken)
+        => Success(await _service.DeleteAttachmentAsync(attachmentId, cancellationToken));
+
+    // Reopen an approved (locked) reconciliation back to editable. Management only.
+    [HttpPost("{id:guid}/reopen")]
+    public async Task<IActionResult> Reopen(Guid id, CancellationToken cancellationToken)
+        => Success(await _service.ReopenAsync(id, cancellationToken));
+
+    // Erase a reconciliation entirely. Management only.
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    {
+        await _service.DeleteAsync(id, cancellationToken);
+        return Success(true);
+    }
+
     [HttpPost("{id:guid}/ingest-photo")]
     [RequestSizeLimit(20_000_000)]
     public async Task<IActionResult> IngestPhoto(Guid id, IFormFile file, [FromForm] string? sourceLabel, CancellationToken cancellationToken)

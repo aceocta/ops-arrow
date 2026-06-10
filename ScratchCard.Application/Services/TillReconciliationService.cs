@@ -261,6 +261,70 @@ public sealed class TillReconciliationService : ITillReconciliationService
         return await MapAsync(rec, cancellationToken);
     }
 
+    /// <summary>Undo a photo upload: remove the attachment, its stored image, and every line that
+    /// photo's scan produced. Manually-added lines and other photos are untouched.</summary>
+    public async Task<TillReconciliationDto> DeleteAttachmentAsync(Guid attachmentId, CancellationToken cancellationToken = default)
+    {
+        var att = await _attachments.Query().FirstOrDefaultAsync(a => a.Id == attachmentId, cancellationToken)
+            ?? throw new AppException("attachment_not_found", "Photo not found.", 404);
+        var rec = await LoadAsync(att.TillReconciliationId, cancellationToken);
+        await EnsureAccessAsync(rec.ShopId, StaffRoles, FeatureKeys.StoreSalesBasic, cancellationToken);
+
+        if (rec.Status == TillReconciliationStatus.Approved)
+            throw new AppException("reconciliation_locked", "Reopen the reconciliation before removing a photo.", 409);
+
+        // Remove the lines this photo produced (manual lines have a null AttachmentId, so they stay).
+        foreach (var line in rec.Lines.Where(l => l.AttachmentId == attachmentId).ToList())
+        {
+            rec.Lines.Remove(line);
+            _lines.Remove(line);
+        }
+
+        var target = rec.Attachments.FirstOrDefault(a => a.Id == attachmentId);
+        if (target is not null) rec.Attachments.Remove(target);
+        _attachments.Remove(att);
+        await _storage.DeleteIfExistsAsync(att.StoragePath, cancellationToken);
+
+        await RecomputeAsync(rec, cancellationToken);
+        _reconciliations.Update(rec);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return await MapAsync(rec, cancellationToken);
+    }
+
+    /// <summary>Reopen an approved (locked) reconciliation back to an editable state. Management only.</summary>
+    public async Task<TillReconciliationDto> ReopenAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var rec = await LoadAsync(id, cancellationToken);
+        await EnsureAccessAsync(rec.ShopId, ManagementRoles, FeatureKeys.StoreSalesBasic, cancellationToken);
+
+        if (rec.Status == TillReconciliationStatus.Approved)
+        {
+            rec.Status = TillReconciliationStatus.Reconciled;
+            rec.ConfirmedByUserId = null;
+            rec.ConfirmedOn = null;
+            _reconciliations.Update(rec);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        return await MapAsync(rec, cancellationToken);
+    }
+
+    /// <summary>Erase a reconciliation entirely — its lines, photos and cash count — so the day can be
+    /// started fresh. Management only; works at any status (including approved/locked).</summary>
+    public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var rec = await LoadAsync(id, cancellationToken);
+        await EnsureAccessAsync(rec.ShopId, ManagementRoles, FeatureKeys.StoreSalesBasic, cancellationToken);
+
+        foreach (var line in rec.Lines.ToList()) _lines.Remove(line);
+        foreach (var att in rec.Attachments.ToList())
+        {
+            await _storage.DeleteIfExistsAsync(att.StoragePath, cancellationToken);
+            _attachments.Remove(att);
+        }
+        _reconciliations.Remove(rec);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<TillReconciliationDto> SetCashCountAsync(SetCashCountRequest request, CancellationToken cancellationToken = default)
     {
         var rec = await LoadAsync(request.ReconciliationId, cancellationToken);
@@ -408,6 +472,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
             var line = new TillReconciliationLine
             {
                 TillReconciliationId = rec.Id,
+                AttachmentId = attachment.Id,
                 FieldCode = resolution.Code,
                 CanonicalField = Enum.TryParse<TillCanonicalField>(resolution.Code, out var pf) ? pf : TillCanonicalField.Unmapped,
                 RawLabel = ocrLine.Description.Trim(),

@@ -163,6 +163,23 @@ export async function setReconciliationStatus(id: string, status: TillReconcilia
   return response.data.data;
 }
 
+// Undo a photo upload — removes the photo and the lines it produced.
+export async function deleteReconciliationAttachment(attachmentId: string) {
+  const response = await apiClient.delete<ApiResponse<Reconciliation>>(`/till-reconciliation/attachments/${attachmentId}`);
+  return response.data.data;
+}
+
+// Reopen an approved (locked) reconciliation back to editable. Management only.
+export async function reopenReconciliation(id: string) {
+  const response = await apiClient.post<ApiResponse<Reconciliation>>(`/till-reconciliation/${id}/reopen`);
+  return response.data.data;
+}
+
+// Erase a reconciliation entirely. Management only.
+export async function deleteReconciliation(id: string) {
+  await apiClient.delete<ApiResponse<boolean>>(`/till-reconciliation/${id}`);
+}
+
 export async function ingestReconciliationPhoto(input: { id: string; uri: string; fileName?: string; mimeType?: string; sourceLabel?: string }) {
   const formData = new FormData();
   formData.append("file", {
