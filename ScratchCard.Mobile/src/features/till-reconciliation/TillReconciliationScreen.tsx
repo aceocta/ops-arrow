@@ -266,43 +266,47 @@ export function TillReconciliationScreen() {
   return (
     <ScreenContainer footer={footerBar}>
         <View style={[ui.card, styles.groupCard]}>
-          <View style={styles.row}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.label}>Business date</Text>
-              <DateTimeField mode="date" value={businessDate} onChange={(d) => { setBusinessDate(d); setShiftId(undefined); }} />
-            </View>
-            {data ? <StatusPill status={data.status} /> : null}
+          <View style={styles.metaRow}>
+            {data ? <StatusPill status={data.status} /> : <View />}
             <Pressable style={styles.helpBtn} onPress={() => setHelpOpen(true)} hitSlop={8} accessibilityLabel="How till reconciliation works">
-              <Ionicons name="help-circle-outline" size={22} color={appTheme.colors.primary} />
+              <Ionicons name="help-circle-outline" size={20} color={appTheme.colors.primary} />
+              <Text style={styles.helpText}>How it works</Text>
             </Pressable>
           </View>
 
-          <View style={styles.tillPickerBlock}>
-            <Text style={styles.label}>Reconcile by</Text>
-            <Segmented
-              options={[{ key: "DayEnd", label: "Day-end" }, { key: "Shift", label: "Shift" }]}
-              value={reportType}
-              onChange={setReportType}
-            />
+          <View style={styles.fields}>
+            <View>
+              <Text style={styles.label}>Business date</Text>
+              <DateTimeField mode="date" value={businessDate} onChange={(d) => { setBusinessDate(d); setShiftId(undefined); }} />
+            </View>
+
+            <View>
+              <Text style={styles.label}>Reconcile by</Text>
+              <Segmented
+                options={[{ key: "DayEnd", label: "Day-end" }, { key: "Shift", label: "Shift" }]}
+                value={reportType}
+                onChange={setReportType}
+              />
+            </View>
+
+            {reportType === "Shift" ? (
+              <View>
+                <Text style={styles.label}>Shift</Text>
+                {shifts.length === 0 ? (
+                  <Text style={styles.muted}>{shiftsQ.isLoading || businessDayQ.isLoading ? "Loading shifts…" : "No shifts for this date."}</Text>
+                ) : (
+                  <Segmented options={shifts.map((s) => ({ key: s.id, label: s.shiftName }))} value={effectiveShiftId} onChange={setShiftId} />
+                )}
+              </View>
+            ) : null}
+
+            {multiTill ? (
+              <View>
+                <Text style={styles.label}>Till</Text>
+                <Segmented options={tills.map((t) => ({ key: t.id, label: t.name }))} value={effectiveTillId} onChange={setTillId} />
+              </View>
+            ) : null}
           </View>
-
-          {reportType === "Shift" ? (
-            <View style={styles.tillPickerBlock}>
-              <Text style={styles.label}>Shift</Text>
-              {shifts.length === 0 ? (
-                <Text style={styles.muted}>{shiftsQ.isLoading || businessDayQ.isLoading ? "Loading shifts…" : "No shifts for this date."}</Text>
-              ) : (
-                <Segmented options={shifts.map((s) => ({ key: s.id, label: s.shiftName }))} value={effectiveShiftId} onChange={setShiftId} />
-              )}
-            </View>
-          ) : null}
-
-          {multiTill ? (
-            <View style={styles.tillPickerBlock}>
-              <Text style={styles.label}>Till</Text>
-              <Segmented options={tills.map((t) => ({ key: t.id, label: t.name }))} value={effectiveTillId} onChange={setTillId} />
-            </View>
-          ) : null}
         </View>
 
         {q.isLoading ? <LoadingState inline /> : null}
@@ -1054,7 +1058,10 @@ const styles = StyleSheet.create({
   captureText: { fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
   captureTextPrimary: { color: appTheme.colors.onPrimary },
   captureTextOutline: { color: appTheme.colors.primary },
-  helpBtn: { paddingLeft: 4, paddingBottom: 2, alignSelf: "flex-end" },
+  metaRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
+  helpBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
+  helpText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
+  fields: { gap: 14 },
   stepsWrap: { gap: 12, marginTop: 4, marginBottom: 12 },
   stepRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   stepNum: { width: 22, height: 22, borderRadius: 11, backgroundColor: appTheme.colors.surfaceBrandSoft, alignItems: "center", justifyContent: "center" },
