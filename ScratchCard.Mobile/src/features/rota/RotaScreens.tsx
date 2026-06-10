@@ -650,6 +650,28 @@ export function RotaManageScreen() {
   const weekLabel = `${dayOfMonth(weekStart)} – ${dayOfMonth(addDaysStr(weekStart, 6))}`;
   const canSave = draft.shiftTemplateId.length > 0 && !saveMutation.isPending;
 
+  // Another shift on the same day whose time window overlaps the one being edited. Allowed (for
+  // different staff) — the hint just reminds the manager each shift needs its own till.
+  const overlapShift = useMemo(() => {
+    const selected = (templatesQuery.data ?? []).find((t) => t.templateId === draft.shiftTemplateId);
+    if (!selected) return null;
+    const toMin = (hhmm?: string | null) => {
+      const [h, m] = (hhmm ?? "").split(":");
+      return (Number(h) || 0) * 60 + (Number(m) || 0);
+    };
+    const overlaps = (aS: number, aE: number, bS: number, bE: number) => {
+      if (aE <= aS) aE += 1440;
+      if (bE <= bS) bE += 1440;
+      return aS < bE && bS < aE;
+    };
+    const aS = toMin(selected.startTime), aE = toMin(selected.endTime);
+    return (rotaQuery.data ?? []).find((s) =>
+      s.shiftDate === draft.shiftDate &&
+      s.shiftTemplateId !== draft.shiftTemplateId &&
+      overlaps(aS, aE, toMin(s.startTime), toMin(s.endTime)),
+    ) ?? null;
+  }, [templatesQuery.data, rotaQuery.data, draft.shiftDate, draft.shiftTemplateId]);
+
   return (
     <ScreenContainer>
       <ScrollView contentContainerStyle={styles.content}>
@@ -776,6 +798,15 @@ export function RotaManageScreen() {
                 <Text style={styles.muted}>No shifts configured. Set them up in Shop Configuration → Shifts.</Text>
               ) : null}
             </View>
+
+            {overlapShift ? (
+              <View style={styles.overlapHint}>
+                <Ionicons name="information-circle-outline" size={16} color={appTheme.colors.primary} />
+                <Text style={styles.overlapHintText}>
+                  Overlaps the {overlapShift.shiftName} shift ({timeRange(overlapShift.startTime, overlapShift.endTime)}). That's fine for a different staff member — just give each overlapping shift its own till when reconciling.
+                </Text>
+              </View>
+            ) : null}
 
             {/* Staff search */}
             <View style={styles.searchBox}>
@@ -1671,6 +1702,16 @@ const styles = StyleSheet.create({
   noticeRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
 
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  overlapHint: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    marginTop: 10,
+    padding: 10,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+  },
+  overlapHintText: { flex: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 12, lineHeight: 16 },
   chip: { alignItems: "center", gap: 1, paddingHorizontal: 14, paddingVertical: 8, borderRadius: appTheme.radius.md, borderWidth: 1, borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surface },
   chipActive: { borderColor: appTheme.colors.primary, backgroundColor: appTheme.colors.surfaceBrandSoft },
   chipText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, lineHeight: 17 },

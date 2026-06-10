@@ -14,7 +14,7 @@ import {
   isOvernight,
 } from "../../lib/rota";
 import { confirmDialog, toast } from "../../components/feedback";
-import { ChevronLeft, ChevronRight, Plus, Sparkles, Trash2, X, UserPlus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Sparkles, Trash2, X, UserPlus, Info } from "lucide-react";
 import clsx from "clsx";
 
 const AVATAR_COLORS = [
@@ -216,6 +216,7 @@ export default function RotaPage() {
           shift={editor === "new" ? null : editor}
           date={editor === "new" ? editorDate : editor.shiftDate}
           initialTemplateId={editor === "new" ? addTemplateId : ""}
+          daysShifts={byDate.get(editor === "new" ? editorDate : editor.shiftDate) ?? []}
           onClose={() => setEditor(null)}
           onSaved={() => { setEditor(null); invalidate(); }}
         />
@@ -229,6 +230,7 @@ function ShiftEditor({
   shift,
   date,
   initialTemplateId,
+  daysShifts,
   onClose,
   onSaved,
 }: {
@@ -236,6 +238,7 @@ function ShiftEditor({
   shift: RotaShift | null;
   date: string;
   initialTemplateId?: string;
+  daysShifts: RotaShift[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -253,6 +256,27 @@ function ShiftEditor({
 
   const templatesQ = useQuery({ queryKey: ["rota-templates", shopId], queryFn: () => rotaApi.templates(shopId) });
   const assignableQ = useQuery({ queryKey: ["rota-assignable", shopId], queryFn: () => rotaApi.assignable(shopId) });
+
+  // Another shift on this day whose window overlaps the selected one. Allowed (for different staff) —
+  // the hint just reminds the manager each overlapping shift needs its own till.
+  const overlapShift = useMemo(() => {
+    const selected = (templatesQ.data ?? []).find((t) => t.templateId === templateId);
+    if (!selected || shiftDate !== date) return null;
+    const toMin = (hhmm?: string | null) => {
+      const [h, m] = (hhmm ?? "").split(":");
+      return (Number(h) || 0) * 60 + (Number(m) || 0);
+    };
+    const overlaps = (aS: number, aE: number, bS: number, bE: number) => {
+      if (aE <= aS) aE += 1440;
+      if (bE <= bS) bE += 1440;
+      return aS < bE && bS < aE;
+    };
+    const aS = toMin(selected.startTime), aE = toMin(selected.endTime);
+    return daysShifts.find((s) =>
+      s.shiftTemplateId !== templateId &&
+      overlaps(aS, aE, toMin(s.startTime), toMin(s.endTime)),
+    ) ?? null;
+  }, [templatesQ.data, templateId, shiftDate, date, daysShifts]);
 
   const saveM = useMutation({
     mutationFn: () => {
@@ -339,6 +363,15 @@ function ShiftEditor({
                 <span className="text-sm text-slate-400">No shift templates — configure them in Shop settings.</span>
               ) : null}
             </div>
+            {overlapShift ? (
+              <div className="mt-2 flex items-start gap-2 rounded-lg bg-brand-50 px-3 py-2 text-xs text-slate-600">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" />
+                <span>
+                  Overlaps the {overlapShift.shiftName} shift ({shortTime(overlapShift.startTime)}–{shortTime(overlapShift.endTime)}).
+                  That's fine for a different staff member — just give each overlapping shift its own till when reconciling.
+                </span>
+              </div>
+            ) : null}
           </div>
 
           <div>

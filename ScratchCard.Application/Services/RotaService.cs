@@ -152,14 +152,29 @@ public class RotaService : IRotaService
         return aS < bE && bS < aE;
     }
 
-    // A shop can't have a duplicate (same shift template) or a time-overlapping rota shift on the same day.
+    // A shop can't have a duplicate (same shift template) on a day, nor double-book the SAME person
+    // into overlapping shifts. Overlap between DIFFERENT staff is allowed — e.g. a day shift and an
+    // overnight shift that share a handover hour, each reconciling its own till.
     private async Task EnsureNoShiftConflictAsync(
-        Guid shopId, DateOnly date, string templateId, TimeOnly start, TimeOnly end, Guid? excludeShiftId, CancellationToken cancellationToken)
+        Guid shopId, DateOnly date, string templateId, TimeOnly start, TimeOnly end,
+        IEnumerable<Guid> assigneeUserIds, IEnumerable<Guid> assigneeStaffMemberIds,
+        Guid? excludeShiftId, CancellationToken cancellationToken)
     {
+        var newUsers = assigneeUserIds.ToHashSet();
+        var newMembers = assigneeStaffMemberIds.ToHashSet();
+
         var sameDay = await _shiftRepository.Query()
             .AsNoTracking()
             .Where(x => x.ShopId == shopId && !x.IsDeleted && x.ShiftDate == date && (excludeShiftId == null || x.Id != excludeShiftId))
-            .Select(x => new { x.ShiftTemplateId, x.ShiftName, x.StartTime, x.EndTime })
+            .Select(x => new
+            {
+                x.ShiftTemplateId,
+                x.ShiftName,
+                x.StartTime,
+                x.EndTime,
+                UserIds = x.Assignments.Where(a => a.UserId != null).Select(a => a.UserId!.Value).ToList(),
+                MemberIds = x.Assignments.Where(a => a.RotaStaffMemberId != null).Select(a => a.RotaStaffMemberId!.Value).ToList(),
+            })
             .ToListAsync(cancellationToken);
 
         if (sameDay.Any(x => string.Equals(x.ShiftTemplateId, templateId, StringComparison.OrdinalIgnoreCase)))
@@ -167,11 +182,14 @@ public class RotaService : IRotaService
             throw new AppException("rota_duplicate_shift", "That shift is already on the rota for this day.");
         }
 
-        var clash = sameDay.FirstOrDefault(x => Overlaps(start, end, x.StartTime, x.EndTime));
+        // Only a time overlap that involves the same assignee is a real conflict.
+        var clash = sameDay.FirstOrDefault(x =>
+            Overlaps(start, end, x.StartTime, x.EndTime) &&
+            (x.UserIds.Any(newUsers.Contains) || x.MemberIds.Any(newMembers.Contains)));
         if (clash is not null)
         {
             throw new AppException("rota_overlapping_shift",
-                $"This time overlaps the {clash.ShiftName} shift ({clash.StartTime:HH:mm}–{clash.EndTime:HH:mm}) on this day.");
+                $"This person is already on the {clash.ShiftName} shift ({clash.StartTime:HH:mm}–{clash.EndTime:HH:mm}) on this day.");
         }
     }
 
@@ -180,7 +198,8 @@ public class RotaService : IRotaService
         await EnsureManageAsync(request.ShopId, cancellationToken);
         var template = await ResolveTemplateAsync(request.ShopId, request.ShiftTemplateId, cancellationToken);
         await EnsureNoShiftConflictAsync(request.ShopId, request.ShiftDate, template.TemplateId,
-            TimeOnly.FromTimeSpan(template.StartTime), TimeOnly.FromTimeSpan(template.EndTime), null, cancellationToken);
+            TimeOnly.FromTimeSpan(template.StartTime), TimeOnly.FromTimeSpan(template.EndTime),
+            request.AssigneeUserIds, request.AssigneeStaffMemberIds, null, cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
         var startTime = TimeOnly.FromTimeSpan(template.StartTime);
@@ -319,7 +338,8 @@ public class RotaService : IRotaService
         await EnsureManageAsync(shift.ShopId, cancellationToken);
         var template = await ResolveTemplateAsync(shift.ShopId, request.ShiftTemplateId, cancellationToken);
         await EnsureNoShiftConflictAsync(shift.ShopId, request.ShiftDate, template.TemplateId,
-            TimeOnly.FromTimeSpan(template.StartTime), TimeOnly.FromTimeSpan(template.EndTime), shiftId, cancellationToken);
+            TimeOnly.FromTimeSpan(template.StartTime), TimeOnly.FromTimeSpan(template.EndTime),
+            request.AssigneeUserIds, request.AssigneeStaffMemberIds, shiftId, cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
         shift.ShiftDate = request.ShiftDate;
