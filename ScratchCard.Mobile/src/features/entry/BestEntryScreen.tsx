@@ -6,6 +6,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { GetStartedCard } from "../../components/GetStartedCard";
 import { EmptyState } from "../../components/EmptyState";
+import { SetupAssistant } from "../../components/SetupAssistant";
 import { SubscriptionBanner } from "../subscription/SubscriptionBanner";
 import { useAuth } from "../../auth/AuthContext";
 import { useBestEntry } from "../../navigation/BestEntryContext";
@@ -128,6 +129,7 @@ export function BestEntryScreen() {
   const shops = profile?.shops ?? [];
   const canSwitchShop = shops.length > 1;
   const [switchOpen, setSwitchOpen] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
 
   const chooseShop = async (shopId: string) => {
     setSwitchOpen(false);
@@ -171,6 +173,11 @@ export function BestEntryScreen() {
       {canManageRota && activeShopId ? (
         <GetStartedCard shopId={activeShopId} features={features} onGo={(route) => navigation.navigate(route as never)} />
       ) : null}
+
+      <Pressable style={styles.askBar} onPress={() => setAssistantOpen(true)}>
+        <Ionicons name="search" size={18} color={appTheme.colors.textSubtle} />
+        <Text style={styles.askBarText}>Set something up… ask in your own words</Text>
+      </Pressable>
 
       {visibleOptions.length === 0 ? (
         <EmptyState
@@ -223,11 +230,35 @@ export function BestEntryScreen() {
           </View>
         </Pressable>
       </Modal>
+
+      <SetupAssistant
+        visible={assistantOpen}
+        onClose={() => setAssistantOpen(false)}
+        features={features}
+        onGo={(route) => navigation.navigate(route as never)}
+      />
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
+  askBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.md,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: appTheme.spacing.md,
+  },
+  askBarText: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 14,
+  },
   shopCard: {
     flexDirection: "row",
     alignItems: "center",
