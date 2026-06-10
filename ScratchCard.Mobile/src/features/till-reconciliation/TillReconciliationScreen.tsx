@@ -576,12 +576,20 @@ function Row({ k, v, muted }: { k: string; v: string; muted?: boolean }) {
 
 function AttachmentsCard({ attachments }: { attachments: ReconciliationAttachment[] }) {
   const [viewing, setViewing] = useState<ReconciliationAttachment | null>(null);
+  const shown = attachments.slice(0, 3);
+  const extra = attachments.length - shown.length;
   return (
-    <View style={ui.card}>
-      <Text style={ui.sectionTitle}>Captured images ({attachments.length})</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.thumbRow}>
-        {attachments.map((a) => <AttachmentThumb key={a.id} attachment={a} onPress={() => setViewing(a)} />)}
-      </ScrollView>
+    <View style={styles.attachRow}>
+      <Ionicons name="images-outline" size={15} color={appTheme.colors.textMuted} />
+      <Text style={styles.attachLabel}>Captured ({attachments.length})</Text>
+      <View style={styles.attachThumbs}>
+        {shown.map((a) => <AttachmentThumb key={a.id} attachment={a} size={34} onPress={() => setViewing(a)} />)}
+        {extra > 0 ? (
+          <Pressable style={styles.attachMore} onPress={() => setViewing(attachments[shown.length])}>
+            <Text style={styles.attachMoreText}>+{extra}</Text>
+          </Pressable>
+        ) : null}
+      </View>
       {viewing ? <ImageViewerModal attachment={viewing} onClose={() => setViewing(null)} /> : null}
     </View>
   );
@@ -595,14 +603,14 @@ function useAttachmentData(id: string) {
   });
 }
 
-function AttachmentThumb({ attachment, onPress }: { attachment: ReconciliationAttachment; onPress: () => void }) {
+function AttachmentThumb({ attachment, onPress, size = 56 }: { attachment: ReconciliationAttachment; onPress: () => void; size?: number }) {
   const q = useAttachmentData(attachment.id);
   return (
-    <Pressable style={styles.thumb} onPress={onPress}>
+    <Pressable style={[styles.thumb, { width: size, height: size }]} onPress={onPress}>
       {q.data ? (
         <Image source={{ uri: q.data }} style={styles.thumbImg} resizeMode="cover" />
       ) : (
-        <View style={styles.thumbLoading}><ActivityIndicator color={appTheme.colors.textSubtle} /></View>
+        <View style={styles.thumbLoading}><ActivityIndicator size="small" color={appTheme.colors.textSubtle} /></View>
       )}
     </Pressable>
   );
@@ -918,11 +926,16 @@ const styles = StyleSheet.create({
   varianceRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   varianceLabel: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 16 },
   varianceValue: { fontFamily: appTheme.fonts.heading, fontSize: 20 },
-  captureRow: { flexDirection: "row", gap: appTheme.spacing.sm },
-  captureBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: appTheme.radius.sm, borderWidth: 1, borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surface },
-  captureText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
-  thumbRow: { gap: appTheme.spacing.sm, paddingVertical: 6 },
-  thumb: { width: 84, height: 84, borderRadius: appTheme.radius.sm, overflow: "hidden", borderWidth: 1, borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceMuted },
+  captureRow: { flexDirection: "row", gap: appTheme.spacing.xs },
+  captureBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 7, paddingHorizontal: 12, borderRadius: appTheme.radius.pill, borderWidth: 1, borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surface },
+  captureText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
+  attachRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 },
+  attachLabel: { flex: 1, color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 13 },
+  attachThumbs: { flexDirection: "row", alignItems: "center", gap: 4 },
+  attachMore: { width: 34, height: 34, borderRadius: appTheme.radius.sm, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceMuted },
+  attachMoreText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
+  thumbRow: { gap: appTheme.spacing.xs, paddingVertical: 2 },
+  thumb: { width: 56, height: 56, borderRadius: appTheme.radius.sm, overflow: "hidden", borderWidth: 1, borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceMuted },
   thumbImg: { width: "100%", height: "100%" },
   thumbLoading: { flex: 1, alignItems: "center", justifyContent: "center" },
   viewerBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.92)" },
