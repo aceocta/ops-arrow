@@ -509,6 +509,8 @@ export function RotaManageScreen() {
   const [weekStart, setWeekStart] = useState(() => mondayOf(formatDateValue(new Date())));
   const [editorOpen, setEditorOpen] = useState(false);
   const [draft, setDraft] = useState<ShiftDraft>(emptyDraft());
+  // Snapshot of the draft as opened, for the discard-changes guard on close.
+  const [openedDraftJson, setOpenedDraftJson] = useState("");
   const [userSearch, setUserSearch] = useState("");
   const [addExternalOpen, setAddExternalOpen] = useState(false);
   const [extName, setExtName] = useState("");
@@ -635,12 +637,14 @@ export function RotaManageScreen() {
   };
 
   const openAdd = (shiftDate?: string) => {
-    setDraft({ ...emptyDraft(), shiftDate: shiftDate ?? emptyDraft().shiftDate });
+    const next = { ...emptyDraft(), shiftDate: shiftDate ?? emptyDraft().shiftDate };
+    setDraft(next);
+    setOpenedDraftJson(JSON.stringify(next));
     setUserSearch("");
     setEditorOpen(true);
   };
   const openEdit = (shift: RotaShift) => {
-    setDraft({
+    const next: ShiftDraft = {
       id: shift.id,
       shiftDate: shift.shiftDate,
       shiftTemplateId: shift.shiftTemplateId ?? "",
@@ -648,9 +652,34 @@ export function RotaManageScreen() {
       notes: shift.notes ?? "",
       assigneeUserIds: shift.assignees.filter((a) => a.userId).map((a) => a.userId as string),
       assigneeStaffMemberIds: shift.assignees.filter((a) => a.rotaStaffMemberId).map((a) => a.rotaStaffMemberId as string),
-    });
+    };
+    setDraft(next);
+    setOpenedDraftJson(JSON.stringify(next));
     setUserSearch("");
     setEditorOpen(true);
+  };
+  // Closing the editor with unsaved edits asks before discarding them.
+  const requestCloseEditor = async () => {
+    if (JSON.stringify(draft) !== openedDraftJson) {
+      const ok = await confirmDestructive({
+        title: "Discard changes",
+        message: "You have unsaved changes to this shift. Discard them?",
+        confirmLabel: "Discard",
+      });
+      if (!ok) return;
+    }
+    setEditorOpen(false);
+  };
+  const deleteFromEditor = async () => {
+    if (!draft.id) return;
+    const ok = await confirmDestructive({
+      title: "Delete shift",
+      message: "Remove this shift and its staff assignments from the rota?",
+    });
+    if (ok) {
+      setEditorOpen(false);
+      deleteMutation.mutate(draft.id);
+    }
   };
   const confirmDelete = async (shift: RotaShift) => {
     const ok = await confirmDestructive({ title: "Delete shift", message: `Remove the ${shortTime(shift.startTime)}–${shortTime(shift.endTime)} shift on ${dayLabel(shift.shiftDate)}?` });
@@ -714,6 +743,13 @@ export function RotaManageScreen() {
   const weekLabel = `${dayOfMonth(weekStart)} – ${dayOfMonth(addDaysStr(weekStart, 6))}`;
   const canSave = draft.shiftTemplateId.length > 0 && !saveMutation.isPending;
 
+  // Week-at-a-glance counts for the header: total shifts and how many still have no one assigned.
+  const weekShiftCount = rotaQuery.data?.length ?? 0;
+  const unstaffedCount = useMemo(
+    () => (rotaQuery.data ?? []).filter((s) => s.assignees.length === 0).length,
+    [rotaQuery.data],
+  );
+
   // Another shift on the same day whose time window overlaps the one being edited. Allowed (for
   // different staff) — the hint just reminds the manager each shift needs its own till.
   const overlapShift = useMemo(() => {
@@ -737,56 +773,135 @@ export function RotaManageScreen() {
   }, [templatesQuery.data, rotaQuery.data, draft.shiftDate, draft.shiftTemplateId]);
 
   return (
-    <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Week navigator */}
-        <View style={[ui.card, styles.weekNav]}>
-          <Pressable style={styles.weekNavBtn} onPress={() => setWeekStart((w) => addDaysStr(w, -7))}>
+    <ScreenContainer
+      refreshControl={
+        <RefreshControl
+          refreshing={rotaQuery.isRefetching}
+          onRefresh={() => void rotaQuery.refetch()}
+          tintColor={appTheme.colors.primary}
+          colors={[appTheme.colors.primary]}
+        />
+      }
+    >
+      {/* Week navigator */}
+      <View style={[ui.card, styles.weekNav]}>
+        <View style={styles.weekNavRow}>
+          <Pressable
+            style={({ pressed }) => [styles.weekNavBtn, pressed ? styles.weekNavBtnPressed : null]}
+            onPress={() => setWeekStart((w) => addDaysStr(w, -7))}
+            accessibilityRole="button"
+            accessibilityLabel="Previous week"
+          >
             <Ionicons name="chevron-back" size={20} color={appTheme.colors.primary} />
           </Pressable>
           <Pressable style={{ flex: 1, alignItems: "center" }} onPress={() => setWeekStart(mondayOf(todayStr))}>
             <Text style={styles.weekNavLabel}>{weekLabel}</Text>
             <Text style={styles.weekNavHint}>{weekStart === mondayOf(todayStr) ? "This week" : "Tap for this week"}</Text>
           </Pressable>
-          <Pressable style={styles.weekNavBtn} onPress={() => setWeekStart((w) => addDaysStr(w, 7))}>
+          <Pressable
+            style={({ pressed }) => [styles.weekNavBtn, pressed ? styles.weekNavBtnPressed : null]}
+            onPress={() => setWeekStart((w) => addDaysStr(w, 7))}
+            accessibilityRole="button"
+            accessibilityLabel="Next week"
+          >
             <Ionicons name="chevron-forward" size={20} color={appTheme.colors.primary} />
           </Pressable>
         </View>
 
-        <Pressable style={styles.generateBtn} onPress={confirmGenerate} disabled={!shopId || generateMutation.isPending}>
-          {/* <Ionicons name="sparkles-outline" size={16} color={appTheme.colors.onPrimary} /> */}
-          <Text style={styles.generateBtnText}>{generateMutation.isPending ? "Generating…" : "Auto-generate this week"}</Text>
-        </Pressable>
+        {/* Week at a glance — shift count plus a staffing-gap warning the manager can act on. */}
+        {!rotaQuery.isLoading ? (
+          <View style={styles.weekStatsRow}>
+            <View style={styles.weekStatChip}>
+              <Ionicons name="layers-outline" size={13} color={appTheme.colors.textMuted} />
+              <Text style={styles.weekStatText}>
+                {weekShiftCount} shift{weekShiftCount === 1 ? "" : "s"}
+              </Text>
+            </View>
+            {unstaffedCount > 0 ? (
+              <View style={[styles.weekStatChip, styles.weekStatChipWarning]}>
+                <Ionicons name="alert-circle-outline" size={13} color={appTheme.colors.warning} />
+                <Text style={[styles.weekStatText, styles.weekStatTextWarning]}>
+                  {unstaffedCount} need{unstaffedCount === 1 ? "s" : ""} staff
+                </Text>
+              </View>
+            ) : weekShiftCount > 0 ? (
+              <View style={[styles.weekStatChip, styles.weekStatChipSuccess]}>
+                <Ionicons name="checkmark-circle-outline" size={13} color={appTheme.colors.success} />
+                <Text style={[styles.weekStatText, styles.weekStatTextSuccess]}>Fully staffed</Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+      </View>
 
-        {rotaQuery.isLoading ? <SkeletonList count={5} /> : null}
+      <PrimaryButton
+        label={generateMutation.isPending ? "Generating…" : "Auto-generate this week"}
+        icon="sparkles-outline"
+        onPress={() => void confirmGenerate()}
+        disabled={!shopId || generateMutation.isPending}
+      />
 
-        {/* One row per weekday, Mon–Sun, with its shifts + assigned users. */}
-        {weekDays.map((date) => {
-          const shifts = shiftsByDate.get(date) ?? [];
-          const isToday = date === todayStr;
-          return (
-            <View key={date} style={[ui.card, styles.dayCard, isToday ? styles.dayCardToday : null]}>
-              <View style={styles.dayCardHead}>
+      {rotaQuery.isLoading ? <SkeletonList count={5} /> : null}
+
+      {/* One row per weekday, Mon–Sun, with its shifts + assigned users. */}
+      {weekDays.map((date) => {
+        const shifts = shiftsByDate.get(date) ?? [];
+        const isToday = date === todayStr;
+        return (
+          <View key={date} style={[ui.card, styles.dayCard, isToday ? styles.dayCardToday : null]}>
+            <View style={styles.dayCardHead}>
+              <View style={styles.dayCardHeadLeft}>
                 <View>
                   <Text style={[styles.dayName, isToday ? styles.dayNameToday : null]}>{weekday(date)}</Text>
                   <Text style={styles.dayDate}>{dayOfMonth(date)}</Text>
                 </View>
-                <Pressable style={styles.dayAddBtn} onPress={() => openAdd(date)} disabled={!shopId}>
-                  <Ionicons name="add" size={18} color={appTheme.colors.primary} />
-                </Pressable>
-              </View>
-
-              {shifts.length === 0 ? (
-                <Text style={styles.dayEmpty}>No shifts</Text>
-              ) : (
-                <View style={styles.rotaTable}>
-                  <View style={styles.rotaHeadRow}>
-                    <Text style={[styles.rotaHeadCell, styles.rotaShiftCol]}>Shift</Text>
-                    <Text style={[styles.rotaHeadCell, styles.rotaStaffCol]}>Staff</Text>
-                    <View style={styles.rotaActionCol} />
+                {isToday ? (
+                  <View style={styles.todayPill}>
+                    <Text style={styles.todayPillText}>Today</Text>
                   </View>
-                  {shifts.map((shift) => (
-                    <Pressable key={shift.id} style={styles.rotaBodyRow} onPress={() => openEdit(shift)}>
+                ) : null}
+              </View>
+              <Pressable
+                style={({ pressed }) => [styles.dayAddBtn, pressed ? styles.dayAddBtnPressed : null]}
+                onPress={() => openAdd(date)}
+                disabled={!shopId}
+                accessibilityRole="button"
+                accessibilityLabel={`Add shift on ${weekday(date)}`}
+              >
+                <Ionicons name="add" size={18} color={appTheme.colors.primary} />
+              </Pressable>
+            </View>
+
+            {shifts.length === 0 ? (
+              <Pressable
+                style={({ pressed }) => [styles.dayEmptyAdd, pressed ? styles.dayEmptyAddPressed : null]}
+                onPress={() => openAdd(date)}
+                disabled={!shopId}
+                accessibilityRole="button"
+                accessibilityLabel={`Add a shift on ${weekday(date)}`}
+              >
+                <Ionicons name="add-circle-outline" size={16} color={appTheme.colors.textSubtle} />
+                <Text style={styles.dayEmptyAddText}>No shifts — tap to add</Text>
+              </Pressable>
+            ) : (
+              <View style={styles.rotaTable}>
+                <View style={styles.rotaHeadRow}>
+                  <Text style={[styles.rotaHeadCell, styles.rotaShiftCol]}>Shift</Text>
+                  <Text style={[styles.rotaHeadCell, styles.rotaStaffCol]}>Staff</Text>
+                  <View style={styles.rotaActionCol} />
+                </View>
+                {shifts.map((shift) => {
+                  const unstaffed = shift.assignees.length === 0;
+                  return (
+                    <Pressable
+                      key={shift.id}
+                      style={({ pressed }) => [
+                        styles.rotaBodyRow,
+                        unstaffed ? styles.rotaBodyRowUnstaffed : null,
+                        pressed ? styles.rotaBodyRowPressed : null,
+                      ]}
+                      onPress={() => openEdit(shift)}
+                    >
                       <View style={styles.rotaShiftCol}>
                         <Text style={styles.weekShiftTitle} numberOfLines={1}>{shift.shiftName || "Shift"}</Text>
                         <Text style={styles.tdSub}>{timeRange(shift.startTime, shift.endTime)}{overnightSuffix(shift.shiftDate, shift.endDate)}</Text>
@@ -803,25 +918,28 @@ export function RotaManageScreen() {
                             </Pressable>
                           ))
                         ) : (
-                          <Text style={styles.muted}>No one assigned</Text>
+                          <View style={styles.unstaffedRow}>
+                            <Ionicons name="alert-circle-outline" size={14} color={appTheme.colors.warning} />
+                            <Text style={styles.unstaffedText}>Needs staff — tap to assign</Text>
+                          </View>
                         )}
                       </View>
-                      <Pressable style={styles.rotaActionCol} onPress={() => confirmDelete(shift)} hitSlop={6}>
+                      <Pressable style={styles.rotaActionCol} onPress={() => confirmDelete(shift)} hitSlop={6} accessibilityRole="button" accessibilityLabel="Delete shift">
                         <Ionicons name="trash-outline" size={16} color={appTheme.colors.danger} />
                       </Pressable>
                     </Pressable>
-                  ))}
-                </View>
-              )}
-            </View>
-          );
-        })}
-      </ScrollView>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        );
+      })}
 
-      <Modal visible={editorOpen} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setEditorOpen(false)}>
+      <Modal visible={editorOpen} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => void requestCloseEditor()}>
         <View style={[styles.editorScreen, { paddingTop: insets.top }]}>
           <View style={styles.editorHeader}>
-            <Pressable style={styles.editorHeaderBtn} onPress={() => setEditorOpen(false)} accessibilityLabel="Close">
+            <Pressable style={styles.editorHeaderBtn} onPress={() => void requestCloseEditor()} accessibilityRole="button" accessibilityLabel="Close">
               <Ionicons name="close" size={24} color={appTheme.colors.text} />
             </Pressable>
             <Text style={styles.editorTitle}>{draft.id ? "Edit shift" : "Add shift"}</Text>
@@ -848,7 +966,7 @@ export function RotaManageScreen() {
                 return (
                   <Pressable
                     key={t.templateId}
-                    style={[styles.chip, active ? styles.chipActive : null]}
+                    style={({ pressed }) => [styles.chip, active ? styles.chipActive : null, pressed ? styles.chipPressed : null]}
                     onPress={() => selectSlot(draft.shiftDate, t.templateId)}
                   >
                     <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>{t.name}</Text>
@@ -862,6 +980,9 @@ export function RotaManageScreen() {
                 <Text style={styles.muted}>No shifts configured. Set them up in Shop Configuration → Shifts.</Text>
               ) : null}
             </View>
+            {(templatesQuery.data?.length ?? 0) > 0 && !draft.shiftTemplateId ? (
+              <Text style={styles.mutedSmall}>Select a shift time to continue.</Text>
+            ) : null}
 
             {overlapShift ? (
               <View style={styles.overlapHint}>
@@ -873,6 +994,7 @@ export function RotaManageScreen() {
             ) : null}
 
             {/* Staff search */}
+            <Text style={[styles.fieldLabel, { marginTop: appTheme.spacing.xs }]}>Staff</Text>
             <View style={styles.searchBox}>
               <Ionicons name="search-outline" size={16} color={appTheme.colors.textMuted} />
               <TextInput
@@ -902,7 +1024,13 @@ export function RotaManageScreen() {
                     <Text style={styles.muted}>No one assigned yet — add staff from below.</Text>
                   ) : (
                     assigned.map((u) => (
-                      <Pressable key={keyOf(u)} style={styles.userRow} onPress={() => toggleAssignee(u)}>
+                      <Pressable
+                        key={keyOf(u)}
+                        style={({ pressed }) => [styles.userRow, pressed ? styles.userRowPressed : null]}
+                        onPress={() => toggleAssignee(u)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove ${u.name} from this shift`}
+                      >
                         <View style={[styles.userAvatar, styles.userAvatarOn]}>
                           <Text style={styles.userAvatarText}>{initials(u.name)}</Text>
                         </View>
@@ -916,8 +1044,19 @@ export function RotaManageScreen() {
                   )}
 
                   <Text style={[styles.fieldLabel, { marginTop: appTheme.spacing.sm }]}>Available ({available.length})</Text>
+                  {available.length === 0 ? (
+                    <Text style={styles.muted}>
+                      {q ? "No staff match your search." : "Everyone available is already assigned."}
+                    </Text>
+                  ) : null}
                   {available.map((u) => (
-                    <Pressable key={keyOf(u)} style={styles.userRow} onPress={() => toggleAssignee(u)}>
+                    <Pressable
+                      key={keyOf(u)}
+                      style={({ pressed }) => [styles.userRow, pressed ? styles.userRowPressed : null]}
+                      onPress={() => toggleAssignee(u)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Assign ${u.name} to this shift`}
+                    >
                       <View style={styles.userAvatar}>
                         <Text style={styles.userAvatarText}>{initials(u.name)}</Text>
                       </View>
@@ -930,10 +1069,27 @@ export function RotaManageScreen() {
                   ))}
 
                   {/* Add someone who isn't an Ops Arrow user (external / casual). */}
-                  <Pressable style={styles.addExternalOpenBtn} onPress={() => setAddExternalOpen(true)}>
+                  <Pressable
+                    style={({ pressed }) => [styles.addExternalOpenBtn, pressed ? styles.userRowPressed : null]}
+                    onPress={() => setAddExternalOpen(true)}
+                    accessibilityRole="button"
+                  >
                     <Ionicons name="person-add-outline" size={16} color={appTheme.colors.primary} />
                     <Text style={styles.adjustBtnText}>Add external person</Text>
                   </Pressable>
+
+                  {draft.id ? (
+                    <Pressable
+                      style={({ pressed }) => [styles.editorDeleteBtn, pressed ? styles.userRowPressed : null]}
+                      onPress={() => void deleteFromEditor()}
+                      disabled={deleteMutation.isPending}
+                      accessibilityRole="button"
+                      accessibilityLabel="Delete this shift"
+                    >
+                      <Ionicons name="trash-outline" size={16} color={appTheme.colors.danger} />
+                      <Text style={styles.editorDeleteText}>Delete this shift</Text>
+                    </Pressable>
+                  ) : null}
                 </>
               );
             })()}
@@ -1129,7 +1285,7 @@ export function RotaTimesheetScreen() {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.content}>
+      <View style={styles.content}>
         <View style={ui.card}>
           <DateRangeQuickPicks from={range.from} to={range.to} onSelect={(from, to) => setRange({ from, to })} style={{ marginBottom: 8 }} />
           <View style={styles.row}>
@@ -1151,7 +1307,13 @@ export function RotaTimesheetScreen() {
 
         {loading ? <LoadingState inline /> : null}
         {!loading && rowCount === 0 ? (
-          <View style={ui.card}><Text style={styles.muted}>No clocked hours in this range.</Text></View>
+          <View style={ui.card}>
+            <EmptyState
+              icon="time-outline"
+              title="No clocked hours"
+              message="No clocked hours in this range. Adjust the dates above."
+            />
+          </View>
         ) : null}
 
         {rowCount > 0 ? (
@@ -1201,7 +1363,7 @@ export function RotaTimesheetScreen() {
             ? "“Shifts” counts completed check-outs; (+n) shows sessions still open. Tap a row for details."
             : "“Staff” counts distinct people who worked each shift. Tap a row to see who worked it."}
         </Text>
-      </ScrollView>
+      </View>
 
       {/* Staff sessions drill-down */}
       <Modal visible={selectedStaff !== null} transparent animationType="slide" onRequestClose={() => setSelectedStaff(null)}>
@@ -1348,8 +1510,17 @@ export function RotaApprovalsScreen() {
   const pending = pendingQuery.data ?? [];
 
   return (
-    <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.content}>
+    <ScreenContainer
+      refreshControl={
+        <RefreshControl
+          refreshing={pendingQuery.isRefetching}
+          onRefresh={() => void pendingQuery.refetch()}
+          tintColor={appTheme.colors.primary}
+          colors={[appTheme.colors.primary]}
+        />
+      }
+    >
+      <View style={styles.content}>
         <Text style={styles.muted}>Manually entered times awaiting your approval.</Text>
 
         {pendingQuery.isLoading ? <LoadingState inline /> : null}
@@ -1434,7 +1605,7 @@ export function RotaApprovalsScreen() {
             </View>
           );
         })}
-      </ScrollView>
+      </View>
 
       {/* Adjust times before approving */}
       <Modal visible={editing !== null} transparent animationType="fade" onRequestClose={() => setEditing(null)}>
@@ -1541,13 +1712,19 @@ export function RotaStaffMembersScreen() {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.content}>
+      <View style={styles.content}>
         <Text style={styles.muted}>People who aren't Ops Arrow users but you roster &amp; record hours for.</Text>
-        <PrimaryButton label="+ Add external person" onPress={openNew} disabled={!shopId} />
+        <PrimaryButton label="Add external person" icon="person-add-outline" onPress={openNew} disabled={!shopId} />
 
         {membersQuery.isLoading ? <SkeletonList count={4} /> : null}
         {!membersQuery.isLoading && members.length === 0 ? (
-          <View style={ui.card}><Text style={styles.muted}>No external staff yet.</Text></View>
+          <View style={ui.card}>
+            <EmptyState
+              icon="people-outline"
+              title="No external staff yet"
+              message="Add people you roster and record hours for who don't use the app."
+            />
+          </View>
         ) : null}
 
         {members.map((m) => (
@@ -1564,7 +1741,7 @@ export function RotaStaffMembersScreen() {
             <Ionicons name="chevron-forward" size={18} color={appTheme.colors.textSubtle} />
           </Pressable>
         ))}
-      </ScrollView>
+      </View>
 
       <Modal visible={editing !== null} transparent animationType="fade" onRequestClose={() => setEditing(null)}>
         <View style={styles.sheetBackdrop}>
@@ -1659,12 +1836,27 @@ const styles = StyleSheet.create({
   shiftTime: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 15 },
 
   // Weekly rota grid
-  weekNav: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10 },
+  weekNav: { gap: 10, paddingVertical: 12 },
+  weekNavRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   weekNavBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceBrandSoft },
+  weekNavBtnPressed: { opacity: 0.6 },
   weekNavLabel: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 16 },
   weekNavHint: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, marginTop: 1 },
-  generateBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 999, backgroundColor: appTheme.colors.primary },
-  generateBtnText: { color: appTheme.colors.onPrimary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
+  weekStatsRow: { flexDirection: "row", justifyContent: "center", flexWrap: "wrap", gap: 6 },
+  weekStatChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surfaceMuted,
+  },
+  weekStatChipWarning: { backgroundColor: appTheme.colors.surfaceWarningSoft },
+  weekStatChipSuccess: { backgroundColor: appTheme.colors.surfaceSuccessSoft },
+  weekStatText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
+  weekStatTextWarning: { color: appTheme.colors.textWarningStrong },
+  weekStatTextSuccess: { color: appTheme.colors.textSuccessStrong },
   externalInput: {
     minHeight: 44,
     borderWidth: 1,
@@ -1678,6 +1870,19 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.surface,
     textAlignVertical: "center",
   },
+  editorDeleteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: appTheme.spacing.md,
+    paddingVertical: 11,
+    borderRadius: appTheme.radius.sm,
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderDangerSoft,
+    backgroundColor: appTheme.colors.surfaceDangerSoft,
+  },
+  editorDeleteText: { color: appTheme.colors.danger, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
   addExternalBtn: { paddingHorizontal: 18, paddingVertical: 11, alignItems: "center", justifyContent: "center", borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.primary },
   addExternalOpenBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: appTheme.spacing.sm, paddingVertical: 11, borderRadius: appTheme.radius.sm, borderWidth: 1, borderColor: appTheme.colors.border },
   memberCard: { flexDirection: "row", alignItems: "center", gap: 12 },
@@ -1686,15 +1891,40 @@ const styles = StyleSheet.create({
   dayCard: { gap: 8 },
   dayCardToday: { borderWidth: 1, borderColor: appTheme.colors.primary },
   dayCardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  dayCardHeadLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
   dayName: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 15 },
   dayNameToday: { color: appTheme.colors.primary },
   dayDate: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, marginTop: 1 },
+  todayPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+  },
+  todayPillText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11 },
   dayAddBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center", borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceBrandSoft },
-  dayEmpty: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.body, fontSize: 13, fontStyle: "italic" },
+  dayAddBtnPressed: { opacity: 0.6 },
+  dayEmptyAdd: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: appTheme.radius.sm,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: appTheme.colors.border,
+  },
+  dayEmptyAddPressed: { backgroundColor: appTheme.colors.surfaceMuted },
+  dayEmptyAddText: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   rotaTable: { borderWidth: 1, borderColor: appTheme.colors.borderSoft, borderRadius: appTheme.radius.sm, overflow: "hidden" },
   rotaHeadRow: { flexDirection: "row", alignItems: "center", backgroundColor: appTheme.colors.surfaceMuted, paddingHorizontal: 10, paddingVertical: 7 },
   rotaHeadCell: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 },
   rotaBodyRow: { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 10, paddingVertical: 9, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
+  rotaBodyRowUnstaffed: { backgroundColor: appTheme.colors.surfaceWarningMuted },
+  rotaBodyRowPressed: { opacity: 0.7 },
+  unstaffedRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  unstaffedText: { color: appTheme.colors.textWarningStrong, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 16, flexShrink: 1 },
   rotaShiftCol: { width: 110 },
   rotaStaffCol: { flex: 1, paddingLeft: 8, gap: 8 },
   rotaStaffText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 13, lineHeight: 20, paddingVertical: 2 },
@@ -1791,8 +2021,8 @@ const styles = StyleSheet.create({
   adjustBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 999, borderWidth: 1, borderColor: appTheme.colors.border },
   adjustBtnText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
   approveBtnFlex: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 999, backgroundColor: appTheme.colors.success },
-  sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", padding: appTheme.spacing.md },
-  sheetBackdropLight: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", padding: appTheme.spacing.md },
+  sheetBackdrop: { flex: 1, backgroundColor: appTheme.colors.overlayStrong, justifyContent: "center", padding: appTheme.spacing.md },
+  sheetBackdropLight: { flex: 1, backgroundColor: appTheme.colors.overlay, justifyContent: "center", padding: appTheme.spacing.md },
   sheetCard: {
     backgroundColor: appTheme.colors.background,
     borderRadius: appTheme.radius.lg,
@@ -1825,6 +2055,7 @@ const styles = StyleSheet.create({
   overlapHintText: { flex: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 12, lineHeight: 16 },
   chip: { alignItems: "center", gap: 1, paddingHorizontal: 14, paddingVertical: 8, borderRadius: appTheme.radius.md, borderWidth: 1, borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surface },
   chipActive: { borderColor: appTheme.colors.primary, backgroundColor: appTheme.colors.surfaceBrandSoft },
+  chipPressed: { opacity: 0.7 },
   chipText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, lineHeight: 17 },
   chipTextActive: { color: appTheme.colors.primary },
   chipSubText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 11, lineHeight: 14 },
@@ -1872,6 +2103,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: appTheme.colors.borderSoft,
   },
+  userRowPressed: { opacity: 0.6 },
   userAvatar: {
     width: 38,
     height: 38,
