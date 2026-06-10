@@ -1,6 +1,6 @@
 import React from "react";
 import * as ImagePicker from "expo-image-picker";
-import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
@@ -32,6 +32,7 @@ export function CaptureTillReportScreen({ navigation, route }: Props) {
   const [selectedShiftId, setSelectedShiftId] = React.useState<string | null>(params?.shiftId ?? null);
   const [selectedTillId, setSelectedTillId] = React.useState<string | null>(null);
   const [photos, setPhotos] = React.useState<TillReportPhoto[]>([]);
+  const [addingPhotos, setAddingPhotos] = React.useState(false);
 
   const tillsQuery = useQuery({
     queryKey: ["tills", shopId],
@@ -121,17 +122,32 @@ export function CaptureTillReportScreen({ navigation, route }: Props) {
 
     // Compress each picked photo before adding to the list — drops a 4 MB phone shot to a few
     // hundred KB, so uploads finish quickly even on poor cellular without hurting OCR accuracy.
-    const compressed = await Promise.all(
-      result.assets.map(async (asset, index) => {
-        const out = await compressForUpload(asset.uri);
-        return {
-          uri: out.uri,
-          fileName: asset.fileName ?? `till-report-${Date.now()}-${index}.jpg`,
-          mimeType: "image/jpeg",
-        } satisfies TillReportPhoto;
-      }),
-    );
-    setPhotos((current) => [...current, ...compressed]);
+    // Compression can take a couple of seconds for several large shots, so show a busy overlay.
+    setAddingPhotos(true);
+    const startedAt = Date.now();
+    try {
+      const compressed = await Promise.all(
+        result.assets.map(async (asset, index) => {
+          const out = await compressForUpload(asset.uri);
+          return {
+            uri: out.uri,
+            fileName: asset.fileName ?? `till-report-${Date.now()}-${index}.jpg`,
+            mimeType: "image/jpeg",
+          } satisfies TillReportPhoto;
+        }),
+      );
+      setPhotos((current) => [...current, ...compressed]);
+    } catch {
+      Alert.alert("Couldn't add photos", "Something went wrong preparing those images. Please try again.");
+    } finally {
+      // Keep the overlay up for a minimum beat so a fast compression still registers visually
+      // instead of flashing by unseen.
+      const elapsed = Date.now() - startedAt;
+      if (elapsed < 600) {
+        await new Promise<void>((resolve) => setTimeout(() => resolve(), 600 - elapsed));
+      }
+      setAddingPhotos(false);
+    }
   }
 
   function removePhoto(uri: string) {
@@ -271,11 +287,11 @@ export function CaptureTillReportScreen({ navigation, route }: Props) {
         ) : null}
 
         <View style={styles.addRow}>
-          <Pressable style={styles.addButton} onPress={() => void addPhotos("camera")} disabled={isBusy}>
+          <Pressable style={[styles.addButton, addingPhotos ? styles.addButtonBusy : null]} onPress={() => void addPhotos("camera")} disabled={isBusy || addingPhotos}>
             <Ionicons name="camera-outline" size={17} color={appTheme.colors.text} />
             <Text style={styles.addButtonText}>Camera</Text>
           </Pressable>
-          <Pressable style={styles.addButton} onPress={() => void addPhotos("gallery")} disabled={isBusy}>
+          <Pressable style={[styles.addButton, addingPhotos ? styles.addButtonBusy : null]} onPress={() => void addPhotos("gallery")} disabled={isBusy || addingPhotos}>
             <Ionicons name="images-outline" size={17} color={appTheme.colors.text} />
             <Text style={styles.addButtonText}>Gallery</Text>
           </Pressable>
@@ -291,7 +307,65 @@ export function CaptureTillReportScreen({ navigation, route }: Props) {
           <Ionicons name="chevron-forward" size={16} color={appTheme.colors.textMuted} />
         </Pressable>
       </View>
+
+      <ParsingOverlay visible={isBusy} photoCount={photos.length} />
+      <BusyOverlay
+        visible={addingPhotos}
+        title="Adding photos"
+        message="Optimising your images…"
+        hint="This only takes a moment."
+      />
     </ScreenContainer>
+  );
+}
+
+// A blocking full-screen overlay with a spinner — used for both photo optimisation and report
+// parsing so the user always gets clear, unmissable feedback during waits.
+function BusyOverlay({ visible, title, message, hint }: { visible: boolean; title: string; message?: string; hint?: string }) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={() => undefined}>
+      <View style={styles.overlayBackdrop}>
+        <View style={styles.overlayCard}>
+          <ActivityIndicator size="large" color={appTheme.colors.primary} />
+          <Text style={styles.overlayTitle}>{title}</Text>
+          {message ? <Text style={styles.overlayMsg}>{message}</Text> : null}
+          {hint ? <Text style={styles.overlayHint}>{hint}</Text> : null}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// Reading a till report runs OCR + AI matching on the server (~10s). The cycling status reassures
+// the user the app hasn't frozen and that they should keep it open.
+function ParsingOverlay({ visible, photoCount }: { visible: boolean; photoCount: number }) {
+  const messages = React.useMemo(
+    () => [
+      photoCount > 1 ? `Uploading ${photoCount} photos…` : "Uploading your photo…",
+      "Reading the till report…",
+      "Matching lines to categories…",
+      "Almost there…",
+    ],
+    [photoCount],
+  );
+  const [idx, setIdx] = React.useState(0);
+
+  React.useEffect(() => {
+    if (!visible) {
+      setIdx(0);
+      return;
+    }
+    const timer = setInterval(() => setIdx((current) => Math.min(current + 1, messages.length - 1)), 2500);
+    return () => clearInterval(timer);
+  }, [visible, messages.length]);
+
+  return (
+    <BusyOverlay
+      visible={visible}
+      title="Reading your till report"
+      message={messages[idx]}
+      hint="This usually takes about 10 seconds. Please keep the app open."
+    />
   );
 }
 
@@ -432,7 +506,28 @@ const styles = StyleSheet.create({
     borderRadius: appTheme.radius.pill,
     paddingVertical: 11,
   },
+  addButtonBusy: { opacity: 0.55 },
   addButtonText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, lineHeight: 16 },
+  overlayBackdrop: {
+    flex: 1,
+    backgroundColor: appTheme.colors.overlay,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: appTheme.spacing.lg,
+  },
+  overlayCard: {
+    width: "100%",
+    maxWidth: 320,
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: appTheme.colors.surface,
+    borderRadius: appTheme.radius.lg,
+    paddingVertical: 28,
+    paddingHorizontal: 24,
+  },
+  overlayTitle: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 16, lineHeight: 20, marginTop: 4 },
+  overlayMsg: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 18, textAlign: "center" },
+  overlayHint: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, lineHeight: 16, textAlign: "center" },
   linkRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   linkRowMain: { flexDirection: "row", alignItems: "center", gap: 10 },
   linkRowText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 18 },

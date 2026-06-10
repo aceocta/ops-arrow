@@ -497,7 +497,36 @@ export function TillReconciliationScreen() {
           onClose={() => setMoveOpen(false)}
         />
       ) : null}
+
+      <IngestOverlay visible={ingestMutation.isPending} />
     </ScreenContainer>
+  );
+}
+
+// Reading a till photo runs OCR + AI matching on the server (~10s). A blocking overlay with cycling
+// status reassures the user the app hasn't frozen — used for both the Photo and Upload buttons.
+function IngestOverlay({ visible }: { visible: boolean }) {
+  const messages = ["Uploading your photo…", "Reading the till report…", "Matching lines to categories…", "Almost there…"];
+  const [idx, setIdx] = useState(0);
+  React.useEffect(() => {
+    if (!visible) {
+      setIdx(0);
+      return;
+    }
+    const timer = setInterval(() => setIdx((current) => Math.min(current + 1, messages.length - 1)), 2500);
+    return () => clearInterval(timer);
+  }, [visible]);
+  return (
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={() => undefined}>
+      <View style={styles.ingestBackdrop}>
+        <View style={styles.ingestCard}>
+          <ActivityIndicator size="large" color={appTheme.colors.primary} />
+          <Text style={styles.ingestTitle}>Reading your till report</Text>
+          <Text style={styles.ingestMsg}>{messages[idx]}</Text>
+          <Text style={styles.ingestHint}>Please keep the app open.</Text>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -951,6 +980,11 @@ const styles = StyleSheet.create({
   captureRow: { flexDirection: "row", gap: appTheme.spacing.xs },
   captureBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 7, paddingHorizontal: 12, borderRadius: appTheme.radius.pill, borderWidth: 1, borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surface },
   captureText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
+  ingestBackdrop: { flex: 1, backgroundColor: appTheme.colors.overlay, alignItems: "center", justifyContent: "center", padding: appTheme.spacing.lg },
+  ingestCard: { width: "100%", maxWidth: 320, alignItems: "center", gap: 10, backgroundColor: appTheme.colors.surface, borderRadius: appTheme.radius.lg, paddingVertical: 28, paddingHorizontal: 24 },
+  ingestTitle: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 16, lineHeight: 20, marginTop: 4 },
+  ingestMsg: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 18, textAlign: "center" },
+  ingestHint: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, lineHeight: 16, textAlign: "center" },
   reasonInput: { marginTop: 6, borderWidth: 1, borderColor: appTheme.colors.border, borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceMuted, color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 14, paddingHorizontal: 12, paddingVertical: 10 },
   attachRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 },
   attachLabel: { flex: 1, color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 13 },
