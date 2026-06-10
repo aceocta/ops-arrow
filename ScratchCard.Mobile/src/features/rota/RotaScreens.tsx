@@ -335,7 +335,7 @@ export function MyShiftsScreen() {
                 {open ? (
                   <Pressable style={({ pressed }) => [styles.actBtn, styles.actBtnOut, pressed && styles.actBtnPressed]} onPress={() => checkOutMutation.mutate()} disabled={busy}>
                     <Ionicons name="log-out-outline" size={16} color={appTheme.colors.onPrimary} />
-                    <Text style={styles.actBtnText}>{checkOutMutation.isPending ? "..." : "Check out"}</Text>
+                    <Text style={styles.actBtnText}>{checkOutMutation.isPending ? "Checking out..." : "Check out"}</Text>
                   </Pressable>
                 ) : (
                   <Pressable
@@ -344,7 +344,7 @@ export function MyShiftsScreen() {
                     disabled={busy || onAnotherShift}
                   >
                     <Ionicons name="log-in-outline" size={16} color={appTheme.colors.onPrimary} />
-                    <Text style={styles.actBtnText}>{checkInMutation.isPending ? "..." : completed ? "Check in again" : "Check in"}</Text>
+                    <Text style={styles.actBtnText}>{checkInMutation.isPending ? "Checking in..." : completed ? "Check in again" : "Check in"}</Text>
                   </Pressable>
                 )}
                 <Pressable style={({ pressed }) => [styles.actGhost, pressed && styles.actGhostPressed]} onPress={() => openManual(shift)}>
@@ -950,7 +950,7 @@ export function RotaManageScreen() {
               accessibilityLabel="Save shift"
             >
               <Text style={[styles.editorSave, !canSave ? styles.editorSaveDisabled : null]}>
-                {saveMutation.isPending ? "..." : "Save"}
+                {saveMutation.isPending ? "Saving..." : "Save"}
               </Text>
             </Pressable>
           </View>
@@ -1599,7 +1599,7 @@ export function RotaApprovalsScreen() {
                 </Pressable>
                 <Pressable style={styles.approveBtnFlex} onPress={() => approveMutation.mutate(p.id)} disabled={approveMutation.isPending}>
                   <Ionicons name="checkmark" size={16} color={appTheme.colors.onPrimary} />
-                  <Text style={styles.actBtnText}>{approveMutation.isPending ? "..." : "Approve"}</Text>
+                  <Text style={styles.actBtnText}>{approveMutation.isPending ? "Approving..." : "Approve"}</Text>
                 </Pressable>
               </View>
             </View>

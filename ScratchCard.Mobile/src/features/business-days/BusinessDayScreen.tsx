@@ -14,6 +14,7 @@ import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
+import { formatDayLabel } from "../../utils/dateLabels";
 import { haptics } from "../../utils/haptics";
 
 function getStatusTone(status?: string): "neutral" | "warning" | "danger" | "success" {
@@ -138,7 +139,7 @@ export function BusinessDayScreen() {
           {existingDayForSelectedDate ? (
             <View style={styles.inlineNotice}>
               <Text style={styles.inlineNoticeText}>
-                A {existingDayForSelectedDate.status} day already exists for {businessDate}. Switch to Manage Day to open it.
+                A {existingDayForSelectedDate.status} day already exists for {formatDayLabel(businessDate)}. Switch to Manage Day to open it.
               </Text>
               <PrimaryButton
                 tone="neutral"
@@ -177,7 +178,7 @@ export function BusinessDayScreen() {
                   style={({ pressed }) => [styles.dayRow, pressed ? styles.dayRowPressed : null]}
                 >
                   <View style={styles.dayRowHeader}>
-                    <Text style={styles.dayTitle}>{day.businessDate}</Text>
+                    <Text style={styles.dayTitle}>{formatDayLabel(day.businessDate)}</Text>
                     <StatusBadge label={day.status} tone={getStatusTone(day.status)} />
                   </View>
                   {missing > 0 ? (

@@ -19,14 +19,13 @@ import { Skeleton } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
+import { formatGbp } from "../../utils/currency";
 import { haptics } from "../../utils/haptics";
 import type { MainStackParamList } from "../../types/navigation";
 
 type SafeDropRoute = RouteProp<MainStackParamList, "SafeDrop">;
 
-function formatCurrencyGBP(value: number) {
-  return `£${value.toFixed(2)}`;
-}
+const formatCurrencyGBP = formatGbp;
 
 function getApiErrorMessage(error: unknown, fallback: string): string {
   const e = error as any;

@@ -35,6 +35,7 @@ import { BusinessDayStaffCard } from "../rota/BusinessDayStaffCard";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { deriveShopOperationalSetup } from "../settings/shopConfiguration";
 import { formatGbpOrDash, formatSignedGbp } from "../../utils/currency";
+import { formatDayLabel } from "../../utils/dateLabels";
 import { PackStatus, ShiftStatus } from "../../types/enums";
 import { MainStackParamList } from "../../types/navigation";
 import { BusinessDay, ConfigurationItem, Shift } from "../../types/models";
@@ -1635,7 +1636,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           <View style={styles.summaryHeaderRow}>
             <View style={styles.summaryHeading}>
               {/* <Text style={styles.summaryEyebrow}>Business Date</Text> */}
-              <Text style={styles.summaryDate}>{day?.businessDate ?? "-"}</Text>
+              <Text style={styles.summaryDate}>{formatDayLabel(day?.businessDate)}</Text>
             </View>
             <StatusBadge label={status ?? "-"} tone={getStatusTone(status)} />
           </View>
@@ -2474,7 +2475,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                           onPress={() => setTargetBusinessDate(item.businessDate)}
                         >
                           <View style={styles.dayPickerItemInfo}>
-                            <Text style={styles.dayPickerDate}>{item.businessDate}</Text>
+                            <Text style={styles.dayPickerDate}>{formatDayLabel(item.businessDate)}</Text>
                             {isCurrentDay ? <Text style={styles.dayPickerItemMeta}>Currently managed</Text> : null}
                           </View>
                           <View style={styles.dayPickerItemBadgeWrap}>
@@ -2640,7 +2641,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               <View style={styles.recapCard}>
                 <View style={styles.recapHeaderRow}>
                   <Text style={styles.recapTitle}>Recap</Text>
-                  <Text style={styles.recapDate}>{day?.businessDate ?? "-"}</Text>
+                  <Text style={styles.recapDate}>{formatDayLabel(day?.businessDate)}</Text>
                 </View>
                 <View style={styles.recapRow}>
                   <Text style={styles.recapLabel}>Closed shifts</Text>

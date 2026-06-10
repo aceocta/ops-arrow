@@ -22,6 +22,7 @@ import { LoadingState } from "../../components/LoadingState";
 import { HowItWorksSteps, HowItWorksStep } from "../../components/HowItWorksSheet";
 import { toastError, toastSuccess } from "../../components/toast";
 import { confirmDestructive } from "../../utils/confirm";
+import { formatGbp } from "../../utils/currency";
 import { appTheme } from "../../ui/theme";
 import { ui } from "../../ui/primitives";
 import {
@@ -46,8 +47,7 @@ import {
   ReconciliationAttachment,
 } from "../../api/tillReconciliationApi";
 
-const gbp = (n: number) =>
-  new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n || 0);
+const gbp = formatGbp;
 
 const GROUP_TITLE: Record<string, string> = {
   Tender: "Tenders",

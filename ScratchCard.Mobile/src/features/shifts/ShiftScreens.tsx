@@ -13,6 +13,7 @@ import { toastError } from "../../components/toast";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { deriveShopOperationalSetup } from "../settings/shopConfiguration";
 import { formatGbp } from "../../utils/currency";
+import { formatDayLabel } from "../../utils/dateLabels";
 import { PackStatus, ShiftStatus } from "../../types/enums";
 import { ShiftCloseCandidate } from "../../types/models";
 import { MainStackParamList } from "../../types/navigation";
@@ -299,7 +300,7 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
                   onPress={() => setSelectedBusinessDayId(day.id)}
                   style={[styles.dayRow, selected ? styles.dayRowSelected : null]}
                 >
-                  <Text style={styles.dayTitle}>{day.businessDate}</Text>
+                  <Text style={styles.dayTitle}>{formatDayLabel(day.businessDate)}</Text>
                   <Text style={styles.meta}>Status: {day.status}</Text>
                 </Pressable>
               );
@@ -493,7 +494,7 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
                     onPress={() => setSelectedBusinessDayId(day.id)}
                     style={[styles.dayRow, selected ? styles.dayRowSelected : null]}
                   >
-                    <Text style={styles.dayTitle}>{day.businessDate}</Text>
+                    <Text style={styles.dayTitle}>{formatDayLabel(day.businessDate)}</Text>
                     <Text style={styles.meta}>Status: {day.status}</Text>
                   </Pressable>
                 );
@@ -648,7 +649,7 @@ export function CloseShiftScreen({ navigation }: CloseShiftProps) {
                 onPress={() => navigation.navigate("ShiftDetails", { shiftId: shift.id, shopId: shift.shopId })}
               >
                 <Text style={styles.itemTitle}>{shift.shiftName}</Text>
-                <Text style={styles.meta}>Business Day: {shift.businessDate} ({shift.businessDayStatus})</Text>
+                <Text style={styles.meta}>Business Day: {formatDayLabel(shift.businessDate)} ({shift.businessDayStatus})</Text>
                 <Text style={styles.meta}>Status: {shift.status}</Text>
                 <Text style={styles.meta}>Sync: {shift.syncStatus ?? "-"}</Text>
                 <Text style={styles.meta}>Start: {new Date(shift.startTime).toLocaleString()}</Text>

@@ -26,6 +26,7 @@ import { useFeature } from "../subscription/useFeature";
 import { UpgradeNotice } from "../subscription/FeatureGate";
 import { StatusBadge } from "../../components/StatusBadge";
 import { formatGbp } from "../../utils/currency";
+import { formatDayLabel } from "../../utils/dateLabels";
 import type { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -498,7 +499,7 @@ export function DailySalesReportScreen() {
   function openBusinessDateDayManagement(businessDate: string) {
     const matchedDay = (businessDaysQuery.data ?? []).find((day) => day.businessDate === businessDate);
     if (!matchedDay) {
-      Alert.alert("Day not found", `No business day record found for ${businessDate}.`);
+      Alert.alert("Day not found", `No business day record found for ${formatDayLabel(businessDate)}.`);
       return;
     }
 
@@ -523,7 +524,7 @@ export function DailySalesReportScreen() {
 
     const matchedDay = (businessDaysQuery.data ?? []).find((day) => day.businessDate === businessDate);
     if (!matchedDay) {
-      Alert.alert("Day not found", `No business day record found for ${businessDate}.`);
+      Alert.alert("Day not found", `No business day record found for ${formatDayLabel(businessDate)}.`);
       return;
     }
 
@@ -534,7 +535,7 @@ export function DailySalesReportScreen() {
     );
 
     if (!matchedShift) {
-      Alert.alert("Shift not found", `No shift details found for ${shiftName} on ${businessDate}.`);
+      Alert.alert("Shift not found", `No shift details found for ${shiftName} on ${formatDayLabel(businessDate)}.`);
       return;
     }
 
@@ -871,7 +872,7 @@ const ShiftSalesRowItem = React.memo(function ShiftSalesRowItem({ row }: { row: 
       ]}
     >
       <View style={styles.itemHeader}>
-        <Text style={styles.itemTitle}>{row.businessDate} | {row.shiftName}</Text>
+        <Text style={styles.itemTitle}>{formatDayLabel(row.businessDate)} | {row.shiftName}</Text>
         {positive ? <StatusBadge label="Over" tone="warning" /> : null}
         {negative ? <StatusBadge label="Short" tone="danger" /> : null}
         {!hasVariance(row) ? <StatusBadge label="Balanced" tone="success" /> : null}
@@ -957,7 +958,7 @@ export function ManualClosingReviewScreen() {
           <DateRangeInputs from={from} to={to} setFrom={setFrom} setTo={setTo} />
           {(query.data ?? []).map((row, index) => (
             <View style={styles.item} key={`${row.businessDate}-${row.shiftName}-${index}`}>
-              <Text style={styles.itemTitle}>{row.businessDate} | {row.shiftName}</Text>
+              <Text style={styles.itemTitle}>{formatDayLabel(row.businessDate)} | {row.shiftName}</Text>
               <Text style={styles.meta}>Cashier: {row.cashier}</Text>
               <Text style={styles.meta}>Pack: {row.packNumber} | Game: {row.gameName}</Text>
               <Text style={styles.meta}>Opening: {row.openingSerial}</Text>

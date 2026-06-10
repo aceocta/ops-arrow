@@ -12,6 +12,7 @@ import { MainStackParamList } from "../../types/navigation";
 import { TillReportStatus, TillReportType } from "../../types/enums";
 import { TillReportListItem } from "../../types/models";
 import { formatGbp } from "../../utils/currency";
+import { formatDayLabel } from "../../utils/dateLabels";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -43,6 +44,8 @@ export function TillReportsListScreen({ navigation }: Props) {
             icon="receipt-outline"
             title="No till reports yet"
             message="Capture one from the Store Sales screen."
+            actionLabel="Capture Till Report"
+            onAction={() => navigation.navigate("StoreSales")}
           />
         </View>
       ) : null}
@@ -55,7 +58,7 @@ export function TillReportsListScreen({ navigation }: Props) {
         >
           <View style={styles.headerRow}>
             <View>
-              <Text style={styles.date}>{item.businessDate}</Text>
+              <Text style={styles.date}>{formatDayLabel(item.businessDate)}</Text>
               <Text style={ui.caption}>{item.reportType === TillReportType.Shift ? "Shift report" : "Day-end report"}</Text>
             </View>
             <StatusPill status={item.status} unclassified={item.unclassifiedCount} />

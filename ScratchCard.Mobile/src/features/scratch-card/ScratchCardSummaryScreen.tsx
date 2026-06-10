@@ -14,6 +14,7 @@ import { StatusBadge } from "../../components/StatusBadge";
 import type { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
+import { formatGbp } from "../../utils/currency";
 
 type ScratchCardSummaryRoute = RouteProp<MainStackParamList, "ScratchCardSummary">;
 
@@ -39,9 +40,7 @@ type ShiftGroup = {
   missingTickets: number;
 };
 
-function formatCurrencyGBP(value: number) {
-  return `£${value.toFixed(2)}`;
-}
+const formatCurrencyGBP = formatGbp;
 
 export function ScratchCardSummaryScreen() {
   const route = useRoute<ScratchCardSummaryRoute>();
