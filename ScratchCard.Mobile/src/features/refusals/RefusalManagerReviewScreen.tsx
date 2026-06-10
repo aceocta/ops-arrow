@@ -6,6 +6,7 @@ import { listRefusalEntriesByRange, reviewRefusalEntries } from "../../api/refus
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
+import { EmptyState } from "../../components/EmptyState";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { RowFlash } from "../../components/RowFlash";
@@ -212,7 +213,13 @@ export function RefusalManagerReviewScreen() {
         <Text style={styles.sectionTitle}>Entries</Text>
         <Text style={styles.sectionSubtitle}>Tap an entry to toggle selection for batch review.</Text>
         {entriesQuery.isLoading ? <SkeletonList count={4} rowHeight={84} /> : null}
-        {!entriesQuery.isLoading && entries.length === 0 ? <Text style={styles.meta}>No entries in selected range.</Text> : null}
+        {!entriesQuery.isLoading && entries.length === 0 ? (
+          <EmptyState
+            icon="hand-left-outline"
+            title="No entries to review"
+            message="No entries in selected range."
+          />
+        ) : null}
         {entries.length > 0 ? (
           <FlatList
             style={styles.listScroll}

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Image, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
 import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -698,14 +698,12 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
               </KpiGrid>
             </>
           )}
-          {salesQuery.isFetching ? <Text style={styles.meta}>Loading...</Text> : null}
-        {/* </View>
-
-           <View style={[ui.card, styles.summaryCard]}> */}
-          {/* <Text style={styles.sectionTitle}>Scratch CardSales</Text> */}
-          {/* {!salesQuery.isFetching && entries.length === 0 ? (
-            <Text style={styles.meta}>No entries for this shift.</Text>
-          ) : null} */}
+          {salesQuery.isFetching ? (
+            <View style={styles.loadingRow}>
+              <ActivityIndicator size="small" color={appTheme.colors.primary} />
+              <Text style={styles.meta}>Loading sales...</Text>
+            </View>
+          ) : null}
           {entries.map((entry) => (
             <View key={entry.id} style={[styles.entryCard, entry.isFlaggedForReview ? styles.entryCardFlagged : null]}>
               <View style={styles.entryHeader}>
@@ -1142,6 +1140,11 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.body,
     fontSize: 13,
     lineHeight: 18,
+  },
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
   },
   footerHint: {
     textAlign: "center",

@@ -286,116 +286,114 @@ export function ShopChecklistScreen() {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.pageHeaderCard}>
-          <View style={styles.pageHeaderTopRow}>
+      <View style={styles.pageHeaderCard}>
+        <View style={styles.pageHeaderTopRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.pageMeta}>Date: {formatDay(selectedDate)}</Text>
+          </View>
+          <StatusBadge label={netInfo.isConnected ? "Online" : "Offline"} tone={netInfo.isConnected ? "success" : "warning"} />
+        </View>
+        <View style={styles.summaryRow}>
+          <View style={styles.summaryTile}>
+            <Text style={styles.summaryValue}>{completionSummary.completed}</Text>
+            <Text style={styles.summaryLabel}>Completed</Text>
+          </View>
+          <View style={styles.summaryTile}>
+            <Text style={styles.summaryValue}>{completionSummary.pending}</Text>
+            <Text style={styles.summaryLabel}>Pending</Text>
+          </View>
+          <View style={styles.summaryTile}>
+            <Text style={styles.summaryValue}>{completionSummary.total}</Text>
+            <Text style={styles.summaryLabel}>Total</Text>
+          </View>
+        </View>
+        {offlineQueueCount > 0 ? (
+          <Text style={styles.meta}>{offlineQueueCount} checklist updates queued for sync.</Text>
+        ) : null}
+        {canConfigureChecklist ? (
+          <Pressable
+            style={styles.secondaryButton}
+            onPress={() => navigation.navigate("ChecklistConfiguration")}
+            accessibilityRole="button"
+            accessibilityLabel="Open checklist setup"
+          >
+            <Text style={styles.secondaryButtonText}>Checklist Setup</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      <View style={ui.card}>
+        <DateTimeField mode="date" value={selectedDate} onChange={setSelectedDate} />
+      </View>
+
+      {dailyQuery.isLoading ? <Text style={styles.meta}>Loading checklist...</Text> : null}
+
+      {(dailyQuery.data?.groups ?? []).map((groupLog) => (
+        <View key={groupLog.group.id} style={ui.card}>
+          <View style={styles.groupHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.pageMeta}>Date: {formatDay(selectedDate)}</Text>
+              <Text style={styles.groupTitle}>{groupLog.group.groupName}</Text>
+              {groupLog.group.description ? <Text style={styles.meta}>{groupLog.group.description}</Text> : null}
             </View>
-            <StatusBadge label={netInfo.isConnected ? "Online" : "Offline"} tone={netInfo.isConnected ? "success" : "warning"} />
+            <StatusBadge label={`${groupLog.completedCount}/${groupLog.totalCount}`} tone={groupLog.completedCount === groupLog.totalCount ? "success" : "warning"} />
           </View>
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryTile}>
-              <Text style={styles.summaryValue}>{completionSummary.completed}</Text>
-              <Text style={styles.summaryLabel}>Completed</Text>
-            </View>
-            <View style={styles.summaryTile}>
-              <Text style={styles.summaryValue}>{completionSummary.pending}</Text>
-              <Text style={styles.summaryLabel}>Pending</Text>
-            </View>
-            <View style={styles.summaryTile}>
-              <Text style={styles.summaryValue}>{completionSummary.total}</Text>
-              <Text style={styles.summaryLabel}>Total</Text>
-            </View>
-          </View>
-          {offlineQueueCount > 0 ? (
-            <Text style={styles.meta}>{offlineQueueCount} checklist updates queued for sync.</Text>
-          ) : null}
-          {canConfigureChecklist ? (
-            <Pressable
-              style={styles.secondaryButton}
-              onPress={() => navigation.navigate("ChecklistConfiguration")}
-              accessibilityRole="button"
-              accessibilityLabel="Open checklist setup"
-            >
-              <Text style={styles.secondaryButtonText}>Checklist Setup</Text>
-            </Pressable>
-          ) : null}
-        </View>
 
-        <View style={ui.card}>
-          <DateTimeField mode="date" value={selectedDate} onChange={setSelectedDate} />
-        </View>
+          <View style={styles.taskList}>
+            {groupLog.tasks.map((taskRow) => {
+              const local = getTaskState(taskRow);
 
-        {dailyQuery.isLoading ? <Text style={styles.meta}>Loading checklist...</Text> : null}
-
-        {(dailyQuery.data?.groups ?? []).map((groupLog) => (
-          <View key={groupLog.group.id} style={ui.card}>
-            <View style={styles.groupHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.groupTitle}>{groupLog.group.groupName}</Text>
-                {groupLog.group.description ? <Text style={styles.meta}>{groupLog.group.description}</Text> : null}
-              </View>
-              <StatusBadge label={`${groupLog.completedCount}/${groupLog.totalCount}`} tone={groupLog.completedCount === groupLog.totalCount ? "success" : "warning"} />
-            </View>
-
-            <View style={styles.taskList}>
-              {groupLog.tasks.map((taskRow) => {
-                const local = getTaskState(taskRow);
-
-                return (
-                  <View key={taskRow.task.id} style={styles.taskCard}>
-                    <View style={styles.taskHeaderRow}>
+              return (
+                <View key={taskRow.task.id} style={styles.taskCard}>
+                  <View style={styles.taskHeaderRow}>
+                    <Pressable
+                      style={[styles.checkBox, local.isCompleted ? styles.checkBoxChecked : null]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Toggle ${taskRow.task.taskName}`}
+                      onPress={() => {
+                        const next = {
+                          ...local,
+                          isCompleted: !local.isCompleted,
+                        };
+                        setTaskState((previous) => ({
+                          ...previous,
+                          [taskRow.task.id]: next,
+                        }));
+                      }}
+                    >
+                      <Text style={styles.checkBoxText}>{local.isCompleted ? "\u2713" : ""}</Text>
+                    </Pressable>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.taskTitle}>{taskRow.task.taskName}</Text>
+                    </View>
+                    <View style={styles.taskHeaderActions}>
                       <Pressable
-                        style={[styles.checkBox, local.isCompleted ? styles.checkBoxChecked : null]}
+                        style={styles.iconNoteButton}
+                        onPress={() => openNoteEditor(taskRow)}
                         accessibilityRole="button"
-                        accessibilityLabel={`Toggle ${taskRow.task.taskName}`}
-                        onPress={() => {
-                          const next = {
-                            ...local,
-                            isCompleted: !local.isCompleted,
-                          };
-                          setTaskState((previous) => ({
-                            ...previous,
-                            [taskRow.task.id]: next,
-                          }));
-                        }}
+                        accessibilityLabel={`Add note for ${taskRow.task.taskName}`}
                       >
-                        <Text style={styles.checkBoxText}>{local.isCompleted ? "\u2713" : ""}</Text>
+                        <Ionicons
+                          name={local.notes.trim() ? "create-outline" : "chatbox-ellipses-outline"}
+                          size={16}
+                          color={appTheme.colors.primary}
+                        />
                       </Pressable>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.taskTitle}>{taskRow.task.taskName}</Text>
-                      </View>
-                      <View style={styles.taskHeaderActions}>
-                        <Pressable
-                          style={styles.iconNoteButton}
-                          onPress={() => openNoteEditor(taskRow)}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Add note for ${taskRow.task.taskName}`}
-                        >
-                          <Ionicons
-                            name={local.notes.trim() ? "create-outline" : "chatbox-ellipses-outline"}
-                            size={16}
-                            color={appTheme.colors.primary}
-                          />
-                        </Pressable>
-                        <Pressable
-                          style={styles.iconSaveButton}
-                          onPress={() => persistTask(taskRow, local)}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Save ${taskRow.task.taskName}`}
-                        >
-                          <Ionicons name="save-outline" size={16} color={appTheme.colors.primary} />
-                        </Pressable>
-                      </View>
+                      <Pressable
+                        style={styles.iconSaveButton}
+                        onPress={() => persistTask(taskRow, local)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Save ${taskRow.task.taskName}`}
+                      >
+                        <Ionicons name="save-outline" size={16} color={appTheme.colors.primary} />
+                      </Pressable>
                     </View>
                   </View>
-                );
-              })}
-            </View>
+                </View>
+              );
+            })}
           </View>
-        ))}
-      </ScrollView>
+        </View>
+      ))}
 
       <Modal visible={Boolean(noteEditor)} transparent animationType="fade" onRequestClose={() => setNoteEditor(null)}>
         <View style={styles.modalBackdrop}>
@@ -677,7 +675,7 @@ export function ChecklistConfigurationScreen() {
   }
 
   return (
-    <ScreenContainer>
+    <ScreenContainer scrollable={false}>
       <NestableScrollContainer contentContainerStyle={styles.content}>
         <View style={ui.card}>
           <View style={styles.groupHeader}>
@@ -883,36 +881,34 @@ export function ChecklistHistoryScreen() {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={ui.card}>
-          <Text style={styles.meta}>Completion and audit history for selected date range.</Text>
-          <DateRangeQuickPicks from={fromDate} to={toDate} onSelect={(f, t) => { setFromDate(f); setToDate(t); }} style={{ marginBottom: 8 }} />
-          <View style={styles.row}>
-            <DateTimeField style={{ flex: 1 }} mode="date" value={fromDate} onChange={setFromDate} />
-            <DateTimeField style={{ flex: 1 }} mode="date" value={toDate} onChange={setToDate} />
-          </View>
+      <View style={ui.card}>
+        <Text style={styles.meta}>Completion and audit history for selected date range.</Text>
+        <DateRangeQuickPicks from={fromDate} to={toDate} onSelect={(f, t) => { setFromDate(f); setToDate(t); }} style={{ marginBottom: 8 }} />
+        <View style={styles.row}>
+          <DateTimeField style={{ flex: 1 }} mode="date" value={fromDate} onChange={setFromDate} />
+          <DateTimeField style={{ flex: 1 }} mode="date" value={toDate} onChange={setToDate} />
         </View>
+      </View>
 
-        <View style={ui.card}>
-          {historyQuery.isLoading ? <Text style={styles.meta}>Loading history...</Text> : null}
-          {(historyQuery.data ?? []).length === 0 && !historyQuery.isLoading ? (
-            <Text style={styles.meta}>No checklist completion history found for this date range.</Text>
-          ) : null}
+      <View style={ui.card}>
+        {historyQuery.isLoading ? <Text style={styles.meta}>Loading history...</Text> : null}
+        {(historyQuery.data ?? []).length === 0 && !historyQuery.isLoading ? (
+          <Text style={styles.meta}>No checklist completion history found for this date range.</Text>
+        ) : null}
 
-          {(historyQuery.data ?? []).map((row) => (
-            <View key={row.completionId} style={styles.historyRow}>
-              <View style={styles.groupHeader}>
-                <Text style={styles.taskTitle}>{row.checklistGroupName} - {row.checklistTaskName}</Text>
-                <StatusBadge label={row.isCompleted ? "Completed" : "Pending"} tone={row.isCompleted ? "success" : "warning"} />
-              </View>
-              <Text style={styles.meta}>Date: {formatDay(row.businessDate)}</Text>
-              <Text style={styles.meta}>By: {row.completedByName ?? "-"}</Text>
-              <Text style={styles.meta}>When: {formatDateTime(row.completedOn)}</Text>
-              {row.notes ? <Text style={styles.meta}>Notes: {row.notes}</Text> : null}
+        {(historyQuery.data ?? []).map((row) => (
+          <View key={row.completionId} style={styles.historyRow}>
+            <View style={styles.groupHeader}>
+              <Text style={styles.taskTitle}>{row.checklistGroupName} - {row.checklistTaskName}</Text>
+              <StatusBadge label={row.isCompleted ? "Completed" : "Pending"} tone={row.isCompleted ? "success" : "warning"} />
             </View>
-          ))}
-        </View>
-      </ScrollView>
+            <Text style={styles.meta}>Date: {formatDay(row.businessDate)}</Text>
+            <Text style={styles.meta}>By: {row.completedByName ?? "-"}</Text>
+            <Text style={styles.meta}>When: {formatDateTime(row.completedOn)}</Text>
+            {row.notes ? <Text style={styles.meta}>Notes: {row.notes}</Text> : null}
+          </View>
+        ))}
+      </View>
     </ScreenContainer>
   );
 }

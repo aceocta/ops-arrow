@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -9,7 +9,6 @@ import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError } from "../../components/toast";
-import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -21,7 +20,7 @@ function isActiveBusinessDayStatus(status?: string) {
 
 export function DashboardScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
-  const { activeShopId, activeShop } = useAuth();
+  const { activeShopId } = useAuth();
   const [businessDate, setBusinessDate] = useState(formatDateValue(new Date()));
   const selectedShopId = activeShopId ?? "";
 
@@ -81,15 +80,6 @@ export function DashboardScreen() {
 
   return (
     <ScreenContainer>
-      {/* <View style={styles.hero}>
-        <View style={styles.heroTop}>
-          <StatusBadge label={dayListQuery.isFetching ? "Loading" : "Ready"} tone="success" />
-        </View>
-        <Text style={styles.heroTitle}>Day Management</Text>
-        <Text style={styles.heroSubtitle}>{activeShop?.shopName ?? "No active shop selected"}</Text>
-        <Text style={styles.heroNote}>Open, track, and close the active business day.</Text>
-      </View> */}
-
       <View style={ui.card}>
         {selectedShopId ? (
           dayListQuery.isError ? (
@@ -105,7 +95,10 @@ export function DashboardScreen() {
             </>
           ) : dayListQuery.isLoading || dayListQuery.isFetching ? (
             <>
-              <Text style={styles.sectionTitle}>Loading Day Management...</Text>
+              <View style={styles.loadingRow}>
+                <ActivityIndicator size="small" color={appTheme.colors.primary} />
+                <Text style={styles.sectionTitle}>Loading Day Management...</Text>
+              </View>
               <Text style={styles.meta}>Checking the current opened business day.</Text>
             </>
           ) : preferredDay ? (
@@ -118,7 +111,6 @@ export function DashboardScreen() {
             <>
               <Text style={styles.sectionTitle}>Open Business Day</Text>
               <Text style={styles.meta}>No existing business day found. Open one to continue.</Text>
-              {/* <Text style={styles.fieldLabel}>Date</Text> */}
               <DateTimeField mode="date" value={businessDate} onChange={setBusinessDate} />
               <PrimaryButton
                 label={openDayMutation.isPending ? "Opening..." : "Open Day"}
@@ -140,49 +132,16 @@ export function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  hero: {
-    backgroundColor: appTheme.colors.surface,
-    borderRadius: appTheme.radius.lg,
-    padding: appTheme.spacing.lg,
-    gap: appTheme.spacing.xs,
-    borderWidth: 1,
-    borderColor: appTheme.colors.border,
-  },
-  heroTop: {
+  loadingRow: {
     flexDirection: "row",
-    justifyContent: "flex-end",
     alignItems: "center",
-  },
-  heroTitle: {
-    color: appTheme.colors.text,
-    fontSize: 21,
-    lineHeight: 25,
-    fontFamily: appTheme.fonts.heading,
-  },
-  heroSubtitle: {
-    color: appTheme.colors.text,
-    fontSize: 15,
-    lineHeight: 20,
-    fontFamily: appTheme.fonts.bodyMedium,
-  },
-  heroNote: {
-    color: appTheme.colors.textMuted,
-    fontSize: 13,
-    lineHeight: 18,
-    fontFamily: appTheme.fonts.body,
+    gap: appTheme.spacing.xs,
   },
   sectionTitle: {
     color: appTheme.colors.text,
     fontSize: 17,
     lineHeight: 22,
     fontFamily: appTheme.fonts.bodyMedium,
-  },
-  fieldLabel: {
-    color: appTheme.colors.text,
-    fontSize: 13,
-    lineHeight: 16,
-    fontFamily: appTheme.fonts.bodyMedium,
-    marginTop: 2,
   },
   meta: {
     color: appTheme.colors.textMuted,

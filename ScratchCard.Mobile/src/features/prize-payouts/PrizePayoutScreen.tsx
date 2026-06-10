@@ -92,114 +92,108 @@ export function PrizePayoutScreen({ route }: Props) {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={[ui.card, styles.card]}>
-          <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
-          <Text style={styles.meta}>
-            Shift: {shiftQuery.data?.shiftName ?? "-"}
-            {shiftQuery.data?.openedOn
-              ? ` · opened ${new Date(shiftQuery.data.openedOn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-              : ""}
-          </Text>
+      <View style={[ui.card, styles.card]}>
+        <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
+        <Text style={styles.meta}>
+          Shift: {shiftQuery.data?.shiftName ?? "-"}
+          {shiftQuery.data?.openedOn
+            ? ` · opened ${new Date(shiftQuery.data.openedOn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+            : ""}
+        </Text>
 
-          <Text style={styles.fieldLabel}>Pack</Text>
-          <ScrollView horizontal contentContainerStyle={styles.packChoices} showsHorizontalScrollIndicator={false}>
-            {(packsQuery.data ?? []).map((pack) => {
-              const selected = selectedPackId === pack.id;
-              const gameLabel = pack.gameName ?? pack.gameCode ?? "";
-              return (
-                <Pressable
-                  key={pack.id}
-                  style={[styles.choice, selected && styles.choiceSelected]}
-                  onPress={() => setSelectedPackId(pack.id)}
-                  accessibilityLabel={`Pack ${pack.packNumber}${gameLabel ? `, ${gameLabel}` : ""}`}
-                >
-                  <Text style={[styles.choiceText, selected && styles.choiceTextSelected]}>
-                    {`Pack ${pack.packNumber}${gameLabel ? ` · ${gameLabel}` : ""}`}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+        <Text style={styles.fieldLabel}>Pack</Text>
+        <ScrollView horizontal contentContainerStyle={styles.packChoices} showsHorizontalScrollIndicator={false}>
+          {(packsQuery.data ?? []).map((pack) => {
+            const selected = selectedPackId === pack.id;
+            const gameLabel = pack.gameName ?? pack.gameCode ?? "";
+            return (
+              <Pressable
+                key={pack.id}
+                style={[styles.choice, selected && styles.choiceSelected]}
+                onPress={() => setSelectedPackId(pack.id)}
+                accessibilityLabel={`Pack ${pack.packNumber}${gameLabel ? `, ${gameLabel}` : ""}`}
+              >
+                <Text style={[styles.choiceText, selected && styles.choiceTextSelected]}>
+                  {`Pack ${pack.packNumber}${gameLabel ? ` · ${gameLabel}` : ""}`}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
 
-          <FloatingLabelInput
-            label="Ticket number"
-            value={ticketNumber}
-            onChangeText={setTicketNumber}
-            returnKeyType="next"
-            submitBehavior="submit"
-            onSubmitEditing={() => prizeAmountRef.current?.focus()}
-          />
-          <FloatingLabelInput
-            ref={prizeAmountRef}
-            label="Prize amount"
-            prefix="£"
-            value={prizeAmount}
-            onChangeText={setPrizeAmount}
-            keyboardType="decimal-pad"
-            accessibilityLabel="Prize amount in pounds"
-            returnKeyType="next"
-            submitBehavior="submit"
-            onSubmitEditing={() => notesRef.current?.focus()}
-          />
-          <Text style={styles.fieldLabel}>Payment method</Text>
-          <View style={styles.methodRow}>
-            {PAYMENT_METHODS.map((method) => {
-              const selected = paymentMethod === method;
-              return (
-                <Pressable
-                  key={method}
-                  style={[styles.choice, selected && styles.choiceSelected]}
-                  onPress={() => setPaymentMethod(method)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  accessibilityLabel={`Pay by ${method}`}
-                >
-                  <Text style={[styles.choiceText, selected && styles.choiceTextSelected]}>{method}</Text>
-                </Pressable>
-              );
-            })}
+        <FloatingLabelInput
+          label="Ticket number"
+          value={ticketNumber}
+          onChangeText={setTicketNumber}
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => prizeAmountRef.current?.focus()}
+        />
+        <FloatingLabelInput
+          ref={prizeAmountRef}
+          label="Prize amount"
+          prefix="£"
+          value={prizeAmount}
+          onChangeText={setPrizeAmount}
+          keyboardType="decimal-pad"
+          accessibilityLabel="Prize amount in pounds"
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => notesRef.current?.focus()}
+        />
+        <Text style={styles.fieldLabel}>Payment method</Text>
+        <View style={styles.methodRow}>
+          {PAYMENT_METHODS.map((method) => {
+            const selected = paymentMethod === method;
+            return (
+              <Pressable
+                key={method}
+                style={[styles.choice, selected && styles.choiceSelected]}
+                onPress={() => setPaymentMethod(method)}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`Pay by ${method}`}
+              >
+                <Text style={[styles.choiceText, selected && styles.choiceTextSelected]}>{method}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <FloatingLabelInput
+          ref={notesRef}
+          label="Notes (optional)"
+          value={notes}
+          onChangeText={setNotes}
+          returnKeyType="done"
+        />
+
+        <PrimaryButton
+          label={createMutation.isPending ? "Saving..." : "Create Payout"}
+          onPress={() => createMutation.mutate()}
+          disabled={createMutation.isPending}
+        />
+      </View>
+
+      <View style={[ui.card, styles.card]}>
+        <Text style={styles.sectionTitle}>Shift Payouts</Text>
+        {(payoutsQuery.data ?? []).map((payout) => (
+          <View style={[ui.listItem, styles.item]} key={payout.id}>
+            <Text style={styles.itemTitle}>{`${formatGbp(Number(payout.prizeAmount))} (${payout.approvalStatus})`}</Text>
+            <Text style={styles.meta}>Ticket: {payout.ticketNumber ?? "-"}</Text>
+            <Text style={styles.meta}>Paid On: {new Date(payout.paidOn).toLocaleString()}</Text>
+            {payout.approvalStatus !== "Approved" ? (
+              <Pressable style={styles.approveButton} onPress={() => approveMutation.mutate(payout.id)}>
+                <Text style={styles.approveText}>Approve</Text>
+              </Pressable>
+            ) : null}
           </View>
-          <FloatingLabelInput
-            ref={notesRef}
-            label="Notes (optional)"
-            value={notes}
-            onChangeText={setNotes}
-            returnKeyType="done"
-          />
-
-          <PrimaryButton
-            label={createMutation.isPending ? "Saving..." : "Create Payout"}
-            onPress={() => createMutation.mutate()}
-            disabled={createMutation.isPending}
-          />
-        </View>
-
-        <View style={[ui.card, styles.card]}>
-          <Text style={styles.sectionTitle}>Shift Payouts</Text>
-          {(payoutsQuery.data ?? []).map((payout) => (
-            <View style={[ui.listItem, styles.item]} key={payout.id}>
-              <Text style={styles.itemTitle}>{`${formatGbp(Number(payout.prizeAmount))} (${payout.approvalStatus})`}</Text>
-              <Text style={styles.meta}>Ticket: {payout.ticketNumber ?? "-"}</Text>
-              <Text style={styles.meta}>Paid On: {new Date(payout.paidOn).toLocaleString()}</Text>
-              {payout.approvalStatus !== "Approved" ? (
-                <Pressable style={styles.approveButton} onPress={() => approveMutation.mutate(payout.id)}>
-                  <Text style={styles.approveText}>Approve</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          ))}
-        </View>
-      </ScrollView>
+        ))}
+      </View>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    gap: appTheme.spacing.sm,
-    paddingBottom: appTheme.spacing.sm,
-  },
   card: {
     gap: appTheme.spacing.sm,
   },

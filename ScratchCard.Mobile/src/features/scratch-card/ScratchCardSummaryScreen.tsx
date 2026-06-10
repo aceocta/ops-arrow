@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { RefreshControl, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -135,120 +135,113 @@ export function ScratchCardSummaryScreen() {
   };
 
   return (
-    <ScreenContainer>
-      <ScrollView
-        contentContainerStyle={styles.content}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefetching}
-            onRefresh={refresh}
-            tintColor={appTheme.colors.primary}
-          />
-        }
-      >
-        <View style={[ui.card, styles.card]}>
-          <SectionHeader
-            title="Scratch Card Summary"
-            subtitle={businessDate}
-            icon="albums-outline"
-            right={
-              dayTotals.missingTickets > 0 ? (
-                <StatusBadge label={`${dayTotals.missingTickets} missing`} tone="danger" />
-              ) : undefined
-            }
-          />
-          <KpiGrid columns={2}>
-            <KpiTile label="Sold Qty" value={dayTotals.soldQuantity} />
-            <KpiTile label="Sales Amount" value={formatCurrencyGBP(dayTotals.amount)} />
-          </KpiGrid>
-          {dayTotals.missingTickets > 0 ? (
-            <Text style={styles.missingText}>
-              {dayTotals.missingTickets} missing scratch card ticket{dayTotals.missingTickets === 1 ? "" : "s"} across all shifts.
-            </Text>
-          ) : null}
-        </View>
+    <ScreenContainer
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefetching}
+          onRefresh={refresh}
+          tintColor={appTheme.colors.primary}
+        />
+      }
+    >
+      <View style={[ui.card, styles.card]}>
+        <SectionHeader
+          title="Scratch Card Summary"
+          subtitle={businessDate}
+          icon="albums-outline"
+          right={
+            dayTotals.missingTickets > 0 ? (
+              <StatusBadge label={`${dayTotals.missingTickets} missing`} tone="danger" />
+            ) : undefined
+          }
+        />
+        <KpiGrid columns={2}>
+          <KpiTile label="Sold Qty" value={dayTotals.soldQuantity} />
+          <KpiTile label="Sales Amount" value={formatCurrencyGBP(dayTotals.amount)} />
+        </KpiGrid>
+        {dayTotals.missingTickets > 0 ? (
+          <Text style={styles.missingText}>
+            {dayTotals.missingTickets} missing scratch card ticket{dayTotals.missingTickets === 1 ? "" : "s"} across all shifts.
+          </Text>
+        ) : null}
+      </View>
 
-        {isLoading ? (
-          <View style={[ui.card, styles.card]}>
-            <View style={styles.skeletonStack}>
-              <Skeleton height={40} radius={appTheme.radius.sm} />
-              <Skeleton height={40} radius={appTheme.radius.sm} />
-              <Skeleton height={40} radius={appTheme.radius.sm} />
-            </View>
+      {isLoading ? (
+        <View style={[ui.card, styles.card]}>
+          <View style={styles.skeletonStack}>
+            <Skeleton height={40} radius={appTheme.radius.sm} />
+            <Skeleton height={40} radius={appTheme.radius.sm} />
+            <Skeleton height={40} radius={appTheme.radius.sm} />
           </View>
-        ) : groups.length === 0 ? (
-          <View style={[ui.card, styles.card]}>
-            <Text style={styles.meta}>No shifts recorded for this day.</Text>
-          </View>
-        ) : (
-          groups.map((group) => (
-            <View key={group.shiftId} style={[ui.card, styles.card]}>
-              <SectionHeader
-                title={group.shiftName}
-                subtitle={group.status}
-                icon="layers-outline"
-                right={
-                  group.missingTickets > 0 ? (
-                    <StatusBadge label={`${group.missingTickets} missing`} tone="danger" />
-                  ) : undefined
-                }
-              />
-              {group.packs.length === 0 ? (
-                <Text style={styles.meta}>No scratch card sales for this shift.</Text>
-              ) : (
-                <View style={styles.packList}>
-                  {group.packs.map((pack) => (
-                    <View key={pack.id} style={[styles.packItem, pack.missingQuantity > 0 ? styles.packItemMissing : null]}>
-                      <View style={styles.packTopRow}>
-                        <Text style={styles.packTitle} numberOfLines={1}>
-                          {pack.displayNumber != null ? `#${pack.displayNumber} · ` : ""}
-                          Pack {pack.packNumber}
-                        </Text>
-                        {pack.missingQuantity > 0 ? (
-                          <StatusBadge label={`${pack.missingQuantity} missing`} tone="danger" />
-                        ) : null}
-                        <Text style={styles.packSales}>{formatCurrencyGBP(pack.salesAmount)}</Text>
-                      </View>
-                      <View style={styles.serialRow}>
-                        <Text style={styles.serialLabel}>Open</Text>
-                        <Text style={styles.serialValue} numberOfLines={1}>{pack.openingSerialNumber || "-"}</Text>
-                        <Ionicons name="arrow-forward" size={12} color={appTheme.colors.textSubtle} />
-                        <Text style={styles.serialLabel}>Close</Text>
-                        <Text style={styles.serialValue} numberOfLines={1}>{pack.closingSerialNumber || "-"}</Text>
-                      </View>
-                      <Text style={styles.packMeta}>
-                        {formatCurrencyGBP(pack.ticketPrice)} · {pack.soldQuantity} sold
+        </View>
+      ) : groups.length === 0 ? (
+        <View style={[ui.card, styles.card]}>
+          <Text style={styles.meta}>No shifts recorded for this day.</Text>
+        </View>
+      ) : (
+        groups.map((group) => (
+          <View key={group.shiftId} style={[ui.card, styles.card]}>
+            <SectionHeader
+              title={group.shiftName}
+              subtitle={group.status}
+              icon="layers-outline"
+              right={
+                group.missingTickets > 0 ? (
+                  <StatusBadge label={`${group.missingTickets} missing`} tone="danger" />
+                ) : undefined
+              }
+            />
+            {group.packs.length === 0 ? (
+              <Text style={styles.meta}>No scratch card sales for this shift.</Text>
+            ) : (
+              <View style={styles.packList}>
+                {group.packs.map((pack) => (
+                  <View key={pack.id} style={[styles.packItem, pack.missingQuantity > 0 ? styles.packItemMissing : null]}>
+                    <View style={styles.packTopRow}>
+                      <Text style={styles.packTitle} numberOfLines={1}>
+                        {pack.displayNumber != null ? `#${pack.displayNumber} · ` : ""}
+                        Pack {pack.packNumber}
                       </Text>
+                      {pack.missingQuantity > 0 ? (
+                        <StatusBadge label={`${pack.missingQuantity} missing`} tone="danger" />
+                      ) : null}
+                      <Text style={styles.packSales}>{formatCurrencyGBP(pack.salesAmount)}</Text>
                     </View>
-                  ))}
-                  <View style={styles.subtotalRow}>
-                    <Text style={styles.subtotalLabel}>Subtotal</Text>
-                    <Text style={styles.subtotalValue}>
-                      {group.soldQuantity} sold · {formatCurrencyGBP(group.amount)}
+                    <View style={styles.serialRow}>
+                      <Text style={styles.serialLabel}>Open</Text>
+                      <Text style={styles.serialValue} numberOfLines={1}>{pack.openingSerialNumber || "-"}</Text>
+                      <Ionicons name="arrow-forward" size={12} color={appTheme.colors.textSubtle} />
+                      <Text style={styles.serialLabel}>Close</Text>
+                      <Text style={styles.serialValue} numberOfLines={1}>{pack.closingSerialNumber || "-"}</Text>
+                    </View>
+                    <Text style={styles.packMeta}>
+                      {formatCurrencyGBP(pack.ticketPrice)} · {pack.soldQuantity} sold
                     </Text>
                   </View>
+                ))}
+                <View style={styles.subtotalRow}>
+                  <Text style={styles.subtotalLabel}>Subtotal</Text>
+                  <Text style={styles.subtotalValue}>
+                    {group.soldQuantity} sold · {formatCurrencyGBP(group.amount)}
+                  </Text>
                 </View>
-              )}
-            </View>
-          ))
-        )}
+              </View>
+            )}
+          </View>
+        ))
+      )}
 
-        <PrimaryButton
-          label="View Daily Sales Report"
-          tone="neutral"
-          icon="stats-chart-outline"
-          onPress={() => navigation.navigate("DailySalesReport", { date: businessDate })}
-        />
-      </ScrollView>
+      <PrimaryButton
+        label="View Daily Sales Report"
+        tone="neutral"
+        icon="stats-chart-outline"
+        onPress={() => navigation.navigate("DailySalesReport", { date: businessDate })}
+      />
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    gap: appTheme.spacing.sm,
-    paddingBottom: appTheme.spacing.sm,
-  },
   card: {
     gap: appTheme.spacing.sm,
   },

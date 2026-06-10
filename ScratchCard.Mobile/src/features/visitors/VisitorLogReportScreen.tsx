@@ -8,6 +8,7 @@ import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
+import { EmptyState } from "../../components/EmptyState";
 import { LoadingState } from "../../components/LoadingState";
 import { ReportActionBar } from "../../components/ReportActionBar";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -189,7 +190,13 @@ export function VisitorLogReportScreen() {
       <View style={ui.card}>
         <Text style={styles.cardTitle}>Loaded visits ({fromDate} to {toDate})</Text>
         {reportQuery.isLoading ? <LoadingState inline /> : null}
-        {!reportQuery.isLoading && entries.length === 0 ? <Text style={styles.meta}>No visitors found for this range.</Text> : null}
+        {!reportQuery.isLoading && entries.length === 0 ? (
+          <EmptyState
+            icon="people-outline"
+            title="No visitors found"
+            message="No visitors found for this range."
+          />
+        ) : null}
         {entries.map((e) => {
           const onSite = !e.timeOut;
           const signingOutThisRow = signOutMutation.isPending && signOutMutation.variables === e.id;

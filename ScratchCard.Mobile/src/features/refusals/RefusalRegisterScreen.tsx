@@ -10,6 +10,7 @@ import { LandscapeSignatureModal } from "../../components/LandscapeSignatureModa
 import { getRefusalDailyLog, getRefusalEntryReviewSignature, getRefusalEntrySignature, recordRefusalEntry } from "../../api/refusalRegisterApi";
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, formatTimeValue, parseDateTimeValue } from "../../components/DateTimeField";
+import { EmptyState } from "../../components/EmptyState";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -574,7 +575,13 @@ export function RefusalRegisterScreen() {
         <Text style={styles.sectionTitle}>Entries ({selectedDate})</Text>
         <Text style={styles.sectionSubtitle}>Latest refusal records for this date.</Text>
         {dailyLogQuery.isLoading ? <SkeletonList count={3} rowHeight={84} /> : null}
-        {entries.length === 0 && !dailyLogQuery.isLoading ? <Text style={styles.meta}>No entries for this date.</Text> : null}
+        {entries.length === 0 && !dailyLogQuery.isLoading ? (
+          <EmptyState
+            icon="hand-left-outline"
+            title="No entries yet"
+            message="No entries for this date."
+          />
+        ) : null}
         {entries.map((entry) => (
           <View key={entry.id} style={styles.entryItem}>
             <View style={styles.entryHeaderTop}>

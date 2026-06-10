@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -97,106 +97,104 @@ export function BusinessDayScreen() {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={{ gap: 12 }}>
-        <View style={ui.card}>
-          <View style={styles.headerRow}>
-            <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
-            {activeDay ? (
-              <StatusBadge label={`Day ${activeDay.status}`} tone={getStatusTone(activeDay.status)} />
-            ) : (
-              <StatusBadge label="No open day" tone="neutral" />
-            )}
-          </View>
-          <View style={styles.modeRow}>
-            <Pressable
-              onPress={() => {
-                haptics.selection();
-                setViewMode("open");
-              }}
-              style={[styles.modeChip, viewMode === "open" ? styles.modeChipSelected : null]}
-            >
-              <Text style={[styles.modeChipText, viewMode === "open" ? styles.modeChipTextSelected : null]}>Open Day</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                haptics.selection();
-                setViewMode("manage");
-              }}
-              style={[styles.modeChip, viewMode === "manage" ? styles.modeChipSelected : null]}
-            >
-              <Text style={[styles.modeChipText, viewMode === "manage" ? styles.modeChipTextSelected : null]}>Manage Day</Text>
-            </Pressable>
-          </View>
+      <View style={ui.card}>
+        <View style={styles.headerRow}>
+          <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
+          {activeDay ? (
+            <StatusBadge label={`Day ${activeDay.status}`} tone={getStatusTone(activeDay.status)} />
+          ) : (
+            <StatusBadge label="No open day" tone="neutral" />
+          )}
         </View>
+        <View style={styles.modeRow}>
+          <Pressable
+            onPress={() => {
+              haptics.selection();
+              setViewMode("open");
+            }}
+            style={[styles.modeChip, viewMode === "open" ? styles.modeChipSelected : null]}
+          >
+            <Text style={[styles.modeChipText, viewMode === "open" ? styles.modeChipTextSelected : null]}>Open Day</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              haptics.selection();
+              setViewMode("manage");
+            }}
+            style={[styles.modeChip, viewMode === "manage" ? styles.modeChipSelected : null]}
+          >
+            <Text style={[styles.modeChipText, viewMode === "manage" ? styles.modeChipTextSelected : null]}>Manage Day</Text>
+          </Pressable>
+        </View>
+      </View>
 
-        {shopId ? <BusinessDayStaffCard shopId={shopId} date={businessDate} /> : null}
+      {shopId ? <BusinessDayStaffCard shopId={shopId} date={businessDate} /> : null}
 
-        {viewMode === "open" ? (
+      {viewMode === "open" ? (
+        <View style={ui.card}>
+          <Text style={styles.sectionTitle}>Open New Business Day</Text>
+          <Text style={styles.meta}>Choose the business date and open a new day.</Text>
+          <DateTimeField mode="date" value={businessDate} onChange={setBusinessDate} />
+          {existingDayForSelectedDate ? (
+            <View style={styles.inlineNotice}>
+              <Text style={styles.inlineNoticeText}>
+                A {existingDayForSelectedDate.status} day already exists for {businessDate}. Switch to Manage Day to open it.
+              </Text>
+              <PrimaryButton
+                tone="neutral"
+                label="Manage This Day"
+                onPress={() => {
+                  haptics.selection();
+                  navigation.navigate("DayEndClose", { businessDayId: existingDayForSelectedDate.id });
+                }}
+              />
+            </View>
+          ) : null}
+          <PrimaryButton
+            label={openMutation.isPending ? "Opening..." : "Open Business Day"}
+            onPress={() => openMutation.mutate()}
+            disabled={openDisabled}
+          />
+        </View>
+      ) : null}
+
+      {viewMode === "manage" ? (
+        <>
           <View style={ui.card}>
-            <Text style={styles.sectionTitle}>Open New Business Day</Text>
-            <Text style={styles.meta}>Choose the business date and open a new day.</Text>
-            <DateTimeField mode="date" value={businessDate} onChange={setBusinessDate} />
-            {existingDayForSelectedDate ? (
-              <View style={styles.inlineNotice}>
-                <Text style={styles.inlineNoticeText}>
-                  A {existingDayForSelectedDate.status} day already exists for {businessDate}. Switch to Manage Day to open it.
-                </Text>
-                <PrimaryButton
-                  tone="neutral"
-                  label="Manage This Day"
+            <Text style={styles.sectionTitle}>Select Existing Business Day</Text>
+            <PrimaryButton tone="neutral" label="Refresh Days" onPress={() => void dayListQuery.refetch()} disabled={!shopId || dayListQuery.isFetching} />
+
+            {(dayListQuery.data ?? []).slice(0, 20).map((day) => {
+              const missing = day.missingOpeningTicketCount ?? 0;
+              return (
+                <Pressable
+                  key={day.id}
                   onPress={() => {
                     haptics.selection();
-                    navigation.navigate("DayEndClose", { businessDayId: existingDayForSelectedDate.id });
+                    navigation.navigate("DayEndClose", { businessDayId: day.id });
                   }}
-                />
-              </View>
-            ) : null}
-            <PrimaryButton
-              label={openMutation.isPending ? "Opening..." : "Open Business Day"}
-              onPress={() => openMutation.mutate()}
-              disabled={openDisabled}
-            />
-          </View>
-        ) : null}
-
-        {viewMode === "manage" ? (
-          <>
-            <View style={ui.card}>
-              <Text style={styles.sectionTitle}>Select Existing Business Day</Text>
-              <PrimaryButton tone="neutral" label="Refresh Days" onPress={() => void dayListQuery.refetch()} disabled={!shopId || dayListQuery.isFetching} />
-
-              {(dayListQuery.data ?? []).slice(0, 20).map((day) => {
-                const missing = day.missingOpeningTicketCount ?? 0;
-                return (
-                  <Pressable
-                    key={day.id}
-                    onPress={() => {
-                      haptics.selection();
-                      navigation.navigate("DayEndClose", { businessDayId: day.id });
-                    }}
-                    android_ripple={{ color: appTheme.colors.borderBrandSoft }}
-                    style={({ pressed }) => [styles.dayRow, pressed ? styles.dayRowPressed : null]}
-                  >
-                    <View style={styles.dayRowHeader}>
-                      <Text style={styles.dayTitle}>{day.businessDate}</Text>
-                      <StatusBadge label={day.status} tone={getStatusTone(day.status)} />
+                  android_ripple={{ color: appTheme.colors.borderBrandSoft }}
+                  style={({ pressed }) => [styles.dayRow, pressed ? styles.dayRowPressed : null]}
+                >
+                  <View style={styles.dayRowHeader}>
+                    <Text style={styles.dayTitle}>{day.businessDate}</Text>
+                    <StatusBadge label={day.status} tone={getStatusTone(day.status)} />
+                  </View>
+                  {missing > 0 ? (
+                    <View style={styles.dayRowMetaRow}>
+                      <StatusBadge label={`${missing} missing ticket${missing === 1 ? "" : "s"}`} tone="warning" />
                     </View>
-                    {missing > 0 ? (
-                      <View style={styles.dayRowMetaRow}>
-                        <StatusBadge label={`${missing} missing ticket${missing === 1 ? "" : "s"}`} tone="warning" />
-                      </View>
-                    ) : null}
-                  </Pressable>
-                );
-              })}
+                  ) : null}
+                </Pressable>
+              );
+            })}
 
-              {!dayListQuery.isFetching && (dayListQuery.data?.length ?? 0) === 0 ? (
-                <Text style={styles.meta}>No business days found for this shop.</Text>
-              ) : null}
-            </View>
-          </>
-        ) : null}
-      </ScrollView>
+            {!dayListQuery.isFetching && (dayListQuery.data?.length ?? 0) === 0 ? (
+              <Text style={styles.meta}>No business days found for this shop.</Text>
+            ) : null}
+          </View>
+        </>
+      ) : null}
     </ScreenContainer>
   );
 }

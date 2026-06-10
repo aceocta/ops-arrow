@@ -4,6 +4,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
+import { EmptyState } from "../../components/EmptyState";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { LoadingState } from "../../components/LoadingState";
 import { RowFlash } from "../../components/RowFlash";
@@ -76,7 +77,11 @@ export function VisitorLogScreen({ navigation }: Props) {
         <LoadingState />
       ) : entries.length === 0 ? (
         <View style={ui.card}>
-          <Text style={ui.bodyText}>No visitors recorded for this date.</Text>
+          <EmptyState
+            icon="people-outline"
+            title="No visitors recorded"
+            message="No visitors recorded for this date."
+          />
         </View>
       ) : (
         entries.map((entry) => (
@@ -103,9 +108,15 @@ export function VisitorLogScreen({ navigation }: Props) {
               {entry.purpose ? <Text style={styles.entryMeta}>{entry.purpose}</Text> : null}
               {entry.isOnSite ? (
                 <Pressable
-                  style={styles.signOutButton}
+                  style={({ pressed }) => [
+                    styles.signOutButton,
+                    pressed ? styles.signOutButtonPressed : null,
+                    signOutMutation.isPending ? styles.signOutButtonDisabled : null,
+                  ]}
                   onPress={() => confirmSignOut(entry)}
                   disabled={signOutMutation.isPending}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Sign out ${entry.visitorName}`}
                 >
                   <Text style={styles.signOutText}>Sign out</Text>
                 </Pressable>
@@ -136,5 +147,7 @@ const styles = StyleSheet.create({
   typeBadgeInspector: { backgroundColor: appTheme.colors.surfaceWarningSoft },
   typeBadgeTextInspector: { color: appTheme.colors.warning },
   signOutButton: { alignSelf: "flex-start", marginTop: 6, borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceTintSoft, paddingHorizontal: 16, paddingVertical: 8 },
+  signOutButtonPressed: { opacity: 0.7 },
+  signOutButtonDisabled: { opacity: 0.5 },
   signOutText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
 });

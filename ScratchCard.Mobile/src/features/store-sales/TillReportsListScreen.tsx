@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../auth/AuthContext";
 import { listTillReports } from "../../api/tillReportsApi";
+import { EmptyState } from "../../components/EmptyState";
 import { LoadingState } from "../../components/LoadingState";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { MainStackParamList } from "../../types/navigation";
@@ -38,7 +39,11 @@ export function TillReportsListScreen({ navigation }: Props) {
 
       {!reportsQuery.isLoading && items.length === 0 ? (
         <View style={ui.card}>
-          <Text style={ui.bodyText}>No till reports yet. Capture one from the Store Sales screen.</Text>
+          <EmptyState
+            icon="receipt-outline"
+            title="No till reports yet"
+            message="Capture one from the Store Sales screen."
+          />
         </View>
       ) : null}
 

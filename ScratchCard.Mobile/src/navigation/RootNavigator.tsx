@@ -104,13 +104,15 @@ export function RootNavigator() {
   return (
     <Stack.Navigator
       screenOptions={{
-        headerStyle: { backgroundColor: appTheme.colors.primary },
-        headerTintColor: appTheme.colors.onPrimary,
+        headerStyle: { backgroundColor: appTheme.colors.background },
+        headerTintColor: appTheme.colors.text,
+        headerTitleAlign: "left",
         headerTitleStyle: {
           fontFamily: appTheme.fonts.bodyMedium,
-          fontSize: 18,
+          fontSize: 17,
         },
         headerShadowVisible: false,
+        headerBackButtonDisplayMode: "minimal",
         contentStyle: { backgroundColor: appTheme.colors.background },
       }}
     >
@@ -137,7 +139,7 @@ export function RootNavigator() {
               headerRight: () => (
                 <Text
                   onPress={() => void signOut()}
-                  style={{ color: appTheme.colors.onPrimary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 }}
+                  style={{ color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 }}
                 >
                   Log out
                 </Text>

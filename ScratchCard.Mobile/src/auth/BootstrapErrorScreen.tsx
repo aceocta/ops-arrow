@@ -1,5 +1,6 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { PrimaryButton } from "../components/PrimaryButton";
 import { appTheme } from "../ui/theme";
 
 type Props = {
@@ -15,11 +16,16 @@ export function BootstrapErrorScreen({ message, onRetry, onSignOut }: Props) {
       <Text style={styles.message}>
         {message || "Check your connection and try again. If this keeps happening, sign out and sign in once more."}
       </Text>
-      <Pressable style={styles.primaryButton} onPress={onRetry} accessibilityRole="button" accessibilityLabel="Retry sign-in">
-        <Text style={styles.primaryButtonText}>Retry</Text>
-      </Pressable>
+      <View style={styles.primaryAction}>
+        <PrimaryButton label="Retry" icon="refresh-outline" onPress={onRetry} />
+      </View>
       {onSignOut ? (
-        <Pressable style={styles.secondaryButton} onPress={onSignOut} accessibilityRole="button" accessibilityLabel="Sign out">
+        <Pressable
+          style={({ pressed }) => [styles.secondaryButton, pressed ? styles.secondaryButtonPressed : null]}
+          onPress={onSignOut}
+          accessibilityRole="button"
+          accessibilityLabel="Sign out"
+        >
           <Text style={styles.secondaryButtonText}>Sign out</Text>
         </Pressable>
       ) : null}
@@ -51,22 +57,16 @@ const styles = StyleSheet.create({
     textAlign: "center",
     maxWidth: 360,
   },
-  primaryButton: {
+  primaryAction: {
     marginTop: appTheme.spacing.md,
-    backgroundColor: appTheme.colors.primary,
-    borderRadius: appTheme.radius.pill,
-    paddingVertical: 12,
-    paddingHorizontal: 28,
-  },
-  primaryButtonText: {
-    color: appTheme.colors.onPrimary,
-    fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 14,
-    lineHeight: 18,
+    minWidth: 200,
   },
   secondaryButton: {
     paddingVertical: 10,
     paddingHorizontal: 16,
+  },
+  secondaryButtonPressed: {
+    opacity: 0.6,
   },
   secondaryButtonText: {
     color: appTheme.colors.textMuted,

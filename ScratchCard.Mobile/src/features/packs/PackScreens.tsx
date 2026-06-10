@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Keyboard, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { Alert, Keyboard, Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -300,43 +300,41 @@ export function ScratchCardGamesScreen() {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.screenContent}>
-        {/* <View style={styles.heroCard}>
-          <Text style={styles.heroSubtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
-          <Text style={styles.heroNote}>Manage master game assignments and defaults for this shop.</Text>
-        </View> */}
-          <PrimaryButton label="Create Game" onPress={() => navigation.navigate("ScratchCardGameCreate")} disabled={!shopId} />
+      {/* <View style={styles.heroCard}>
+        <Text style={styles.heroSubtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
+        <Text style={styles.heroNote}>Manage master game assignments and defaults for this shop.</Text>
+      </View> */}
+      <PrimaryButton label="Create Game" onPress={() => navigation.navigate("ScratchCardGameCreate")} disabled={!shopId} />
 
-        <View style={ui.card}>
-          <Text style={styles.sectionTitle}>Assigned Games</Text>
-          {!shopId ? <Text style={styles.meta}>Select a shop before managing games.</Text> : null}
-          {shopId && gamesQuery.isLoading ? <Text style={styles.meta}>Loading games...</Text> : null}
-          {shopId && !gamesQuery.isLoading && (gamesQuery.data ?? []).length === 0 ? (
-            <Text style={styles.meta}>No games found.</Text>
-          ) : null}
-          {(gamesQuery.data ?? []).map((game) => (
-            <View key={game.id} style={styles.item}>
-              <View style={styles.rowBetween}>
-                <Text style={styles.itemTitle}>{game.gameName} ({game.gameCode})</Text>
-                {isPlatformAdmin ? (
-                  <Pressable style={styles.smallButton} onPress={() => navigation.navigate("ScratchCardGameEdit", { gameId: game.id })}>
-                    <Text style={styles.smallButtonText}>Edit</Text>
-                  </Pressable>
-                ) : null}
-              </View>
+      <View style={ui.card}>
+        <Text style={styles.sectionTitle}>Assigned Games</Text>
+        {!shopId ? <Text style={styles.meta}>Select a shop before managing games.</Text> : null}
+        {shopId && gamesQuery.isLoading ? <Text style={styles.meta}>Loading games...</Text> : null}
+        {shopId && !gamesQuery.isLoading && (gamesQuery.data ?? []).length === 0 ? (
+          <Text style={styles.meta}>No games found.</Text>
+        ) : null}
+        {(gamesQuery.data ?? []).map((game) => (
+          <View key={game.id} style={styles.item}>
+            <View style={styles.rowBetween}>
+              <Text style={styles.itemTitle}>{game.gameName} ({game.gameCode})</Text>
               {isPlatformAdmin ? (
-                <StatusBadge label={game.isActive ? "Active" : "Inactive"} tone={game.isActive ? "success" : "warning"} />
+                <Pressable style={styles.smallButton} onPress={() => navigation.navigate("ScratchCardGameEdit", { gameId: game.id })}>
+                  <Text style={styles.smallButtonText}>Edit</Text>
+                </Pressable>
               ) : null}
-              <View style={styles.metricRow}>
-                <View style={styles.metricChip}><Text style={styles.metricText}>{formatGbp(Number(game.defaultTicketPrice))}</Text></View>
-                <View style={styles.metricChip}><Text style={styles.metricText}>{game.defaultTicketsPerPack} Tickets</Text></View>
-                {/* <View style={styles.metricChip}><Text style={styles.metricText}>{game.defaultSellingOrder}</Text></View> */}
-              </View>
-              {/* <Text style={styles.meta}>Serial: {game.defaultStartSerialNumber} {"->"} {game.defaultEndSerialNumber}</Text> */}
             </View>
-          ))}
-        </View>
-      </ScrollView>
+            {isPlatformAdmin ? (
+              <StatusBadge label={game.isActive ? "Active" : "Inactive"} tone={game.isActive ? "success" : "warning"} />
+            ) : null}
+            <View style={styles.metricRow}>
+              <View style={styles.metricChip}><Text style={styles.metricText}>{formatGbp(Number(game.defaultTicketPrice))}</Text></View>
+              <View style={styles.metricChip}><Text style={styles.metricText}>{game.defaultTicketsPerPack} Tickets</Text></View>
+              {/* <View style={styles.metricChip}><Text style={styles.metricText}>{game.defaultSellingOrder}</Text></View> */}
+            </View>
+            {/* <Text style={styles.meta}>Serial: {game.defaultStartSerialNumber} {"->"} {game.defaultEndSerialNumber}</Text> */}
+          </View>
+        ))}
+      </View>
     </ScreenContainer>
   );
 }
@@ -377,20 +375,18 @@ export function ScratchCardGameCreateScreen({ navigation }: GameCreateProps) {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.screenContent}>
-        {/* <View style={styles.heroCard}>
-          <Text style={styles.heroSubtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
-          <Text style={styles.heroNote}>Create a master game and assign shop defaults.</Text>
-        </View> */}
-        <View style={ui.card}>
-          <GameEditorFields state={state} onChange={setState} showStatus={isPlatformAdmin} />
-          <PrimaryButton
-            label={createGameMutation.isPending ? "Saving..." : "Create Game"}
-            onPress={() => createGameMutation.mutate()}
-            disabled={createGameMutation.isPending || !shopId}
-          />
-        </View>
-      </ScrollView>
+      {/* <View style={styles.heroCard}>
+        <Text style={styles.heroSubtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
+        <Text style={styles.heroNote}>Create a master game and assign shop defaults.</Text>
+      </View> */}
+      <View style={ui.card}>
+        <GameEditorFields state={state} onChange={setState} showStatus={isPlatformAdmin} />
+        <PrimaryButton
+          label={createGameMutation.isPending ? "Saving..." : "Create Game"}
+          onPress={() => createGameMutation.mutate()}
+          disabled={createGameMutation.isPending || !shopId}
+        />
+      </View>
     </ScreenContainer>
   );
 }
@@ -453,31 +449,29 @@ export function ScratchCardGameEditScreen({ route, navigation }: GameEditProps) 
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.screenContent}>
-        <View style={styles.heroCard}>
-          <Text style={styles.heroSubtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
-          <Text style={styles.heroNote}>Update shop defaults. Master fields can only be edited by PlatformAdmin.</Text>
-        </View>
-        <View style={ui.card}>
-          {!shopId ? <Text style={styles.meta}>Select a shop before editing games.</Text> : null}
-          {shopId && gamesQuery.isLoading ? <Text style={styles.meta}>Loading game...</Text> : null}
-          {shopId && !gamesQuery.isLoading && !game ? <Text style={styles.meta}>Game not found.</Text> : null}
+      <View style={styles.heroCard}>
+        <Text style={styles.heroSubtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
+        <Text style={styles.heroNote}>Update shop defaults. Master fields can only be edited by PlatformAdmin.</Text>
+      </View>
+      <View style={ui.card}>
+        {!shopId ? <Text style={styles.meta}>Select a shop before editing games.</Text> : null}
+        {shopId && gamesQuery.isLoading ? <Text style={styles.meta}>Loading game...</Text> : null}
+        {shopId && !gamesQuery.isLoading && !game ? <Text style={styles.meta}>Game not found.</Text> : null}
 
-          {game ? (
-            <>
-              {!isPlatformAdmin ? <Text style={styles.meta}>Only PlatformAdmin can edit assigned games.</Text> : null}
-              <GameEditorFields state={state} onChange={setState} readOnlyMasterFields={!isPlatformAdmin} showStatus={isPlatformAdmin} />
-              {isPlatformAdmin ? (
-                <PrimaryButton
-                  label={updateGameMutation.isPending ? "Saving..." : "Save Changes"}
-                  onPress={() => updateGameMutation.mutate()}
-                  disabled={updateGameMutation.isPending || !shopId}
-                />
-              ) : null}
-            </>
-          ) : null}
-        </View>
-      </ScrollView>
+        {game ? (
+          <>
+            {!isPlatformAdmin ? <Text style={styles.meta}>Only PlatformAdmin can edit assigned games.</Text> : null}
+            <GameEditorFields state={state} onChange={setState} readOnlyMasterFields={!isPlatformAdmin} showStatus={isPlatformAdmin} />
+            {isPlatformAdmin ? (
+              <PrimaryButton
+                label={updateGameMutation.isPending ? "Saving..." : "Save Changes"}
+                onPress={() => updateGameMutation.mutate()}
+                disabled={updateGameMutation.isPending || !shopId}
+              />
+            ) : null}
+          </>
+        ) : null}
+      </View>
     </ScreenContainer>
   );
 }
@@ -546,131 +540,129 @@ export function ScratchCardPacksScreen({ navigation }: PackListProps) {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.screenContent}>
-        {/* <View style={styles.packHeroCard}>
-          <Text style={styles.packHeroEyebrow}>Inventory Overview</Text>
-          <Text style={styles.packHeroTitle}>Card Packs</Text>
-          <Text style={styles.packHeroMeta}>Shop: {activeShop?.shopName ?? "No shop selected"}</Text>
-          <Text style={styles.packHeroNote}>Monitor status, serial progress, and activation readiness.</Text>
+      {/* <View style={styles.packHeroCard}>
+        <Text style={styles.packHeroEyebrow}>Inventory Overview</Text>
+        <Text style={styles.packHeroTitle}>Card Packs</Text>
+        <Text style={styles.packHeroMeta}>Shop: {activeShop?.shopName ?? "No shop selected"}</Text>
+        <Text style={styles.packHeroNote}>Monitor status, serial progress, and activation readiness.</Text>
+      </View>
+
+      <View style={styles.packSummaryGrid}>
+        <View style={styles.packSummaryTile}>
+          <Text style={styles.packSummaryLabel}>Total Packs</Text>
+          <Text style={styles.packSummaryValue}>{summary.total}</Text>
         </View>
+        <View style={styles.packSummaryTile}>
+          <Text style={styles.packSummaryLabel}>Active</Text>
+          <Text style={styles.packSummaryValue}>{summary.active}</Text>
+        </View>
+        <View style={styles.packSummaryTile}>
+          <Text style={styles.packSummaryLabel}>In Stock</Text>
+          <Text style={styles.packSummaryValue}>{summary.inStock}</Text>
+        </View>
+        <View style={styles.packSummaryTile}>
+          <Text style={styles.packSummaryLabel}>Need Attention</Text>
+          <Text style={styles.packSummaryValue}>{summary.attention}</Text>
+        </View>
+      </View> */}
 
-        <View style={styles.packSummaryGrid}>
-          <View style={styles.packSummaryTile}>
-            <Text style={styles.packSummaryLabel}>Total Packs</Text>
-            <Text style={styles.packSummaryValue}>{summary.total}</Text>
+      <View style={ui.card}>
+        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        <Text style={styles.meta}>Create a manual pack or scan a barcode to start a guided activation flow.</Text>
+        <View style={styles.headerActionsRow}>
+          <View style={styles.headerActionItem}>
+            <PrimaryButton
+              label="Add Manual Pack"
+              onPress={() => navigation.navigate("ManualPackCreate")}
+              disabled={!shopId}
+            />
           </View>
-          <View style={styles.packSummaryTile}>
-            <Text style={styles.packSummaryLabel}>Active</Text>
-            <Text style={styles.packSummaryValue}>{summary.active}</Text>
-          </View>
-          <View style={styles.packSummaryTile}>
-            <Text style={styles.packSummaryLabel}>In Stock</Text>
-            <Text style={styles.packSummaryValue}>{summary.inStock}</Text>
-          </View>
-          <View style={styles.packSummaryTile}>
-            <Text style={styles.packSummaryLabel}>Need Attention</Text>
-            <Text style={styles.packSummaryValue}>{summary.attention}</Text>
-          </View>
-        </View> */}
-
-        <View style={ui.card}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <Text style={styles.meta}>Create a manual pack or scan a barcode to start a guided activation flow.</Text>
-          <View style={styles.headerActionsRow}>
-            <View style={styles.headerActionItem}>
-              <PrimaryButton
-                label="Add Manual Pack"
-                onPress={() => navigation.navigate("ManualPackCreate")}
-                disabled={!shopId}
-              />
-            </View>
-            <View style={styles.headerActionItem}>
-              <PrimaryButton
-                label="Pack Scanner"
-                tone="neutral"
-                onPress={() => navigation.navigate("ManualPackCreate", { autoOpenScanner: true })}
-                disabled={!shopId}
-              />
-            </View>
+          <View style={styles.headerActionItem}>
+            <PrimaryButton
+              label="Pack Scanner"
+              tone="neutral"
+              onPress={() => navigation.navigate("ManualPackCreate", { autoOpenScanner: true })}
+              disabled={!shopId}
+            />
           </View>
         </View>
+      </View>
 
-        <View style={ui.card}>
-          <View style={styles.packInventoryHeader}>
-            <Text style={styles.sectionTitle}>Pack Inventory</Text>
-            {shopId && !packsQuery.isLoading && !packsQuery.isError ? (
-              <Text style={styles.packInventoryCount}>{sortedPacks.length} pack{sortedPacks.length === 1 ? "" : "s"}</Text>
-            ) : null}
-          </View>
-          {!shopId ? <Text style={styles.meta}>Select a shop to see packs.</Text> : null}
-          {shopId && packsQuery.isLoading ? <Text style={styles.meta}>Loading packs...</Text> : null}
-          {shopId && packsQuery.isError ? <Text style={styles.meta}>Unable to load packs. Please try again.</Text> : null}
-          {shopId && !packsQuery.isLoading && !packsQuery.isError && sortedPacks.length === 0 ? (
-            <Text style={styles.meta}>No packs found for this shop.</Text>
+      <View style={ui.card}>
+        <View style={styles.packInventoryHeader}>
+          <Text style={styles.sectionTitle}>Pack Inventory</Text>
+          {shopId && !packsQuery.isLoading && !packsQuery.isError ? (
+            <Text style={styles.packInventoryCount}>{sortedPacks.length} pack{sortedPacks.length === 1 ? "" : "s"}</Text>
           ) : null}
-          {sortedPacks.length > 0 ? (
-            <Text style={styles.meta}>
-              Showing {visiblePacks.length} of {sortedPacks.length} packs
+        </View>
+        {!shopId ? <Text style={styles.meta}>Select a shop to see packs.</Text> : null}
+        {shopId && packsQuery.isLoading ? <Text style={styles.meta}>Loading packs...</Text> : null}
+        {shopId && packsQuery.isError ? <Text style={styles.meta}>Unable to load packs. Please try again.</Text> : null}
+        {shopId && !packsQuery.isLoading && !packsQuery.isError && sortedPacks.length === 0 ? (
+          <Text style={styles.meta}>No packs found for this shop.</Text>
+        ) : null}
+        {sortedPacks.length > 0 ? (
+          <Text style={styles.meta}>
+            Showing {visiblePacks.length} of {sortedPacks.length} packs
+          </Text>
+        ) : null}
+        {visiblePacks.map((pack) => (
+          <View key={pack.id} style={styles.packListItem}>
+            <View style={styles.packListHeader}>
+              <View style={styles.packTitleWrap}>
+                <Text style={styles.packListTitle}>Pack {pack.packNumber}</Text>
+                <Text style={styles.packListSubtitle}>{pack.gameName}</Text>
+              </View>
+              <StatusBadge label={pack.status} tone={packStatusTone(pack.status)} />
+            </View>
+            <View style={styles.metricRow}>
+              {pack.displayNumber != null ? (
+                <View style={styles.metricChip}><Text style={styles.metricText}>Display {pack.displayNumber}</Text></View>
+              ) : null}
+              <View style={styles.metricChip}><Text style={styles.metricText}>Current: {pack.currentSerialNumber}</Text></View>
+              <View style={styles.metricChip}><Text style={styles.metricText}>{formatGbp(Number(pack.ticketPrice))}</Text></View>
+              <View style={styles.metricChip}><Text style={styles.metricText}>{pack.totalTickets} Tickets</Text></View>
+              {pack.isManuallyAdded ? (
+                <View style={styles.metricChip}><Text style={styles.metricText}>Manual</Text></View>
+              ) : null}
+            </View>
+            <Text style={styles.packSerialMeta}>
+              Serial range: {pack.startSerialNumber} {"->"} {pack.endSerialNumber}
             </Text>
-          ) : null}
-          {visiblePacks.map((pack) => (
-            <View key={pack.id} style={styles.packListItem}>
-              <View style={styles.packListHeader}>
-                <View style={styles.packTitleWrap}>
-                  <Text style={styles.packListTitle}>Pack {pack.packNumber}</Text>
-                  <Text style={styles.packListSubtitle}>{pack.gameName}</Text>
-                </View>
-                <StatusBadge label={pack.status} tone={packStatusTone(pack.status)} />
+            <View style={styles.packActionRow}>
+              <View style={styles.packActionItem}>
+                <PrimaryButton
+                  label="Details"
+                  tone="neutral"
+                  size="sm"
+                  onPress={() => navigation.navigate("PackDetails", { packId: pack.id })}
+                />
               </View>
-              <View style={styles.metricRow}>
-                {pack.displayNumber != null ? (
-                  <View style={styles.metricChip}><Text style={styles.metricText}>Display {pack.displayNumber}</Text></View>
-                ) : null}
-                <View style={styles.metricChip}><Text style={styles.metricText}>Current: {pack.currentSerialNumber}</Text></View>
-                <View style={styles.metricChip}><Text style={styles.metricText}>{formatGbp(Number(pack.ticketPrice))}</Text></View>
-                <View style={styles.metricChip}><Text style={styles.metricText}>{pack.totalTickets} Tickets</Text></View>
-                {pack.isManuallyAdded ? (
-                  <View style={styles.metricChip}><Text style={styles.metricText}>Manual</Text></View>
-                ) : null}
-              </View>
-              <Text style={styles.packSerialMeta}>
-                Serial range: {pack.startSerialNumber} {"->"} {pack.endSerialNumber}
-              </Text>
-              <View style={styles.packActionRow}>
+              {(pack.status === "InStock" || pack.status === "Paused") ? (
                 <View style={styles.packActionItem}>
                   <PrimaryButton
-                    label="Details"
-                    tone="neutral"
+                    label="Activate"
                     size="sm"
-                    onPress={() => navigation.navigate("PackDetails", { packId: pack.id })}
+                    onPress={() => navigation.navigate("ActivatePack", { packId: pack.id })}
                   />
                 </View>
-                {(pack.status === "InStock" || pack.status === "Paused") ? (
-                  <View style={styles.packActionItem}>
-                    <PrimaryButton
-                      label="Activate"
-                      size="sm"
-                      onPress={() => navigation.navigate("ActivatePack", { packId: pack.id })}
-                    />
-                  </View>
-                ) : null}
-              </View>
+              ) : null}
             </View>
-          ))}
-          {hasMorePacks ? (
-            <Pressable
-              style={styles.loadMoreButton}
-              onPress={() =>
-                setVisiblePackCount((previous) => Math.min(previous + PACK_LIST_BATCH_SIZE, sortedPacks.length))
-              }
-            >
-              <Text style={styles.loadMoreButtonText}>
-                Load More ({sortedPacks.length - visiblePacks.length} remaining)
-              </Text>
-            </Pressable>
-          ) : null}
-        </View>
-      </ScrollView>
+          </View>
+        ))}
+        {hasMorePacks ? (
+          <Pressable
+            style={styles.loadMoreButton}
+            onPress={() =>
+              setVisiblePackCount((previous) => Math.min(previous + PACK_LIST_BATCH_SIZE, sortedPacks.length))
+            }
+          >
+            <Text style={styles.loadMoreButtonText}>
+              Load More ({sortedPacks.length - visiblePacks.length} remaining)
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
     </ScreenContainer>
   );
 }
@@ -1047,184 +1039,178 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
 
   return (
     <ScreenContainer>
-      <ScrollView
-        contentContainerStyle={styles.screenContent}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="interactive"
-      >
-        {/* <View style={styles.heroCard}>
-          <Text style={styles.heroSubtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
-          <Text style={styles.heroNote}>Manual packs can be created inactive, then activated later.</Text>
-        </View> */}
+      {/* <View style={styles.heroCard}>
+        <Text style={styles.heroSubtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
+        <Text style={styles.heroNote}>Manual packs can be created inactive, then activated later.</Text>
+      </View> */}
 
-        <View style={ui.card}>
-          <Text style={styles.fieldLabel}>Game</Text>
+      <View style={ui.card}>
+        <Text style={styles.fieldLabel}>Game</Text>
+        <TextInput
+          style={styles.input}
+          value={gameSearch}
+          onChangeText={(value) => {
+            setGameSearch(value);
+            if (selectedGame && value !== selectedGameLabel) {
+              setGameId("");
+            }
+          }}
+          placeholder="Search game by code or name"
+          placeholderTextColor={appTheme.colors.textSubtle}
+        />
+        {showGameSuggestions ? (
+          <View style={styles.autocompleteList}>
+            {filteredGames.map((game) => (
+              <Pressable
+                key={game.id}
+                style={styles.autocompleteItem}
+                onPress={() => {
+                  setGameId(game.id);
+                  setGameSearch(`${game.gameCode} - ${game.gameName}`);
+                }}
+              >
+                <Text style={styles.autocompleteItemText}>{game.gameCode} - {game.gameName}</Text>
+              </Pressable>
+            ))}
+            {filteredGames.length === 0 ? <Text style={styles.meta}>No matching games.</Text> : null}
+          </View>
+        ) : null}
+        {!selectedGame ? <Text style={styles.meta}>Choose a game to auto-fill defaults.</Text> : null}
+
+        {/* <Text style={styles.meta}>Ticket price is set from the selected game and cannot be changed here.</Text> */}
+
+        <Text style={styles.fieldLabel}>Pack Number</Text>
+        <View style={styles.scanInputRow}>
           <TextInput
-            style={styles.input}
-            value={gameSearch}
-            onChangeText={(value) => {
-              setGameSearch(value);
-              if (selectedGame && value !== selectedGameLabel) {
-                setGameId("");
-              }
-            }}
-            placeholder="Search game by code or name"
+            style={[styles.input, styles.inlinePackInput]}
+            value={packNumber}
+            onChangeText={(value) => setPackNumber(value.toUpperCase())}
+            onEndEditing={() => setPackNumber((current) => normalizePackComponentByLeadingZeroRule(current, allowLeadingZeros))}
+            placeholder="Pack number (ex: 0009477)"
             placeholderTextColor={appTheme.colors.textSubtle}
+            autoCapitalize="characters"
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => displayNumberRef.current?.focus()}
           />
-          {showGameSuggestions ? (
-            <View style={styles.autocompleteList}>
-              {filteredGames.map((game) => (
-                <Pressable
-                  key={game.id}
-                  style={styles.autocompleteItem}
-                  onPress={() => {
-                    setGameId(game.id);
-                    setGameSearch(`${game.gameCode} - ${game.gameName}`);
-                  }}
-                >
-                  <Text style={styles.autocompleteItemText}>{game.gameCode} - {game.gameName}</Text>
-                </Pressable>
-              ))}
-              {filteredGames.length === 0 ? <Text style={styles.meta}>No matching games.</Text> : null}
-            </View>
-          ) : null}
-          {!selectedGame ? <Text style={styles.meta}>Choose a game to auto-fill defaults.</Text> : null}
-        
-          {/* <Text style={styles.meta}>Ticket price is set from the selected game and cannot be changed here.</Text> */}
-
-          <Text style={styles.fieldLabel}>Pack Number</Text>
-          <View style={styles.scanInputRow}>
-            <TextInput
-              style={[styles.input, styles.inlinePackInput]}
-              value={packNumber}
-              onChangeText={(value) => setPackNumber(value.toUpperCase())}
-              onEndEditing={() => setPackNumber((current) => normalizePackComponentByLeadingZeroRule(current, allowLeadingZeros))}
-              placeholder="Pack number (ex: 0009477)"
-              placeholderTextColor={appTheme.colors.textSubtle}
-              autoCapitalize="characters"
-              returnKeyType="next"
-              submitBehavior="submit"
-              onSubmitEditing={() => displayNumberRef.current?.focus()}
-            />
-            <Pressable
-              style={[styles.inlineScanButton, !shopId && styles.inlineScanButtonDisabled]}
-              onPress={openManualPackScanner}
-              disabled={!shopId}
-              accessibilityRole="button"
-              accessibilityLabel="Scan pack number"
-            >
-              <View style={styles.scanIconWrap}>
-                <View style={[styles.scanCorner, styles.scanCornerTopLeft]} />
-                <View style={[styles.scanCorner, styles.scanCornerTopRight]} />
-                <View style={[styles.scanCorner, styles.scanCornerBottomLeft]} />
-                <View style={[styles.scanCorner, styles.scanCornerBottomRight]} />
-                <View style={styles.inlineScanGlyph}>
-                  <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
-                  <View style={[styles.barcodeBar, styles.barcodeBarWide]} />
-                  <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
-                  <View style={[styles.barcodeBar, styles.barcodeBarMedium]} />
-                  <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
-                  <View style={[styles.barcodeBar, styles.barcodeBarWide]} />
-                  <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
-                </View>
+          <Pressable
+            style={[styles.inlineScanButton, !shopId && styles.inlineScanButtonDisabled]}
+            onPress={openManualPackScanner}
+            disabled={!shopId}
+            accessibilityRole="button"
+            accessibilityLabel="Scan pack number"
+          >
+            <View style={styles.scanIconWrap}>
+              <View style={[styles.scanCorner, styles.scanCornerTopLeft]} />
+              <View style={[styles.scanCorner, styles.scanCornerTopRight]} />
+              <View style={[styles.scanCorner, styles.scanCornerBottomLeft]} />
+              <View style={[styles.scanCorner, styles.scanCornerBottomRight]} />
+              <View style={styles.inlineScanGlyph}>
+                <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
+                <View style={[styles.barcodeBar, styles.barcodeBarWide]} />
+                <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
+                <View style={[styles.barcodeBar, styles.barcodeBarMedium]} />
+                <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
+                <View style={[styles.barcodeBar, styles.barcodeBarWide]} />
+                <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
               </View>
-            </Pressable>
-          </View>
-          {/* <Text style={styles.meta}>From scan: red = game code, green = pack number.</Text> */}
-          {scanMessage ? <Text style={styles.meta}>{scanMessage}</Text> : null}
-
-          <View style={styles.activateRow}>
-            <View style={styles.activateTextWrap}>
-              <Text style={styles.activateTitle}>Activate now</Text>
-              <Text style={styles.activateHint}>
-                {canCreateAsActive
-                  ? "Put this pack straight onto the display. Otherwise it's saved as stock (inactive)."
-                  : "Only one active pack per game is allowed — an active pack already exists. Save as stock and activate later."}
-              </Text>
             </View>
-            <Switch
-              value={activateOnCreate}
-              disabled={!canCreateAsActive}
-              onValueChange={(value) => {
-                if (value && !canCreateAsActive) {
-                  Alert.alert("Not allowed", "An active pack already exists for this game. Keep this pack inactive.");
-                  return;
-                }
-                setActivateOnCreate(value);
-              }}
-            />
-          </View>
-
-
-  <Text style={styles.fieldLabel}>Ticket Price (From Selected Game)</Text>
-          <TextInput
-            style={[styles.input, styles.inputReadOnly]}
-            value={formattedTicketPrice}
-            placeholder="Select game to view ticket price"
-            placeholderTextColor={appTheme.colors.textSubtle}
-            editable={false}
-          />
-          <FloatingLabelInput
-            ref={displayNumberRef}
-            label={maxDisplayCount > 0 ? `Display number (1-${maxDisplayCount})` : "Display number"}
-            value={displayNumber}
-            onChangeText={setDisplayNumber}
-            keyboardType="number-pad"
-            returnKeyType="next"
-            submitBehavior="submit"
-            onSubmitEditing={() => totalTicketsRef.current?.focus()}
-          />
-          <FloatingLabelInput
-            ref={totalTicketsRef}
-            label="Total tickets"
-            value={totalTickets}
-            onChangeText={setTotalTickets}
-            keyboardType="number-pad"
-            returnKeyType="next"
-            submitBehavior="submit"
-            onSubmitEditing={() => startSerialRef.current?.focus()}
-          />
-          {/* <Text style={styles.meta}>
-            {maxDisplayCount > 0
-              ? `Configured displays for this shop: 1 to ${maxDisplayCount}.`
-              : "Configure Scratch Card Display Count in App Configuration to set a display range."}
-          </Text> */}
-
-          <FloatingLabelInput
-            ref={startSerialRef}
-            label="Start serial number"
-            value={startSerialNumber}
-            onChangeText={setStartSerialNumber}
-            returnKeyType="next"
-            submitBehavior="submit"
-            onSubmitEditing={() => endSerialRef.current?.focus()}
-          />
-          <FloatingLabelInput
-            ref={endSerialRef}
-            label="End serial number"
-            value={endSerialNumber}
-            onChangeText={setEndSerialNumber}
-            returnKeyType="done"
-          />
-          <Text style={styles.meta}>
-            Selling Order: {configuredSerialDefaults.start} {"->"} {configuredSerialDefaults.end}
-          </Text>
-
-          <FloatingLabelInput
-            label="Notes (optional)"
-            value={notes}
-            onChangeText={setNotes}
-          />
-
-          <PrimaryButton
-            label={createPackMutation.isPending ? "Creating..." : (activateOnCreate ? "Create & Activate Pack" : "Create Pack")}
-            onPress={() => createPackMutation.mutate()}
-            disabled={createPackMutation.isPending || !shopId}
-          />
-
-
+          </Pressable>
         </View>
-      </ScrollView>
+        {/* <Text style={styles.meta}>From scan: red = game code, green = pack number.</Text> */}
+        {scanMessage ? <Text style={styles.meta}>{scanMessage}</Text> : null}
+
+        <View style={styles.activateRow}>
+          <View style={styles.activateTextWrap}>
+            <Text style={styles.activateTitle}>Activate now</Text>
+            <Text style={styles.activateHint}>
+              {canCreateAsActive
+                ? "Put this pack straight onto the display. Otherwise it's saved as stock (inactive)."
+                : "Only one active pack per game is allowed — an active pack already exists. Save as stock and activate later."}
+            </Text>
+          </View>
+          <Switch
+            value={activateOnCreate}
+            disabled={!canCreateAsActive}
+            onValueChange={(value) => {
+              if (value && !canCreateAsActive) {
+                Alert.alert("Not allowed", "An active pack already exists for this game. Keep this pack inactive.");
+                return;
+              }
+              setActivateOnCreate(value);
+            }}
+          />
+        </View>
+
+
+        <Text style={styles.fieldLabel}>Ticket Price (From Selected Game)</Text>
+        <TextInput
+          style={[styles.input, styles.inputReadOnly]}
+          value={formattedTicketPrice}
+          placeholder="Select game to view ticket price"
+          placeholderTextColor={appTheme.colors.textSubtle}
+          editable={false}
+        />
+        <FloatingLabelInput
+          ref={displayNumberRef}
+          label={maxDisplayCount > 0 ? `Display number (1-${maxDisplayCount})` : "Display number"}
+          value={displayNumber}
+          onChangeText={setDisplayNumber}
+          keyboardType="number-pad"
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => totalTicketsRef.current?.focus()}
+        />
+        <FloatingLabelInput
+          ref={totalTicketsRef}
+          label="Total tickets"
+          value={totalTickets}
+          onChangeText={setTotalTickets}
+          keyboardType="number-pad"
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => startSerialRef.current?.focus()}
+        />
+        {/* <Text style={styles.meta}>
+          {maxDisplayCount > 0
+            ? `Configured displays for this shop: 1 to ${maxDisplayCount}.`
+            : "Configure Scratch Card Display Count in App Configuration to set a display range."}
+        </Text> */}
+
+        <FloatingLabelInput
+          ref={startSerialRef}
+          label="Start serial number"
+          value={startSerialNumber}
+          onChangeText={setStartSerialNumber}
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => endSerialRef.current?.focus()}
+        />
+        <FloatingLabelInput
+          ref={endSerialRef}
+          label="End serial number"
+          value={endSerialNumber}
+          onChangeText={setEndSerialNumber}
+          returnKeyType="done"
+        />
+        <Text style={styles.meta}>
+          Selling Order: {configuredSerialDefaults.start} {"->"} {configuredSerialDefaults.end}
+        </Text>
+
+        <FloatingLabelInput
+          label="Notes (optional)"
+          value={notes}
+          onChangeText={setNotes}
+        />
+
+        <PrimaryButton
+          label={createPackMutation.isPending ? "Creating..." : (activateOnCreate ? "Create & Activate Pack" : "Create Pack")}
+          onPress={() => createPackMutation.mutate()}
+          disabled={createPackMutation.isPending || !shopId}
+        />
+
+
+      </View>
     </ScreenContainer>
   );
 }
@@ -1365,91 +1351,89 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.screenContent}>
-        <View style={styles.heroCard}>
-          <Text style={styles.heroSubtitle}>Pack: {pack?.packNumber ?? "-"}</Text>
-          <Text style={styles.heroSubtitle}>Game: {pack?.gameName ?? "-"}</Text>
-          <StatusBadge label={pack?.status ?? "-"} tone={packStatusTone(pack?.status)} />
-        </View>
+      <View style={styles.heroCard}>
+        <Text style={styles.heroSubtitle}>Pack: {pack?.packNumber ?? "-"}</Text>
+        <Text style={styles.heroSubtitle}>Game: {pack?.gameName ?? "-"}</Text>
+        <StatusBadge label={pack?.status ?? "-"} tone={packStatusTone(pack?.status)} />
+      </View>
 
-        <View style={ui.card}>
-          <View style={styles.metricRow}>
-            <View style={styles.metricChip}>
-              <Text style={styles.metricText}>
-                Display: {isEditingDetails ? (editDisplayNumber.trim() || "-") : (pack?.displayNumber != null ? String(pack.displayNumber) : "-")}
-              </Text>
-            </View>
-            <View style={styles.metricChip}>
-              <Text style={styles.metricText}>Selling: {pack?.sellingOrder ?? "-"}</Text>
-            </View>
-            <View style={styles.metricChip}>
-              <Text style={styles.metricText}>Current: {pack?.currentSerialNumber ?? "-"}</Text>
-            </View>
-            <View style={styles.metricChip}>
-              <Text style={styles.metricText}>{formatGbp(isEditingDetails ? Number(editTicketPrice || 0) : Number(pack?.ticketPrice ?? 0))}</Text>
-            </View>
+      <View style={ui.card}>
+        <View style={styles.metricRow}>
+          <View style={styles.metricChip}>
+            <Text style={styles.metricText}>
+              Display: {isEditingDetails ? (editDisplayNumber.trim() || "-") : (pack?.displayNumber != null ? String(pack.displayNumber) : "-")}
+            </Text>
           </View>
-          <Text style={styles.meta}>Serial: {isEditingDetails ? editStartSerial : (pack?.startSerialNumber ?? "-")} {"->"} {isEditingDetails ? editEndSerial : (pack?.endSerialNumber ?? "-")}</Text>
-
-          {isEditingDetails ? (
-            <>
-              <FloatingLabelInput label="Pack number" value={editPackNumber} onChangeText={setEditPackNumber} />
-              <FloatingLabelInput
-                label={maxDisplayCount > 0 ? `Display number (1-${maxDisplayCount}, optional)` : "Display number (optional)"}
-                value={editDisplayNumber}
-                onChangeText={(text) => setEditDisplayNumber(text.replace(/[^0-9]/g, ""))}
-                keyboardType="number-pad"
-              />
-              <FloatingLabelInput label="Ticket price" prefix="£" value={editTicketPrice} onChangeText={setEditTicketPrice} keyboardType="decimal-pad" />
-              <FloatingLabelInput label="Total tickets" value={editTotalTickets} onChangeText={setEditTotalTickets} keyboardType="number-pad" />
-              <FloatingLabelInput label="Start serial" value={editStartSerial} onChangeText={setEditStartSerial} />
-              <FloatingLabelInput label="End serial" value={editEndSerial} onChangeText={setEditEndSerial} />
-              <PrimaryButton
-                label={updateDetailsMutation.isPending ? "Saving..." : "Save Pack Details"}
-                onPress={() => updateDetailsMutation.mutate()}
-                disabled={updateDetailsMutation.isPending}
-              />
-              <PrimaryButton label="Cancel Edit" tone="neutral" onPress={cancelEditDetails} />
-            </>
-          ) : null}
-
-          {!isEditingDetails && canEditDetails ? (
-            <PrimaryButton label="Edit Pack Details" tone="neutral" onPress={() => setIsEditingDetails(true)} />
-          ) : null}
-          {!isEditingDetails && !canEditDetails ? (
-            <Text style={styles.meta}>Details can be edited only while pack status is InStock or Paused.</Text>
-          ) : null}
-
-          {!isEditingDetails ? (
-            <>
-              {canActivate ? (
-                <PrimaryButton label="Go To Activate" onPress={() => navigation.navigate("ActivatePack", { packId })} />
-              ) : (
-                <Text style={styles.meta}>Activation requires status InStock or Paused.</Text>
-              )}
-              <FloatingLabelInput label="Status change notes" value={notes} onChangeText={setNotes} />
-
-              <View style={styles.rowWrap}>
-                {allowPackPause ? (
-                  <Pressable style={styles.smallButton} onPress={() => actionMutation.mutate("pause")}><Text style={styles.smallButtonText}>Pause</Text></Pressable>
-                ) : null}
-                {allowPackReturn ? (
-                  <Pressable style={styles.smallButton} onPress={() => actionMutation.mutate("return")}><Text style={styles.smallButtonText}>Return</Text></Pressable>
-                ) : null}
-                {allowIssueMarking ? (
-                  <Pressable style={styles.smallButton} onPress={() => actionMutation.mutate("issue")}><Text style={styles.smallButtonText}>Mark Issue</Text></Pressable>
-                ) : null}
-                <Pressable style={styles.smallButton} onPress={() => actionMutation.mutate("complete")}><Text style={styles.smallButtonText}>Complete</Text></Pressable>
-              </View>
-              {!allowPackPause || !allowPackReturn || !allowIssueMarking ? (
-                <Text style={styles.meta}>Some status actions are hidden based on Shop Configuration.</Text>
-              ) : null}
-            </>
-          ) : (
-            <Text style={styles.meta}>Status actions are hidden while editing pack details.</Text>
-          )}
+          <View style={styles.metricChip}>
+            <Text style={styles.metricText}>Selling: {pack?.sellingOrder ?? "-"}</Text>
+          </View>
+          <View style={styles.metricChip}>
+            <Text style={styles.metricText}>Current: {pack?.currentSerialNumber ?? "-"}</Text>
+          </View>
+          <View style={styles.metricChip}>
+            <Text style={styles.metricText}>{formatGbp(isEditingDetails ? Number(editTicketPrice || 0) : Number(pack?.ticketPrice ?? 0))}</Text>
+          </View>
         </View>
-      </ScrollView>
+        <Text style={styles.meta}>Serial: {isEditingDetails ? editStartSerial : (pack?.startSerialNumber ?? "-")} {"->"} {isEditingDetails ? editEndSerial : (pack?.endSerialNumber ?? "-")}</Text>
+
+        {isEditingDetails ? (
+          <>
+            <FloatingLabelInput label="Pack number" value={editPackNumber} onChangeText={setEditPackNumber} />
+            <FloatingLabelInput
+              label={maxDisplayCount > 0 ? `Display number (1-${maxDisplayCount}, optional)` : "Display number (optional)"}
+              value={editDisplayNumber}
+              onChangeText={(text) => setEditDisplayNumber(text.replace(/[^0-9]/g, ""))}
+              keyboardType="number-pad"
+            />
+            <FloatingLabelInput label="Ticket price" prefix="£" value={editTicketPrice} onChangeText={setEditTicketPrice} keyboardType="decimal-pad" />
+            <FloatingLabelInput label="Total tickets" value={editTotalTickets} onChangeText={setEditTotalTickets} keyboardType="number-pad" />
+            <FloatingLabelInput label="Start serial" value={editStartSerial} onChangeText={setEditStartSerial} />
+            <FloatingLabelInput label="End serial" value={editEndSerial} onChangeText={setEditEndSerial} />
+            <PrimaryButton
+              label={updateDetailsMutation.isPending ? "Saving..." : "Save Pack Details"}
+              onPress={() => updateDetailsMutation.mutate()}
+              disabled={updateDetailsMutation.isPending}
+            />
+            <PrimaryButton label="Cancel Edit" tone="neutral" onPress={cancelEditDetails} />
+          </>
+        ) : null}
+
+        {!isEditingDetails && canEditDetails ? (
+          <PrimaryButton label="Edit Pack Details" tone="neutral" onPress={() => setIsEditingDetails(true)} />
+        ) : null}
+        {!isEditingDetails && !canEditDetails ? (
+          <Text style={styles.meta}>Details can be edited only while pack status is InStock or Paused.</Text>
+        ) : null}
+
+        {!isEditingDetails ? (
+          <>
+            {canActivate ? (
+              <PrimaryButton label="Go To Activate" onPress={() => navigation.navigate("ActivatePack", { packId })} />
+            ) : (
+              <Text style={styles.meta}>Activation requires status InStock or Paused.</Text>
+            )}
+            <FloatingLabelInput label="Status change notes" value={notes} onChangeText={setNotes} />
+
+            <View style={styles.rowWrap}>
+              {allowPackPause ? (
+                <Pressable style={styles.smallButton} onPress={() => actionMutation.mutate("pause")}><Text style={styles.smallButtonText}>Pause</Text></Pressable>
+              ) : null}
+              {allowPackReturn ? (
+                <Pressable style={styles.smallButton} onPress={() => actionMutation.mutate("return")}><Text style={styles.smallButtonText}>Return</Text></Pressable>
+              ) : null}
+              {allowIssueMarking ? (
+                <Pressable style={styles.smallButton} onPress={() => actionMutation.mutate("issue")}><Text style={styles.smallButtonText}>Mark Issue</Text></Pressable>
+              ) : null}
+              <Pressable style={styles.smallButton} onPress={() => actionMutation.mutate("complete")}><Text style={styles.smallButtonText}>Complete</Text></Pressable>
+            </View>
+            {!allowPackPause || !allowPackReturn || !allowIssueMarking ? (
+              <Text style={styles.meta}>Some status actions are hidden based on Shop Configuration.</Text>
+            ) : null}
+          </>
+        ) : (
+          <Text style={styles.meta}>Status actions are hidden while editing pack details.</Text>
+        )}
+      </View>
     </ScreenContainer>
   );
 }
@@ -1520,49 +1504,46 @@ export function ActivatePackScreen({ route, navigation }: ActivatePackProps) {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.screenContent}>
-        <View style={styles.heroCard}>
-          <Text style={styles.heroSubtitle}>Pack: {pack?.packNumber ?? "-"}</Text>
-          <Text style={styles.heroSubtitle}>Game: {pack?.gameName ?? "-"}</Text>
-          <Text style={styles.heroNote}>Allowed serial range: {pack?.startSerialNumber ?? "-"} {"->"} {pack?.endSerialNumber ?? "-"}</Text>
-        </View>
-        <View style={ui.card}>
-          <FloatingLabelInput
-            label="Opening serial number"
-            value={openingSerialNumber}
-            onChangeText={setOpeningSerialNumber}
-            onFocus={() => {
-              if ((openingSerialNumber ?? "").trim() !== (pack?.currentSerialNumber ?? "").trim()) {
-                return;
-              }
+      <View style={styles.heroCard}>
+        <Text style={styles.heroSubtitle}>Pack: {pack?.packNumber ?? "-"}</Text>
+        <Text style={styles.heroSubtitle}>Game: {pack?.gameName ?? "-"}</Text>
+        <Text style={styles.heroNote}>Allowed serial range: {pack?.startSerialNumber ?? "-"} {"->"} {pack?.endSerialNumber ?? "-"}</Text>
+      </View>
+      <View style={ui.card}>
+        <FloatingLabelInput
+          label="Opening serial number"
+          value={openingSerialNumber}
+          onChangeText={setOpeningSerialNumber}
+          onFocus={() => {
+            if ((openingSerialNumber ?? "").trim() !== (pack?.currentSerialNumber ?? "").trim()) {
+              return;
+            }
 
-              setOpeningSerialNumber("");
-            }}
-            keyboardType="number-pad"
-            editable={!activateMutation.isPending}
-          />
+            setOpeningSerialNumber("");
+          }}
+          keyboardType="number-pad"
+          editable={!activateMutation.isPending}
+        />
 
-          <FloatingLabelInput
-            label="Display number"
-            value={displayNumber}
-            onChangeText={(text) => setDisplayNumber(text.replace(/[^0-9]/g, ""))}
-            keyboardType="number-pad"
-            editable={!activateMutation.isPending}
-          />
+        <FloatingLabelInput
+          label="Display number"
+          value={displayNumber}
+          onChangeText={(text) => setDisplayNumber(text.replace(/[^0-9]/g, ""))}
+          keyboardType="number-pad"
+          editable={!activateMutation.isPending}
+        />
 
-          <PrimaryButton
-            label={activateMutation.isPending ? "Activating..." : "Activate"}
-            onPress={() => activateMutation.mutate()}
-            disabled={activateMutation.isPending}
-          />
-        </View>
-      </ScrollView>
+        <PrimaryButton
+          label={activateMutation.isPending ? "Activating..." : "Activate"}
+          onPress={() => activateMutation.mutate()}
+          disabled={activateMutation.isPending}
+        />
+      </View>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  screenContent: { gap: appTheme.spacing.sm },
   activateRow: {
     flexDirection: "row",
     alignItems: "center",

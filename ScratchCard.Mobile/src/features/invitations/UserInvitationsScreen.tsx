@@ -1,5 +1,5 @@
 ﻿import React, { useMemo, useRef, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { RouteProp, useRoute } from "@react-navigation/native";
 import { MainStackParamList } from "../../types/navigation";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
@@ -8,6 +8,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { listInvitations, sendInvitation, cancelInvitation } from "../../api/invitationsApi";
 import { getRoleOptions } from "../../api/lookupsApi";
 import { listUsers } from "../../api/usersApi";
+import { EmptyState } from "../../components/EmptyState";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError } from "../../components/toast";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -127,97 +128,97 @@ export function UserInvitationsScreen() {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={[ui.card, styles.card]}>
-          {/* <Text style={styles.caption}>Shop: {activeShop?.shopName ?? "-"}</Text> */}
-          {/* <Text style={styles.subtitle}>Invite managers or cashiers to this shop.</Text> */}
-          {!canSendInvitations ? (
-            <Text style={styles.caption}>Only Platform Admin, Company Owner, or Manager can send invitations.</Text>
-          ) : null}
-          {canSendInvitations ? (
-            <View style={[styles.seatBadge, seatsExhausted && styles.seatBadgeExhausted]}>
-              <Text style={[styles.seatBadgeText, seatsExhausted && styles.seatBadgeTextExhausted]}>
-                {seatStatus}
-                {seatsExhausted ? " — upgrade to add more" : ""}
-              </Text>
-            </View>
-          ) : null}
-
-          <FloatingLabelInput
-            label="Invitee email"
-            value={email}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            onChangeText={setEmail}
-            editable={canSendInvitations}
-            autoCorrect={false}
-            returnKeyType="done"
-          />
-
-          <Text style={styles.fieldLabel}>Role</Text>
-          <View style={styles.roleWrap}>
-            {inviteRoleOptions.map((role) => {
-              const selected = selectedRoleId === role.id;
-              return (
-                <Pressable
-                  key={role.id}
-                  style={[styles.roleChip, selected && styles.roleChipSelected]}
-                  onPress={() => canSendInvitations && setSelectedRoleId(role.id)}
-                >
-                  <Text style={[styles.roleChipText, selected && styles.roleChipTextSelected]}>{getRoleDisplayName(role.name)}</Text>
-                </Pressable>
-              );
-            })}
+      <View style={[ui.card, styles.card]}>
+        {/* <Text style={styles.caption}>Shop: {activeShop?.shopName ?? "-"}</Text> */}
+        {/* <Text style={styles.subtitle}>Invite managers or cashiers to this shop.</Text> */}
+        {!canSendInvitations ? (
+          <Text style={styles.caption}>Only Platform Admin, Company Owner, or Manager can send invitations.</Text>
+        ) : null}
+        {canSendInvitations ? (
+          <View style={[styles.seatBadge, seatsExhausted && styles.seatBadgeExhausted]}>
+            <Text style={[styles.seatBadgeText, seatsExhausted && styles.seatBadgeTextExhausted]}>
+              {seatStatus}
+              {seatsExhausted ? " — upgrade to add more" : ""}
+            </Text>
           </View>
+        ) : null}
 
-          {selectedRoleName ? <Text style={styles.caption}>Selected role: {getRoleDisplayName(selectedRoleName)}</Text> : null}
+        <FloatingLabelInput
+          label="Invitee email"
+          value={email}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          onChangeText={setEmail}
+          editable={canSendInvitations}
+          autoCorrect={false}
+          returnKeyType="done"
+        />
 
-          <PrimaryButton
-            label={
-              sendInvitationMutation.isPending
-                ? "Sending..."
-                : seatsExhausted
-                  ? "Seat limit reached"
-                  : "Send Invitation"
-            }
-            onPress={() => sendInvitationMutation.mutate()}
-            disabled={sendInvitationMutation.isPending || !shopId || !canSendInvitations || seatsExhausted}
+        <Text style={styles.fieldLabel}>Role</Text>
+        <View style={styles.roleWrap}>
+          {inviteRoleOptions.map((role) => {
+            const selected = selectedRoleId === role.id;
+            return (
+              <Pressable
+                key={role.id}
+                style={[styles.roleChip, selected && styles.roleChipSelected]}
+                onPress={() => canSendInvitations && setSelectedRoleId(role.id)}
+              >
+                <Text style={[styles.roleChipText, selected && styles.roleChipTextSelected]}>{getRoleDisplayName(role.name)}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {selectedRoleName ? <Text style={styles.caption}>Selected role: {getRoleDisplayName(selectedRoleName)}</Text> : null}
+
+        <PrimaryButton
+          label={
+            sendInvitationMutation.isPending
+              ? "Sending..."
+              : seatsExhausted
+                ? "Seat limit reached"
+                : "Send Invitation"
+          }
+          onPress={() => sendInvitationMutation.mutate()}
+          disabled={sendInvitationMutation.isPending || !shopId || !canSendInvitations || seatsExhausted}
+        />
+      </View>
+
+      <View style={[ui.card, styles.card]}>
+        <Text style={styles.sectionTitle}>Existing Invitations</Text>
+        {!canSendInvitations ? <Text style={styles.empty}>You do not have access to invitation management.</Text> : null}
+        {invitations.length === 0 ? (
+          <EmptyState
+            icon="mail-open-outline"
+            title="No invitations yet"
+            message="Send an invitation above and it will show up here."
           />
-        </View>
-
-        <View style={[ui.card, styles.card]}>
-          <Text style={styles.sectionTitle}>Existing Invitations</Text>
-          {!canSendInvitations ? <Text style={styles.empty}>You do not have access to invitation management.</Text> : null}
-          {invitations.length === 0 ? <Text style={styles.empty}>No invitations yet.</Text> : null}
-          {invitations.map((item) => (
-            <View key={item.id} style={[ui.listItem, styles.listItem]}>
-              <Text style={styles.email}>{item.email}</Text>
-              <Text style={styles.meta}>
-                Role: {getRoleDisplayName(item.roleName)} | Status: {item.status}
-              </Text>
-              <Text style={styles.meta}>Expires: {new Date(item.expiresOn).toLocaleString()}</Text>
-              {item.status === "Pending" && canCancelInvitations ? (
-                <Pressable
-                  style={styles.cancelButton}
-                  onPress={() => cancelInvitationMutation.mutate(item.id)}
-                  disabled={cancelInvitationMutation.isPending}
-                >
-                  <Text style={styles.cancelText}>Cancel</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          ))}
-        </View>
-      </ScrollView>
+        ) : null}
+        {invitations.map((item) => (
+          <View key={item.id} style={[ui.listItem, styles.listItem]}>
+            <Text style={styles.email}>{item.email}</Text>
+            <Text style={styles.meta}>
+              Role: {getRoleDisplayName(item.roleName)} | Status: {item.status}
+            </Text>
+            <Text style={styles.meta}>Expires: {new Date(item.expiresOn).toLocaleString()}</Text>
+            {item.status === "Pending" && canCancelInvitations ? (
+              <Pressable
+                style={styles.cancelButton}
+                onPress={() => cancelInvitationMutation.mutate(item.id)}
+                disabled={cancelInvitationMutation.isPending}
+              >
+                <Text style={styles.cancelText}>Cancel</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ))}
+      </View>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    gap: appTheme.spacing.sm,
-    paddingBottom: appTheme.spacing.sm,
-  },
   seatBadge: {
     alignSelf: "flex-start",
     backgroundColor: appTheme.colors.surfaceInfoMuted,

@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getRefusalDailyLog } from "../../api/refusalRegisterApi";
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
+import { EmptyState } from "../../components/EmptyState";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SkeletonList } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -93,7 +94,13 @@ export function RefusalRegisterByDayScreen() {
         <Text style={styles.sectionTitle}>Register Entries</Text>
         <Text style={styles.sectionSubtitle}>Tap each item to inspect or edit the record.</Text>
         {dailyLogQuery.isLoading ? <SkeletonList count={3} rowHeight={72} /> : null}
-        {!dailyLogQuery.isLoading && entries.length === 0 ? <Text style={styles.meta}>No refusals recorded for this date.</Text> : null}
+        {!dailyLogQuery.isLoading && entries.length === 0 ? (
+          <EmptyState
+            icon="hand-left-outline"
+            title="No refusals recorded"
+            message="No refusals recorded for this date."
+          />
+        ) : null}
         {entries.map((entry) => (
           <View key={entry.id} style={styles.entryItem}>
             <View style={styles.entryHeader}>

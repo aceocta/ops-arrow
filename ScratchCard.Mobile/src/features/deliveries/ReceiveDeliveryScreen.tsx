@@ -478,119 +478,116 @@ export function ReceiveDeliveryScreen() {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={{ gap: 12 }}>
-        <View style={ui.card}>
-          <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
-          <Text style={styles.meta}>Pack Selling Order: {configuredPackSellingOrder}</Text>
-          <Text style={styles.fieldLabel}>Delivery Date</Text>
-          <DateTimeField mode="date" value={deliveryDate} onChange={setDeliveryDate} />
-          <FloatingLabelInput
-            label="Supplier name"
-            value={supplierName}
-            onChangeText={setSupplierName}
-            autoCapitalize="words"
-            returnKeyType="next"
-            submitBehavior="submit"
-            onSubmitEditing={() => deliveryReferenceRef.current?.focus()}
-          />
-          <FloatingLabelInput
-            ref={deliveryReferenceRef}
-            label="Delivery reference (optional)"
-            value={deliveryReference}
-            onChangeText={setDeliveryReference}
-            returnKeyType="next"
-            submitBehavior="submit"
-            onSubmitEditing={() => notesRef.current?.focus()}
-          />
-          <FloatingLabelInput
-            ref={notesRef}
-            label="Notes (optional)"
-            value={notes}
-            onChangeText={setNotes}
-            returnKeyType="done"
-          />
-          <View style={styles.rowActions}>
-            <Pressable
-              style={styles.actionButton}
-              onPress={() => openDeliveryNoteCapture("camera")}
-              disabled={parseDeliveryNoteMutation.isPending}
-            >
-              <Text style={styles.actionButtonText}>
-                {parseDeliveryNoteMutation.isPending ? "Reading..." : "Scan Delivery Note"}
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[styles.actionButton, styles.secondaryActionButton]}
-              onPress={() => openDeliveryNoteCapture("gallery")}
-              disabled={parseDeliveryNoteMutation.isPending}
-            >
-              <Text style={styles.secondaryActionText}>Import Photo</Text>
-            </Pressable>
+      <View style={ui.card}>
+        <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
+        <Text style={styles.meta}>Pack Selling Order: {configuredPackSellingOrder}</Text>
+        <Text style={styles.fieldLabel}>Delivery Date</Text>
+        <DateTimeField mode="date" value={deliveryDate} onChange={setDeliveryDate} />
+        <FloatingLabelInput
+          label="Supplier name"
+          value={supplierName}
+          onChangeText={setSupplierName}
+          autoCapitalize="words"
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => deliveryReferenceRef.current?.focus()}
+        />
+        <FloatingLabelInput
+          ref={deliveryReferenceRef}
+          label="Delivery reference (optional)"
+          value={deliveryReference}
+          onChangeText={setDeliveryReference}
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => notesRef.current?.focus()}
+        />
+        <FloatingLabelInput
+          ref={notesRef}
+          label="Notes (optional)"
+          value={notes}
+          onChangeText={setNotes}
+          returnKeyType="done"
+        />
+        <View style={styles.rowActions}>
+          <Pressable
+            style={styles.actionButton}
+            onPress={() => openDeliveryNoteCapture("camera")}
+            disabled={parseDeliveryNoteMutation.isPending}
+          >
+            <Text style={styles.actionButtonText}>
+              {parseDeliveryNoteMutation.isPending ? "Reading..." : "Scan Delivery Note"}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.actionButton, styles.secondaryActionButton]}
+            onPress={() => openDeliveryNoteCapture("gallery")}
+            disabled={parseDeliveryNoteMutation.isPending}
+          >
+            <Text style={styles.secondaryActionText}>Import Photo</Text>
+          </Pressable>
+        </View>
+        {parseWarnings.length > 0 ? (
+          <View style={styles.warningBox}>
+            <Text style={styles.warningTitle}>Auto-fill Warnings</Text>
+            {parseWarnings.slice(0, 5).map((warning) => (
+              <Text key={warning} style={styles.warningText}>{`\u2022 ${warning}`}</Text>
+            ))}
           </View>
-          {parseWarnings.length > 0 ? (
-            <View style={styles.warningBox}>
-              <Text style={styles.warningTitle}>Auto-fill Warnings</Text>
-              {parseWarnings.slice(0, 5).map((warning) => (
-                <Text key={warning} style={styles.warningText}>{`\u2022 ${warning}`}</Text>
-              ))}
-            </View>
-          ) : null}
-        </View>
+        ) : null}
+      </View>
 
-        <View style={ui.card}>
-          <Text style={styles.sectionTitle}>Pack Rows</Text>
-          {packRows.map((row, index) => {
-            const duplicate = duplicatePackNumbers.has(row.packNumber.trim().toUpperCase());
-            const game = gameMap.get(row.gameId);
-            const canRemove = packRows.length > 1;
-            const needsNewGame = !row.gameId && normalizeGameCodeInput(row.gameCode).length > 0;
-            const gameLabel = game
-              ? `${game.gameCode} - ${game.gameName}`
-              : needsNewGame
-                ? `${row.gameCode}${row.gameName ? ` - ${row.gameName}` : ""}`
-                : "Not selected";
+      <View style={ui.card}>
+        <Text style={styles.sectionTitle}>Pack Rows</Text>
+        {packRows.map((row, index) => {
+          const duplicate = duplicatePackNumbers.has(row.packNumber.trim().toUpperCase());
+          const game = gameMap.get(row.gameId);
+          const canRemove = packRows.length > 1;
+          const needsNewGame = !row.gameId && normalizeGameCodeInput(row.gameCode).length > 0;
+          const gameLabel = game
+            ? `${game.gameCode} - ${game.gameName}`
+            : needsNewGame
+              ? `${row.gameCode}${row.gameName ? ` - ${row.gameName}` : ""}`
+              : "Not selected";
 
-            return (
-              <View style={[styles.rowCard, needsNewGame && styles.newGameRowCard]} key={row.id}>
-                <Text style={styles.rowTitle}>Pack Row {index + 1}</Text>
-                <Text style={styles.meta}>Game: {gameLabel}</Text>
-                <Text style={styles.meta}>Pack Number: {row.packNumber || "-"}</Text>
-                <Text style={styles.meta}>Price: {formatGbp(Number(row.ticketPrice || 0))} | Tickets: {row.totalTickets || "-"}</Text>
-                <Text style={styles.meta}>Serial: {row.startSerialNumber || "-"} {"->"} {row.endSerialNumber || "-"}</Text>
-                <Text style={styles.meta}>
-                  Status on receive:{" "}
-                  {row.activate ? `Active (display ${row.displayNumber || "?"})` : "Inactive (stock)"}
-                </Text>
-                {needsNewGame ? (
-                  <Text style={styles.newGameWarning}>New master game will be created and assigned to this shop on save.</Text>
-                ) : null}
-                {duplicate ? <Text style={styles.error}>Duplicate pack number in this delivery.</Text> : null}
+          return (
+            <View style={[styles.rowCard, needsNewGame && styles.newGameRowCard]} key={row.id}>
+              <Text style={styles.rowTitle}>Pack Row {index + 1}</Text>
+              <Text style={styles.meta}>Game: {gameLabel}</Text>
+              <Text style={styles.meta}>Pack Number: {row.packNumber || "-"}</Text>
+              <Text style={styles.meta}>Price: {formatGbp(Number(row.ticketPrice || 0))} | Tickets: {row.totalTickets || "-"}</Text>
+              <Text style={styles.meta}>Serial: {row.startSerialNumber || "-"} {"->"} {row.endSerialNumber || "-"}</Text>
+              <Text style={styles.meta}>
+                Status on receive:{" "}
+                {row.activate ? `Active (display ${row.displayNumber || "?"})` : "Inactive (stock)"}
+              </Text>
+              {needsNewGame ? (
+                <Text style={styles.newGameWarning}>New master game will be created and assigned to this shop on save.</Text>
+              ) : null}
+              {duplicate ? <Text style={styles.error}>Duplicate pack number in this delivery.</Text> : null}
 
-                <View style={styles.rowActions}>
-                  <Pressable style={styles.actionButton} onPress={() => openRowEditor(row.id)}>
-                    <Text style={styles.actionButtonText}>Edit Row</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.actionButton, styles.removeButton, !canRemove && styles.disabledButton]}
-                    onPress={() => removeRow(row.id)}
-                    disabled={!canRemove}
-                  >
-                    <Text style={styles.removeText}>Remove</Text>
-                  </Pressable>
-                </View>
+              <View style={styles.rowActions}>
+                <Pressable style={styles.actionButton} onPress={() => openRowEditor(row.id)}>
+                  <Text style={styles.actionButtonText}>Edit Row</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.actionButton, styles.removeButton, !canRemove && styles.disabledButton]}
+                  onPress={() => removeRow(row.id)}
+                  disabled={!canRemove}
+                >
+                  <Text style={styles.removeText}>Remove</Text>
+                </Pressable>
               </View>
-            );
-          })}
+            </View>
+          );
+        })}
 
-          <PrimaryButton label="Add Pack Row" tone="neutral" onPress={addRowAndOpenEditor} />
-          <PrimaryButton
-            label={createDeliveryMutation.isPending ? "Saving..." : "Save Delivery"}
-            onPress={handleSaveDelivery}
-            disabled={createDeliveryMutation.isPending || !shopId}
-          />
-        </View>
-
-      </ScrollView>
+        <PrimaryButton label="Add Pack Row" tone="neutral" onPress={addRowAndOpenEditor} />
+        <PrimaryButton
+          label={createDeliveryMutation.isPending ? "Saving..." : "Save Delivery"}
+          onPress={handleSaveDelivery}
+          disabled={createDeliveryMutation.isPending || !shopId}
+        />
+      </View>
 
       <Modal visible={Boolean(editingRow)} animationType="slide" transparent onRequestClose={closeRowEditor}>
         <KeyboardAvoidingView

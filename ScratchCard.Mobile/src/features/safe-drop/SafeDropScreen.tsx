@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from "react";
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { RouteProp, useRoute } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -9,6 +9,7 @@ import {
   listCanisterDrops,
 } from "../../api/businessDaysApi";
 import { useAuth } from "../../auth/AuthContext";
+import { EmptyState } from "../../components/EmptyState";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -124,261 +125,205 @@ export function SafeDropScreen() {
   }, [drops]);
 
   return (
-    <ScreenContainer>
-      <ScrollView
-        contentContainerStyle={styles.content}
-        refreshControl={
-          <RefreshControl
-            refreshing={dropsQuery.isRefetching}
-            onRefresh={() => void dropsQuery.refetch()}
-            tintColor={appTheme.colors.primary}
+    <ScreenContainer
+      refreshControl={
+        <RefreshControl
+          refreshing={dropsQuery.isRefetching}
+          onRefresh={() => void dropsQuery.refetch()}
+          tintColor={appTheme.colors.primary}
+        />
+      }
+    >
+      <View style={[ui.card, styles.card]}>
+        <KpiGrid columns={2}>
+          <KpiTile label="Total Dropped" value={formatCurrencyGBP(totals.amount)} />
+          <KpiTile
+            label="Drops"
+            value={totals.count}
+            hint={totals.pending > 0 ? `${totals.pending} awaiting approval` : undefined}
+            tone={totals.pending > 0 ? "warning" : "default"}
           />
-        }
-      >
-        <View style={[ui.card, styles.card]}>
-          {/* <SectionHeader
-            title="Safe Drops"
-            subtitle={businessDate}
+        </KpiGrid>
+      </View>
+
+      <View style={[ui.card, styles.card]}>
+        <SectionHeader
+          title="Add Safe Drop"
+          subtitle={`Records a new canister drop for ${businessDate}.`}
+          icon="add-circle-outline"
+        />
+        <FloatingLabelInput
+          label="Canister number"
+          value={canisterNumber}
+          onChangeText={setCanisterNumber}
+          editable={!addMutation.isPending}
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => amountRef.current?.focus()}
+        />
+        <FloatingLabelInput
+          ref={amountRef}
+          label="Amount"
+          prefix="£"
+          value={amount}
+          onChangeText={(v) => {
+            setAmount(v);
+            if (amountError) setAmountError(undefined);
+          }}
+          keyboardType="decimal-pad"
+          editable={!addMutation.isPending}
+          error={amountError}
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => droppedByNameRef.current?.focus()}
+        />
+        <FloatingLabelInput
+          ref={droppedByNameRef}
+          label={defaultDroppedByName ? `Dropped by (default: ${defaultDroppedByName})` : "Dropped by"}
+          value={droppedByName}
+          onChangeText={setDroppedByName}
+          editable={!addMutation.isPending}
+          autoCapitalize="words"
+          returnKeyType="done"
+        />
+        <PrimaryButton
+          label={addMutation.isPending ? "Saving..." : "Add Safe Drop"}
+          onPress={() => addMutation.mutate()}
+          disabled={addMutation.isPending}
+        />
+      </View>
+
+      <View style={[ui.card, styles.card]}>
+        <SectionHeader
+          title="Drops on this date"
+          icon="list-outline"
+          right={
+            <StatusBadge
+              label={totals.pending > 0 ? `${totals.pending} pending` : `${totals.count}`}
+              tone={totals.pending > 0 ? "warning" : totals.count > 0 ? "success" : "neutral"}
+            />
+          }
+        />
+
+        {dropsQuery.isLoading ? (
+          <View style={{ gap: 8 }}>
+            <Skeleton height={84} radius={appTheme.radius.sm} />
+            <Skeleton height={84} radius={appTheme.radius.sm} />
+          </View>
+        ) : drops.length === 0 ? (
+          <EmptyState
             icon="lock-closed-outline"
-          /> */}
-          <KpiGrid columns={2}>
-            <KpiTile label="Total" value={formatCurrencyGBP(totals.amount)} />
-            <KpiTile label="No of drops" value={totals.count} />
-           
-          </KpiGrid>
-        </View>
-
-        <View style={[ui.card, styles.card]}>
-          <SectionHeader
-            title="Add Safe Drop"
-            subtitle={`Records a new canister drop for ${businessDate}.`}
-            icon="add-circle-outline"
-          />
-          <FloatingLabelInput
-            label="Canister number"
-            value={canisterNumber}
-            onChangeText={setCanisterNumber}
-            editable={!addMutation.isPending}
-            returnKeyType="next"
-            submitBehavior="submit"
-            onSubmitEditing={() => amountRef.current?.focus()}
-          />
-          <FloatingLabelInput
-            ref={amountRef}
-            label="Amount"
-            prefix="£"
-            value={amount}
-            onChangeText={(v) => {
-              setAmount(v);
-              if (amountError) setAmountError(undefined);
-            }}
-            keyboardType="decimal-pad"
-            editable={!addMutation.isPending}
-            error={amountError}
-            returnKeyType="next"
-            submitBehavior="submit"
-            onSubmitEditing={() => droppedByNameRef.current?.focus()}
-          />
-          <FloatingLabelInput
-            ref={droppedByNameRef}
-            label={defaultDroppedByName ? `Dropped by (default: ${defaultDroppedByName})` : "Dropped by"}
-            value={droppedByName}
-            onChangeText={setDroppedByName}
-            editable={!addMutation.isPending}
-            autoCapitalize="words"
-            returnKeyType="done"
-          />
-          <PrimaryButton
-            label={addMutation.isPending ? "Saving..." : "Add Safe Drop"}
-            onPress={() => addMutation.mutate()}
-            disabled={addMutation.isPending}
-          />
-        </View>
-
-        <View style={[ui.card, styles.card]}>
-          <SectionHeader
-            title="Drops on this date"
-            icon="list-outline"
-            right={
-              <StatusBadge
-                label={totals.pending > 0 ? `${totals.pending} pending` : `${totals.count}`}
-                tone={totals.pending > 0 ? "warning" : totals.count > 0 ? "success" : "neutral"}
-              />
+            title="No safe drops yet"
+            message={
+              canApprove
+                ? "No safe drops have been recorded for this day yet."
+                : "You haven't recorded any safe drops for this day yet."
             }
           />
-
-          {dropsQuery.isLoading ? (
-            <View style={{ gap: 8 }}>
-              <Skeleton height={84} radius={appTheme.radius.sm} />
-              <Skeleton height={84} radius={appTheme.radius.sm} />
-            </View>
-          ) : drops.length === 0 ? (
-            <Text style={styles.meta}>
-              {canApprove
-                ? "No safe drops recorded for this day yet."
-                : "No safe drops recorded by you for this day."}
-            </Text>
-          ) : (
-            <View style={styles.dropList}>
-              {drops.map((drop) => {
-                const isPending = drop.approvalStatus === "Pending";
-                const isRejected = drop.approvalStatus === "Rejected";
-                const droppedDate = new Date(drop.droppedOn);
-                const droppedLabel = Number.isNaN(droppedDate.getTime())
-                  ? "—"
-                  : droppedDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-                const accentColor = isPending
-                  ? appTheme.colors.warning
-                  : isRejected
-                    ? appTheme.colors.danger
-                    : appTheme.colors.success;
-                return (
-                  <View key={drop.id} style={styles.dropCard}>
-                    <View style={[styles.dropAccent, { backgroundColor: accentColor }]} />
-                    <View style={styles.dropBody}>
-                      <View style={styles.dropHeaderRow}>
-                        <View style={styles.dropIdentity}>
-                          <View style={styles.dropCanisterRow}>
-                            <Ionicons name="lock-closed-outline" size={13} color={appTheme.colors.textMuted} />
-                            <Text style={styles.dropCanisterLabel}>CANISTER · {droppedLabel}</Text>
-                          </View>
-                          <Text style={styles.dropCanisterValue} numberOfLines={1}>
-                            {drop.canisterNumber}
-                          </Text>
+        ) : (
+          <View style={styles.dropList}>
+            {drops.map((drop) => {
+              const isPending = drop.approvalStatus === "Pending";
+              const isRejected = drop.approvalStatus === "Rejected";
+              const droppedDate = new Date(drop.droppedOn);
+              const droppedLabel = Number.isNaN(droppedDate.getTime())
+                ? "—"
+                : droppedDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+              const accentColor = isPending
+                ? appTheme.colors.warning
+                : isRejected
+                  ? appTheme.colors.danger
+                  : appTheme.colors.success;
+              return (
+                <View key={drop.id} style={styles.dropCard}>
+                  <View style={[styles.dropAccent, { backgroundColor: accentColor }]} />
+                  <View style={styles.dropBody}>
+                    <View style={styles.dropHeaderRow}>
+                      <View style={styles.dropIdentity}>
+                        <View style={styles.dropCanisterRow}>
+                          <Ionicons name="lock-closed-outline" size={13} color={appTheme.colors.textMuted} />
+                          <Text style={styles.dropCanisterLabel}>CANISTER · {droppedLabel}</Text>
                         </View>
-                        <View style={styles.dropAmountBlock}>
-                          <Text style={styles.dropAmount}>{formatCurrencyGBP(Number(drop.amount ?? 0))}</Text>
-                          <StatusBadge
-                            label={drop.approvalStatus}
-                            tone={isPending ? "warning" : isRejected ? "danger" : "success"}
-                          />
-                        </View>
-                      </View>
-
-                      <View style={styles.dropMetaLine}>
-                        <Ionicons name="person-outline" size={12} color={appTheme.colors.textSubtle} />
-                        <Text style={styles.dropMetaText} numberOfLines={1}>
-                          {drop.droppedByName}
+                        <Text style={styles.dropCanisterValue} numberOfLines={1}>
+                          {drop.canisterNumber}
                         </Text>
-                        {drop.shiftName ? (
-                          <>
-                            <Text style={styles.dropMetaSep}>·</Text>
-                            <Ionicons name="time-outline" size={12} color={appTheme.colors.textSubtle} />
-                            <Text style={styles.dropMetaText} numberOfLines={1}>
-                              {drop.shiftName}
-                            </Text>
-                          </>
-                        ) : null}
                       </View>
+                      <View style={styles.dropAmountBlock}>
+                        <Text style={styles.dropAmount}>{formatCurrencyGBP(Number(drop.amount ?? 0))}</Text>
+                        <StatusBadge
+                          label={drop.approvalStatus}
+                          tone={isPending ? "warning" : isRejected ? "danger" : "success"}
+                        />
+                      </View>
+                    </View>
 
-                      {!isPending && drop.approvalNotes ? (
-                        <View style={styles.dropNoteRow}>
-                          <Ionicons
-                            name={isRejected ? "alert-circle-outline" : "chatbubble-ellipses-outline"}
-                            size={12}
-                            color={isRejected ? appTheme.colors.danger : appTheme.colors.textSubtle}
-                          />
-                          <Text
-                            style={[
-                              styles.dropNoteText,
-                              isRejected ? styles.dropNoteTextDanger : null,
-                            ]}
-                            numberOfLines={3}
-                          >
-                            {drop.approvalNotes}
+                    <View style={styles.dropMetaLine}>
+                      <Ionicons name="person-outline" size={12} color={appTheme.colors.textSubtle} />
+                      <Text style={styles.dropMetaText} numberOfLines={1}>
+                        {drop.droppedByName}
+                      </Text>
+                      {drop.shiftName ? (
+                        <>
+                          <Text style={styles.dropMetaSep}>·</Text>
+                          <Ionicons name="time-outline" size={12} color={appTheme.colors.textSubtle} />
+                          <Text style={styles.dropMetaText} numberOfLines={1}>
+                            {drop.shiftName}
                           </Text>
-                        </View>
-                      ) : null}
-
-                      {isPending && canApprove ? (
-                        <Pressable
-                          style={({ pressed }) => [
-                            styles.approveButton,
-                            pressed ? styles.approveButtonPressed : null,
-                            approveMutation.isPending ? styles.approveButtonDisabled : null,
-                          ]}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Approve safe drop ${drop.canisterNumber} for ${formatCurrencyGBP(Number(drop.amount ?? 0))}`}
-                          onPress={() => approveMutation.mutate(drop.id)}
-                          disabled={approveMutation.isPending}
-                        >
-                          <Ionicons name="checkmark-circle-outline" size={16} color={appTheme.colors.primary} />
-                          <Text style={styles.approveButtonText}>
-                            {approveMutation.isPending ? "Approving…" : "Approve"}
-                          </Text>
-                        </Pressable>
+                        </>
                       ) : null}
                     </View>
+
+                    {!isPending && drop.approvalNotes ? (
+                      <View style={styles.dropNoteRow}>
+                        <Ionicons
+                          name={isRejected ? "alert-circle-outline" : "chatbubble-ellipses-outline"}
+                          size={12}
+                          color={isRejected ? appTheme.colors.danger : appTheme.colors.textSubtle}
+                        />
+                        <Text
+                          style={[
+                            styles.dropNoteText,
+                            isRejected ? styles.dropNoteTextDanger : null,
+                          ]}
+                          numberOfLines={3}
+                        >
+                          {drop.approvalNotes}
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    {isPending && canApprove ? (
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.approveButton,
+                          pressed ? styles.approveButtonPressed : null,
+                          approveMutation.isPending ? styles.approveButtonDisabled : null,
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Approve safe drop ${drop.canisterNumber} for ${formatCurrencyGBP(Number(drop.amount ?? 0))}`}
+                        onPress={() => approveMutation.mutate(drop.id)}
+                        disabled={approveMutation.isPending}
+                      >
+                        <Ionicons name="checkmark-circle-outline" size={16} color={appTheme.colors.primary} />
+                        <Text style={styles.approveButtonText}>
+                          {approveMutation.isPending ? "Approving…" : "Approve"}
+                        </Text>
+                      </Pressable>
+                    ) : null}
                   </View>
-                );
-              })}
-            </View>
-          )}
-        </View>
-      </ScrollView>
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </View>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    gap: appTheme.spacing.sm,
-    paddingBottom: appTheme.spacing.sm,
-  },
   card: {
     gap: appTheme.spacing.sm,
-  },
-  headerLine: {
-    color: appTheme.colors.text,
-    fontFamily: appTheme.fonts.heading,
-    fontSize: 18,
-    lineHeight: 22,
-  },
-  summaryRow: {
-    flexDirection: "row",
-    gap: appTheme.spacing.xs,
-  },
-  summaryTile: {
-    flex: 1,
-    borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surfaceTint,
-    paddingHorizontal: appTheme.spacing.sm,
-    paddingVertical: appTheme.spacing.xs,
-    gap: 2,
-  },
-  summaryLabel: {
-    color: appTheme.colors.textSubtle,
-    fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 11,
-    lineHeight: 14,
-    textTransform: "uppercase",
-  },
-  summaryValue: {
-    color: appTheme.colors.text,
-    fontFamily: appTheme.fonts.heading,
-    fontSize: 17,
-    lineHeight: 21,
-  },
-  summaryValueWarning: {
-    color: appTheme.colors.warning,
-  },
-  sectionTitle: {
-    color: appTheme.colors.text,
-    fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 16,
-    lineHeight: 20,
-  },
-  sectionTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: appTheme.spacing.xs,
-  },
-  meta: {
-    color: appTheme.colors.textMuted,
-    fontFamily: appTheme.fonts.body,
-    fontSize: 13,
-    lineHeight: 18,
   },
   dropList: {
     gap: appTheme.spacing.xs,

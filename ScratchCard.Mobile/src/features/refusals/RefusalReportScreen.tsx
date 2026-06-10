@@ -15,6 +15,7 @@ import {
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
+import { EmptyState } from "../../components/EmptyState";
 import { ReportActionBar } from "../../components/ReportActionBar";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError } from "../../components/toast";
@@ -358,7 +359,11 @@ export function RefusalReportScreen() {
           <Text style={styles.sectionSubtitle}>Grouped by review completion timestamp.</Text>
           {rangeQuery.isLoading ? <SkeletonList count={4} rowHeight={92} /> : null}
           {!rangeQuery.isLoading && entries.length === 0 ? (
-            <Text style={styles.meta}>No refusal entries found for this date range.</Text>
+            <EmptyState
+              icon="hand-left-outline"
+              title="No refusal entries"
+              message="No refusal entries found for this date range."
+            />
           ) : null}
         </View>
       </View>
