@@ -15,6 +15,25 @@ public class CreateShopRequest
     public string Country { get; set; } = string.Empty;
     public int? ScratchCardDisplayCount { get; set; }
     public SellingOrder? PackSellingOrder { get; set; }
+
+    /// <summary>Shift templates to seed for the new shop (set during shop setup).</summary>
+    public List<CreateShopShiftTemplate>? ShiftTemplates { get; set; }
+    /// <summary>Temperature check times to seed for the new shop (set during shop setup).</summary>
+    public List<CreateShopTemperatureTime>? TemperatureCheckTimes { get; set; }
+}
+
+public class CreateShopShiftTemplate
+{
+    public string Name { get; set; } = string.Empty;
+    public string StartTime { get; set; } = string.Empty; // "HH:mm"
+    public string EndTime { get; set; } = string.Empty;   // "HH:mm"
+}
+
+public class CreateShopTemperatureTime
+{
+    public string Label { get; set; } = string.Empty;
+    public string Time { get; set; } = string.Empty;       // "HH:mm"
+    public int? ToleranceMinutes { get; set; }             // grace window; defaults to 30
 }
 
 public class UpdateShopRequest : CreateShopRequest

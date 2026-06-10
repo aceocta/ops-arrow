@@ -1,4 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using System.Globalization;
+using System.Text.Json;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Extensions;
 using ScratchCard.Application.Common.Interfaces;
@@ -24,6 +26,7 @@ public class ShopService : IShopService
     private readonly IRepository<CfgPackSettings> _packSettingsRepository;
     private readonly IRepository<CfgDayCloseSettings> _dayCloseSettingsRepository;
     private readonly IRepository<CfgTemperatureSchedule> _temperatureScheduleRepository;
+    private readonly IRepository<CfgShiftSettings> _shiftSettingsRepository;
     private readonly IRepository<SubscriptionPlan> _subscriptionPlanRepository;
     private readonly IRepository<CompanySubscription> _companySubscriptionRepository;
     private readonly IRepository<ShopSubscription> _shopSubscriptionRepository;
@@ -47,6 +50,7 @@ public class ShopService : IShopService
         IRepository<CfgPackSettings> packSettingsRepository,
         IRepository<CfgDayCloseSettings> dayCloseSettingsRepository,
         IRepository<CfgTemperatureSchedule> temperatureScheduleRepository,
+        IRepository<CfgShiftSettings> shiftSettingsRepository,
         IRepository<SubscriptionPlan> subscriptionPlanRepository,
         IRepository<CompanySubscription> companySubscriptionRepository,
         IRepository<ShopSubscription> shopSubscriptionRepository,
@@ -69,6 +73,7 @@ public class ShopService : IShopService
         _packSettingsRepository = packSettingsRepository;
         _dayCloseSettingsRepository = dayCloseSettingsRepository;
         _temperatureScheduleRepository = temperatureScheduleRepository;
+        _shiftSettingsRepository = shiftSettingsRepository;
         _subscriptionPlanRepository = subscriptionPlanRepository;
         _companySubscriptionRepository = companySubscriptionRepository;
         _shopSubscriptionRepository = shopSubscriptionRepository;
@@ -130,7 +135,8 @@ public class ShopService : IShopService
         await _shopRepository.AddAsync(shop, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         await UpsertPackConfigurationAsync(shop.Id, request.PackSellingOrder, request.ScratchCardDisplayCount, cancellationToken);
-        await SeedDefaultTemperatureSchedulesAsync(shop.Id, cancellationToken);
+        await SeedTemperatureSchedulesAsync(shop.Id, request.TemperatureCheckTimes, cancellationToken);
+        await SeedShiftTemplatesAsync(shop.Id, request.ShiftTemplates, cancellationToken);
         await AssignActiveMasterGamesToShopAsync(shop, cancellationToken);
         await EnsureCreatorOwnershipAsync(shop, cancellationToken);
         await ApplySubscriptionAndFeatureConfigurationAsync(
@@ -412,39 +418,78 @@ public class ShopService : IShopService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
-    // New shops get default temperature-log schedules at 10:00 and 17:00 (3-min tolerance, all
-    // units). The owner can edit/remove them later from the Temperature Schedules screen.
-    private async Task SeedDefaultTemperatureSchedulesAsync(Guid shopId, CancellationToken cancellationToken)
+    // Seed the temperature check times entered during shop setup. If none were supplied (e.g. an
+    // older client), fall back to a sensible 10:00 / 17:00 pair so the module isn't empty.
+    private async Task SeedTemperatureSchedulesAsync(Guid shopId, List<CreateShopTemperatureTime>? times, CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
         var createdBy = _currentUserService.UserId;
-        var schedules = new[]
+
+        List<CfgTemperatureSchedule> schedules;
+        if (times is { Count: > 0 })
         {
-            new CfgTemperatureSchedule
+            schedules = new List<CfgTemperatureSchedule>();
+            foreach (var t in times)
             {
-                ShopId = shopId,
-                TemperatureMonitoringUnitId = null, // all units
-                ExpectedTime = new TimeOnly(10, 0),
-                ToleranceMinutes = 30,
-                Label = "Morning check",
-                IsActive = true,
-                CreatedOn = now,
-                CreatedBy = createdBy,
-            },
-            new CfgTemperatureSchedule
+                if (!TimeOnly.TryParse(t.Time, CultureInfo.InvariantCulture, out var when)) continue;
+                schedules.Add(new CfgTemperatureSchedule
+                {
+                    ShopId = shopId,
+                    TemperatureMonitoringUnitId = null,
+                    ExpectedTime = when,
+                    ToleranceMinutes = t.ToleranceMinutes is > 0 ? t.ToleranceMinutes.Value : 30,
+                    Label = string.IsNullOrWhiteSpace(t.Label) ? when.ToString("HH:mm") + " check" : t.Label.Trim(),
+                    IsActive = true,
+                    CreatedOn = now,
+                    CreatedBy = createdBy,
+                });
+            }
+            if (schedules.Count == 0) return;
+        }
+        else
+        {
+            schedules = new List<CfgTemperatureSchedule>
             {
-                ShopId = shopId,
-                TemperatureMonitoringUnitId = null, // all units
-                ExpectedTime = new TimeOnly(17, 0),
-                ToleranceMinutes = 30,
-                Label = "Evening check",
-                IsActive = true,
-                CreatedOn = now,
-                CreatedBy = createdBy,
-            },
-        };
+                new() { ShopId = shopId, ExpectedTime = new TimeOnly(10, 0), ToleranceMinutes = 30, Label = "Morning check", IsActive = true, CreatedOn = now, CreatedBy = createdBy },
+                new() { ShopId = shopId, ExpectedTime = new TimeOnly(17, 0), ToleranceMinutes = 30, Label = "Evening check", IsActive = true, CreatedOn = now, CreatedBy = createdBy },
+            };
+        }
 
         await _temperatureScheduleRepository.AddRangeAsync(schedules, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    // Seed the shift templates entered during shop setup into the shop's shift config. Stored as the
+    // same JSON the shift-setup reader parses (camelCase name/startTime/endTime/isActive).
+    private async Task SeedShiftTemplatesAsync(Guid shopId, List<CreateShopShiftTemplate>? templates, CancellationToken cancellationToken)
+    {
+        if (templates is not { Count: > 0 }) return;
+
+        var payload = templates
+            .Where(t => !string.IsNullOrWhiteSpace(t.Name) && !string.IsNullOrWhiteSpace(t.StartTime) && !string.IsNullOrWhiteSpace(t.EndTime))
+            .Select(t => new { name = t.Name.Trim(), startTime = t.StartTime.Trim(), endTime = t.EndTime.Trim(), isActive = true })
+            .ToList();
+        if (payload.Count == 0) return;
+        var json = JsonSerializer.Serialize(payload);
+
+        var existing = await _shiftSettingsRepository.Query().FirstOrDefaultAsync(s => s.ShopId == shopId, cancellationToken);
+        if (existing is null)
+        {
+            await _shiftSettingsRepository.AddAsync(new CfgShiftSettings
+            {
+                ShopId = shopId,
+                ShiftTemplates = json,
+                CreatedOn = DateTimeOffset.UtcNow,
+                CreatedBy = _currentUserService.UserId,
+            }, cancellationToken);
+        }
+        else
+        {
+            existing.ShiftTemplates = json;
+            existing.ModifiedOn = DateTimeOffset.UtcNow;
+            existing.ModifiedBy = _currentUserService.UserId;
+            _shiftSettingsRepository.Update(existing);
+        }
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 

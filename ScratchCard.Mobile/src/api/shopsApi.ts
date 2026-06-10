@@ -15,6 +15,8 @@ export type CreateShopPayload = {
   country: string;
   scratchCardDisplayCount?: number;
   packSellingOrder?: SellingOrder;
+  shiftTemplates?: { name: string; startTime: string; endTime: string }[];
+  temperatureCheckTimes?: { label: string; time: string; toleranceMinutes?: number }[];
 };
 
 export type UpdateShopPayload = CreateShopPayload & {

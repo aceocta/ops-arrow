@@ -1,11 +1,13 @@
 import React, { useRef, useState } from "react";
-import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { createShop } from "../api/shopsApi";
 import { useAuth } from "./AuthContext";
 import { FloatingLabelInput } from "../components/FloatingLabelInput";
 import { ScreenContainer } from "../components/ScreenContainer";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { SubscriptionPlanPicker } from "../features/subscription/SubscriptionPlanPicker";
+import { ShiftTemperatureSetup, ShopSetupExtras } from "../components/ShiftTemperatureSetup";
 import { ui } from "../ui/primitives";
 import { appTheme } from "../ui/theme";
 import { SellingOrder } from "../types/enums";
@@ -30,6 +32,8 @@ export function ShopSetupScreen() {
   const [countryError, setCountryError] = useState<string | null>(null);
   const [displayCountError, setDisplayCountError] = useState<string | null>(null);
   const [planError, setPlanError] = useState<string | null>(null);
+  const [planOpen, setPlanOpen] = useState(true);
+  const [extras, setExtras] = useState<ShopSetupExtras>({ shiftTemplates: [], temperatureCheckTimes: [] });
 
   const addressLine1Ref = useRef<TextInput>(null);
   const addressLine2Ref = useRef<TextInput>(null);
@@ -77,6 +81,8 @@ export function ShopSetupScreen() {
         packSellingOrder,
         // Validation above already early-exits when this is null.
         subscriptionPlanId: subscriptionPlanId!,
+        shiftTemplates: extras.shiftTemplates,
+        temperatureCheckTimes: extras.temperatureCheckTimes,
       });
       // setProgressMessage("Finalizing setup...");
       await refreshProfile(createdShop.id, true);
@@ -208,13 +214,26 @@ export function ShopSetupScreen() {
         </View>
 
         <View style={styles.configSection}>
-          <SubscriptionPlanPicker
-            value={subscriptionPlanId}
-            onChange={(id) => { setSubscriptionPlanId(id); if (planError) setPlanError(null); }}
-            disabled={busy}
-          />
-          {planError ? <Text style={styles.planErrorText}>{planError}</Text> : null}
+          <Pressable style={styles.sectionHeader} onPress={() => setPlanOpen((o) => !o)}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.configTitle}>Subscription plan</Text>
+              {!planOpen ? <Text style={styles.configSubtitle}>{subscriptionPlanId ? "Plan selected" : "Tap to choose a plan"}</Text> : null}
+            </View>
+            <Ionicons name={planOpen ? "chevron-up" : "chevron-down"} size={18} color={appTheme.colors.textSubtle} />
+          </Pressable>
+          {planOpen ? (
+            <View style={{ marginTop: appTheme.spacing.sm }}>
+              <SubscriptionPlanPicker
+                value={subscriptionPlanId}
+                onChange={(id) => { setSubscriptionPlanId(id); if (planError) setPlanError(null); }}
+                disabled={busy}
+              />
+              {planError ? <Text style={styles.planErrorText}>{planError}</Text> : null}
+            </View>
+          ) : null}
         </View>
+
+        <ShiftTemperatureSetup onChange={setExtras} />
 
         <PrimaryButton
           label={busy ? progressMessage ?? "Saving..." : "Finish Setup"}
@@ -231,6 +250,27 @@ const styles = StyleSheet.create({
   header: {
     gap: 4,
   },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.sm,
+  },
+  rowEdit: { flexDirection: "row", alignItems: "center", gap: 6 },
+  cellInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  addRow: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 6 },
+  addRowText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   planErrorText: {
     color: appTheme.colors.danger,
     fontFamily: appTheme.fonts.body,

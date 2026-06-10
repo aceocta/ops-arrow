@@ -24,6 +24,7 @@ import { toastError, toastSuccess } from "../../components/toast";
 import { SkeletonList } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { SubscriptionPlanPicker } from "../subscription/SubscriptionPlanPicker";
+import { ShiftTemperatureSetup, ShopSetupExtras } from "../../components/ShiftTemperatureSetup";
 import { SellingOrder } from "../../types/enums";
 import { Company, ConfigurationItem, Shop } from "../../types/models";
 import { MainStackParamList } from "../../types/navigation";
@@ -1443,6 +1444,7 @@ export function ShopManagementScreen() {
   const [packSellingOrder, setPackSellingOrder] = useState<SellingOrder>(SellingOrder.Ascending);
   const [hasEditedPackSettings, setHasEditedPackSettings] = useState(false);
   const [subscriptionPlanId, setSubscriptionPlanId] = useState<string | null>(null);
+  const [setupExtras, setSetupExtras] = useState<ShopSetupExtras>({ shiftTemplates: [], temperatureCheckTimes: [] });
 
   const companiesQuery = useQuery({
     queryKey: ["companies", "mine"],
@@ -1527,7 +1529,7 @@ export function ShopManagementScreen() {
         throw new Error("Select a subscription plan before creating the shop.");
       }
 
-      return createShop({ ...basePayload, subscriptionPlanId });
+      return createShop({ ...basePayload, subscriptionPlanId, shiftTemplates: setupExtras.shiftTemplates, temperatureCheckTimes: setupExtras.temperatureCheckTimes });
     },
     onSuccess: () => {
       setEditingShopId(null);
@@ -1738,6 +1740,14 @@ export function ShopManagementScreen() {
             onChange={setSubscriptionPlanId}
             disabled={saveShopMutation.isPending}
           />
+        </View>
+      ) : null}
+
+      {!editingShopId ? (
+        <View style={ui.card}>
+          <Text style={styles.sectionTitle}>Shifts &amp; temperature</Text>
+          <Text style={styles.caption}>Set up the shop's shifts and temperature check times — edit later in config.</Text>
+          <ShiftTemperatureSetup onChange={setSetupExtras} />
         </View>
       ) : null}
 

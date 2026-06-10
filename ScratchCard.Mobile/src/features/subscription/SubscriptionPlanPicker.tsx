@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { listSubscriptionPlans } from "../../api/subscriptionApi";
@@ -43,6 +43,8 @@ export function SubscriptionPlanPicker({ value, onChange, disabled, label = "Sub
     queryFn: listSubscriptionPlans,
     staleTime: 10 * 60 * 1000,
   });
+
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const selectablePlans = useMemo(
     () => (plansQuery.data ?? []).filter((plan) => plan.isActive && plan.billingCycle !== BillingCycle.Trial),
@@ -90,28 +92,41 @@ export function SubscriptionPlanPicker({ value, onChange, disabled, label = "Sub
               ) : (
                 <Text style={styles.priceLine}>GBP {plan.pricePerShop.toFixed(2)} per shop</Text>
               )}
-              {plan.description ? <Text style={styles.meta}>{plan.description}</Text> : null}
+              <Pressable
+                onPress={() => setExpandedId((cur) => (cur === plan.id ? null : plan.id))}
+                style={styles.detailsToggle}
+                accessibilityRole="button"
+                accessibilityLabel={expandedId === plan.id ? "Hide plan details" : "Show plan details"}
+              >
+                <Text style={styles.detailsToggleText}>{expandedId === plan.id ? "Hide details" : "View details"}</Text>
+              </Pressable>
 
-              <View style={styles.limitsRow}>
-                <View style={styles.limitChip}>
-                  <Text style={styles.limitChipText}>
-                    {plan.maxUsers == null ? "Unlimited users" : `${plan.maxUsers} users`}
-                  </Text>
-                </View>
-                <View style={styles.limitChip}>
-                  <Text style={styles.limitChipText}>
-                    {plan.reportExportsPerMonth == null
-                      ? "Unlimited report exports"
-                      : `${plan.reportExportsPerMonth} report exports / month`}
-                  </Text>
-                </View>
-              </View>
+              {expandedId === plan.id ? (
+                <View>
+                  {plan.description ? <Text style={styles.meta}>{plan.description}</Text> : null}
 
-              {plan.includedFeatures && plan.includedFeatures.length > 0 ? (
-                <View style={styles.featuresList}>
-                  {plan.includedFeatures.map((feature) => (
-                    <Text key={feature} style={styles.featureBullet}>• {formatFeatureLabel(feature)}</Text>
-                  ))}
+                  <View style={styles.limitsRow}>
+                    <View style={styles.limitChip}>
+                      <Text style={styles.limitChipText}>
+                        {plan.maxUsers == null ? "Unlimited users" : `${plan.maxUsers} users`}
+                      </Text>
+                    </View>
+                    <View style={styles.limitChip}>
+                      <Text style={styles.limitChipText}>
+                        {plan.reportExportsPerMonth == null
+                          ? "Unlimited report exports"
+                          : `${plan.reportExportsPerMonth} report exports / month`}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {plan.includedFeatures && plan.includedFeatures.length > 0 ? (
+                    <View style={styles.featuresList}>
+                      {plan.includedFeatures.map((feature) => (
+                        <Text key={feature} style={styles.featureBullet}>• {formatFeatureLabel(feature)}</Text>
+                      ))}
+                    </View>
+                  ) : null}
                 </View>
               ) : null}
             </Pressable>
@@ -181,6 +196,15 @@ const styles = StyleSheet.create({
   priceLine: {
     ...appTheme.typography.bodyEmphasis,
     color: appTheme.colors.text,
+  },
+  detailsToggle: {
+    marginTop: 6,
+    alignSelf: "flex-start",
+  },
+  detailsToggleText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
   },
   limitsRow: {
     flexDirection: "row",
