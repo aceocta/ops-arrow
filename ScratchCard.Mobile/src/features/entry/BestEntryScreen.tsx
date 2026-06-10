@@ -235,6 +235,7 @@ export function BestEntryScreen() {
         visible={assistantOpen}
         onClose={() => setAssistantOpen(false)}
         features={features}
+        isManager={canManageRota}
         onGo={(route) => navigation.navigate(route as never)}
       />
     </ScreenContainer>
