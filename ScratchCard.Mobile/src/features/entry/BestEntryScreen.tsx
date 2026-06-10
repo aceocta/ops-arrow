@@ -6,6 +6,10 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getPendingApprovals } from "../../api/rotaApi";
 import { listShiftSwaps } from "../../api/shiftSwapsApi";
+import { getTemperatureScheduleGrid } from "../../api/temperatureLogsApi";
+import { listShiftCloseCandidates } from "../../api/shiftsApi";
+import { listBusinessDays } from "../../api/businessDaysApi";
+import { formatDateValue } from "../../components/DateTimeField";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { GetStartedCard } from "../../components/GetStartedCard";
 import { EmptyState } from "../../components/EmptyState";
@@ -150,19 +154,55 @@ export function BestEntryScreen() {
     queryFn: () => listShiftSwaps(activeShopId as string),
     enabled: !!activeShopId && features.includes("staff_rota.shift_swap"),
   });
+  const today = formatDateValue(new Date());
+  const tempGridQ = useQuery({
+    queryKey: ["home-temp", activeShopId, today],
+    queryFn: () => getTemperatureScheduleGrid({ shopId: activeShopId as string, from: today, to: today }),
+    enabled: !!activeShopId && features.includes("TemperatureLog"),
+  });
+  const closeQ = useQuery({
+    queryKey: ["home-close", activeShopId],
+    queryFn: () => listShiftCloseCandidates(activeShopId as string),
+    enabled: !!activeShopId && features.includes("ScratchCardManagement"),
+  });
+  const bizDayQ = useQuery({
+    queryKey: ["home-bizday", activeShopId, today],
+    queryFn: () => listBusinessDays(activeShopId as string, { from: today, to: today }),
+    enabled: !!activeShopId && features.includes("ScratchCardManagement"),
+  });
+
   const approvalsCount = approvalsQ.data?.length ?? 0;
   const swapsCount = (swapsQ.data ?? []).filter((s) => s.status === "Pending" && s.canRespond).length;
-  const shiftsBadge = approvalsCount + swapsCount;
+  const tempMissed = (tempGridQ.data?.cells ?? []).filter((c) => c.state === "Missed").length;
+  const dayNotStarted = bizDayQ.isSuccess && (bizDayQ.data?.length ?? 0) === 0;
+
+  // Only prompt to close a shift near its end: within 10 min before, and "overdue" >5 min after.
+  // Shifts without a scheduled end aren't nagged (minsTo → Infinity).
+  const nowMs = Date.now();
+  const minsTo = (iso?: string) => (iso ? (new Date(iso).getTime() - nowMs) / 60000 : Infinity);
+  const dueClose = (closeQ.data ?? []).filter((c) => minsTo(c.endTime) <= 10);
+  const dueCloseCount = dueClose.length;
+  const closeSevere = dueClose.some((c) => minsTo(c.endTime) < -5);
+
+  const badgeByKey: Record<string, number> = {
+    shifts: approvalsCount + swapsCount,
+    temperature: tempMissed,
+    scratchCard: dueCloseCount,
+  };
 
   useFocusEffect(
     useCallback(() => {
       if (!activeShopId) return;
-      qc.invalidateQueries({ queryKey: ["home-approvals", activeShopId] });
-      qc.invalidateQueries({ queryKey: ["home-swaps", activeShopId] });
+      ["home-approvals", "home-swaps", "home-temp", "home-close", "home-bizday"].forEach((k) =>
+        qc.invalidateQueries({ queryKey: [k, activeShopId] }),
+      );
     }, [qc, activeShopId]),
   );
 
-  const attention: { key: string; label: string; route: keyof MainStackParamList; icon: keyof typeof Ionicons.glyphMap; count: number }[] = [
+  const attention: { key: string; label: string; route: keyof MainStackParamList; icon: keyof typeof Ionicons.glyphMap; count?: number; severe?: boolean }[] = [
+    dayNotStarted ? { key: "bizday", label: "Start today's business day", route: "BusinessDay", icon: "sunny-outline" } : null,
+    dueCloseCount > 0 ? { key: "close", label: `${dueCloseCount} ${dueCloseCount === 1 ? "shift" : "shifts"} ${closeSevere ? "overdue to close" : "ready to close"}`, route: "CloseShift", icon: "stop-outline", count: dueCloseCount, severe: closeSevere } : null,
+    tempMissed > 0 ? { key: "temp", label: `${tempMissed} temperature ${tempMissed === 1 ? "check" : "checks"} overdue`, route: "TemperatureLogs", icon: "thermometer-outline", count: tempMissed, severe: true } : null,
     approvalsCount > 0 ? { key: "approvals", label: `${approvalsCount} time ${approvalsCount === 1 ? "entry" : "entries"} to approve`, route: "RotaApprovals", icon: "checkmark-done-outline", count: approvalsCount } : null,
     swapsCount > 0 ? { key: "swaps", label: `${swapsCount} shift ${swapsCount === 1 ? "swap" : "swaps"} to respond`, route: "ShiftSwaps", icon: "swap-horizontal-outline", count: swapsCount } : null,
   ].filter(Boolean) as any;
@@ -219,9 +259,13 @@ export function BestEntryScreen() {
           </View>
           {attention.map((a) => (
             <Pressable key={a.key} style={styles.attentionRow} onPress={() => navigation.navigate(a.route as never)}>
-              <View style={styles.attentionBadge}><Text style={styles.attentionBadgeText}>{a.count}</Text></View>
-              <Ionicons name={a.icon} size={18} color={appTheme.colors.text} />
-              <Text style={styles.attentionLabel}>{a.label}</Text>
+              {a.count ? (
+                <View style={[styles.attentionBadge, a.severe ? styles.attentionBadgeSevere : null]}><Text style={styles.attentionBadgeText}>{a.count}</Text></View>
+              ) : (
+                <View style={[styles.attentionDot, a.severe ? styles.attentionDotSevere : null]} />
+              )}
+              <Ionicons name={a.icon} size={18} color={a.severe ? appTheme.colors.danger : appTheme.colors.text} />
+              <Text style={[styles.attentionLabel, a.severe ? styles.attentionLabelSevere : null]}>{a.label}</Text>
               <Ionicons name="chevron-forward" size={16} color={appTheme.colors.textSubtle} />
             </Pressable>
           ))}
@@ -265,8 +309,8 @@ export function BestEntryScreen() {
                   <View style={[styles.featureIcon, { backgroundColor: option.iconBg }]}>
                     <Ionicons name={option.icon} size={24} color={option.iconColor} />
                   </View>
-                  {option.key === "shifts" && shiftsBadge > 0 ? (
-                    <View style={styles.tileBadge}><Text style={styles.tileBadgeText}>{shiftsBadge}</Text></View>
+                  {(badgeByKey[option.key] ?? 0) > 0 ? (
+                    <View style={styles.tileBadge}><Text style={styles.tileBadgeText}>{badgeByKey[option.key]}</Text></View>
                   ) : null}
                   <Text style={styles.featureTitle}>{option.title}</Text>
                 </Pressable>
@@ -317,6 +361,10 @@ const styles = StyleSheet.create({
   attentionTitle: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
   attentionRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderWarningSoft },
   attentionBadge: { minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 6, alignItems: "center", justifyContent: "center", backgroundColor: appTheme.colors.warning },
+  attentionBadgeSevere: { backgroundColor: appTheme.colors.danger },
+  attentionDot: { width: 8, height: 8, borderRadius: 4, marginHorizontal: 7, backgroundColor: appTheme.colors.warning },
+  attentionDotSevere: { backgroundColor: appTheme.colors.danger },
+  attentionLabelSevere: { color: appTheme.colors.danger, fontFamily: appTheme.fonts.bodyMedium },
   attentionBadgeText: { color: "#FFFFFF", fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
   attentionLabel: { flex: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 14 },
   tileBadge: {
