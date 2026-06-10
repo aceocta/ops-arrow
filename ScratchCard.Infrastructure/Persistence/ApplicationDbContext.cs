@@ -96,6 +96,9 @@ public class ApplicationDbContext : DbContext
     public DbSet<TillReportAttachment> TillReportAttachments => Set<TillReportAttachment>();
     public DbSet<TillReportPayment> TillReportPayments => Set<TillReportPayment>();
     public DbSet<TillCategoryRule> TillCategoryRules => Set<TillCategoryRule>();
+    public DbSet<TillFieldOverride> TillFieldOverrides => Set<TillFieldOverride>();
+    public DbSet<TillFieldDefinition> TillFieldDefinitions => Set<TillFieldDefinition>();
+    public DbSet<TillFieldAlias> TillFieldAliases => Set<TillFieldAlias>();
     public DbSet<TillLabelMapping> TillLabelMappings => Set<TillLabelMapping>();
     public DbSet<ShopServiceCounterConfig> ShopServiceCounterConfigs => Set<ShopServiceCounterConfig>();
     public DbSet<TillReconciliation> TillReconciliations => Set<TillReconciliation>();
@@ -399,6 +402,28 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.IsActive).HasDefaultValue(true);
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
             entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId);
+        });
+
+        modelBuilder.Entity<TillFieldAlias>(entity =>
+        {
+            entity.HasIndex(x => x.NormalizedAlias).IsUnique();
+            entity.Property(x => x.NormalizedAlias).HasMaxLength(160).IsRequired();
+            entity.Property(x => x.Code).HasMaxLength(60).IsRequired();
+        });
+
+        modelBuilder.Entity<TillFieldDefinition>(entity =>
+        {
+            entity.HasIndex(x => x.Code).IsUnique();
+            entity.Property(x => x.Code).HasMaxLength(60).IsRequired();
+            entity.Property(x => x.DisplayName).HasMaxLength(120).IsRequired();
+            entity.Property(x => x.IsActive).HasDefaultValue(true);
+        });
+
+        modelBuilder.Entity<TillFieldOverride>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.CanonicalField, x.IsDeleted }).IsUnique();
+            entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<TillLabelMapping>(entity =>

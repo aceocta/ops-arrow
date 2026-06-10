@@ -12,6 +12,18 @@ public static class TillAliasDictionary
 {
     public static readonly IReadOnlyDictionary<string, TillCanonicalField> Seed = Build();
 
+    // Built-in alias → code map (code == enum name), used to seed the table + as a fallback.
+    private static readonly IReadOnlyDictionary<string, string> SeedCodes =
+        Seed.ToDictionary(kv => kv.Key, kv => kv.Value.ToString(), StringComparer.Ordinal);
+
+    // Runtime alias → code map loaded from the TillFieldAlias table (supports custom field codes).
+    private static volatile IReadOnlyDictionary<string, string>? _runtime;
+
+    /// <summary>The active alias → code map (DB-loaded if available, else the built-in seed).</summary>
+    public static IReadOnlyDictionary<string, string> Active => _runtime ?? SeedCodes;
+
+    public static void LoadRuntime(IReadOnlyDictionary<string, string> map) => _runtime = map;
+
     private static Dictionary<string, TillCanonicalField> Build()
     {
         var map = new Dictionary<string, TillCanonicalField>(StringComparer.Ordinal);

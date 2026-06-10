@@ -20,6 +20,7 @@ const SettingsPage = lazy(() => import("./features/settings/SettingsPage"));
 const ShopsPage = lazy(() => import("./features/shops/ShopsPage"));
 const TillReconciliationPage = lazy(() => import("./features/till/TillReconciliationPage"));
 const TillsPage = lazy(() => import("./features/till/TillsPage"));
+const TillCataloguePage = lazy(() => import("./features/till/TillCataloguePage"));
 
 function Protected({ children }: { children: React.ReactNode }) {
   const { ready, profile } = useAuth();
@@ -55,6 +56,7 @@ export default function App() {
         <Route path="/shops" element={<Suspense fallback={<Fallback />}><ShopsPage /></Suspense>} />
         <Route path="/till" element={<Suspense fallback={<Fallback />}><TillReconciliationPage /></Suspense>} />
         <Route path="/till/tills" element={<Suspense fallback={<Fallback />}><TillsPage /></Suspense>} />
+        <Route path="/till/catalogue" element={<Suspense fallback={<Fallback />}><TillCataloguePage /></Suspense>} />
         <Route path="/settings" element={<Suspense fallback={<Fallback />}><SettingsPage /></Suspense>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

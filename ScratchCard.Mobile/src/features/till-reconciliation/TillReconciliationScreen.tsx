@@ -25,9 +25,11 @@ import { appTheme } from "../../ui/theme";
 import { ui } from "../../ui/primitives";
 import {
   FIELD_OPTIONS,
+  FieldOptionGroup,
+  FieldCode,
   Reconciliation,
   ReconciliationLine,
-  TillCanonicalField,
+  getFieldOptions,
   getOrCreateReconciliation,
   saveReconciliationLine,
   deleteReconciliationLine,
@@ -142,9 +144,14 @@ export function TillReconciliationScreen() {
     onError: (e: any) => toastError(e?.response?.data?.message ?? "Couldn't update."),
   });
 
+  // Field picker options come from the data-driven catalogue (built-in + custom), falling back to
+  // the bundled defaults until the list loads.
+  const fieldOptionsQ = useQuery({ queryKey: ["till-fields"], queryFn: getFieldOptions, staleTime: 5 * 60 * 1000 });
+  const fieldOptions = fieldOptionsQ.data ?? FIELD_OPTIONS;
+
   // Bulk actions on the checkbox-selected lines: remove them, or reassign them to another field.
   const bulkMutation = useMutation({
-    mutationFn: async (action: { type: "delete" } | { type: "move"; field: TillCanonicalField }) => {
+    mutationFn: async (action: { type: "delete" } | { type: "move"; field: FieldCode }) => {
       let result: Reconciliation | null = null;
       for (const id of selected) {
         if (action.type === "delete") {
@@ -471,6 +478,7 @@ export function TillReconciliationScreen() {
         <LineEditor
           reconciliationId={data!.id}
           line={editingLine === "new" ? null : editingLine}
+          fieldOptions={fieldOptions}
           onClose={() => setEditingLine(null)}
           onSaved={(r) => { setData(r); setEditingLine(null); }}
         />
@@ -484,6 +492,7 @@ export function TillReconciliationScreen() {
         <MoveLinesModal
           count={selected.size}
           busy={bulkMutation.isPending}
+          fieldOptions={fieldOptions}
           onPick={(field) => bulkMutation.mutate({ type: "move", field })}
           onClose={() => setMoveOpen(false)}
         />
@@ -510,8 +519,8 @@ function VarianceReasonInput({ initial, busy, onSave }: { initial: string; busy:
   );
 }
 
-function MoveLinesModal({ count, busy, onPick, onClose }: {
-  count: number; busy: boolean; onPick: (field: TillCanonicalField) => void; onClose: () => void;
+function MoveLinesModal({ count, busy, fieldOptions, onPick, onClose }: {
+  count: number; busy: boolean; fieldOptions: FieldOptionGroup[]; onPick: (field: FieldCode) => void; onClose: () => void;
 }) {
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
@@ -522,7 +531,7 @@ function MoveLinesModal({ count, busy, onPick, onClose }: {
             <Pressable onPress={onClose} hitSlop={8}><Ionicons name="close" size={22} color={appTheme.colors.text} /></Pressable>
           </View>
           <ScrollView style={{ maxHeight: 380 }}>
-            {FIELD_OPTIONS.map((g) => (
+            {fieldOptions.map((g) => (
               <View key={g.group} style={{ marginBottom: 8 }}>
                 <Text style={styles.muted}>{g.group}</Text>
                 <View style={styles.chipWrap}>
@@ -760,10 +769,10 @@ function StatusPill({ status }: { status: Reconciliation["status"] }) {
   return <View style={[styles.pill, { borderColor: tone }]}><Text style={[styles.pillText, { color: tone }]}>{status}</Text></View>;
 }
 
-function LineEditor({ reconciliationId, line, onClose, onSaved }: {
-  reconciliationId: string; line: ReconciliationLine | null; onClose: () => void; onSaved: (r: Reconciliation) => void;
+function LineEditor({ reconciliationId, line, fieldOptions, onClose, onSaved }: {
+  reconciliationId: string; line: ReconciliationLine | null; fieldOptions: FieldOptionGroup[]; onClose: () => void; onSaved: (r: Reconciliation) => void;
 }) {
-  const [field, setField] = useState<TillCanonicalField | null>(line?.canonicalField ?? null);
+  const [field, setField] = useState<FieldCode | null>(line?.canonicalField ?? null);
   const [amount, setAmount] = useState(line ? String(line.verifiedAmount) : "");
   const [quantity, setQuantity] = useState(line?.quantity != null ? String(line.quantity) : "");
   const isCount = field === "NoSale";
@@ -802,7 +811,7 @@ function LineEditor({ reconciliationId, line, onClose, onSaved }: {
             <Pressable onPress={onClose} hitSlop={8}><Ionicons name="close" size={22} color={appTheme.colors.text} /></Pressable>
           </View>
           <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: appTheme.spacing.sm }}>
-            {FIELD_OPTIONS.map((g) => (
+            {fieldOptions.map((g) => (
               <View key={g.group} style={{ marginBottom: 8 }}>
                 <Text style={styles.muted}>{g.group}</Text>
                 <View style={styles.chipWrap}>

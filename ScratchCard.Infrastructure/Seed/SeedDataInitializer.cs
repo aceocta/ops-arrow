@@ -34,6 +34,76 @@ public static class SeedDataInitializer
         await SeedSubscriptionDiscountRulesAsync(dbContext, cancellationToken);
         await SeedDefaultConfigurationsAsync(dbContext, cancellationToken);
         await SeedDemoGamesAsync(dbContext, cancellationToken);
+        await SeedTillFieldDefinitionsAsync(dbContext, cancellationToken);
+    }
+
+    /// <summary>
+    /// Seeds the canonical till-field catalogue into the database (from the built-in defaults) on
+    /// first run, then loads every definition into the in-memory runtime cache the resolver and
+    /// accounting read from. After this, the taxonomy is data-driven — editable without a deploy.
+    /// </summary>
+    private static async Task SeedTillFieldDefinitionsAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var anyRows = await dbContext.TillFieldDefinitions.AnyAsync(cancellationToken);
+        if (!anyRows)
+        {
+            var now = DateTimeOffset.UtcNow;
+            var rows = TillCanonicalCatalogue.Defaults.Select((m, i) => new TillFieldDefinition
+            {
+                Code = m.Field.ToString(),
+                DisplayName = m.DisplayName,
+                Group = m.Group,
+                CashDirection = m.CashDirection,
+                AffectsDrawer = m.AffectsDrawer,
+                Vat = m.Vat,
+                IsCommissionIncome = m.IsCommissionIncome,
+                DefaultLedger = TillAccountingCatalogue.LedgerFor(m.Field),
+                SortOrder = i,
+                IsBuiltIn = true,
+                IsActive = true,
+                CreatedOn = now,
+            }).ToList();
+            await dbContext.TillFieldDefinitions.AddRangeAsync(rows, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        if (!await dbContext.TillFieldAliases.AnyAsync(cancellationToken))
+        {
+            var now = DateTimeOffset.UtcNow;
+            var aliasRows = TillAliasDictionary.Seed.Select(kv => new TillFieldAlias
+            {
+                NormalizedAlias = kv.Key,
+                Code = kv.Value.ToString(),
+                CreatedOn = now,
+            }).ToList();
+            await dbContext.TillFieldAliases.AddRangeAsync(aliasRows, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        await LoadTillFieldRuntimeAsync(dbContext, cancellationToken);
+    }
+
+    /// <summary>(Re)load the runtime caches from the TillFieldDefinition table. Call after edits.</summary>
+    public static async Task LoadTillFieldRuntimeAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken = default)
+    {
+        var rows = await dbContext.TillFieldDefinitions.AsNoTracking().Where(x => x.IsActive).ToListAsync(cancellationToken);
+        var metas = new Dictionary<string, TillFieldMeta>(StringComparer.OrdinalIgnoreCase);
+        var ledgers = new Dictionary<string, LedgerCategory>(StringComparer.OrdinalIgnoreCase);
+        foreach (var r in rows)
+        {
+            // Built-in codes map back onto the enum; custom codes use the Unmapped sentinel for the
+            // engine's enum-based special cases but carry their own meta by code.
+            var field = Enum.TryParse<TillCanonicalField>(r.Code, out var f) ? f : TillCanonicalField.Unmapped;
+            metas[r.Code] = new TillFieldMeta(r.Code, field, r.Group, r.CashDirection, r.AffectsDrawer, r.Vat, r.IsCommissionIncome, r.DisplayName);
+            ledgers[r.Code] = r.DefaultLedger;
+        }
+        TillCanonicalCatalogue.LoadRuntime(metas);
+        TillAccountingCatalogue.LoadRuntimeLedger(ledgers);
+
+        var aliasRows = await dbContext.TillFieldAliases.AsNoTracking().ToListAsync(cancellationToken);
+        var aliasMap = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var a in aliasRows) aliasMap[a.NormalizedAlias] = a.Code;
+        TillAliasDictionary.LoadRuntime(aliasMap);
     }
 
     private static async Task SeedDemoCompanyAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)

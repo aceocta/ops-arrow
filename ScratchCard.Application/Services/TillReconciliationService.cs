@@ -31,6 +31,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
     private readonly IShopMembershipService _shopMembership;
     private readonly IFeatureGateService _featureGate;
     private readonly IRepository<ShopServiceCounterConfig> _counterConfigs;
+    private readonly IRepository<TillFieldOverride> _fieldOverrides;
     private readonly IRepository<CanisterDrop> _canisterDrops;
     private readonly IRepository<Till> _tills;
     private readonly IRepository<BusinessDay> _businessDays;
@@ -53,6 +54,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         IShopMembershipService shopMembership,
         IFeatureGateService featureGate,
         IRepository<ShopServiceCounterConfig> counterConfigs,
+        IRepository<TillFieldOverride> fieldOverrides,
         IRepository<CanisterDrop> canisterDrops,
         IRepository<Till> tills,
         IRepository<BusinessDay> businessDays,
@@ -74,6 +76,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         _shopMembership = shopMembership;
         _featureGate = featureGate;
         _counterConfigs = counterConfigs;
+        _fieldOverrides = fieldOverrides;
         _canisterDrops = canisterDrops;
         _tills = tills;
         _businessDays = businessDays;
@@ -165,7 +168,8 @@ public sealed class TillReconciliationService : ITillReconciliationService
             .Where(r => r.ShopId == shopId && r.BusinessDate >= from && r.BusinessDate <= to)
             .OrderByDescending(r => r.BusinessDate)
             .ToListAsync(cancellationToken);
-        return rows.Select(Map).ToList();
+        var fieldOverrides = await LoadFieldOverridesAsync(shopId, cancellationToken);
+        return rows.Select(r => Map(r, fieldOverrides)).ToList();
     }
 
     public async Task<TillReconciliationDto> SaveLineAsync(SaveReconciliationLineRequest request, CancellationToken cancellationToken = default)
@@ -181,7 +185,8 @@ public sealed class TillReconciliationService : ITillReconciliationService
             await _lines.AddAsync(line, cancellationToken);
         }
 
-        line.CanonicalField = request.CanonicalField;
+        line.FieldCode = string.IsNullOrWhiteSpace(request.CanonicalField) ? nameof(TillCanonicalField.Unmapped) : request.CanonicalField;
+        line.CanonicalField = Enum.TryParse<TillCanonicalField>(line.FieldCode, out var sf) ? sf : TillCanonicalField.Unmapped;
         line.Section = request.Section;
         line.RawLabel = request.RawLabel;
         line.ExtractedAmount = request.ExtractedAmount;
@@ -194,10 +199,10 @@ public sealed class TillReconciliationService : ITillReconciliationService
         // Teach the shop this wording when the user confirms/moves a label to a field — so next
         // import auto-maps it. Shop scope so every till at the shop benefits.
         if (request.LearnMapping && !string.IsNullOrWhiteSpace(request.RawLabel) &&
-            request.CanonicalField != TillCanonicalField.Unmapped)
+            line.FieldCode != nameof(TillCanonicalField.Unmapped))
         {
             await _resolver.LearnAsync(
-                request.RawLabel!, request.CanonicalField,
+                request.RawLabel!, line.FieldCode,
                 TillMappingScope.Shop, rec.ShopId, request.Section, cancellationToken);
         }
 
@@ -219,7 +224,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         // becomes a shop-level "ignore" so the same junk label is auto-dropped next import.
         if (!string.IsNullOrWhiteSpace(toRemove.RawLabel) && toRemove.Status != TillLineStatus.Verified)
         {
-            await _resolver.LearnAsync(toRemove.RawLabel!, TillCanonicalField.SubtotalIgnore,
+            await _resolver.LearnAsync(toRemove.RawLabel!, nameof(TillCanonicalField.SubtotalIgnore),
                 TillMappingScope.Shop, rec.ShopId, toRemove.Section, cancellationToken);
         }
 
@@ -246,6 +251,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
             await _resolver.ForgetAsync(target.RawLabel!, TillMappingScope.Shop, rec.ShopId, cancellationToken);
         }
         target.CanonicalField = TillCanonicalField.Unmapped;
+        target.FieldCode = nameof(TillCanonicalField.Unmapped);
         target.Status = TillLineStatus.Captured;
         target.Notes = null;
 
@@ -391,10 +397,10 @@ public sealed class TillReconciliationService : ITillReconciliationService
             // A structural total/subtotal from the dictionary is dropped silently. A label the user
             // previously REMOVED (learned → SubtotalIgnore) is kept as a visible "auto-ignored" line
             // so they can see/restore it.
-            if (resolution.Field == TillCanonicalField.SubtotalIgnore && !learned) continue;
+            if (resolution.Code == nameof(TillCanonicalField.SubtotalIgnore) && !learned) continue;
 
             // Origin tag (drives the UI badge). History is trusted (Verified); everything else needs review.
-            var origin = resolution.Field == TillCanonicalField.Unmapped ? null
+            var origin = resolution.Code == nameof(TillCanonicalField.Unmapped) ? null
                 : learned ? "history"
                 : resolution.Source == TillMappingSource.Fuzzy ? "fuzzy"
                 : null;
@@ -402,7 +408,8 @@ public sealed class TillReconciliationService : ITillReconciliationService
             var line = new TillReconciliationLine
             {
                 TillReconciliationId = rec.Id,
-                CanonicalField = resolution.Field,
+                FieldCode = resolution.Code,
+                CanonicalField = Enum.TryParse<TillCanonicalField>(resolution.Code, out var pf) ? pf : TillCanonicalField.Unmapped,
                 RawLabel = ocrLine.Description.Trim(),
                 ExtractedAmount = ocrLine.Amount,
                 VerifiedAmount = ocrLine.Amount,
@@ -416,7 +423,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         }
 
         // 2) AI fallback (batch) for anything still Unmapped. Graceful: empty map on any AI failure.
-        var unmapped = created.Where(l => l.CanonicalField == TillCanonicalField.Unmapped && !string.IsNullOrWhiteSpace(l.RawLabel)).ToList();
+        var unmapped = created.Where(l => l.FieldCode == nameof(TillCanonicalField.Unmapped) && !string.IsNullOrWhiteSpace(l.RawLabel)).ToList();
         if (unmapped.Count > 0)
         {
             var descriptors = unmapped.Select((l, i) => new TillLineDescriptor(i, l.RawLabel!)).ToList();
@@ -426,6 +433,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
                 if (ai.TryGetValue(i, out var field) && field is not (TillCanonicalField.Unmapped or TillCanonicalField.SubtotalIgnore))
                 {
                     unmapped[i].CanonicalField = field;
+                    unmapped[i].FieldCode = field.ToString();
                     unmapped[i].Notes = unmapped[i].Notes is null ? "ai" : $"{unmapped[i].Notes} · ai";
                 }
             }
@@ -570,7 +578,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         decimal drawer = 0;
         foreach (var line in rec.Lines)
         {
-            var meta = TillCanonicalCatalogue.Meta(line.CanonicalField);
+            var meta = TillCanonicalCatalogue.MetaByCode(line.FieldCode);
             var affects = meta.AffectsDrawer;
             var direction = meta.CashDirection;
 
@@ -599,9 +607,15 @@ public sealed class TillReconciliationService : ITillReconciliationService
 
     /// <summary>Maps to DTO and enriches with the safe-drop cross-check (needs a DB lookup against
     /// the Safe Drop module), so a fabricated drop can't quietly absorb a shortfall.</summary>
+    private async Task<IReadOnlyDictionary<TillCanonicalField, TillFieldOverride>> LoadFieldOverridesAsync(Guid shopId, CancellationToken cancellationToken)
+        => await _fieldOverrides.Query().AsNoTracking()
+            .Where(o => o.ShopId == shopId && !o.IsDeleted)
+            .ToDictionaryAsync(o => o.CanonicalField, cancellationToken);
+
     private async Task<TillReconciliationDto> MapAsync(TillReconciliation rec, CancellationToken cancellationToken)
     {
-        var dto = Map(rec);
+        var fieldOverrides = await LoadFieldOverridesAsync(rec.ShopId, cancellationToken);
+        var dto = Map(rec, fieldOverrides);
         var declared = dto.Summary.ProofOfCash.SafeDrop;
 
         var start = new DateTimeOffset(rec.BusinessDate.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
@@ -624,7 +638,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         return dto;
     }
 
-    private static TillReconciliationDto Map(TillReconciliation r)
+    private static TillReconciliationDto Map(TillReconciliation r, IReadOnlyDictionary<TillCanonicalField, TillFieldOverride> fo)
     {
         var varianceStatus = VarianceStatusOf(r.CashVariance);
         return new TillReconciliationDto
@@ -647,8 +661,8 @@ public sealed class TillReconciliationService : ITillReconciliationService
             VarianceNotes = r.VarianceNotes,
             ConfirmedOn = r.ConfirmedOn,
             Lines = r.Lines
-                .OrderBy(l => (int)TillCanonicalCatalogue.Meta(l.CanonicalField).Group)
-                .Select(MapLine).ToList(),
+                .OrderBy(l => (int)TillCanonicalCatalogue.MetaByCode(l.FieldCode, fo).Group)
+                .Select(l => MapLine(l, fo)).ToList(),
             Attachments = r.Attachments
                 .Select(a => new TillReconciliationAttachmentDto
                 {
@@ -667,13 +681,13 @@ public sealed class TillReconciliationService : ITillReconciliationService
         return idx > 0 && idx < name.Length - 1 ? name[(idx + 1)..] : name;
     }
 
-    private static TillReconciliationLineDto MapLine(TillReconciliationLine l)
+    private static TillReconciliationLineDto MapLine(TillReconciliationLine l, IReadOnlyDictionary<TillCanonicalField, TillFieldOverride> fo)
     {
-        var meta = TillCanonicalCatalogue.Meta(l.CanonicalField);
+        var meta = TillCanonicalCatalogue.MetaByCode(l.FieldCode, fo);
         return new TillReconciliationLineDto
         {
             Id = l.Id,
-            CanonicalField = l.CanonicalField,
+            CanonicalField = l.FieldCode,
             FieldName = meta.DisplayName,
             Group = meta.Group,
             Section = l.Section,
@@ -732,7 +746,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
             ProofOfCash = proof,
             CashTender = Sum(TillCanonicalField.Cash),
             CardTender = Sum(TillCanonicalField.Card, TillCanonicalField.CardDebit, TillCanonicalField.CardCredit, TillCanonicalField.CardContactless),
-            CommissionIncome = r.Lines.Where(l => TillCanonicalCatalogue.Meta(l.CanonicalField).IsCommissionIncome).Sum(l => l.VerifiedAmount),
+            CommissionIncome = r.Lines.Where(l => TillCanonicalCatalogue.MetaByCode(l.FieldCode).IsCommissionIncome).Sum(l => l.VerifiedAmount),
             OwedToProviders = owed,
             NoSaleCount = r.Lines.Where(l => l.CanonicalField == TillCanonicalField.NoSale).Sum(l => l.Quantity ?? 0),
             Voids = Sum(TillCanonicalField.Void),

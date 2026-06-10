@@ -22,6 +22,9 @@ public class TillLabelMapping : AuditableEntity
     public string? Section { get; set; }
 
     public TillCanonicalField CanonicalField { get; set; } = TillCanonicalField.Unmapped;
+    /// <summary>Canonical field code (built-in name or custom). Authoritative; the enum above is the
+    /// built-in equivalent (Unmapped for custom codes).</summary>
+    public string FieldCode { get; set; } = nameof(TillCanonicalField.Unmapped);
     public TillMappingSource Source { get; set; } = TillMappingSource.Learned;
     public double Confidence { get; set; } = 1.0;
 }

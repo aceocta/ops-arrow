@@ -18,12 +18,16 @@ public sealed class TillAccountingService : ITillAccountingService
     private readonly IShopMembershipService _shopMembership;
     private readonly IFeatureGateService _featureGate;
 
+    private readonly IRepository<TillFieldOverride> _fieldOverrides;
+
     public TillAccountingService(
         IRepository<TillReconciliation> reconciliations,
+        IRepository<TillFieldOverride> fieldOverrides,
         IShopMembershipService shopMembership,
         IFeatureGateService featureGate)
     {
         _reconciliations = reconciliations;
+        _fieldOverrides = fieldOverrides;
         _shopMembership = shopMembership;
         _featureGate = featureGate;
     }
@@ -37,25 +41,29 @@ public sealed class TillAccountingService : ITillAccountingService
             .Where(r => r.ShopId == shopId && r.BusinessDate >= from && r.BusinessDate <= to)
             .ToListAsync(cancellationToken);
 
+        var fieldOverrides = await _fieldOverrides.Query().AsNoTracking()
+            .Where(o => o.ShopId == shopId && !o.IsDeleted)
+            .ToDictionaryAsync(o => o.CanonicalField, cancellationToken);
+
         var summary = new AccountingSummaryDto { ShopId = shopId, From = from, To = to };
 
         // Aggregate verified line amounts per canonical field.
         var byField = recs.SelectMany(r => r.Lines)
-            .GroupBy(l => l.CanonicalField)
+            .GroupBy(l => l.FieldCode)
             .ToDictionary(g => g.Key, g => g.Sum(l => l.VerifiedAmount));
 
         // VAT buckets accumulate from Sales-ledger lines.
         var vatBuckets = new Dictionary<string, VatRateRowDto>();
 
-        foreach (var (field, amount) in byField)
+        foreach (var (code, amount) in byField)
         {
-            var meta = TillCanonicalCatalogue.Meta(field);
-            var ledger = TillAccountingCatalogue.LedgerFor(field);
+            var meta = TillCanonicalCatalogue.MetaByCode(code, fieldOverrides);
+            var ledger = TillAccountingCatalogue.LedgerForCode(code, fieldOverrides);
             if (ledger == LedgerCategory.Ignore) continue;
 
             summary.Lines.Add(new AccountingLineDto
             {
-                Field = field,
+                Field = code,
                 FieldName = meta.DisplayName,
                 Ledger = ledger,
                 VatBucket = TillAccountingCatalogue.VatBucket(meta.Vat),
@@ -78,9 +86,9 @@ public sealed class TillAccountingService : ITillAccountingService
                     break;
                 case LedgerCategory.Sales:
                     // Refunds are stored positive but reduce sales.
-                    var signed = field == TillCanonicalField.Refund ? -amount : amount;
+                    var signed = code == nameof(TillCanonicalField.Refund) ? -amount : amount;
                     summary.TurnoverExAgency += signed;
-                    if (field == TillCanonicalField.DeptOther) summary.OtherTurnover += signed;
+                    if (code == nameof(TillCanonicalField.DeptOther)) summary.OtherTurnover += signed;
                     AccrueVat(vatBuckets, meta.Vat, signed);
                     break;
             }

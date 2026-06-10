@@ -29,9 +29,10 @@ public sealed class TillLabelResolver : ITillLabelResolver
         string rawLabel, Guid? shopId, Guid? tillId, string? section = null, CancellationToken cancellationToken = default)
     {
         var normalized = TillLabelNormalizer.Normalize(rawLabel);
+        var unmapped = nameof(TillCanonicalField.Unmapped);
         if (string.IsNullOrEmpty(normalized))
         {
-            return new TillLabelResolution(TillCanonicalField.Unmapped, 0, TillMappingSource.Manual, normalized);
+            return new TillLabelResolution(unmapped, 0, TillMappingSource.Manual, normalized);
         }
 
         // Load candidate learned mappings (this normalized label across the relevant scopes).
@@ -49,30 +50,32 @@ public sealed class TillLabelResolver : ITillLabelResolver
             var inScope = learned.Where(m => m.Scope == scope).ToList();
             if (inScope.Count == 0) continue;
             var hit = inScope.FirstOrDefault(m => SectionMatches(m.Section, section)) ?? inScope[0];
-            return new TillLabelResolution(hit.CanonicalField, 1.0, hit.Source, normalized);
+            var code = string.IsNullOrWhiteSpace(hit.FieldCode) ? hit.CanonicalField.ToString() : hit.FieldCode;
+            return new TillLabelResolution(code, 1.0, hit.Source, normalized);
         }
 
-        // 3b: Global seed dictionary.
-        if (TillAliasDictionary.Seed.TryGetValue(normalized, out var seeded))
+        // 3b: Global seed/alias dictionary (alias → code).
+        if (TillAliasDictionary.Active.TryGetValue(normalized, out var seededCode))
         {
-            return new TillLabelResolution(seeded, 1.0, TillMappingSource.Seeded, normalized);
+            return new TillLabelResolution(seededCode, 1.0, TillMappingSource.Seeded, normalized);
         }
 
-        // 4: Fuzzy match against the seed dictionary (handles OCR typos).
+        // 4: Fuzzy match against the alias dictionary (handles OCR typos).
         var best = BestFuzzy(normalized);
         if (best is { } b && b.Score >= FuzzyThreshold)
         {
-            return new TillLabelResolution(b.Field, b.Score, TillMappingSource.Fuzzy, normalized);
+            return new TillLabelResolution(b.Code, b.Score, TillMappingSource.Fuzzy, normalized);
         }
 
         // 5: AI fallback — later phase.
-        return new TillLabelResolution(TillCanonicalField.Unmapped, 0, TillMappingSource.Manual, normalized);
+        return new TillLabelResolution(unmapped, 0, TillMappingSource.Manual, normalized);
     }
 
     public async Task LearnAsync(
-        string rawLabel, TillCanonicalField field, TillMappingScope scope, Guid? scopeId,
+        string rawLabel, string code, TillMappingScope scope, Guid? scopeId,
         string? section = null, CancellationToken cancellationToken = default)
     {
+        var field = Enum.TryParse<TillCanonicalField>(code, out var f) ? f : TillCanonicalField.Unmapped;
         var normalized = TillLabelNormalizer.Normalize(rawLabel);
         if (string.IsNullOrEmpty(normalized)) return;
 
@@ -91,6 +94,7 @@ public sealed class TillLabelResolver : ITillLabelResolver
                 RawSample = rawLabel.Trim(),
                 Section = section,
                 CanonicalField = field,
+                FieldCode = code,
                 Source = TillMappingSource.Learned,
                 Confidence = 1.0,
             }, cancellationToken);
@@ -98,6 +102,7 @@ public sealed class TillLabelResolver : ITillLabelResolver
         else
         {
             existing.CanonicalField = field;
+            existing.FieldCode = code;
             existing.RawSample = rawLabel.Trim();
             existing.Source = TillMappingSource.Learned;
             existing.Confidence = 1.0;
@@ -123,15 +128,15 @@ public sealed class TillLabelResolver : ITillLabelResolver
     private static bool SectionMatches(string? mappingSection, string? requested)
         => string.IsNullOrEmpty(mappingSection) || string.Equals(mappingSection, requested, StringComparison.OrdinalIgnoreCase);
 
-    private static (TillCanonicalField Field, double Score)? BestFuzzy(string normalized)
+    private static (string Code, double Score)? BestFuzzy(string normalized)
     {
-        (TillCanonicalField Field, double Score)? best = null;
-        foreach (var (alias, field) in TillAliasDictionary.Seed)
+        (string Code, double Score)? best = null;
+        foreach (var (alias, code) in TillAliasDictionary.Active)
         {
             var score = Similarity(normalized, alias);
             if (best is null || score > best.Value.Score)
             {
-                best = (field, score);
+                best = (code, score);
             }
         }
         return best;

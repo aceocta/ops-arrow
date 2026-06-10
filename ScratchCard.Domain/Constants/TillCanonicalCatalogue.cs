@@ -5,6 +5,7 @@ namespace ScratchCard.Domain.Constants;
 /// <summary>Behaviour metadata for a canonical till field. The reconciliation engine and
 /// accounting export read this — never the printed label.</summary>
 public sealed record TillFieldMeta(
+    string Code,
     TillCanonicalField Field,
     TillFieldGroup Group,
     TillCashDirection CashDirection,
@@ -22,7 +23,7 @@ public static class TillCanonicalCatalogue
     private static TillFieldMeta M(
         TillCanonicalField f, TillFieldGroup g, TillCashDirection dir, bool drawer,
         TillVatTreatment vat, string name, bool commission = false)
-        => new(f, g, dir, drawer, vat, commission, name);
+        => new(f.ToString(), f, g, dir, drawer, vat, commission, name);
 
     public static readonly IReadOnlyList<TillFieldMeta> All = new[]
     {
@@ -103,9 +104,50 @@ public static class TillCanonicalCatalogue
         M(TillCanonicalField.Unmapped, TillFieldGroup.Control, TillCashDirection.None, false, TillVatTreatment.NotApplicable, "Unmapped"),
     };
 
-    private static readonly IReadOnlyDictionary<TillCanonicalField, TillFieldMeta> ByField =
-        All.ToDictionary(m => m.Field);
+    // Seed maps (built-ins), keyed by code (the natural identity) — code == enum name for built-ins.
+    private static readonly IReadOnlyDictionary<string, TillFieldMeta> SeedByCode =
+        All.ToDictionary(m => m.Code, System.StringComparer.OrdinalIgnoreCase);
 
-    public static TillFieldMeta Meta(TillCanonicalField field) =>
-        ByField.TryGetValue(field, out var m) ? m : ByField[TillCanonicalField.Unmapped];
+    // Runtime cache loaded from the TillFieldDefinition table at startup (and after admin edits), so
+    // the catalogue is data-driven AND supports custom codes beyond the enum. Falls back to seed.
+    private static volatile IReadOnlyDictionary<string, TillFieldMeta>? _runtimeByCode;
+
+    /// <summary>The built-in defaults, used to seed the table on first run.</summary>
+    public static IReadOnlyList<TillFieldMeta> Defaults => All;
+
+    /// <summary>Swap in the catalogue loaded from the database (keyed by code; built-in + custom).</summary>
+    public static void LoadRuntime(IReadOnlyDictionary<string, TillFieldMeta> byCode) => _runtimeByCode = byCode;
+
+    private static IReadOnlyDictionary<string, TillFieldMeta> Source => _runtimeByCode ?? SeedByCode;
+
+    /// <summary>Meta for a field code (built-in name or custom). Unknown codes fall back to Unmapped.</summary>
+    public static TillFieldMeta MetaByCode(string? code)
+    {
+        var src = Source;
+        if (!string.IsNullOrWhiteSpace(code) && src.TryGetValue(code, out var m)) return m;
+        return src.TryGetValue(nameof(TillCanonicalField.Unmapped), out var u) ? u : SeedByCode[nameof(TillCanonicalField.Unmapped)];
+    }
+
+    public static TillFieldMeta Meta(TillCanonicalField field) => MetaByCode(field.ToString());
+
+    /// <summary>Code-based meta with per-shop overrides applied (overrides key off the enum, so they
+    /// only affect built-in codes; custom codes return their definition unchanged).</summary>
+    public static TillFieldMeta MetaByCode(
+        string? code,
+        IReadOnlyDictionary<TillCanonicalField, Entities.TillFieldOverride>? overrides)
+    {
+        var meta = MetaByCode(code);
+        if (overrides is not null && code is not null && System.Enum.TryParse<TillCanonicalField>(code, out var field)
+            && overrides.TryGetValue(field, out var o))
+        {
+            return meta with { Group = o.Group ?? meta.Group, Vat = o.Vat ?? meta.Vat };
+        }
+        return meta;
+    }
+
+    /// <summary>Catalogue meta with any per-shop overrides (Group / Vat) applied on top.</summary>
+    public static TillFieldMeta Meta(
+        TillCanonicalField field,
+        IReadOnlyDictionary<TillCanonicalField, Entities.TillFieldOverride>? overrides)
+        => MetaByCode(field.ToString(), overrides);
 }

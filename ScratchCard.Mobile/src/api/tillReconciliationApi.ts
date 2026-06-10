@@ -12,6 +12,9 @@ export type TillCanonicalField =
   | "DeptTobacco" | "DeptAlcohol" | "DeptGrocery" | "DeptSoftDrinks" | "DeptConfectionery" | "DeptFoodToGo" | "DeptNewsMag" | "DeptHousehold" | "DeptOther"
   | "SubtotalIgnore";
 
+// Built-in codes keep autocomplete; custom codes (admin-defined) are any other string.
+export type FieldCode = TillCanonicalField | (string & {});
+
 export type TillFieldGroup = "Control" | "Tender" | "Counter" | "Movement" | "Total" | "Stat" | "Exception" | "Department" | "Income";
 export type TillCaptureMethod = "Manual" | "Photo" | "Export";
 export type TillLineStatus = "Captured" | "Verified";
@@ -21,7 +24,7 @@ export type TillVarianceStatus = "Ok" | "Warning" | "Alert";
 
 export type ReconciliationLine = {
   id: string;
-  canonicalField: TillCanonicalField;
+  canonicalField: FieldCode;
   fieldName: string;
   group: TillFieldGroup;
   section?: string | null;
@@ -113,7 +116,7 @@ export async function getOrCreateReconciliation(payload: {
 export async function saveReconciliationLine(payload: {
   reconciliationId: string;
   lineId?: string;
-  canonicalField: TillCanonicalField;
+  canonicalField: FieldCode;
   section?: string;
   rawLabel?: string;
   extractedAmount?: number;
@@ -212,8 +215,22 @@ export async function getReconciliationRollup(shopId: string, date: string) {
   return response.data.data;
 }
 
-// Canonical fields offered in the manual "add line" picker, grouped for the UI.
-export const FIELD_OPTIONS: { group: string; fields: { value: TillCanonicalField; label: string }[] }[] = [
+export type FieldOptionGroup = { group: string; fields: { value: FieldCode; label: string }[] };
+
+// Active fields for the manual picker, loaded from the data-driven catalogue (built-in + custom).
+export async function getFieldOptions(): Promise<FieldOptionGroup[]> {
+  const res = await apiClient.get<ApiResponse<{ code: string; displayName: string; group: string }[]>>("/till-fields");
+  const byGroup = new Map<string, { value: FieldCode; label: string }[]>();
+  for (const d of res.data.data) {
+    const arr = byGroup.get(d.group) ?? [];
+    arr.push({ value: d.code, label: d.displayName });
+    byGroup.set(d.group, arr);
+  }
+  return [...byGroup.entries()].map(([group, fields]) => ({ group, fields }));
+}
+
+// Fallback canonical fields for the manual "add line" picker (used until the API list loads).
+export const FIELD_OPTIONS: FieldOptionGroup[] = [
   {
     group: "Tenders",
     fields: [

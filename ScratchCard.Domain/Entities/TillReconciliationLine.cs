@@ -12,6 +12,9 @@ public class TillReconciliationLine : BaseEntity
     public Guid TillReconciliationId { get; set; }
 
     public TillCanonicalField CanonicalField { get; set; } = TillCanonicalField.Unmapped;
+    /// <summary>Authoritative canonical field code (built-in name or custom). The enum above is the
+    /// built-in equivalent (Unmapped for custom codes).</summary>
+    public string FieldCode { get; set; } = nameof(TillCanonicalField.Unmapped);
     /// <summary>Optional section context the figure came from (Payments / CashManagement / …).</summary>
     public string? Section { get; set; }
     /// <summary>The raw printed label this came from (for audit + learning).</summary>

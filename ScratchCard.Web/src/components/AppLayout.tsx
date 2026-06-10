@@ -17,6 +17,7 @@ import {
   Calculator,
   PoundSterling,
   ArrowLeftRight,
+  ListTree,
   Settings,
   ChevronDown,
   LogOut,
@@ -26,7 +27,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 
-type NavItem = { to: string; label: string; icon: React.ComponentType<{ className?: string }>; feature?: string };
+type NavItem = { to: string; label: string; icon: React.ComponentType<{ className?: string }>; feature?: string; role?: string };
 type NavGroup = { group: string; items: NavItem[] };
 
 const NAV: NavGroup[] = [
@@ -59,6 +60,7 @@ const NAV: NavGroup[] = [
     items: [
       { to: "/till", label: "Reconciliation", icon: Receipt, feature: "store_sales.dashboard" },
       { to: "/till/tills", label: "Tills", icon: Calculator, feature: "store_sales.dashboard" },
+      { to: "/till/catalogue", label: "Field Catalogue", icon: ListTree, role: "PlatformAdmin" },
     ],
   },
   {
@@ -133,8 +135,9 @@ function ShopSwitcher() {
 export default function AppLayout() {
   const { profile, features, activeShopId, logout } = useAuth();
   const navigate = useNavigate();
+  const roles = profile?.roles ?? [];
   const groups = NAV
-    .map((g) => ({ ...g, items: g.items.filter((i) => !i.feature || features.includes(i.feature)) }))
+    .map((g) => ({ ...g, items: g.items.filter((i) => (!i.feature || features.includes(i.feature)) && (!i.role || roles.includes(i.role))) }))
     .filter((g) => g.items.length > 0);
 
   const pendingQ = useQuery({

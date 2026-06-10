@@ -18,7 +18,8 @@ public class SaveReconciliationLineRequest
 {
     public Guid ReconciliationId { get; set; }
     public Guid? LineId { get; set; }
-    public TillCanonicalField CanonicalField { get; set; }
+    /// <summary>Canonical field code (built-in name or custom).</summary>
+    public string CanonicalField { get; set; } = nameof(Domain.Enums.TillCanonicalField.Unmapped);
     public string? Section { get; set; }
     public string? RawLabel { get; set; }
     public decimal? ExtractedAmount { get; set; }
@@ -53,7 +54,8 @@ public class SetVarianceReasonRequest
 public class TillReconciliationLineDto
 {
     public Guid Id { get; set; }
-    public TillCanonicalField CanonicalField { get; set; }
+    /// <summary>Canonical field code (built-in name or custom).</summary>
+    public string CanonicalField { get; set; } = nameof(Domain.Enums.TillCanonicalField.Unmapped);
     public string FieldName { get; set; } = string.Empty;
     public TillFieldGroup Group { get; set; }
     public string? Section { get; set; }

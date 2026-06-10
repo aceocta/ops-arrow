@@ -6,7 +6,46 @@ namespace ScratchCard.Domain.Constants;
 /// PayPoint/Lottery/PO throughput is a liability, commission is income.</summary>
 public static class TillAccountingCatalogue
 {
-    public static LedgerCategory LedgerFor(TillCanonicalField field) => field switch
+    /// <summary>Ledger category with any per-shop override applied (else the catalogue default).</summary>
+    public static LedgerCategory LedgerFor(
+        TillCanonicalField field,
+        System.Collections.Generic.IReadOnlyDictionary<TillCanonicalField, Entities.TillFieldOverride>? overrides)
+    {
+        if (overrides is not null && overrides.TryGetValue(field, out var o) && o.LedgerCategory.HasValue)
+        {
+            return o.LedgerCategory.Value;
+        }
+        return LedgerFor(field);
+    }
+
+    // Runtime ledger map loaded from TillFieldDefinition at startup (keyed by code; built-in +
+    // custom); falls back to the built-in switch until loaded. Makes the default ledger data-driven.
+    private static volatile System.Collections.Generic.IReadOnlyDictionary<string, LedgerCategory>? _runtimeLedgerByCode;
+
+    public static void LoadRuntimeLedger(System.Collections.Generic.IReadOnlyDictionary<string, LedgerCategory> byCode) => _runtimeLedgerByCode = byCode;
+
+    /// <summary>Ledger for a field code (built-in or custom). Unknown codes → Ignore.</summary>
+    public static LedgerCategory LedgerForCode(string? code)
+    {
+        if (!string.IsNullOrWhiteSpace(code) && _runtimeLedgerByCode is { } rt && rt.TryGetValue(code, out var l)) return l;
+        return System.Enum.TryParse<TillCanonicalField>(code, out var f) ? DefaultLedgerFor(f) : LedgerCategory.Ignore;
+    }
+
+    public static LedgerCategory LedgerForCode(
+        string? code,
+        System.Collections.Generic.IReadOnlyDictionary<TillCanonicalField, Entities.TillFieldOverride>? overrides)
+    {
+        if (overrides is not null && code is not null && System.Enum.TryParse<TillCanonicalField>(code, out var f)
+            && overrides.TryGetValue(f, out var o) && o.LedgerCategory.HasValue)
+        {
+            return o.LedgerCategory.Value;
+        }
+        return LedgerForCode(code);
+    }
+
+    public static LedgerCategory LedgerFor(TillCanonicalField field) => LedgerForCode(field.ToString());
+
+    private static LedgerCategory DefaultLedgerFor(TillCanonicalField field) => field switch
     {
         // Agency throughput owed to providers — liabilities, never turnover.
         TillCanonicalField.PayPoint or TillCanonicalField.Payzone

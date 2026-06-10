@@ -4,7 +4,8 @@ namespace ScratchCard.Application.DTOs.StoreSales;
 
 public class AccountingLineDto
 {
-    public TillCanonicalField Field { get; set; }
+    /// <summary>Canonical field code (built-in name or custom).</summary>
+    public string Field { get; set; } = string.Empty;
     public string FieldName { get; set; } = string.Empty;
     public LedgerCategory Ledger { get; set; }
     public string VatBucket { get; set; } = string.Empty;

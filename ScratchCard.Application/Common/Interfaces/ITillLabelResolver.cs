@@ -2,9 +2,9 @@ using ScratchCard.Domain.Enums;
 
 namespace ScratchCard.Application.Common.Interfaces;
 
-/// <summary>The outcome of resolving a printed label to a canonical field.</summary>
+/// <summary>The outcome of resolving a printed label to a canonical field code (built-in or custom).</summary>
 public sealed record TillLabelResolution(
-    TillCanonicalField Field,
+    string Code,
     double Confidence,
     TillMappingSource Source,
     string NormalizedLabel);
@@ -23,10 +23,10 @@ public interface ITillLabelResolver
         string? section = null,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Persist a confirmed/corrected mapping at the given scope (default Till) so it wins next time.</summary>
+    /// <summary>Persist a confirmed/corrected mapping (field code) at the given scope so it wins next time.</summary>
     Task LearnAsync(
         string rawLabel,
-        TillCanonicalField field,
+        string code,
         TillMappingScope scope,
         Guid? scopeId,
         string? section = null,
