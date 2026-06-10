@@ -200,19 +200,19 @@ const shopItems: MenuItem[] = [
   //   requiredFeature: "StoreSales",
   // },
   // { label: "Shop Checklist", screen: "ShopChecklist", icon: "checkmark-done-outline", mode: "checklist" },
-  {
-    label: "Checklist Setup",
-    screen: "ChecklistConfiguration",
-    icon: "construct-outline",
-    mode: "checklist",
-  },
-  {
-    label: "Checklist History",
-    screen: "ChecklistHistory",
-    icon: "document-text-outline",
-    mode: "checklist",
-    allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
-  },
+  // {
+  //   label: "Checklist Setup",
+  //   screen: "ChecklistConfiguration",
+  //   icon: "construct-outline",
+  //   mode: "checklist",
+  // },
+  // {
+  //   label: "Checklist History",
+  //   screen: "ChecklistHistory",
+  //   icon: "document-text-outline",
+  //   mode: "checklist",
+  //   allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
+  // },
   { label: "Audit Log", screen: "AuditLog", icon: "document-text-outline", requiredFeature: "audit_log.basic" },
   { label: "Notification Log", screen: "NotificationLog", icon: "notifications-outline" },
 ];
