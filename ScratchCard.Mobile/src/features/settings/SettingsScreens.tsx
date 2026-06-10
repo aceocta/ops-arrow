@@ -1893,12 +1893,15 @@ function SettingsNavRow({
   description,
   onPress,
   tone = "default",
+  trailingIcon = "chevron-forward",
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
   description: string;
   onPress: () => void;
   tone?: "default" | "danger";
+  /** Override the trailing chevron — e.g. chevron-down/up for rows that expand in place. */
+  trailingIcon?: keyof typeof Ionicons.glyphMap;
 }) {
   const isDanger = tone === "danger";
   return (
@@ -1909,6 +1912,8 @@ function SettingsNavRow({
         pressed ? styles.settingsNavRowPressed : null,
       ]}
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={title}
     >
       <View style={[styles.settingsNavIconWrap, isDanger ? styles.settingsNavIconWrapDanger : null]}>
         <Ionicons name={icon} size={17} color={isDanger ? appTheme.colors.danger : appTheme.colors.primary} />
@@ -1917,7 +1922,7 @@ function SettingsNavRow({
         <Text style={[styles.settingsNavTitle, isDanger ? styles.settingsNavTitleDanger : null]}>{title}</Text>
         {description ? <Text style={styles.settingsNavDescription}>{description}</Text> : null}
       </View>
-      <Ionicons name="chevron-forward" size={15} color={appTheme.colors.textSubtle} />
+      <Ionicons name={trailingIcon} size={15} color={appTheme.colors.textSubtle} />
     </Pressable>
   );
 }
@@ -1957,6 +1962,7 @@ export function SettingsScreen() {
       });
       await refreshProfile();
       toastSuccess("Profile updated.");
+      setProfileExpanded(false);
     } catch (error: any) {
       toastError(error?.response?.data?.message ?? error?.message ?? "Unable to update profile.");
     } finally {
@@ -1994,36 +2000,13 @@ export function SettingsScreen() {
     tone?: "default" | "danger";
   };
 
-  const accountActions: SettingsAction[] = [
-    {
-      key: "switch-shop",
-      title: "Switch Shop",
-      description: "Change your active store and company context.",
-      icon: "swap-horizontal-outline",
-      onPress: () => (navigation.getParent() as any)?.navigate("ShopSelector"),
-    },
-    {
-      key: "notifications",
-      title: "Notifications",
-      description: "Choose how you receive alerts on this device.",
-      icon: "notifications-outline",
-      onPress: () => navigation.navigate("NotificationPreferences"),
-    },
-  ];
+  // Collapsed by default — most Settings visits are for navigation, not profile edits.
+  const [profileExpanded, setProfileExpanded] = useState(false);
 
-  if (isCompanyOwner || isPlatformAdmin) {
-    accountActions.push({
-      key: "subscription",
-      title: "Subscription & Billing",
-      description: "View plan, usage, and manage your subscription.",
-      icon: "card-outline",
-      onPress: () => (navigation.getParent() as any)?.navigate("SubscriptionSummary"),
-    });
-  }
-
-  const teamActions: SettingsAction[] = [];
+  // People, shops, and company records — everything about who's in the business.
+  const manageActions: SettingsAction[] = [];
   if (canManageInvitations) {
-    teamActions.push({
+    manageActions.push({
       key: "user-invitations",
       title: "User Invitations",
       description: "Invite team members and manage invitation requests.",
@@ -2032,18 +2015,14 @@ export function SettingsScreen() {
     });
   }
   if (canManageUsersAndShops) {
-    teamActions.push({
+    manageActions.push({
       key: "user-management",
       title: "User Management",
       description: "Change user roles and active states.",
       icon: "people-outline",
       onPress: () => navigation.navigate("UserManagement"),
     });
-  }
-
-  const organizationActions: SettingsAction[] = [];
-  if (canManageUsersAndShops) {
-    organizationActions.push({
+    manageActions.push({
       key: "shop-management",
       title: "Shop Management",
       description: isManager ? "Edit assigned shop details." : "Create or edit shops and maintain store details.",
@@ -2052,7 +2031,7 @@ export function SettingsScreen() {
     });
   }
   if (isCompanyOwner) {
-    organizationActions.push({
+    manageActions.push({
       key: "company-management",
       title: "Company Management",
       description: "Update company records and activation status.",
@@ -2061,16 +2040,17 @@ export function SettingsScreen() {
     });
   }
 
-  const systemActions: SettingsAction[] = [];
+  // How the app behaves: shop setup, module toggles, runtime rules, and the plan paying for it.
+  const configurationActions: SettingsAction[] = [];
   if (canManageUsersAndShops) {
-    systemActions.push({
+    configurationActions.push({
       key: "shop-configuration",
       title: "Shop Configuration",
       description: "Manage shop-specific general, pack, and shift setup.",
-      icon: "storefront-outline",
+      icon: "options-outline",
       onPress: () => navigation.navigate("ShopConfiguration"),
     });
-    systemActions.push({
+    configurationActions.push({
       key: "shop-feature-toggles",
       title: "Feature Toggles",
       description: "Turn off modules this shop does not use (Safe Drop, Scratch Card, etc.).",
@@ -2079,12 +2059,19 @@ export function SettingsScreen() {
     });
   }
   if (isCompanyOwner || isPlatformAdmin) {
-    systemActions.push({
+    configurationActions.push({
       key: "app-configuration",
       title: "App Configuration",
       description: "Control app runtime behavior and advanced rules.",
       icon: "construct-outline",
       onPress: () => navigation.navigate("AppConfiguration"),
+    });
+    configurationActions.push({
+      key: "subscription",
+      title: "Subscription & Billing",
+      description: "View plan, usage, and manage your subscription.",
+      icon: "card-outline",
+      onPress: () => (navigation.getParent() as any)?.navigate("SubscriptionSummary"),
     });
   }
 
@@ -2150,161 +2137,135 @@ export function SettingsScreen() {
         <View style={styles.settingsContextCard}>
           <LabeledValue label="Active shop" value={activeShop?.shopName ?? "-"} />
           <LabeledValue label="Active company" value={activeShop?.companyName ?? "-"} />
+          <Pressable
+            style={({ pressed }) => [styles.switchShopBtn, pressed ? styles.switchShopBtnPressed : null]}
+            onPress={() => (navigation.getParent() as any)?.navigate("ShopSelector")}
+            accessibilityRole="button"
+            accessibilityLabel="Switch shop"
+          >
+            <Ionicons name="swap-horizontal-outline" size={15} color={appTheme.colors.primary} />
+            <Text style={styles.switchShopBtnText}>Switch shop</Text>
+          </Pressable>
         </View>
       </View>
 
       <View style={ui.card}>
-        <Text style={styles.sectionTitle}>My Profile</Text>
-        <Text style={styles.settingsSectionMeta}>
-          Your name and contact phone. Phone is optional — add it (with country code) to receive WhatsApp alerts for shift and day-end closures.
-        </Text>
-        <FloatingLabelInput
-          label="First name"
-          value={editedFirstName}
-          onChangeText={setEditedFirstName}
-          autoCapitalize="words"
-          returnKeyType="next"
-          submitBehavior="submit"
-          onSubmitEditing={() => profileLastNameRef.current?.focus()}
-        />
-        <FloatingLabelInput
-          ref={profileLastNameRef}
-          label="Last name"
-          value={editedLastName}
-          onChangeText={setEditedLastName}
-          autoCapitalize="words"
-          returnKeyType="next"
-          submitBehavior="submit"
-          onSubmitEditing={() => profilePhoneRef.current?.focus()}
-        />
-        <PhoneNumberInput
-          ref={profilePhoneRef}
-          label="Phone (optional)"
-          value={editedPhoneNumber}
-          onChangeText={setEditedPhoneNumber}
-          returnKeyType="done"
-        />
-        <PrimaryButton
-          label={isSavingProfile ? "Saving…" : "Save profile"}
-          onPress={() => void onSaveProfile()}
-          disabled={!profileDirty || isSavingProfile}
-        />
-      </View>
-
-      <View style={ui.card}>
-        <Text style={styles.sectionTitle}>Account</Text>
-        <Text style={styles.settingsSectionMeta}>Your active context, alerts, and subscription.</Text>
+        <Text style={styles.sectionTitle}>Personal</Text>
+        <Text style={styles.settingsSectionMeta}>Your profile, alerts, and how the app looks on this device.</Text>
         <View style={styles.settingsSectionRows}>
-          {accountActions.map((action) => (
-            <SettingsNavRow
-              key={action.key}
-              icon={action.icon}
-              title={action.title}
-              description={action.description}
-              onPress={action.onPress}
-              tone={action.tone}
-            />
-          ))}
-        </View>
-      </View>
-
-      {teamActions.length > 0 ? (
-        <View style={ui.card}>
-          <Text style={styles.sectionTitle}>Team</Text>
-          <Text style={styles.settingsSectionMeta}>Invite people and manage user roles.</Text>
-          <View style={styles.settingsSectionRows}>
-            {teamActions.map((action) => (
-              <SettingsNavRow
-                key={action.key}
-                icon={action.icon}
-                title={action.title}
-                description={action.description}
-                onPress={action.onPress}
-                tone={action.tone}
+          <SettingsNavRow
+            icon="person-circle-outline"
+            title="My Profile"
+            description="Update your name and contact phone."
+            onPress={() => setProfileExpanded((current) => !current)}
+            trailingIcon={profileExpanded ? "chevron-up" : "chevron-down"}
+          />
+          {profileExpanded ? (
+            <View style={styles.profileForm}>
+              <Text style={styles.settingsSectionMeta}>
+                Phone is optional — add it (with country code) to receive WhatsApp alerts for shift and day-end closures.
+              </Text>
+              <FloatingLabelInput
+                label="First name"
+                value={editedFirstName}
+                onChangeText={setEditedFirstName}
+                autoCapitalize="words"
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => profileLastNameRef.current?.focus()}
               />
-            ))}
-          </View>
-        </View>
-      ) : null}
-
-      {organizationActions.length > 0 ? (
-        <View style={ui.card}>
-          <Text style={styles.sectionTitle}>Organization</Text>
-          <Text style={styles.settingsSectionMeta}>Manage shops and companies in your account.</Text>
-          <View style={styles.settingsSectionRows}>
-            {organizationActions.map((action) => (
-              <SettingsNavRow
-                key={action.key}
-                icon={action.icon}
-                title={action.title}
-                description={action.description}
-                onPress={action.onPress}
-                tone={action.tone}
+              <FloatingLabelInput
+                ref={profileLastNameRef}
+                label="Last name"
+                value={editedLastName}
+                onChangeText={setEditedLastName}
+                autoCapitalize="words"
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => profilePhoneRef.current?.focus()}
               />
-            ))}
-          </View>
-        </View>
-      ) : null}
-
-      {systemActions.length > 0 ? (
-        <View style={ui.card}>
-          <Text style={styles.sectionTitle}>System</Text>
-          <Text style={styles.settingsSectionMeta}>Advanced configuration for app and shop behavior.</Text>
-          <View style={styles.settingsSectionRows}>
-            {systemActions.map((action) => (
-              <SettingsNavRow
-                key={action.key}
-                icon={action.icon}
-                title={action.title}
-                description={action.description}
-                onPress={action.onPress}
-                tone={action.tone}
+              <PhoneNumberInput
+                ref={profilePhoneRef}
+                label="Phone (optional)"
+                value={editedPhoneNumber}
+                onChangeText={setEditedPhoneNumber}
+                returnKeyType="done"
               />
-            ))}
-          </View>
+              <PrimaryButton
+                label={isSavingProfile ? "Saving…" : "Save profile"}
+                onPress={() => void onSaveProfile()}
+                disabled={!profileDirty || isSavingProfile}
+              />
+            </View>
+          ) : null}
+          <SettingsNavRow
+            icon="notifications-outline"
+            title="Notifications"
+            description="Choose how you receive alerts on this device."
+            onPress={() => navigation.navigate("NotificationPreferences")}
+          />
         </View>
-      ) : null}
-
-      <View style={ui.card}>
-        <Text style={styles.sectionTitle}>Appearance</Text>
-        <Text style={styles.settingsSectionMeta}>Choose app theme for this device.</Text>
+        <Text style={styles.themeLabel}>Theme</Text>
         <View style={styles.themeModeRow}>
-          <Pressable
-            style={[styles.choiceChip, themeMode === "light" ? styles.choiceChipSelected : null]}
-            onPress={() => void onChangeThemeMode("light")}
-            disabled={isApplyingThemeMode}
-          >
-            <Text style={[styles.choiceChipText, themeMode === "light" ? styles.choiceChipTextSelected : null]}>Light</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.choiceChip, themeMode === "dark" ? styles.choiceChipSelected : null]}
-            onPress={() => void onChangeThemeMode("dark")}
-            disabled={isApplyingThemeMode}
-          >
-            <Text style={[styles.choiceChipText, themeMode === "dark" ? styles.choiceChipTextSelected : null]}>Dark</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.choiceChip, themeMode === "system" ? styles.choiceChipSelected : null]}
-            onPress={() => void onChangeThemeMode("system")}
-            disabled={isApplyingThemeMode}
-          >
-            <Text style={[styles.choiceChipText, themeMode === "system" ? styles.choiceChipTextSelected : null]}>System</Text>
-          </Pressable>
+          {(["light", "dark", "system"] as const).map((mode) => (
+            <Pressable
+              key={mode}
+              style={({ pressed }) => [
+                styles.choiceChip,
+                themeMode === mode ? styles.choiceChipSelected : null,
+                pressed ? styles.choiceChipPressed : null,
+              ]}
+              onPress={() => void onChangeThemeMode(mode)}
+              disabled={isApplyingThemeMode}
+              accessibilityRole="button"
+              accessibilityState={{ selected: themeMode === mode }}
+            >
+              <Text style={[styles.choiceChipText, themeMode === mode ? styles.choiceChipTextSelected : null]}>
+                {mode === "light" ? "Light" : mode === "dark" ? "Dark" : "System"}
+              </Text>
+            </Pressable>
+          ))}
         </View>
         {isApplyingThemeMode ? <Text style={styles.meta}>Applying theme...</Text> : null}
       </View>
 
-      {/* <View style={ui.card}>
-        <Text style={styles.sectionTitle}>Environment</Text>
-        <LabeledValue label="App version" value={appVersion} />
-        <LabeledValue label="API base URL" value={resolvedApiBaseUrl} />
-        <LabeledValue label="Mode" value={__DEV__ ? "Development" : "Production"} />
-      </View> */}
+      {manageActions.length > 0 ? (
+        <View style={ui.card}>
+          <Text style={styles.sectionTitle}>Team & Organization</Text>
+          <Text style={styles.settingsSectionMeta}>Invite people, manage roles, shops, and company records.</Text>
+          <View style={styles.settingsSectionRows}>
+            {manageActions.map((action) => (
+              <SettingsNavRow
+                key={action.key}
+                icon={action.icon}
+                title={action.title}
+                description={action.description}
+                onPress={action.onPress}
+                tone={action.tone}
+              />
+            ))}
+          </View>
+        </View>
+      ) : null}
 
-      {/* <View style={ui.card}>
-        <Text style={styles.sectionTitle}>About</Text>
-        <LabeledValue label="App version" value={appVersion} />
-      </View> */}
+      {configurationActions.length > 0 ? (
+        <View style={ui.card}>
+          <Text style={styles.sectionTitle}>Configuration</Text>
+          <Text style={styles.settingsSectionMeta}>Shop setup, feature toggles, app behavior, and your plan.</Text>
+          <View style={styles.settingsSectionRows}>
+            {configurationActions.map((action) => (
+              <SettingsNavRow
+                key={action.key}
+                icon={action.icon}
+                title={action.title}
+                description={action.description}
+                onPress={action.onPress}
+                tone={action.tone}
+              />
+            ))}
+          </View>
+        </View>
+      ) : null}
 
       <View style={ui.card}>
         <SettingsNavRow
@@ -2315,6 +2276,8 @@ export function SettingsScreen() {
           tone="danger"
         />
       </View>
+
+      <Text style={styles.versionFooter}>Version {appVersion}</Text>
     </ScreenContainer>
   );
 }
@@ -2544,6 +2507,51 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.body,
     fontSize: 12,
     lineHeight: 16,
+  },
+  switchShopBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 2,
+    paddingVertical: 9,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceBrandMuted,
+  },
+  switchShopBtnPressed: {
+    opacity: 0.7,
+  },
+  switchShopBtnText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 16,
+  },
+  profileForm: {
+    gap: appTheme.spacing.sm,
+    padding: appTheme.spacing.sm,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceMuted,
+  },
+  themeLabel: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 14,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    marginTop: appTheme.spacing.xs,
+  },
+  choiceChipPressed: {
+    opacity: 0.7,
+  },
+  versionFooter: {
+    textAlign: "center",
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: 2,
   },
   readyBackdrop: { flex: 1, backgroundColor: appTheme.colors.overlay, justifyContent: "center", padding: appTheme.spacing.lg },
   readyCard: { gap: 8 },
