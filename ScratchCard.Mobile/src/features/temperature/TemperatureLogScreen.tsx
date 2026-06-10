@@ -919,16 +919,6 @@ export function TemperatureLogScreen() {
     setIsLogEntryModalVisible(false);
   };
 
-  // Status helper for the chip strip. "recorded" = at least one reading today and the latest is
-  // in range; "outOfRange" = latest reading is outside the unit's min/max; "pending" = nothing
-  // recorded for this unit today.
-  const getUnitDailyStatus = (
-    unitLog: typeof dailyUnitLogs[number],
-  ): "recorded" | "outOfRange" | "pending" => {
-    const latest = unitLog.readings.length > 0 ? unitLog.readings[unitLog.readings.length - 1] : null;
-    if (!latest) return "pending";
-    return latest.isOutOfRange ? "outOfRange" : "recorded";
-  };
 
   // The "check" the popup is currently entering, identified by label + time. Each unit has its OWN
   // schedule record for a given check, so navigation/counter below are scoped to the units that this
@@ -966,6 +956,19 @@ export function TemperatureLogScreen() {
     [entryUnitLogs, selectedUnitId],
   );
 
+  // Whether a unit still needs a reading FOR THE CURRENT CHECK (not just any reading today). Without
+  // this, a unit that did an earlier check counts as "recorded" and the Save button wrongly flips to
+  // "Save & Finish" while other units still need this check's reading.
+  const isPendingForCheck = useCallback(
+    (unitLog: typeof dailyUnitLogs[number]) => {
+      if (!currentCheck) return unitLog.readings.length === 0;
+      const sid = scheduleIdForUnitCheck(unitLog.unit.id, currentCheck);
+      if (!sid) return false;
+      return !unitLog.readings.some((r) => r.scheduleId === sid);
+    },
+    [currentCheck, scheduleIdForUnitCheck],
+  );
+
   // Order of "next" candidates: start at selected+1, wrap around to the start, exclude current.
   // Returns the first pending unit if one exists; otherwise the next unit regardless of status
   // (so the operator can still move forward to review/re-enter).
@@ -975,9 +978,9 @@ export function TemperatureLogScreen() {
       ...entryUnitLogs.slice(selectedUnitIndex + 1),
       ...entryUnitLogs.slice(0, selectedUnitIndex),
     ];
-    const pending = orderedFromHere.find((u) => getUnitDailyStatus(u) === "pending");
+    const pending = orderedFromHere.find((u) => isPendingForCheck(u));
     return (pending ?? orderedFromHere[0]).unit.id;
-  }, [entryUnitLogs, selectedUnitIndex]);
+  }, [entryUnitLogs, selectedUnitIndex, isPendingForCheck]);
 
   // The next unit that still needs a reading (excluding the current one), or null when none are
   // left to log. Drives the Save button: "Save & Next Unit" vs "Save & Finish" (which closes).
@@ -987,9 +990,9 @@ export function TemperatureLogScreen() {
       ...entryUnitLogs.slice(selectedUnitIndex + 1),
       ...entryUnitLogs.slice(0, selectedUnitIndex),
     ];
-    const pending = orderedFromHere.find((u) => getUnitDailyStatus(u) === "pending");
+    const pending = orderedFromHere.find((u) => isPendingForCheck(u));
     return pending ? pending.unit.id : null;
-  }, [entryUnitLogs, selectedUnitIndex]);
+  }, [entryUnitLogs, selectedUnitIndex, isPendingForCheck]);
 
   const prevUnitId = useMemo(() => {
     if (entryUnitLogs.length < 2 || selectedUnitIndex < 0) return null;
