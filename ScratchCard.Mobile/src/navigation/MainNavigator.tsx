@@ -71,6 +71,7 @@ import { TillsConfigScreen } from "../features/store-sales/TillsConfigScreen";
 import { PaymentTypesConfigScreen } from "../features/store-sales/PaymentTypesConfigScreen";
 import { ScratchCardSummaryScreen } from "../features/scratch-card/ScratchCardSummaryScreen";
 import { BestEntryProvider, EntryOperation, useBestEntry } from "./BestEntryContext";
+import { HelpProvider, useHelp } from "../help/HelpProvider";
 import { useEntitlements } from "../features/subscription/useEntitlements";
 import { MainStackParamList, RootStackParamList } from "../types/navigation";
 import { appTheme } from "../ui/theme";
@@ -410,6 +411,21 @@ function HamburgerButton({ onPress }: { onPress: () => void }) {
   );
 }
 
+// Header actions: a context-aware (?) (only for screens with registered help), left of the menu.
+function HeaderRightControls({ routeName, onMenu }: { routeName: string; onMenu: () => void }) {
+  const { openHelp, hasHelp } = useHelp();
+  return (
+    <View style={styles.headerRightRow}>
+      {hasHelp(routeName) ? (
+        <Pressable style={styles.menuButton} onPress={() => openHelp(routeName)} accessibilityRole="button" accessibilityLabel="Help for this screen">
+          <Ionicons name="help-circle-outline" size={22} color={appTheme.colors.primary} />
+        </Pressable>
+      ) : null}
+      <HamburgerButton onPress={onMenu} />
+    </View>
+  );
+}
+
 function HomeHeaderTitle() {
   return (
     <View style={styles.homeHeaderTitle}>
@@ -445,7 +461,10 @@ function MainStackScreens() {
           paddingBottom: 0,
         },
         headerRight: () => (
-          <HamburgerButton onPress={() => navigation.getParent()?.dispatch(DrawerActions.toggleDrawer())} />
+          <HeaderRightControls
+            routeName={route.name}
+            onMenu={() => navigation.getParent()?.dispatch(DrawerActions.toggleDrawer())}
+          />
         ),
       })}
     >
@@ -1214,6 +1233,7 @@ export function MainNavigator() {
 
   return (
     <BestEntryProvider>
+      <HelpProvider>
       <View style={styles.navigatorShell}>
         <NetworkStatusBanner />
         <Drawer.Navigator
@@ -1233,6 +1253,7 @@ export function MainNavigator() {
         </Drawer.Navigator>
         <MainBottomDock />
       </View>
+      </HelpProvider>
     </BestEntryProvider>
   );
 }
@@ -1240,6 +1261,10 @@ export function MainNavigator() {
 const styles = StyleSheet.create({
   navigatorShell: {
     flex: 1,
+  },
+  headerRightRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   menuButton: {
     width: 40,
