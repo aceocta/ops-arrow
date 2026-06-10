@@ -131,6 +131,10 @@ export function BestEntryScreen() {
   const [switchOpen, setSwitchOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
 
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const firstName = profile?.firstName || profile?.displayName?.split(" ")[0] || "there";
+
   const chooseShop = async (shopId: string) => {
     setSwitchOpen(false);
     if (shopId !== activeShopId) {
@@ -146,29 +150,34 @@ export function BestEntryScreen() {
     <ScreenContainer>
       <SubscriptionBanner />
 
-      {/* Active shop + quick switch — only relevant when the user belongs to more than one shop. */}
-      {canSwitchShop ? (
-        <Pressable
-          style={[ui.card, styles.shopCard]}
-          onPress={() => setSwitchOpen(true)}
-          accessibilityRole="button"
-          accessibilityLabel="Active shop. Tap to switch."
-        >
-          <View style={styles.shopCardIcon}>
-            <Ionicons name="storefront-outline" size={20} color={appTheme.colors.primary} />
-          </View>
-          <View style={styles.shopCardText}>
-            <Text style={styles.shopCardLabel}>Active shop</Text>
-            <Text style={styles.shopCardName} numberOfLines={1}>
-              {activeShop?.shopName ?? "No shop selected"}
-            </Text>
-          </View>
+      {/* Greeting header */}
+      <View style={styles.header}>
+        <Text style={styles.greeting}>{greeting},</Text>
+        <Text style={styles.name} numberOfLines={1}>{firstName} 👋</Text>
+      </View>
+
+      {/* Active shop — tappable to switch when the user belongs to more than one shop. */}
+      <Pressable
+        style={[ui.card, styles.shopChip]}
+        onPress={() => canSwitchShop && setSwitchOpen(true)}
+        disabled={!canSwitchShop}
+        accessibilityRole="button"
+        accessibilityLabel="Active shop. Tap to switch."
+      >
+        <View style={styles.shopChipIcon}>
+          <Ionicons name="storefront-outline" size={18} color={appTheme.colors.primary} />
+        </View>
+        <View style={styles.shopChipText}>
+          <Text style={styles.shopChipLabel}>Active shop</Text>
+          <Text style={styles.shopChipName} numberOfLines={1}>{activeShop?.shopName ?? "No shop selected"}</Text>
+        </View>
+        {canSwitchShop ? (
           <View style={styles.switchPill}>
             <Ionicons name="swap-horizontal" size={14} color={appTheme.colors.primary} />
             <Text style={styles.switchPillText}>Switch</Text>
           </View>
-        </Pressable>
-      ) : null}
+        ) : null}
+      </Pressable>
 
       {canManageRota && activeShopId ? (
         <GetStartedCard shopId={activeShopId} features={features} onGo={(route) => navigation.navigate(route as never)} />
@@ -187,30 +196,33 @@ export function BestEntryScreen() {
             ? "This shop has no active modules. Choose a plan or contact support to enable features."
             : "Your manager hasn't enabled any features for you yet. Check back soon."}
         />
-      ) : null}
-
-      <View style={styles.featureGrid}>
-        {visibleOptions.map((option) => {
-          const selected = option.operation ? selectedOperation === option.operation : false;
-          return (
-            <Pressable
-              key={option.key}
-              style={[ui.card, styles.featureTile, selected ? styles.featureTileSelected : null]}
-              onPress={() => {
-                if (option.operation) {
-                  setSelectedOperation(option.operation);
-                }
-                navigation.navigate(option.route as never);
-              }}
-            >
-              <View style={[styles.featureIcon, { backgroundColor: option.iconBg }]}>
-                <Ionicons name={option.icon} size={28} color={option.iconColor} />
-              </View>
-              <Text style={styles.featureTitle}>{option.title}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      ) : (
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Quick actions</Text>
+          <View style={styles.featureGrid}>
+            {visibleOptions.map((option) => {
+              const selected = option.operation ? selectedOperation === option.operation : false;
+              return (
+                <Pressable
+                  key={option.key}
+                  style={[ui.card, styles.featureTile, selected ? styles.featureTileSelected : null]}
+                  onPress={() => {
+                    if (option.operation) {
+                      setSelectedOperation(option.operation);
+                    }
+                    navigation.navigate(option.route as never);
+                  }}
+                >
+                  <View style={[styles.featureIcon, { backgroundColor: option.iconBg }]}>
+                    <Ionicons name={option.icon} size={24} color={option.iconColor} />
+                  </View>
+                  <Text style={styles.featureTitle}>{option.title}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      )}
 
       <Modal visible={switchOpen} transparent animationType="fade" onRequestClose={() => setSwitchOpen(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setSwitchOpen(false)}>
@@ -243,30 +255,28 @@ export function BestEntryScreen() {
 }
 
 const styles = StyleSheet.create({
-  askBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    borderWidth: 1,
-    borderColor: appTheme.colors.border,
-    borderRadius: appTheme.radius.md,
-    backgroundColor: appTheme.colors.surfaceMuted,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: appTheme.spacing.md,
+  header: {
+    gap: 2,
   },
-  askBarText: {
-    color: appTheme.colors.textSubtle,
+  greeting: {
+    color: appTheme.colors.textMuted,
     fontFamily: appTheme.fonts.body,
-    fontSize: 14,
+    fontSize: 15,
   },
-  shopCard: {
+  name: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.heading,
+    fontSize: 26,
+    lineHeight: 32,
+    letterSpacing: -0.3,
+  },
+  shopChip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    marginBottom: 12,
+    paddingVertical: 10,
   },
-  shopCardIcon: {
+  shopChipIcon: {
     width: 40,
     height: 40,
     borderRadius: appTheme.radius.sm,
@@ -274,27 +284,49 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: appTheme.colors.surfaceBrandSoft,
   },
-  shopCardText: { flex: 1, gap: 2 },
-  shopCardLabel: {
-    color: appTheme.colors.textMuted,
+  shopChipText: { flex: 1, gap: 2 },
+  shopChipLabel: {
+    color: appTheme.colors.textSubtle,
     fontFamily: appTheme.fonts.body,
     fontSize: 11,
     textTransform: "uppercase",
-    letterSpacing: 0.3,
+    letterSpacing: 0.4,
   },
-  shopCardName: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 16, lineHeight: 20 },
+  shopChipName: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 16, lineHeight: 20 },
   switchPill: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: appTheme.colors.primary,
+    borderRadius: appTheme.radius.pill,
     backgroundColor: appTheme.colors.surfaceBrandSoft,
   },
   switchPillText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
+  askBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surface,
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderSoft,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  askBarText: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 14,
+  },
+  section: { gap: appTheme.spacing.sm },
+  sectionLabel: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
@@ -332,18 +364,21 @@ const styles = StyleSheet.create({
   },
   featureTile: {
     width: "48%",
-    minHeight: 150,
+    minHeight: 104,
     borderRadius: appTheme.radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 14,
+    padding: appTheme.spacing.md,
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
   },
   featureTileSelected: {
     backgroundColor: appTheme.colors.surfaceBrandMuted,
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderBrandSoft,
   },
   featureIcon: {
-    width: 62,
-    height: 62,
+    width: 48,
+    height: 48,
     borderRadius: appTheme.radius.sm,
     alignItems: "center",
     justifyContent: "center",
@@ -351,9 +386,8 @@ const styles = StyleSheet.create({
   featureTitle: {
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 16,
-    lineHeight: 20,
-    textAlign: "center",
+    fontSize: 15,
+    lineHeight: 19,
   },
 });
 
