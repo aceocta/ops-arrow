@@ -36,6 +36,7 @@ public class ShopService : IShopService
     private readonly IShopSubscriptionService _shopSubscriptionService;
     private readonly IShopNotificationDispatcher _shopNotificationDispatcher;
     private readonly IAuditService _auditService;
+    private readonly ITillReportDefaultsService _tillReportDefaults;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -60,6 +61,7 @@ public class ShopService : IShopService
         IShopSubscriptionService shopSubscriptionService,
         IShopNotificationDispatcher shopNotificationDispatcher,
         IAuditService auditService,
+        ITillReportDefaultsService tillReportDefaults,
         ICurrentUserService currentUserService,
         IUnitOfWork unitOfWork)
     {
@@ -83,6 +85,7 @@ public class ShopService : IShopService
         _shopSubscriptionService = shopSubscriptionService;
         _shopNotificationDispatcher = shopNotificationDispatcher;
         _auditService = auditService;
+        _tillReportDefaults = tillReportDefaults;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
     }
@@ -137,6 +140,7 @@ public class ShopService : IShopService
         await UpsertPackConfigurationAsync(shop.Id, request.PackSellingOrder, request.ScratchCardDisplayCount, cancellationToken);
         await SeedTemperatureSchedulesAsync(shop.Id, request.TemperatureCheckTimes, cancellationToken);
         await SeedShiftTemplatesAsync(shop.Id, request.ShiftTemplates, cancellationToken);
+        await _tillReportDefaults.SeedDefaultsAsync(shop.Id, cancellationToken);
         await AssignActiveMasterGamesToShopAsync(shop, cancellationToken);
         await EnsureCreatorOwnershipAsync(shop, cancellationToken);
         await ApplySubscriptionAndFeatureConfigurationAsync(

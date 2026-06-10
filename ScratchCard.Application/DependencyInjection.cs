@@ -28,6 +28,7 @@ public static class DependencyInjection
         services.AddScoped<ITillAccountingService, TillAccountingService>();
         services.AddScoped<ITillFieldOverrideService, TillFieldOverrideService>();
         services.AddScoped<ITillFieldDefinitionService, TillFieldDefinitionService>();
+        services.AddScoped<ITillReportDefaultsService, TillReportDefaultsService>();
         services.AddScoped<IStaffPayRateService, StaffPayRateService>();
         services.AddScoped<IShiftSwapService, ShiftSwapService>();
         services.AddScoped<ISubscriptionCalculationService, SubscriptionCalculationService>();

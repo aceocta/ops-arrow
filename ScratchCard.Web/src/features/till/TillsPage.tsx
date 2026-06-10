@@ -4,16 +4,18 @@ import { useAuth } from "../../auth/AuthContext";
 import { tillsApi, type Till } from "../../lib/tills";
 import { apiErrorMessage } from "../../lib/api";
 import { toast } from "../../components/feedback";
-import { Plus, Power, Trash2, Pencil } from "lucide-react";
+import { Plus, Power, Trash2, Pencil, Wand2 } from "lucide-react";
 import clsx from "clsx";
 
 export default function TillsPage() {
-  const { activeShopId } = useAuth();
+  const { activeShopId, activeShop } = useAuth();
   const shopId = activeShopId!;
+  const companyId = activeShop?.companyId ?? null;
   const qc = useQueryClient();
   const key = ["tills", shopId];
   const q = useQuery({ queryKey: key, queryFn: () => tillsApi.list(shopId, true), enabled: !!shopId });
   const [editing, setEditing] = useState<Till | "new" | null>(null);
+  const [showDefaults, setShowDefaults] = useState(false);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: key });
   const toggle = useMutation({
@@ -35,7 +37,10 @@ export default function TillsPage() {
           <h1 className="page-title">Tills</h1>
           <p className="page-subtitle">Cash points / drawers reconciled separately at this shop</p>
         </div>
-        <button className="btn-primary" onClick={() => setEditing("new")}><Plus className="h-4 w-4" /> Add till</button>
+        <div className="flex gap-2">
+          <button className="btn-ghost" onClick={() => setShowDefaults(true)}><Wand2 className="h-4 w-4" /> Set up defaults</button>
+          <button className="btn-primary" onClick={() => setEditing("new")}><Plus className="h-4 w-4" /> Add till</button>
+        </div>
       </div>
 
       <div className="card overflow-hidden">
@@ -77,6 +82,37 @@ export default function TillsPage() {
       </div>
 
       {editing ? <TillEditor shopId={shopId} till={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); invalidate(); }} /> : null}
+      {showDefaults ? <DefaultsModal shopId={shopId} companyId={companyId} onClose={() => setShowDefaults(false)} onDone={invalidate} /> : null}
+    </div>
+  );
+}
+
+function DefaultsModal({ shopId, companyId, onClose, onDone }: { shopId: string; companyId: string | null; onClose: () => void; onDone: () => void }) {
+  const apply = useMutation({
+    mutationFn: (body: { shopId?: string; companyId?: string }) => tillsApi.applyDefaults(body),
+    onSuccess: (r) => { toast(`Default till data applied to ${r.seeded} shop${r.seeded === 1 ? "" : "s"}.`, "success"); onDone(); onClose(); },
+    onError: (e) => toast(apiErrorMessage(e), "error"),
+  });
+  return (
+    <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="card w-full max-w-md space-y-3 p-5" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-semibold text-slate-800">Set up default till data</h2>
+        <p className="text-sm text-slate-500">
+          Adds the common payment types (Cash, Card, Credit Card, Fuel Card, Cheque) and a default "Till 1" — only where they're
+          missing, so your existing tills and payment types are never changed.
+        </p>
+        <div className="space-y-2 pt-1">
+          <button className="btn-primary w-full justify-center" disabled={apply.isPending} onClick={() => apply.mutate({ shopId })}>
+            Apply to this shop
+          </button>
+          {companyId ? (
+            <button className="btn-ghost w-full justify-center" disabled={apply.isPending} onClick={() => apply.mutate({ companyId })}>
+              Apply to all shops in my company
+            </button>
+          ) : null}
+          <button className="btn-ghost w-full justify-center" onClick={onClose}>Cancel</button>
+        </div>
+      </div>
     </div>
   );
 }

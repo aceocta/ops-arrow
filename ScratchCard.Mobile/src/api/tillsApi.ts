@@ -22,3 +22,9 @@ export async function updateTill(id: string, input: { name: string; code?: strin
 export async function deleteTill(id: string) {
   await apiClient.delete(`/tills/${id}`);
 }
+
+// Seed default Till Report data (payment types + a default till) for one shop or every shop in a company.
+export async function applyTillReportDefaults(body: { shopId?: string; companyId?: string }) {
+  const response = await apiClient.post<ApiResponse<{ seeded: number }>>("/till-report-defaults/apply", body);
+  return response.data.data;
+}

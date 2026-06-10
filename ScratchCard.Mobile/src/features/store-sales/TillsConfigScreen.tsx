@@ -3,7 +3,7 @@ import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from "reac
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
-import { createTill, deleteTill, listTills, updateTill } from "../../api/tillsApi";
+import { applyTillReportDefaults, createTill, deleteTill, listTills, updateTill } from "../../api/tillsApi";
 import { LoadingState } from "../../components/LoadingState";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -14,8 +14,9 @@ import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
 export function TillsConfigScreen() {
-  const { activeShopId } = useAuth();
+  const { activeShopId, profile } = useAuth();
   const shopId = activeShopId;
+  const companyId = profile?.shops?.find((s) => s.shopId === activeShopId)?.companyId;
   const queryClient = useQueryClient();
 
   const tillsQuery = useQuery({
@@ -48,6 +49,36 @@ export function TillsConfigScreen() {
       Alert.alert("Add failed", error?.response?.data?.message ?? "Could not add this till."),
   });
 
+  const defaultsMutation = useMutation({
+    mutationFn: (body: { shopId?: string; companyId?: string }) => applyTillReportDefaults(body),
+    onSuccess: (result) => {
+      refreshTills();
+      void queryClient.invalidateQueries({ queryKey: ["shopPaymentTypes", shopId] });
+      Alert.alert(
+        "Defaults applied",
+        `Default till data set up for ${result.seeded} shop${result.seeded === 1 ? "" : "s"}. Existing tills and payment types were left unchanged.`,
+      );
+    },
+    onError: (error: any) =>
+      Alert.alert("Setup failed", error?.response?.data?.message ?? "Could not set up default till data."),
+  });
+
+  function setUpDefaults() {
+    if (!shopId) return;
+    const buttons: any[] = [
+      { text: "This shop", onPress: () => defaultsMutation.mutate({ shopId }) },
+    ];
+    if (companyId) {
+      buttons.push({ text: "All shops in company", onPress: () => defaultsMutation.mutate({ companyId }) });
+    }
+    buttons.push({ text: "Cancel", style: "cancel" });
+    Alert.alert(
+      "Set up default till data",
+      "Adds common payment types (Cash, Card, Credit Card, Fuel Card, Cheque) and a default \"Till 1\" — only where they're missing.",
+      buttons,
+    );
+  }
+
   async function confirmDelete(till: Till) {
     const ok = await confirmDestructive({
       title: "Delete till",
@@ -78,6 +109,22 @@ export function TillsConfigScreen() {
 
   return (
     <ScreenContainer>
+      <View style={ui.card}>
+        <View style={styles.defaultsRow}>
+          <Ionicons name="sparkles-outline" size={20} color={appTheme.colors.accent} />
+          <View style={styles.defaultsText}>
+            <Text style={ui.sectionTitle}>Quick start</Text>
+            <Text style={ui.caption}>Add the common payment types and a default till in one tap.</Text>
+          </View>
+        </View>
+        <PrimaryButton
+          label={defaultsMutation.isPending ? "Setting up..." : "Set up default till data"}
+          tone="neutral"
+          onPress={setUpDefaults}
+          disabled={defaultsMutation.isPending || !shopId}
+        />
+      </View>
+
       <View style={ui.card}>
         <Text style={ui.sectionTitle}>Add a till</Text>
         <Text style={ui.caption}>Give each till a unique name (e.g. "Till 1", "Front Counter"). Code is optional.</Text>
@@ -206,6 +253,8 @@ function EditTillModal({ till, onClose, onSaved }: { till: Till; onClose: () => 
 }
 
 const styles = StyleSheet.create({
+  defaultsRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
+  defaultsText: { flex: 1, gap: 2 },
   fieldRow: { flexDirection: "row", gap: 8 },
   input: {
     flex: 1,
