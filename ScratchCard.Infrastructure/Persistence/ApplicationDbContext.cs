@@ -710,7 +710,10 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<TemperatureReading>(entity =>
         {
             entity.HasIndex(x => new { x.ShopId, x.ReadingDate });
-            entity.HasIndex(x => new { x.TemperatureMonitoringUnitId, x.ReadingDate, x.ReadingTime }).IsUnique();
+            // Uniqueness includes ScheduleId so two different checks for the same unit can share a
+            // minute (staff often back-log several checks at once → same readingTime). The service
+            // still de-dupes one row per check (scheduled) / per time (random).
+            entity.HasIndex(x => new { x.TemperatureMonitoringUnitId, x.ReadingDate, x.ScheduleId, x.ReadingTime }).IsUnique();
             entity.Property(x => x.TemperatureCelsius).HasPrecision(5, 2);
             entity.Property(x => x.CheckedByInitials).HasMaxLength(20).IsRequired();
             entity.Property(x => x.Notes).HasMaxLength(500);

@@ -668,7 +668,7 @@ export function RotaManageScreen() {
         </View>
 
         <Pressable style={styles.generateBtn} onPress={confirmGenerate} disabled={!shopId || generateMutation.isPending}>
-          <Ionicons name="sparkles-outline" size={16} color={appTheme.colors.onPrimary} />
+          {/* <Ionicons name="sparkles-outline" size={16} color={appTheme.colors.onPrimary} /> */}
           <Text style={styles.generateBtnText}>{generateMutation.isPending ? "Generating…" : "Auto-generate this week"}</Text>
         </Pressable>
 
