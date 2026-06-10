@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
@@ -25,7 +25,6 @@ import { appTheme } from "../../ui/theme";
 import { ui } from "../../ui/primitives";
 import {
   FIELD_OPTIONS,
-  VARIANCE_REASONS,
   Reconciliation,
   ReconciliationLine,
   TillCanonicalField,
@@ -257,7 +256,7 @@ export function TillReconciliationScreen() {
 
   return (
     <ScreenContainer footer={footerBar}>
-        <View style={ui.card}>
+        <View style={[ui.card, styles.groupCard]}>
           <View style={styles.row}>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Business date</Text>
@@ -323,8 +322,8 @@ export function TillReconciliationScreen() {
         {data ? (
           <>
             {/* Summary */}
-            <View style={ui.card}>
-              <Text style={ui.sectionTitle}>Reconciliation</Text>
+            <View style={[ui.card, styles.groupCard]}>
+              <Text style={[ui.sectionTitle, styles.groupTitle]}>Reconciliation</Text>
               <Row k="Opening float" v={gbp(data.openingFloat)} />
               <Row k="Expected cash" v={gbp(data.expectedCash)} />
               <Row k="Counted cash" v={data.countedCash != null ? gbp(data.countedCash) : "—"} />
@@ -346,7 +345,7 @@ export function TillReconciliationScreen() {
 
             {/* Income / owed */}
             {(data.summary.commissionIncome !== 0 || data.summary.owedToProviders.length > 0) ? (
-              <View style={ui.card}>
+              <View style={[ui.card, styles.groupCard]}>
                 {data.summary.commissionIncome !== 0 ? <Row k="Commission income" v={gbp(data.summary.commissionIncome)} /> : null}
                 {data.summary.owedToProviders.map((o) => (
                   <Row key={o.provider} k={`Owed · ${o.provider}`} v={gbp(o.amount)} muted />
@@ -356,7 +355,7 @@ export function TillReconciliationScreen() {
 
             {/* Bulk-action bar for checkbox-selected lines */}
             {!locked && selected.size > 0 ? (
-              <View style={[ui.card, styles.selectBar]}>
+              <View style={[ui.card, styles.groupCard, styles.selectBar]}>
                 <Text style={styles.selectCount}>{selected.size} selected</Text>
                 <View style={styles.selectActions}>
                   <Pressable style={styles.selectBtn} onPress={() => setMoveOpen(true)} disabled={bulkMutation.isPending}>
@@ -449,25 +448,19 @@ export function TillReconciliationScreen() {
 
             {/* Variance reason */}
             {data.requiresReason && !locked ? (
-              <View style={[ui.card, { borderColor: appTheme.colors.borderWarningSoft, borderWidth: 1 }]}>
-                <Text style={ui.sectionTitle}>Variance reason required</Text>
-                <View style={styles.chipWrap}>
-                  {VARIANCE_REASONS.map((r) => {
-                    const active = data.varianceReasonCode === r;
-                    return (
-                      <Pressable key={r} onPress={() => reasonMutation.mutate({ reasonCode: r, notes: data.varianceNotes ?? undefined })}
-                        style={[styles.chip, active ? styles.chipActive : null]}>
-                        <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>{r}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
+              <View style={[ui.card, styles.groupCard, { borderColor: appTheme.colors.borderWarningSoft, borderWidth: 1 }]}>
+                <Text style={[ui.sectionTitle, styles.groupTitle]}>Variance reason required</Text>
+                <VarianceReasonInput
+                  initial={data.varianceReasonCode ?? ""}
+                  busy={reasonMutation.isPending}
+                  onSave={(reasonCode) => reasonMutation.mutate({ reasonCode, notes: data.varianceNotes ?? undefined })}
+                />
               </View>
             ) : null}
 
             {/* Approved (read-only) banner */}
             {locked ? (
-              <View style={[ui.card, { alignItems: "center" }]}>
+              <View style={[ui.card, styles.groupCard, { alignItems: "center" }]}>
                 <Text style={styles.approved}>✓ Approved{data.confirmedOn ? ` · ${new Date(data.confirmedOn).toLocaleString("en-GB")}` : ""}</Text>
               </View>
             ) : null}
@@ -496,6 +489,24 @@ export function TillReconciliationScreen() {
         />
       ) : null}
     </ScreenContainer>
+  );
+}
+
+function VarianceReasonInput({ initial, busy, onSave }: { initial: string; busy: boolean; onSave: (text: string) => void }) {
+  const [text, setText] = useState(initial);
+  React.useEffect(() => { setText(initial); }, [initial]);
+  return (
+    <TextInput
+      style={styles.reasonInput}
+      value={text}
+      onChangeText={setText}
+      onEndEditing={() => { const t = text.trim(); if (t && t !== initial) onSave(t); }}
+      placeholder="Type the reason for the over / short…"
+      placeholderTextColor={appTheme.colors.textSubtle}
+      maxLength={60}
+      editable={!busy}
+      returnKeyType="done"
+    />
   );
 }
 
@@ -714,8 +725,8 @@ function ProofOfCashCard({ data }: { data: Reconciliation }) {
   const x = data.summary.safeDropCrossCheck;
   if (!p) return null; // older API build without proof-of-cash
   return (
-    <View style={ui.card}>
-      <Text style={ui.sectionTitle}>Proof of cash</Text>
+    <View style={[ui.card, styles.groupCard]}>
+      <Text style={[ui.sectionTitle, styles.groupTitle]}>Proof of cash</Text>
       <Row k="Cash in (float + takings)" v={gbp(p.cashIn)} />
       {p.paidOut !== 0 ? <Row k="Paid out" v={`− ${gbp(p.paidOut)}`} muted /> : null}
       {p.safeDrop !== 0 ? <Row k="Safe drop" v={`− ${gbp(p.safeDrop)}`} muted /> : null}
@@ -915,22 +926,23 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "flex-end", gap: appTheme.spacing.sm },
   tillPickerBlock: { marginTop: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft, paddingTop: 2 },
   segRow: { flexDirection: "row", gap: 2, padding: 2, borderRadius: 999, backgroundColor: appTheme.colors.surfaceMuted, marginTop: 2 },
-  segChip: { flex: 1, alignItems: "center", paddingVertical: 8, paddingHorizontal: 6, borderRadius: 999 },
+  segChip: { flex: 1, alignItems: "center", paddingVertical: 6, paddingHorizontal: 6, borderRadius: 999 },
   segChipActive: { backgroundColor: appTheme.colors.surface, shadowColor: "#0f172a", shadowOpacity: 0.1, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
   segText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   segTextActive: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium },
   label: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11, marginBottom: 2 },
   muted: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.body, fontSize: 12 },
-  kvRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 4 },
+  kvRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 2 },
   kvKey: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 14 },
   kvVal: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
-  divider: { height: 1, backgroundColor: appTheme.colors.borderSoft, marginVertical: 6 },
+  divider: { height: 1, backgroundColor: appTheme.colors.borderSoft, marginVertical: 4 },
   varianceRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   varianceLabel: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 16 },
   varianceValue: { fontFamily: appTheme.fonts.heading, fontSize: 20 },
   captureRow: { flexDirection: "row", gap: appTheme.spacing.xs },
   captureBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 7, paddingHorizontal: 12, borderRadius: appTheme.radius.pill, borderWidth: 1, borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surface },
   captureText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
+  reasonInput: { marginTop: 6, borderWidth: 1, borderColor: appTheme.colors.border, borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceMuted, color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 14, paddingHorizontal: 12, paddingVertical: 10 },
   attachRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 },
   attachLabel: { flex: 1, color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 13 },
   attachThumbs: { flexDirection: "row", alignItems: "center", gap: 4 },
@@ -951,7 +963,7 @@ const styles = StyleSheet.create({
   verifyHint: { color: appTheme.colors.warning, fontFamily: appTheme.fonts.body, fontSize: 11, marginTop: 2 },
   proofFlag: { fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, marginTop: 8 },
   crossCheck: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: appTheme.colors.borderSoft, borderRadius: appTheme.radius.sm, borderWidth: 1, padding: 10 },
-  countBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 10, paddingVertical: 10, borderRadius: appTheme.radius.sm, borderWidth: 1, borderColor: appTheme.colors.border },
+  countBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 6, paddingVertical: 8, borderRadius: appTheme.radius.sm, borderWidth: 1, borderColor: appTheme.colors.border },
   countBtnText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   lineRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 5, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
   lineBody: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
