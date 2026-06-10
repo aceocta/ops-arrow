@@ -172,9 +172,11 @@ public class TimesheetRowDto
     public string UserName { get; set; } = string.Empty;
     public int ShiftsWorked { get; set; }      // attendance records that were checked out
     public int OpenSessions { get; set; }       // checked in but not out
-    public decimal TotalHours { get; set; }     // sum of completed sessions
+    public decimal TotalHours { get; set; }     // sum of completed sessions (approved + pending)
+    public decimal PendingHours { get; set; }   // portion of TotalHours awaiting approval
     public decimal? HourlyRate { get; set; }    // current rate (null if labour-cost not entitled / no rate)
-    public decimal? LabourCost { get; set; }    // Σ session hours × rate effective on each session's date
+    public decimal? LabourCost { get; set; }    // Σ session hours × rate effective on each session's date (all)
+    public decimal? PendingLabourCost { get; set; } // portion of LabourCost from unapproved sessions
 }
 
 // One worked session in a staff member's timesheet drill-down.
@@ -216,6 +218,8 @@ public class ShiftTimesheetRowDto
     public int StaffCount { get; set; }        // distinct people who worked this shift
     public int ShiftsWorked { get; set; }      // completed sessions
     public int OpenSessions { get; set; }       // checked in but not out
-    public decimal TotalHours { get; set; }     // sum of completed sessions
+    public decimal TotalHours { get; set; }     // sum of completed sessions (approved + pending)
+    public decimal PendingHours { get; set; }   // portion of TotalHours awaiting approval
     public decimal? LabourCost { get; set; }    // Σ session hours × effective rate (null if not entitled)
+    public decimal? PendingLabourCost { get; set; } // portion of LabourCost from unapproved sessions
 }

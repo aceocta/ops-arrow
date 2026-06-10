@@ -544,6 +544,7 @@ public class RotaService : IRotaService
                 MemberName = x.RotaStaffMember != null ? x.RotaStaffMember.Name : null,
                 x.CheckInAt,
                 x.CheckOutAt,
+                x.IsApproved,
             })
             .ToListAsync(cancellationToken);
 
@@ -560,35 +561,47 @@ public class RotaService : IRotaService
                  .Select(r => (decimal?)r.HourlyRate)
                  .FirstOrDefault();
 
+        // Hours + cost split into total and the pending (unapproved) portion, so the UI can show
+        // approved vs awaiting-approval without hiding anything.
+        (decimal Hours, decimal PendingHours, decimal? Cost, decimal? PendingCost) Aggregate(
+            IEnumerable<(Guid? UserId, Guid? RotaStaffMemberId, DateTimeOffset CheckInAt, DateTimeOffset? CheckOutAt, bool IsApproved)> sessions)
+        {
+            decimal hours = 0, pendingHours = 0, cost = 0, pendingCost = 0;
+            foreach (var s in sessions.Where(x => x.CheckOutAt != null))
+            {
+                var h = (decimal)(s.CheckOutAt!.Value - s.CheckInAt).TotalHours;
+                hours += h;
+                if (!s.IsApproved) pendingHours += h;
+                if (showCost)
+                {
+                    var rate = RateOn(s.UserId, s.RotaStaffMemberId, DateOnly.FromDateTime(s.CheckInAt.UtcDateTime)) ?? 0;
+                    cost += h * rate;
+                    if (!s.IsApproved) pendingCost += h * rate;
+                }
+            }
+            return (Math.Round(hours, 2), Math.Round(pendingHours, 2),
+                    showCost ? Math.Round(cost, 2) : null, showCost ? Math.Round(pendingCost, 2) : null);
+        }
+
         return rows
             .GroupBy(x => x.UserId != null ? $"u:{x.UserId}" : $"m:{x.RotaStaffMemberId}")
             .Select(g =>
             {
                 var sample = g.First();
-                var completed = g.Where(x => x.CheckOutAt != null).ToList();
-                decimal? cost = null;
-                if (showCost)
-                {
-                    cost = 0;
-                    foreach (var s in completed)
-                    {
-                        var hours = (decimal)(s.CheckOutAt!.Value - s.CheckInAt).TotalHours;
-                        var rate = RateOn(s.UserId, s.RotaStaffMemberId, DateOnly.FromDateTime(s.CheckInAt.UtcDateTime));
-                        cost += hours * (rate ?? 0);
-                    }
-                    cost = Math.Round(cost.Value, 2);
-                }
+                var agg = Aggregate(g.Select(x => (x.UserId, x.RotaStaffMemberId, x.CheckInAt, x.CheckOutAt, x.IsApproved)));
                 return new TimesheetRowDto
                 {
                     UserId = sample.UserId,
                     RotaStaffMemberId = sample.RotaStaffMemberId,
                     IsExternal = sample.RotaStaffMemberId != null,
                     UserName = (sample.UserId != null ? $"{sample.UserFirstName} {sample.UserLastName}" : sample.MemberName ?? "—").Trim(),
-                    ShiftsWorked = completed.Count,
+                    ShiftsWorked = g.Count(x => x.CheckOutAt != null),
                     OpenSessions = g.Count(x => x.CheckOutAt == null),
-                    TotalHours = Math.Round((decimal)completed.Sum(x => (x.CheckOutAt!.Value - x.CheckInAt).TotalHours), 2),
+                    TotalHours = agg.Hours,
+                    PendingHours = agg.PendingHours,
                     HourlyRate = showCost ? RateOn(sample.UserId, sample.RotaStaffMemberId, to) : null,
-                    LabourCost = cost,
+                    LabourCost = agg.Cost,
+                    PendingLabourCost = agg.PendingCost,
                 };
             })
             .OrderBy(x => x.UserName)
@@ -604,7 +617,7 @@ public class RotaService : IRotaService
         var rows = await _attendanceRepository.Query()
             .AsNoTracking()
             .Where(x => x.ShopId == shopId && x.CheckInAt >= fromBound && x.CheckInAt < toExclusive)
-            .Select(x => new { x.UserId, x.RotaStaffMemberId, x.CheckInAt, x.CheckOutAt, x.RotaShiftId })
+            .Select(x => new { x.UserId, x.RotaStaffMemberId, x.CheckInAt, x.CheckOutAt, x.RotaShiftId, x.IsApproved })
             .ToListAsync(cancellationToken);
 
         var shiftIds = rows.Where(r => r.RotaShiftId != null).Select(r => r.RotaShiftId!.Value).Distinct().ToList();
@@ -627,16 +640,22 @@ public class RotaService : IRotaService
                  .Select(r => (decimal?)r.HourlyRate)
                  .FirstOrDefault();
 
-        decimal? CostFor(IEnumerable<(Guid? UserId, Guid? RotaStaffMemberId, DateTimeOffset CheckInAt, DateTimeOffset? CheckOutAt)> sessions)
+        (decimal? Cost, decimal? PendingCost, decimal PendingHours) Aggregate(
+            IEnumerable<(Guid? UserId, Guid? RotaStaffMemberId, DateTimeOffset CheckInAt, DateTimeOffset? CheckOutAt, bool IsApproved)> sessions)
         {
-            if (!showCost) return null;
-            decimal cost = 0;
+            decimal cost = 0, pendingCost = 0, pendingHours = 0;
             foreach (var s in sessions.Where(x => x.CheckOutAt != null))
             {
                 var hours = (decimal)(s.CheckOutAt!.Value - s.CheckInAt).TotalHours;
-                cost += hours * (RateOn(s.UserId, s.RotaStaffMemberId, DateOnly.FromDateTime(s.CheckInAt.UtcDateTime)) ?? 0);
+                if (!s.IsApproved) pendingHours += hours;
+                if (showCost)
+                {
+                    var rate = RateOn(s.UserId, s.RotaStaffMemberId, DateOnly.FromDateTime(s.CheckInAt.UtcDateTime)) ?? 0;
+                    cost += hours * rate;
+                    if (!s.IsApproved) pendingCost += hours * rate;
+                }
             }
-            return Math.Round(cost, 2);
+            return (showCost ? Math.Round(cost, 2) : null, showCost ? Math.Round(pendingCost, 2) : null, Math.Round(pendingHours, 2));
         }
 
         // One row per shift instance (a specific day's shift), plus per-day rows for unrostered clock-ins.
@@ -646,6 +665,7 @@ public class RotaService : IRotaService
             .Select(g =>
             {
                 var info = infoById[g.Key];
+                var agg = Aggregate(g.Select(x => (x.UserId, x.RotaStaffMemberId, x.CheckInAt, x.CheckOutAt, x.IsApproved)));
                 return new ShiftTimesheetRowDto
                 {
                     ShiftName = info.ShiftName,
@@ -656,22 +676,30 @@ public class RotaService : IRotaService
                     ShiftsWorked = g.Count(x => x.CheckOutAt != null),
                     OpenSessions = g.Count(x => x.CheckOutAt == null),
                     TotalHours = Math.Round((decimal)g.Where(x => x.CheckOutAt != null).Sum(x => (x.CheckOutAt!.Value - x.CheckInAt).TotalHours), 2),
-                    LabourCost = CostFor(g.Select(x => (x.UserId, x.RotaStaffMemberId, x.CheckInAt, x.CheckOutAt))),
+                    PendingHours = agg.PendingHours,
+                    LabourCost = agg.Cost,
+                    PendingLabourCost = agg.PendingCost,
                 };
             });
 
         var unrostered = rows
             .Where(r => r.RotaShiftId == null || !infoById.ContainsKey(r.RotaShiftId.Value))
             .GroupBy(r => DateOnly.FromDateTime(r.CheckInAt.UtcDateTime))
-            .Select(g => new ShiftTimesheetRowDto
+            .Select(g =>
             {
-                ShiftName = "Unrostered",
-                Date = g.Key,
-                StaffCount = g.Select(x => x.UserId).Distinct().Count(),
-                ShiftsWorked = g.Count(x => x.CheckOutAt != null),
-                OpenSessions = g.Count(x => x.CheckOutAt == null),
-                TotalHours = Math.Round((decimal)g.Where(x => x.CheckOutAt != null).Sum(x => (x.CheckOutAt!.Value - x.CheckInAt).TotalHours), 2),
-                LabourCost = CostFor(g.Select(x => (x.UserId, x.RotaStaffMemberId, x.CheckInAt, x.CheckOutAt))),
+                var agg = Aggregate(g.Select(x => (x.UserId, x.RotaStaffMemberId, x.CheckInAt, x.CheckOutAt, x.IsApproved)));
+                return new ShiftTimesheetRowDto
+                {
+                    ShiftName = "Unrostered",
+                    Date = g.Key,
+                    StaffCount = g.Select(x => x.UserId).Distinct().Count(),
+                    ShiftsWorked = g.Count(x => x.CheckOutAt != null),
+                    OpenSessions = g.Count(x => x.CheckOutAt == null),
+                    TotalHours = Math.Round((decimal)g.Where(x => x.CheckOutAt != null).Sum(x => (x.CheckOutAt!.Value - x.CheckInAt).TotalHours), 2),
+                    PendingHours = agg.PendingHours,
+                    LabourCost = agg.Cost,
+                    PendingLabourCost = agg.PendingCost,
+                };
             });
 
         return rostered.Concat(unrostered)

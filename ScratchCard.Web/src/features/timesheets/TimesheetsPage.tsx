@@ -62,22 +62,36 @@ export default function TimesheetsPage() {
     return rows.reduce((s: number, r: { totalHours: number }) => s + r.totalHours, 0);
   }, [view, staffQ.data, shiftQ.data]);
 
+  // Wage split: approved vs pending (awaiting approval), so the total is never inflated silently.
+  const wage = useMemo(() => {
+    const rows = (view === "staff" ? staffQ.data ?? [] : shiftQ.data ?? []) as {
+      labourCost?: number | null; pendingLabourCost?: number | null; pendingHours?: number;
+    }[];
+    const totalCost = rows.reduce((s, r) => s + (r.labourCost ?? 0), 0);
+    const pendingCost = rows.reduce((s, r) => s + (r.pendingLabourCost ?? 0), 0);
+    const pendingHours = rows.reduce((s, r) => s + (r.pendingHours ?? 0), 0);
+    return { total: totalCost, pending: pendingCost, approved: totalCost - pendingCost, pendingHours };
+  }, [view, staffQ.data, shiftQ.data]);
+
   const loading = view === "staff" ? staffQ.isLoading : shiftQ.isLoading;
 
   const exportCsv = () => {
     if (view === "staff") {
       downloadCsv(
         `timesheet-by-staff_${range.from}_${range.to}`,
-        ["Staff", "External", "Shifts worked", "Open sessions", "Total hours"],
-        (staffQ.data ?? []).map((r) => [r.userName, r.isExternal ? "Yes" : "", r.shiftsWorked, r.openSessions, r.totalHours.toFixed(2)]),
+        ["Staff", "External", "Shifts worked", "Open sessions", "Total hours", ...(showCost ? ["Wage", "Pending wage"] : [])],
+        (staffQ.data ?? []).map((r) => [
+          r.userName, r.isExternal ? "Yes" : "", r.shiftsWorked, r.openSessions, r.totalHours.toFixed(2),
+          ...(showCost ? [r.labourCost != null ? r.labourCost.toFixed(2) : "", (r.pendingLabourCost ?? 0).toFixed(2)] : []),
+        ]),
       );
     } else {
       downloadCsv(
         `timesheet-by-shift_${range.from}_${range.to}`,
-        ["Date", "Shift", "Start", "End", "Employees", "Total hours", ...(showCost ? ["Wage"] : [])],
+        ["Date", "Shift", "Start", "End", "Employees", "Total hours", ...(showCost ? ["Wage", "Pending wage"] : [])],
         (shiftQ.data ?? []).map((r) => [
           r.date, r.shiftName, shortTime(r.startTime), shortTime(r.endTime), r.staffCount, r.totalHours.toFixed(2),
-          ...(showCost ? [r.labourCost != null ? r.labourCost.toFixed(2) : ""] : []),
+          ...(showCost ? [r.labourCost != null ? r.labourCost.toFixed(2) : "", (r.pendingLabourCost ?? 0).toFixed(2)] : []),
         ]),
       );
     }
@@ -131,6 +145,25 @@ export default function TimesheetsPage() {
         ))}
       </div>
 
+      {/* Wage split — approved vs awaiting approval */}
+      {showCost && !loading && wage.total > 0 ? (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="card p-4">
+            <div className="text-xs uppercase tracking-wide text-slate-400">Approved wage</div>
+            <div className="mt-1 text-xl font-semibold text-emerald-600">{gbp(wage.approved)}</div>
+          </div>
+          <div className={clsx("card p-4", wage.pending > 0 && "ring-1 ring-amber-200")}>
+            <div className="text-xs uppercase tracking-wide text-slate-400">Pending approval</div>
+            <div className="mt-1 text-xl font-semibold text-amber-600">{gbp(wage.pending)}</div>
+            {wage.pendingHours > 0 ? <div className="text-xs text-slate-400">{hm(wage.pendingHours)} awaiting approval</div> : null}
+          </div>
+          <div className="card p-4">
+            <div className="text-xs uppercase tracking-wide text-slate-400">Total if all approved</div>
+            <div className="mt-1 text-xl font-semibold text-slate-800">{gbp(wage.total)}</div>
+          </div>
+        </div>
+      ) : null}
+
       {loading ? <div className="card p-6 text-sm text-slate-500">Loading…</div> : null}
 
       {view === "staff" ? (
@@ -156,7 +189,12 @@ export default function TimesheetsPage() {
                   <td className="px-5 py-3 text-slate-700">{r.shiftsWorked}{r.openSessions > 0 ? ` (+${r.openSessions})` : ""}</td>
                   <td className="px-5 py-3 font-medium text-slate-800">{hm(r.totalHours)}</td>
                   {showCost ? <td className="px-5 py-3 text-slate-700">{r.hourlyRate != null ? gbp(r.hourlyRate) : <span className="text-amber-600">— set</span>}</td> : null}
-                  {showCost ? <td className="px-5 py-3 font-medium text-slate-800">{r.labourCost != null ? gbp(r.labourCost) : "—"}</td> : null}
+                  {showCost ? (
+                    <td className="px-5 py-3 font-medium text-slate-800">
+                      {r.labourCost != null ? gbp(r.labourCost) : "—"}
+                      {r.pendingLabourCost ? <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">{gbp(r.pendingLabourCost)} pending</span> : null}
+                    </td>
+                  ) : null}
                   <td className="px-5 py-3 text-right"><ChevronRight className="ml-auto h-4 w-4 text-slate-300" /></td>
                 </tr>
               ))}
@@ -206,7 +244,12 @@ export default function TimesheetsPage() {
                     </td>
                     <td className="px-5 py-3 text-slate-700">{r.staffCount}</td>
                     <td className="px-5 py-3 font-medium text-slate-800">{hm(r.totalHours)}</td>
-                    {showCost ? <td className="px-5 py-3 font-medium text-slate-800">{r.labourCost != null ? gbp(r.labourCost) : "—"}</td> : null}
+                    {showCost ? (
+                      <td className="px-5 py-3 font-medium text-slate-800">
+                        {r.labourCost != null ? gbp(r.labourCost) : "—"}
+                        {r.pendingLabourCost ? <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">{gbp(r.pendingLabourCost)} pending</span> : null}
+                      </td>
+                    ) : null}
                   </tr>
                 )),
               )}
