@@ -64,11 +64,18 @@ function last7() {
   return { from: formatDateValue(from), to: formatDateValue(to) };
 }
 
-function next14() {
+function next7() {
   const from = new Date();
   const to = new Date(from);
-  to.setDate(to.getDate() + 13);
+  to.setDate(to.getDate() + 6);
   return { from: formatDateValue(from), to: formatDateValue(to) };
+}
+
+function thisMonth() {
+  const now = new Date();
+  const first = new Date(now.getFullYear(), now.getMonth(), 1);
+  const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  return { from: formatDateValue(first), to: formatDateValue(last) };
 }
 
 // Manager rota defaults to the week ahead (today → +6) so newly rostered shifts are visible.
@@ -184,7 +191,7 @@ export function MyShiftsScreen() {
   const { activeShopId } = useAuth();
   const shopId = activeShopId;
   const queryClient = useQueryClient();
-  const [range, setRange] = useState(() => next14());
+  const [range, setRange] = useState(() => next7());
   const { from, to } = range;
   const [manualShift, setManualShift] = useState<RotaShift | null>(null);
   const [manualIn, setManualIn] = useState("09:00");
@@ -343,8 +350,11 @@ export function MyShiftsScreen() {
     );
   };
 
-  const today = formatDateValue(new Date());
   const refreshing = shiftsQuery.isRefetching || attendanceQuery.isRefetching;
+  const dayCount = Math.max(
+    1,
+    Math.round((new Date(`${to}T00:00:00`).getTime() - new Date(`${from}T00:00:00`).getTime()) / 86400000) + 1,
+  );
 
   return (
     <ScreenContainer
@@ -355,7 +365,32 @@ export function MyShiftsScreen() {
       <View style={styles.content}>
         {/* Date range */}
         <View style={[ui.card, styles.rangeCard]}>
-          <View style={styles.row}>
+          <View style={styles.rangeTopRow}>
+            <View style={styles.rangeTopLeft}>
+              <Ionicons name="calendar-outline" size={16} color={appTheme.colors.primary} />
+              <Text style={styles.rangeSummary} numberOfLines={1}>{dayLabel(from)} → {dayLabel(to)}</Text>
+            </View>
+            <Text style={styles.rangeCount}>{dayCount} day{dayCount === 1 ? "" : "s"}</Text>
+          </View>
+
+          {/* Quick presets — segmented */}
+          <View style={styles.presetRow}>
+            {[
+              { label: "Last 7 days", value: last7() },
+              { label: "Next 7 days", value: next7() },
+              { label: "This month", value: thisMonth() },
+            ].map((p) => {
+              const active = p.value.from === from && p.value.to === to;
+              return (
+                <Pressable key={p.label} style={[styles.presetChip, active ? styles.presetChipActive : null]} onPress={() => setRange(p.value)}>
+                  <Text style={[styles.presetText, active ? styles.presetTextActive : null]} numberOfLines={1}>{p.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* Custom range */}
+          <View style={styles.customRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.fieldLabel}>From</Text>
               <DateTimeField mode="date" value={from} onChange={(v) => setRange((r) => ({ ...r, from: v }))} />
@@ -364,20 +399,6 @@ export function MyShiftsScreen() {
               <Text style={styles.fieldLabel}>To</Text>
               <DateTimeField mode="date" value={to} onChange={(v) => setRange((r) => ({ ...r, to: v }))} />
             </View>
-          </View>
-          <View style={styles.presetRow}>
-            {[
-              { label: "Next 14 days", value: next14() },
-              { label: "Next 7 days", value: { from: today, to: addDaysStr(today, 6) } },
-              { label: "Last 7 days", value: { from: addDaysStr(today, -6), to: today } },
-            ].map((p) => {
-              const active = p.value.from === from && p.value.to === to;
-              return (
-                <Pressable key={p.label} style={[styles.presetChip, active ? styles.presetChipActive : null]} onPress={() => setRange(p.value)}>
-                  <Text style={[styles.presetText, active ? styles.presetTextActive : null]}>{p.label}</Text>
-                </Pressable>
-              );
-            })}
           </View>
         </View>
 
@@ -1590,18 +1611,26 @@ export function RotaStaffMembersScreen() {
 const styles = StyleSheet.create({
   content: { gap: appTheme.spacing.sm, paddingBottom: appTheme.spacing.xl },
   rangeCard: { gap: appTheme.spacing.sm },
-  presetRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  presetChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  rangeTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  rangeTopLeft: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1 },
+  rangeSummary: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, flexShrink: 1 },
+  rangeCount: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    overflow: "hidden",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: appTheme.radius.pill,
-    borderWidth: 1,
-    borderColor: appTheme.colors.border,
-    backgroundColor: appTheme.colors.surface,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
   },
-  presetChipActive: { borderColor: appTheme.colors.primary, backgroundColor: appTheme.colors.surfaceBrandSoft },
+  // Segmented preset control.
+  presetRow: { flexDirection: "row", gap: 6, backgroundColor: appTheme.colors.surfaceMuted, borderRadius: appTheme.radius.md, padding: 4 },
+  presetChip: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 8, borderRadius: appTheme.radius.sm },
+  presetChipActive: { backgroundColor: appTheme.colors.surface, ...appTheme.elevation.sm },
   presetText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
   presetTextActive: { color: appTheme.colors.primary },
+  customRow: { flexDirection: "row", gap: appTheme.spacing.sm },
   muted: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 13, lineHeight: 18 },
   row: { flexDirection: "row", gap: appTheme.spacing.sm },
   section: { gap: appTheme.spacing.xs },
