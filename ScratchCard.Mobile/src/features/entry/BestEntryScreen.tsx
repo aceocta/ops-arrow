@@ -222,34 +222,24 @@ export function BestEntryScreen() {
     <ScreenContainer>
       <SubscriptionBanner />
 
-      {/* Greeting header */}
-      <View style={styles.header}>
-        <Text style={styles.greeting}>{greeting},</Text>
-        <Text style={styles.name} numberOfLines={1}>{firstName} 👋</Text>
+      {/* Compact top row: greeting + active-shop pill */}
+      <View style={styles.topBar}>
+        <View style={styles.topBarText}>
+          <Text style={styles.greeting}>{greeting},</Text>
+          <Text style={styles.name} numberOfLines={1}>{firstName} 👋</Text>
+        </View>
+        <Pressable
+          style={styles.shopPill}
+          onPress={() => canSwitchShop && setSwitchOpen(true)}
+          disabled={!canSwitchShop}
+          accessibilityRole="button"
+          accessibilityLabel="Active shop. Tap to switch."
+        >
+          <Ionicons name="storefront-outline" size={15} color={appTheme.colors.primary} />
+          <Text style={styles.shopPillText} numberOfLines={1}>{activeShop?.shopName ?? "No shop"}</Text>
+          {canSwitchShop ? <Ionicons name="chevron-down" size={14} color={appTheme.colors.primary} /> : null}
+        </Pressable>
       </View>
-
-      {/* Active shop — tappable to switch when the user belongs to more than one shop. */}
-      <Pressable
-        style={[ui.card, styles.shopChip]}
-        onPress={() => canSwitchShop && setSwitchOpen(true)}
-        disabled={!canSwitchShop}
-        accessibilityRole="button"
-        accessibilityLabel="Active shop. Tap to switch."
-      >
-        <View style={styles.shopChipIcon}>
-          <Ionicons name="storefront-outline" size={18} color={appTheme.colors.primary} />
-        </View>
-        <View style={styles.shopChipText}>
-          <Text style={styles.shopChipLabel}>Active shop</Text>
-          <Text style={styles.shopChipName} numberOfLines={1}>{activeShop?.shopName ?? "No shop selected"}</Text>
-        </View>
-        {canSwitchShop ? (
-          <View style={styles.switchPill}>
-            <Ionicons name="swap-horizontal" size={14} color={appTheme.colors.primary} />
-            <Text style={styles.switchPillText}>Switch</Text>
-          </View>
-        ) : null}
-      </Pressable>
 
       {attention.length > 0 ? (
         <View style={[ui.card, styles.attentionCard]}>
@@ -380,54 +370,36 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.danger,
   },
   tileBadgeText: { color: "#FFFFFF", fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
-  header: {
-    gap: 2,
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
   },
+  topBarText: { flexShrink: 1 },
   greeting: {
     color: appTheme.colors.textMuted,
     fontFamily: appTheme.fonts.body,
-    fontSize: 15,
+    fontSize: 13,
   },
   name: {
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.heading,
-    fontSize: 26,
-    lineHeight: 32,
-    letterSpacing: -0.3,
+    fontSize: 20,
+    lineHeight: 24,
+    letterSpacing: -0.2,
   },
-  shopChip: {
+  shopPill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingVertical: 10,
-  },
-  shopChipIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: appTheme.radius.sm,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: appTheme.colors.surfaceBrandSoft,
-  },
-  shopChipText: { flex: 1, gap: 2 },
-  shopChipLabel: {
-    color: appTheme.colors.textSubtle,
-    fontFamily: appTheme.fonts.body,
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-  },
-  shopChipName: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 16, lineHeight: 20 },
-  switchPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    gap: 6,
+    maxWidth: 170,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: appTheme.radius.pill,
     backgroundColor: appTheme.colors.surfaceBrandSoft,
   },
-  switchPillText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
+  shopPillText: { flexShrink: 1, color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   askBar: {
     flexDirection: "row",
     alignItems: "center",
