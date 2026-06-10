@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -184,7 +184,8 @@ export function MyShiftsScreen() {
   const { activeShopId } = useAuth();
   const shopId = activeShopId;
   const queryClient = useQueryClient();
-  const { from, to } = useMemo(() => next14(), []);
+  const [range, setRange] = useState(() => next14());
+  const { from, to } = range;
   const [manualShift, setManualShift] = useState<RotaShift | null>(null);
   const [manualIn, setManualIn] = useState("09:00");
   const [manualOut, setManualOut] = useState("17:00");
@@ -342,16 +343,51 @@ export function MyShiftsScreen() {
     );
   };
 
+  const today = formatDateValue(new Date());
+  const refreshing = shiftsQuery.isRefetching || attendanceQuery.isRefetching;
+
   return (
-    <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.content}>
+    <ScreenContainer
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={appTheme.colors.primary} colors={[appTheme.colors.primary]} />
+      }
+    >
+      <View style={styles.content}>
+        {/* Date range */}
+        <View style={[ui.card, styles.rangeCard]}>
+          <View style={styles.row}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.fieldLabel}>From</Text>
+              <DateTimeField mode="date" value={from} onChange={(v) => setRange((r) => ({ ...r, from: v }))} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.fieldLabel}>To</Text>
+              <DateTimeField mode="date" value={to} onChange={(v) => setRange((r) => ({ ...r, to: v }))} />
+            </View>
+          </View>
+          <View style={styles.presetRow}>
+            {[
+              { label: "Next 14 days", value: next14() },
+              { label: "Next 7 days", value: { from: today, to: addDaysStr(today, 6) } },
+              { label: "Last 7 days", value: { from: addDaysStr(today, -6), to: today } },
+            ].map((p) => {
+              const active = p.value.from === from && p.value.to === to;
+              return (
+                <Pressable key={p.label} style={[styles.presetChip, active ? styles.presetChipActive : null]} onPress={() => setRange(p.value)}>
+                  <Text style={[styles.presetText, active ? styles.presetTextActive : null]}>{p.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
         {isCheckedInSomewhere ? (
           <Text style={styles.muted}>You're on shift since {clockTime(current?.checkInAt)}. Check out before starting another.</Text>
         ) : null}
 
         {shiftsQuery.isLoading ? <SkeletonList count={4} /> : null}
         {!shiftsQuery.isLoading && grouped.length === 0 ? (
-          <EmptyState icon="calendar-outline" title="No shifts scheduled" message="No shifts in the next 2 weeks. Add one with the button above to start building your rota." />
+          <EmptyState icon="calendar-outline" title="No shifts scheduled" message="No shifts in this date range. Adjust the dates above or pull down to refresh." />
         ) : null}
 
         {grouped.map(([date, shifts]) => (
@@ -360,7 +396,7 @@ export function MyShiftsScreen() {
             {shifts.map(renderShiftCard)}
           </View>
         ))}
-      </ScrollView>
+      </View>
 
       {/* Manual time entry */}
       <Modal visible={manualShift !== null} transparent animationType="fade" onRequestClose={() => setManualShift(null)}>
@@ -1553,6 +1589,19 @@ export function RotaStaffMembersScreen() {
 
 const styles = StyleSheet.create({
   content: { gap: appTheme.spacing.sm, paddingBottom: appTheme.spacing.xl },
+  rangeCard: { gap: appTheme.spacing.sm },
+  presetRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  presetChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: appTheme.radius.pill,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surface,
+  },
+  presetChipActive: { borderColor: appTheme.colors.primary, backgroundColor: appTheme.colors.surfaceBrandSoft },
+  presetText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
+  presetTextActive: { color: appTheme.colors.primary },
   muted: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 13, lineHeight: 18 },
   row: { flexDirection: "row", gap: appTheme.spacing.sm },
   section: { gap: appTheme.spacing.xs },
