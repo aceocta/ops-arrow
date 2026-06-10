@@ -1,8 +1,11 @@
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getPendingApprovals } from "../../api/rotaApi";
+import { listShiftSwaps } from "../../api/shiftSwapsApi";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { GetStartedCard } from "../../components/GetStartedCard";
 import { EmptyState } from "../../components/EmptyState";
@@ -135,6 +138,35 @@ export function BestEntryScreen() {
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const firstName = profile?.firstName || profile?.displayName?.split(" ")[0] || "there";
 
+  // "Needs attention" signals — things waiting on the user, surfaced at the top with one-tap links.
+  const qc = useQueryClient();
+  const approvalsQ = useQuery({
+    queryKey: ["home-approvals", activeShopId],
+    queryFn: () => getPendingApprovals(activeShopId as string),
+    enabled: !!activeShopId && canManageRota && features.includes("staff_rota.manual_approval"),
+  });
+  const swapsQ = useQuery({
+    queryKey: ["home-swaps", activeShopId],
+    queryFn: () => listShiftSwaps(activeShopId as string),
+    enabled: !!activeShopId && features.includes("staff_rota.shift_swap"),
+  });
+  const approvalsCount = approvalsQ.data?.length ?? 0;
+  const swapsCount = (swapsQ.data ?? []).filter((s) => s.status === "Pending" && s.canRespond).length;
+  const shiftsBadge = approvalsCount + swapsCount;
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!activeShopId) return;
+      qc.invalidateQueries({ queryKey: ["home-approvals", activeShopId] });
+      qc.invalidateQueries({ queryKey: ["home-swaps", activeShopId] });
+    }, [qc, activeShopId]),
+  );
+
+  const attention: { key: string; label: string; route: keyof MainStackParamList; icon: keyof typeof Ionicons.glyphMap; count: number }[] = [
+    approvalsCount > 0 ? { key: "approvals", label: `${approvalsCount} time ${approvalsCount === 1 ? "entry" : "entries"} to approve`, route: "RotaApprovals", icon: "checkmark-done-outline", count: approvalsCount } : null,
+    swapsCount > 0 ? { key: "swaps", label: `${swapsCount} shift ${swapsCount === 1 ? "swap" : "swaps"} to respond`, route: "ShiftSwaps", icon: "swap-horizontal-outline", count: swapsCount } : null,
+  ].filter(Boolean) as any;
+
   const chooseShop = async (shopId: string) => {
     setSwitchOpen(false);
     if (shopId !== activeShopId) {
@@ -179,6 +211,23 @@ export function BestEntryScreen() {
         ) : null}
       </Pressable>
 
+      {attention.length > 0 ? (
+        <View style={[ui.card, styles.attentionCard]}>
+          <View style={styles.attentionHeader}>
+            <Ionicons name="alert-circle" size={18} color={appTheme.colors.warning} />
+            <Text style={styles.attentionTitle}>Needs your attention</Text>
+          </View>
+          {attention.map((a) => (
+            <Pressable key={a.key} style={styles.attentionRow} onPress={() => navigation.navigate(a.route as never)}>
+              <View style={styles.attentionBadge}><Text style={styles.attentionBadgeText}>{a.count}</Text></View>
+              <Ionicons name={a.icon} size={18} color={appTheme.colors.text} />
+              <Text style={styles.attentionLabel}>{a.label}</Text>
+              <Ionicons name="chevron-forward" size={16} color={appTheme.colors.textSubtle} />
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+
       {canManageRota && activeShopId ? (
         <GetStartedCard shopId={activeShopId} features={features} onGo={(route) => navigation.navigate(route as never)} />
       ) : null}
@@ -216,6 +265,9 @@ export function BestEntryScreen() {
                   <View style={[styles.featureIcon, { backgroundColor: option.iconBg }]}>
                     <Ionicons name={option.icon} size={24} color={option.iconColor} />
                   </View>
+                  {option.key === "shifts" && shiftsBadge > 0 ? (
+                    <View style={styles.tileBadge}><Text style={styles.tileBadgeText}>{shiftsBadge}</Text></View>
+                  ) : null}
                   <Text style={styles.featureTitle}>{option.title}</Text>
                 </Pressable>
               );
@@ -255,6 +307,31 @@ export function BestEntryScreen() {
 }
 
 const styles = StyleSheet.create({
+  attentionCard: {
+    gap: 8,
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderWarningSoft,
+    backgroundColor: appTheme.colors.surfaceWarningSoft,
+  },
+  attentionHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  attentionTitle: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
+  attentionRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderWarningSoft },
+  attentionBadge: { minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 6, alignItems: "center", justifyContent: "center", backgroundColor: appTheme.colors.warning },
+  attentionBadgeText: { color: "#FFFFFF", fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
+  attentionLabel: { flex: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 14 },
+  tileBadge: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    paddingHorizontal: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: appTheme.colors.danger,
+  },
+  tileBadgeText: { color: "#FFFFFF", fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
   header: {
     gap: 2,
   },
