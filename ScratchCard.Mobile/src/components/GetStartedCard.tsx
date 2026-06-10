@@ -15,7 +15,7 @@ type Step = { key: string; label: string; done: boolean; route: string; icon: ke
  * shop and deep-links each step. Hides itself once everything entitled is set up.
  */
 export function GetStartedCard({ shopId, features, onGo }: { shopId: string; features: string[]; onGo: (route: string) => void }) {
-  const [dismissed, setDismissed] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const has = (f: string) => features.includes(f);
 
   const shiftsQ = useQuery({ queryKey: ["gs-shifts", shopId], queryFn: () => getShiftTemplates(shopId), enabled: !!shopId && has("StaffRota") });
@@ -34,32 +34,36 @@ export function GetStartedCard({ shopId, features, onGo }: { shopId: string; fea
   const total = steps.length;
   const done = steps.filter((s) => s.done).length;
 
-  // Nothing to do (no entitled modules), everything finished, or dismissed → hide.
-  if (dismissed || total === 0 || (!loading && done === total)) return null;
+  // Only hide when there are no applicable steps (no entitled modules). Otherwise always shown,
+  // collapsible, in place — even once complete.
+  if (total === 0) return null;
+  const allDone = !loading && done === total;
 
   return (
     <View style={[ui.card, styles.card]}>
-      <View style={styles.header}>
+      <Pressable style={styles.header} onPress={() => setCollapsed((c) => !c)}>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Get started</Text>
-          <Text style={styles.subtitle}>{done} of {total} done — finish setting up your shop</Text>
+          <Text style={styles.subtitle}>{allDone ? "All set — your shop is ready" : `${done} of ${total} done — finish setting up your shop`}</Text>
         </View>
-        <Pressable onPress={() => setDismissed(true)} hitSlop={8}>
-          <Ionicons name="close" size={18} color={appTheme.colors.textSubtle} />
-        </Pressable>
-      </View>
+        <Ionicons name={collapsed ? "chevron-down" : "chevron-up"} size={18} color={appTheme.colors.textSubtle} />
+      </Pressable>
 
-      <View style={styles.track}><View style={[styles.fill, { width: `${total ? (done / total) * 100 : 0}%` }]} /></View>
+      {!collapsed ? (
+        <>
+          <View style={styles.track}><View style={[styles.fill, { width: `${total ? (done / total) * 100 : 0}%` }]} /></View>
 
-      <View style={styles.steps}>
-        {steps.map((s) => (
-          <Pressable key={s.key} style={styles.step} disabled={s.done} onPress={() => onGo(s.route)}>
-            <Ionicons name={s.done ? "checkmark-circle" : "ellipse-outline"} size={20} color={s.done ? appTheme.colors.success : appTheme.colors.textSubtle} />
-            <Text style={[styles.stepLabel, s.done ? styles.stepLabelDone : null]}>{s.label}</Text>
-            {!s.done ? <Ionicons name="chevron-forward" size={16} color={appTheme.colors.textSubtle} /> : null}
-          </Pressable>
-        ))}
-      </View>
+          <View style={styles.steps}>
+            {steps.map((s) => (
+              <Pressable key={s.key} style={styles.step} disabled={s.done} onPress={() => onGo(s.route)}>
+                <Ionicons name={s.done ? "checkmark-circle" : "ellipse-outline"} size={20} color={s.done ? appTheme.colors.success : appTheme.colors.textSubtle} />
+                <Text style={[styles.stepLabel, s.done ? styles.stepLabelDone : null]}>{s.label}</Text>
+                {!s.done ? <Ionicons name="chevron-forward" size={16} color={appTheme.colors.textSubtle} /> : null}
+              </Pressable>
+            ))}
+          </View>
+        </>
+      ) : null}
     </View>
   );
 }
