@@ -1445,6 +1445,7 @@ export function ShopManagementScreen() {
   const [hasEditedPackSettings, setHasEditedPackSettings] = useState(false);
   const [subscriptionPlanId, setSubscriptionPlanId] = useState<string | null>(null);
   const [setupExtras, setSetupExtras] = useState<ShopSetupExtras>({ shiftTemplates: [], temperatureCheckTimes: [] });
+  const [creating, setCreating] = useState(false);
 
   const companiesQuery = useQuery({
     queryKey: ["companies", "mine"],
@@ -1532,6 +1533,7 @@ export function ShopManagementScreen() {
       return createShop({ ...basePayload, subscriptionPlanId, shiftTemplates: setupExtras.shiftTemplates, temperatureCheckTimes: setupExtras.temperatureCheckTimes });
     },
     onSuccess: () => {
+      setCreating(false);
       setEditingShopId(null);
       setEditingIsActive(true);
       setShopName("");
@@ -1655,6 +1657,7 @@ export function ShopManagementScreen() {
         </View>
       ) : null}
 
+      {(creating || editingShopId) ? (<>
       <View style={ui.card}>
         <Text style={styles.sectionTitle}>{editingShopId ? "Shop Details" : "Create New Shop"}</Text>
         {!canCreateShop && !editingShopId ? (
@@ -1779,8 +1782,22 @@ export function ShopManagementScreen() {
             <Text style={styles.actionButtonText}>Cancel Edit</Text>
           </Pressable>
         ) : null}
+        {creating && !editingShopId ? (
+          <Pressable style={[styles.actionButton, styles.smallButtonDanger, { marginTop: 8 }]} onPress={() => setCreating(false)}>
+            <Text style={styles.actionButtonText}>Cancel</Text>
+          </Pressable>
+        ) : null}
       </View>
+      </>) : null}
 
+      {!creating && !editingShopId && canCreateShop ? (
+        <Pressable style={[ui.card, styles.createShopCta]} onPress={() => setCreating(true)}>
+          <Ionicons name="add-circle-outline" size={20} color={appTheme.colors.primary} />
+          <Text style={styles.createShopCtaText}>Create shop</Text>
+        </Pressable>
+      ) : null}
+
+      {!creating && !editingShopId ? (
       <View style={ui.card}>
         <Text style={styles.sectionTitle}>Company Shops</Text>
         {(shopsQuery.data ?? []).length > 5 ? (
@@ -1816,6 +1833,7 @@ export function ShopManagementScreen() {
           </View>
         ))}
       </View>
+      ) : null}
     </ScreenContainer>
   );
 }
@@ -2477,6 +2495,17 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.body,
     fontSize: 12,
     lineHeight: 16,
+  },
+  createShopCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  createShopCtaText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 15,
   },
   actionButton: {
     backgroundColor: appTheme.colors.primary,
