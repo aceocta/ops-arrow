@@ -111,7 +111,7 @@ export function TillsConfigScreen() {
     <ScreenContainer>
       <View style={ui.card}>
         <View style={styles.defaultsRow}>
-          <Ionicons name="sparkles-outline" size={20} color={appTheme.colors.accent} />
+          {/* <Ionicons name="sparkles-outline" size={20} color={appTheme.colors.accent} /> */}
           <View style={styles.defaultsText}>
             <Text style={ui.sectionTitle}>Quick start</Text>
             <Text style={ui.caption}>Add the common payment types and a default till in one tap.</Text>
