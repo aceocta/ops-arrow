@@ -12,6 +12,7 @@ import {
 import { useAuth } from "../../auth/AuthContext";
 import { useTemperatureDisplaySettings } from "./useTemperatureDisplaySettings";
 import { DateTimeField, formatDateValue, formatTimeValue, parseDateTimeValue } from "../../components/DateTimeField";
+import { EmptyState } from "../../components/EmptyState";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { toastError, toastSuccess } from "../../components/toast";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
@@ -30,6 +31,7 @@ import type {
 import { ui } from "../../ui/primitives";
 import { appTheme, surfaceShadow } from "../../ui/theme";
 import { getApiErrorMessage } from "../../utils/apiErrorMessage";
+import { formatDayLabel } from "../../utils/dateLabels";
 
 function formatTemperature(value: number) {
   return `${value.toFixed(1)}°C`;
@@ -1257,7 +1259,7 @@ export function TemperatureLogScreen() {
         <View style={styles.readingsSection}>
           <SectionHeader
             title="Daily Readings"
-            subtitle={selectedDate}
+            subtitle={formatDayLabel(selectedDate)}
             icon="list-outline"
           />
           {dailyLogQuery.isLoading ? <Text style={styles.meta}>Loading daily readings...</Text> : null}
@@ -1283,7 +1285,7 @@ export function TemperatureLogScreen() {
               </View>
 
               {unitLog.readings.length === 0 ? (
-                <Text style={styles.meta}>No readings for this date.</Text>
+                <EmptyState icon="thermometer-outline" title="No readings yet" message="No readings recorded for this date." />
               ) : (
                 unitLog.readings.map((reading) => {
                   const tempValue = Number(reading.temperatureCelsius);
@@ -1322,7 +1324,11 @@ export function TemperatureLogScreen() {
             </View>
           ))}
           {!dailyLogQuery.isLoading && dailyUnitLogs.length === 0 ? (
-            <Text style={styles.meta}>No units configured for this shop.</Text>
+            <EmptyState
+              icon="thermometer-outline"
+              title="No units configured"
+              message="Set up fridges and freezers in Temperature Units to start recording checks."
+            />
           ) : null}
         </View>
 

@@ -5,6 +5,7 @@ import { getTemperatureDailyLog } from "../../api/temperatureLogsApi";
 import { useAuth } from "../../auth/AuthContext";
 import { useTemperatureDisplaySettings } from "./useTemperatureDisplaySettings";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
+import { EmptyState } from "../../components/EmptyState";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SkeletonList } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -63,17 +64,19 @@ export function TemperatureLogsByDayScreen() {
         <Text style={styles.sectionTitle}>Select Date</Text>
         <View style={styles.dateRow}>
           <Pressable
-            style={styles.dayButton}
+            style={({ pressed }) => [styles.dayButton, pressed ? styles.pressed : null]}
             onPress={() => setSelectedDate((current) => shiftDate(current, -1))}
             accessibilityRole="button"
+            accessibilityLabel="Previous day"
           >
             <Text style={styles.dayButtonText}>Prev</Text>
           </Pressable>
           <DateTimeField style={{ flex: 1 }} mode="date" value={selectedDate} onChange={setSelectedDate} />
           <Pressable
-            style={styles.dayButton}
+            style={({ pressed }) => [styles.dayButton, pressed ? styles.pressed : null]}
             onPress={() => setSelectedDate((current) => shiftDate(current, 1))}
             accessibilityRole="button"
+            accessibilityLabel="Next day"
           >
             <Text style={styles.dayButtonText}>Next</Text>
           </Pressable>
@@ -89,7 +92,7 @@ export function TemperatureLogsByDayScreen() {
         <Text style={styles.sectionTitle}>Daily Logs</Text>
         {dailyLogQuery.isLoading ? <SkeletonList count={3} rowHeight={80} /> : null}
         {!dailyLogQuery.isLoading && dailyUnitLogs.length === 0 ? (
-          <Text style={styles.meta}>No temperature logs found for this date.</Text>
+          <EmptyState icon="thermometer-outline" title="No logs for this day" message="No temperature logs found for this date." />
         ) : null}
 
         {dailyUnitLogs.map((unitLog) => (
@@ -108,7 +111,7 @@ export function TemperatureLogsByDayScreen() {
             </View>
 
             {unitLog.readings.length === 0 ? (
-              <Text style={styles.meta}>No readings for this unit.</Text>
+              <EmptyState icon="thermometer-outline" title="No readings yet" message="No readings for this unit." />
             ) : (
               unitLog.readings.map((reading) => (
                 <View key={reading.id} style={styles.readingRow}>
@@ -190,6 +193,9 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 13,
     lineHeight: 16,
+  },
+  pressed: {
+    opacity: 0.6,
   },
   unitCard: {
     borderWidth: 1,

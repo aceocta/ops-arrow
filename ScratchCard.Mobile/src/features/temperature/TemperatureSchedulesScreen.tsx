@@ -12,10 +12,12 @@ import {
 } from "../../api/temperatureLogsApi";
 import { LoadingState } from "../../components/LoadingState";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { toastSuccess } from "../../components/toast";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { DateTimeField } from "../../components/DateTimeField";
 import { EmptyState } from "../../components/EmptyState";
 import { TemperatureSchedule } from "../../types/models";
+import { getApiErrorMessage } from "../../utils/apiErrorMessage";
 import { confirmDestructive } from "../../utils/confirm";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -105,14 +107,41 @@ export function TemperatureSchedulesScreen() {
           isActive: true,
         });
       }
+      return targets.length;
     },
-    onSuccess: () => {
+    onSuccess: (created) => {
       resetForm();
       invalidate();
+      toastSuccess(created > 1 ? `${created} scheduled checks added.` : "Scheduled check added.");
     },
-    onError: (error: any) =>
-      Alert.alert("Add failed", error?.response?.data?.message ?? "Could not add this scheduled check."),
+    onError: (error: any) => {
+      // Creation is sequential, so a mid-batch failure may leave some checks created —
+      // refresh the list so it shows exactly what exists.
+      invalidate();
+      Alert.alert("Add failed", getApiErrorMessage(error, "Could not add this scheduled check."));
+    },
   });
+
+  // Multi-unit adds create one record per unit — confirm the fan-out so a manager
+  // isn't surprised by 8 new rows from one tap.
+  function submitCreate() {
+    const count = selectedUnitIds.length;
+    if (count > 1) {
+      const names = selectedUnitIds
+        .map((id) => units.find((unit) => unit.id === id)?.unitName ?? "Unit")
+        .join(", ");
+      Alert.alert(
+        `Create ${count} scheduled checks?`,
+        `One "${label.trim()}" check at ${time} ±${tolerance}m will be created for each of: ${names}.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: `Create ${count}`, onPress: () => createMutation.mutate() },
+        ],
+      );
+      return;
+    }
+    createMutation.mutate();
+  }
 
   const updateMutation = useMutation({
     mutationFn: () => {
@@ -132,7 +161,7 @@ export function TemperatureSchedulesScreen() {
       invalidate();
     },
     onError: (error: any) =>
-      Alert.alert("Update failed", error?.response?.data?.message ?? "Could not update this scheduled check."),
+      Alert.alert("Update failed", getApiErrorMessage(error, "Could not update this scheduled check.")),
   });
 
   async function confirmDelete(schedule: TemperatureSchedule) {
@@ -145,7 +174,7 @@ export function TemperatureSchedulesScreen() {
       await deleteTemperatureSchedule(schedule.id);
       invalidate();
     } catch (error: any) {
-      Alert.alert("Delete failed", error?.response?.data?.message ?? "Could not delete this schedule.");
+      Alert.alert("Delete failed", getApiErrorMessage(error, "Could not delete this schedule."));
     }
   }
 
@@ -161,7 +190,7 @@ export function TemperatureSchedulesScreen() {
       });
       invalidate();
     } catch (error: any) {
-      Alert.alert("Update failed", error?.response?.data?.message ?? "Could not update this schedule.");
+      Alert.alert("Update failed", getApiErrorMessage(error, "Could not update this schedule."));
     }
   }
 
@@ -240,7 +269,20 @@ export function TemperatureSchedulesScreen() {
             })}
           </View>
           {!editingId && selectedUnitIds.length > 1 ? (
-            <Text style={styles.helperText}>Creates a separate scheduled check for each of the {selectedUnitIds.length} selected units.</Text>
+            <View style={styles.previewBox}>
+              <View style={styles.previewHeader}>
+                <Ionicons name="information-circle-outline" size={15} color={appTheme.colors.primary} />
+                <Text style={styles.previewTitle}>
+                  This will create {selectedUnitIds.length} scheduled checks — one per unit
+                </Text>
+              </View>
+              <Text style={styles.previewUnits}>
+                {selectedUnitIds.map((id) => units.find((unit) => unit.id === id)?.unitName ?? "Unit").join(", ")}
+              </Text>
+              <Text style={styles.previewMeta}>
+                Each at {time} ±{tolerance}m{label.trim() ? ` · "${label.trim()}"` : ""}
+              </Text>
+            </View>
           ) : null}
         </View>
 
@@ -256,7 +298,7 @@ export function TemperatureSchedulesScreen() {
                   ? `Add ${selectedUnitIds.length} schedules`
                   : "Add schedule"
           }
-          onPress={() => (editingId ? updateMutation.mutate() : createMutation.mutate())}
+          onPress={() => (editingId ? updateMutation.mutate() : submitCreate())}
           disabled={!canSubmit}
         />
         {editingId ? (
@@ -286,19 +328,31 @@ export function TemperatureSchedulesScreen() {
               </View>
               <View style={styles.rowActions}>
                 <Pressable
-                  style={[styles.iconBtn, editingId === schedule.id ? styles.iconBtnActive : null]}
+                  style={({ pressed }) => [styles.iconBtn, editingId === schedule.id ? styles.iconBtnActive : null, pressed ? styles.iconBtnPressed : null]}
                   onPress={() => beginEdit(schedule)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Edit schedule"
                 >
                   <Ionicons name="create-outline" size={17} color={appTheme.colors.text} />
                 </Pressable>
-                <Pressable style={styles.iconBtn} onPress={() => void toggleActive(schedule)}>
+                <Pressable
+                  style={({ pressed }) => [styles.iconBtn, pressed ? styles.iconBtnPressed : null]}
+                  onPress={() => void toggleActive(schedule)}
+                  accessibilityRole="button"
+                  accessibilityLabel={schedule.isActive ? "Pause schedule" : "Resume schedule"}
+                >
                   <Ionicons
                     name={schedule.isActive ? "pause-circle-outline" : "play-circle-outline"}
                     size={18}
                     color={appTheme.colors.text}
                   />
                 </Pressable>
-                <Pressable style={styles.iconBtn} onPress={() => confirmDelete(schedule)}>
+                <Pressable
+                  style={({ pressed }) => [styles.iconBtn, pressed ? styles.iconBtnPressed : null]}
+                  onPress={() => confirmDelete(schedule)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete schedule"
+                >
                   <Ionicons name="trash-outline" size={17} color={appTheme.colors.danger} />
                 </Pressable>
               </View>
@@ -336,12 +390,36 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     marginBottom: 4,
   },
-  helperText: {
+  previewBox: {
+    marginTop: 8,
+    padding: 10,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+    gap: 4,
+  },
+  previewHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  previewTitle: {
+    flex: 1,
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 17,
+  },
+  previewUnits: {
     color: appTheme.colors.textMuted,
     fontFamily: appTheme.fonts.body,
     fontSize: 12,
     lineHeight: 16,
-    marginTop: 6,
+  },
+  previewMeta: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
   },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
@@ -385,6 +463,9 @@ const styles = StyleSheet.create({
   iconBtnActive: {
     borderColor: appTheme.colors.primary,
     backgroundColor: appTheme.colors.surfaceBrandSoft,
+  },
+  iconBtnPressed: {
+    opacity: 0.6,
   },
   cancelBtn: {
     alignItems: "center",

@@ -9,6 +9,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { useTemperatureDisplaySettings } from "./useTemperatureDisplaySettings";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
+import { EmptyState } from "../../components/EmptyState";
 import { ReportActionBar } from "../../components/ReportActionBar";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SkeletonList } from "../../components/Skeleton";
@@ -16,6 +17,8 @@ import { toastError, toastSuccess } from "../../components/toast";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
+import { getApiErrorMessage } from "../../utils/apiErrorMessage";
+import { formatDayLabel } from "../../utils/dateLabels";
 import {
   buildTemperatureRangeReportHtml,
   groupTemperatureReadingsByDateAndUnit,
@@ -177,7 +180,7 @@ export function TemperatureLogsReportScreen() {
         orientation: Print.Orientation.landscape,
       });
     } catch (error: any) {
-      toastError(error?.message ?? "Unable to open print dialog.");
+      toastError(getApiErrorMessage(error, "Unable to open print dialog."));
     }
   };
 
@@ -197,7 +200,7 @@ export function TemperatureLogsReportScreen() {
         UTI: "com.adobe.pdf",
       });
     } catch (error: any) {
-      toastError(error?.message ?? "Unable to generate or share PDF.");
+      toastError(getApiErrorMessage(error, "Unable to generate or share PDF."));
     }
   };
 
@@ -207,7 +210,7 @@ export function TemperatureLogsReportScreen() {
       const recipient = profile?.email ?? "your inbox";
       toastSuccess(`Report sent to ${recipient}.`);
     } catch (error: any) {
-      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to send report email.");
+      toastError(getApiErrorMessage(error, "Unable to send report email."));
     }
   };
 
@@ -318,10 +321,10 @@ export function TemperatureLogsReportScreen() {
         </View>
 
         <View style={[ui.card, { marginTop: 16 }]}>
-          <Text style={styles.sectionTitle}>Loaded Logs ({fromDate} to {toDate})</Text>
+          <Text style={styles.sectionTitle}>Loaded Logs ({formatDayLabel(fromDate)} to {formatDayLabel(toDate)})</Text>
           {readingsQuery.isLoading ? <SkeletonList count={4} rowHeight={92} /> : null}
           {!readingsQuery.isLoading && readings.length === 0 ? (
-            <Text style={styles.meta}>No temperature logs found for this date range.</Text>
+            <EmptyState icon="document-text-outline" title="No logs in this range" message="No temperature logs found for this date range." />
           ) : null}
         </View>
       </View>

@@ -6,6 +6,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { createTemperatureUnit, listTemperatureUnits } from "../../api/temperatureLogsApi";
 import { MainStackParamList } from "../../types/navigation";
 import { useAuth } from "../../auth/AuthContext";
+import { EmptyState } from "../../components/EmptyState";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -127,9 +128,11 @@ export function TemperatureUnitsScreen() {
         <View style={styles.sectionRow}>
           <Text style={styles.sectionTitle}>Units List</Text>
           <Pressable
-            style={[styles.addButton, !canManageUnits ? styles.addButtonDisabled : null]}
+            style={({ pressed }) => [styles.addButton, !canManageUnits ? styles.addButtonDisabled : null, pressed ? styles.pressed : null]}
             onPress={() => setIsCreateModalVisible(true)}
             disabled={!canManageUnits}
+            accessibilityRole="button"
+            accessibilityLabel="Add new unit"
           >
             <Text style={styles.addButtonText}>Add new unit</Text>
           </Pressable>
@@ -157,7 +160,9 @@ export function TemperatureUnitsScreen() {
             ) : null}
           </View>
         ))}
-        {!unitsQuery.isFetching && (unitsQuery.data?.length ?? 0) === 0 ? <Text style={styles.meta}>No units found.</Text> : null}
+        {!unitsQuery.isFetching && (unitsQuery.data?.length ?? 0) === 0 ? (
+          <EmptyState icon="thermometer-outline" title="No units yet" message="Add your first fridge or freezer above." />
+        ) : null}
       </View>
 
       <Modal
@@ -307,6 +312,9 @@ const styles = StyleSheet.create({
   },
   addButtonDisabled: {
     opacity: 0.55,
+  },
+  pressed: {
+    opacity: 0.6,
   },
   addButtonText: {
     color: appTheme.colors.primary,

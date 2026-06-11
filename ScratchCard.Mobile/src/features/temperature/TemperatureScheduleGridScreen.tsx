@@ -25,6 +25,7 @@ import {
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
+import { getApiErrorMessage } from "../../utils/apiErrorMessage";
 
 function isoDate(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -186,7 +187,7 @@ function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
     try {
       await Print.printAsync({ html: buildHtml(), width: 792, height: 612, orientation: Print.Orientation.landscape });
     } catch (error: any) {
-      toastError(error?.message ?? "Unable to open print dialog.");
+      toastError(getApiErrorMessage(error, "Unable to open print dialog."));
     }
   };
 
@@ -203,7 +204,7 @@ function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
         UTI: "com.adobe.pdf",
       });
     } catch (error: any) {
-      toastError(error?.message ?? "Unable to generate or share PDF.");
+      toastError(getApiErrorMessage(error, "Unable to generate or share PDF."));
     }
   };
 
@@ -224,7 +225,7 @@ function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
       });
       toastSuccess(`Report sent to ${profile?.email ?? "your inbox"}.`);
     } catch (error: any) {
-      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to send report email.");
+      toastError(getApiErrorMessage(error, "Unable to send report email."));
     } finally {
       setEmailing(false);
     }
@@ -497,7 +498,12 @@ function CellDetailModal({ selected, onClose }: { selected: SelectedCell | null;
                 )}
               </ScrollView>
 
-              <Pressable style={styles.modalClose} onPress={onClose}>
+              <Pressable
+                style={({ pressed }) => [styles.modalClose, pressed ? styles.pressed : null]}
+                onPress={onClose}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+              >
                 <Text style={styles.modalCloseText}>Close</Text>
               </Pressable>
             </>
@@ -620,7 +626,7 @@ const styles = StyleSheet.create({
   outOfRangeText: { color: appTheme.colors.danger },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    backgroundColor: appTheme.colors.overlay,
     alignItems: "center",
     justifyContent: "center",
     padding: appTheme.spacing.lg,
@@ -671,4 +677,5 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
   },
   modalCloseText: { color: appTheme.colors.surface, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 18 },
+  pressed: { opacity: 0.6 },
 });
