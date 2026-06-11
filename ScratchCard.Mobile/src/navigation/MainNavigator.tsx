@@ -390,31 +390,36 @@ function HeaderRightControls({
   const { openHelp, hasHelp } = useHelp();
   return (
     <View style={styles.headerRightRow}>
-      {/* Home/Settings replace the old bottom dock — plain (borderless) icons so the
-          cluster stays light next to the circled help + menu buttons. Each hides on
-          its own screen, where it would be redundant. */}
+      {/* Home/Settings replace the old bottom dock. They and the help button share the
+          same borderless style so the cluster stays light next to the circled menu
+          button. Each shortcut hides on its own screen, where it would be redundant. */}
       {routeName !== "BestEntry" ? (
         <Pressable
-          style={({ pressed }) => [styles.headerPlainBtn, pressed ? styles.headerPlainBtnPressed : null]}
+          style={({ pressed }) => [styles.headerPlainBtn, pressed ? styles.headerBtnPressed : null]}
           onPress={onHome}
           accessibilityRole="button"
           accessibilityLabel="Go to home"
         >
-          <Ionicons name="home-outline" size={21} color={appTheme.colors.textMuted} />
+          <Ionicons name="home-outline" size={21} color={appTheme.colors.primary} />
         </Pressable>
       ) : null}
       {routeName !== "Settings" ? (
         <Pressable
-          style={({ pressed }) => [styles.headerPlainBtn, pressed ? styles.headerPlainBtnPressed : null]}
+          style={({ pressed }) => [styles.headerPlainBtn, pressed ? styles.headerBtnPressed : null]}
           onPress={onSettings}
           accessibilityRole="button"
           accessibilityLabel="Open settings"
         >
-          <Ionicons name="settings-outline" size={21} color={appTheme.colors.textMuted} />
+          <Ionicons name="settings-outline" size={21} color={appTheme.colors.primary} />
         </Pressable>
       ) : null}
       {hasHelp(routeName) ? (
-        <Pressable style={styles.menuButton} onPress={() => openHelp(routeName)} accessibilityRole="button" accessibilityLabel="Help for this screen">
+        <Pressable
+          style={({ pressed }) => [styles.headerPlainBtn, pressed ? styles.headerBtnPressed : null]}
+          onPress={() => openHelp(routeName)}
+          accessibilityRole="button"
+          accessibilityLabel="Help for this screen"
+        >
           <Ionicons name="help-circle-outline" size={22} color={appTheme.colors.primary} />
         </Pressable>
       ) : null}
@@ -1542,15 +1547,15 @@ const styles = StyleSheet.create({
   drawerSignOutText: {
     color: appTheme.colors.danger,
   },
-  // Borderless header shortcuts (Home / Settings) — the bottom dock's replacements.
-  // Kept visually lighter than the circled help/menu buttons so the cluster doesn't crowd titles.
+  // Borderless header shortcuts (Home / Settings / Help) — only the menu button keeps
+  // its circle, anchoring the cluster without crowding the title.
   headerPlainBtn: {
     width: 38,
     height: 40,
     alignItems: "center",
     justifyContent: "center",
   },
-  headerPlainBtnPressed: {
+  headerBtnPressed: {
     opacity: 0.5,
   },
 });
