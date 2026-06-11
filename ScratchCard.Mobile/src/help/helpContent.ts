@@ -8,28 +8,120 @@ export const HELP_CONTENT: Record<string, HelpEntry> = {
   TillReconciliation: {
     title: "How till reconciliation works",
     steps: [
-      { icon: "camera", title: "Add your till report", detail: "Take a photo of the end-of-day printout, or upload one — we read the figures for you." },
-      { icon: "checkmark-circle", title: "Check the figures", detail: "Tap any line with a dot to confirm the amount. Fix anything the scan got wrong." },
-      { icon: "cash", title: "Count your cash", detail: "Enter your counted drawer so we can work out any over or short." },
-      { icon: "lock-closed", title: "Approve & lock", detail: "Mark it reconciled, then approve to lock the day. Add a reason if there's a variance." },
+      {
+        icon: "camera",
+        title: "Add your till report",
+        detail: "Take a photo of the end-of-day printout, or upload one — we read the figures for you.",
+        more: [
+          "Lay the printout flat in good light — avoid shadows and folds so the scan reads cleanly.",
+          "Long report? Add more than one photo and they're read together.",
+          "No printout to hand? Upload a photo already on your phone instead.",
+        ],
+      },
+      {
+        icon: "checkmark-circle",
+        title: "Check the figures",
+        detail: "Tap any line with a dot to confirm the amount. Fix anything the scan got wrong.",
+        more: [
+          "Lines with a dot still need confirming — tap to accept the amount or correct it.",
+          "If a line landed in the wrong group, select it and use Move to… to re-categorise.",
+          "Fix misreads before counting cash, so the over/short figure is meaningful.",
+        ],
+      },
+      {
+        icon: "cash",
+        title: "Count your cash",
+        detail: "Enter your counted drawer so we can work out any over or short.",
+        more: [
+          "Count the whole drawer including the float, then enter the total.",
+          "The over or short is worked out against the till report automatically — you never calculate it yourself.",
+        ],
+      },
+      {
+        icon: "lock-closed",
+        title: "Approve & lock",
+        detail: "Mark it reconciled, then approve to lock the day. Add a reason if there's a variance.",
+        more: [
+          "If there's an over or short you must add a short reason — it shows on reports.",
+          "Locking stops further edits. A manager can reopen it later, with the reopen recorded.",
+        ],
+      },
     ],
   },
   DayEndClose: {
     title: "How day management works",
     steps: [
-      { icon: "today-outline", title: "Open the day", detail: "Open the business day and confirm your starting scratchcard serials so the day begins from a known position." },
-      { icon: "people-outline", title: "Run shifts & sales", detail: "Through the day, staff record shifts, sales and till reports — they all roll up here." },
-      { icon: "clipboard-outline", title: "Review before closing", detail: "Check temperature logs, compliance, safe drops and any missing tickets flagged on this screen." },
-      { icon: "lock-closed-outline", title: "Close the day", detail: "Enter closing figures and payouts to finalise the day. You can reopen it with a reason if something needs fixing." },
+      {
+        icon: "today-outline",
+        title: "Open the day",
+        detail: "Open the business day and confirm your starting scratchcard serials so the day begins from a known position.",
+        more: [
+          "Open the day before the first sale so shifts and till reports attach to the right date.",
+          "Confirm each pack's starting serial when opening a shift — tap a pack to accept or correct it.",
+          "Wrong serial? Correct it before the shift opens; it becomes that shift's starting position.",
+        ],
+      },
+      {
+        icon: "people-outline",
+        title: "Run shifts & sales",
+        detail: "Through the day, staff record shifts, sales and till reports — they all roll up here.",
+        more: [
+          "Open a shift before selling scratch cards — sales record against the open shift.",
+          "Closing a shift asks for each pack's closing serial; scan the next ticket to fill it fast.",
+          "Staff clock their own working hours from My Shifts — that's separate from these till shifts.",
+        ],
+      },
+      {
+        icon: "clipboard-outline",
+        title: "Review before closing",
+        detail: "Check temperature logs, compliance, safe drops and any missing tickets flagged on this screen.",
+        more: [
+          "The cards on this screen show today's temperatures, compliance and safe drops at a glance — amber means something needs attention.",
+          "Clear missing opening tickets and approve pending safe drops before closing.",
+        ],
+      },
+      {
+        icon: "lock-closed-outline",
+        title: "Close the day",
+        detail: "Enter closing figures and payouts to finalise the day. You can reopen it with a reason if something needs fixing.",
+        more: [
+          "All shifts must be closed first — Close day stays unavailable until they are.",
+          "Closing finalises the day's totals and opens the next day for you.",
+          "Reopening a closed day needs a reason and is recorded — shifts stay closed until you reopen them too.",
+        ],
+      },
     ],
   },
   BusinessDay: {
     title: "How day management works",
     steps: [
-      { icon: "today-outline", title: "Open the day", detail: "Pick the date and open a business day. Sales, shifts and till reports all attach to the open day." },
+      {
+        icon: "today-outline",
+        title: "Open the day",
+        detail: "Pick the date and open a business day. Sales, shifts and till reports all attach to the open day.",
+        more: [
+          "Open the day before the first sale so everything attaches to the right date.",
+          "Only one day is open at a time — close it before opening the next.",
+        ],
+      },
       { icon: "people-outline", title: "Run shifts & sales", detail: "Staff clock their shifts and record sales and till reports against the day as it runs." },
-      { icon: "alert-circle-outline", title: "Check it's ready", detail: "Before closing, clear any missing opening tickets and review the day's figures." },
-      { icon: "lock-closed-outline", title: "Close the day", detail: "Close to finalise the day's totals. You can reopen a closed day if something needs fixing." },
+      {
+        icon: "alert-circle-outline",
+        title: "Check it's ready",
+        detail: "Before closing, clear any missing opening tickets and review the day's figures.",
+        more: [
+          "Missing tickets are flagged on the day screen — resolve them before closing so the totals are right.",
+        ],
+      },
+      {
+        icon: "lock-closed-outline",
+        title: "Close the day",
+        detail: "Close to finalise the day's totals. You can reopen a closed day if something needs fixing.",
+        more: [
+          "All shifts must be closed first.",
+          "Reopening needs a reason and is recorded for the audit trail.",
+        ],
+      },
     ],
   },
   SafeDrop: {
@@ -80,10 +172,43 @@ export const HELP_CONTENT: Record<string, HelpEntry> = {
   RotaManage: {
     title: "How the shift rota works",
     steps: [
-      { icon: "calendar-number-outline", title: "Build the week", detail: "Each card is a day. Tap + on a day, pick the shift time, and choose who's working." },
-      { icon: "sparkles-outline", title: "Auto-generate", detail: "Generate the week to add every configured shift in one go, copying last week's staffing." },
-      { icon: "alert-circle-outline", title: "Spot the gaps", detail: "Shifts with no one assigned are highlighted, and the week header shows how many still need staff." },
-      { icon: "people-outline", title: "External staff", detail: "Roster people who don't use the app, and record their hours for them." },
+      {
+        icon: "calendar-number-outline",
+        title: "Build the week",
+        detail: "Each card is a day. Tap + on a day, pick the shift time, and choose who's working.",
+        more: [
+          "Shift times come from your shift templates — set those up in Shop Configuration → Shifts.",
+          "Tap a shift to edit it; tap an assigned name to call them or record their hours.",
+          "Closing the editor with unsaved changes asks before discarding them.",
+        ],
+      },
+      {
+        icon: "sparkles-outline",
+        title: "Auto-generate",
+        detail: "Generate the week to add every configured shift in one go, copying last week's staffing.",
+        more: [
+          "Existing shifts are kept — generating never duplicates or removes what's already on the week.",
+          "It copies last week's staffing where it can, so a stable rota takes one tap a week.",
+        ],
+      },
+      {
+        icon: "alert-circle-outline",
+        title: "Spot the gaps",
+        detail: "Shifts with no one assigned are highlighted, and the week header shows how many still need staff.",
+        more: [
+          "Amber rows need staff — tap the row to open it and assign someone.",
+          "The week header also flags open sessions (staff who haven't checked out).",
+        ],
+      },
+      {
+        icon: "people-outline",
+        title: "External staff",
+        detail: "Roster people who don't use the app, and record their hours for them.",
+        more: [
+          "External people can't sign in, so a manager records their hours — saved as approved.",
+          "You can invite an external person to become an app user later from External Staff.",
+        ],
+      },
     ],
   },
   ComplianceChecks: {
