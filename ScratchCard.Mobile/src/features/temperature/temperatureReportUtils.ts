@@ -403,45 +403,71 @@ export function buildTemperatureScheduleGridHtml(input: {
     }
   };
 
-  // Header row 1: Unit (spans both header rows) + a date cell per date spanning its slot columns.
-  const dateHeaderCells = dates
-    .map((date) => `<th colspan="${slotColumns.length}">${escapeHtml(gridShortDate(date))}</th>`)
-    .join("");
-  // Header row 2: slot label + time under each date.
-  const slotHeaderCells = dates
-    .map(() => slotColumns.map((col) => `<th class="slot">${escapeHtml(col.label)}<div class="slot-time">${escapeHtml((col.expectedTime || "").slice(0, 5))}</div></th>`).join(""))
-    .join("");
+  // A wide range × several checks per day can mean 90+ columns; forced into one page
+  // width every label wraps letter-by-letter and the grid is unreadable. Split the range
+  // into chunks — one table per chunk, stacked down the page — keeping each table at a
+  // readable column count (the paper equivalent: one sheet per week).
+  const targetDataColumns = 21;
+  const daysPerTable = Math.max(1, Math.floor(targetDataColumns / Math.max(1, slotColumns.length)));
+  const dateChunks: string[][] = [];
+  for (let i = 0; i < dates.length; i += daysPerTable) {
+    dateChunks.push(dates.slice(i, i + daysPerTable));
+  }
 
-  const bodyRows = grid.units
-    .map((unit) => {
-      const cells = dates
-        .map((date) =>
-          slotColumns
-            .map((col) => {
-              const scheduleId = scheduleIdFor(col, unit.unitId);
-              if (!scheduleId) return `<td class="na"></td>`;
-              const cell = cellsByKey.get(`${date}|${unit.unitId}|${scheduleId}`);
-              const rawState = cell?.state ?? "Upcoming";
-              const state: TemperatureScheduleCellState = showTiming ? rawState : cell?.readingId ? "OnTime" : "Upcoming";
-              const timeHtml = showReadingTime && cell?.readingTime ? `<div class="c-time">${escapeHtml(cell.readingTime.slice(0, 5))}</div>` : "";
-              const tempColor = !showRange ? "#0f1720" : cell?.isOutOfRange ? "#b3261e" : "#137333";
-              const tempHtml =
-                cell?.temperatureCelsius != null
-                  ? `<div class="c-temp" style="color:${tempColor}">${showRange ? (cell.isOutOfRange ? "▲ " : "● ") : ""}${cell.temperatureCelsius.toFixed(1)}°</div>`
-                  : "";
-              // No tick for on-time cells in the export — the temperature/time already convey "done".
-              const glyph = state === "OnTime" ? "" : GRID_GLYPH[state];
-              const glyphHtml = glyph ? `<div class="c-glyph" style="color:${stateColor(state)}">${glyph}</div>` : "";
-              const initials = cell?.readingId ? initialsByReadingId.get(cell.readingId) : undefined;
-              const byHtml = initials ? `<div class="c-by">${escapeHtml(initials)}</div>` : "";
-              return `<td>${glyphHtml}${timeHtml}${tempHtml}${byHtml}</td>`;
-            })
-            .join(""),
-        )
-        .join("");
-      return `<tr><th class="unit">${escapeHtml(unit.displayOrder ? `${unit.displayOrder}. ` : "")}${escapeHtml(unit.unitName)}</th>${cells}</tr>`;
-    })
-    .join("");
+  const buildGridTable = (chunkDates: string[]) => {
+    // Header row 1: Unit (spans both header rows) + a date cell per date spanning its slot columns.
+    const dateHeaderCells = chunkDates
+      .map((date) => `<th colspan="${slotColumns.length}">${escapeHtml(gridShortDate(date))}</th>`)
+      .join("");
+    // Header row 2: slot label + time under each date.
+    const slotHeaderCells = chunkDates
+      .map(() => slotColumns.map((col) => `<th class="slot">${escapeHtml(col.label)}<div class="slot-time">${escapeHtml((col.expectedTime || "").slice(0, 5))}</div></th>`).join(""))
+      .join("");
+
+    const bodyRows = grid.units
+      .map((unit) => {
+        const cells = chunkDates
+          .map((date) =>
+            slotColumns
+              .map((col) => {
+                const scheduleId = scheduleIdFor(col, unit.unitId);
+                if (!scheduleId) return `<td class="na"></td>`;
+                const cell = cellsByKey.get(`${date}|${unit.unitId}|${scheduleId}`);
+                const rawState = cell?.state ?? "Upcoming";
+                const state: TemperatureScheduleCellState = showTiming ? rawState : cell?.readingId ? "OnTime" : "Upcoming";
+                const timeHtml = showReadingTime && cell?.readingTime ? `<div class="c-time">${escapeHtml(cell.readingTime.slice(0, 5))}</div>` : "";
+                const tempColor = !showRange ? "#0f1720" : cell?.isOutOfRange ? "#b3261e" : "#137333";
+                const tempHtml =
+                  cell?.temperatureCelsius != null
+                    ? `<div class="c-temp" style="color:${tempColor}">${showRange ? (cell.isOutOfRange ? "▲ " : "● ") : ""}${cell.temperatureCelsius.toFixed(1)}°</div>`
+                    : "";
+                // No tick for on-time cells in the export — the temperature/time already convey "done".
+                const glyph = state === "OnTime" ? "" : GRID_GLYPH[state];
+                const glyphHtml = glyph ? `<div class="c-glyph" style="color:${stateColor(state)}">${glyph}</div>` : "";
+                const initials = cell?.readingId ? initialsByReadingId.get(cell.readingId) : undefined;
+                const byHtml = initials ? `<div class="c-by">${escapeHtml(initials)}</div>` : "";
+                return `<td>${glyphHtml}${timeHtml}${tempHtml}${byHtml}</td>`;
+              })
+              .join(""),
+          )
+          .join("");
+        return `<tr><th class="unit">${escapeHtml(unit.displayOrder ? `${unit.displayOrder}. ` : "")}${escapeHtml(unit.unitName)}</th>${cells}</tr>`;
+      })
+      .join("");
+
+    return `
+        <table>
+          <thead>
+            <tr><th class="unit" rowspan="2">Unit</th>${dateHeaderCells}</tr>
+            <tr>${slotHeaderCells}</tr>
+          </thead>
+          <tbody>
+            ${bodyRows || `<tr><td colspan="${chunkDates.length * slotColumns.length + 1}">No scheduled checks for this range.</td></tr>`}
+          </tbody>
+        </table>`;
+  };
+
+  const tablesHtml = dateChunks.map(buildGridTable).join("");
 
   const legend = `
     <div class="legend">
@@ -474,7 +500,7 @@ export function buildTemperatureScheduleGridHtml(input: {
           .subtitle, .meta { font-size: 11px; color: #425463; margin-bottom: 4px; }
           .legend { margin: 8px 0; font-size: 12px; font-weight: 700; }
           .legend span { margin-right: 12px; }
-          table { border-collapse: collapse; width: 100%; table-layout: fixed; font-size: 8px; }
+          table { border-collapse: collapse; width: 100%; table-layout: fixed; font-size: 8px; margin-bottom: 12px; page-break-inside: avoid; }
           th, td { border: 1px solid #9aa9b5; padding: 2px; text-align: center; vertical-align: top; word-wrap: break-word; }
           th.unit { text-align: left; width: 100px; background: #f1f4f6; font-size: 8px; }
           th.slot { font-size: 8px; }
@@ -496,15 +522,7 @@ export function buildTemperatureScheduleGridHtml(input: {
         <div class="subtitle">Shop: ${escapeHtml(input.shopName)} | Date Range: ${escapeHtml(formatReportDate(grid.from))} to ${escapeHtml(formatReportDate(grid.to))}</div>
         <div class="meta">Report Date Time: ${escapeHtml(reportDateTime)}</div>
         ${legend}
-        <table>
-          <thead>
-            <tr><th class="unit" rowspan="2">Unit</th>${dateHeaderCells}</tr>
-            <tr>${slotHeaderCells}</tr>
-          </thead>
-          <tbody>
-            ${bodyRows || `<tr><td colspan="${dates.length * slotColumns.length + 1}">No scheduled checks for this range.</td></tr>`}
-          </tbody>
-        </table>
+        ${tablesHtml || "<div>No scheduled checks for this range.</div>"}
         ${checkedByKeyHtml}
       </body>
     </html>
