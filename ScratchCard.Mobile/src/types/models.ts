@@ -534,6 +534,8 @@ export type TimesheetRow = {
   shiftsWorked: number;
   openSessions: number;
   totalHours: number;
+  /** Distinct non-regular assignment reasons across the range (e.g. "Cover", "Overtime"). */
+  reasons?: string[];
 };
 
 export type ShiftTimesheetRow = {
@@ -545,6 +547,8 @@ export type ShiftTimesheetRow = {
   shiftsWorked: number;
   openSessions: number;
   totalHours: number;
+  /** Distinct non-regular assignment reasons across this shift's sessions. */
+  reasons?: string[];
 };
 
 export type TimesheetSession = {

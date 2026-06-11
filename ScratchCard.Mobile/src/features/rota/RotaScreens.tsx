@@ -1944,9 +1944,9 @@ export function RotaTimesheetScreen() {
     mutationFn: async () => {
       const lines: string[] = [];
       if (view === "staff") {
-        lines.push(["Staff", "Shifts worked", "Open sessions", "Hours"].map(csvField).join(","));
+        lines.push(["Staff", "Shifts worked", "Open sessions", "Hours", "Reasons"].map(csvField).join(","));
         for (const r of staffRows) {
-          lines.push([r.userName, r.shiftsWorked, r.openSessions, r.totalHours.toFixed(1)].map(csvField).join(","));
+          lines.push([r.userName, r.shiftsWorked, r.openSessions, r.totalHours.toFixed(1), r.reasons?.join("; ") ?? ""].map(csvField).join(","));
         }
         lines.push(
           [
@@ -1954,12 +1954,13 @@ export function RotaTimesheetScreen() {
             staffRows.reduce((s, r) => s + r.shiftsWorked, 0),
             staffRows.reduce((s, r) => s + r.openSessions, 0),
             staffRows.reduce((s, r) => s + r.totalHours, 0).toFixed(1),
+            "",
           ].map(csvField).join(","),
         );
       } else {
-        lines.push(["Shift", "Date", "Staff count", "Hours"].map(csvField).join(","));
+        lines.push(["Shift", "Date", "Staff count", "Hours", "Reasons"].map(csvField).join(","));
         for (const r of shiftRows) {
-          lines.push([r.shiftName, r.date, r.staffCount, r.totalHours.toFixed(1)].map(csvField).join(","));
+          lines.push([r.shiftName, r.date, r.staffCount, r.totalHours.toFixed(1), r.reasons?.join("; ") ?? ""].map(csvField).join(","));
         }
         lines.push(
           [
@@ -1967,6 +1968,7 @@ export function RotaTimesheetScreen() {
             "",
             shiftRows.reduce((s, r) => s + r.staffCount, 0),
             shiftRows.reduce((s, r) => s + r.totalHours, 0).toFixed(1),
+            "",
           ].map(csvField).join(","),
         );
       }
@@ -2221,11 +2223,18 @@ export function RotaTimesheetScreen() {
             {view === "staff"
               ? staffRows.map((row) => (
                   <Pressable
-                    key={row.userId}
+                    // External staff have no userId (only rotaStaffMemberId) — keying on
+                    // userId alone gives several rows the same null key.
+                    key={row.userId ?? row.rotaStaffMemberId ?? row.userName}
                     style={({ pressed }) => [styles.tRow, pressed ? styles.tRowPressed : null]}
                     onPress={() => setSelectedStaff({ userId: row.userId, rotaStaffMemberId: row.rotaStaffMemberId, name: row.userName })}
                   >
-                    <Text style={[styles.tdName, styles.tdLink]} numberOfLines={1}>{row.userName}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.tdName, styles.tdLink]} numberOfLines={1}>{row.userName}</Text>
+                      {row.reasons?.length ? (
+                        <Text style={styles.tdSub} numberOfLines={1}>{row.reasons.join(" · ")}</Text>
+                      ) : null}
+                    </View>
                     <Text style={styles.tdNum}>{row.shiftsWorked}{row.openSessions > 0 ? ` (+${row.openSessions})` : ""}</Text>
                     <Text style={styles.tdNum}>{row.totalHours.toFixed(1)}</Text>
                   </Pressable>
@@ -2240,6 +2249,7 @@ export function RotaTimesheetScreen() {
                       <Text style={[styles.tdName, styles.tdLink]} numberOfLines={1}>{row.shiftName}</Text>
                       <Text style={styles.tdSub}>
                         {dayLabel(row.date)}{row.startTime ? ` · ${timeRange(row.startTime, row.endTime)}` : ""}
+                        {row.reasons?.length ? ` · ${row.reasons.join(" · ")}` : ""}
                       </Text>
                     </View>
                     <Text style={styles.tdNum}>{row.staffCount}</Text>

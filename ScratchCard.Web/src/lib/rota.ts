@@ -61,6 +61,8 @@ export type TimesheetRow = {
   hourlyRate?: number | null;
   labourCost?: number | null;
   pendingLabourCost?: number | null;
+  /** Distinct non-regular assignment reasons across the range (e.g. "Cover", "Overtime"). */
+  reasons?: string[];
 };
 export type ShiftTimesheetRow = {
   shiftName: string;
@@ -74,6 +76,8 @@ export type ShiftTimesheetRow = {
   pendingHours: number;
   labourCost?: number | null;
   pendingLabourCost?: number | null;
+  /** Distinct non-regular assignment reasons across this shift's sessions. */
+  reasons?: string[];
 };
 export type TimesheetSession = {
   id: string;

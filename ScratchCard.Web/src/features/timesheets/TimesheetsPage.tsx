@@ -104,18 +104,18 @@ export default function TimesheetsPage() {
     if (view === "staff") {
       downloadCsv(
         `timesheet-by-staff_${range.from}_${range.to}`,
-        ["Staff", "External", "Shifts worked", "Open sessions", "Total hours", ...(showCost ? ["Wage", "Pending wage"] : [])],
+        ["Staff", "External", "Shifts worked", "Open sessions", "Total hours", "Reasons", ...(showCost ? ["Wage", "Pending wage"] : [])],
         (staffQ.data ?? []).map((r) => [
-          r.userName, r.isExternal ? "Yes" : "", r.shiftsWorked, r.openSessions, r.totalHours.toFixed(2),
+          r.userName, r.isExternal ? "Yes" : "", r.shiftsWorked, r.openSessions, r.totalHours.toFixed(2), r.reasons?.join("; ") ?? "",
           ...(showCost ? [r.labourCost != null ? r.labourCost.toFixed(2) : "", (r.pendingLabourCost ?? 0).toFixed(2)] : []),
         ]),
       );
     } else {
       downloadCsv(
         `timesheet-by-shift_${range.from}_${range.to}`,
-        ["Date", "Shift", "Start", "End", "Employees", "Total hours", ...(showCost ? ["Wage", "Pending wage"] : [])],
+        ["Date", "Shift", "Start", "End", "Employees", "Total hours", "Reasons", ...(showCost ? ["Wage", "Pending wage"] : [])],
         (shiftQ.data ?? []).map((r) => [
-          r.date, r.shiftName, shortTime(r.startTime), shortTime(r.endTime), r.staffCount, r.totalHours.toFixed(2),
+          r.date, r.shiftName, shortTime(r.startTime), shortTime(r.endTime), r.staffCount, r.totalHours.toFixed(2), r.reasons?.join("; ") ?? "",
           ...(showCost ? [r.labourCost != null ? r.labourCost.toFixed(2) : "", (r.pendingLabourCost ?? 0).toFixed(2)] : []),
         ]),
       );
@@ -229,6 +229,7 @@ export default function TimesheetsPage() {
                   <td className="px-5 py-3">
                     <span className="font-medium text-slate-800">{r.userName}</span>
                     {r.isExternal ? <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">External</span> : null}
+                    {r.reasons?.length ? <div className="text-xs text-slate-500">{r.reasons.join(" · ")}</div> : null}
                   </td>
                   <td className="px-5 py-3 text-slate-700">{r.shiftsWorked}{r.openSessions > 0 ? ` (+${r.openSessions})` : ""}</td>
                   <td className="px-5 py-3 font-medium text-slate-800">{hm(r.totalHours)}</td>
@@ -285,6 +286,7 @@ export default function TimesheetsPage() {
                     <td className="px-5 py-3 text-slate-700">
                       <span className="font-medium text-slate-800">{r.shiftName}</span>
                       {r.startTime ? <span className="ml-1 text-xs text-slate-400">{shortTime(r.startTime)}–{shortTime(r.endTime)}</span> : null}
+                      {r.reasons?.length ? <div className="text-xs text-slate-500">{r.reasons.join(" · ")}</div> : null}
                     </td>
                     <td className="px-5 py-3 text-slate-700">{r.staffCount}</td>
                     <td className="px-5 py-3 font-medium text-slate-800">{hm(r.totalHours)}</td>

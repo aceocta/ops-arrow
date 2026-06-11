@@ -621,8 +621,14 @@ public class RotaService : IRotaService
                 x.CheckInAt,
                 x.CheckOutAt,
                 x.IsApproved,
+                x.RotaShiftId,
             })
             .ToListAsync(cancellationToken);
+
+        // Each person's non-regular assignment reasons, resolved via the session's rota shift.
+        // One batched query over all shifts in the range (no N+1); keyed per (shift, person).
+        var reasonByShiftPerson = await GetAssignmentReasonsAsync(
+            rows.Where(r => r.RotaShiftId != null).Select(r => r.RotaShiftId!.Value), cancellationToken);
 
         // Labour cost (Growth+). Cost is computed per session at the rate effective on that session's
         // date (effective-dated), then summed — so a mid-period raise doesn't rewrite earlier cost.
@@ -678,10 +684,34 @@ public class RotaService : IRotaService
                     HourlyRate = showCost ? RateOn(sample.UserId, sample.RotaStaffMemberId, to) : null,
                     LabourCost = agg.Cost,
                     PendingLabourCost = agg.PendingCost,
+                    Reasons = g.Where(x => x.RotaShiftId != null)
+                        .Select(x => reasonByShiftPerson.GetValueOrDefault((x.RotaShiftId!.Value, x.UserId, x.RotaStaffMemberId)))
+                        .OfType<string>()
+                        .Distinct()
+                        .OrderBy(r => r, StringComparer.OrdinalIgnoreCase)
+                        .ToList(),
                 };
             })
             .OrderBy(x => x.UserName)
             .ToArray();
+    }
+
+    // Non-regular assignment reasons for the given shifts, keyed per (shift, person). One batched
+    // query for the whole set — missing keys mean a regular shift or no assignment.
+    private async Task<Dictionary<(Guid RotaShiftId, Guid? UserId, Guid? RotaStaffMemberId), string>> GetAssignmentReasonsAsync(
+        IEnumerable<Guid> rotaShiftIds, CancellationToken cancellationToken)
+    {
+        var shiftIds = rotaShiftIds.Distinct().ToList();
+        if (shiftIds.Count == 0)
+            return [];
+
+        return (await _assignmentRepository.Query()
+            .AsNoTracking()
+            .Where(a => shiftIds.Contains(a.RotaShiftId) && a.Reason != null)
+            .Select(a => new { a.RotaShiftId, a.UserId, a.RotaStaffMemberId, a.Reason })
+            .ToListAsync(cancellationToken))
+            .GroupBy(a => (a.RotaShiftId, a.UserId, a.RotaStaffMemberId))
+            .ToDictionary(g => g.Key, g => g.First().Reason!);
     }
 
     public async Task<IReadOnlyCollection<ShiftTimesheetRowDto>> GetShiftTimesheetAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
@@ -703,6 +733,9 @@ public class RotaService : IRotaService
             .Select(x => new { x.Id, x.ShiftName, x.ShiftDate, x.StartTime, x.EndTime })
             .ToListAsync(cancellationToken))
             .ToDictionary(x => x.Id, x => x);
+
+        // Non-regular assignment reasons per (shift, person), batched across all shifts in the range.
+        var reasonByShiftPerson = await GetAssignmentReasonsAsync(shiftIds, cancellationToken);
 
         // Labour cost (Growth+): per-session hours × rate effective on that session's date, summed.
         var showCost = await _featureGateService.HasFeatureAsync(shopId, FeatureKeys.StaffRotaLabourCost, cancellationToken);
@@ -755,6 +788,12 @@ public class RotaService : IRotaService
                     PendingHours = agg.PendingHours,
                     LabourCost = agg.Cost,
                     PendingLabourCost = agg.PendingCost,
+                    Reasons = g
+                        .Select(x => reasonByShiftPerson.GetValueOrDefault((g.Key, x.UserId, x.RotaStaffMemberId)))
+                        .OfType<string>()
+                        .Distinct()
+                        .OrderBy(r => r, StringComparer.OrdinalIgnoreCase)
+                        .ToList(),
                 };
             });
 

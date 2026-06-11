@@ -197,6 +197,9 @@ public class TimesheetRowDto
     public decimal? HourlyRate { get; set; }    // current rate (null if labour-cost not entitled / no rate)
     public decimal? LabourCost { get; set; }    // Σ session hours × rate effective on each session's date (all)
     public decimal? PendingLabourCost { get; set; } // portion of LabourCost from unapproved sessions
+    // Distinct non-regular assignment reasons (e.g. "Overtime", "Cover") across this person's
+    // sessions in the range, alphabetical. Empty when all sessions were regular/unrostered.
+    public List<string> Reasons { get; set; } = [];
 }
 
 // One worked session in a staff member's timesheet drill-down.
@@ -305,4 +308,6 @@ public class ShiftTimesheetRowDto
     public decimal PendingHours { get; set; }   // portion of TotalHours awaiting approval
     public decimal? LabourCost { get; set; }    // Σ session hours × effective rate (null if not entitled)
     public decimal? PendingLabourCost { get; set; } // portion of LabourCost from unapproved sessions
+    // Distinct non-regular assignment reasons across this shift's sessions, alphabetical.
+    public List<string> Reasons { get; set; } = [];
 }
