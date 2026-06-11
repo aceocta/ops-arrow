@@ -2543,6 +2543,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           animationType="fade"
           onRequestClose={() => setIsOpenShiftModalVisible(false)}
         >
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <View style={styles.modalBackdrop}>
             <ModalBackdropBlur />
             <View style={[styles.modalCard, styles.shiftStartModalCard]}>
@@ -2593,6 +2594,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               </View>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </Modal>
 
         <Modal
@@ -2601,6 +2603,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           animationType="fade"
           onRequestClose={closeStartScheduledShiftConfirmation}
         >
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <View style={styles.modalBackdrop}>
             <ModalBackdropBlur />
             <View style={[styles.modalCard, styles.shiftStartModalCard]}>
@@ -2645,6 +2648,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               </View>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </Modal>
 
         <Modal
@@ -2972,6 +2976,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           animationType="fade"
           onRequestClose={() => setIsReopenDayModalVisible(false)}
         >
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <View style={styles.modalBackdrop}>
             <ModalBackdropBlur />
             <View style={styles.modalCard}>
@@ -3031,6 +3036,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               </View>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </Modal>
       </View>
     </ScreenContainer>

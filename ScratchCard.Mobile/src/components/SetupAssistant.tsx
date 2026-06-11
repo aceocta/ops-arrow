@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { appTheme } from "../ui/theme";
 import { ui } from "../ui/primitives";
@@ -130,6 +130,7 @@ export function SetupAssistant({ visible, onClose, features, isManager, onGo }: 
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <View style={styles.header}>
@@ -170,6 +171,7 @@ export function SetupAssistant({ visible, onClose, features, isManager, onGo }: 
           </ScrollView>
         </View>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

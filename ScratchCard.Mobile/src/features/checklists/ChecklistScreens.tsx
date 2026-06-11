@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useNetInfo } from "@react-native-community/netinfo";
@@ -396,6 +396,7 @@ export function ShopChecklistScreen() {
       ))}
 
       <Modal visible={Boolean(noteEditor)} transparent animationType="fade" onRequestClose={() => setNoteEditor(null)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={styles.modalBackdrop}>
           <ModalBackdropBlur />
           <View style={styles.modalCard}>
@@ -419,6 +420,7 @@ export function ShopChecklistScreen() {
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </ScreenContainer>
   );
@@ -774,6 +776,7 @@ export function ChecklistConfigurationScreen() {
       </NestableScrollContainer>
 
       <Modal visible={groupModalVisible} transparent animationType="fade" onRequestClose={() => setGroupModalVisible(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={styles.modalBackdrop}>
           <ModalBackdropBlur />
           <View style={styles.modalCard}>
@@ -805,9 +808,11 @@ export function ChecklistConfigurationScreen() {
             </Pressable>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={taskModalVisible} transparent animationType="fade" onRequestClose={() => setTaskModalVisible(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={styles.modalBackdrop}>
           <ModalBackdropBlur />
           <View style={styles.modalCard}>
@@ -851,6 +856,7 @@ export function ChecklistConfigurationScreen() {
             </ScrollView>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </ScreenContainer>
   );

@@ -1,5 +1,5 @@
 import React from "react";
-import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
@@ -232,6 +232,7 @@ function EditTillModal({ till, onClose, onSaved }: { till: Till; onClose: () => 
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <View style={styles.modalBackdrop}>
         <View style={styles.modalSheet}>
           <View style={styles.modalHeader}>
@@ -248,6 +249,7 @@ function EditTillModal({ till, onClose, onSaved }: { till: Till; onClose: () => 
           <PrimaryButton label="Cancel" tone="neutral" onPress={onClose} />
         </View>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

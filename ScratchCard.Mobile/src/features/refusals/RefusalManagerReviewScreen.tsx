@@ -1,5 +1,5 @@
 ﻿import React, { useMemo, useRef, useState } from "react";
-import { Alert, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LandscapeSignatureModal } from "../../components/LandscapeSignatureModal";
 import { listRefusalEntriesByRange, reviewRefusalEntries } from "../../api/refusalRegisterApi";
@@ -268,6 +268,7 @@ export function RefusalManagerReviewScreen() {
         animationType="fade"
         onRequestClose={() => setIsReviewModalVisible(false)}
       >
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={styles.modalBackdrop}>
           <ModalBackdropBlur />
           <View style={styles.modalCard}>
@@ -319,6 +320,7 @@ export function RefusalManagerReviewScreen() {
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <LandscapeSignatureModal

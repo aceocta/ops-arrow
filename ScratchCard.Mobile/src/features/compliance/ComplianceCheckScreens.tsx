@@ -1,5 +1,5 @@
 ﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Image, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { Alert, Image, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -2232,6 +2232,7 @@ export function ComplianceChecksScreen() {
       </Modal>
 
       <Modal visible={Boolean(editorState)} transparent animationType="fade" onRequestClose={() => setEditorState(null)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={styles.modalBackdrop}>
           <ModalBackdropBlur />
           <View style={styles.modalCard}>
@@ -2256,6 +2257,7 @@ export function ComplianceChecksScreen() {
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </ScreenContainer>
   );
@@ -2650,6 +2652,7 @@ export function ComplianceChecksConfigScreen() {
       </NestableScrollContainer>
 
       <Modal visible={groupModalVisible} transparent animationType="fade" onRequestClose={() => setGroupModalVisible(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={styles.modalBackdrop}>
           <ModalBackdropBlur />
           <View style={styles.modalCard}>
@@ -2714,9 +2717,11 @@ export function ComplianceChecksConfigScreen() {
             </ScrollView>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={itemModalVisible} transparent animationType="fade" onRequestClose={() => setItemModalVisible(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={styles.modalBackdrop}>
           <ModalBackdropBlur />
           <View style={styles.modalCard}>
@@ -2793,6 +2798,7 @@ export function ComplianceChecksConfigScreen() {
             </ScrollView>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </ScreenContainer>
   );
@@ -2906,6 +2912,7 @@ export function ComplianceActionsScreen() {
       </ScrollView>
 
       <Modal visible={Boolean(closeActionState)} transparent animationType="fade" onRequestClose={() => setCloseActionState(null)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={styles.modalBackdrop}>
           <ModalBackdropBlur />
           <View style={styles.modalCard}>
@@ -2938,6 +2945,7 @@ export function ComplianceActionsScreen() {
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </ScreenContainer>
   );

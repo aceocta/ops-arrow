@@ -1,5 +1,5 @@
 ﻿import React, { useState } from "react";
-import { Alert, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Image, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRefusalEntry, getRefusalEntryReviewSignature, getRefusalEntrySignature, reviewRefusalEntry } from "../../api/refusalRegisterApi";
@@ -165,6 +165,7 @@ export function RefusalEntryDetailsScreen({ route, navigation }: Props) {
         animationType="fade"
         onRequestClose={() => setIsReviewModalVisible(false)}
       >
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={styles.modalBackdrop}>
           <ModalBackdropBlur />
           <View style={styles.modalCard}>
@@ -198,6 +199,7 @@ export function RefusalEntryDetailsScreen({ route, navigation }: Props) {
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </ScreenContainer>
   );

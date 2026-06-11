@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -658,6 +658,7 @@ export function MyShiftsScreen() {
 
       {/* Raise an issue against a timesheet review period */}
       <Modal visible={disputeTarget !== null} transparent animationType="fade" onRequestClose={() => setDisputeTarget(null)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={styles.sheetBackdrop}>
           <View style={styles.sheetCard}>
             <View style={styles.sheetHeader}>
@@ -694,6 +695,7 @@ export function MyShiftsScreen() {
             <PrimaryButton label="Cancel" tone="neutral" onPress={() => setDisputeTarget(null)} disabled={disputeMutation.isPending} />
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </ScreenContainer>
   );
@@ -1173,6 +1175,7 @@ export function RotaManageScreen() {
       })}
 
       <Modal visible={editorOpen} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => void requestCloseEditor()}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={[styles.editorScreen, { paddingTop: insets.top }]}>
           <View style={styles.editorHeader}>
             <Pressable style={styles.editorHeaderBtn} onPress={() => void requestCloseEditor()} accessibilityRole="button" accessibilityLabel="Close">
@@ -1340,6 +1343,7 @@ export function RotaManageScreen() {
             />
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Staff contact details — tap a name on the rota to call/email them. */}
@@ -1389,6 +1393,7 @@ export function RotaManageScreen() {
 
       {/* Add an external (roster-only) person — name required, phone & email optional. */}
       <Modal visible={addExternalOpen} transparent animationType="fade" onRequestClose={() => setAddExternalOpen(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={styles.sheetBackdrop}>
           <View style={styles.sheetCard}>
             <Text style={styles.modalTitleSm}>Add external person</Text>
@@ -1433,6 +1438,7 @@ export function RotaManageScreen() {
             <PrimaryButton label="Cancel" tone="neutral" onPress={() => setAddExternalOpen(false)} disabled={addExternalMutation.isPending} />
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Record hours for an assignee — external (roster-only) people or internal staff */}
@@ -2189,6 +2195,7 @@ export function RotaTimesheetScreen() {
 
       {/* Resolve a disputed timesheet review */}
       <Modal visible={resolveTarget !== null} transparent animationType="fade" onRequestClose={() => setResolveTarget(null)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={styles.sheetBackdrop}>
           <View style={styles.sheetCard}>
             <View style={styles.sheetHeader}>
@@ -2235,6 +2242,7 @@ export function RotaTimesheetScreen() {
             <PrimaryButton label="Cancel" tone="neutral" onPress={() => setResolveTarget(null)} disabled={resolveReviewMutation.isPending} />
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </ScreenContainer>
   );
@@ -2595,6 +2603,7 @@ export function RotaStaffMembersScreen() {
       </View>
 
       <Modal visible={editing !== null} transparent animationType="fade" onRequestClose={() => setEditing(null)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={styles.sheetBackdrop}>
           <View style={styles.sheetCard}>
             <Text style={styles.modalTitleSm}>{editing && editing !== "new" ? "Edit external person" : "Add external person"}</Text>
@@ -2638,6 +2647,7 @@ export function RotaStaffMembersScreen() {
             <PrimaryButton label="Cancel" tone="neutral" onPress={() => setEditing(null)} disabled={saveMutation.isPending} />
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </ScreenContainer>
   );

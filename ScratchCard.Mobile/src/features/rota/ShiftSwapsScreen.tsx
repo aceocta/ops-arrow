@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../auth/AuthContext";
@@ -183,6 +183,7 @@ function ComposeSwapModal({ shopId, me, rota, onClose, onCreated }: {
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <View style={styles.sheetHeader}>
@@ -230,6 +231,7 @@ function ComposeSwapModal({ shopId, me, rota, onClose, onCreated }: {
           </View>
         </View>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

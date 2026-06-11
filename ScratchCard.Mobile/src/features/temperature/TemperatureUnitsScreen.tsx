@@ -1,5 +1,5 @@
 ﻿import React, { useRef, useState } from "react";
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -171,6 +171,7 @@ export function TemperatureUnitsScreen() {
         animationType="fade"
         onRequestClose={() => setIsCreateModalVisible(false)}
       >
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={styles.modalBackdrop}>
           <ModalBackdropBlur />
           <View style={styles.modalCard}>
@@ -258,6 +259,7 @@ export function TemperatureUnitsScreen() {
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </ScreenContainer>
   );
