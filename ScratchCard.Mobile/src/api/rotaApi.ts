@@ -198,6 +198,11 @@ export async function getMyTimesheetReviews(shopId: string) {
   return response.data.data;
 }
 
+export async function getTimesheetReviewSessions(reviewId: string) {
+  const response = await apiClient.get<ApiResponse<TimesheetSession[]>>(`/rota/timesheet-reviews/${reviewId}/sessions`);
+  return response.data.data;
+}
+
 export async function confirmTimesheetReview(id: string) {
   const response = await apiClient.post<ApiResponse<RotaTimesheetReview>>(`/rota/timesheet-reviews/${id}/confirm`, null);
   return response.data.data;

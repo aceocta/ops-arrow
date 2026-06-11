@@ -40,6 +40,7 @@ import {
   requestTimesheetReviews,
   getTimesheetReviews,
   getMyTimesheetReviews,
+  getTimesheetReviewSessions,
   confirmTimesheetReview,
   disputeTimesheetReview,
   resolveTimesheetReview,
@@ -205,6 +206,14 @@ function vTextStyle(tone: "good" | "bad" | "neutral" | "on") {
   return { color: appTheme.colors.textMuted };
 }
 
+// Total hours for a review's session breakdown: sum of completed sessions, but defer to the
+// server's figure when they drift apart (the server total is authoritative).
+function breakdownTotal(sessions: TimesheetSession[], serverTotalHours: number) {
+  const summed = sessions.filter((s) => s.checkOutAt).reduce((sum, s) => sum + s.hours, 0);
+  const total = Math.abs(summed - serverTotalHours) > 0.05 ? serverTotalHours : summed;
+  return `${total.toFixed(1)}h`;
+}
+
 // ---------------------------------------------------------------------------
 // My Shifts + check in/out (staff)
 // ---------------------------------------------------------------------------
@@ -220,6 +229,8 @@ export function MyShiftsScreen() {
   // Timesheet review the staff member is raising an issue against (opens the note modal).
   const [disputeTarget, setDisputeTarget] = useState<RotaTimesheetReview | null>(null);
   const [disputeNote, setDisputeNote] = useState("");
+  // Review whose per-session breakdown is expanded (one at a time).
+  const [expandedReviewId, setExpandedReviewId] = useState<string | null>(null);
 
   const attendanceQuery = useQuery({
     queryKey: ["rota-attendance", shopId],
@@ -241,6 +252,12 @@ export function MyShiftsScreen() {
     () => (myReviewsQuery.data ?? []).filter((r) => r.status === "PendingStaff" || r.status === "Disputed"),
     [myReviewsQuery.data],
   );
+  // Per-session breakdown of the expanded review (fetched only while expanded).
+  const reviewSessionsQuery = useQuery({
+    queryKey: ["rota-review-sessions", expandedReviewId],
+    queryFn: () => getTimesheetReviewSessions(expandedReviewId as string),
+    enabled: Boolean(expandedReviewId),
+  });
 
   const current = attendanceQuery.data;
   const isCheckedInSomewhere = Boolean(current && !current.checkOutAt);
@@ -448,16 +465,60 @@ export function MyShiftsScreen() {
             {actionableReviews.map((review) => {
               const disputed = review.status === "Disputed";
               const confirmingThis = confirmReviewMutation.isPending && confirmReviewMutation.variables === review.id;
+              const expanded = expandedReviewId === review.id;
               return (
                 <View key={review.id} style={styles.reviewRow}>
                   <View style={styles.reviewRowTop}>
-                    <Text style={styles.reviewPeriod}>
-                      {formatDayLabel(review.periodFrom)} – {formatDayLabel(review.periodTo)} · {review.totalHours.toFixed(1)}h
-                    </Text>
+                    <Pressable
+                      style={({ pressed }) => [styles.reviewPeriodBtn, pressed ? styles.reviewPeriodBtnPressed : null]}
+                      onPress={() => setRange({ from: review.periodFrom, to: review.periodTo })}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Show your shifts for ${formatDayLabel(review.periodFrom)} to ${formatDayLabel(review.periodTo)}`}
+                    >
+                      <Text style={styles.reviewPeriod}>
+                        {formatDayLabel(review.periodFrom)} – {formatDayLabel(review.periodTo)} · {review.totalHours.toFixed(1)}h
+                      </Text>
+                      <Text style={styles.reviewPeriodHint}>Tap to see these shifts below</Text>
+                    </Pressable>
                     <StatusBadge label={disputed ? "Issue raised" : "Awaiting your review"} tone={disputed ? "warning" : "neutral"} />
                   </View>
                   {disputed && review.staffNote ? <Text style={styles.noteQuote}>“{review.staffNote}”</Text> : null}
                   {disputed && review.managerNote ? <Text style={styles.mutedSmall}>Manager: {review.managerNote}</Text> : null}
+                  <Pressable
+                    style={({ pressed }) => [styles.actGhost, styles.reviewGhostBtn, pressed ? styles.actGhostPressed : null]}
+                    onPress={() => setExpandedReviewId(expanded ? null : review.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${expanded ? "Hide" : "View"} the session breakdown for ${formatDayLabel(review.periodFrom)} to ${formatDayLabel(review.periodTo)}`}
+                  >
+                    <Ionicons name="list-outline" size={16} color={appTheme.colors.primary} />
+                    <Text style={styles.actGhostText}>{expanded ? "Hide breakdown" : "View breakdown"}</Text>
+                  </Pressable>
+                  {expanded ? (
+                    reviewSessionsQuery.isLoading ? (
+                      <LoadingState inline />
+                    ) : (reviewSessionsQuery.data?.length ?? 0) === 0 ? (
+                      <Text style={styles.muted}>No sessions in this period.</Text>
+                    ) : (
+                      <View>
+                        {(reviewSessionsQuery.data ?? []).map((s) => (
+                          <View key={s.id} style={styles.sessionRow}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.sessionDate}>{dayLabel(s.date)} · {s.shiftName ?? "Shift"}</Text>
+                              <Text style={styles.muted} numberOfLines={1}>
+                                {clockTime(s.checkInAt)} → {s.checkOutAt ? clockTime(s.checkOutAt) : "—"}
+                                {s.entryMethod === "Manual" && !s.isApproved ? "  · manual · pending" : ""}
+                              </Text>
+                            </View>
+                            <Text style={styles.sessionHours}>{s.checkOutAt ? workedLabel(s.checkInAt, s.checkOutAt) : "open"}</Text>
+                          </View>
+                        ))}
+                        <View style={styles.sessionRow}>
+                          <Text style={[styles.sessionDate, { flex: 1 }]}>Total</Text>
+                          <Text style={styles.sessionHours}>{breakdownTotal(reviewSessionsQuery.data ?? [], review.totalHours)}</Text>
+                        </View>
+                      </View>
+                    )
+                  ) : null}
                   <PrimaryButton
                     label={confirmingThis ? "Confirming…" : "Confirm my hours"}
                     icon="checkmark-circle-outline"
@@ -2867,6 +2928,9 @@ const styles = StyleSheet.create({
   reviewRow: { gap: 8, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
   reviewRowTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 },
   reviewPeriod: { flexShrink: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 19 },
+  reviewPeriodBtn: { flexShrink: 1, gap: 1 },
+  reviewPeriodBtnPressed: { opacity: 0.6 },
+  reviewPeriodHint: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.body, fontSize: 11, lineHeight: 14 },
   reviewGhostBtn: { justifyContent: "center" },
   // Multiline note input (dispute / resolve modals).
   noteInput: { minHeight: 84, paddingTop: 10, textAlignVertical: "top" },

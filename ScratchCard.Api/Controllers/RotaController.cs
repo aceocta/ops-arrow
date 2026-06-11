@@ -103,6 +103,10 @@ public class RotaController : BaseApiController
     public async Task<IActionResult> GetMyTimesheetReviews([FromQuery] Guid shopId, CancellationToken cancellationToken)
         => Success(await _rotaService.GetMyTimesheetReviewsAsync(shopId, cancellationToken));
 
+    [HttpGet("timesheet-reviews/{id:guid}/sessions")]
+    public async Task<IActionResult> GetMyTimesheetReviewSessions(Guid id, CancellationToken cancellationToken)
+        => Success(await _rotaService.GetMyTimesheetReviewSessionsAsync(id, cancellationToken));
+
     [HttpPost("timesheet-reviews/{id:guid}/confirm")]
     public async Task<IActionResult> ConfirmTimesheetReview(Guid id, CancellationToken cancellationToken)
         => Success(await _rotaService.ConfirmTimesheetReviewAsync(id, cancellationToken));

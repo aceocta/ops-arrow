@@ -717,6 +717,12 @@ public class RotaService : IRotaService
     public async Task<IReadOnlyCollection<TimesheetSessionDto>> GetStaffSessionsAsync(Guid shopId, Guid? userId, Guid? rotaStaffMemberId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
     {
         await EnsureManageAsync(shopId, cancellationToken);
+        return await QueryStaffSessionsAsync(shopId, userId, rotaStaffMemberId, from, to, cancellationToken);
+    }
+
+    // One person's sessions in a period, bounded by check-in date (same bounding as the timesheet/review hour totals).
+    private async Task<IReadOnlyCollection<TimesheetSessionDto>> QueryStaffSessionsAsync(Guid shopId, Guid? userId, Guid? rotaStaffMemberId, DateOnly from, DateOnly to, CancellationToken cancellationToken)
+    {
         var fromBound = new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
         var toExclusive = new DateTimeOffset(to.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
 
@@ -1535,6 +1541,18 @@ public class RotaService : IRotaService
                 && (x.Status != RotaTimesheetReviewStatus.ManagerApproved || x.PeriodTo >= recentCutoff))
             .ToListAsync(cancellationToken);
         return await BuildReviewDtosAsync(reviews, cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<TimesheetSessionDto>> GetMyTimesheetReviewSessionsAsync(Guid reviewId, CancellationToken cancellationToken = default)
+    {
+        var review = await GetReviewAsync(reviewId, cancellationToken);
+        await EnsureStaffAsync(review.ShopId, cancellationToken);
+        if (review.UserId != CurrentUserId)
+        {
+            throw new AppException("rota_review_not_yours", "You can only view your own timesheet.", 403);
+        }
+        // Same period bounding as the review's total hours (sessions by check-in date within the period).
+        return await QueryStaffSessionsAsync(review.ShopId, review.UserId, null, review.PeriodFrom, review.PeriodTo, cancellationToken);
     }
 
     public async Task<RotaTimesheetReviewDto> ConfirmTimesheetReviewAsync(Guid reviewId, CancellationToken cancellationToken = default)
