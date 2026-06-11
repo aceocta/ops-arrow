@@ -545,23 +545,21 @@ export function RefusalRegisterScreen() {
         />
 
         <Text style={styles.fieldLabel}>Staff Signature</Text>
-        <View style={styles.signaturePreviewCard}>
+        <Pressable
+          style={styles.signaturePreviewCard}
+          onPress={openSignatureModal}
+          accessibilityRole="button"
+          accessibilityLabel={signatureDataUrl ? "Tap to re-sign" : "Tap to sign"}
+        >
           {signatureDataUrl ? (
-            <Image source={{ uri: signatureDataUrl }} style={styles.signaturePreviewImage} resizeMode="contain" />
+            <>
+              <Image source={{ uri: signatureDataUrl }} style={styles.signaturePreviewImage} resizeMode="contain" />
+              <Text style={styles.signatureTapHint}>Tap to re-sign</Text>
+            </>
           ) : (
-            <Text style={styles.signaturePlaceholder}>No signature captured yet.</Text>
+            <Text style={styles.signaturePlaceholder}>✍  Tap here to sign</Text>
           )}
-        </View>
-        <View style={styles.signatureActionRow}>
-          <Pressable style={styles.secondaryButton} onPress={openSignatureModal}>
-            <Text style={styles.secondaryButtonText}>{signatureDataUrl ? "Re-Capture Signature" : "Capture Signature"}</Text>
-          </Pressable>
-          {signatureDataUrl ? (
-            <Pressable style={styles.secondaryButton} onPress={() => setSignatureDataUrl("")}>
-              <Text style={styles.secondaryButtonText}>Clear</Text>
-            </Pressable>
-          ) : null}
-        </View>
+        </Pressable>
 
         <PrimaryButton
           label={recordMutation.isPending ? "Saving…" : "Save refusal entry"}
@@ -821,9 +819,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
   },
-  signatureActionRow: {
-    flexDirection: "row",
-    gap: appTheme.spacing.xs,
+  signatureTapHint: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 14,
+    marginTop: 2,
   },
   reportActionsRow: {
     flexDirection: "row",
