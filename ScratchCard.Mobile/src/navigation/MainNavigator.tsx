@@ -1,6 +1,6 @@
 ﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { DrawerActions, NavigatorScreenParams, useNavigation, useNavigationState } from "@react-navigation/native";
+import { DrawerActions, NavigatorScreenParams } from "@react-navigation/native";
 import { createDrawerNavigator, DrawerContentScrollView, type DrawerContentComponentProps } from "@react-navigation/drawer";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
@@ -241,71 +241,6 @@ const tillItems: MenuItem[] = [
   { label: "Payment Types", screen: "PaymentTypesConfig", icon: "card-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"] },
 ];
 
-const bottomDockItems: Array<{
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  screen: keyof MainStackParamList;
-  /** Optional top-level module key. Item is hidden when the active shop does not include
-   *  this feature (plan-excluded OR shop-toggled-off). */
-  requiredFeature?: string;
-}> = [
-  { icon: "home-outline", label: "Home", screen: "BestEntry" },
-  { icon: "albums-outline", label: "Day Management", screen: "Dashboard", requiredFeature: "ScratchCardManagement" },
-  { icon: "thermometer-outline", label: "Temp", screen: "TemperatureLogs", requiredFeature: "TemperatureLog" },
-  { icon: "settings-outline", label: "Settings", screen: "Settings" },
-];
-
-const drawerBottomPaddingWithDock = 92;
-
-function shouldShowBottomDock(routeName: string | undefined) {
-  return !(
-    routeName === "BestEntry" ||
-    routeName === "OwnerDashboard" ||
-    routeName === "Dashboard" ||
-    routeName === "TemperatureLogs" ||
-    routeName === "ComplianceChecks" ||
-    routeName === "RefusalRegister" ||
-    routeName === "DayEndClose" ||
-    routeName === "CloseShift" ||
-    routeName === "ShiftDetails" ||
-    routeName === "EnterClosingNumbers" ||
-    routeName === "StoreSales" ||
-    routeName === "TillReportReview" ||
-    routeName === "TillReportHistory" ||
-    routeName === "TillPaymentSummary" ||
-    routeName === "TillReconciliation" ||
-    routeName === "ShiftSwaps" ||
-    routeName === "TillsConfig" ||
-    routeName === "PaymentTypesConfig" ||
-    routeName === "VisitorLogEntryEdit" ||
-    // Settings / configuration / management screens — no bottom dock (not operational entry).
-    routeName === "Settings" ||
-    routeName === "ShopConfiguration" ||
-    routeName === "AppConfiguration" ||
-    routeName === "UserInvitations" ||
-    routeName === "ComplianceConfig" ||
-    routeName === "ShopFeatureToggles" ||
-    routeName === "UserManagement" ||
-    routeName === "CompanyManagement" ||
-    routeName === "ShopManagement" ||
-    routeName === "NotificationPreferences" ||
-    routeName === "RotaStaffMembers" ||
-    routeName === "TemperatureUnits" ||
-    routeName === "TemperatureUnitEdit" ||
-    routeName === "TemperatureSchedules"
-  );
-}
-
-function resolveOperationForBottomDockScreen(screen: keyof MainStackParamList): EntryOperation | null {
-  if (screen === "Dashboard") {
-    return "scratchCard";
-  }
-  if (screen === "TemperatureLogs") {
-    return "temperature";
-  }
-  return null;
-}
-
 function getOperationLabel(operation: EntryOperation | null) {
   if (operation === "checklist") return "Checklist";
   if (operation === "compliance") return "Compliance";
@@ -441,10 +376,43 @@ function HamburgerButton({ onPress }: { onPress: () => void }) {
 }
 
 // Header actions: a context-aware (?) (only for screens with registered help), left of the menu.
-function HeaderRightControls({ routeName, onMenu }: { routeName: string; onMenu: () => void }) {
+function HeaderRightControls({
+  routeName,
+  onMenu,
+  onHome,
+  onSettings,
+}: {
+  routeName: string;
+  onMenu: () => void;
+  onHome: () => void;
+  onSettings: () => void;
+}) {
   const { openHelp, hasHelp } = useHelp();
   return (
     <View style={styles.headerRightRow}>
+      {/* Home/Settings replace the old bottom dock — plain (borderless) icons so the
+          cluster stays light next to the circled help + menu buttons. Each hides on
+          its own screen, where it would be redundant. */}
+      {routeName !== "BestEntry" ? (
+        <Pressable
+          style={({ pressed }) => [styles.headerPlainBtn, pressed ? styles.headerPlainBtnPressed : null]}
+          onPress={onHome}
+          accessibilityRole="button"
+          accessibilityLabel="Go to home"
+        >
+          <Ionicons name="home-outline" size={21} color={appTheme.colors.textMuted} />
+        </Pressable>
+      ) : null}
+      {routeName !== "Settings" ? (
+        <Pressable
+          style={({ pressed }) => [styles.headerPlainBtn, pressed ? styles.headerPlainBtnPressed : null]}
+          onPress={onSettings}
+          accessibilityRole="button"
+          accessibilityLabel="Open settings"
+        >
+          <Ionicons name="settings-outline" size={21} color={appTheme.colors.textMuted} />
+        </Pressable>
+      ) : null}
       {hasHelp(routeName) ? (
         <Pressable style={styles.menuButton} onPress={() => openHelp(routeName)} accessibilityRole="button" accessibilityLabel="Help for this screen">
           <Ionicons name="help-circle-outline" size={22} color={appTheme.colors.primary} />
@@ -493,6 +461,8 @@ function MainStackScreens() {
           <HeaderRightControls
             routeName={route.name}
             onMenu={() => navigation.getParent()?.dispatch(DrawerActions.toggleDrawer())}
+            onHome={() => navigation.navigate("BestEntry")}
+            onSettings={() => navigation.navigate("Settings")}
           />
         ),
       })}
@@ -603,57 +573,6 @@ function MainStackScreens() {
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
       <Stack.Screen name="NotificationPreferences" component={NotificationPreferencesScreen} options={{ title: "Notifications" }} />
     </Stack.Navigator>
-  );
-}
-
-function MainBottomDock() {
-  const navigation = useNavigation<any>();
-  const { setSelectedOperation } = useBestEntry();
-  const insets = useSafeAreaInsets();
-  const navigationState = useNavigationState((state) => state);
-  const { entitlements } = useEntitlements();
-  const features = entitlements?.features ?? [];
-  const currentRouteName = getDeepestRouteName(navigationState);
-  if (!shouldShowBottomDock(currentRouteName)) {
-    return null;
-  }
-
-  const visibleDockItems = bottomDockItems.filter(
-    (item) => !item.requiredFeature || features.includes(item.requiredFeature)
-  );
-  const activeScreen = resolveActiveBottomDockScreen(currentRouteName);
-  const dockBottomInset = Math.max(insets.bottom, appTheme.spacing.xs);
-  const dockVerticalOffset = Platform.OS === "android" ? -8 : 0;
-
-  return (
-    <View style={[styles.bottomDockWrap, { paddingBottom: dockBottomInset, bottom: dockVerticalOffset }]}>
-      <View style={styles.bottomDock}>
-        {visibleDockItems.map((item) => {
-          const isActive = item.screen === activeScreen;
-          return (
-            <Pressable
-              key={item.screen}
-              style={[styles.bottomDockItem, isActive ? styles.bottomDockItemActive : null]}
-              onPress={() => {
-                const operation = resolveOperationForBottomDockScreen(item.screen);
-                if (operation) {
-                  setSelectedOperation(operation);
-                }
-                navigation.navigate("MainTabs", { screen: "MainStack", params: { screen: item.screen } });
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={`Open ${item.label}`}
-            >
-              <View style={styles.bottomDockIconWrap}>
-                <Ionicons name={item.icon} size={20} color={isActive ? appTheme.colors.primary : appTheme.colors.textSubtle} />
-                {isActive ? <View style={styles.bottomDockActiveDot} /> : null}
-              </View>
-              <Text style={[styles.bottomDockItemLabel, isActive ? styles.bottomDockItemLabelActive : null]}>{item.label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
   );
 }
 
@@ -831,10 +750,7 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
   );
   const activeRouteName = getDeepestRouteName(props.state);
   const activeScreen = activeRouteName as keyof MainStackParamList | undefined;
-  const showBottomDock = shouldShowBottomDock(activeRouteName);
-  const drawerBottomPadding = showBottomDock
-    ? insets.bottom + drawerBottomPaddingWithDock
-    : insets.bottom + appTheme.spacing.md;
+  const drawerBottomPadding = insets.bottom + appTheme.spacing.md;
   const operationLabel = getOperationLabel(selectedOperation);
   const currentUser = profile?.displayName ?? profile?.email ?? "Signed-in user";
   const userInitials = useMemo(() => {
@@ -1308,7 +1224,6 @@ export function MainNavigator() {
         >
           <Drawer.Screen name="MainStack" component={MainStackScreens} />
         </Drawer.Navigator>
-        <MainBottomDock />
       </View>
       </HelpProvider>
     </BestEntryProvider>
@@ -1627,68 +1542,15 @@ const styles = StyleSheet.create({
   drawerSignOutText: {
     color: appTheme.colors.danger,
   },
-  bottomDockWrap: {
-    position: "absolute",
-    left: appTheme.spacing.md,
-    right: appTheme.spacing.md,
-    bottom: 0,
-    backgroundColor: "transparent",
-  },
-  bottomDock: {
-    backgroundColor: appTheme.colors.surface,
-    borderRadius: appTheme.radius.pill,
-    borderWidth: 1,
-    borderColor: appTheme.colors.border,
-    paddingVertical: 6,
-    paddingHorizontal: 6,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#0E1A2A",
-        shadowOpacity: 0.1,
-        shadowRadius: 16,
-        shadowOffset: { width: 0, height: 6 },
-      },
-      android: {
-        elevation: 6,
-      },
-      default: {},
-    }),
-  },
-  bottomDockItem: {
-    gap: 2,
+  // Borderless header shortcuts (Home / Settings) — the bottom dock's replacements.
+  // Kept visually lighter than the circled help/menu buttons so the cluster doesn't crowd titles.
+  headerPlainBtn: {
+    width: 38,
+    height: 40,
     alignItems: "center",
     justifyContent: "center",
-    flex: 1,
-    minHeight: 48,
-    borderRadius: appTheme.radius.pill,
-    paddingVertical: 4,
   },
-  bottomDockIconWrap: {
-    alignItems: "center",
-    justifyContent: "center",
-    height: 22,
-  },
-  bottomDockActiveDot: {
-    position: "absolute",
-    bottom: -3,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: appTheme.colors.primary,
-  },
-  bottomDockItemActive: {
-    backgroundColor: appTheme.colors.surfaceBrandSoft,
-  },
-  bottomDockItemLabel: {
-    color: appTheme.colors.textSubtle,
-    fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 11,
-    lineHeight: 13,
-  },
-  bottomDockItemLabelActive: {
-    color: appTheme.colors.primary,
+  headerPlainBtnPressed: {
+    opacity: 0.5,
   },
 });
