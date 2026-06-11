@@ -89,6 +89,44 @@ public class RotaController : BaseApiController
     public async Task<IActionResult> GetShiftSessions([FromQuery] Guid shopId, [FromQuery] string shiftName, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken cancellationToken)
         => Success(await _rotaService.GetShiftSessionsAsync(shopId, shiftName, from, to, cancellationToken));
 
+    // --- Timesheet reviews (staff sign-off of a pay period) ---
+
+    [HttpPost("timesheet-reviews/request")]
+    public async Task<IActionResult> RequestTimesheetReviews([FromBody] RequestTimesheetReviewsRequest request, CancellationToken cancellationToken)
+        => Success(await _rotaService.RequestTimesheetReviewsAsync(request, cancellationToken));
+
+    [HttpGet("timesheet-reviews")]
+    public async Task<IActionResult> GetTimesheetReviews([FromQuery] Guid shopId, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken cancellationToken)
+        => Success(await _rotaService.GetTimesheetReviewsAsync(shopId, from, to, cancellationToken));
+
+    [HttpGet("timesheet-reviews/mine")]
+    public async Task<IActionResult> GetMyTimesheetReviews([FromQuery] Guid shopId, CancellationToken cancellationToken)
+        => Success(await _rotaService.GetMyTimesheetReviewsAsync(shopId, cancellationToken));
+
+    [HttpPost("timesheet-reviews/{id:guid}/confirm")]
+    public async Task<IActionResult> ConfirmTimesheetReview(Guid id, CancellationToken cancellationToken)
+        => Success(await _rotaService.ConfirmTimesheetReviewAsync(id, cancellationToken));
+
+    [HttpPost("timesheet-reviews/{id:guid}/dispute")]
+    public async Task<IActionResult> DisputeTimesheetReview(Guid id, [FromBody] DisputeTimesheetReviewRequest request, CancellationToken cancellationToken)
+        => Success(await _rotaService.DisputeTimesheetReviewAsync(id, request, cancellationToken));
+
+    [HttpPost("timesheet-reviews/{id:guid}/resolve")]
+    public async Task<IActionResult> ResolveTimesheetReview(Guid id, [FromBody] ResolveTimesheetReviewRequest request, CancellationToken cancellationToken)
+        => Success(await _rotaService.ResolveTimesheetReviewAsync(id, request, cancellationToken));
+
+    [HttpPost("timesheet-reviews/{id:guid}/approve")]
+    public async Task<IActionResult> ApproveTimesheetReview(Guid id, CancellationToken cancellationToken)
+        => Success(await _rotaService.ApproveTimesheetReviewAsync(id, cancellationToken));
+
+    [HttpGet("timesheet-lock")]
+    public async Task<IActionResult> GetTimesheetLock([FromQuery] Guid shopId, CancellationToken cancellationToken)
+        => Success(await _rotaService.GetTimesheetLockAsync(shopId, cancellationToken));
+
+    [HttpPut("timesheet-lock")]
+    public async Task<IActionResult> SetTimesheetLock([FromBody] SetTimesheetLockRequest request, CancellationToken cancellationToken)
+        => Success(await _rotaService.SetTimesheetLockAsync(request, cancellationToken));
+
     // --- Staff ---
 
     [HttpGet("day-staff")]

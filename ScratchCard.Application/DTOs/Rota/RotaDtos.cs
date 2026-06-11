@@ -208,6 +208,66 @@ public class ShiftSessionDto
     public bool IsApproved { get; set; } = true;
 }
 
+// Payroll lock: attendance with a check-in date on or before LockedThrough is frozen (wages paid).
+public class RotaTimesheetLockDto
+{
+    public Guid ShopId { get; set; }
+    public DateOnly LockedThrough { get; set; }
+    public Guid LockedByUserId { get; set; }
+    public string LockedByName { get; set; } = string.Empty;
+    public DateTimeOffset LockedOn { get; set; }
+    public string? Notes { get; set; }
+}
+
+public class SetTimesheetLockRequest
+{
+    public Guid ShopId { get; set; }
+    // Null clears the lock (unlock). Otherwise must be a date strictly before today.
+    public DateOnly? LockedThrough { get; set; }
+    public string? Notes { get; set; }
+}
+
+// One staff member's sign-off row for a pay period (manager view and "my reviews" view).
+public class RotaTimesheetReviewDto
+{
+    public Guid Id { get; set; }
+    public Guid ShopId { get; set; }
+    public DateOnly PeriodFrom { get; set; }
+    public DateOnly PeriodTo { get; set; }
+    public Guid UserId { get; set; }
+    public string UserName { get; set; } = string.Empty;
+    public string Status { get; set; } = "PendingStaff"; // PendingStaff | Confirmed | Disputed | ManagerApproved
+    public string? StaffNote { get; set; }
+    public string? ManagerNote { get; set; }
+    public DateTimeOffset? ConfirmedOn { get; set; }
+    public Guid? ResolvedByUserId { get; set; }
+    public DateTimeOffset? ResolvedOn { get; set; }
+    public decimal TotalHours { get; set; }     // completed sessions within the period
+    public int OpenSessions { get; set; }       // checked in but not out within the period
+}
+
+public class RequestTimesheetReviewsRequest
+{
+    public Guid ShopId { get; set; }
+    public DateOnly From { get; set; }
+    public DateOnly To { get; set; }
+}
+
+public class DisputeTimesheetReviewRequest
+{
+    public string Note { get; set; } = string.Empty;
+}
+
+public class ResolveTimesheetReviewRequest
+{
+    // True when the manager accepted the issue (e.g. fixed the times); false when it was rejected.
+    // Only affects the message sent to the staff member — the new status comes from ReRequestConfirmation.
+    public bool Approved { get; set; }
+    public string? ManagerNote { get; set; }
+    // True when the manager adjusted the times and wants the staff member to re-confirm.
+    public bool ReRequestConfirmation { get; set; }
+}
+
 // Timesheet grouped by shift (Morning / Evening / Unrostered) instead of by staff.
 public class ShiftTimesheetRowDto
 {

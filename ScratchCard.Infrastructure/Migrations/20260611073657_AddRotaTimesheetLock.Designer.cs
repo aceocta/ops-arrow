@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ScratchCard.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using ScratchCard.Infrastructure.Persistence;
 namespace ScratchCard.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260611073657_AddRotaTimesheetLock")]
+    partial class AddRotaTimesheetLock
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2309,70 +2312,6 @@ namespace ScratchCard.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("RotaTimesheetLocks");
-                });
-
-            modelBuilder.Entity("ScratchCard.Domain.Entities.RotaTimesheetReview", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset?>("ConfirmedOn")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset>("CreatedOn")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("ManagerNote")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<Guid?>("ModifiedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset?>("ModifiedOn")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<DateOnly>("PeriodFrom")
-                        .HasColumnType("date");
-
-                    b.Property<DateOnly>("PeriodTo")
-                        .HasColumnType("date");
-
-                    b.Property<Guid?>("ResolvedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset?>("ResolvedOn")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid>("ShopId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("StaffNote")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ResolvedByUserId");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("ShopId", "UserId", "Status");
-
-                    b.HasIndex("ShopId", "PeriodFrom", "PeriodTo", "UserId")
-                        .IsUnique();
-
-                    b.ToTable("RotaTimesheetReviews");
                 });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.ScratchCardDayCloseSummary", b =>
@@ -6136,32 +6075,6 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Navigation("LockedByUser");
 
                     b.Navigation("Shop");
-                });
-
-            modelBuilder.Entity("ScratchCard.Domain.Entities.RotaTimesheetReview", b =>
-                {
-                    b.HasOne("ScratchCard.Domain.Entities.User", "ResolvedByUser")
-                        .WithMany()
-                        .HasForeignKey("ResolvedByUserId")
-                        .OnDelete(DeleteBehavior.NoAction);
-
-                    b.HasOne("ScratchCard.Domain.Entities.Shop", "Shop")
-                        .WithMany()
-                        .HasForeignKey("ShopId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.HasOne("ScratchCard.Domain.Entities.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.Navigation("ResolvedByUser");
-
-                    b.Navigation("Shop");
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.ScratchCardDayCloseSummary", b =>

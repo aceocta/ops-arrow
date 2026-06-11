@@ -20,5 +20,8 @@ public enum NotificationType
     WeeklyTimesheet = 16,
     ShiftSwapRequested = 17,
     ShiftSwapCompleted = 18,
-    ShiftSwapDeclined = 19
+    ShiftSwapDeclined = 19,
+    TimesheetReviewRequested = 20,
+    TimesheetIssueRaised = 21,
+    TimesheetReviewResolved = 22
 }

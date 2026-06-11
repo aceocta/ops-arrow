@@ -1,12 +1,12 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
-import { rotaApi, fmtDate, shortTime, sessionIsos, type TimesheetRow } from "../../lib/rota";
+import { rotaApi, fmtDate, shortTime, sessionIsos, type TimesheetRow, type TimesheetReviewRow, type TimesheetReviewStatus } from "../../lib/rota";
 import { downloadCsv } from "../../lib/csv";
 import { apiErrorMessage } from "../../lib/api";
-import { toast } from "../../components/feedback";
+import { confirmDialog, toast } from "../../components/feedback";
 import ExportButton from "../../components/ExportButton";
-import { X, ChevronRight, Plus } from "lucide-react";
+import { X, ChevronRight, Plus, Lock, Unlock, Check, Send } from "lucide-react";
 import clsx from "clsx";
 
 function clock(iso?: string | null) {
@@ -31,7 +31,8 @@ export default function TimesheetsPage() {
   const { activeShopId, features, isOwner, isManager } = useAuth();
   const shopId = activeShopId!;
   const showCost = features.includes("staff_rota.labour_cost");
-  const canRecord = (isOwner || isManager) && features.includes("staff_rota.manual_approval");
+  const canManage = isOwner || isManager;
+  const canRecord = canManage && features.includes("staff_rota.manual_approval");
   const gbp = (n: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n || 0);
   const [view, setView] = useState<"staff" | "shift">("staff");
   const [recordOpen, setRecordOpen] = useState(false);
@@ -75,6 +76,12 @@ export default function TimesheetsPage() {
     const pendingCost = rows.reduce((s, r) => s + (r.pendingLabourCost ?? 0), 0);
     const pendingHours = rows.reduce((s, r) => s + (r.pendingHours ?? 0), 0);
     return { total: totalCost, pending: pendingCost, approved: totalCost - pendingCost, pendingHours };
+  }, [view, staffQ.data, shiftQ.data]);
+
+  // Open (not checked out) sessions contribute no hours — flag them so totals aren't trusted blindly.
+  const openTotal = useMemo(() => {
+    const rows = (view === "staff" ? staffQ.data ?? [] : shiftQ.data ?? []) as { openSessions: number }[];
+    return rows.reduce((s, r) => s + r.openSessions, 0);
   }, [view, staffQ.data, shiftQ.data]);
 
   const loading = view === "staff" ? staffQ.isLoading : shiftQ.isLoading;
@@ -168,6 +175,14 @@ export default function TimesheetsPage() {
             <div className="text-xs uppercase tracking-wide text-slate-400">Total if all approved</div>
             <div className="mt-1 text-xl font-semibold text-slate-800">{gbp(wage.total)}</div>
           </div>
+        </div>
+      ) : null}
+
+      {canManage ? <PayrollSection shopId={shopId} from={range.from} to={range.to} /> : null}
+
+      {!loading && openTotal > 0 ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+          {openTotal} open session{openTotal === 1 ? "" : "s"} — hours missing from totals.
         </div>
       ) : null}
 
@@ -284,6 +299,252 @@ export default function TimesheetsPage() {
       ) : null}
 
       {recordOpen ? <RecordHoursModal shopId={shopId} onClose={() => setRecordOpen(false)} /> : null}
+    </div>
+  );
+}
+
+const REVIEW_BADGES: Record<TimesheetReviewStatus, { label: string; cls: string }> = {
+  PendingStaff: { label: "Awaiting staff", cls: "bg-amber-100 text-amber-700" },
+  Confirmed: { label: "Confirmed", cls: "bg-brand-50 text-brand-700" },
+  Disputed: { label: "Issue raised", cls: "bg-red-100 text-red-700" },
+  ManagerApproved: { label: "Approved", cls: "bg-emerald-100 text-emerald-700" },
+};
+
+// Manager-side payroll close-out: staff sign-off reviews for the selected range + the period lock.
+function PayrollSection({ shopId, from, to }: { shopId: string; from: string; to: string }) {
+  const qc = useQueryClient();
+  const [resolving, setResolving] = useState<TimesheetReviewRow | null>(null);
+
+  const lockQ = useQuery({ queryKey: ["ts-lock", shopId], queryFn: () => rotaApi.timesheetLock(shopId), enabled: !!shopId });
+  const reviewsQ = useQuery({
+    queryKey: ["ts-reviews", shopId, from, to],
+    queryFn: () => rotaApi.timesheetReviews(shopId, from, to),
+    enabled: !!shopId,
+  });
+  const refreshReviews = () => qc.invalidateQueries({ queryKey: ["ts-reviews", shopId] });
+
+  const lockM = useMutation({
+    mutationFn: (lockedThrough: string | null) => rotaApi.setTimesheetLock({ shopId, lockedThrough }),
+    onSuccess: (d) => {
+      qc.invalidateQueries({ queryKey: ["ts-lock", shopId] });
+      toast(d ? `Payroll locked through ${d.lockedThrough}.` : "Payroll period unlocked.", "success");
+    },
+    onError: (e) => toast(apiErrorMessage(e), "error"),
+  });
+  const requestM = useMutation({
+    mutationFn: () => rotaApi.requestTimesheetReviews({ shopId, from, to }),
+    onSuccess: (rows) => {
+      refreshReviews();
+      toast(`Sign-off requested from ${rows.length} staff.`, "success");
+    },
+    onError: (e) => toast(apiErrorMessage(e), "error"),
+  });
+  const approveM = useMutation({
+    mutationFn: (id: string) => rotaApi.approveTimesheetReview(id),
+    onSuccess: () => {
+      refreshReviews();
+      toast("Timesheet approved.", "success");
+    },
+    onError: (e) => toast(apiErrorMessage(e), "error"),
+  });
+
+  const lock = lockQ.data ?? null;
+  const reviews = reviewsQ.data ?? [];
+  const allApproved = reviews.length > 0 && reviews.every((r) => r.status === "ManagerApproved");
+
+  // Lock target: end of the selected range, but never today or later (API requires a past date).
+  const yesterday = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return fmtDate(d);
+  })();
+  const lockTarget = to < yesterday ? to : yesterday; // yyyy-MM-dd compares lexicographically
+  const canLockToTarget = !lock || lock.lockedThrough < lockTarget;
+
+  const requestReviews = async () => {
+    const resend = reviews.length > 0;
+    if (
+      await confirmDialog({
+        title: resend ? "Re-send sign-off requests?" : "Request staff sign-off?",
+        message: `Staff will be asked to confirm their hours for ${from} → ${to}.`,
+        confirmLabel: "Send",
+        tone: "primary",
+      })
+    )
+      requestM.mutate();
+  };
+
+  const lockPeriod = async () => {
+    if (
+      await confirmDialog({
+        title: `Lock payroll through ${lockTarget}?`,
+        message: "Timesheets up to this date can no longer be changed by staff or managers.",
+        confirmLabel: "Lock period",
+        tone: "primary",
+      })
+    )
+      lockM.mutate(lockTarget);
+  };
+
+  const unlockPeriod = async () => {
+    if (
+      await confirmDialog({
+        title: "Unlock payroll period?",
+        message: `Attendance through ${lock?.lockedThrough} will become editable again.`,
+        confirmLabel: "Unlock",
+      })
+    )
+      lockM.mutate(null);
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* Payroll lock */}
+      <div className="card flex flex-wrap items-center justify-between gap-3 p-4">
+        <div className="flex items-center gap-3">
+          <span className={clsx("flex h-9 w-9 shrink-0 items-center justify-center rounded-full", lock ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-400")}>
+            {lock ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
+          </span>
+          <div>
+            <div className="text-sm font-semibold text-slate-800">Payroll lock</div>
+            <div className="text-xs text-slate-500">
+              {lockQ.isLoading
+                ? "Loading…"
+                : lock
+                  ? `Locked through ${lock.lockedThrough}${lock.lockedByName ? ` by ${lock.lockedByName}` : ""}`
+                  : "No period locked — hours can still be changed."}
+            </div>
+            {allApproved && canLockToTarget ? (
+              <div className="mt-0.5 text-xs font-medium text-emerald-600">All staff approved — lock the period to finish.</div>
+            ) : null}
+          </div>
+        </div>
+        {!lockQ.isLoading ? (
+          <div className="flex gap-2">
+            {lock ? (
+              <button className="btn border border-red-200 text-red-600 hover:bg-red-50" disabled={lockM.isPending} onClick={unlockPeriod}>
+                <Unlock className="h-4 w-4" /> Unlock
+              </button>
+            ) : null}
+            {canLockToTarget ? (
+              <button className="btn-primary" disabled={lockM.isPending} onClick={lockPeriod}>
+                <Lock className="h-4 w-4" /> {lockM.isPending ? "Locking…" : `Lock period to ${lockTarget}`}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
+      {/* Staff sign-off */}
+      <div className="card overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">Staff sign-off</h2>
+            <p className="text-xs text-slate-500">{from} → {to}</p>
+          </div>
+          <button className="btn-primary" disabled={requestM.isPending} onClick={requestReviews}>
+            <Send className="h-4 w-4" /> {requestM.isPending ? "Sending…" : reviews.length > 0 ? "Re-send requests" : "Request staff reviews"}
+          </button>
+        </div>
+        {reviewsQ.isLoading ? <div className="border-t border-slate-100 px-5 py-6 text-sm text-slate-500">Loading…</div> : null}
+        {!reviewsQ.isLoading && reviews.length === 0 ? (
+          <div className="border-t border-slate-100 px-5 py-6 text-sm text-slate-400">No sign-off requested for this range yet.</div>
+        ) : null}
+        {reviews.length > 0 ? (
+          <table className="w-full border-t border-slate-100 text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
+                <th className="px-5 py-2 font-medium">Staff</th>
+                <th className="px-5 py-2 font-medium">Hours</th>
+                <th className="px-5 py-2 font-medium">Status</th>
+                <th className="px-5 py-2"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {reviews.map((r) => (
+                <tr key={r.id}>
+                  <td className="px-5 py-3 font-medium text-slate-800">{r.userName}</td>
+                  <td className="px-5 py-3 text-slate-700">
+                    {hm(r.totalHours)}
+                    {r.openSessions > 0 ? (
+                      <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">+{r.openSessions} open</span>
+                    ) : null}
+                  </td>
+                  <td className="px-5 py-3">
+                    <span className={clsx("rounded-full px-2 py-0.5 text-[11px] font-medium", REVIEW_BADGES[r.status].cls)}>
+                      {REVIEW_BADGES[r.status].label}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3 text-right">
+                    {r.status === "PendingStaff" || r.status === "Confirmed" ? (
+                      <button
+                        className="btn border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                        disabled={approveM.isPending}
+                        onClick={() => approveM.mutate(r.id)}
+                      >
+                        <Check className="h-4 w-4" /> Approve
+                      </button>
+                    ) : r.status === "Disputed" ? (
+                      <button className="btn border border-red-200 text-red-600 hover:bg-red-50" onClick={() => setResolving(r)}>
+                        Resolve
+                      </button>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
+      </div>
+
+      {resolving ? (
+        <ResolveReviewModal row={resolving} onClose={() => setResolving(null)} onSaved={() => { setResolving(null); refreshReviews(); }} />
+      ) : null}
+    </div>
+  );
+}
+
+// Disputed review: show what the staff member raised, then either fix & re-ask or reject & approve.
+function ResolveReviewModal({ row, onClose, onSaved }: { row: TimesheetReviewRow; onClose: () => void; onSaved: () => void }) {
+  const [note, setNote] = useState("");
+
+  const resolveM = useMutation({
+    mutationFn: (reRequest: boolean) =>
+      rotaApi.resolveTimesheetReview(row.id, { approved: !reRequest, managerNote: note.trim() || undefined, reRequestConfirmation: reRequest }),
+    onSuccess: (_d, reRequest) => {
+      toast(reRequest ? "Sent back to staff to re-confirm." : "Issue rejected — timesheet approved.", "success");
+      onSaved();
+    },
+    onError: (e) => toast(apiErrorMessage(e), "error"),
+  });
+
+  return (
+    <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
+      <div className="card w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-900">Resolve issue</h2>
+          <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
+        </div>
+        <p className="mb-3 text-sm text-slate-500">{row.userName} · {row.periodFrom} → {row.periodTo} · {hm(row.totalHours)}</p>
+
+        <div className="mb-3 rounded-lg border border-red-100 bg-red-50/50 px-3 py-2">
+          <div className="text-[10px] uppercase tracking-wide text-red-400">Staff note</div>
+          <div className="text-sm italic text-slate-700">{row.staffNote ? `“${row.staffNote}”` : "No note left."}</div>
+        </div>
+
+        <label className="label">Manager note (optional)</label>
+        <input className="input mb-4" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. adjusted Tuesday's check-out" />
+
+        <div className="flex flex-wrap justify-end gap-2">
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn border border-brand-200 text-brand-700 hover:bg-brand-50" disabled={resolveM.isPending} onClick={() => resolveM.mutate(true)}>
+            Fixed — ask to re-confirm
+          </button>
+          <button className="btn-primary bg-emerald-600 hover:bg-emerald-700" disabled={resolveM.isPending} onClick={() => resolveM.mutate(false)}>
+            Reject issue & approve
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

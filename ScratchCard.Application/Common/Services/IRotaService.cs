@@ -22,6 +22,12 @@ public interface IRotaService
     Task<IReadOnlyCollection<ShiftTimesheetRowDto>> GetShiftTimesheetAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<TimesheetSessionDto>> GetStaffSessionsAsync(Guid shopId, Guid? userId, Guid? rotaStaffMemberId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<ShiftSessionDto>> GetShiftSessionsAsync(Guid shopId, string shiftName, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
+    Task<RotaTimesheetLockDto?> GetTimesheetLockAsync(Guid shopId, CancellationToken cancellationToken = default);
+    Task<RotaTimesheetLockDto?> SetTimesheetLockAsync(SetTimesheetLockRequest request, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<RotaTimesheetReviewDto>> RequestTimesheetReviewsAsync(RequestTimesheetReviewsRequest request, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<RotaTimesheetReviewDto>> GetTimesheetReviewsAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
+    Task<RotaTimesheetReviewDto> ResolveTimesheetReviewAsync(Guid reviewId, ResolveTimesheetReviewRequest request, CancellationToken cancellationToken = default);
+    Task<RotaTimesheetReviewDto> ApproveTimesheetReviewAsync(Guid reviewId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<AttendanceApprovalRowDto>> GetPendingApprovalsAsync(Guid shopId, CancellationToken cancellationToken = default);
     Task<ShiftAttendanceDto> ApproveAttendanceAsync(Guid attendanceId, CancellationToken cancellationToken = default);
     Task<ShiftAttendanceDto> UpdateAttendanceAsync(Guid attendanceId, UpdateAttendanceRequest request, CancellationToken cancellationToken = default);
@@ -34,4 +40,7 @@ public interface IRotaService
     Task<ShiftAttendanceDto> CheckInAsync(Guid shopId, Guid? rotaShiftId, CancellationToken cancellationToken = default);
     Task<ShiftAttendanceDto> CheckOutAsync(Guid shopId, CancellationToken cancellationToken = default);
     Task<ShiftAttendanceDto> SaveManualAttendanceAsync(ManualAttendanceRequest request, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<RotaTimesheetReviewDto>> GetMyTimesheetReviewsAsync(Guid shopId, CancellationToken cancellationToken = default);
+    Task<RotaTimesheetReviewDto> ConfirmTimesheetReviewAsync(Guid reviewId, CancellationToken cancellationToken = default);
+    Task<RotaTimesheetReviewDto> DisputeTimesheetReviewAsync(Guid reviewId, DisputeTimesheetReviewRequest request, CancellationToken cancellationToken = default);
 }

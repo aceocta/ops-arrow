@@ -21,6 +21,8 @@ public class RotaService : IRotaService
     private readonly IRepository<ShiftAssignment> _assignmentRepository;
     private readonly IRepository<ShiftAttendance> _attendanceRepository;
     private readonly IRepository<StaffPayRate> _payRateRepository;
+    private readonly IRepository<RotaTimesheetLock> _timesheetLockRepository;
+    private readonly IRepository<RotaTimesheetReview> _timesheetReviewRepository;
     private readonly IRepository<ShopUser> _shopUserRepository;
     private readonly IRepository<BusinessDay> _businessDayRepository;
     private readonly IRepository<UserPushToken> _pushTokenRepository;
@@ -37,6 +39,8 @@ public class RotaService : IRotaService
         IRepository<ShiftAssignment> assignmentRepository,
         IRepository<ShiftAttendance> attendanceRepository,
         IRepository<StaffPayRate> payRateRepository,
+        IRepository<RotaTimesheetLock> timesheetLockRepository,
+        IRepository<RotaTimesheetReview> timesheetReviewRepository,
         IRepository<ShopUser> shopUserRepository,
         IRepository<BusinessDay> businessDayRepository,
         IRepository<UserPushToken> pushTokenRepository,
@@ -52,6 +56,8 @@ public class RotaService : IRotaService
         _assignmentRepository = assignmentRepository;
         _attendanceRepository = attendanceRepository;
         _payRateRepository = payRateRepository;
+        _timesheetLockRepository = timesheetLockRepository;
+        _timesheetReviewRepository = timesheetReviewRepository;
         _shopUserRepository = shopUserRepository;
         _businessDayRepository = businessDayRepository;
         _pushTokenRepository = pushTokenRepository;
@@ -1052,6 +1058,7 @@ public class RotaService : IRotaService
 
         await EnsureStaffAsync(request.ShopId, cancellationToken, FeatureKeys.StaffRotaManualApproval);
         var userId = CurrentUserId;
+        await EnsureAttendanceNotLockedAsync(request.ShopId, request.CheckInAt, cancellationToken);
 
         // Update the user's existing record for this shift if there is one, else create a new manual entry.
         ShiftAttendance? attendance = null;
@@ -1061,6 +1068,11 @@ public class RotaService : IRotaService
                 .Where(x => x.ShopId == request.ShopId && x.UserId == userId && x.RotaShiftId == sid)
                 .OrderByDescending(x => x.CheckInAt)
                 .FirstOrDefaultAsync(cancellationToken);
+        }
+        if (attendance is not null)
+        {
+            // The record being overwritten must not sit inside the payroll lock either.
+            await EnsureAttendanceNotLockedAsync(request.ShopId, attendance.CheckInAt, cancellationToken);
         }
 
         var now = DateTimeOffset.UtcNow;
@@ -1112,6 +1124,7 @@ public class RotaService : IRotaService
         var member = await _staffMemberRepository.Query()
             .FirstOrDefaultAsync(x => x.Id == memberId && x.ShopId == request.ShopId && !x.IsDeleted, cancellationToken)
             ?? throw new AppException("rota_staff_not_found", "Staff member not found.", 404);
+        await EnsureAttendanceNotLockedAsync(request.ShopId, request.CheckInAt, cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
         var businessDayId = request.RotaShiftId is Guid shiftId
@@ -1125,6 +1138,11 @@ public class RotaService : IRotaService
                 .Where(x => x.ShopId == request.ShopId && x.RotaStaffMemberId == memberId && x.RotaShiftId == sid)
                 .OrderByDescending(x => x.CheckInAt)
                 .FirstOrDefaultAsync(cancellationToken);
+        }
+        if (attendance is not null)
+        {
+            // The record being overwritten must not sit inside the payroll lock either.
+            await EnsureAttendanceNotLockedAsync(request.ShopId, attendance.CheckInAt, cancellationToken);
         }
 
         if (attendance is null)
@@ -1199,6 +1217,449 @@ public class RotaService : IRotaService
         }
     }
 
+    private static RotaTimesheetLockDto MapTimesheetLock(RotaTimesheetLock l, string lockedByName) => new()
+    {
+        ShopId = l.ShopId,
+        LockedThrough = l.LockedThrough,
+        LockedByUserId = l.LockedByUserId,
+        LockedByName = lockedByName,
+        LockedOn = l.LockedOn,
+        Notes = l.Notes,
+    };
+
+    public async Task<RotaTimesheetLockDto?> GetTimesheetLockAsync(Guid shopId, CancellationToken cancellationToken = default)
+    {
+        await EnsureManageAsync(shopId, cancellationToken);
+        var lockRow = await _timesheetLockRepository.Query()
+            .AsNoTracking()
+            .Include(x => x.LockedByUser)
+            .FirstOrDefaultAsync(x => x.ShopId == shopId, cancellationToken);
+        return lockRow is null ? null : MapTimesheetLock(lockRow, FullName(lockRow.LockedByUser));
+    }
+
+    public async Task<RotaTimesheetLockDto?> SetTimesheetLockAsync(SetTimesheetLockRequest request, CancellationToken cancellationToken = default)
+    {
+        await EnsureManageAsync(request.ShopId, cancellationToken);
+        var existing = await _timesheetLockRepository.Query()
+            .FirstOrDefaultAsync(x => x.ShopId == request.ShopId, cancellationToken);
+
+        // Null clears the lock (unlock) entirely.
+        if (request.LockedThrough is not DateOnly lockedThrough)
+        {
+            if (existing is not null)
+            {
+                _timesheetLockRepository.Remove(existing);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+            return null;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        // A lock always sits in the past, so it can never interfere with live clock-ins/outs.
+        if (lockedThrough >= DateOnly.FromDateTime(now.UtcDateTime))
+        {
+            throw new AppException("rota_lock_invalid_date", "The lock date must be before today.");
+        }
+
+        if (existing is null)
+        {
+            existing = new RotaTimesheetLock
+            {
+                ShopId = request.ShopId,
+                CreatedOn = now,
+                CreatedBy = _currentUserService.UserId,
+            };
+            await _timesheetLockRepository.AddAsync(existing, cancellationToken);
+        }
+        else
+        {
+            existing.ModifiedOn = now;
+            existing.ModifiedBy = _currentUserService.UserId;
+            _timesheetLockRepository.Update(existing);
+        }
+
+        existing.LockedThrough = lockedThrough;
+        existing.LockedByUserId = CurrentUserId;
+        existing.LockedOn = now;
+        existing.Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return MapTimesheetLock(existing, _currentUserService.FullName);
+    }
+
+    // Attendance whose check-in date falls on or before the shop's payroll lock is frozen — wages
+    // for that period have been paid (see RotaTimesheetLock), so edits would silently drift payroll.
+    private async Task EnsureAttendanceNotLockedAsync(Guid shopId, DateTimeOffset checkInAt, CancellationToken cancellationToken)
+    {
+        var lockedThrough = await _timesheetLockRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId)
+            .Select(x => (DateOnly?)x.LockedThrough)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (lockedThrough is DateOnly through && DateOnly.FromDateTime(checkInAt.UtcDateTime) <= through)
+        {
+            throw new AppException("rota_timesheet_locked",
+                $"This period is locked for payroll (locked through {through:d MMM yyyy}). Unlock it in Timesheet before editing.");
+        }
+    }
+
+    // --- Timesheet reviews: staff sign-off of a pay period before it's locked and exported ---
+
+    // A review whose period sits entirely inside the payroll lock is frozen — wages already paid.
+    private async Task EnsureReviewPeriodNotLockedAsync(Guid shopId, DateOnly periodTo, CancellationToken cancellationToken)
+    {
+        var lockedThrough = await _timesheetLockRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId)
+            .Select(x => (DateOnly?)x.LockedThrough)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (lockedThrough is DateOnly through && periodTo <= through)
+        {
+            throw new AppException("rota_timesheet_locked",
+                $"This period is locked for payroll (locked through {through:d MMM yyyy}). Unlock it in Timesheet before editing.");
+        }
+    }
+
+    private async Task<RotaTimesheetReview> GetReviewAsync(Guid reviewId, CancellationToken cancellationToken) =>
+        await _timesheetReviewRepository.Query()
+            .Include(x => x.User)
+            .FirstOrDefaultAsync(x => x.Id == reviewId, cancellationToken)
+            ?? throw new AppException("rota_review_not_found", "Timesheet review not found.", 404);
+
+    private static RotaTimesheetReviewDto MapReview(RotaTimesheetReview r, string userName, decimal totalHours, int openSessions) => new()
+    {
+        Id = r.Id,
+        ShopId = r.ShopId,
+        PeriodFrom = r.PeriodFrom,
+        PeriodTo = r.PeriodTo,
+        UserId = r.UserId,
+        UserName = userName,
+        Status = r.Status.ToString(),
+        StaffNote = r.StaffNote,
+        ManagerNote = r.ManagerNote,
+        ConfirmedOn = r.ConfirmedOn,
+        ResolvedByUserId = r.ResolvedByUserId,
+        ResolvedOn = r.ResolvedOn,
+        TotalHours = totalHours,
+        OpenSessions = openSessions,
+    };
+
+    // Completed hours + open-session count per registered user for a period (same aggregation as the timesheet).
+    private async Task<Dictionary<Guid, (decimal Hours, int OpenSessions)>> GetUserHoursAsync(
+        Guid shopId, DateOnly from, DateOnly to, IReadOnlyCollection<Guid> userIds, CancellationToken cancellationToken)
+    {
+        var fromBound = new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+        var toExclusive = new DateTimeOffset(to.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+        var sessions = await _attendanceRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId && x.UserId != null && userIds.Contains(x.UserId.Value)
+                && x.CheckInAt >= fromBound && x.CheckInAt < toExclusive)
+            .Select(x => new { UserId = x.UserId!.Value, x.CheckInAt, x.CheckOutAt })
+            .ToListAsync(cancellationToken);
+        return sessions
+            .GroupBy(x => x.UserId)
+            .ToDictionary(
+                g => g.Key,
+                g => (
+                    Math.Round((decimal)g.Where(x => x.CheckOutAt != null).Sum(x => (x.CheckOutAt!.Value - x.CheckInAt).TotalHours), 2),
+                    g.Count(x => x.CheckOutAt == null)));
+    }
+
+    // Reviews (User loaded) → DTOs with each person's hours for that row's period.
+    private async Task<IReadOnlyCollection<RotaTimesheetReviewDto>> BuildReviewDtosAsync(List<RotaTimesheetReview> reviews, CancellationToken cancellationToken)
+    {
+        var dtos = new List<RotaTimesheetReviewDto>(reviews.Count);
+        foreach (var period in reviews.GroupBy(r => new { r.ShopId, r.PeriodFrom, r.PeriodTo }))
+        {
+            var hours = await GetUserHoursAsync(period.Key.ShopId, period.Key.PeriodFrom, period.Key.PeriodTo,
+                period.Select(r => r.UserId).Distinct().ToList(), cancellationToken);
+            dtos.AddRange(period.Select(r =>
+            {
+                hours.TryGetValue(r.UserId, out var h);
+                return MapReview(r, FullName(r.User), h.Hours, h.OpenSessions);
+            }));
+        }
+        return dtos.OrderByDescending(x => x.PeriodFrom).ThenBy(x => x.UserName).ToArray();
+    }
+
+    private async Task<RotaTimesheetReviewDto> MapReviewWithHoursAsync(RotaTimesheetReview review, CancellationToken cancellationToken)
+    {
+        var hours = await GetUserHoursAsync(review.ShopId, review.PeriodFrom, review.PeriodTo, [review.UserId], cancellationToken);
+        hours.TryGetValue(review.UserId, out var h);
+        return MapReview(review, FullName(review.User), h.Hours, h.OpenSessions);
+    }
+
+    // Push the given registered users (best-effort; failures never block the calling action).
+    private async Task NotifyUsersAsync(Guid shopId, IReadOnlyCollection<Guid> userIds, NotificationType type,
+        string subject, string body, Guid? relatedId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (userIds.Count == 0) return;
+            var tokens = await _pushTokenRepository.Query()
+                .AsNoTracking()
+                .Where(t => t.ShopId == shopId && t.IsActive && t.PushToken != "" && userIds.Contains(t.UserId))
+                .Select(t => t.PushToken)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            foreach (var token in tokens)
+            {
+                await _notificationService.SendAsync(new NotificationMessage
+                {
+                    ShopId = shopId,
+                    NotificationType = type,
+                    Channel = NotificationChannel.InApp,
+                    Recipient = token,
+                    Subject = subject,
+                    Body = body,
+                    RelatedEntityName = nameof(RotaTimesheetReview),
+                    RelatedEntityId = relatedId,
+                }, cancellationToken);
+            }
+        }
+        catch
+        {
+            // Notification failures must not block the review workflow.
+        }
+    }
+
+    // Push the shop's managers/owners (best-effort, same recipients as manual-entry approval pushes).
+    private async Task NotifyManagersAsync(Guid shopId, NotificationType type, string subject, string body, Guid? relatedId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var managerUserIds = await _shopUserRepository.Query()
+                .AsNoTracking()
+                .Where(x => x.ShopId == shopId && x.IsActive
+                    && (x.Role.Name == RoleNames.CompanyOwner || x.Role.Name == RoleNames.Manager))
+                .Select(x => x.UserId)
+                .ToListAsync(cancellationToken);
+            await NotifyUsersAsync(shopId, managerUserIds, type, subject, body, relatedId, cancellationToken);
+        }
+        catch
+        {
+            // Best-effort.
+        }
+    }
+
+    public async Task<IReadOnlyCollection<RotaTimesheetReviewDto>> RequestTimesheetReviewsAsync(RequestTimesheetReviewsRequest request, CancellationToken cancellationToken = default)
+    {
+        await EnsureManageAsync(request.ShopId, cancellationToken);
+        if (request.To < request.From)
+        {
+            throw new AppException("rota_review_invalid_period", "The period end must be on or after its start.");
+        }
+        await EnsureReviewPeriodNotLockedAsync(request.ShopId, request.To, cancellationToken);
+
+        // Everyone with hours in the period: attendance (by check-in date) OR a rota assignment.
+        // Registered users only — external members are manager-recorded, so there's nothing to confirm.
+        var fromBound = new DateTimeOffset(request.From.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+        var toExclusive = new DateTimeOffset(request.To.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+        var attendanceUserIds = await _attendanceRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == request.ShopId && x.UserId != null && x.CheckInAt >= fromBound && x.CheckInAt < toExclusive)
+            .Select(x => x.UserId!.Value)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        var assignedUserIds = await _assignmentRepository.Query()
+            .AsNoTracking()
+            .Where(a => a.ShopId == request.ShopId && a.UserId != null
+                && !a.RotaShift.IsDeleted && a.RotaShift.ShiftDate >= request.From && a.RotaShift.ShiftDate <= request.To)
+            .Select(a => a.UserId!.Value)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        var userIds = attendanceUserIds.Union(assignedUserIds).ToList();
+
+        // Create missing rows only — existing rows (whatever their status) are left untouched.
+        var existing = await _timesheetReviewRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == request.ShopId && x.PeriodFrom == request.From && x.PeriodTo == request.To)
+            .Select(x => new { x.UserId, x.Status })
+            .ToListAsync(cancellationToken);
+        var existingUserIds = existing.Select(x => x.UserId).ToHashSet();
+
+        var now = DateTimeOffset.UtcNow;
+        var newUserIds = userIds.Where(id => !existingUserIds.Contains(id)).ToList();
+        foreach (var userId in newUserIds)
+        {
+            await _timesheetReviewRepository.AddAsync(new RotaTimesheetReview
+            {
+                ShopId = request.ShopId,
+                PeriodFrom = request.From,
+                PeriodTo = request.To,
+                UserId = userId,
+                Status = RotaTimesheetReviewStatus.PendingStaff,
+                CreatedOn = now,
+                CreatedBy = _currentUserService.UserId,
+            }, cancellationToken);
+        }
+        if (newUserIds.Count > 0)
+        {
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
+        // Nudge everyone still waiting to confirm (new rows + previously requested, unanswered ones).
+        var pendingUserIds = newUserIds
+            .Concat(existing.Where(x => x.Status == RotaTimesheetReviewStatus.PendingStaff).Select(x => x.UserId))
+            .Distinct()
+            .ToList();
+        await NotifyUsersAsync(request.ShopId, pendingUserIds, NotificationType.TimesheetReviewRequested,
+            "Timesheet ready to review",
+            $"Your timesheet for {request.From:d MMM yyyy}–{request.To:d MMM yyyy} is ready to review. Confirm your hours in the app.",
+            null, cancellationToken);
+
+        return await GetTimesheetReviewsAsync(request.ShopId, request.From, request.To, cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<RotaTimesheetReviewDto>> GetTimesheetReviewsAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
+    {
+        await EnsureManageAsync(shopId, cancellationToken);
+        var reviews = await _timesheetReviewRepository.Query()
+            .AsNoTracking()
+            .Include(x => x.User)
+            .Where(x => x.ShopId == shopId && x.PeriodFrom == from && x.PeriodTo == to)
+            .ToListAsync(cancellationToken);
+        return await BuildReviewDtosAsync(reviews, cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<RotaTimesheetReviewDto>> GetMyTimesheetReviewsAsync(Guid shopId, CancellationToken cancellationToken = default)
+    {
+        await EnsureStaffAsync(shopId, cancellationToken);
+        var userId = CurrentUserId;
+        // Everything still needing action, plus recently signed-off periods for reference.
+        var recentCutoff = DateOnly.FromDateTime(DateTimeOffset.UtcNow.UtcDateTime).AddDays(-60);
+        var reviews = await _timesheetReviewRepository.Query()
+            .AsNoTracking()
+            .Include(x => x.User)
+            .Where(x => x.ShopId == shopId && x.UserId == userId
+                && (x.Status != RotaTimesheetReviewStatus.ManagerApproved || x.PeriodTo >= recentCutoff))
+            .ToListAsync(cancellationToken);
+        return await BuildReviewDtosAsync(reviews, cancellationToken);
+    }
+
+    public async Task<RotaTimesheetReviewDto> ConfirmTimesheetReviewAsync(Guid reviewId, CancellationToken cancellationToken = default)
+    {
+        var review = await GetReviewAsync(reviewId, cancellationToken);
+        await EnsureStaffAsync(review.ShopId, cancellationToken);
+        if (review.UserId != CurrentUserId)
+        {
+            throw new AppException("rota_review_not_yours", "You can only confirm your own timesheet.", 403);
+        }
+        if (review.Status is not (RotaTimesheetReviewStatus.PendingStaff or RotaTimesheetReviewStatus.Disputed))
+        {
+            throw new AppException("rota_review_invalid_status", "This timesheet review can no longer be confirmed.");
+        }
+        await EnsureReviewPeriodNotLockedAsync(review.ShopId, review.PeriodTo, cancellationToken);
+
+        var now = DateTimeOffset.UtcNow;
+        review.Status = RotaTimesheetReviewStatus.Confirmed;
+        review.ConfirmedOn = now;
+        review.ModifiedOn = now;
+        review.ModifiedBy = _currentUserService.UserId;
+        _timesheetReviewRepository.Update(review);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return await MapReviewWithHoursAsync(review, cancellationToken);
+    }
+
+    public async Task<RotaTimesheetReviewDto> DisputeTimesheetReviewAsync(Guid reviewId, DisputeTimesheetReviewRequest request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Note))
+        {
+            throw new AppException("rota_review_note_required", "Describe what's wrong with your hours.");
+        }
+        if (request.Note.Trim().Length > 500)
+        {
+            throw new AppException("rota_review_note_too_long", "Keep the note under 500 characters.");
+        }
+        var review = await GetReviewAsync(reviewId, cancellationToken);
+        await EnsureStaffAsync(review.ShopId, cancellationToken);
+        if (review.UserId != CurrentUserId)
+        {
+            throw new AppException("rota_review_not_yours", "You can only raise an issue on your own timesheet.", 403);
+        }
+        if (review.Status is not (RotaTimesheetReviewStatus.PendingStaff or RotaTimesheetReviewStatus.Confirmed))
+        {
+            throw new AppException("rota_review_invalid_status", "An issue can no longer be raised on this timesheet review.");
+        }
+        await EnsureReviewPeriodNotLockedAsync(review.ShopId, review.PeriodTo, cancellationToken);
+
+        var now = DateTimeOffset.UtcNow;
+        review.Status = RotaTimesheetReviewStatus.Disputed;
+        review.StaffNote = request.Note.Trim();
+        review.ConfirmedOn = null;
+        review.ModifiedOn = now;
+        review.ModifiedBy = _currentUserService.UserId;
+        _timesheetReviewRepository.Update(review);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await NotifyManagersAsync(review.ShopId, NotificationType.TimesheetIssueRaised,
+            "Timesheet issue raised",
+            $"{_currentUserService.FullName} raised a timesheet issue for {review.PeriodFrom:d MMM}–{review.PeriodTo:d MMM yyyy}.",
+            review.Id, cancellationToken);
+        return await MapReviewWithHoursAsync(review, cancellationToken);
+    }
+
+    public async Task<RotaTimesheetReviewDto> ResolveTimesheetReviewAsync(Guid reviewId, ResolveTimesheetReviewRequest request, CancellationToken cancellationToken = default)
+    {
+        var review = await GetReviewAsync(reviewId, cancellationToken);
+        await EnsureManageAsync(review.ShopId, cancellationToken);
+        if (review.Status != RotaTimesheetReviewStatus.Disputed)
+        {
+            throw new AppException("rota_review_not_disputed", "Only a timesheet review with an open issue can be resolved.");
+        }
+        await EnsureReviewPeriodNotLockedAsync(review.ShopId, review.PeriodTo, cancellationToken);
+
+        var now = DateTimeOffset.UtcNow;
+        // Manager fixed the times → send back for re-confirmation; otherwise the resolution is final.
+        review.Status = request.ReRequestConfirmation
+            ? RotaTimesheetReviewStatus.PendingStaff
+            : RotaTimesheetReviewStatus.ManagerApproved;
+        if (request.ReRequestConfirmation)
+        {
+            review.ConfirmedOn = null;
+        }
+        review.ManagerNote = string.IsNullOrWhiteSpace(request.ManagerNote) ? null : request.ManagerNote.Trim();
+        review.ResolvedByUserId = CurrentUserId;
+        review.ResolvedOn = now;
+        review.ModifiedOn = now;
+        review.ModifiedBy = _currentUserService.UserId;
+        _timesheetReviewRepository.Update(review);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var periodLabel = $"{review.PeriodFrom:d MMM}–{review.PeriodTo:d MMM yyyy}";
+        var body = request.ReRequestConfirmation
+            ? $"Your timesheet issue for {periodLabel} was reviewed and your hours were updated. Please re-confirm them in the app."
+            : request.Approved
+                ? $"Your timesheet issue for {periodLabel} was resolved and your hours were approved."
+                : $"Your timesheet issue for {periodLabel} was reviewed and not upheld; your hours were approved as recorded.";
+        await NotifyUsersAsync(review.ShopId, [review.UserId], NotificationType.TimesheetReviewResolved,
+            "Timesheet issue resolved", body, review.Id, cancellationToken);
+        return await MapReviewWithHoursAsync(review, cancellationToken);
+    }
+
+    public async Task<RotaTimesheetReviewDto> ApproveTimesheetReviewAsync(Guid reviewId, CancellationToken cancellationToken = default)
+    {
+        var review = await GetReviewAsync(reviewId, cancellationToken);
+        await EnsureManageAsync(review.ShopId, cancellationToken);
+        // Covers both normal approval (after staff confirm) and override of an unresponsive member.
+        if (review.Status is not (RotaTimesheetReviewStatus.PendingStaff or RotaTimesheetReviewStatus.Confirmed))
+        {
+            throw new AppException("rota_review_invalid_status",
+                "Only a pending or confirmed review can be approved. Resolve the open issue first.");
+        }
+        await EnsureReviewPeriodNotLockedAsync(review.ShopId, review.PeriodTo, cancellationToken);
+
+        var now = DateTimeOffset.UtcNow;
+        review.Status = RotaTimesheetReviewStatus.ManagerApproved;
+        review.ResolvedByUserId = CurrentUserId;
+        review.ResolvedOn = now;
+        review.ModifiedOn = now;
+        review.ModifiedBy = _currentUserService.UserId;
+        _timesheetReviewRepository.Update(review);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return await MapReviewWithHoursAsync(review, cancellationToken);
+    }
+
     public async Task<IReadOnlyCollection<AttendanceApprovalRowDto>> GetPendingApprovalsAsync(Guid shopId, CancellationToken cancellationToken = default)
     {
         await EnsureManageAsync(shopId, cancellationToken, FeatureKeys.StaffRotaManualApproval);
@@ -1261,6 +1722,7 @@ public class RotaService : IRotaService
             .FirstOrDefaultAsync(x => x.Id == attendanceId, cancellationToken)
             ?? throw new AppException("rota_attendance_not_found", "Attendance record not found.", 404);
         await EnsureManageAsync(attendance.ShopId, cancellationToken, FeatureKeys.StaffRotaManualApproval);
+        await EnsureAttendanceNotLockedAsync(attendance.ShopId, attendance.CheckInAt, cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
         attendance.IsApproved = true;
@@ -1287,6 +1749,10 @@ public class RotaService : IRotaService
             throw new AppException("rota_invalid_times", "Check-out time must be after check-in time.");
         }
 
+        // Neither edit a session inside the payroll lock nor move one into it.
+        await EnsureAttendanceNotLockedAsync(attendance.ShopId, attendance.CheckInAt, cancellationToken);
+        await EnsureAttendanceNotLockedAsync(attendance.ShopId, request.CheckInAt, cancellationToken);
+
         var now = DateTimeOffset.UtcNow;
         attendance.CheckInAt = request.CheckInAt;
         attendance.CheckOutAt = request.CheckOutAt;
@@ -1307,6 +1773,7 @@ public class RotaService : IRotaService
             .FirstOrDefaultAsync(x => x.Id == attendanceId, cancellationToken)
             ?? throw new AppException("rota_attendance_not_found", "Attendance record not found.", 404);
         await EnsureManageAsync(attendance.ShopId, cancellationToken, FeatureKeys.StaffRotaManualApproval);
+        await EnsureAttendanceNotLockedAsync(attendance.ShopId, attendance.CheckInAt, cancellationToken);
 
         // Reject = discard the (manual) entry entirely.
         _attendanceRepository.Remove(attendance);

@@ -61,6 +61,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<ShiftSwapRequest> ShiftSwapRequests => Set<ShiftSwapRequest>();
     public DbSet<ShiftAssignment> ShiftAssignments => Set<ShiftAssignment>();
     public DbSet<ShiftAttendance> ShiftAttendances => Set<ShiftAttendance>();
+    public DbSet<RotaTimesheetLock> RotaTimesheetLocks => Set<RotaTimesheetLock>();
+    public DbSet<RotaTimesheetReview> RotaTimesheetReviews => Set<RotaTimesheetReview>();
     public DbSet<SignupEmailVerification> SignupEmailVerifications => Set<SignupEmailVerification>();
     public DbSet<ShopChecklistGroup> ShopChecklistGroups => Set<ShopChecklistGroup>();
     public DbSet<ShopChecklistTask> ShopChecklistTasks => Set<ShopChecklistTask>();
@@ -819,6 +821,25 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.NoAction);
             entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.NoAction);
             entity.HasOne(x => x.RotaStaffMember).WithMany().HasForeignKey(x => x.RotaStaffMemberId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        modelBuilder.Entity<RotaTimesheetLock>(entity =>
+        {
+            entity.HasIndex(x => x.ShopId).IsUnique();
+            entity.Property(x => x.Notes).HasMaxLength(300);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.LockedByUser).WithMany().HasForeignKey(x => x.LockedByUserId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        modelBuilder.Entity<RotaTimesheetReview>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.PeriodFrom, x.PeriodTo, x.UserId }).IsUnique();
+            entity.HasIndex(x => new { x.ShopId, x.UserId, x.Status });
+            entity.Property(x => x.StaffNote).HasMaxLength(500);
+            entity.Property(x => x.ManagerNote).HasMaxLength(500);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.ResolvedByUser).WithMany().HasForeignKey(x => x.ResolvedByUserId).OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<ShopChecklistGroup>(entity =>

@@ -92,6 +92,25 @@ export async function getShiftSessions(shopId: string, shiftName: string, from: 
   return response.data.data;
 }
 
+export type RotaTimesheetLock = {
+  shopId: string;
+  lockedThrough: string; // yyyy-MM-dd
+  lockedByUserId: string;
+  lockedByName: string;
+  lockedOn: string; // ISO
+  notes?: string;
+};
+
+export async function getTimesheetLock(shopId: string) {
+  const response = await apiClient.get<ApiResponse<RotaTimesheetLock | null>>("/rota/timesheet-lock", { params: { shopId } });
+  return response.data.data;
+}
+
+export async function setTimesheetLock(payload: { shopId: string; lockedThrough: string | null; notes?: string }) {
+  const response = await apiClient.put<ApiResponse<RotaTimesheetLock | null>>("/rota/timesheet-lock", payload);
+  return response.data.data;
+}
+
 export async function getMyShifts(shopId: string, from: string, to: string) {
   const response = await apiClient.get<ApiResponse<RotaShift[]>>("/rota/mine", { params: { shopId, from, to } });
   return response.data.data;
@@ -143,4 +162,58 @@ export async function updateAttendance(id: string, payload: { checkInAt: string;
 
 export async function rejectAttendance(id: string) {
   await apiClient.delete<ApiResponse<boolean>>(`/rota/attendance/${id}`);
+}
+
+export type RotaTimesheetReviewStatus = "PendingStaff" | "Confirmed" | "Disputed" | "ManagerApproved";
+
+export type RotaTimesheetReview = {
+  id: string;
+  shopId: string;
+  periodFrom: string; // yyyy-MM-dd
+  periodTo: string; // yyyy-MM-dd
+  userId: string;
+  userName: string;
+  status: RotaTimesheetReviewStatus;
+  staffNote?: string;
+  managerNote?: string;
+  confirmedOn?: string; // ISO
+  resolvedByUserId?: string;
+  resolvedOn?: string; // ISO
+  totalHours: number;
+  openSessions: number;
+};
+
+export async function requestTimesheetReviews(payload: { shopId: string; from: string; to: string }) {
+  const response = await apiClient.post<ApiResponse<RotaTimesheetReview[]>>("/rota/timesheet-reviews/request", payload);
+  return response.data.data;
+}
+
+export async function getTimesheetReviews(shopId: string, from: string, to: string) {
+  const response = await apiClient.get<ApiResponse<RotaTimesheetReview[]>>("/rota/timesheet-reviews", { params: { shopId, from, to } });
+  return response.data.data;
+}
+
+export async function getMyTimesheetReviews(shopId: string) {
+  const response = await apiClient.get<ApiResponse<RotaTimesheetReview[]>>("/rota/timesheet-reviews/mine", { params: { shopId } });
+  return response.data.data;
+}
+
+export async function confirmTimesheetReview(id: string) {
+  const response = await apiClient.post<ApiResponse<RotaTimesheetReview>>(`/rota/timesheet-reviews/${id}/confirm`, null);
+  return response.data.data;
+}
+
+export async function disputeTimesheetReview(id: string, note: string) {
+  const response = await apiClient.post<ApiResponse<RotaTimesheetReview>>(`/rota/timesheet-reviews/${id}/dispute`, { note });
+  return response.data.data;
+}
+
+export async function resolveTimesheetReview(id: string, payload: { approved: boolean; managerNote?: string; reRequestConfirmation: boolean }) {
+  const response = await apiClient.post<ApiResponse<RotaTimesheetReview>>(`/rota/timesheet-reviews/${id}/resolve`, payload);
+  return response.data.data;
+}
+
+export async function approveTimesheetReview(id: string) {
+  const response = await apiClient.post<ApiResponse<RotaTimesheetReview>>(`/rota/timesheet-reviews/${id}/approve`, null);
+  return response.data.data;
 }

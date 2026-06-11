@@ -90,6 +90,34 @@ export type AttendanceApprovalRow = {
   notes?: string | null;
 };
 
+// Payroll period lock — attendance/review mutations on or before lockedThrough are rejected by the API.
+export type TimesheetLock = {
+  shopId: string;
+  lockedThrough: string;
+  lockedByUserId?: string | null;
+  lockedByName?: string | null;
+  lockedOn: string;
+  notes?: string | null;
+};
+
+export type TimesheetReviewStatus = "PendingStaff" | "Confirmed" | "Disputed" | "ManagerApproved";
+export type TimesheetReviewRow = {
+  id: string;
+  shopId: string;
+  periodFrom: string;
+  periodTo: string;
+  userId?: string | null;
+  userName: string;
+  status: TimesheetReviewStatus;
+  staffNote?: string | null;
+  managerNote?: string | null;
+  confirmedOn?: string | null;
+  resolvedByUserId?: string | null;
+  resolvedOn?: string | null;
+  totalHours: number;
+  openSessions: number;
+};
+
 export const rotaApi = {
   list: async (shopId: string, from: string, to: string) =>
     unwrap<RotaShift[]>((await api.get("/rota", { params: { shopId, from, to } })).data),
@@ -128,6 +156,25 @@ export const rotaApi = {
     api.post("/rota/attendance/manual", p),
   adjust: async (id: string, p: { checkInAt: string; checkOutAt?: string; notes?: string }) =>
     api.put(`/rota/attendance/${id}`, p),
+  // Payroll period lock. The endpoint returns null when unlocked — unwrap falls back to the
+  // envelope for a null `data`, so validate the shape before trusting it.
+  timesheetLock: async (shopId: string) => {
+    const d = unwrap<TimesheetLock | null>((await api.get("/rota/timesheet-lock", { params: { shopId } })).data);
+    return d && d.lockedThrough ? d : null;
+  },
+  setTimesheetLock: async (p: { shopId: string; lockedThrough: string | null; notes?: string }) => {
+    const d = unwrap<TimesheetLock | null>((await api.put("/rota/timesheet-lock", p)).data);
+    return d && d.lockedThrough ? d : null;
+  },
+  // Staff timesheet sign-off reviews.
+  requestTimesheetReviews: async (p: { shopId: string; from: string; to: string }) =>
+    unwrap<TimesheetReviewRow[]>((await api.post("/rota/timesheet-reviews/request", p)).data),
+  timesheetReviews: async (shopId: string, from: string, to: string) =>
+    unwrap<TimesheetReviewRow[]>((await api.get("/rota/timesheet-reviews", { params: { shopId, from, to } })).data),
+  resolveTimesheetReview: async (id: string, p: { approved: boolean; managerNote?: string; reRequestConfirmation: boolean }) =>
+    unwrap<TimesheetReviewRow>((await api.post(`/rota/timesheet-reviews/${id}/resolve`, p)).data),
+  approveTimesheetReview: async (id: string) =>
+    unwrap<TimesheetReviewRow>((await api.post(`/rota/timesheet-reviews/${id}/approve`)).data),
 };
 
 // Build check-in/out ISO from a date + HH:mm times (overnight → check-out next day).

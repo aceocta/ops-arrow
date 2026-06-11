@@ -5,6 +5,8 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import { MainStackParamList } from "../../types/navigation";
 import { useAuth } from "../../auth/AuthContext";
 import { getRoleOptions } from "../../api/lookupsApi";
@@ -28,11 +30,21 @@ import {
   getStaffSessions,
   getShiftSessions,
   getPendingApprovals,
+  getTimesheetLock,
+  setTimesheetLock,
   approveAttendance,
   updateAttendance,
   rejectAttendance,
   saveManualAttendance,
   updateRotaShift,
+  requestTimesheetReviews,
+  getTimesheetReviews,
+  getMyTimesheetReviews,
+  confirmTimesheetReview,
+  disputeTimesheetReview,
+  resolveTimesheetReview,
+  approveTimesheetReview,
+  type RotaTimesheetReview,
   type SaveRotaShiftPayload,
 } from "../../api/rotaApi";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
@@ -44,8 +56,11 @@ import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
 import { EmptyState } from "../../components/EmptyState";
 import { confirmDestructive } from "../../utils/confirm";
+import { formatDayLabel } from "../../utils/dateLabels";
+import { getApiErrorMessage } from "../../utils/apiErrorMessage";
 import { toastError, toastSuccess } from "../../components/toast";
-import { AssignableUser, AttendanceApprovalRow, RotaAssignee, RotaShift, RotaStaffMember } from "../../types/models";
+import { useFeature } from "../subscription/useFeature";
+import { AssignableUser, AttendanceApprovalRow, RotaAssignee, RotaShift, RotaStaffMember, TimesheetSession } from "../../types/models";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -158,6 +173,12 @@ function workedLabel(inIso: string, outIso: string) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
+// Escape a CSV field: wrap in quotes when it contains a comma, quote or newline, doubling inner quotes.
+function csvField(value: string | number) {
+  const s = String(value);
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
 // An ISO timestamp as device-local "HH:mm" (24h), suitable for the time picker.
 function toHHmm(iso: string) {
   const d = new Date(iso);
@@ -196,6 +217,9 @@ export function MyShiftsScreen() {
   const [manualShift, setManualShift] = useState<RotaShift | null>(null);
   const [manualIn, setManualIn] = useState("09:00");
   const [manualOut, setManualOut] = useState("17:00");
+  // Timesheet review the staff member is raising an issue against (opens the note modal).
+  const [disputeTarget, setDisputeTarget] = useState<RotaTimesheetReview | null>(null);
+  const [disputeNote, setDisputeNote] = useState("");
 
   const attendanceQuery = useQuery({
     queryKey: ["rota-attendance", shopId],
@@ -207,6 +231,16 @@ export function MyShiftsScreen() {
     queryFn: () => getMyShifts(shopId as string, from, to),
     enabled: Boolean(shopId),
   });
+  const myReviewsQuery = useQuery({
+    queryKey: ["rota-my-reviews", shopId],
+    queryFn: () => getMyTimesheetReviews(shopId as string),
+    enabled: Boolean(shopId),
+  });
+  // Only periods that still need the staff member's attention surface on this screen.
+  const actionableReviews = useMemo(
+    () => (myReviewsQuery.data ?? []).filter((r) => r.status === "PendingStaff" || r.status === "Disputed"),
+    [myReviewsQuery.data],
+  );
 
   const current = attendanceQuery.data;
   const isCheckedInSomewhere = Boolean(current && !current.checkOutAt);
@@ -214,6 +248,7 @@ export function MyShiftsScreen() {
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ["rota-attendance", shopId] });
     void queryClient.invalidateQueries({ queryKey: ["rota-my-shifts", shopId] });
+    void queryClient.invalidateQueries({ queryKey: ["rota-my-reviews", shopId] });
   };
 
   const checkInMutation = useMutation({
@@ -239,6 +274,39 @@ export function MyShiftsScreen() {
     onSuccess: () => { setManualShift(null); refresh(); },
     onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't save times."),
   });
+
+  const confirmReviewMutation = useMutation({
+    mutationFn: (id: string) => confirmTimesheetReview(id),
+    onSuccess: () => {
+      toastSuccess("Hours confirmed.");
+      void queryClient.invalidateQueries({ queryKey: ["rota-my-reviews", shopId] });
+    },
+    onError: (error: unknown) => toastError(getApiErrorMessage(error, "Couldn't confirm your hours.")),
+  });
+  const disputeMutation = useMutation({
+    mutationFn: () => disputeTimesheetReview(disputeTarget!.id, disputeNote.trim()),
+    onSuccess: () => {
+      setDisputeTarget(null);
+      setDisputeNote("");
+      toastSuccess("Issue sent to your manager.");
+      void queryClient.invalidateQueries({ queryKey: ["rota-my-reviews", shopId] });
+    },
+    onError: (error: unknown) => toastError(getApiErrorMessage(error, "Couldn't send the issue.")),
+  });
+
+  const startConfirmReview = async (r: RotaTimesheetReview) => {
+    const ok = await confirmDestructive({
+      title: "Confirm your hours?",
+      message: `You're confirming ${r.totalHours.toFixed(1)}h for ${formatDayLabel(r.periodFrom)} – ${formatDayLabel(r.periodTo)} is correct.`,
+      confirmLabel: "Confirm",
+    });
+    if (ok) confirmReviewMutation.mutate(r.id);
+  };
+
+  const openDispute = (r: RotaTimesheetReview) => {
+    setDisputeNote("");
+    setDisputeTarget(r);
+  };
 
   const openManual = (shift: RotaShift) => {
     const att = shift.myAttendance;
@@ -370,6 +438,52 @@ export function MyShiftsScreen() {
       }
     >
       <View style={styles.content}>
+        {/* Timesheet review — periods the manager has asked this staff member to sign off */}
+        {actionableReviews.length > 0 ? (
+          <View style={[ui.card, styles.reviewCard]}>
+            <View style={styles.reviewCardHeader}>
+              <Ionicons name="receipt-outline" size={16} color={appTheme.colors.primary} />
+              <Text style={styles.sectionTitle}>Timesheet review</Text>
+            </View>
+            {actionableReviews.map((review) => {
+              const disputed = review.status === "Disputed";
+              const confirmingThis = confirmReviewMutation.isPending && confirmReviewMutation.variables === review.id;
+              return (
+                <View key={review.id} style={styles.reviewRow}>
+                  <View style={styles.reviewRowTop}>
+                    <Text style={styles.reviewPeriod}>
+                      {formatDayLabel(review.periodFrom)} – {formatDayLabel(review.periodTo)} · {review.totalHours.toFixed(1)}h
+                    </Text>
+                    <StatusBadge label={disputed ? "Issue raised" : "Awaiting your review"} tone={disputed ? "warning" : "neutral"} />
+                  </View>
+                  {disputed && review.staffNote ? <Text style={styles.noteQuote}>“{review.staffNote}”</Text> : null}
+                  {disputed && review.managerNote ? <Text style={styles.mutedSmall}>Manager: {review.managerNote}</Text> : null}
+                  <PrimaryButton
+                    label={confirmingThis ? "Confirming…" : "Confirm my hours"}
+                    icon="checkmark-circle-outline"
+                    onPress={() => void startConfirmReview(review)}
+                    disabled={confirmReviewMutation.isPending}
+                  />
+                  {disputed ? (
+                    <Text style={styles.mutedSmall}>Waiting for your manager. Confirming your hours withdraws the issue.</Text>
+                  ) : (
+                    <Pressable
+                      style={({ pressed }) => [styles.actGhost, styles.reviewGhostBtn, pressed ? styles.actGhostPressed : null]}
+                      onPress={() => openDispute(review)}
+                      disabled={confirmReviewMutation.isPending}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Raise an issue with your hours for ${formatDayLabel(review.periodFrom)} to ${formatDayLabel(review.periodTo)}`}
+                    >
+                      <Ionicons name="alert-circle-outline" size={16} color={appTheme.colors.primary} />
+                      <Text style={styles.actGhostText}>Raise an issue</Text>
+                    </Pressable>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        ) : null}
+
         {/* Date range */}
         <View style={[ui.card, styles.rangeCard]}>
           <View style={styles.rangeTopRow}>
@@ -480,6 +594,46 @@ export function MyShiftsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Raise an issue against a timesheet review period */}
+      <Modal visible={disputeTarget !== null} transparent animationType="fade" onRequestClose={() => setDisputeTarget(null)}>
+        <View style={styles.sheetBackdrop}>
+          <View style={styles.sheetCard}>
+            <View style={styles.sheetHeader}>
+              <View style={styles.sheetIcon}>
+                <Ionicons name="alert-circle-outline" size={22} color={appTheme.colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitleSm}>Raise an issue</Text>
+                <Text style={styles.muted} numberOfLines={1}>
+                  {disputeTarget
+                    ? `${formatDayLabel(disputeTarget.periodFrom)} – ${formatDayLabel(disputeTarget.periodTo)} · ${disputeTarget.totalHours.toFixed(1)}h`
+                    : ""}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.fieldLabel}>What's wrong?</Text>
+            <TextInput
+              style={[styles.externalInput, styles.noteInput]}
+              value={disputeNote}
+              onChangeText={setDisputeNote}
+              placeholder="What's wrong? e.g. missing Saturday shift…"
+              placeholderTextColor={appTheme.colors.textSubtle}
+              multiline
+              maxLength={500}
+            />
+            <Text style={styles.mutedSmall}>Your manager will see this note and can fix your recorded times.</Text>
+
+            <PrimaryButton
+              label={disputeMutation.isPending ? "Submitting…" : "Submit"}
+              onPress={() => disputeMutation.mutate()}
+              disabled={disputeMutation.isPending || disputeNote.trim().length === 0}
+            />
+            <PrimaryButton label="Cancel" tone="neutral" onPress={() => setDisputeTarget(null)} disabled={disputeMutation.isPending} />
+          </View>
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -539,6 +693,17 @@ export function RotaManageScreen() {
     queryFn: () => getShiftTemplates(shopId as string),
     enabled: Boolean(shopId),
   });
+  // Light timesheet peek for the displayed week — only used to surface forgotten check-outs.
+  const weekTimesheetQuery = useQuery({
+    queryKey: ["rota-timesheet", shopId, range.from, range.to],
+    queryFn: () => getTimesheet(shopId as string, range.from, range.to),
+    enabled: Boolean(shopId),
+    staleTime: 60_000,
+  });
+  const weekOpenSessions = useMemo(
+    () => (weekTimesheetQuery.data ?? []).reduce((sum, r) => sum + r.openSessions, 0),
+    [weekTimesheetQuery.data],
+  );
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["rota", shopId] });
 
@@ -828,6 +993,14 @@ export function RotaManageScreen() {
               <View style={[styles.weekStatChip, styles.weekStatChipSuccess]}>
                 <Ionicons name="checkmark-circle-outline" size={13} color={appTheme.colors.success} />
                 <Text style={[styles.weekStatText, styles.weekStatTextSuccess]}>Fully staffed</Text>
+              </View>
+            ) : null}
+            {weekOpenSessions > 0 ? (
+              <View style={[styles.weekStatChip, styles.weekStatChipWarning]}>
+                <Ionicons name="alert-circle-outline" size={13} color={appTheme.colors.warning} />
+                <Text style={[styles.weekStatText, styles.weekStatTextWarning]}>
+                  {weekOpenSessions} open session{weekOpenSessions === 1 ? "" : "s"}
+                </Text>
               </View>
             ) : null}
           </View>
@@ -1250,10 +1423,19 @@ function initials(name: string) {
 export function RotaTimesheetScreen() {
   const { activeShopId } = useAuth();
   const shopId = activeShopId;
+  const queryClient = useQueryClient();
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const exportFeature = useFeature("staff_rota.timesheet_export");
   const [range, setRange] = useState(() => last7());
   const [view, setView] = useState<"staff" | "shift">("staff");
   const [selectedStaff, setSelectedStaff] = useState<{ userId?: string | null; rotaStaffMemberId?: string | null; name: string } | null>(null);
   const [selectedShift, setSelectedShift] = useState<{ shiftName: string; date: string } | null>(null);
+  // Open session being closed from the drill-down (inline expansion in the sessions list).
+  const [endingSession, setEndingSession] = useState<TimesheetSession | null>(null);
+  const [endOut, setEndOut] = useState("17:00");
+  // Disputed review being resolved (opens the resolve modal with the staff member's note).
+  const [resolveTarget, setResolveTarget] = useState<RotaTimesheetReview | null>(null);
+  const [resolveNote, setResolveNote] = useState("");
 
   const sessionsQuery = useQuery({
     queryKey: ["rota-staff-sessions", shopId, selectedStaff?.userId, selectedStaff?.rotaStaffMemberId, range.from, range.to],
@@ -1277,11 +1459,207 @@ export function RotaTimesheetScreen() {
     enabled: Boolean(shopId) && view === "shift",
   });
 
+  // Pending manual approvals — the endpoint isn't range-filtered, so narrow client-side to the
+  // selected range (by shift date when rostered, otherwise the check-in's calendar date).
+  const pendingQuery = useQuery({
+    queryKey: ["rota-pending", shopId],
+    queryFn: () => getPendingApprovals(shopId as string),
+    enabled: Boolean(shopId),
+  });
+  const pendingInRange = useMemo(
+    () =>
+      (pendingQuery.data ?? []).filter((p) => {
+        const d = p.shiftDate ?? formatDateValue(new Date(p.checkInAt));
+        return d >= range.from && d <= range.to;
+      }),
+    [pendingQuery.data, range.from, range.to],
+  );
+
+  // Payroll period lock — freezes attendance edits up to a date so payroll stays trustworthy.
+  const lockQuery = useQuery({
+    queryKey: ["rota-timesheet-lock", shopId],
+    queryFn: () => getTimesheetLock(shopId as string),
+    enabled: Boolean(shopId),
+  });
+  const lock = lockQuery.data ?? null;
+  // Lock target: the earlier of the range end and yesterday (the server rejects today/future).
+  // Hidden when the range starts after yesterday — there's nothing sensible to lock.
+  const lockTarget = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    const yesterday = formatDateValue(d);
+    const target = range.to < yesterday ? range.to : yesterday;
+    return range.from > target ? null : target;
+  }, [range.from, range.to]);
+
+  const lockMutation = useMutation({
+    mutationFn: (lockedThrough: string | null) => setTimesheetLock({ shopId: shopId as string, lockedThrough }),
+    onSuccess: (_data, lockedThrough) => {
+      toastSuccess(lockedThrough ? "Period locked." : "Period unlocked.");
+      void queryClient.invalidateQueries({ queryKey: ["rota-timesheet-lock", shopId] });
+    },
+    onError: (error: unknown) => toastError(getApiErrorMessage(error, "Couldn't update the payroll lock.")),
+  });
+
+  const startUnlock = async () => {
+    if (!lock) return;
+    const ok = await confirmDestructive({
+      title: "Unlock period",
+      message: `Allow editing of attendance up to ${formatDayLabel(lock.lockedThrough)} again? Payroll based on it may become out of date.`,
+      confirmLabel: "Unlock",
+    });
+    if (ok) lockMutation.mutate(null);
+  };
+  const startLock = async () => {
+    if (!lockTarget) return;
+    const ok = await confirmDestructive({
+      title: "Lock period",
+      message: `Freeze all attendance up to ${formatDayLabel(lockTarget)}? Times in this period can no longer be edited or approved until unlocked.`,
+      confirmLabel: "Lock",
+    });
+    if (ok) lockMutation.mutate(lockTarget);
+  };
+
+  // Staff sign-off — review/confirmation state for the selected period.
+  const reviewsQuery = useQuery({
+    queryKey: ["rota-reviews", shopId, range.from, range.to],
+    queryFn: () => getTimesheetReviews(shopId as string, range.from, range.to),
+    enabled: Boolean(shopId),
+  });
+  const reviews = reviewsQuery.data ?? [];
+  const allReviewsApproved = reviews.length > 0 && reviews.every((r) => r.status === "ManagerApproved");
+  const refreshReviews = () => void queryClient.invalidateQueries({ queryKey: ["rota-reviews", shopId] });
+
+  const requestReviewsMutation = useMutation({
+    mutationFn: () => requestTimesheetReviews({ shopId: shopId as string, from: range.from, to: range.to }),
+    onSuccess: () => {
+      toastSuccess("Review requests sent.");
+      refreshReviews();
+    },
+    onError: (error: unknown) => toastError(getApiErrorMessage(error, "Couldn't send review requests.")),
+  });
+  const approveReviewMutation = useMutation({
+    mutationFn: (id: string) => approveTimesheetReview(id),
+    onSuccess: () => {
+      toastSuccess("Hours approved.");
+      refreshReviews();
+    },
+    onError: (error: unknown) => toastError(getApiErrorMessage(error, "Couldn't approve the hours.")),
+  });
+  const resolveReviewMutation = useMutation({
+    mutationFn: (action: { approved: boolean; reRequestConfirmation: boolean }) =>
+      resolveTimesheetReview(resolveTarget!.id, {
+        approved: action.approved,
+        managerNote: resolveNote.trim() || undefined,
+        reRequestConfirmation: action.reRequestConfirmation,
+      }),
+    onSuccess: (_row, action) => {
+      setResolveTarget(null);
+      setResolveNote("");
+      toastSuccess(action.reRequestConfirmation ? "Asked the staff member to re-confirm." : "Issue rejected — hours approved.");
+      refreshReviews();
+    },
+    onError: (error: unknown) => toastError(getApiErrorMessage(error, "Couldn't resolve the issue.")),
+  });
+
+  const startRequestReviews = async () => {
+    const ok = await confirmDestructive({
+      title: "Request staff reviews",
+      message: `Ask all staff who worked ${formatDayLabel(range.from)} – ${formatDayLabel(range.to)} to review and confirm their hours?`,
+      confirmLabel: "Send",
+    });
+    if (ok) requestReviewsMutation.mutate();
+  };
+
+  const openResolve = (review: RotaTimesheetReview) => {
+    setResolveNote("");
+    setResolveTarget(review);
+  };
+
   const staffRows = timesheetQuery.data ?? [];
   const shiftRows = shiftTimesheetQuery.data ?? [];
   const loading = view === "staff" ? timesheetQuery.isLoading : shiftTimesheetQuery.isLoading;
   const rowCount = view === "staff" ? staffRows.length : shiftRows.length;
   const totalHours = (view === "staff" ? staffRows : shiftRows).reduce((s: number, r: { totalHours: number }) => s + r.totalHours, 0);
+  const openSessionCount = (view === "staff" ? staffRows : shiftRows).reduce((s: number, r: { openSessions: number }) => s + r.openSessions, 0);
+  const readinessReady = !loading && !pendingQuery.isLoading;
+
+  // Close a forgotten check-out from the staff drill-down. updateAttendance also approves the entry.
+  const endSessionMutation = useMutation({
+    mutationFn: () => {
+      const s = endingSession!;
+      const { checkOutAt } = sessionIsos(s.date, toHHmm(s.checkInAt), endOut);
+      return updateAttendance(s.id, { checkInAt: s.checkInAt, checkOutAt });
+    },
+    onSuccess: () => {
+      setEndingSession(null);
+      toastSuccess("Session closed.");
+      void sessionsQuery.refetch();
+      void queryClient.invalidateQueries({ queryKey: ["rota-timesheet", shopId] });
+      void queryClient.invalidateQueries({ queryKey: ["rota-timesheet-by-shift", shopId] });
+      void queryClient.invalidateQueries({ queryKey: ["rota-pending", shopId] });
+    },
+    onError: (error: unknown) => toastError(getApiErrorMessage(error, "Couldn't close the session.")),
+  });
+
+  const startEndSession = (s: TimesheetSession) => {
+    setEndOut(toHHmm(new Date().toISOString()));
+    setEndingSession(s);
+  };
+  const closeStaffModal = () => {
+    setSelectedStaff(null);
+    setEndingSession(null);
+  };
+
+  // Build a CSV of the current view and hand it to the system share sheet.
+  const exportMutation = useMutation({
+    mutationFn: async () => {
+      const lines: string[] = [];
+      if (view === "staff") {
+        lines.push(["Staff", "Shifts worked", "Open sessions", "Hours"].map(csvField).join(","));
+        for (const r of staffRows) {
+          lines.push([r.userName, r.shiftsWorked, r.openSessions, r.totalHours.toFixed(1)].map(csvField).join(","));
+        }
+        lines.push(
+          [
+            "Total",
+            staffRows.reduce((s, r) => s + r.shiftsWorked, 0),
+            staffRows.reduce((s, r) => s + r.openSessions, 0),
+            staffRows.reduce((s, r) => s + r.totalHours, 0).toFixed(1),
+          ].map(csvField).join(","),
+        );
+      } else {
+        lines.push(["Shift", "Date", "Staff count", "Hours"].map(csvField).join(","));
+        for (const r of shiftRows) {
+          lines.push([r.shiftName, r.date, r.staffCount, r.totalHours.toFixed(1)].map(csvField).join(","));
+        }
+        lines.push(
+          [
+            "Total",
+            "",
+            shiftRows.reduce((s, r) => s + r.staffCount, 0),
+            shiftRows.reduce((s, r) => s + r.totalHours, 0).toFixed(1),
+          ].map(csvField).join(","),
+        );
+      }
+      const targetDirectory = FileSystem.documentDirectory ?? FileSystem.cacheDirectory;
+      if (!targetDirectory) {
+        throw new Error("Storage directory is unavailable on this device.");
+      }
+      const fileUri = `${targetDirectory}timesheet_${range.from}_${range.to}.csv`;
+      await FileSystem.writeAsStringAsync(fileUri, lines.join("\r\n"), { encoding: FileSystem.EncodingType.UTF8 });
+      return fileUri;
+    },
+    onSuccess: async (fileUri) => {
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) {
+        toastSuccess(`File saved to:\n${fileUri}`);
+        return;
+      }
+      await Sharing.shareAsync(fileUri, { mimeType: "text/csv", dialogTitle: "Export timesheet CSV" });
+    },
+    onError: (error: unknown) => toastError(getApiErrorMessage(error, "Couldn't export the timesheet.")),
+  });
 
   return (
     <ScreenContainer>
@@ -1294,15 +1672,194 @@ export function RotaTimesheetScreen() {
           </View>
         </View>
 
-        {/* View toggle */}
-        <View style={styles.segment}>
-          {(["staff", "shift"] as const).map((v) => (
-            <Pressable key={v} style={[styles.segmentBtn, view === v ? styles.segmentBtnActive : null]} onPress={() => setView(v)}>
-              <Text style={[styles.segmentText, view === v ? styles.segmentTextActive : null]}>
-                {v === "staff" ? "By staff" : "By shift"}
-              </Text>
+        {/* View toggle + export */}
+        <View style={styles.segmentRow}>
+          <View style={[styles.segment, { flex: 1 }]}>
+            {(["staff", "shift"] as const).map((v) => (
+              <Pressable key={v} style={[styles.segmentBtn, view === v ? styles.segmentBtnActive : null]} onPress={() => setView(v)}>
+                <Text style={[styles.segmentText, view === v ? styles.segmentTextActive : null]}>
+                  {v === "staff" ? "By staff" : "By shift"}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          {exportFeature.isAllowed ? (
+            <Pressable
+              style={({ pressed }) => [styles.exportBtn, pressed ? styles.exportBtnPressed : null, rowCount === 0 || exportMutation.isPending ? styles.exportBtnDisabled : null]}
+              onPress={() => exportMutation.mutate()}
+              disabled={rowCount === 0 || exportMutation.isPending}
+              accessibilityRole="button"
+              accessibilityLabel="Export timesheet as CSV"
+            >
+              <Ionicons name="download-outline" size={15} color={appTheme.colors.primary} />
+              <Text style={styles.exportBtnText}>{exportMutation.isPending ? "Exporting…" : "Export CSV"}</Text>
             </Pressable>
-          ))}
+          ) : null}
+        </View>
+
+        {/* Payroll readiness for the selected range */}
+        {readinessReady ? (
+          openSessionCount > 0 || pendingInRange.length > 0 ? (
+            <View style={styles.readinessRow}>
+              {openSessionCount > 0 ? (
+                <View style={[styles.weekStatChip, styles.weekStatChipWarning]}>
+                  <Ionicons name="alert-circle-outline" size={13} color={appTheme.colors.warning} />
+                  <Text style={[styles.weekStatText, styles.weekStatTextWarning]}>
+                    {openSessionCount} open session{openSessionCount === 1 ? "" : "s"} — hours missing from totals
+                  </Text>
+                </View>
+              ) : null}
+              {pendingInRange.length > 0 ? (
+                <Pressable
+                  style={({ pressed }) => [styles.weekStatChip, styles.weekStatChipWarning, pressed ? styles.exportBtnPressed : null]}
+                  onPress={() => navigation.navigate("RotaApprovals")}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Review ${pendingInRange.length} manual ${pendingInRange.length === 1 ? "entry" : "entries"} awaiting approval`}
+                >
+                  <Ionicons name="time-outline" size={13} color={appTheme.colors.warning} />
+                  <Text style={[styles.weekStatText, styles.weekStatTextWarning]}>
+                    {pendingInRange.length} manual {pendingInRange.length === 1 ? "entry" : "entries"} awaiting approval
+                  </Text>
+                  <Ionicons name="chevron-forward" size={13} color={appTheme.colors.textWarningStrong} />
+                </Pressable>
+              ) : null}
+            </View>
+          ) : pendingQuery.isSuccess ? (
+            <View style={styles.readinessRow}>
+              <View style={[styles.weekStatChip, styles.weekStatChipSuccess]}>
+                <Ionicons name="checkmark-circle-outline" size={13} color={appTheme.colors.success} />
+                <Text style={[styles.weekStatText, styles.weekStatTextSuccess]}>
+                  Ready — no open sessions or pending approvals in this range.
+                </Text>
+              </View>
+            </View>
+          ) : null
+        ) : null}
+
+        {/* Payroll lock — freeze attendance up to a date once it has been paid out */}
+        {lockQuery.isSuccess && (lock || lockTarget) ? (
+          <View style={styles.readinessRow}>
+            {lock ? (
+              <>
+                <View style={styles.weekStatChip}>
+                  <Ionicons name="lock-closed-outline" size={13} color={appTheme.colors.textMuted} />
+                  <Text style={styles.weekStatText}>
+                    Locked through {formatDayLabel(lock.lockedThrough)} · by {lock.lockedByName}
+                  </Text>
+                </View>
+                <Pressable
+                  style={({ pressed }) => [styles.weekStatChip, pressed ? styles.exportBtnPressed : null, lockMutation.isPending ? styles.exportBtnDisabled : null]}
+                  onPress={() => void startUnlock()}
+                  disabled={lockMutation.isPending}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Unlock the payroll period locked through ${formatDayLabel(lock.lockedThrough)}`}
+                >
+                  <Ionicons name="lock-open-outline" size={13} color={appTheme.colors.primary} />
+                  <Text style={[styles.weekStatText, { color: appTheme.colors.primary }]}>
+                    {lockMutation.isPending ? "Unlocking…" : "Unlock"}
+                  </Text>
+                </Pressable>
+              </>
+            ) : (
+              <Pressable
+                style={({ pressed }) => [styles.weekStatChip, pressed ? styles.exportBtnPressed : null, lockMutation.isPending ? styles.exportBtnDisabled : null]}
+                onPress={() => void startLock()}
+                disabled={lockMutation.isPending}
+                accessibilityRole="button"
+                accessibilityLabel={`Lock the payroll period to ${formatDayLabel(lockTarget)}`}
+              >
+                <Ionicons name="lock-closed-outline" size={13} color={appTheme.colors.textMuted} />
+                <Text style={styles.weekStatText}>
+                  {lockMutation.isPending ? "Locking…" : `Lock period to ${formatDayLabel(lockTarget)}`}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        ) : null}
+
+        {/* Staff sign-off — ask staff to confirm their hours for this period before locking */}
+        <View style={[ui.card, styles.signoffCard]}>
+          <View style={styles.signoffHeader}>
+            <Text style={styles.sectionTitle}>Staff sign-off</Text>
+            {reviews.length > 0 ? (
+              <Pressable
+                style={({ pressed }) => [pressed ? styles.exportBtnPressed : null, requestReviewsMutation.isPending ? styles.exportBtnDisabled : null]}
+                onPress={() => void startRequestReviews()}
+                disabled={requestReviewsMutation.isPending}
+                accessibilityRole="button"
+                accessibilityLabel="Re-send review requests to staff still awaiting review"
+              >
+                <Text style={styles.resendText}>{requestReviewsMutation.isPending ? "Sending…" : "Re-send requests"}</Text>
+              </Pressable>
+            ) : null}
+          </View>
+
+          {reviewsQuery.isLoading ? <LoadingState inline /> : null}
+
+          {reviewsQuery.isSuccess && reviews.length === 0 ? (
+            <>
+              <Text style={styles.muted}>No reviews requested for this range yet.</Text>
+              <PrimaryButton
+                label={requestReviewsMutation.isPending ? "Sending…" : "Request staff reviews"}
+                icon="paper-plane-outline"
+                onPress={() => void startRequestReviews()}
+                disabled={!shopId || requestReviewsMutation.isPending}
+              />
+            </>
+          ) : null}
+
+          {reviews.map((review) => {
+            const badge =
+              review.status === "PendingStaff"
+                ? { label: "Awaiting staff", tone: "neutral" as const }
+                : review.status === "Confirmed"
+                  ? { label: "Confirmed", tone: "success" as const }
+                  : review.status === "Disputed"
+                    ? { label: "Issue raised", tone: "danger" as const }
+                    : { label: "Approved", tone: "success" as const };
+            const approvingThis = approveReviewMutation.isPending && approveReviewMutation.variables === review.id;
+            return (
+              <View key={review.id} style={styles.signoffRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.tdName} numberOfLines={1}>{review.userName}</Text>
+                  <Text style={styles.tdSub}>
+                    {review.totalHours.toFixed(1)}h
+                    {review.openSessions > 0 ? (
+                      <Text style={{ color: appTheme.colors.textWarningStrong }}> (+{review.openSessions} open)</Text>
+                    ) : null}
+                  </Text>
+                </View>
+                <StatusBadge label={badge.label} tone={badge.tone} />
+                {review.status === "PendingStaff" || review.status === "Confirmed" ? (
+                  <Pressable
+                    style={({ pressed }) => [styles.signoffActionBtn, pressed ? styles.exportBtnPressed : null, approveReviewMutation.isPending ? styles.exportBtnDisabled : null]}
+                    onPress={() => approveReviewMutation.mutate(review.id)}
+                    disabled={approveReviewMutation.isPending}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Approve ${review.userName}'s hours`}
+                  >
+                    <Text style={styles.signoffActionText}>{approvingThis ? "Approving…" : "Approve"}</Text>
+                  </Pressable>
+                ) : review.status === "Disputed" ? (
+                  <Pressable
+                    style={({ pressed }) => [styles.signoffActionBtn, pressed ? styles.exportBtnPressed : null]}
+                    onPress={() => openResolve(review)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Resolve ${review.userName}'s issue`}
+                  >
+                    <Text style={styles.signoffActionText}>Resolve</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            );
+          })}
+
+          {allReviewsApproved ? (
+            <View style={[styles.weekStatChip, styles.weekStatChipSuccess, styles.signoffDoneChip]}>
+              <Ionicons name="checkmark-circle-outline" size={13} color={appTheme.colors.success} />
+              <Text style={[styles.weekStatText, styles.weekStatTextSuccess]}>All staff approved — lock the period to finish.</Text>
+            </View>
+          ) : null}
         </View>
 
         {loading ? <LoadingState inline /> : null}
@@ -1366,7 +1923,7 @@ export function RotaTimesheetScreen() {
       </View>
 
       {/* Staff sessions drill-down */}
-      <Modal visible={selectedStaff !== null} transparent animationType="slide" onRequestClose={() => setSelectedStaff(null)}>
+      <Modal visible={selectedStaff !== null} transparent animationType="slide" onRequestClose={closeStaffModal}>
         <View style={styles.sheetBackdrop}>
           <View style={[styles.sheetCard, { maxHeight: "80%" }]}>
             <View style={styles.sheetHeader}>
@@ -1377,7 +1934,7 @@ export function RotaTimesheetScreen() {
                 <Text style={styles.modalTitleSm}>{selectedStaff?.name}</Text>
                 <Text style={styles.muted}>{dayLabel(range.from)} – {dayLabel(range.to)}</Text>
               </View>
-              <Pressable onPress={() => setSelectedStaff(null)} style={styles.editorHeaderBtn}>
+              <Pressable onPress={closeStaffModal} style={styles.editorHeaderBtn}>
                 <Ionicons name="close" size={22} color={appTheme.colors.text} />
               </Pressable>
             </View>
@@ -1387,17 +1944,58 @@ export function RotaTimesheetScreen() {
               <Text style={styles.muted}>No sessions in this range.</Text>
             ) : null}
 
-            <ScrollView contentContainerStyle={{ gap: 2 }}>
+            <ScrollView contentContainerStyle={{ gap: 2 }} keyboardShouldPersistTaps="handled">
               {(sessionsQuery.data ?? []).map((s) => (
-                <View key={s.id} style={styles.sessionRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.sessionDate}>{dayLabel(s.date)}</Text>
-                    <Text style={styles.muted} numberOfLines={1}>
-                      {s.shiftName ? `${s.shiftName} · ` : ""}{clockTime(s.checkInAt)} → {s.checkOutAt ? clockTime(s.checkOutAt) : "—"}
-                      {s.entryMethod === "Manual" ? (s.isApproved ? "  · manual" : "  · pending") : ""}
-                    </Text>
+                <View key={s.id}>
+                  <View style={styles.sessionRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.sessionDate}>{dayLabel(s.date)}</Text>
+                      <Text style={styles.muted} numberOfLines={1}>
+                        {s.shiftName ? `${s.shiftName} · ` : ""}{clockTime(s.checkInAt)} → {s.checkOutAt ? clockTime(s.checkOutAt) : "—"}
+                        {s.entryMethod === "Manual" ? (s.isApproved ? "  · manual" : "  · pending") : ""}
+                      </Text>
+                    </View>
+                    {s.checkOutAt ? (
+                      <Text style={styles.sessionHours}>{workedLabel(s.checkInAt, s.checkOutAt)}</Text>
+                    ) : (
+                      <Pressable
+                        style={({ pressed }) => [styles.endSessionBtn, pressed ? styles.exportBtnPressed : null]}
+                        onPress={() => (endingSession?.id === s.id ? setEndingSession(null) : startEndSession(s))}
+                        disabled={endSessionMutation.isPending}
+                        accessibilityRole="button"
+                        accessibilityLabel={`End the open session from ${dayLabel(s.date)}`}
+                      >
+                        <Ionicons name="log-out-outline" size={14} color={appTheme.colors.textWarningStrong} />
+                        <Text style={styles.endSessionBtnText}>End session</Text>
+                      </Pressable>
+                    )}
                   </View>
-                  <Text style={styles.sessionHours}>{s.checkOutAt ? workedLabel(s.checkInAt, s.checkOutAt) : "open"}</Text>
+                  {/* Inline check-out picker for a forgotten check-out. */}
+                  {endingSession?.id === s.id ? (
+                    <View style={styles.endSessionBox}>
+                      <Text style={styles.mutedSmall}>Checked in {clockTime(s.checkInAt)} — set when this session ended.</Text>
+                      <Text style={styles.fieldLabel}>Check out</Text>
+                      <DateTimeField mode="time" value={endOut} onChange={setEndOut} />
+                      {endOut === toHHmm(s.checkInAt) ? (
+                        <Text style={[styles.mutedSmall, { color: appTheme.colors.danger }]}>Check-in and check-out can’t be the same.</Text>
+                      ) : isOvernight(toHHmm(s.checkInAt), endOut) ? (
+                        <Text style={styles.mutedSmall}>Overnight — check-out is on the next day.</Text>
+                      ) : null}
+                      <View style={styles.row}>
+                        <View style={{ flex: 1 }}>
+                          <PrimaryButton size="sm" tone="neutral" label="Cancel" onPress={() => setEndingSession(null)} disabled={endSessionMutation.isPending} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <PrimaryButton
+                            size="sm"
+                            label={endSessionMutation.isPending ? "Closing…" : "Close session"}
+                            onPress={() => endSessionMutation.mutate()}
+                            disabled={endSessionMutation.isPending || !endOut || endOut === toHHmm(s.checkInAt)}
+                          />
+                        </View>
+                      </View>
+                    </View>
+                  ) : null}
                 </View>
               ))}
             </ScrollView>
@@ -1441,6 +2039,56 @@ export function RotaTimesheetScreen() {
                 </View>
               ))}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Resolve a disputed timesheet review */}
+      <Modal visible={resolveTarget !== null} transparent animationType="fade" onRequestClose={() => setResolveTarget(null)}>
+        <View style={styles.sheetBackdrop}>
+          <View style={styles.sheetCard}>
+            <View style={styles.sheetHeader}>
+              <View style={styles.sheetIcon}>
+                <Ionicons name="alert-circle-outline" size={22} color={appTheme.colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitleSm}>Resolve issue</Text>
+                <Text style={styles.muted} numberOfLines={1}>
+                  {resolveTarget ? `${resolveTarget.userName} · ${resolveTarget.totalHours.toFixed(1)}h` : ""}
+                </Text>
+              </View>
+            </View>
+
+            {resolveTarget?.staffNote ? <Text style={styles.noteQuote}>“{resolveTarget.staffNote}”</Text> : null}
+
+            <Text style={styles.fieldLabel}>Manager note (optional)</Text>
+            <TextInput
+              style={[styles.externalInput, styles.noteInput]}
+              value={resolveNote}
+              onChangeText={setResolveNote}
+              placeholder="e.g. Added the missing Saturday shift"
+              placeholderTextColor={appTheme.colors.textSubtle}
+              multiline
+              maxLength={500}
+            />
+
+            <View style={styles.noticeRow}>
+              <Ionicons name="information-circle-outline" size={15} color={appTheme.colors.textMuted} />
+              <Text style={styles.mutedSmall}>Adjust the actual times from the staff drill-down or Approvals screen before re-requesting.</Text>
+            </View>
+
+            <PrimaryButton
+              label={resolveReviewMutation.isPending && resolveReviewMutation.variables?.reRequestConfirmation ? "Sending…" : "Fixed — ask to re-confirm"}
+              onPress={() => resolveReviewMutation.mutate({ approved: true, reRequestConfirmation: true })}
+              disabled={resolveReviewMutation.isPending}
+            />
+            <PrimaryButton
+              label={resolveReviewMutation.isPending && resolveReviewMutation.variables && !resolveReviewMutation.variables.reRequestConfirmation ? "Approving…" : "Reject issue & approve"}
+              tone="danger"
+              onPress={() => resolveReviewMutation.mutate({ approved: false, reRequestConfirmation: false })}
+              disabled={resolveReviewMutation.isPending}
+            />
+            <PrimaryButton label="Cancel" tone="neutral" onPress={() => setResolveTarget(null)} disabled={resolveReviewMutation.isPending} />
           </View>
         </View>
       </Modal>
@@ -1509,6 +2157,47 @@ export function RotaApprovalsScreen() {
 
   const pending = pendingQuery.data ?? [];
 
+  // Total pending hours (entries without a check-out count as 0 and are flagged separately).
+  const pendingStats = useMemo(() => {
+    let minutes = 0;
+    let withoutCheckOut = 0;
+    for (const p of pending) {
+      if (p.checkOutAt) minutes += Math.max(0, (new Date(p.checkOutAt).getTime() - new Date(p.checkInAt).getTime()) / 60000);
+      else withoutCheckOut += 1;
+    }
+    return { hours: minutes / 60, withoutCheckOut };
+  }, [pending]);
+
+  const [approvingAll, setApprovingAll] = useState(false);
+  const approveAll = async () => {
+    const ok = await confirmDestructive({
+      title: "Approve all",
+      message: `Approve all ${pending.length} pending entries as submitted?`,
+      confirmLabel: "Approve all",
+    });
+    if (!ok) return;
+    setApprovingAll(true);
+    let failures = 0;
+    let firstError: unknown = null;
+    for (const p of pending) {
+      try {
+        await approveAttendance(p.id);
+      } catch (error) {
+        failures += 1;
+        if (firstError === null) firstError = error;
+      }
+    }
+    setApprovingAll(false);
+    if (failures > 0) {
+      toastError(getApiErrorMessage(firstError, `Couldn't approve ${failures} ${failures === 1 ? "entry" : "entries"}.`));
+    } else {
+      toastSuccess(`Approved ${pending.length} ${pending.length === 1 ? "entry" : "entries"}.`);
+    }
+    refresh();
+  };
+
+  const anyBusy = approvingAll || approveMutation.isPending || rejectMutation.isPending;
+
   return (
     <ScreenContainer
       refreshControl={
@@ -1522,6 +2211,24 @@ export function RotaApprovalsScreen() {
     >
       <View style={styles.content}>
         <Text style={styles.muted}>Manually entered times awaiting your approval.</Text>
+
+        {pending.length > 0 ? (
+          <View style={[ui.card, styles.pendingSummaryCard]}>
+            <Text style={styles.pendingSummaryText}>
+              {pending.length} {pending.length === 1 ? "entry" : "entries"} · {pendingStats.hours.toFixed(1)} hours pending
+              {pendingStats.withoutCheckOut > 0
+                ? ` · ${pendingStats.withoutCheckOut} without check-out (counted as 0)`
+                : ""}
+            </Text>
+            <PrimaryButton
+              label={approvingAll ? "Approving…" : "Approve all"}
+              tone="success"
+              icon="checkmark-done-outline"
+              onPress={() => void approveAll()}
+              disabled={anyBusy}
+            />
+          </View>
+        ) : null}
 
         {pendingQuery.isLoading ? <LoadingState inline /> : null}
         {!pendingQuery.isLoading && pending.length === 0 ? (
@@ -1589,17 +2296,17 @@ export function RotaApprovalsScreen() {
               <Text style={styles.submittedLine}>Submitted {dateTimeLabel(p.submittedOn)}</Text>
 
               <View style={styles.approvalActions}>
-                <Pressable style={styles.rejectBtn} onPress={() => confirmReject(p)} disabled={rejectMutation.isPending}>
+                <Pressable style={styles.rejectBtn} onPress={() => confirmReject(p)} disabled={anyBusy}>
                   <Ionicons name="close" size={16} color={appTheme.colors.danger} />
                   <Text style={styles.rejectBtnText}>Reject</Text>
                 </Pressable>
-                <Pressable style={styles.adjustBtn} onPress={() => openAdjust(p)}>
+                <Pressable style={styles.adjustBtn} onPress={() => openAdjust(p)} disabled={anyBusy}>
                   <Ionicons name="create-outline" size={16} color={appTheme.colors.primary} />
                   <Text style={styles.adjustBtnText}>Adjust</Text>
                 </Pressable>
-                <Pressable style={styles.approveBtnFlex} onPress={() => approveMutation.mutate(p.id)} disabled={approveMutation.isPending}>
+                <Pressable style={styles.approveBtnFlex} onPress={() => approveMutation.mutate(p.id)} disabled={anyBusy}>
                   <Ionicons name="checkmark" size={16} color={appTheme.colors.onPrimary} />
-                  <Text style={styles.actBtnText}>{approveMutation.isPending ? "Approving…" : "Approve"}</Text>
+                  <Text style={styles.actBtnText}>{approveMutation.isPending || approvingAll ? "Approving…" : "Approve"}</Text>
                 </Pressable>
               </View>
             </View>
@@ -2004,7 +2711,45 @@ const styles = StyleSheet.create({
   noteQuote: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 13, fontStyle: "italic" },
   submittedLine: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.body, fontSize: 11 },
   approveBtnWide: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 999, backgroundColor: appTheme.colors.success },
+  segmentRow: { flexDirection: "row", alignItems: "stretch", gap: 8 },
   segment: { flexDirection: "row", backgroundColor: appTheme.colors.surfaceMuted, borderRadius: appTheme.radius.md, padding: 3 },
+  exportBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    borderRadius: appTheme.radius.md,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surface,
+  },
+  exportBtnPressed: { opacity: 0.6 },
+  exportBtnDisabled: { opacity: 0.45 },
+  exportBtnText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
+  // Payroll-readiness chips above the timesheet table (mirrors the week-stats chips).
+  readinessRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  // Inline "close a forgotten check-out" editor inside the staff sessions drill-down.
+  endSessionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surfaceWarningSoft,
+  },
+  endSessionBtnText: { color: appTheme.colors.textWarningStrong, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
+  endSessionBox: {
+    gap: appTheme.spacing.xs,
+    padding: 10,
+    marginBottom: 6,
+    borderRadius: appTheme.radius.md,
+    backgroundColor: appTheme.colors.surfaceMuted,
+  },
+  // Approvals summary (count + total pending hours + bulk approve).
+  pendingSummaryCard: { gap: appTheme.spacing.sm },
+  pendingSummaryText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 19 },
   segmentBtn: { flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: appTheme.radius.sm },
   segmentBtnActive: { backgroundColor: appTheme.colors.surface, borderWidth: 1, borderColor: appTheme.colors.border },
   segmentText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
@@ -2115,6 +2860,31 @@ const styles = StyleSheet.create({
   userAvatarOn: { backgroundColor: appTheme.colors.surfaceBrandSoft },
   userAvatarText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   userName: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 15 },
+
+  // Timesheet review card on My Shifts (staff sign-off of a period).
+  reviewCard: { gap: appTheme.spacing.sm },
+  reviewCardHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
+  reviewRow: { gap: 8, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
+  reviewRowTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 },
+  reviewPeriod: { flexShrink: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 19 },
+  reviewGhostBtn: { justifyContent: "center" },
+  // Multiline note input (dispute / resolve modals).
+  noteInput: { minHeight: 84, paddingTop: 10, textAlignVertical: "top" },
+  // Staff sign-off section on the manager timesheet.
+  signoffCard: { gap: appTheme.spacing.sm },
+  signoffHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  signoffRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
+  signoffActionBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: appTheme.radius.pill,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surface,
+  },
+  signoffActionText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
+  signoffDoneChip: { alignSelf: "flex-start" },
+  resendText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
 
   tHead: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingBottom: 8 },
   tRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
