@@ -1062,6 +1062,12 @@ public class RotaService : IRotaService
             return await RecordMemberAttendanceAsync(request, memberId, cancellationToken);
         }
 
+        // A manager recording hours for another internal user (auto-approved, manager-authoritative).
+        if (request.UserId is Guid targetUserId && targetUserId != CurrentUserId)
+        {
+            return await RecordUserAttendanceAsync(request, targetUserId, cancellationToken);
+        }
+
         await EnsureStaffAsync(request.ShopId, cancellationToken, FeatureKeys.StaffRotaManualApproval);
         var userId = CurrentUserId;
         await EnsureAttendanceNotLockedAsync(request.ShopId, request.CheckInAt, cancellationToken);
@@ -1181,6 +1187,70 @@ public class RotaService : IRotaService
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return MapAttendance(attendance, member.Name);
+    }
+
+    // Manager records (or edits) worked hours for another internal user. Manager-authoritative, so it's
+    // saved already-approved (no self-entry approval needed).
+    private async Task<ShiftAttendanceDto> RecordUserAttendanceAsync(ManualAttendanceRequest request, Guid targetUserId, CancellationToken cancellationToken)
+    {
+        await EnsureManageAsync(request.ShopId, cancellationToken, FeatureKeys.StaffRotaManualApproval);
+        var target = await _shopUserRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == request.ShopId && x.UserId == targetUserId && x.IsActive)
+            .Select(x => new { x.User.FirstName, x.User.LastName })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new AppException("rota_staff_not_found", "Staff member not found.", 404);
+        await EnsureAttendanceNotLockedAsync(request.ShopId, request.CheckInAt, cancellationToken);
+
+        var now = DateTimeOffset.UtcNow;
+        var businessDayId = request.RotaShiftId is Guid shiftId
+            ? await _shiftRepository.Query().Where(x => x.Id == shiftId).Select(x => x.BusinessDayId).FirstOrDefaultAsync(cancellationToken)
+            : null;
+
+        ShiftAttendance? attendance = null;
+        if (request.RotaShiftId is Guid sid)
+        {
+            attendance = await _attendanceRepository.Query()
+                .Where(x => x.ShopId == request.ShopId && x.UserId == targetUserId && x.RotaShiftId == sid)
+                .OrderByDescending(x => x.CheckInAt)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+        if (attendance is not null)
+        {
+            // The record being overwritten must not sit inside the payroll lock either.
+            await EnsureAttendanceNotLockedAsync(request.ShopId, attendance.CheckInAt, cancellationToken);
+        }
+
+        if (attendance is null)
+        {
+            attendance = new ShiftAttendance
+            {
+                ShopId = request.ShopId,
+                UserId = targetUserId,
+                RotaShiftId = request.RotaShiftId,
+                BusinessDayId = businessDayId,
+                CreatedOn = now,
+                CreatedBy = _currentUserService.UserId,
+            };
+            await _attendanceRepository.AddAsync(attendance, cancellationToken);
+        }
+        else
+        {
+            attendance.ModifiedOn = now;
+            attendance.ModifiedBy = _currentUserService.UserId;
+            _attendanceRepository.Update(attendance);
+        }
+
+        attendance.CheckInAt = request.CheckInAt;
+        attendance.CheckOutAt = request.CheckOutAt;
+        attendance.Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
+        attendance.EntryMethod = AttendanceEntryMethod.Manual;
+        attendance.IsApproved = true; // manager-recorded — authoritative
+        attendance.ApprovedByUserId = _currentUserService.UserId;
+        attendance.ApprovedOn = now;
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return MapAttendance(attendance, $"{target.FirstName} {target.LastName}".Trim());
     }
 
     // Push the shop's managers/owners that a staff member submitted manual times for approval.

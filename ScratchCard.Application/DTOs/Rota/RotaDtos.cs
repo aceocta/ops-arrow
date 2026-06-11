@@ -99,6 +99,8 @@ public class ManualAttendanceRequest
     public Guid? RotaShiftId { get; set; }
     // When set, a manager is recording hours for a roster-only member (instead of the current user).
     public Guid? RotaStaffMemberId { get; set; }
+    // When set (and not the current user), a manager is recording hours for another internal user.
+    public Guid? UserId { get; set; }
     public DateTimeOffset CheckInAt { get; set; }
     public DateTimeOffset? CheckOutAt { get; set; }
     public string? Notes { get; set; }

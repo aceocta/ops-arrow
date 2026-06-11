@@ -4,7 +4,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { apiErrorMessage } from "../../lib/api";
 import { rotaApi, sessionIsos, shortTime, type AttendanceApprovalRow } from "../../lib/rota";
 import { confirmDialog, toast } from "../../components/feedback";
-import { Check, X, Pencil, CheckCircle2 } from "lucide-react";
+import { Check, CheckCheck, X, Pencil, CheckCircle2 } from "lucide-react";
 
 function clock(iso?: string | null) {
   return iso ? new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "—";
@@ -39,12 +39,65 @@ export default function ApprovalsPage() {
 
   const rows = q.data ?? [];
 
+  // Summary: total pending hours (entries without a check-out contribute 0 and are flagged).
+  const pendingHours = rows.reduce(
+    (s, r) => (r.checkOutAt ? s + Math.max(0, (new Date(r.checkOutAt).getTime() - new Date(r.checkInAt).getTime()) / 3_600_000) : s),
+    0,
+  );
+  const noCheckout = rows.filter((r) => !r.checkOutAt).length;
+
+  const [bulkRunning, setBulkRunning] = useState(false);
+  const approveAll = async () => {
+    if (
+      !(await confirmDialog({
+        title: "Approve all?",
+        message: `Approve all ${rows.length} pending entries as submitted?`,
+        confirmLabel: "Approve all",
+        tone: "primary",
+      }))
+    )
+      return;
+    setBulkRunning(true);
+    let ok = 0;
+    let firstError: unknown = null;
+    for (const r of rows) {
+      try {
+        await rotaApi.approve(r.id);
+        ok += 1;
+      } catch (e) {
+        if (firstError == null) firstError = e;
+      }
+    }
+    setBulkRunning(false);
+    if (ok > 0) toast(`Approved ${ok} entr${ok === 1 ? "y" : "ies"}.`, "success");
+    if (firstError != null) toast(apiErrorMessage(firstError), "error");
+    refresh();
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Time Approvals</h1>
         <p className="text-sm text-slate-500">Manually entered times awaiting your approval</p>
       </div>
+
+      {rows.length > 0 ? (
+        <div className="card flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+          <div className="text-sm text-slate-700">
+            <span className="font-semibold text-slate-900">{rows.length} entr{rows.length === 1 ? "y" : "ies"}</span>
+            <span className="text-slate-400"> · </span>
+            {pendingHours.toFixed(1)}h pending
+            {noCheckout > 0 ? <span className="text-amber-600"> · {noCheckout} without check-out</span> : null}
+          </div>
+          <button
+            className="btn-primary bg-emerald-600 hover:bg-emerald-700"
+            disabled={bulkRunning || approveM.isPending || rejectM.isPending}
+            onClick={approveAll}
+          >
+            <CheckCheck className="h-4 w-4" /> {bulkRunning ? "Approving…" : "Approve all"}
+          </button>
+        </div>
+      ) : null}
 
       {q.isLoading ? <div className="card p-6 text-sm text-slate-500">Loading…</div> : null}
       {!q.isLoading && rows.length === 0 ? (
@@ -75,13 +128,13 @@ export default function ApprovalsPage() {
             <div className="mt-1 text-xs text-slate-400">Submitted {dateTime(r.submittedOn)}</div>
 
             <div className="mt-4 flex gap-2">
-              <button className="btn border border-red-200 text-red-600 hover:bg-red-50" onClick={async () => { if (await confirmDialog({ title: "Reject times?", message: `Reject ${r.userName}'s manually entered times?`, confirmLabel: "Reject" })) rejectM.mutate(r.id); }}>
+              <button className="btn border border-red-200 text-red-600 hover:bg-red-50" disabled={bulkRunning} onClick={async () => { if (await confirmDialog({ title: "Reject times?", message: `Reject ${r.userName}'s manually entered times?`, confirmLabel: "Reject" })) rejectM.mutate(r.id); }}>
                 <X className="h-4 w-4" /> Reject
               </button>
-              <button className="btn-ghost" onClick={() => setEditing(r)}>
+              <button className="btn-ghost" disabled={bulkRunning} onClick={() => setEditing(r)}>
                 <Pencil className="h-4 w-4" /> Adjust
               </button>
-              <button className="btn-primary ml-auto bg-emerald-600 hover:bg-emerald-700" onClick={() => approveM.mutate(r.id)} disabled={approveM.isPending}>
+              <button className="btn-primary ml-auto bg-emerald-600 hover:bg-emerald-700" onClick={() => approveM.mutate(r.id)} disabled={approveM.isPending || bulkRunning}>
                 <Check className="h-4 w-4" /> Approve
               </button>
             </div>

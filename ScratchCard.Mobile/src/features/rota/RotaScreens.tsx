@@ -732,7 +732,7 @@ export function RotaManageScreen() {
   const [extPhone, setExtPhone] = useState("+44 ");
   const [extEmail, setExtEmail] = useState("");
   const [selectedAssignee, setSelectedAssignee] = useState<{ assignee: RotaAssignee; shift: RotaShift } | null>(null);
-  const [recordTarget, setRecordTarget] = useState<{ shift: RotaShift; name: string; memberId: string } | null>(null);
+  const [recordTarget, setRecordTarget] = useState<{ shift: RotaShift; name: string; memberId?: string | null; userId?: string | null } | null>(null);
   const [recIn, setRecIn] = useState("09:00");
   const [recOut, setRecOut] = useState("17:00");
 
@@ -827,10 +827,10 @@ export function RotaManageScreen() {
     onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't add the person."),
   });
 
-  const openRecordHours = (shift: RotaShift, assignee: { name: string; rotaStaffMemberId?: string | null }) => {
+  const openRecordHours = (shift: RotaShift, assignee: { name: string; rotaStaffMemberId?: string | null; userId?: string | null }) => {
     setRecIn(shortTime(shift.startTime));
     setRecOut(shortTime(shift.endTime));
-    setRecordTarget({ shift, name: assignee.name, memberId: assignee.rotaStaffMemberId as string });
+    setRecordTarget({ shift, name: assignee.name, memberId: assignee.rotaStaffMemberId, userId: assignee.userId });
   };
 
   const recordHoursMutation = useMutation({
@@ -839,7 +839,9 @@ export function RotaManageScreen() {
       return saveManualAttendance({
         shopId: shopId as string,
         rotaShiftId: recordTarget!.shift.id,
-        rotaStaffMemberId: recordTarget!.memberId,
+        // External (roster-only) people are addressed by member id; internal staff by user id.
+        rotaStaffMemberId: recordTarget!.memberId ?? undefined,
+        userId: recordTarget!.memberId ? undefined : recordTarget!.userId ?? undefined,
         checkInAt,
         checkOutAt,
       });
@@ -1372,16 +1374,14 @@ export function RotaManageScreen() {
               <Text style={styles.muted}>No contact details on file.</Text>
             ) : null}
 
-            {selectedAssignee?.assignee.isExternal ? (
-              <PrimaryButton
-                label="Record hours"
-                onPress={() => {
-                  const sel = selectedAssignee;
-                  setSelectedAssignee(null);
-                  if (sel) openRecordHours(sel.shift, sel.assignee);
-                }}
-              />
-            ) : null}
+            <PrimaryButton
+              label="Record hours"
+              onPress={() => {
+                const sel = selectedAssignee;
+                setSelectedAssignee(null);
+                if (sel) openRecordHours(sel.shift, sel.assignee);
+              }}
+            />
             <PrimaryButton label="Close" tone="neutral" onPress={() => setSelectedAssignee(null)} />
           </View>
         </View>
@@ -1435,7 +1435,7 @@ export function RotaManageScreen() {
         </View>
       </Modal>
 
-      {/* Record hours for an external (roster-only) person */}
+      {/* Record hours for an assignee — external (roster-only) people or internal staff */}
       <Modal visible={recordTarget !== null} transparent animationType="fade" onRequestClose={() => setRecordTarget(null)}>
         <View style={styles.sheetBackdrop}>
           <View style={styles.sheetCard}>
@@ -1443,6 +1443,9 @@ export function RotaManageScreen() {
             <Text style={styles.muted} numberOfLines={1}>
               {recordTarget?.name} · {recordTarget ? `${recordTarget.shift.shiftName || "Shift"} · ${dayLabel(recordTarget.shift.shiftDate)}` : ""}
             </Text>
+            {recordTarget && !recordTarget.memberId ? (
+              <Text style={styles.mutedSmall}>Recorded by a manager — saved as approved.</Text>
+            ) : null}
             <View style={styles.row}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.fieldLabel}>Check in</Text>
@@ -1494,6 +1497,10 @@ export function RotaTimesheetScreen() {
   // Open session being closed from the drill-down (inline expansion in the sessions list).
   const [endingSession, setEndingSession] = useState<TimesheetSession | null>(null);
   const [endOut, setEndOut] = useState("17:00");
+  // Completed session whose times are being corrected (inline expansion, same pattern as End session).
+  const [editingSession, setEditingSession] = useState<TimesheetSession | null>(null);
+  const [editIn, setEditIn] = useState("09:00");
+  const [editOut, setEditOut] = useState("17:00");
   // Disputed review being resolved (opens the resolve modal with the staff member's note).
   const [resolveTarget, setResolveTarget] = useState<RotaTimesheetReview | null>(null);
   const [resolveNote, setResolveNote] = useState("");
@@ -1665,11 +1672,41 @@ export function RotaTimesheetScreen() {
 
   const startEndSession = (s: TimesheetSession) => {
     setEndOut(toHHmm(new Date().toISOString()));
+    setEditingSession(null);
     setEndingSession(s);
+  };
+
+  // Correct a completed session's times from the staff drill-down (manager-authoritative;
+  // updateAttendance also approves the entry).
+  const editSessionMutation = useMutation({
+    mutationFn: () => {
+      const s = editingSession!;
+      const { checkInAt, checkOutAt } = sessionIsos(s.date, editIn, editOut);
+      return updateAttendance(s.id, { checkInAt, checkOutAt });
+    },
+    onSuccess: () => {
+      setEditingSession(null);
+      toastSuccess("Times updated.");
+      void sessionsQuery.refetch();
+      void queryClient.invalidateQueries({ queryKey: ["rota-timesheet", shopId] });
+      void queryClient.invalidateQueries({ queryKey: ["rota-timesheet-by-shift", shopId] });
+      void queryClient.invalidateQueries({ queryKey: ["rota-pending", shopId] });
+      // Edited hours change staff sign-off totals, so refresh the reviews too.
+      void queryClient.invalidateQueries({ queryKey: ["rota-reviews", shopId] });
+    },
+    onError: (error: unknown) => toastError(getApiErrorMessage(error, "Couldn't update the times.")),
+  });
+
+  const startEditSession = (s: TimesheetSession) => {
+    setEndingSession(null);
+    setEditIn(toHHmm(s.checkInAt));
+    setEditOut(s.checkOutAt ? toHHmm(s.checkOutAt) : "17:00");
+    setEditingSession(s);
   };
   const closeStaffModal = () => {
     setSelectedStaff(null);
     setEndingSession(null);
+    setEditingSession(null);
   };
 
   // Build a CSV of the current view and hand it to the system share sheet.
@@ -2017,7 +2054,19 @@ export function RotaTimesheetScreen() {
                       </Text>
                     </View>
                     {s.checkOutAt ? (
-                      <Text style={styles.sessionHours}>{workedLabel(s.checkInAt, s.checkOutAt)}</Text>
+                      <View style={{ alignItems: "flex-end", gap: 4 }}>
+                        <Text style={styles.sessionHours}>{workedLabel(s.checkInAt, s.checkOutAt)}</Text>
+                        <Pressable
+                          style={({ pressed }) => [styles.editTimesBtn, pressed ? styles.exportBtnPressed : null]}
+                          onPress={() => (editingSession?.id === s.id ? setEditingSession(null) : startEditSession(s))}
+                          disabled={editSessionMutation.isPending}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Edit the times for ${dayLabel(s.date)}`}
+                        >
+                          <Ionicons name="create-outline" size={14} color={appTheme.colors.primary} />
+                          <Text style={styles.editTimesBtnText}>Edit times</Text>
+                        </Pressable>
+                      </View>
                     ) : (
                       <Pressable
                         style={({ pressed }) => [styles.endSessionBtn, pressed ? styles.exportBtnPressed : null]}
@@ -2031,6 +2080,40 @@ export function RotaTimesheetScreen() {
                       </Pressable>
                     )}
                   </View>
+                  {/* Inline time editor for a completed session (manager correction). */}
+                  {editingSession?.id === s.id ? (
+                    <View style={styles.endSessionBox}>
+                      <Text style={styles.mutedSmall}>Correct this session’s times — saved as approved.</Text>
+                      <View style={styles.row}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.fieldLabel}>Check in</Text>
+                          <DateTimeField mode="time" value={editIn} onChange={setEditIn} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.fieldLabel}>Check out</Text>
+                          <DateTimeField mode="time" value={editOut} onChange={setEditOut} />
+                        </View>
+                      </View>
+                      {editIn && editOut && editOut === editIn ? (
+                        <Text style={[styles.mutedSmall, { color: appTheme.colors.danger }]}>Check-in and check-out can’t be the same.</Text>
+                      ) : editIn && editOut && isOvernight(editIn, editOut) ? (
+                        <Text style={styles.mutedSmall}>Overnight — check-out is on the next day.</Text>
+                      ) : null}
+                      <View style={styles.row}>
+                        <View style={{ flex: 1 }}>
+                          <PrimaryButton size="sm" tone="neutral" label="Cancel" onPress={() => setEditingSession(null)} disabled={editSessionMutation.isPending} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <PrimaryButton
+                            size="sm"
+                            label={editSessionMutation.isPending ? "Saving…" : "Save times"}
+                            onPress={() => editSessionMutation.mutate()}
+                            disabled={editSessionMutation.isPending || !editIn || !editOut || editOut === editIn}
+                          />
+                        </View>
+                      </View>
+                    </View>
+                  ) : null}
                   {/* Inline check-out picker for a forgotten check-out. */}
                   {endingSession?.id === s.id ? (
                     <View style={styles.endSessionBox}>
@@ -2135,7 +2218,7 @@ export function RotaTimesheetScreen() {
 
             <View style={styles.noticeRow}>
               <Ionicons name="information-circle-outline" size={15} color={appTheme.colors.textMuted} />
-              <Text style={styles.mutedSmall}>Adjust the actual times from the staff drill-down or Approvals screen before re-requesting.</Text>
+              <Text style={styles.mutedSmall}>Fix the times from this person’s row in the timesheet list below, then re-request confirmation.</Text>
             </View>
 
             <PrimaryButton
@@ -2801,6 +2884,16 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.surfaceWarningSoft,
   },
   endSessionBtnText: { color: appTheme.colors.textWarningStrong, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
+  editTimesBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surfaceInfoSoft,
+  },
+  editTimesBtnText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
   endSessionBox: {
     gap: appTheme.spacing.xs,
     padding: 10,

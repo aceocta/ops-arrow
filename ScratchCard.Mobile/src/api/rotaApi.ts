@@ -135,6 +135,7 @@ export type ManualAttendancePayload = {
   shopId: string;
   rotaShiftId?: string;
   rotaStaffMemberId?: string; // set when a manager records hours for a roster-only member
+  userId?: string; // set when a manager records hours for another internal user
   checkInAt: string; // ISO
   checkOutAt?: string; // ISO
   notes?: string;

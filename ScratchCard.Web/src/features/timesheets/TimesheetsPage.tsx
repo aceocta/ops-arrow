@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
-import { rotaApi, fmtDate, shortTime, sessionIsos, type TimesheetRow, type TimesheetReviewRow, type TimesheetReviewStatus } from "../../lib/rota";
+import { Link } from "react-router-dom";
+import { rotaApi, fmtDate, shortTime, sessionIsos, type TimesheetRow, type TimesheetReviewRow, type TimesheetReviewStatus, type TimesheetSession } from "../../lib/rota";
 import { downloadCsv } from "../../lib/csv";
 import { apiErrorMessage } from "../../lib/api";
 import { confirmDialog, toast } from "../../components/feedback";
@@ -85,6 +86,19 @@ export default function TimesheetsPage() {
   }, [view, staffQ.data, shiftQ.data]);
 
   const loading = view === "staff" ? staffQ.isLoading : shiftQ.isLoading;
+
+  // Pending manual approvals — same endpoint/key the nav badge uses, narrowed to the selected range.
+  const pendingApprovalsQ = useQuery({
+    queryKey: ["rota-pending", shopId],
+    queryFn: () => rotaApi.pendingApprovals(shopId),
+    enabled: !!shopId && canRecord,
+  });
+  const pendingApprovalCount = useMemo(() => {
+    return (pendingApprovalsQ.data ?? []).filter((r) => {
+      const d = r.shiftDate ?? (r.checkInAt ? fmtDate(new Date(r.checkInAt)) : null);
+      return !d || (d >= range.from && d <= range.to);
+    }).length;
+  }, [pendingApprovalsQ.data, range.from, range.to]);
 
   const exportCsv = () => {
     if (view === "staff") {
@@ -183,6 +197,14 @@ export default function TimesheetsPage() {
       {!loading && openTotal > 0 ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
           {openTotal} open session{openTotal === 1 ? "" : "s"} — hours missing from totals.
+        </div>
+      ) : null}
+
+      {pendingApprovalCount > 0 ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+          <Link to="/approvals" className="font-medium underline hover:text-amber-900">
+            {pendingApprovalCount} manual {pendingApprovalCount === 1 ? "entry" : "entries"} awaiting approval
+          </Link>
         </div>
       ) : null}
 
@@ -295,7 +317,7 @@ export default function TimesheetsPage() {
       )}
 
       {selected ? (
-        <StaffSessions shopId={shopId} row={selected.row} from={range.from} to={range.to} onClose={() => setSelected(null)} />
+        <StaffSessions shopId={shopId} row={selected.row} from={range.from} to={range.to} canManage={canManage} onClose={() => setSelected(null)} />
       ) : null}
 
       {recordOpen ? <RecordHoursModal shopId={shopId} onClose={() => setRecordOpen(false)} /> : null}
@@ -627,17 +649,40 @@ function StaffSessions({
   row,
   from,
   to,
+  canManage,
   onClose,
 }: {
   shopId: string;
   row: TimesheetRow;
   from: string;
   to: string;
+  canManage: boolean;
   onClose: () => void;
 }) {
+  const qc = useQueryClient();
   const q = useQuery({
     queryKey: ["ts-sessions", shopId, row.userId, row.rotaStaffMemberId, from, to],
     queryFn: () => rotaApi.staffSessions(shopId, { userId: row.userId, rotaStaffMemberId: row.rotaStaffMemberId }, from, to),
+  });
+
+  // Per-row chosen end time for open sessions, defaulting to "now".
+  const [defaultEnd] = useState(() => new Date().toTimeString().slice(0, 5));
+  const [endTimes, setEndTimes] = useState<Record<string, string>>({});
+
+  const endM = useMutation({
+    mutationFn: ({ s, time }: { s: TimesheetSession; time: string }) => {
+      // Check-out on the session's date at the chosen time; at/before check-in means overnight → next day.
+      let out = new Date(`${s.date}T${time}:00`);
+      if (out.getTime() <= new Date(s.checkInAt).getTime()) out = new Date(out.getTime() + 24 * 60 * 60 * 1000);
+      return rotaApi.adjust(s.id, { checkInAt: s.checkInAt, checkOutAt: out.toISOString() });
+    },
+    onSuccess: () => {
+      toast("Session ended.", "success");
+      q.refetch();
+      qc.invalidateQueries({ queryKey: ["ts-staff"] });
+      qc.invalidateQueries({ queryKey: ["ts-shift"] });
+    },
+    onError: (e) => toast(apiErrorMessage(e), "error"),
   });
 
   return (
@@ -662,7 +707,27 @@ function StaffSessions({
                   {s.entryMethod === "Manual" ? (s.isApproved ? "  · manual" : "  · pending") : ""}
                 </div>
               </div>
-              <div className="text-sm font-semibold text-slate-800">{s.checkOutAt ? hm(s.hours) : "open"}</div>
+              {s.checkOutAt ? (
+                <div className="text-sm font-semibold text-slate-800">{hm(s.hours)}</div>
+              ) : canManage ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="time"
+                    className="input w-auto py-1 text-sm"
+                    value={endTimes[s.id] ?? defaultEnd}
+                    onChange={(e) => setEndTimes((m) => ({ ...m, [s.id]: e.target.value }))}
+                  />
+                  <button
+                    className="btn border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                    disabled={endM.isPending}
+                    onClick={() => endM.mutate({ s, time: endTimes[s.id] ?? defaultEnd })}
+                  >
+                    <Check className="h-4 w-4" /> End session
+                  </button>
+                </div>
+              ) : (
+                <div className="text-sm font-semibold text-slate-800">open</div>
+              )}
             </div>
           ))}
         </div>
