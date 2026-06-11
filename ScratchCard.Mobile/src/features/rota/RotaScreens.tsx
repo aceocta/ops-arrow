@@ -415,9 +415,9 @@ export function MyShiftsScreen() {
                   </View>
                 ) : null}
                 {myAssignment?.reason ? (
-                  <View style={styles.infoChip}>
-                    <Ionicons name="pricetag-outline" size={13} color={appTheme.colors.textMuted} />
-                    <Text style={styles.infoChipText}>{myAssignment.reason}</Text>
+                  <View style={[styles.infoChip, styles.infoChipReason]}>
+                    <Ionicons name="pricetag-outline" size={13} color={appTheme.colors.textInfoStrong} />
+                    <Text style={[styles.infoChipText, styles.infoChipReasonText]}>{myAssignment.reason}</Text>
                   </View>
                 ) : null}
               </View>
@@ -543,7 +543,7 @@ export function MyShiftsScreen() {
                             <View style={{ flex: 1 }}>
                               <Text style={styles.sessionDate}>{dayLabel(s.date)} · {s.shiftName ?? "Shift"}</Text>
                               <Text style={styles.muted} numberOfLines={1}>
-                                {s.reason ? `${s.reason} · ` : ""}{clockTime(s.checkInAt)} → {s.checkOutAt ? clockTime(s.checkOutAt) : "—"}
+                                {s.reason ? <Text style={styles.reasonText}>{`${s.reason} · `}</Text> : ""}{clockTime(s.checkInAt)} → {s.checkOutAt ? clockTime(s.checkOutAt) : "—"}
                                 {s.entryMethod === "Manual" && !s.isApproved ? "  · manual · pending" : ""}
                               </Text>
                             </View>
@@ -1422,14 +1422,14 @@ export function RotaManageScreen() {
                               <Text style={styles.userName} numberOfLines={1}>{u.name}</Text>
                               <Text style={styles.muted}>{u.isExternal ? "External" : u.role}</Text>
                               <Pressable
-                                style={({ pressed }) => [styles.reasonChip, pressed ? styles.userRowPressed : null]}
+                                style={({ pressed }) => [styles.reasonChip, !isRegular ? styles.reasonChipInfo : null, pressed ? styles.userRowPressed : null]}
                                 onPress={() => setExpandedReasonKey(reasonExpanded ? null : metaKey)}
                                 accessibilityRole="button"
                                 accessibilityLabel={`Change ${u.name}'s assignment reason, currently ${meta.reason.trim() || REGULAR_REASON}`}
                               >
-                                <Ionicons name="pricetag-outline" size={11} color={appTheme.colors.textMuted} />
-                                <Text style={styles.reasonChipText} numberOfLines={1}>{meta.reason.trim() || "Other…"}</Text>
-                                <Ionicons name={reasonExpanded ? "chevron-up" : "chevron-down"} size={11} color={appTheme.colors.textMuted} />
+                                <Ionicons name="pricetag-outline" size={11} color={isRegular ? appTheme.colors.textMuted : appTheme.colors.textInfoStrong} />
+                                <Text style={[styles.reasonChipText, !isRegular ? styles.reasonChipTextInfo : null]} numberOfLines={1}>{meta.reason.trim() || "Other…"}</Text>
+                                <Ionicons name={reasonExpanded ? "chevron-up" : "chevron-down"} size={11} color={isRegular ? appTheme.colors.textMuted : appTheme.colors.textInfoStrong} />
                               </Pressable>
                             </View>
                             <Ionicons name="checkmark-circle" size={24} color={appTheme.colors.success} />
@@ -2232,7 +2232,7 @@ export function RotaTimesheetScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.tdName, styles.tdLink]} numberOfLines={1}>{row.userName}</Text>
                       {row.reasons?.length ? (
-                        <Text style={styles.tdSub} numberOfLines={1}>{row.reasons.join(" · ")}</Text>
+                        <Text style={[styles.tdSub, styles.reasonText]} numberOfLines={1}>{row.reasons.join(" · ")}</Text>
                       ) : null}
                     </View>
                     <Text style={styles.tdNum}>{row.shiftsWorked}{row.openSessions > 0 ? ` (+${row.openSessions})` : ""}</Text>
@@ -2249,7 +2249,7 @@ export function RotaTimesheetScreen() {
                       <Text style={[styles.tdName, styles.tdLink]} numberOfLines={1}>{row.shiftName}</Text>
                       <Text style={styles.tdSub}>
                         {dayLabel(row.date)}{row.startTime ? ` · ${timeRange(row.startTime, row.endTime)}` : ""}
-                        {row.reasons?.length ? ` · ${row.reasons.join(" · ")}` : ""}
+                        {row.reasons?.length ? <Text style={styles.reasonText}>{` · ${row.reasons.join(" · ")}`}</Text> : ""}
                       </Text>
                     </View>
                     <Text style={styles.tdNum}>{row.staffCount}</Text>
@@ -2299,7 +2299,7 @@ export function RotaTimesheetScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={styles.sessionDate}>{dayLabel(s.date)}</Text>
                       <Text style={styles.muted} numberOfLines={1}>
-                        {s.shiftName ? `${s.shiftName} · ` : ""}{s.reason ? `${s.reason} · ` : ""}{clockTime(s.checkInAt)} → {s.checkOutAt ? clockTime(s.checkOutAt) : "—"}
+                        {s.shiftName ? `${s.shiftName} · ` : ""}{s.reason ? <Text style={styles.reasonText}>{`${s.reason} · `}</Text> : ""}{clockTime(s.checkInAt)} → {s.checkOutAt ? clockTime(s.checkOutAt) : "—"}
                         {s.entryMethod === "Manual" ? (s.isApproved ? "  · manual" : "  · pending") : ""}
                       </Text>
                     </View>
@@ -2425,7 +2425,7 @@ export function RotaTimesheetScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.sessionDate}>{s.userName}</Text>
                     <Text style={styles.muted} numberOfLines={1}>
-                      {s.reason ? `${s.reason} · ` : ""}{clockTime(s.checkInAt)} → {s.checkOutAt ? clockTime(s.checkOutAt) : "—"}
+                      {s.reason ? <Text style={styles.reasonText}>{`${s.reason} · `}</Text> : ""}{clockTime(s.checkInAt)} → {s.checkOutAt ? clockTime(s.checkOutAt) : "—"}
                       {s.entryMethod === "Manual" ? (s.isApproved ? "  · manual" : "  · pending") : ""}
                     </Text>
                   </View>
@@ -3083,10 +3083,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 1,
     borderRadius: appTheme.radius.pill,
-    backgroundColor: appTheme.colors.surfaceMuted,
+    backgroundColor: appTheme.colors.surfaceInfoSoft,
     maxWidth: 120,
   },
-  reasonTagText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 10, lineHeight: 14 },
+  reasonTagText: { color: appTheme.colors.textInfoStrong, fontFamily: appTheme.fonts.bodyMedium, fontSize: 10, lineHeight: 14 },
   rotaActionCol: { width: 28, alignItems: "flex-end" },
   weekShiftRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
   weekShiftBar: { width: 3, alignSelf: "stretch", borderRadius: 2, backgroundColor: appTheme.colors.primary },
@@ -3116,6 +3116,9 @@ const styles = StyleSheet.create({
     borderRadius: appTheme.radius.pill,
   },
   infoChipText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
+  // Assignment-reason chip — info-tinted so the reason reads as a tag, not a problem.
+  infoChipReason: { backgroundColor: appTheme.colors.surfaceInfoSoft },
+  infoChipReasonText: { color: appTheme.colors.textInfoStrong },
   attBlock: {
     gap: 3,
     padding: 10,
@@ -3219,6 +3222,8 @@ const styles = StyleSheet.create({
   tRowPressed: { opacity: 0.6 },
   tdLink: { color: appTheme.colors.primary },
   tdSub: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, lineHeight: 15 },
+  // Inline assignment-reason segments — info-blue so they stand out from muted metadata.
+  reasonText: { color: appTheme.colors.textInfoStrong, fontFamily: appTheme.fonts.bodyMedium },
   sessionRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
   sessionDate: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
   sessionHours: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 14 },
@@ -3336,6 +3341,9 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.surfaceMuted,
   },
   reasonChipText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11, maxWidth: 180 },
+  // Info tint applied when the current reason isn't "Regular shift".
+  reasonChipInfo: { backgroundColor: appTheme.colors.surfaceInfoSoft },
+  reasonChipTextInfo: { color: appTheme.colors.textInfoStrong },
   reasonBox: {
     gap: appTheme.spacing.xs,
     padding: 10,

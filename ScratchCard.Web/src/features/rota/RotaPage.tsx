@@ -205,7 +205,7 @@ export default function RotaPage() {
                                     </span>
                                     <span className="truncate text-xs font-medium text-slate-800">{a.name}</span>
                                     {a.reason ? (
-                                      <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-500">
+                                      <span className="shrink-0 rounded bg-sky-50 px-1.5 py-0.5 text-[9px] font-medium text-sky-700">
                                         {a.reason}
                                       </span>
                                     ) : null}

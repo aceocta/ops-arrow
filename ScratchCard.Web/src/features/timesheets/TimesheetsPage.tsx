@@ -229,7 +229,7 @@ export default function TimesheetsPage() {
                   <td className="px-5 py-3">
                     <span className="font-medium text-slate-800">{r.userName}</span>
                     {r.isExternal ? <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">External</span> : null}
-                    {r.reasons?.length ? <div className="text-xs text-slate-500">{r.reasons.join(" · ")}</div> : null}
+                    {r.reasons?.length ? <div className="text-xs font-medium text-sky-700">{r.reasons.join(" · ")}</div> : null}
                   </td>
                   <td className="px-5 py-3 text-slate-700">{r.shiftsWorked}{r.openSessions > 0 ? ` (+${r.openSessions})` : ""}</td>
                   <td className="px-5 py-3 font-medium text-slate-800">{hm(r.totalHours)}</td>
@@ -286,7 +286,7 @@ export default function TimesheetsPage() {
                     <td className="px-5 py-3 text-slate-700">
                       <span className="font-medium text-slate-800">{r.shiftName}</span>
                       {r.startTime ? <span className="ml-1 text-xs text-slate-400">{shortTime(r.startTime)}–{shortTime(r.endTime)}</span> : null}
-                      {r.reasons?.length ? <div className="text-xs text-slate-500">{r.reasons.join(" · ")}</div> : null}
+                      {r.reasons?.length ? <div className="text-xs font-medium text-sky-700">{r.reasons.join(" · ")}</div> : null}
                     </td>
                     <td className="px-5 py-3 text-slate-700">{r.staffCount}</td>
                     <td className="px-5 py-3 font-medium text-slate-800">{hm(r.totalHours)}</td>
@@ -778,7 +778,7 @@ function StaffSessions({
               <div>
                 <div className="text-sm font-medium text-slate-800">{dayLabel(s.date)}</div>
                 <div className="text-xs text-slate-500">
-                  {s.shiftName ? `${s.shiftName} · ` : ""}{s.reason ? `${s.reason} · ` : ""}{clock(s.checkInAt)} → {clock(s.checkOutAt)}
+                  {s.shiftName ? `${s.shiftName} · ` : ""}{s.reason ? <span className="font-medium text-sky-700">{`${s.reason} · `}</span> : ""}{clock(s.checkInAt)} → {clock(s.checkOutAt)}
                   {s.entryMethod === "Manual" ? (s.isApproved ? "  · manual" : "  · pending") : ""}
                 </div>
               </div>
