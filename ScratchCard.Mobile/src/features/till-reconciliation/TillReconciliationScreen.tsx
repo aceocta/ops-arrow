@@ -215,18 +215,10 @@ export function TillReconciliationScreen() {
   });
 
   const ingestMutation = useMutation({
-    mutationFn: async (source: "camera" | "library") => {
-      const perm = source === "camera"
-        ? await ImagePicker.requestCameraPermissionsAsync()
-        : await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) throw new Error("Camera/photo permission is required.");
-      const picked = source === "camera"
-        ? await ImagePicker.launchCameraAsync({ mediaTypes: "images", quality: 0.85 })
-        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: "images", quality: 0.85, allowsMultipleSelection: true, selectionLimit: 10 });
-      if (picked.canceled || picked.assets.length === 0) return null;
+    mutationFn: async (assets: ImagePicker.ImagePickerAsset[]) => {
       // A report can span several photos — ingest each; each call accumulates lines + attachments.
       let result: Reconciliation | null = null;
-      for (const asset of picked.assets) {
+      for (const asset of assets) {
         const out = await compressForUpload(asset.uri);
         result = await ingestReconciliationPhoto({ id: data!.id, uri: out.uri, mimeType: "image/jpeg" });
       }
@@ -235,6 +227,29 @@ export function TillReconciliationScreen() {
     onSuccess: (r) => { if (r) { setData(r); toastSuccess("Photo(s) read — verify the amounts."); } },
     onError: (e: any) => toastError(e?.response?.data?.message ?? e?.message ?? "Couldn't read the photo."),
   });
+
+  // Permission + picking happen OUTSIDE the mutation: the "Reading…" overlay is a Modal
+  // keyed off isPending, and presenting it before the system camera/library UI hides the
+  // picker (and on iOS can block it from opening at all). The overlay must only appear
+  // once photos are actually chosen.
+  const pickAndIngest = async (source: "camera" | "library") => {
+    try {
+      const perm = source === "camera"
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        toastError("Camera/photo permission is required.");
+        return;
+      }
+      const picked = source === "camera"
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: "images", quality: 0.85 })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: "images", quality: 0.85, allowsMultipleSelection: true, selectionLimit: 10 });
+      if (picked.canceled || picked.assets.length === 0) return;
+      ingestMutation.mutate(picked.assets);
+    } catch (e: any) {
+      toastError(e?.message ?? "Couldn't open the photo picker.");
+    }
+  };
 
   // Auto-ignored lines (labels the user previously removed) are shown in their own strip, not the groups.
   const autoIgnored = useMemo(() => (data?.lines ?? []).filter((l) => l.canonicalField === "SubtotalIgnore"), [data?.lines]);
@@ -356,7 +371,7 @@ export function TillReconciliationScreen() {
             <View style={styles.captureRow}>
               <Pressable
                 style={({ pressed }) => [styles.captureBtn, styles.captureBtnPrimary, pressed && styles.capturePressed, ingestMutation.isPending && styles.captureDisabled]}
-                onPress={() => ingestMutation.mutate("camera")}
+                onPress={() => void pickAndIngest("camera")}
                 disabled={ingestMutation.isPending}
               >
                 <Ionicons name="camera" size={20} color={appTheme.colors.onPrimary} />
@@ -364,7 +379,7 @@ export function TillReconciliationScreen() {
               </Pressable>
               <Pressable
                 style={({ pressed }) => [styles.captureBtn, styles.captureBtnOutline, pressed && styles.capturePressed, ingestMutation.isPending && styles.captureDisabled]}
-                onPress={() => ingestMutation.mutate("library")}
+                onPress={() => void pickAndIngest("library")}
                 disabled={ingestMutation.isPending}
               >
                 <Ionicons name="image" size={20} color={appTheme.colors.primary} />
