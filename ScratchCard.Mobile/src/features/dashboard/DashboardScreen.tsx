@@ -10,6 +10,7 @@ import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError } from "../../components/toast";
 import { MainStackParamList } from "../../types/navigation";
+import { formatDayLabel } from "../../utils/dateLabels";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -104,7 +105,7 @@ export function DashboardScreen() {
           ) : preferredDay ? (
             <>
               <Text style={styles.sectionTitle}>Opening Day Management…</Text>
-              <Text style={styles.meta}>Date: {preferredDay.businessDate}</Text>
+              <Text style={styles.meta}>Date: {formatDayLabel(preferredDay.businessDate)}</Text>
               <Text style={styles.meta}>Status: {preferredDay.status}</Text>
             </>
           ) : (

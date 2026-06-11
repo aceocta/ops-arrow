@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Image, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as FileSystem from "expo-file-system/legacy";
@@ -21,6 +22,7 @@ import { KpiGrid, KpiTile } from "../../components/KpiTile";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ShiftStatus } from "../../types/enums";
 import { MainStackParamList } from "../../types/navigation";
+import { getApiErrorMessage } from "../../utils/apiErrorMessage";
 import { confirmDestructive } from "../../utils/confirm";
 import { formatGbp } from "../../utils/currency";
 import { haptics } from "../../utils/haptics";
@@ -245,6 +247,18 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
     queryFn: () => listShiftClosingNumbers(shiftId),
     enabled: Boolean(isOpenShift),
   });
+
+  // Closing numbers are entered on EnterClosingNumbersScreen; refetch the closing data
+  // (and shift status) when this screen regains focus so progress isn't stale.
+  useFocusEffect(
+    useCallback(() => {
+      void shiftQuery.refetch();
+      if (isOpenShift) {
+        void activePacksQuery.refetch();
+        void closingNumbersQuery.refetch();
+      }
+    }, [shiftQuery.refetch, activePacksQuery.refetch, closingNumbersQuery.refetch, isOpenShift]),
+  );
 
   const closingProgress = useMemo(() => {
     const activeCount = activePacksQuery.data?.length ?? 0;
@@ -537,7 +551,7 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
       navigation.goBack();
     } catch (error: any) {
       haptics.error();
-      toastError(error?.response?.data?.message ?? "Shift close failed.");
+      toastError(getApiErrorMessage(error, "Shift close failed."));
     } finally {
       setIsFinalizing(false);
     }

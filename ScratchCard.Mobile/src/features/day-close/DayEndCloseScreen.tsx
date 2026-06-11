@@ -1249,7 +1249,14 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   // The ref keeps it from re-firing when the user navigates back here.
   const hasAutoOpenedShiftRef = useRef(false);
   useEffect(() => {
-    if (hasAutoOpenedShiftRef.current || shiftsQuery.isLoading) {
+    // Don't yank the user out of an in-progress modal (e.g. a shift they just opened/started
+    // refreshes the shift list while the modal is still closing).
+    if (
+      hasAutoOpenedShiftRef.current ||
+      shiftsQuery.isLoading ||
+      isOpenShiftModalVisible ||
+      isStartScheduledShiftModalVisible
+    ) {
       return;
     }
     const openShift = shifts.find(
@@ -1259,7 +1266,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       hasAutoOpenedShiftRef.current = true;
       navigation.navigate("ShiftDetails", { shiftId: openShift.id, shopId: openShift.shopId });
     }
-  }, [shifts, shiftsQuery.isLoading, navigation]);
+  }, [shifts, shiftsQuery.isLoading, isOpenShiftModalVisible, isStartScheduledShiftModalVisible, navigation]);
   const safeDropSectionMessage = canViewAllSafeDrops
     ? "Showing all safe drops for this business day."
     : "Showing only safe drops recorded by you.";
@@ -1604,6 +1611,28 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   }, [dayQuery, shiftsQuery, isSafeDropManagementVisible, canisterDropsQuery, hasTemperatureLogFeature, temperatureLogQuery, hasComplianceCheckFeature, complianceLogQuery, subscriptionShopId, subscriptionSummaryQuery]);
   const isRefreshing = dayQuery.isRefetching || shiftsQuery.isRefetching;
 
+  // Day action dock — sticky footer so Close/Reopen day is reachable without scrolling the
+  // whole screen. Only rendered when one of the actions is actually available.
+  const dayActionsFooter = canClose || canReopen ? (
+    <View style={[ui.card, styles.dayActionsFooterDock]}>
+      {canClose ? (
+        <PrimaryButton
+          label={closeMutation.isPending ? "Closing…" : "Close day"}
+          onPress={() => setIsCloseDayModalVisible(true)}
+          disabled={hasOpenShifts || closeMutation.isPending}
+        />
+      ) : null}
+      {canReopen ? (
+        <PrimaryButton
+          label={reopenMutation.isPending ? "Reopening…" : "Reopen day"}
+          tone="neutral"
+          onPress={() => setIsReopenDayModalVisible(true)}
+          disabled={reopenMutation.isPending}
+        />
+      ) : null}
+    </View>
+  ) : null;
+
   if (isDayManagementInitialLoading) {
     return (
       <ScreenContainer>
@@ -1614,6 +1643,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
 
   return (
     <ScreenContainer
+      footer={dayActionsFooter}
       refreshControl={
         <RefreshControl
           refreshing={isRefreshing}
@@ -1739,6 +1769,22 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               </Pressable>
             }
           />
+          {/* "What's next" hint — orients staff on whether shifts or the day itself needs closing. */}
+          {canClose && shifts.length > 0 ? (
+            openShiftCount > 0 ? (
+              <View style={styles.shiftsNextStepRow}>
+                <Ionicons name="information-circle-outline" size={16} color={appTheme.colors.textMuted} />
+                <Text style={styles.shiftsNextStepText}>
+                  {openShiftCount} open shift{openShiftCount === 1 ? "" : "s"} — close them to finish the day.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.shiftsNextStepRow}>
+                <Ionicons name="checkmark-circle-outline" size={16} color={appTheme.colors.success} />
+                <Text style={styles.shiftsNextStepText}>All shifts closed — you can close the day below.</Text>
+              </View>
+            )
+          ) : null}
           {/* <View style={styles.summaryDivider} /> */}
           {shiftsQuery.isFetching ? (
             <ShiftOperationsLoadingState />
@@ -2287,21 +2333,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           </View>
         ) : null}
 
-        {canClose ? (
-          <PrimaryButton
-            label={closeMutation.isPending ? "Closing…" : "Close day"}
-            onPress={() => setIsCloseDayModalVisible(true)}
-            disabled={hasOpenShifts || closeMutation.isPending}
-          />
-        ) : null}
-        {canReopen ? (
-          <PrimaryButton
-            label={reopenMutation.isPending ? "Reopening…" : "Reopen day"}
-            tone="neutral"
-            onPress={() => setIsReopenDayModalVisible(true)}
-            disabled={reopenMutation.isPending}
-          />
-        ) : null}
+        {/* Close/Reopen day actions moved to the sticky ScreenContainer footer (dayActionsFooter). */}
         {/* <View style={[ui.card, styles.sectionCard]}>
           <Text style={styles.sectionTitle}>Day Action</Text>
           <Text style={styles.meta}>{dayStatusMessage}</Text>
@@ -2948,6 +2980,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 <Ionicons name="warning-outline" size={18} color={appTheme.colors.danger} />
                 <Text style={styles.warningBannerText}>
                   Reopening this day allows further edits and re-triggers downstream reconciliation.
+                  Shifts stay closed — reopen or start a shift afterwards to make changes.
                 </Text>
               </View>
               <Text style={styles.fieldLabel}>Why are you reopening? (required)</Text>
@@ -4244,6 +4277,21 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     marginTop: -2,
     marginBottom: 4,
+  },
+  shiftsNextStepRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+  },
+  shiftsNextStepText: {
+    flex: 1,
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  dayActionsFooterDock: {
+    paddingVertical: appTheme.spacing.sm,
   },
   warningBanner: {
     flexDirection: "row",
