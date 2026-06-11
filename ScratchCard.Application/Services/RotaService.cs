@@ -909,8 +909,13 @@ public class RotaService : IRotaService
                 x.CheckOutAt,
                 x.EntryMethod,
                 x.IsApproved,
+                x.RotaShiftId,
             })
             .ToListAsync(cancellationToken);
+
+        // Non-regular assignment reasons per (shift, person), batched across the sessions' shifts.
+        var reasonByShiftPerson = await GetAssignmentReasonsAsync(
+            rows.Where(r => r.RotaShiftId != null).Select(r => r.RotaShiftId!.Value), cancellationToken);
 
         return rows.Select(r => new ShiftSessionDto
         {
@@ -920,6 +925,9 @@ public class RotaService : IRotaService
             RotaStaffMemberId = r.RotaStaffMemberId,
             IsExternal = r.RotaStaffMemberId != null,
             UserName = (r.UserId != null ? $"{r.UserFirstName} {r.UserLastName}" : r.MemberName ?? "—").Trim(),
+            Reason = r.RotaShiftId != null
+                ? reasonByShiftPerson.GetValueOrDefault((r.RotaShiftId.Value, r.UserId, r.RotaStaffMemberId))
+                : null,
             CheckInAt = r.CheckInAt,
             CheckOutAt = r.CheckOutAt,
             Hours = r.CheckOutAt != null ? Math.Round((decimal)(r.CheckOutAt.Value - r.CheckInAt).TotalHours, 2) : 0,

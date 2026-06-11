@@ -571,6 +571,8 @@ export type ShiftSession = {
   rotaStaffMemberId?: string | null;
   isExternal?: boolean;
   userName: string;
+  /** This person's assignment reason on the shift (e.g. "Cleaning"). Null/absent = regular shift. */
+  reason?: string | null;
   checkInAt: string;
   checkOutAt?: string | null;
   hours: number;

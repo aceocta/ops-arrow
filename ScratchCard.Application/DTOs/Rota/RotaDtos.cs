@@ -227,6 +227,9 @@ public class ShiftSessionDto
     public Guid? RotaStaffMemberId { get; set; }
     public bool IsExternal { get; set; }
     public string UserName { get; set; } = string.Empty;
+    // This person's assignment reason on the session's rota shift; null when unrostered,
+    // there is no assignment, or it's a regular shift.
+    public string? Reason { get; set; }
     public DateTimeOffset CheckInAt { get; set; }
     public DateTimeOffset? CheckOutAt { get; set; }
     public decimal Hours { get; set; }

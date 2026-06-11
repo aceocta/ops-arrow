@@ -2425,7 +2425,7 @@ export function RotaTimesheetScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.sessionDate}>{s.userName}</Text>
                     <Text style={styles.muted} numberOfLines={1}>
-                      {clockTime(s.checkInAt)} → {s.checkOutAt ? clockTime(s.checkOutAt) : "—"}
+                      {s.reason ? `${s.reason} · ` : ""}{clockTime(s.checkInAt)} → {s.checkOutAt ? clockTime(s.checkOutAt) : "—"}
                       {s.entryMethod === "Manual" ? (s.isApproved ? "  · manual" : "  · pending") : ""}
                     </Text>
                   </View>
