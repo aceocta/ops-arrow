@@ -14,7 +14,7 @@ import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
 import { LoadingState } from "../../components/LoadingState";
 import { ReportActionBar } from "../../components/ReportActionBar";
 import { ScreenContainer } from "../../components/ScreenContainer";
-import { toastError } from "../../components/toast";
+import { toastError, toastSuccess } from "../../components/toast";
 import { buildTemperatureScheduleGridHtml } from "./temperatureReportUtils";
 import {
   TemperatureReading,
@@ -222,7 +222,7 @@ function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
         attachmentFileName: `temperature-report-${grid.from}-to-${grid.to}.pdf`,
         attachmentBase64,
       });
-      Alert.alert("Email sent", `Report has been sent to ${profile?.email ?? "your inbox"}.`);
+      toastSuccess(`Report sent to ${profile?.email ?? "your inbox"}.`);
     } catch (error: any) {
       toastError(error?.response?.data?.message ?? error?.message ?? "Unable to send report email.");
     } finally {

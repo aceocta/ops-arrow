@@ -291,13 +291,13 @@ function DayManagementLoadingState() {
     <View style={styles.loadingShell}>
       <View style={styles.dateNavigationRow}>
         <Pressable style={[styles.dateNavigationButton, styles.dateActionButtonDisabled]} disabled>
-          <Text style={styles.dateNavigationButtonText}>Previous Day</Text>
+          <Text style={styles.dateNavigationButtonText}>Previous day</Text>
         </Pressable>
         <Pressable style={[styles.dateActionInlineButton, styles.dateActionButtonDisabled]} disabled>
-          <Text style={styles.dateActionInlineButtonText}>Change Date</Text>
+          <Text style={styles.dateActionInlineButtonText}>Change date</Text>
         </Pressable>
         <Pressable style={[styles.dateNavigationButton, styles.dateActionButtonDisabled]} disabled>
-          <Text style={styles.dateNavigationButtonText}>Next Day</Text>
+          <Text style={styles.dateNavigationButtonText}>Next day</Text>
         </Pressable>
       </View>
 
@@ -1417,7 +1417,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   const isDayPickerLookupLoading = daysQuery.isFetching && !daysQuery.data;
   const dayPickerPrimaryLabel = selectedDateDay
     ? (selectedDayIsCurrent ? "Already Managing This Date" : `Switch To ${selectedDateDay.businessDate}`)
-    : (openDayMutation.isPending ? "Opening..." : `Open ${targetBusinessDate}`);
+    : (openDayMutation.isPending ? "Opening…" : `Open ${targetBusinessDate}`);
   const dayPickerPrimaryDisabled = selectedDateDay
     ? selectedDayIsCurrent
     : openDayMutation.isPending || !day?.shopId || isDayPickerLookupLoading;
@@ -1656,7 +1656,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 }}
                 disabled={!previousBusinessDay}
               >
-                <Text style={styles.dateNavigationButtonText}>Previous Day</Text>
+                <Text style={styles.dateNavigationButtonText}>Previous day</Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
@@ -1667,7 +1667,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   setIsDayPickerModalVisible(true);
                 }}
               >
-                <Text style={styles.dateActionInlineButtonText}>Change Date</Text>
+                <Text style={styles.dateActionInlineButtonText}>Change date</Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
@@ -1684,7 +1684,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 }}
                 disabled={!nextBusinessDay}
               >
-                <Text style={styles.dateNavigationButtonText}>Next Day</Text>
+                <Text style={styles.dateNavigationButtonText}>Next day</Text>
               </Pressable>
             </View>
           {/* <Text style={styles.meta}>{dayStatusMessage}</Text> */}
@@ -1735,7 +1735,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 disabled={!canManageShifts}
               >
                 <Ionicons name="add" size={14} color={appTheme.colors.onPrimary} />
-                <Text style={styles.shiftOpenButtonText}>Open Shift</Text>
+                <Text style={styles.shiftOpenButtonText}>Open shift</Text>
               </Pressable>
             }
           />
@@ -1760,7 +1760,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     setIsOpenShiftModalVisible(true);
                   }}
                 >
-                  <Text style={styles.emptyStateCtaText}>Open First Shift</Text>
+                  <Text style={styles.emptyStateCtaText}>Open first shift</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -1865,7 +1865,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   {canCloseShift ? (
                     <View style={styles.shiftActionRow}>
                       <PrimaryButton
-                        label="Close Shift"
+                        label="Close shift"
                         tone="success"
                         size="sm"
                         icon="checkmark-circle-outline"
@@ -1876,7 +1876,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   ) : canStartScheduledShift ? (
                     <View style={styles.shiftActionRow}>
                       <PrimaryButton
-                        label={startScheduledShiftMutation.isPending ? "Starting..." : "Start Shift"}
+                        label={startScheduledShiftMutation.isPending ? "Starting…" : "Start shift"}
                         size="sm"
                         icon="play-circle-outline"
                         onPress={() => openStartScheduledShiftConfirmation(shift.id, shift.shiftName)}
@@ -2262,7 +2262,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                         onPress={() => downloadDayAttachment(attachment.id, attachment.fileName)}
                         disabled={isDownloading}
                       >
-                        <Text style={styles.attachmentDownloadButtonText}>{isDownloading ? "Saving..." : "Download"}</Text>
+                        <Text style={styles.attachmentDownloadButtonText}>{isDownloading ? "Saving…" : "Download"}</Text>
                       </Pressable>
                       {canPreviewImage ? (
                         <Pressable
@@ -2272,7 +2272,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                           onPress={() => previewDayAttachment(attachment.id, attachment.fileName)}
                           disabled={isLoadingPreview}
                         >
-                          <Text style={styles.attachmentViewButtonText}>{isLoadingPreview ? "Loading..." : "Preview"}</Text>
+                          <Text style={styles.attachmentViewButtonText}>{isLoadingPreview ? "Loading…" : "Preview"}</Text>
                         </Pressable>
                       ) : (
                         <View style={styles.attachmentNoPreviewBadge}>
@@ -2289,14 +2289,14 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
 
         {canClose ? (
           <PrimaryButton
-            label={closeMutation.isPending ? "Closing..." : "Close Day"}
+            label={closeMutation.isPending ? "Closing…" : "Close day"}
             onPress={() => setIsCloseDayModalVisible(true)}
             disabled={hasOpenShifts || closeMutation.isPending}
           />
         ) : null}
         {canReopen ? (
           <PrimaryButton
-            label={reopenMutation.isPending ? "Reopening..." : "Reopen Day"}
+            label={reopenMutation.isPending ? "Reopening…" : "Reopen day"}
             tone="neutral"
             onPress={() => setIsReopenDayModalVisible(true)}
             disabled={reopenMutation.isPending}
@@ -2347,7 +2347,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   disabled={!attachmentPreviewId || !attachmentPreviewTitle || downloadingDayAttachmentId === attachmentPreviewId}
                 >
                   <Text style={styles.attachmentPreviewHeaderButtonText}>
-                    {downloadingDayAttachmentId === attachmentPreviewId ? "Saving..." : "Download"}
+                    {downloadingDayAttachmentId === attachmentPreviewId ? "Saving…" : "Download"}
                   </Text>
                 </Pressable>
                 <Pressable
@@ -2426,7 +2426,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                       style={styles.dayPickerQuickActionButton}
                       onPress={() => setTargetBusinessDate(day?.businessDate ?? formatDateValue(new Date()))}
                     >
-                      <Text style={styles.dayPickerQuickActionButtonText}>Use Current Day</Text>
+                      <Text style={styles.dayPickerQuickActionButtonText}>Use current day</Text>
                     </Pressable>
                   </View> */}
                 </View>
@@ -2451,7 +2451,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   <View style={styles.dayPickerListHeader}>
                     <Text style={styles.dayPickerSectionLabel}>Nearby Business Days</Text>
                     <Text style={styles.dayPickerListMeta}>
-                      {daysQuery.isFetching ? "Refreshing..." : `${nearbyDays.length} shown`}
+                      {daysQuery.isFetching ? "Refreshing…" : `${nearbyDays.length} shown`}
                     </Text>
                   </View>
                   {/* <Text style={styles.dayPickerListHint}>Tap a row to prefill the selected date above.</Text> */}
@@ -2544,7 +2544,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   onPress={() => openShiftMutation.mutate()}
                   disabled={openShiftMutation.isPending || !canManageShifts}
                 >
-                  <Text style={styles.modalActionPrimaryText}>{openShiftMutation.isPending ? "Opening..." : "Open Shift"}</Text>
+                  <Text style={styles.modalActionPrimaryText}>{openShiftMutation.isPending ? "Opening…" : "Open shift"}</Text>
                 </Pressable>
                 <Pressable
                   style={[
@@ -2595,7 +2595,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   disabled={startScheduledShiftMutation.isPending || !canManageShifts || !pendingScheduledShiftStart || packsQuery.isFetching}
                 >
                   <Text style={styles.modalActionPrimaryText}>
-                    {startScheduledShiftMutation.isPending ? "Starting..." : "Start Shift"}
+                    {startScheduledShiftMutation.isPending ? "Starting…" : "Start shift"}
                   </Text>
                 </Pressable>
                 <Pressable
@@ -2831,7 +2831,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     disabled={closeMutation.isPending}
                   >
                     <Ionicons name="camera-outline" size={16} color={appTheme.colors.text} />
-                    <Text style={styles.attachmentActionButtonText}>Take Photo</Text>
+                    <Text style={styles.attachmentActionButtonText}>Take photo</Text>
                   </Pressable>
                   <Pressable
                     style={styles.attachmentActionButton}
@@ -2841,7 +2841,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     disabled={closeMutation.isPending}
                   >
                     <Ionicons name="images-outline" size={16} color={appTheme.colors.text} />
-                    <Text style={styles.attachmentActionButtonText}>From Gallery</Text>
+                    <Text style={styles.attachmentActionButtonText}>From gallery</Text>
                   </Pressable>
                 </View>
               ) : null}
@@ -2861,7 +2861,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                     }}
                     disabled={closeMutation.isPending}
                   >
-                    <Text style={[styles.attachmentActionButtonText, styles.attachmentActionButtonTextDanger]}>Clear All</Text>
+                    <Text style={[styles.attachmentActionButtonText, styles.attachmentActionButtonTextDanger]}>Clear all</Text>
                   </Pressable>
                 </View>
               ) : null}
@@ -2911,9 +2911,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   <Text style={styles.modalActionPrimaryText}>
                     {closeMutation.isPending
                       ? (closeDayAttachments.length > 0
-                          ? `Closing (uploading ${closeDayAttachments.length} file${closeDayAttachments.length === 1 ? "" : "s"})...`
-                          : "Closing...")
-                      : "Close Day"}
+                          ? `Closing (uploading ${closeDayAttachments.length} file${closeDayAttachments.length === 1 ? "" : "s"})…`
+                          : "Closing…")
+                      : "Close day"}
                   </Text>
                 </Pressable>
                 <Pressable
@@ -2981,7 +2981,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   }}
                   disabled={reopenMutation.isPending || !canReopen || reopenReason.trim().length === 0}
                 >
-                  <Text style={styles.modalActionPrimaryText}>{reopenMutation.isPending ? "Reopening..." : "Reopen Day"}</Text>
+                  <Text style={styles.modalActionPrimaryText}>{reopenMutation.isPending ? "Reopening…" : "Reopen day"}</Text>
                 </Pressable>
                 <Pressable
                   style={[

@@ -80,7 +80,7 @@ export function TemperatureLogsByDayScreen() {
         </View>
         <Text style={styles.meta}>
           {dailyLogQuery.isLoading
-            ? "Loading logs..."
+            ? "Loading logs…"
             : `${dailyUnitLogs.length} units | ${totalReadings} readings | ${outOfRangeCount} out of range`}
         </Text>
       </View>

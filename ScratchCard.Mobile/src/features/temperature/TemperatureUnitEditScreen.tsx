@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listTemperatureUnits, reorderTemperatureUnits, updateTemperatureUnit } from "../../api/temperatureLogsApi";
@@ -8,7 +8,7 @@ import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { LoadingState } from "../../components/LoadingState";
-import { toastError } from "../../components/toast";
+import { toastError, toastSuccess } from "../../components/toast";
 import { TemperatureEquipmentType } from "../../types/enums";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
@@ -117,7 +117,7 @@ export function TemperatureUnitEditScreen({ route, navigation }: Props) {
     mutationFn: async () => updateTemperatureUnit(unitId, buildDetailPayload()),
     onSuccess: async () => {
       await invalidate();
-      Alert.alert("Updated", "Temperature unit updated.");
+      toastSuccess("Temperature unit updated.");
       navigation.goBack();
     },
     onError: (error: any) => {
@@ -150,7 +150,7 @@ export function TemperatureUnitEditScreen({ route, navigation }: Props) {
     onSuccess: async () => {
       setShowOrderResolver(false);
       await invalidate();
-      Alert.alert("Updated", "Unit and order numbers saved.");
+      toastSuccess("Unit and order numbers saved.");
       navigation.goBack();
     },
     onError: (error: any) => {
@@ -161,7 +161,7 @@ export function TemperatureUnitEditScreen({ route, navigation }: Props) {
   if (unitsQuery.isLoading) {
     return (
       <ScreenContainer>
-        <LoadingState message="Loading unit..." />
+        <LoadingState message="Loading unit…" />
       </ScreenContainer>
     );
   }
@@ -227,7 +227,7 @@ export function TemperatureUnitEditScreen({ route, navigation }: Props) {
           </View>
 
           <PrimaryButton
-            label={saveMutation.isPending ? "Saving..." : "Save Changes"}
+            label={saveMutation.isPending ? "Saving…" : "Save changes"}
             onPress={() => saveMutation.mutate()}
             disabled={saveMutation.isPending}
           />
@@ -269,7 +269,7 @@ export function TemperatureUnitEditScreen({ route, navigation }: Props) {
               </View>
             ))}
             <PrimaryButton
-              label={resolveOrderMutation.isPending ? "Saving..." : "Save order numbers"}
+              label={resolveOrderMutation.isPending ? "Saving…" : "Save order numbers"}
               onPress={() => resolveOrderMutation.mutate()}
               disabled={resolveOrderMutation.isPending}
             />

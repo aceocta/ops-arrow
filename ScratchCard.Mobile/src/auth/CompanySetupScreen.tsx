@@ -79,7 +79,7 @@ export function CompanySetupScreen() {
         />
 
         <PrimaryButton
-          label={busy ? progressMessage ?? "Creating company..." : "Continue to Shop Setup"}
+          label={busy ? progressMessage ?? "Creating company…" : "Continue to shop setup"}
           onPress={() => void onContinue()}
           disabled={busy}
         />

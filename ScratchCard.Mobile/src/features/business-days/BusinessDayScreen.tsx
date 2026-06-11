@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -8,7 +8,7 @@ import { listBusinessDays, openBusinessDay } from "../../api/businessDaysApi";
 import { BusinessDayStaffCard } from "../rota/BusinessDayStaffCard";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
 import { ScreenContainer } from "../../components/ScreenContainer";
-import { toastError } from "../../components/toast";
+import { toastError, toastSuccess } from "../../components/toast";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
@@ -84,7 +84,7 @@ export function BusinessDayScreen() {
     },
     onSuccess: async (day) => {
       haptics.success();
-      Alert.alert("Opened", `Business day opened (${day.businessDate}).`);
+      toastSuccess(`Business day opened (${day.businessDate}).`);
       await dayListQuery.refetch();
     },
     onError: (error: any) => {
@@ -115,7 +115,7 @@ export function BusinessDayScreen() {
             }}
             style={[styles.modeChip, viewMode === "open" ? styles.modeChipSelected : null]}
           >
-            <Text style={[styles.modeChipText, viewMode === "open" ? styles.modeChipTextSelected : null]}>Open Day</Text>
+            <Text style={[styles.modeChipText, viewMode === "open" ? styles.modeChipTextSelected : null]}>Open day</Text>
           </Pressable>
           <Pressable
             onPress={() => {
@@ -124,7 +124,7 @@ export function BusinessDayScreen() {
             }}
             style={[styles.modeChip, viewMode === "manage" ? styles.modeChipSelected : null]}
           >
-            <Text style={[styles.modeChipText, viewMode === "manage" ? styles.modeChipTextSelected : null]}>Manage Day</Text>
+            <Text style={[styles.modeChipText, viewMode === "manage" ? styles.modeChipTextSelected : null]}>Manage day</Text>
           </Pressable>
         </View>
       </View>
@@ -143,7 +143,7 @@ export function BusinessDayScreen() {
               </Text>
               <PrimaryButton
                 tone="neutral"
-                label="Manage This Day"
+                label="Manage this day"
                 onPress={() => {
                   haptics.selection();
                   navigation.navigate("DayEndClose", { businessDayId: existingDayForSelectedDate.id });
@@ -152,7 +152,7 @@ export function BusinessDayScreen() {
             </View>
           ) : null}
           <PrimaryButton
-            label={openMutation.isPending ? "Opening..." : "Open Business Day"}
+            label={openMutation.isPending ? "Opening…" : "Open business day"}
             onPress={() => openMutation.mutate()}
             disabled={openDisabled}
           />
@@ -163,7 +163,7 @@ export function BusinessDayScreen() {
         <>
           <View style={ui.card}>
             <Text style={styles.sectionTitle}>Select Existing Business Day</Text>
-            <PrimaryButton tone="neutral" label="Refresh Days" onPress={() => void dayListQuery.refetch()} disabled={!shopId || dayListQuery.isFetching} />
+            <PrimaryButton tone="neutral" label="Refresh days" onPress={() => void dayListQuery.refetch()} disabled={!shopId || dayListQuery.isFetching} />
 
             {(dayListQuery.data ?? []).slice(0, 20).map((day) => {
               const missing = day.missingOpeningTicketCount ?? 0;

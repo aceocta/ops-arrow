@@ -6,7 +6,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
-import { toastError } from "../../components/toast";
+import { toastError, toastSuccess } from "../../components/toast";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -304,7 +304,7 @@ export function ScratchCardGamesScreen() {
         <Text style={styles.heroSubtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
         <Text style={styles.heroNote}>Manage master game assignments and defaults for this shop.</Text>
       </View> */}
-      <PrimaryButton label="Create Game" onPress={() => navigation.navigate("ScratchCardGameCreate")} disabled={!shopId} />
+      <PrimaryButton label="Create game" onPress={() => navigation.navigate("ScratchCardGameCreate")} disabled={!shopId} />
 
       <View style={ui.card}>
         <Text style={styles.sectionTitle}>Assigned Games</Text>
@@ -365,7 +365,7 @@ export function ScratchCardGameCreateScreen({ navigation }: GameCreateProps) {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["games", shopId] });
-      Alert.alert("Created", "Scratch card game created.");
+      toastSuccess("Scratch card game created.");
       navigation.goBack();
     },
     onError: (error: any) => {
@@ -382,7 +382,7 @@ export function ScratchCardGameCreateScreen({ navigation }: GameCreateProps) {
       <View style={ui.card}>
         <GameEditorFields state={state} onChange={setState} showStatus={isPlatformAdmin} />
         <PrimaryButton
-          label={createGameMutation.isPending ? "Saving..." : "Create Game"}
+          label={createGameMutation.isPending ? "Saving…" : "Create game"}
           onPress={() => createGameMutation.mutate()}
           disabled={createGameMutation.isPending || !shopId}
         />
@@ -439,7 +439,7 @@ export function ScratchCardGameEditScreen({ route, navigation }: GameEditProps) 
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["games", shopId] });
-      Alert.alert("Updated", "Scratch card game updated.");
+      toastSuccess("Scratch card game updated.");
       navigation.goBack();
     },
     onError: (error: any) => {
@@ -464,7 +464,7 @@ export function ScratchCardGameEditScreen({ route, navigation }: GameEditProps) 
             <GameEditorFields state={state} onChange={setState} readOnlyMasterFields={!isPlatformAdmin} showStatus={isPlatformAdmin} />
             {isPlatformAdmin ? (
               <PrimaryButton
-                label={updateGameMutation.isPending ? "Saving..." : "Save Changes"}
+                label={updateGameMutation.isPending ? "Saving…" : "Save changes"}
                 onPress={() => updateGameMutation.mutate()}
                 disabled={updateGameMutation.isPending || !shopId}
               />
@@ -572,14 +572,14 @@ export function ScratchCardPacksScreen({ navigation }: PackListProps) {
         <View style={styles.headerActionsRow}>
           <View style={styles.headerActionItem}>
             <PrimaryButton
-              label="Add Manual Pack"
+              label="Add manual pack"
               onPress={() => navigation.navigate("ManualPackCreate")}
               disabled={!shopId}
             />
           </View>
           <View style={styles.headerActionItem}>
             <PrimaryButton
-              label="Pack Scanner"
+              label="Pack scanner"
               tone="neutral"
               onPress={() => navigation.navigate("ManualPackCreate", { autoOpenScanner: true })}
               disabled={!shopId}
@@ -1024,10 +1024,10 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
       clearManualPackEntry();
       if (activateOnCreate) {
         setScanMessage("Pack created and activated.");
-        Alert.alert("Created", `Pack ${pack.packNumber} created and activated.`);
+        toastSuccess(`Pack ${pack.packNumber} created and activated.`);
       } else {
         setScanMessage("Pack created and kept inactive.");
-        Alert.alert("Created", `Pack ${pack.packNumber} created as inactive.`);
+        toastSuccess(`Pack ${pack.packNumber} created as inactive.`);
       }
       navigation.goBack();
     },
@@ -1204,7 +1204,7 @@ export function ManualPackCreateScreen({ navigation, route }: ManualPackCreatePr
         />
 
         <PrimaryButton
-          label={createPackMutation.isPending ? "Creating..." : (activateOnCreate ? "Create & Activate Pack" : "Create Pack")}
+          label={createPackMutation.isPending ? "Creating…" : (activateOnCreate ? "Create & activate pack" : "Create pack")}
           onPress={() => createPackMutation.mutate()}
           disabled={createPackMutation.isPending || !shopId}
         />
@@ -1270,7 +1270,7 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
       setNotes("");
       void queryClient.invalidateQueries({ queryKey: ["pack", packId] });
       void queryClient.invalidateQueries({ queryKey: ["packs"] });
-      Alert.alert("Updated", "Pack status updated.");
+      toastSuccess("Pack status updated.");
     },
     onError: (error: any) => {
       toastError(error?.response?.data?.message ?? error?.message ?? "Unable to update pack.");
@@ -1328,7 +1328,7 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
       setIsEditingDetails(false);
       void queryClient.invalidateQueries({ queryKey: ["pack", packId] });
       void queryClient.invalidateQueries({ queryKey: ["packs"] });
-      Alert.alert("Updated", "Pack details updated.");
+      toastSuccess("Pack details updated.");
     },
     onError: (error: any) => {
       toastError(error?.response?.data?.message ?? error?.message ?? "Unable to update pack details.");
@@ -1390,16 +1390,16 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
             <FloatingLabelInput label="Start serial" value={editStartSerial} onChangeText={setEditStartSerial} />
             <FloatingLabelInput label="End serial" value={editEndSerial} onChangeText={setEditEndSerial} />
             <PrimaryButton
-              label={updateDetailsMutation.isPending ? "Saving..." : "Save Pack Details"}
+              label={updateDetailsMutation.isPending ? "Saving…" : "Save pack details"}
               onPress={() => updateDetailsMutation.mutate()}
               disabled={updateDetailsMutation.isPending}
             />
-            <PrimaryButton label="Cancel Edit" tone="neutral" onPress={cancelEditDetails} />
+            <PrimaryButton label="Cancel edit" tone="neutral" onPress={cancelEditDetails} />
           </>
         ) : null}
 
         {!isEditingDetails && canEditDetails ? (
-          <PrimaryButton label="Edit Pack Details" tone="neutral" onPress={() => setIsEditingDetails(true)} />
+          <PrimaryButton label="Edit pack details" tone="neutral" onPress={() => setIsEditingDetails(true)} />
         ) : null}
         {!isEditingDetails && !canEditDetails ? (
           <Text style={styles.meta}>Details can be edited only while pack status is InStock or Paused.</Text>
@@ -1408,7 +1408,7 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
         {!isEditingDetails ? (
           <>
             {canActivate ? (
-              <PrimaryButton label="Go To Activate" onPress={() => navigation.navigate("ActivatePack", { packId })} />
+              <PrimaryButton label="Go to activate" onPress={() => navigation.navigate("ActivatePack", { packId })} />
             ) : (
               <Text style={styles.meta}>Activation requires status InStock or Paused.</Text>
             )}
@@ -1422,7 +1422,7 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
                 <Pressable style={styles.smallButton} onPress={() => actionMutation.mutate("return")}><Text style={styles.smallButtonText}>Return</Text></Pressable>
               ) : null}
               {allowIssueMarking ? (
-                <Pressable style={styles.smallButton} onPress={() => actionMutation.mutate("issue")}><Text style={styles.smallButtonText}>Mark Issue</Text></Pressable>
+                <Pressable style={styles.smallButton} onPress={() => actionMutation.mutate("issue")}><Text style={styles.smallButtonText}>Mark issue</Text></Pressable>
               ) : null}
               <Pressable style={styles.smallButton} onPress={() => actionMutation.mutate("complete")}><Text style={styles.smallButtonText}>Complete</Text></Pressable>
             </View>
@@ -1494,7 +1494,7 @@ export function ActivatePackScreen({ route, navigation }: ActivatePackProps) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pack", packId] });
       void queryClient.invalidateQueries({ queryKey: ["packs"] });
-      Alert.alert("Activated", "Pack activated successfully.");
+      toastSuccess("Pack activated.");
       navigation.goBack();
     },
     onError: (error: any) => {
@@ -1534,7 +1534,7 @@ export function ActivatePackScreen({ route, navigation }: ActivatePackProps) {
         />
 
         <PrimaryButton
-          label={activateMutation.isPending ? "Activating..." : "Activate"}
+          label={activateMutation.isPending ? "Activating…" : "Activate"}
           onPress={() => activateMutation.mutate()}
           disabled={activateMutation.isPending}
         />

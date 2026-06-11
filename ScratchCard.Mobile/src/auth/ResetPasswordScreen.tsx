@@ -5,6 +5,7 @@ import { resetPassword } from "../api/authApi";
 import { FloatingLabelInput } from "../components/FloatingLabelInput";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { ScreenContainer } from "../components/ScreenContainer";
+import { toastSuccess } from "../components/toast";
 import type { RootStackParamList } from "../types/navigation";
 import { ui } from "../ui/primitives";
 import { appTheme } from "../ui/theme";
@@ -51,21 +52,11 @@ export function ResetPasswordScreen({ route, navigation }: Props) {
         newPassword,
       });
 
-      Alert.alert(
-        "Password reset",
-        "Your password has been updated. Please sign in with your new password.",
-        [
-          {
-            text: "Go to Sign In",
-            onPress: () =>
-              navigation.reset({
-                index: 0,
-                routes: [{ name: "Login" }],
-              }),
-          },
-        ],
-        { cancelable: false },
-      );
+      toastSuccess("Password updated. Sign in with your new password.");
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Login" }],
+      });
     } catch (error: any) {
       Alert.alert("Reset failed", error?.response?.data?.message ?? "Unable to reset password.");
     } finally {
@@ -127,12 +118,12 @@ export function ResetPasswordScreen({ route, navigation }: Props) {
           error={confirmPasswordError}
         />
         <PrimaryButton
-          label={isBusy ? "Resetting..." : "Reset Password"}
+          label={isBusy ? "Resetting…" : "Reset password"}
           onPress={() => void onResetPassword()}
           disabled={isBusy}
         />
         <PrimaryButton
-          label="Back to Sign In"
+          label="Back to sign in"
           onPress={() => navigation.navigate("Login")}
           tone="neutral"
           disabled={isBusy}

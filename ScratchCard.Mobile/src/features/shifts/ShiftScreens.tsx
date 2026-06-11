@@ -9,7 +9,7 @@ import { listPacks } from "../../api/packsApi";
 import { deleteShift, getShift, getShiftSales, listShiftCloseCandidates, listShifts, openShift, startScheduledShift } from "../../api/shiftsApi";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ScreenContainer } from "../../components/ScreenContainer";
-import { toastError } from "../../components/toast";
+import { toastError, toastSuccess } from "../../components/toast";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { deriveShopOperationalSetup } from "../settings/shopConfiguration";
 import { formatGbp } from "../../utils/currency";
@@ -214,7 +214,7 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
       });
     },
     onSuccess: async (shift) => {
-      Alert.alert("Shift opened", `Shift '${shift.shiftName}' opened.`);
+      toastSuccess(`Shift '${shift.shiftName}' opened.`);
       await shiftsQuery.refetch();
       setShiftName(shopOperationalSetup.shiftDefaultName.trim() || getDefaultShiftNameForNow());
       setViewMode("close");
@@ -228,7 +228,7 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
     mutationFn: async (payload: { shiftId: string; openingSerialConfirmations: Array<{ packId: string; openingSerialNumber: string }> }) =>
       startScheduledShift(payload.shiftId, { openingSerialConfirmations: payload.openingSerialConfirmations }),
     onSuccess: async (shift) => {
-      Alert.alert("Shift started", `Shift '${shift.shiftName}' is now open.`);
+      toastSuccess(`Shift '${shift.shiftName}' is now open.`);
       await shiftsQuery.refetch();
       setViewMode("close");
     },
@@ -240,7 +240,7 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
   const deleteAutoShiftMutation = useMutation({
     mutationFn: async (shiftId: string) => deleteShift(shiftId, { reason: "Removed from shift operations." }),
     onSuccess: async () => {
-      Alert.alert("Removed", "Auto-created scheduled shift removed.");
+      toastSuccess("Auto-created scheduled shift removed.");
       await shiftsQuery.refetch();
     },
     onError: (error: any) => {
@@ -271,13 +271,13 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
               onPress={() => setViewMode("open")}
               style={[styles.modeChip, viewMode === "open" ? styles.modeChipSelected : null]}
             >
-              <Text style={[styles.modeChipText, viewMode === "open" ? styles.modeChipTextSelected : null]}>Open Shift</Text>
+              <Text style={[styles.modeChipText, viewMode === "open" ? styles.modeChipTextSelected : null]}>Open shift</Text>
             </Pressable>
             <Pressable
               onPress={() => setViewMode("close")}
               style={[styles.modeChip, viewMode === "close" ? styles.modeChipSelected : null]}
             >
-              <Text style={[styles.modeChipText, viewMode === "close" ? styles.modeChipTextSelected : null]}>Close Shift</Text>
+              <Text style={[styles.modeChipText, viewMode === "close" ? styles.modeChipTextSelected : null]}>Close shift</Text>
             </Pressable>
           </View>
         </View>
@@ -286,7 +286,7 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
           <View style={ui.card}>
             <Text style={styles.sectionTitle}>Shift Setup for Day</Text>
             <PrimaryButton
-              label="Refresh Business Days"
+              label="Refresh business days"
               tone="neutral"
               onPress={() => void dayListQuery.refetch()}
               disabled={!shopId || dayListQuery.isFetching}
@@ -433,7 +433,7 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
                     }}
                     disabled={startScheduledShiftMutation.isPending || deleteAutoShiftMutation.isPending}
                   >
-                    <Text style={styles.smallButtonText}>{startScheduledShiftMutation.isPending ? "Starting..." : "Start"}</Text>
+                    <Text style={styles.smallButtonText}>{startScheduledShiftMutation.isPending ? "Starting…" : "Start"}</Text>
                   </Pressable>
                   {canDeleteAutoShift ? (
                     <Pressable
@@ -441,7 +441,7 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
                       onPress={() => deleteAutoShiftMutation.mutate(shift.id)}
                       disabled={startScheduledShiftMutation.isPending || deleteAutoShiftMutation.isPending}
                     >
-                      <Text style={styles.smallButtonText}>{deleteAutoShiftMutation.isPending ? "Removing..." : "Remove"}</Text>
+                      <Text style={styles.smallButtonText}>{deleteAutoShiftMutation.isPending ? "Removing…" : "Remove"}</Text>
                     </Pressable>
                   ) : null}
                 </View>
@@ -468,7 +468,7 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
               </View>
             )}
             <PrimaryButton
-              label={openShiftMutation.isPending ? "Creating..." : "Create Manual Shift"}
+              label={openShiftMutation.isPending ? "Creating…" : "Create manual shift"}
               onPress={() => openShiftMutation.mutate()}
               disabled={openShiftMutation.isPending || !shopId || !selectedBusinessDayId}
             />
@@ -481,7 +481,7 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
             <View style={ui.card}>
               <Text style={styles.sectionTitle}>Select Business Day</Text>
               <PrimaryButton
-                label="Refresh Business Days"
+                label="Refresh business days"
                 tone="neutral"
                 onPress={() => void dayListQuery.refetch()}
                 disabled={!shopId || dayListQuery.isFetching}
@@ -504,7 +504,7 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
             <View style={ui.card}>
               <Text style={styles.sectionTitle}>Open / Reopened Shifts</Text>
               <PrimaryButton
-                label="Refresh Shifts"
+                label="Refresh shifts"
                 tone="neutral"
                 onPress={() => void shiftsQuery.refetch()}
                 disabled={!selectedBusinessDayId || shiftsQuery.isFetching}
@@ -537,13 +537,13 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
                       style={styles.smallButton}
                       onPress={() => navigation.navigate("EnterClosingNumbers", { shiftId: shift.id, shopId: shift.shopId, shiftName: shift.shiftName })}
                     >
-                      <Text style={styles.smallButtonText}>Closing Numbers</Text>
+                      <Text style={styles.smallButtonText}>Closing numbers</Text>
                     </Pressable>
                     <Pressable
                       style={styles.smallButton}
                       onPress={() => navigation.navigate("ShiftDetails", { shiftId: shift.id, shopId: shift.shopId })}
                     >
-                      <Text style={styles.smallButtonText}>Close Shift</Text>
+                      <Text style={styles.smallButtonText}>Close shift</Text>
                     </Pressable>
                     <Pressable style={styles.smallButton} onPress={() => navigation.navigate("ShiftReconciliation", { shiftId: shift.id })}>
                       <Text style={styles.smallButtonText}>Reconciliation</Text>
@@ -627,7 +627,7 @@ export function CloseShiftScreen({ navigation }: CloseShiftProps) {
             Quick path to shift close. If only one open shift exists, it opens automatically.
           </Text>
           <PrimaryButton
-            label={closeShiftCandidatesQuery.isFetching ? "Refreshing..." : "Refresh Open Shifts"}
+            label={closeShiftCandidatesQuery.isFetching ? "Refreshing…" : "Refresh open shifts"}
             tone="neutral"
             onPress={() => void closeShiftCandidatesQuery.refetch()}
             disabled={!shopId || closeShiftCandidatesQuery.isFetching}
@@ -662,7 +662,7 @@ export function CloseShiftScreen({ navigation }: CloseShiftProps) {
                   style={styles.smallButton}
                   onPress={() => navigation.navigate("ShiftDetails", { shiftId: shift.id, shopId: shift.shopId })}
                 >
-                  <Text style={styles.smallButtonText}>Close Shift</Text>
+                  <Text style={styles.smallButtonText}>Close shift</Text>
                 </Pressable>
                 <Pressable style={styles.smallButton} onPress={() => navigation.navigate("ShiftReconciliation", { shiftId: shift.id })}>
                   <Text style={styles.smallButtonText}>Reconciliation</Text>
@@ -674,7 +674,7 @@ export function CloseShiftScreen({ navigation }: CloseShiftProps) {
 
         <View style={ui.card}>
           <Text style={styles.sectionTitle}>Need to open a shift first?</Text>
-          <PrimaryButton label="Go To Shift Operations" tone="neutral" onPress={() => navigation.navigate("OpenShift")} />
+          <PrimaryButton label="Go to shift operations" tone="neutral" onPress={() => navigation.navigate("OpenShift")} />
         </View>
       </View>
     </ScreenContainer>

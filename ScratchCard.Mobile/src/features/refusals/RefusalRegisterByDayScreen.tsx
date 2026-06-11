@@ -121,7 +121,7 @@ export function RefusalRegisterByDayScreen() {
                 style={styles.rowActionButton}
                 onPress={() => navigation.navigate("RefusalEntryDetails", { entryId: entry.id })}
               >
-                <Text style={styles.rowActionButtonText}>View Details</Text>
+                <Text style={styles.rowActionButtonText}>View details</Text>
               </Pressable>
               <Pressable
                 style={styles.rowActionButton}

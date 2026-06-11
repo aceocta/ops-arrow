@@ -231,7 +231,7 @@ export function ScratchCardSummaryScreen() {
       )}
 
       <PrimaryButton
-        label="View Daily Sales Report"
+        label="View daily sales report"
         tone="neutral"
         icon="stats-chart-outline"
         onPress={() => navigation.navigate("DailySalesReport", { date: businessDate })}

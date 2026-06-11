@@ -33,7 +33,7 @@ export function BillingRequiredScreen() {
         ) : (
           <Text style={styles.restrictedText}>{SUBSCRIPTION_MANAGE_RESTRICTED_MESSAGE}</Text>
         )}
-        <PrimaryButton label="View Subscription" tone="neutral" onPress={() => navigation.navigate("SubscriptionSummary")} />
+        <PrimaryButton label="View subscription" tone="neutral" onPress={() => navigation.navigate("SubscriptionSummary")} />
         <PrimaryButton label="Log out" tone="neutral" onPress={() => void signOut()} />
 
         {canManageSubscription ? (

@@ -11,6 +11,7 @@ import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError, toastSuccess } from "../../components/toast";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { MainStackParamList } from "../../types/navigation";
+import { getApiErrorMessage } from "../../utils/apiErrorMessage";
 import { formatGbp } from "../../utils/currency";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -76,7 +77,7 @@ export function PrizePayoutScreen({ route }: Props) {
       void queryClient.invalidateQueries({ queryKey: ["prize-payouts", shiftId] });
     },
     onError: (error: any) => {
-      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to create prize payout.");
+      toastError(getApiErrorMessage(error, "Unable to create prize payout."));
     },
   });
 
@@ -168,7 +169,7 @@ export function PrizePayoutScreen({ route }: Props) {
         />
 
         <PrimaryButton
-          label={createMutation.isPending ? "Saving..." : "Create Payout"}
+          label={createMutation.isPending ? "Saving…" : "Create payout"}
           onPress={() => createMutation.mutate()}
           disabled={createMutation.isPending}
         />

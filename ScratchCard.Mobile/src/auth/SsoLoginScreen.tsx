@@ -142,7 +142,7 @@ export function SsoLoginScreen() {
     }
   }
 
-  const buttonLabel = isLoading || isAuthorizing ? "Signing in..." : "Continue with Google";
+  const buttonLabel = isLoading || isAuthorizing ? "Signing in…" : "Continue with Google";
   const showDevBypass = appConfig.enableDevAuthBypass;
 
   return (
@@ -167,7 +167,7 @@ export function SsoLoginScreen() {
           <>
             <Text style={styles.devHint}>Bypass Google authentication (enabled by app config).</Text>
             <PrimaryButton
-              label={isLoading || isAuthorizing ? "Signing in..." : "Dev Login (Bypass Auth)"}
+              label={isLoading || isAuthorizing ? "Signing in…" : "Dev login (bypass auth)"}
               onPress={onDevBypassSignIn}
               tone="neutral"
               disabled={isLoading || isAuthorizing}

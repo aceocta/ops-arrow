@@ -19,6 +19,7 @@ import { Skeleton } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
+import { getApiErrorMessage } from "../../utils/apiErrorMessage";
 import { formatGbp } from "../../utils/currency";
 import { haptics } from "../../utils/haptics";
 import type { MainStackParamList } from "../../types/navigation";
@@ -26,17 +27,6 @@ import type { MainStackParamList } from "../../types/navigation";
 type SafeDropRoute = RouteProp<MainStackParamList, "SafeDrop">;
 
 const formatCurrencyGBP = formatGbp;
-
-function getApiErrorMessage(error: unknown, fallback: string): string {
-  const e = error as any;
-  const serverMessage =
-    typeof e?.response?.data?.message === "string" ? e.response.data.message :
-    typeof e?.response?.data?.error === "string" ? e.response.data.error : undefined;
-  if (e?.message === "Network Error" || e?.code === "ERR_NETWORK") {
-    return "Couldn't reach the server. Check your connection and try again.";
-  }
-  return serverMessage ?? e?.message ?? fallback;
-}
 
 function normalizeRole(role: string | null | undefined) {
   return (role ?? "").trim().toLowerCase().replace(/\s+/g, "");
@@ -186,7 +176,7 @@ export function SafeDropScreen() {
           returnKeyType="done"
         />
         <PrimaryButton
-          label={addMutation.isPending ? "Saving..." : "Add Safe Drop"}
+          label={addMutation.isPending ? "Saving…" : "Add safe drop"}
           onPress={() => addMutation.mutate()}
           disabled={addMutation.isPending}
         />

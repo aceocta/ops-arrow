@@ -123,7 +123,7 @@ export function PaymentTypesConfigScreen() {
           returnKeyType="done"
         />
         <PrimaryButton
-          label={createMutation.isPending ? "Adding..." : "Add payment type"}
+          label={createMutation.isPending ? "Adding…" : "Add payment type"}
           onPress={() => createMutation.mutate()}
           disabled={!canAdd}
         />
@@ -137,7 +137,7 @@ export function PaymentTypesConfigScreen() {
             <Text style={ui.bodyText}>None yet — start with the common defaults below or add your own above.</Text>
             <PrimaryButton
               tone="neutral"
-              label={seedDefaultsMutation.isPending ? "Adding..." : "Add common defaults"}
+              label={seedDefaultsMutation.isPending ? "Adding…" : "Add common defaults"}
               onPress={() => seedDefaultsMutation.mutate()}
               disabled={seedDefaultsMutation.isPending}
             />

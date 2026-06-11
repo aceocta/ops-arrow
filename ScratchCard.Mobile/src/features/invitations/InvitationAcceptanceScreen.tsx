@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, Text, TextInput, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { PhoneNumberInput } from "../../components/PhoneNumberInput";
 import { ScreenContainer } from "../../components/ScreenContainer";
-import { toastError } from "../../components/toast";
+import { toastError, toastSuccess } from "../../components/toast";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { acceptInvitation, validateInvitation } from "../../api/authApi";
 import { RootStackParamList } from "../../types/navigation";
@@ -127,17 +127,8 @@ export function InvitationAcceptanceScreen({ route, navigation }: Props) {
         ? "You've been added to the shop. Sign in with your existing email and password."
         : "Your account is ready. Please sign in with your email and the password you just set.";
 
-      Alert.alert(
-        "Invitation accepted",
-        message,
-        [
-          {
-            text: "Go to Sign In",
-            onPress: () => navigation.reset({ index: 0, routes: [{ name: "Login" }] }),
-          },
-        ],
-        { cancelable: false },
-      );
+      toastSuccess(message);
+      navigation.reset({ index: 0, routes: [{ name: "Login" }] });
     } catch (error: any) {
       toastError(describeAcceptError(error));
     } finally {
@@ -146,10 +137,10 @@ export function InvitationAcceptanceScreen({ route, navigation }: Props) {
   }
 
   const acceptLabel = isBusy
-    ? "Accepting..."
+    ? "Accepting…"
     : isExistingAccount
-      ? "Accept & Join Shop"
-      : "Accept Invitation";
+      ? "Accept & join shop"
+      : "Accept invitation";
 
   return (
     <ScreenContainer>

@@ -15,7 +15,7 @@ import { finalizeShift, getActivePacksForShift, getShift, getShiftCloseAttachmen
 import { getTillShiftSummary } from "../../api/tillReportsApi";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
-import { toastError } from "../../components/toast";
+import { toastError, toastSuccess } from "../../components/toast";
 import { SectionHeader } from "../../components/SectionHeader";
 import { KpiGrid, KpiTile } from "../../components/KpiTile";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -300,7 +300,7 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
     onSuccess: async ({ fileUri, fileName, contentType }) => {
       const canShare = await Sharing.isAvailableAsync();
       if (!canShare) {
-        Alert.alert("Downloaded", `File saved to:\n${fileUri}`);
+        toastSuccess(`File saved to:\n${fileUri}`);
         return;
       }
 
@@ -553,7 +553,7 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
         </Text>
       ) : null}
       <PrimaryButton
-        label={isFinalizing ? "Closing..." : "Close Shift"}
+        label={isFinalizing ? "Closing…" : "Close shift"}
         icon="checkmark-circle-outline"
         tone="success"
         onPress={onCloseShift}
@@ -917,7 +917,7 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
                 disabled={isFinalizing}
               >
                 <Ionicons name="camera-outline" size={16} color={appTheme.colors.text} />
-                <Text style={styles.attachmentActionButtonText}>Take Photo</Text>
+                <Text style={styles.attachmentActionButtonText}>Take photo</Text>
               </Pressable>
               <Pressable
                 style={[styles.attachmentActionButton, styles.attachmentActionButtonFlex]}
@@ -927,7 +927,7 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
                 disabled={isFinalizing}
               >
                 <Ionicons name="images-outline" size={16} color={appTheme.colors.text} />
-                <Text style={styles.attachmentActionButtonText}>From Gallery</Text>
+                <Text style={styles.attachmentActionButtonText}>From gallery</Text>
               </Pressable>
             </View>
           </View>
@@ -971,7 +971,7 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
                         onPress={() => downloadAttachment(attachment.id, attachment.fileName)}
                         disabled={isDownloading}
                       >
-                        <Text style={styles.attachmentDownloadButtonText}>{isDownloading ? "Saving..." : "Download"}</Text>
+                        <Text style={styles.attachmentDownloadButtonText}>{isDownloading ? "Saving…" : "Download"}</Text>
                       </Pressable>
                       {canPreviewImage ? (
                         <Pressable
@@ -981,7 +981,7 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
                           onPress={() => previewAttachment(attachment.id, attachment.fileName)}
                           disabled={isLoadingPreview}
                         >
-                          <Text style={styles.attachmentViewButtonText}>{isLoadingPreview ? "Loading..." : "Preview"}</Text>
+                          <Text style={styles.attachmentViewButtonText}>{isLoadingPreview ? "Loading…" : "Preview"}</Text>
                         </Pressable>
                       ) : (
                         <View style={styles.attachmentNoPreviewBadge}>
@@ -1023,7 +1023,7 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
                   disabled={!attachmentPreviewId || !attachmentPreviewTitle || downloadingAttachmentId === attachmentPreviewId}
                 >
                   <Text style={styles.attachmentPreviewHeaderButtonText}>
-                    {downloadingAttachmentId === attachmentPreviewId ? "Saving..." : "Download"}
+                    {downloadingAttachmentId === attachmentPreviewId ? "Saving…" : "Download"}
                   </Text>
                 </Pressable>
                 <Pressable

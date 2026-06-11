@@ -87,7 +87,7 @@ export function ShopSelectorScreen() {
       footer={
         groupedShops.length > 0 ? (
           <PrimaryButton
-            label={isSwitching ? "Opening..." : "Continue"}
+            label={isSwitching ? "Opening…" : "Continue"}
             onPress={() => void onConfirm()}
             disabled={!selectedShopId || isSwitching}
           />

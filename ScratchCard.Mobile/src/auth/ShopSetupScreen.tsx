@@ -236,7 +236,7 @@ export function ShopSetupScreen() {
         <ShiftTemperatureSetup onChange={setExtras} />
 
         <PrimaryButton
-          label={busy ? progressMessage ?? "Saving..." : "Finish Setup"}
+          label={busy ? progressMessage ?? "Saving…" : "Finish setup"}
           onPress={() => void onContinue()}
           disabled={busy || !subscriptionPlanId}
         />

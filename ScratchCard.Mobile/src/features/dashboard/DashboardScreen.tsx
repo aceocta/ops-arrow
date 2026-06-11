@@ -88,7 +88,7 @@ export function DashboardScreen() {
               <Text style={styles.meta}>{dayListErrorMessage}</Text>
               <PrimaryButton
                 tone="neutral"
-                label={dayListQuery.isFetching ? "Retrying..." : "Retry"}
+                label={dayListQuery.isFetching ? "Retrying…" : "Retry"}
                 onPress={() => void dayListQuery.refetch()}
                 disabled={dayListQuery.isFetching}
               />
@@ -97,13 +97,13 @@ export function DashboardScreen() {
             <>
               <View style={styles.loadingRow}>
                 <ActivityIndicator size="small" color={appTheme.colors.primary} />
-                <Text style={styles.sectionTitle}>Loading Day Management...</Text>
+                <Text style={styles.sectionTitle}>Loading Day Management…</Text>
               </View>
               <Text style={styles.meta}>Checking the current opened business day.</Text>
             </>
           ) : preferredDay ? (
             <>
-              <Text style={styles.sectionTitle}>Opening Day Management...</Text>
+              <Text style={styles.sectionTitle}>Opening Day Management…</Text>
               <Text style={styles.meta}>Date: {preferredDay.businessDate}</Text>
               <Text style={styles.meta}>Status: {preferredDay.status}</Text>
             </>
@@ -113,7 +113,7 @@ export function DashboardScreen() {
               <Text style={styles.meta}>No existing business day found. Open one to continue.</Text>
               <DateTimeField mode="date" value={businessDate} onChange={setBusinessDate} />
               <PrimaryButton
-                label={openDayMutation.isPending ? "Opening..." : "Open Day"}
+                label={openDayMutation.isPending ? "Opening…" : "Open day"}
                 onPress={() => openDayMutation.mutate()}
                 disabled={openDayMutation.isPending}
               />

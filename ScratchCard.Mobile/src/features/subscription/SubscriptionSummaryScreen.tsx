@@ -101,7 +101,7 @@ export function SubscriptionSummaryScreen() {
           message,
           [
             { text: "Close", style: "cancel" },
-            { text: "Choose Plan", onPress: () => navigation.navigate("ChoosePlan") },
+            { text: "Choose plan", onPress: () => navigation.navigate("ChoosePlan") },
           ],
         );
         return;
@@ -187,11 +187,11 @@ export function SubscriptionSummaryScreen() {
         ) : null}
         {canManageSubscription ? (
           <>
-            <PrimaryButton label="Choose Plan" onPress={() => navigation.navigate("ChoosePlan")} disabled={!shopId} />
+            <PrimaryButton label="Choose plan" onPress={() => navigation.navigate("ChoosePlan")} disabled={!shopId} />
 
             {summary && isPaused ? (
               <PrimaryButton
-                label={resumeMutation.isPending ? "Resuming..." : "Resume Shop"}
+                label={resumeMutation.isPending ? "Resuming…" : "Resume shop"}
                 tone="success"
                 onPress={() => resumeMutation.mutate()}
                 disabled={resumeMutation.isPending}
@@ -200,7 +200,7 @@ export function SubscriptionSummaryScreen() {
 
             {summary && !isPaused && !isCancelled && !isCancelledAtPeriodEnd ? (
               <PrimaryButton
-                label={pauseMutation.isPending ? "Pausing..." : "Pause Shop"}
+                label={pauseMutation.isPending ? "Pausing…" : "Pause shop"}
                 tone="neutral"
                 onPress={confirmPause}
                 disabled={pauseMutation.isPending}
@@ -209,7 +209,7 @@ export function SubscriptionSummaryScreen() {
 
             {summary && !isPaused && !isCancelled && !isCancelledAtPeriodEnd ? (
               <PrimaryButton
-                label={cancelMutation.isPending ? "Cancelling..." : "Cancel Subscription"}
+                label={cancelMutation.isPending ? "Cancelling…" : "Cancel subscription"}
                 tone="danger"
                 onPress={confirmCancel}
                 disabled={cancelMutation.isPending}
@@ -218,7 +218,7 @@ export function SubscriptionSummaryScreen() {
 
             {summary && (isCancelled || isCancelledAtPeriodEnd) ? (
               <PrimaryButton
-                label={reactivateMutation.isPending ? "Reactivating..." : "Reactivate Subscription"}
+                label={reactivateMutation.isPending ? "Reactivating…" : "Reactivate subscription"}
                 tone="success"
                 onPress={() => reactivateMutation.mutate()}
                 disabled={reactivateMutation.isPending}

@@ -14,6 +14,7 @@ import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
+import { getApiErrorMessage } from "../../utils/apiErrorMessage";
 import { buildStaffInitialsForPayload } from "./refusalStaffUtils";
 
 type Props = NativeStackScreenProps<MainStackParamList, "RefusalEntryEdit">;
@@ -101,7 +102,7 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
       navigation.goBack();
     },
     onError: (error: any) => {
-      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to update refusal entry.");
+      toastError(getApiErrorMessage(error, "Unable to update refusal entry."));
     },
   });
 
@@ -194,7 +195,7 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
                 </>
               ) : (
                 <Text style={styles.signaturePlaceholder}>
-                  {signatureQuery.isLoading ? "Loading signature..." : "✍  Tap here to sign"}
+                  {signatureQuery.isLoading ? "Loading signature…" : "✍  Tap here to sign"}
                 </Text>
               )}
             </Pressable>
@@ -207,7 +208,7 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
             ) : null}
 
             <PrimaryButton
-              label={updateMutation.isPending ? "Saving..." : "Save Changes"}
+              label={updateMutation.isPending ? "Saving…" : "Save changes"}
               onPress={() => updateMutation.mutate()}
               disabled={updateMutation.isPending}
             />

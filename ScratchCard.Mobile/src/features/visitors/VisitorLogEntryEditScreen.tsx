@@ -9,7 +9,7 @@ import { DateTimeField, formatDateValue, formatTimeValue } from "../../component
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
-import { toastError } from "../../components/toast";
+import { toastError, toastSuccess } from "../../components/toast";
 import {
   createVisitorEntry,
   getVisitorEntry,
@@ -22,6 +22,7 @@ import { useFeature } from "../../features/subscription/useFeature";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
+import { getApiErrorMessage } from "../../utils/apiErrorMessage";
 
 type Props = NativeStackScreenProps<MainStackParamList, "VisitorLogEntryEdit">;
 
@@ -152,11 +153,11 @@ export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
         queryClient.invalidateQueries({ queryKey: ["visitor-on-site"] }),
         queryClient.invalidateQueries({ queryKey: ["visitor-entry", entryId] }),
       ]);
-      Alert.alert(isEdit ? "Saved" : "Signed in", isEdit ? "Visitor entry updated." : "Visitor signed in.");
+      toastSuccess(isEdit ? "Visitor entry updated." : "Visitor signed in.");
       navigation.goBack();
     },
     onError: (error: any) => {
-      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to save visitor entry.");
+      toastError(getApiErrorMessage(error, "Unable to save visitor entry."));
     },
   });
 

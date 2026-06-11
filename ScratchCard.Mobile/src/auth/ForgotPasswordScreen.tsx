@@ -6,6 +6,7 @@ import { requestPasswordReset } from "../api/authApi";
 import { FloatingLabelInput } from "../components/FloatingLabelInput";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { ScreenContainer } from "../components/ScreenContainer";
+import { toastSuccess } from "../components/toast";
 import type { RootStackParamList } from "../types/navigation";
 import { ui } from "../ui/primitives";
 import { appTheme } from "../ui/theme";
@@ -25,10 +26,7 @@ export function ForgotPasswordScreen() {
     setIsBusy(true);
     try {
       await requestPasswordReset({ email: email.trim() });
-      Alert.alert(
-        "Check your email",
-        "If the account exists, we sent password reset instructions and a token."
-      );
+      toastSuccess("If the account exists, we sent password reset instructions and a token.");
       navigation.navigate("ResetPassword");
     } catch (error: any) {
       Alert.alert("Request failed", error?.response?.data?.message ?? "Unable to request password reset.");
@@ -59,7 +57,7 @@ export function ForgotPasswordScreen() {
           error={emailError}
         />
         <PrimaryButton
-          label={isBusy ? "Sending..." : "Send Reset Email"}
+          label={isBusy ? "Sending…" : "Send reset email"}
           onPress={() => void onRequestReset()}
           disabled={isBusy}
         />

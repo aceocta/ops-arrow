@@ -7,6 +7,7 @@ import { FloatingLabelInput } from "../components/FloatingLabelInput";
 import { PhoneNumberInput } from "../components/PhoneNumberInput";
 import { ScreenContainer } from "../components/ScreenContainer";
 import { PrimaryButton } from "../components/PrimaryButton";
+import { toastSuccess } from "../components/toast";
 import { ui } from "../ui/primitives";
 import { appTheme } from "../ui/theme";
 import { useAuth } from "./AuthContext";
@@ -101,7 +102,7 @@ export function CompanySignupScreen() {
       setVerificationRequested(true);
       setVerificationTargetEmail(validated.email);
       setVerificationExpiresOn(response.expiresOn);
-      Alert.alert("Verification Code Sent", `We sent a 6-digit code to ${validated.email}.`);
+      toastSuccess(`Verification code sent to ${validated.email}.`);
     } catch (error: any) {
       Alert.alert("Unable to send code", error?.response?.data?.message ?? error?.message ?? "Please try again.");
     } finally {
@@ -317,7 +318,7 @@ export function CompanySignupScreen() {
 
         {!verificationRequested ? (
           <PrimaryButton
-            label={isRequestingCode ? "Sending Verification Code..." : "Send Verification Code"}
+            label={isRequestingCode ? "Sending verification code…" : "Send verification code"}
             onPress={() => void onRequestVerificationCode()}
             disabled={busy}
           />
@@ -341,14 +342,14 @@ export function CompanySignupScreen() {
             />
 
             <PrimaryButton
-              label={isCompletingSignup ? "Verifying and Creating Account..." : "Verify Email and Continue"}
+              label={isCompletingSignup ? "Verifying and creating account…" : "Verify email and continue"}
               onPress={() => void onCompleteSignup()}
               disabled={busy}
             />
 
             <View style={styles.secondaryActions}>
               <PrimaryButton
-                label={isRequestingCode ? "Resending..." : "Resend Code"}
+                label={isRequestingCode ? "Resending…" : "Resend code"}
                 onPress={() => void onRequestVerificationCode()}
                 disabled={busy}
                 tone="neutral"

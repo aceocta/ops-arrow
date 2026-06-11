@@ -335,7 +335,7 @@ export function MyShiftsScreen() {
                 {open ? (
                   <Pressable style={({ pressed }) => [styles.actBtn, styles.actBtnOut, pressed && styles.actBtnPressed]} onPress={() => checkOutMutation.mutate()} disabled={busy}>
                     <Ionicons name="log-out-outline" size={16} color={appTheme.colors.onPrimary} />
-                    <Text style={styles.actBtnText}>{checkOutMutation.isPending ? "Checking out..." : "Check out"}</Text>
+                    <Text style={styles.actBtnText}>{checkOutMutation.isPending ? "Checking out…" : "Check out"}</Text>
                   </Pressable>
                 ) : (
                   <Pressable
@@ -344,7 +344,7 @@ export function MyShiftsScreen() {
                     disabled={busy || onAnotherShift}
                   >
                     <Ionicons name="log-in-outline" size={16} color={appTheme.colors.onPrimary} />
-                    <Text style={styles.actBtnText}>{checkInMutation.isPending ? "Checking in..." : completed ? "Check in again" : "Check in"}</Text>
+                    <Text style={styles.actBtnText}>{checkInMutation.isPending ? "Checking in…" : completed ? "Check in again" : "Check in"}</Text>
                   </Pressable>
                 )}
                 <Pressable style={({ pressed }) => [styles.actGhost, pressed && styles.actGhostPressed]} onPress={() => openManual(shift)}>
@@ -472,7 +472,7 @@ export function MyShiftsScreen() {
             </View>
 
             <PrimaryButton
-              label={manualMutation.isPending ? "Saving..." : "Save hours"}
+              label={manualMutation.isPending ? "Saving…" : "Save hours"}
               onPress={() => manualMutation.mutate()}
               disabled={manualMutation.isPending || !manualShift || manualOut === manualIn}
             />
@@ -950,7 +950,7 @@ export function RotaManageScreen() {
               accessibilityLabel="Save shift"
             >
               <Text style={[styles.editorSave, !canSave ? styles.editorSaveDisabled : null]}>
-                {saveMutation.isPending ? "Saving..." : "Save"}
+                {saveMutation.isPending ? "Saving…" : "Save"}
               </Text>
             </Pressable>
           </View>
@@ -1098,7 +1098,7 @@ export function RotaManageScreen() {
           {/* Always-visible save bar so the action is never missed at the bottom of a long form. */}
           <View style={[styles.editorFooter, { paddingBottom: Math.max(insets.bottom, 12) }]}>
             <PrimaryButton
-              label={saveMutation.isPending ? "Saving..." : draft.id ? "Save changes" : "Add shift"}
+              label={saveMutation.isPending ? "Saving…" : draft.id ? "Save changes" : "Add shift"}
               onPress={() => saveMutation.mutate()}
               disabled={!canSave}
             />
@@ -1192,7 +1192,7 @@ export function RotaManageScreen() {
             />
 
             <PrimaryButton
-              label={addExternalMutation.isPending ? "Adding..." : "Add & assign"}
+              label={addExternalMutation.isPending ? "Adding…" : "Add & assign"}
               onPress={() => addExternalMutation.mutate()}
               disabled={!extName.trim() || addExternalMutation.isPending}
             />
@@ -1225,7 +1225,7 @@ export function RotaManageScreen() {
               <Text style={styles.mutedSmall}>Overnight — check-out is on the next day.</Text>
             ) : null}
             <PrimaryButton
-              label={recordHoursMutation.isPending ? "Saving..." : "Save hours"}
+              label={recordHoursMutation.isPending ? "Saving…" : "Save hours"}
               onPress={() => recordHoursMutation.mutate()}
               disabled={recordHoursMutation.isPending || recOut === recIn}
             />
@@ -1599,7 +1599,7 @@ export function RotaApprovalsScreen() {
                 </Pressable>
                 <Pressable style={styles.approveBtnFlex} onPress={() => approveMutation.mutate(p.id)} disabled={approveMutation.isPending}>
                   <Ionicons name="checkmark" size={16} color={appTheme.colors.onPrimary} />
-                  <Text style={styles.actBtnText}>{approveMutation.isPending ? "Approving..." : "Approve"}</Text>
+                  <Text style={styles.actBtnText}>{approveMutation.isPending ? "Approving…" : "Approve"}</Text>
                 </Pressable>
               </View>
             </View>
@@ -1645,7 +1645,7 @@ export function RotaApprovalsScreen() {
               <Text style={styles.mutedSmall}>Saving approves this entry with the adjusted times.</Text>
             </View>
             <PrimaryButton
-              label={adjustMutation.isPending ? "Saving..." : "Save & approve"}
+              label={adjustMutation.isPending ? "Saving…" : "Save & approve"}
               onPress={() => adjustMutation.mutate()}
               disabled={adjustMutation.isPending || !editIn || editOut === editIn}
             />
@@ -1757,7 +1757,7 @@ export function RotaStaffMembersScreen() {
             <Text style={styles.fieldLabel}>Email (optional)</Text>
             <TextInput style={styles.externalInput} value={email} onChangeText={setEmail} placeholder="name@example.com" placeholderTextColor={appTheme.colors.textSubtle} autoCapitalize="none" keyboardType="email-address" />
 
-            <PrimaryButton label={saveMutation.isPending ? "Saving..." : "Save"} onPress={() => saveMutation.mutate()} disabled={!name.trim() || saveMutation.isPending} />
+            <PrimaryButton label={saveMutation.isPending ? "Saving…" : "Save"} onPress={() => saveMutation.mutate()} disabled={!name.trim() || saveMutation.isPending} />
 
             {editing && editing !== "new" ? (
               <>

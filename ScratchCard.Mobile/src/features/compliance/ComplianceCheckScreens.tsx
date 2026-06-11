@@ -36,7 +36,7 @@ import { PrimaryButton } from "../../components/PrimaryButton";
 import { ReportActionBar } from "../../components/ReportActionBar";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SectionHeader } from "../../components/SectionHeader";
-import { toastError } from "../../components/toast";
+import { toastError, toastSuccess } from "../../components/toast";
 import { Skeleton } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
@@ -1022,7 +1022,7 @@ export function ComplianceChecksScreen() {
     onSuccess: async ({ fileUri, fileName, contentType }) => {
       const canShare = await Sharing.isAvailableAsync();
       if (!canShare) {
-        Alert.alert("Downloaded", `File saved to:\n${fileUri}`);
+        toastSuccess(`File saved to:\n${fileUri}`);
         return;
       }
 
@@ -1193,7 +1193,7 @@ export function ComplianceChecksScreen() {
     },
     onSuccess: (_value, action) => {
       if (action === "email") {
-        Alert.alert("Report emailed", "Compliance report has been emailed successfully.");
+        toastSuccess("Compliance report emailed.");
       }
     },
     onError: (error: any) => {
@@ -1588,7 +1588,7 @@ export function ComplianceChecksScreen() {
             <Text style={styles.actionsLabel}>Actions</Text>
             <View style={styles.row}>
               <Pressable style={styles.secondaryButton} onPress={() => navigation.navigate("ComplianceActions")}>
-                <Text style={styles.secondaryButtonText}>Action Report</Text>
+                <Text style={styles.secondaryButtonText}>Action report</Text>
               </Pressable>
               {canManage ? (
                 <Pressable style={styles.secondaryButton} onPress={() => navigation.navigate("ComplianceConfig")}>
@@ -1744,19 +1744,19 @@ export function ComplianceChecksScreen() {
               actions={[
                 {
                   icon: "print-outline",
-                  label: reportActionInProgress === "print" ? "Preparing..." : "Print",
+                  label: reportActionInProgress === "print" ? "Preparing…" : "Print",
                   onPress: () => runComplianceReport("print"),
                   disabled: complianceMatrixReportMutation.isPending,
                 },
                 {
                   icon: "share-social-outline",
-                  label: reportActionInProgress === "share" ? "Preparing..." : "Share",
+                  label: reportActionInProgress === "share" ? "Preparing…" : "Share",
                   onPress: () => runComplianceReport("share"),
                   disabled: complianceMatrixReportMutation.isPending,
                 },
                 {
                   icon: "mail-outline",
-                  label: reportActionInProgress === "email" ? "Sending..." : "Email",
+                  label: reportActionInProgress === "email" ? "Sending…" : "Email",
                   onPress: () => runComplianceReport("email"),
                   disabled: complianceMatrixReportMutation.isPending,
                 },
@@ -2019,7 +2019,7 @@ export function ComplianceChecksScreen() {
                                       disabled={isDownloading}
                                     >
                                       <Text style={styles.complianceAttachmentDownloadButtonText}>
-                                        {isDownloading ? "Saving..." : "Download"}
+                                        {isDownloading ? "Saving…" : "Download"}
                                       </Text>
                                     </Pressable>
                                     {canPreviewImage ? (
@@ -2029,7 +2029,7 @@ export function ComplianceChecksScreen() {
                                         disabled={isLoadingPreview}
                                       >
                                         <Text style={styles.complianceAttachmentViewButtonText}>
-                                          {isLoadingPreview ? "Loading..." : "Preview"}
+                                          {isLoadingPreview ? "Loading…" : "Preview"}
                                         </Text>
                                       </Pressable>
                                     ) : (
@@ -2082,7 +2082,7 @@ export function ComplianceChecksScreen() {
                                 onPress={() => void captureAttachmentForItem(row.item, draft)}
                               >
                                 <Ionicons name="camera-outline" size={16} color={appTheme.colors.text} />
-                                <Text style={styles.complianceAttachmentActionButtonText}>Take Photo</Text>
+                                <Text style={styles.complianceAttachmentActionButtonText}>Take photo</Text>
                               </Pressable>
                               <Pressable
                                 style={styles.complianceAttachmentActionButton}
@@ -2091,7 +2091,7 @@ export function ComplianceChecksScreen() {
                                 onPress={() => void selectAttachmentsForItem(row.item, draft)}
                               >
                                 <Ionicons name="images-outline" size={16} color={appTheme.colors.text} />
-                                <Text style={styles.complianceAttachmentActionButtonText}>From Gallery</Text>
+                                <Text style={styles.complianceAttachmentActionButtonText}>From gallery</Text>
                               </Pressable>
                             </View>
                             {pendingAttachments.length > 0 ? (
@@ -2213,7 +2213,7 @@ export function ComplianceChecksScreen() {
                 disabled={!attachmentPreviewId || !attachmentPreviewTitle || downloadingAttachmentId === attachmentPreviewId}
               >
                 <Text style={styles.attachmentPreviewHeaderButtonText}>
-                  {downloadingAttachmentId === attachmentPreviewId ? "Saving..." : "Download"}
+                  {downloadingAttachmentId === attachmentPreviewId ? "Saving…" : "Download"}
                 </Text>
               </Pressable>
               <Pressable style={styles.attachmentPreviewHeaderButton} onPress={closeAttachmentPreviewModal}>
@@ -2240,7 +2240,7 @@ export function ComplianceChecksScreen() {
               style={[styles.input, editorState?.field === "checkedByName" ? null : styles.textArea]}
               value={editorValue}
               onChangeText={setEditorValue}
-              placeholder={editorState?.field === "checkedByName" ? "Enter person name..." : "Enter details..."}
+              placeholder={editorState?.field === "checkedByName" ? "Enter person name…" : "Enter details…"}
               placeholderTextColor={appTheme.colors.textSubtle}
               multiline={editorState?.field !== "checkedByName"}
               autoCapitalize="words"
@@ -2491,7 +2491,7 @@ export function ComplianceChecksConfigScreen() {
         <View style={styles.cfgActionRow}>
           <Pressable style={styles.cfgPrimaryAction} onPress={openCreateGroup}>
             <Ionicons name="add" size={18} color={appTheme.colors.onPrimary} />
-            <Text style={styles.cfgPrimaryActionText}>New Group</Text>
+            <Text style={styles.cfgPrimaryActionText}>New group</Text>
           </Pressable>
           <Pressable
             style={[styles.cfgGhostAction, !groups.length ? styles.cfgActionDisabled : null]}
@@ -2499,7 +2499,7 @@ export function ComplianceChecksConfigScreen() {
             disabled={!groups.length}
           >
             <Ionicons name="add-circle-outline" size={18} color={appTheme.colors.primary} />
-            <Text style={styles.cfgGhostActionText}>New Item</Text>
+            <Text style={styles.cfgGhostActionText}>New item</Text>
           </Pressable>
         </View>
 
@@ -2522,7 +2522,7 @@ export function ComplianceChecksConfigScreen() {
             <Text style={styles.cfgEmptySubtitle}>Create your first group to start adding compliance items.</Text>
             <Pressable style={styles.cfgPrimaryAction} onPress={openCreateGroup}>
               <Ionicons name="add" size={18} color={appTheme.colors.onPrimary} />
-              <Text style={styles.cfgPrimaryActionText}>New Group</Text>
+              <Text style={styles.cfgPrimaryActionText}>New group</Text>
             </Pressable>
           </View>
         ) : (
@@ -2604,7 +2604,7 @@ export function ComplianceChecksConfigScreen() {
                 <Text style={styles.cfgEmptySubtitle}>No items yet. Add the first check for this group.</Text>
                 <Pressable style={styles.cfgGhostAction} onPress={() => openCreateItem(activeGroup.id)}>
                   <Ionicons name="add-circle-outline" size={18} color={appTheme.colors.primary} />
-                  <Text style={styles.cfgGhostActionText}>New Item</Text>
+                  <Text style={styles.cfgGhostActionText}>New item</Text>
                 </Pressable>
               </View>
             ) : (
@@ -2705,7 +2705,7 @@ export function ComplianceChecksConfigScreen() {
                 </Pressable>
                 <View style={styles.cfgModalSave}>
                   <PrimaryButton
-                    label={groupSaveMutation.isPending ? "Saving..." : "Save Group"}
+                    label={groupSaveMutation.isPending ? "Saving…" : "Save group"}
                     onPress={() => groupSaveMutation.mutate()}
                     disabled={groupSaveMutation.isPending}
                   />
@@ -2784,7 +2784,7 @@ export function ComplianceChecksConfigScreen() {
                 </Pressable>
                 <View style={styles.cfgModalSave}>
                   <PrimaryButton
-                    label={itemSaveMutation.isPending ? "Saving..." : "Save Item"}
+                    label={itemSaveMutation.isPending ? "Saving…" : "Save item"}
                     onPress={() => itemSaveMutation.mutate()}
                     disabled={itemSaveMutation.isPending}
                   />
@@ -2893,7 +2893,7 @@ export function ComplianceActionsScreen() {
               </>
             ) : (
               <Pressable style={styles.secondaryButton} onPress={() => openCloseAction(row)}>
-                <Text style={styles.secondaryButtonText}>Close Action</Text>
+                <Text style={styles.secondaryButtonText}>Close action</Text>
               </Pressable>
             )}
           </View>
@@ -2933,7 +2933,7 @@ export function ComplianceActionsScreen() {
                   });
                 }}
               >
-                <Text style={styles.secondaryButtonText}>Close Action</Text>
+                <Text style={styles.secondaryButtonText}>Close action</Text>
               </Pressable>
             </View>
           </View>

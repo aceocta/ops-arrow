@@ -237,7 +237,7 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
       return;
     }
 
-    closeScannerAfterPendingComplete("All pending packs scanned. Closing camera...");
+    closeScannerAfterPendingComplete("All pending packs scanned. Closing camera…");
   }, [mode, isAutoPendingReady, pendingAutoPacks.length, closeScannerAfterPendingComplete]);
 
   useEffect(() => {
@@ -518,7 +518,7 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
     return (
       <View style={styles.center}>
         <Text style={styles.title}>Camera permission is required.</Text>
-        <Button title="Grant Permission" onPress={() => requestPermission()} />
+        <Button title="Grant permission" onPress={() => requestPermission()} />
       </View>
     );
   }
@@ -548,7 +548,7 @@ export function BarcodeScannerScreen({ navigation, route }: Props) {
         ) : (
           <>
             <Button
-              title={isProcessingOcr ? "Reading Text..." : "Capture Text"}
+              title={isProcessingOcr ? "Reading text…" : "Capture text"}
               onPress={() => {
                 void runMlkitOcrFallback();
               }}

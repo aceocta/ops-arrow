@@ -85,7 +85,7 @@ export function LandscapeSignatureModal({ visible, title = "Capture Signature", 
               <Text style={styles.secondaryText}>Clear</Text>
             </Pressable>
             <Pressable style={[styles.actionButton, styles.primary]} onPress={handleSavePressed}>
-              <Text style={styles.primaryText}>Save Signature</Text>
+              <Text style={styles.primaryText}>Save signature</Text>
             </Pressable>
           </View>
         </View>

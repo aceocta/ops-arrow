@@ -317,7 +317,7 @@ export function ShopChecklistScreen() {
             accessibilityRole="button"
             accessibilityLabel="Open checklist setup"
           >
-            <Text style={styles.secondaryButtonText}>Checklist Setup</Text>
+            <Text style={styles.secondaryButtonText}>Checklist setup</Text>
           </Pressable>
         ) : null}
       </View>
@@ -796,7 +796,7 @@ export function ChecklistConfigurationScreen() {
               <Text style={styles.toggleValue}>{groupForm.isActive ? "Yes" : "No"}</Text>
             </Pressable>
             <PrimaryButton
-              label={saveGroupMutation.isPending ? "Saving..." : "Save Group"}
+              label={saveGroupMutation.isPending ? "Saving…" : "Save group"}
               onPress={() => saveGroupMutation.mutate()}
               disabled={saveGroupMutation.isPending}
             />
@@ -841,7 +841,7 @@ export function ChecklistConfigurationScreen() {
               ))}
 
               <PrimaryButton
-                label={saveTaskMutation.isPending ? "Saving..." : "Save Task"}
+                label={saveTaskMutation.isPending ? "Saving…" : "Save task"}
                 onPress={() => saveTaskMutation.mutate()}
                 disabled={saveTaskMutation.isPending}
               />

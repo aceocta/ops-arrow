@@ -12,7 +12,7 @@ import { EmptyState } from "../../components/EmptyState";
 import { LoadingState } from "../../components/LoadingState";
 import { ReportActionBar } from "../../components/ReportActionBar";
 import { ScreenContainer } from "../../components/ScreenContainer";
-import { toastError } from "../../components/toast";
+import { toastError, toastSuccess } from "../../components/toast";
 import { listVisitorEntriesByRange, signOutVisitor } from "../../api/visitorLogApi";
 import { sendReportEmail } from "../../api/reportsApi";
 import { useAuth } from "../../auth/AuthContext";
@@ -148,7 +148,7 @@ export function VisitorLogReportScreen() {
         attachmentFileName: `visitors-log-${fromDate}-to-${toDate}.pdf`,
         attachmentBase64,
       });
-      Alert.alert("Email sent", `Report has been sent to ${profile?.email ?? "your inbox"}.`);
+      toastSuccess(`Report sent to ${profile?.email ?? "your inbox"}.`);
     } catch (e: any) {
       toastError(e?.response?.data?.message ?? e?.message ?? "Unable to send report email.");
     } finally {

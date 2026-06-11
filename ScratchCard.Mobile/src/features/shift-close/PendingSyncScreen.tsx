@@ -1,9 +1,10 @@
 import React from "react";
-import { Alert, FlatList, StyleSheet, Text, View } from "react-native";
+import { FlatList, StyleSheet, Text, View } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { StatusBadge } from "../../components/StatusBadge";
+import { toastSuccess } from "../../components/toast";
 import { listOfflineQueue } from "../../offline/queueRepository";
 import { syncPendingShiftCloseQueue } from "../../offline/syncService";
 import { ui } from "../../ui/primitives";
@@ -18,7 +19,7 @@ export function PendingSyncScreen() {
   async function onRetrySync() {
     await syncPendingShiftCloseQueue();
     await queueQuery.refetch();
-    Alert.alert("Sync complete", "Pending queue processed.");
+    toastSuccess("Sync complete. Pending queue processed.");
   }
 
   return (
@@ -27,7 +28,7 @@ export function PendingSyncScreen() {
         <StatusBadge label={`${queueQuery.data?.length ?? 0} queued`} tone="warning" />
       </View>
 
-      <PrimaryButton label="Retry Sync" onPress={onRetrySync} />
+      <PrimaryButton label="Retry sync" onPress={onRetrySync} />
 
       <FlatList
         data={queueQuery.data ?? []}

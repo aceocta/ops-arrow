@@ -178,7 +178,7 @@ export function TillReportReviewScreen({ route, navigation }: Props) {
       footer={
         report && !isConfirmed ? (
           <PrimaryButton
-            label={confirmMutation.isPending ? "Saving..." : unclassifiedCount > 0 ? `Confirm (${unclassifiedCount} untagged)` : "Confirm ledger"}
+            label={confirmMutation.isPending ? "Saving…" : unclassifiedCount > 0 ? `Confirm (${unclassifiedCount} untagged)` : "Confirm ledger"}
             onPress={() => confirmMutation.mutate()}
             disabled={isBusy}
           />
@@ -239,7 +239,7 @@ export function TillReportReviewScreen({ route, navigation }: Props) {
               <PrimaryButton
                 size="sm"
                 tone="neutral"
-                label={saveTenderMutation.isPending ? "Saving..." : "Save tender"}
+                label={saveTenderMutation.isPending ? "Saving…" : "Save tender"}
                 onPress={() => saveTenderMutation.mutate()}
                 disabled={isBusy}
               />

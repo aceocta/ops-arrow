@@ -29,6 +29,7 @@ import type {
 } from "../../types/models";
 import { ui } from "../../ui/primitives";
 import { appTheme, surfaceShadow } from "../../ui/theme";
+import { getApiErrorMessage } from "../../utils/apiErrorMessage";
 
 function formatTemperature(value: number) {
   return `${value.toFixed(1)}°C`;
@@ -697,15 +698,7 @@ export function TemperatureLogScreen() {
       setIsLogEntryModalVisible(false);
     },
     onError: (error: any) => {
-      const data = error?.response?.data;
-      const message =
-        // Prefer the server's structured { code, message }; fall back to a clear network/generic note.
-        data?.message ??
-        data?.error ??
-        (error?.message === "Network Error" || error?.code === "ERR_NETWORK"
-          ? "No connection — the reading wasn't saved. Check your network and try again."
-          : "Couldn't save the reading. Please try again.");
-      toastError(message);
+      toastError(getApiErrorMessage(error, "Couldn't save the reading. Please try again."));
     },
   });
 
@@ -1635,10 +1628,10 @@ export function TemperatureLogScreen() {
                   <PrimaryButton
                     label={
                       recordMutation.isPending
-                        ? "Saving..."
+                        ? "Saving…"
                         : nextPendingUnitId
-                          ? "Save & Next Unit"
-                          : "Save & Finish"
+                          ? "Save & next unit"
+                          : "Save & finish"
                     }
                     onPress={() => triggerSave(nextPendingUnitId ? "next" : "close")}
                     disabled={recordMutation.isPending || !shopId || !selectedUnit}

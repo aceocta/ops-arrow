@@ -21,7 +21,7 @@ import { listShifts } from "../../api/shiftsApi";
 import { formatDateValue, MonthCalendar, parseDateValue } from "../../components/DateTimeField";
 import { ReportActionBar } from "../../components/ReportActionBar";
 import { ScreenContainer } from "../../components/ScreenContainer";
-import { toastError } from "../../components/toast";
+import { toastError, toastSuccess } from "../../components/toast";
 import { useFeature } from "../subscription/useFeature";
 import { UpgradeNotice } from "../subscription/FeatureGate";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -490,7 +490,7 @@ export function DailySalesReportScreen() {
     try {
       await emailReportMutation.mutateAsync();
       const recipient = profile?.email ?? "your inbox";
-      Alert.alert("Email sent", `Report has been sent to ${recipient}.`);
+      toastSuccess(`Report sent to ${recipient}.`);
     } catch (error: any) {
       toastError(error?.response?.data?.message ?? error?.message ?? "Unable to send report email.");
     }
@@ -513,12 +513,12 @@ export function DailySalesReportScreen() {
     }
 
     if (businessDaysQuery.isLoading) {
-      Alert.alert("Please wait", "Loading business days...");
+      Alert.alert("Please wait", "Loading business days…");
       return;
     }
 
     if (shiftsQuery.isLoading) {
-      Alert.alert("Please wait", "Loading shifts...");
+      Alert.alert("Please wait", "Loading shifts…");
       return;
     }
 
@@ -624,7 +624,7 @@ export function DailySalesReportScreen() {
               },
               {
                 icon: "mail-outline",
-                label: emailReportMutation.isPending ? "Sending..." : "Email",
+                label: emailReportMutation.isPending ? "Sending…" : "Email",
                 onPress: () => void emailReport(),
                 disabled: query.isLoading || totalShifts === 0 || emailReportMutation.isPending,
               },

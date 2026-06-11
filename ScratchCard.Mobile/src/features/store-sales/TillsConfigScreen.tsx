@@ -7,6 +7,7 @@ import { applyTillReportDefaults, createTill, deleteTill, listTills, updateTill 
 import { LoadingState } from "../../components/LoadingState";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
+import { toastSuccess } from "../../components/toast";
 import { EmptyState } from "../../components/EmptyState";
 import { Till } from "../../types/models";
 import { confirmDestructive } from "../../utils/confirm";
@@ -54,8 +55,7 @@ export function TillsConfigScreen() {
     onSuccess: (result) => {
       refreshTills();
       void queryClient.invalidateQueries({ queryKey: ["shopPaymentTypes", shopId] });
-      Alert.alert(
-        "Defaults applied",
+      toastSuccess(
         `Default till data set up for ${result.seeded} shop${result.seeded === 1 ? "" : "s"}. Existing tills and payment types were left unchanged.`,
       );
     },
@@ -118,7 +118,7 @@ export function TillsConfigScreen() {
           </View>
         </View>
         <PrimaryButton
-          label={defaultsMutation.isPending ? "Setting up..." : "Set up default till data"}
+          label={defaultsMutation.isPending ? "Setting up…" : "Set up default till data"}
           tone="neutral"
           onPress={setUpDefaults}
           disabled={defaultsMutation.isPending || !shopId}
@@ -163,7 +163,7 @@ export function TillsConfigScreen() {
           returnKeyType="done"
         />
         <PrimaryButton
-          label={createMutation.isPending ? "Adding..." : "Add till"}
+          label={createMutation.isPending ? "Adding…" : "Add till"}
           onPress={() => createMutation.mutate()}
           disabled={!canAdd}
         />
@@ -244,7 +244,7 @@ function EditTillModal({ till, onClose, onSaved }: { till: Till; onClose: () => 
           <View style={{ height: 8 }} />
           <TextInput style={[styles.input, styles.blockInput]} value={float} onChangeText={setFloat} placeholder="Default float (£)" placeholderTextColor={appTheme.colors.textSubtle} keyboardType="decimal-pad" />
           <View style={{ height: 12 }} />
-          <PrimaryButton label={saveMutation.isPending ? "Saving..." : "Save changes"} onPress={() => saveMutation.mutate()} disabled={!name.trim() || saveMutation.isPending} />
+          <PrimaryButton label={saveMutation.isPending ? "Saving…" : "Save changes"} onPress={() => saveMutation.mutate()} disabled={!name.trim() || saveMutation.isPending} />
           <PrimaryButton label="Cancel" tone="neutral" onPress={onClose} />
         </View>
       </View>

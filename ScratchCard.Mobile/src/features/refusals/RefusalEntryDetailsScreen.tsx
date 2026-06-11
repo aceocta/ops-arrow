@@ -117,7 +117,7 @@ export function RefusalEntryDetailsScreen({ route, navigation }: Props) {
               ) : (
                 <Text style={styles.pathText}>
                   {signatureQuery.isLoading
-                    ? "Loading signature..."
+                    ? "Loading signature…"
                     : entry.signatureImagePath
                       ? "No signature image available."
                       : "No signature on file."}
@@ -140,7 +140,7 @@ export function RefusalEntryDetailsScreen({ route, navigation }: Props) {
                   ) : (
                     <Text style={styles.pathText}>
                       {reviewSignatureQuery.isLoading
-                        ? "Loading review signature..."
+                        ? "Loading review signature…"
                         : entry.reviewSignatureImagePath
                           ? "No review signature image available."
                           : "No review signature on file."}
@@ -149,12 +149,12 @@ export function RefusalEntryDetailsScreen({ route, navigation }: Props) {
                 </View>
               ) : null}
               {canReview ? (
-                <PrimaryButton label={entry.reviewedOn ? "Update Review" : "Mark as Reviewed"} onPress={openReviewModal} />
+                <PrimaryButton label={entry.reviewedOn ? "Update review" : "Mark as reviewed"} onPress={openReviewModal} />
               ) : (
                 <Text style={styles.pathText}>Only manager or company owner can complete review.</Text>
               )}
             </View>
-            <PrimaryButton label="Edit Entry" tone="neutral" onPress={() => navigation.navigate("RefusalEntryEdit", { entryId: entry.id })} />
+            <PrimaryButton label="Edit entry" tone="neutral" onPress={() => navigation.navigate("RefusalEntryEdit", { entryId: entry.id })} />
           </>
         ) : null}
       </View>
@@ -190,7 +190,7 @@ export function RefusalEntryDetailsScreen({ route, navigation }: Props) {
               </View>
               <View style={{ flex: 1 }}>
                 <PrimaryButton
-                  label={reviewMutation.isPending ? "Saving..." : "Save Review"}
+                  label={reviewMutation.isPending ? "Saving…" : "Save review"}
                   onPress={() => reviewMutation.mutate()}
                   disabled={reviewMutation.isPending}
                 />

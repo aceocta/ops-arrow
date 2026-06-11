@@ -759,7 +759,7 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
         ) : null}
 
         <PrimaryButton
-          label={isSubmitting ? "Saving..." : "Save Closing Numbers"}
+          label={isSubmitting ? "Saving…" : "Save closing numbers"}
           icon="save-outline"
           onPress={onSaveClosingNumbers}
           disabled={isSubmitting}
@@ -815,7 +815,7 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
 
               {isCameraScanningEnabled ? (
             <PrimaryButton
-              label="Scan Any Pack"
+              label="Scan any pack"
               tone="neutral"
               onPress={() =>
                 openBarcodeScanner({
@@ -847,7 +847,7 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
               as a zero-sales close, or activate packs first.
             </Text>
             <PrimaryButton
-              label="Go To Packs"
+              label="Go to packs"
               tone="neutral"
               onPress={() => navigation.navigate("ScratchCardPacks")}
             />
@@ -1018,7 +1018,7 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
                       markPackTouched(row.pack.id);
                     }}
                   >
-                    <Text style={styles.soldOutButtonText}>Sold Out</Text>
+                    <Text style={styles.soldOutButtonText}>Sold out</Text>
                   </Pressable>
                 </View>
 

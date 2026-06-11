@@ -195,14 +195,14 @@ export function RefusalManagerReviewScreen() {
         </Text> */}
         <View style={styles.actionRow}>
           <Pressable style={styles.secondaryButton} onPress={selectAllPending} disabled={pendingEntries.length === 0}>
-            <Text style={styles.secondaryButtonText}>Select Pending</Text>
+            <Text style={styles.secondaryButtonText}>Select pending</Text>
           </Pressable>
           <Pressable style={styles.secondaryButton} onPress={clearSelection} disabled={selectedEntryIds.length === 0}>
-            <Text style={styles.secondaryButtonText}>Clear Selection</Text>
+            <Text style={styles.secondaryButtonText}>Clear selection</Text>
           </Pressable>
         </View>
         <PrimaryButton
-          label={reviewMutation.isPending ? "Saving..." : "Mark Selected Reviewed"}
+          label={reviewMutation.isPending ? "Saving…" : "Mark selected reviewed"}
           onPress={openReviewModal}
           disabled={!canReview || selectedEntryIds.length === 0 || hasDateRangeError}
         />
@@ -314,7 +314,7 @@ export function RefusalManagerReviewScreen() {
                 onPress={() => reviewMutation.mutate()}
                 disabled={reviewMutation.isPending}
               >
-                <Text style={styles.modalActionPrimaryText}>{reviewMutation.isPending ? "Saving..." : "Save Review"}</Text>
+                <Text style={styles.modalActionPrimaryText}>{reviewMutation.isPending ? "Saving…" : "Save review"}</Text>
               </Pressable>
             </View>
           </View>

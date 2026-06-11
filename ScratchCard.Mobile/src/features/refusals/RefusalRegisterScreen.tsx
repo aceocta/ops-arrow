@@ -20,6 +20,7 @@ import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
+import { getApiErrorMessage } from "../../utils/apiErrorMessage";
 import { buildDefaultStaffDisplayName, buildStaffInitialsForPayload, getStaffDisplayName } from "./refusalStaffUtils";
 
 const productSuggestions = [
@@ -337,7 +338,7 @@ export function RefusalRegisterScreen() {
       await queryClient.invalidateQueries({ queryKey: ["refusal-daily-log", shopId, selectedDate] });
     },
     onError: (error: any) => {
-      toastError(error?.response?.data?.message ?? error?.message ?? "Unable to save refusal entry.");
+      toastError(getApiErrorMessage(error, "Unable to save refusal entry."));
     },
   });
 
@@ -563,7 +564,7 @@ export function RefusalRegisterScreen() {
         </View>
 
         <PrimaryButton
-          label={recordMutation.isPending ? "Saving..." : "Save Refusal Entry"}
+          label={recordMutation.isPending ? "Saving…" : "Save refusal entry"}
           onPress={() => recordMutation.mutate()}
           disabled={recordMutation.isPending || !shopId || !signatureDataUrl.trim()}
         />
@@ -607,7 +608,7 @@ export function RefusalRegisterScreen() {
                 style={styles.rowActionButton}
                 onPress={() => navigation.navigate("RefusalEntryDetails", { entryId: entry.id })}
               >
-                <Text style={styles.rowActionButtonText}>View Details</Text>
+                <Text style={styles.rowActionButtonText}>View details</Text>
               </Pressable>
               <Pressable
                 style={styles.rowActionButton}

@@ -855,7 +855,7 @@ function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
           onPress={() => saveMutation.mutate()}
           disabled={saveMutation.isPending}
         >
-          <Text style={styles.actionButtonText}>{saveMutation.isPending ? "Saving..." : "Save Configuration"}</Text>
+          <Text style={styles.actionButtonText}>{saveMutation.isPending ? "Saving…" : "Save configuration"}</Text>
         </Pressable>
       </View>
     ) : undefined;
@@ -1289,7 +1289,7 @@ export function CompanyManagementScreen() {
     onSuccess: () => {
       setCompanyName("");
       setRegistrationNumber("");
-      Alert.alert("Created", "Company created successfully.");
+      toastSuccess("Company created.");
       void queryClient.invalidateQueries({ queryKey: ["companies", "mine"] });
     },
     onError: (error: any) => {
@@ -1315,7 +1315,7 @@ export function CompanyManagementScreen() {
       });
     },
     onSuccess: () => {
-      Alert.alert("Updated", "Company details updated successfully.");
+      toastSuccess("Company details updated.");
       void queryClient.invalidateQueries({ queryKey: ["companies", "mine"] });
     },
     onError: (error: any) => {
@@ -1385,7 +1385,7 @@ export function CompanyManagementScreen() {
             onChangeText={setRegistrationNumber}
           />
           <Pressable style={styles.actionButton} onPress={() => createCompanyMutation.mutate()}>
-            <Text style={styles.actionButtonText}>{createCompanyMutation.isPending ? "Creating..." : "Create Company"}</Text>
+            <Text style={styles.actionButtonText}>{createCompanyMutation.isPending ? "Creating…" : "Create company"}</Text>
           </Pressable>
         </View>
       ) : (
@@ -1399,7 +1399,7 @@ export function CompanyManagementScreen() {
           />
           <View style={styles.configFooterActionRow}>
             <Pressable style={styles.actionButton} onPress={() => updateCompanyMutation.mutate()}>
-              <Text style={styles.actionButtonText}>{updateCompanyMutation.isPending ? "Saving..." : "Save Changes"}</Text>
+              <Text style={styles.actionButtonText}>{updateCompanyMutation.isPending ? "Saving…" : "Save changes"}</Text>
             </Pressable>
             <Pressable
               style={[styles.secondaryActionButton, toggleCompanyMutation.isPending ? styles.dateActionButtonDisabled : null]}
@@ -1407,7 +1407,7 @@ export function CompanyManagementScreen() {
               disabled={toggleCompanyMutation.isPending}
             >
               <Text style={styles.secondaryActionButtonText}>
-                {toggleCompanyMutation.isPending ? "Updating..." : ownedCompany?.isActive ? "Deactivate" : "Activate"}
+                {toggleCompanyMutation.isPending ? "Updating…" : ownedCompany?.isActive ? "Deactivate" : "Activate"}
               </Text>
             </Pressable>
           </View>
@@ -1581,7 +1581,7 @@ export function ShopManagementScreen() {
       setHasEditedPackSettings(false);
       setSubscriptionPlanId(null);
       if (wasEditing) {
-        Alert.alert("Updated", "Shop updated successfully.");
+        toastSuccess("Shop updated.");
       } else if (data) {
         setCreatedShop(data); // show the "shop ready — next steps" panel
       }
@@ -1811,13 +1811,13 @@ export function ShopManagementScreen() {
         >
           <Text style={styles.actionButtonText}>
             {saveShopMutation.isPending
-              ? (editingShopId ? "Updating..." : "Creating...")
-              : (editingShopId ? "Update Shop" : (canCreateShop ? "Create Shop" : "Create Shop (Owner only)"))}
+              ? (editingShopId ? "Updating…" : "Creating…")
+              : (editingShopId ? "Update shop" : (canCreateShop ? "Create shop" : "Create shop (owner only)"))}
           </Text>
         </Pressable>
         {editingShopId ? (
           <Pressable style={[styles.actionButton, styles.smallButtonDanger, { marginTop: 8 }]} onPress={cancelEditShop}>
-            <Text style={styles.actionButtonText}>Cancel Edit</Text>
+            <Text style={styles.actionButtonText}>Cancel edit</Text>
           </Pressable>
         ) : null}
         {creating && !editingShopId ? (

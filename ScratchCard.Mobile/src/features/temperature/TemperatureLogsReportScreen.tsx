@@ -12,7 +12,7 @@ import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
 import { ReportActionBar } from "../../components/ReportActionBar";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SkeletonList } from "../../components/Skeleton";
-import { toastError } from "../../components/toast";
+import { toastError, toastSuccess } from "../../components/toast";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -205,7 +205,7 @@ export function TemperatureLogsReportScreen() {
     try {
       await emailReportMutation.mutateAsync();
       const recipient = profile?.email ?? "your inbox";
-      Alert.alert("Email sent", `Report has been sent to ${recipient}.`);
+      toastSuccess(`Report sent to ${recipient}.`);
     } catch (error: any) {
       toastError(error?.response?.data?.message ?? error?.message ?? "Unable to send report email.");
     }
@@ -303,7 +303,7 @@ export function TemperatureLogsReportScreen() {
               },
               {
                 icon: "mail-outline",
-                label: emailReportMutation.isPending ? "Sending..." : "Email",
+                label: emailReportMutation.isPending ? "Sending…" : "Email",
                 onPress: () => void emailReport(),
                 disabled: !rangeIsValid || readingsQuery.isLoading || readings.length === 0 || emailReportMutation.isPending,
               },

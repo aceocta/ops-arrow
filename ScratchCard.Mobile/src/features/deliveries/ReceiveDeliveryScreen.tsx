@@ -22,7 +22,7 @@ import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { ScreenContainer } from "../../components/ScreenContainer";
-import { toastError } from "../../components/toast";
+import { toastError, toastSuccess } from "../../components/toast";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { formatGbp } from "../../utils/currency";
 import { SellingOrder } from "../../types/enums";
@@ -239,7 +239,7 @@ export function ReceiveDeliveryScreen() {
       if ((result.warnings?.length ?? 0) > 0) {
         Alert.alert("Delivery note parsed with warnings", result.warnings.slice(0, 5).join("\n"));
       } else {
-        Alert.alert("Delivery note parsed", `Detected ${normalizedRows.length} pack row(s).`);
+        toastSuccess(`Delivery note parsed. Detected ${normalizedRows.length} pack row(s).`);
       }
     },
     onError: (error: any) => {
@@ -323,7 +323,7 @@ export function ReceiveDeliveryScreen() {
       setParseWarnings([]);
       setEditingRow(null);
       setEditingRowId(null);
-      Alert.alert("Delivery saved", "Delivery and packs were created successfully.");
+      toastSuccess("Delivery and packs created.");
       void queryClient.invalidateQueries({ queryKey: ["deliveries", shopId] });
       void queryClient.invalidateQueries({ queryKey: ["packs", shopId] });
     },
@@ -515,7 +515,7 @@ export function ReceiveDeliveryScreen() {
             disabled={parseDeliveryNoteMutation.isPending}
           >
             <Text style={styles.actionButtonText}>
-              {parseDeliveryNoteMutation.isPending ? "Reading..." : "Scan Delivery Note"}
+              {parseDeliveryNoteMutation.isPending ? "Reading…" : "Scan delivery note"}
             </Text>
           </Pressable>
           <Pressable
@@ -523,7 +523,7 @@ export function ReceiveDeliveryScreen() {
             onPress={() => openDeliveryNoteCapture("gallery")}
             disabled={parseDeliveryNoteMutation.isPending}
           >
-            <Text style={styles.secondaryActionText}>Import Photo</Text>
+            <Text style={styles.secondaryActionText}>Import photo</Text>
           </Pressable>
         </View>
         {parseWarnings.length > 0 ? (
@@ -567,7 +567,7 @@ export function ReceiveDeliveryScreen() {
 
               <View style={styles.rowActions}>
                 <Pressable style={styles.actionButton} onPress={() => openRowEditor(row.id)}>
-                  <Text style={styles.actionButtonText}>Edit Row</Text>
+                  <Text style={styles.actionButtonText}>Edit row</Text>
                 </Pressable>
                 <Pressable
                   style={[styles.actionButton, styles.removeButton, !canRemove && styles.disabledButton]}
@@ -581,9 +581,9 @@ export function ReceiveDeliveryScreen() {
           );
         })}
 
-        <PrimaryButton label="Add Pack Row" tone="neutral" onPress={addRowAndOpenEditor} />
+        <PrimaryButton label="Add pack row" tone="neutral" onPress={addRowAndOpenEditor} />
         <PrimaryButton
-          label={createDeliveryMutation.isPending ? "Saving..." : "Save Delivery"}
+          label={createDeliveryMutation.isPending ? "Saving…" : "Save delivery"}
           onPress={handleSaveDelivery}
           disabled={createDeliveryMutation.isPending || !shopId}
         />
@@ -709,7 +709,7 @@ export function ReceiveDeliveryScreen() {
                 onChangeText={(v) => updateEditingRow((current) => ({ ...current, endSerialNumber: v }))}
               />
 
-              <PrimaryButton label="Save Row" onPress={saveRowEditor} />
+              <PrimaryButton label="Save row" onPress={saveRowEditor} />
               <PrimaryButton label="Cancel" tone="neutral" onPress={closeRowEditor} />
             </ScrollView>
           </View>

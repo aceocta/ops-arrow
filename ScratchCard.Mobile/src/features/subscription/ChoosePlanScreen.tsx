@@ -22,8 +22,8 @@ import { SUBSCRIPTION_MANAGE_RESTRICTED_MESSAGE, useCanManageSubscription } from
 // On iOS we must not show pricing or purchase CTAs in-app (Apple Guideline 3.1.3(c)).
 // The button reads as account management; the price grid is rendered in the web billing portal.
 const IS_IOS = Platform.OS === "ios";
-const CHECKOUT_BUTTON_LABEL = IS_IOS ? "Open billing portal" : "Continue to Checkout";
-const CHECKOUT_BUTTON_PENDING = IS_IOS ? "Opening portal..." : "Opening checkout...";
+const CHECKOUT_BUTTON_LABEL = IS_IOS ? "Open billing portal" : "Continue to checkout";
+const CHECKOUT_BUTTON_PENDING = IS_IOS ? "Opening portal…" : "Opening checkout…";
 
 const TERMS_URL = "https://opsarrow.com/terms";
 const PRIVACY_URL = "https://opsarrow.com/privacy";
@@ -209,7 +209,7 @@ export function ChoosePlanScreen() {
           accessibilityLabel="Refresh subscription status"
         >
           <Text style={styles.restoreLinkText}>
-            {restorePending ? "Refreshing..." : "Refresh subscription status"}
+            {restorePending ? "Refreshing…" : "Refresh subscription status"}
           </Text>
         </Pressable>
 

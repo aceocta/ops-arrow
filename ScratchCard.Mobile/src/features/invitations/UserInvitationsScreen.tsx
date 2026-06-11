@@ -1,5 +1,5 @@
 ﻿import React, { useMemo, useRef, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { RouteProp, useRoute } from "@react-navigation/native";
 import { MainStackParamList } from "../../types/navigation";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
@@ -10,7 +10,7 @@ import { getRoleOptions } from "../../api/lookupsApi";
 import { listUsers } from "../../api/usersApi";
 import { EmptyState } from "../../components/EmptyState";
 import { ScreenContainer } from "../../components/ScreenContainer";
-import { toastError } from "../../components/toast";
+import { toastError, toastSuccess } from "../../components/toast";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { useEntitlements } from "../subscription/useEntitlements";
 import { ui } from "../../ui/primitives";
@@ -106,7 +106,7 @@ export function UserInvitationsScreen() {
     },
     onSuccess: () => {
       setEmail("");
-      Alert.alert("Invitation sent", "Invitation was created successfully.");
+      toastSuccess("Invitation sent.");
       void queryClient.invalidateQueries({ queryKey: ["invitations", shopId] });
     },
     onError: (error: any) => {
@@ -175,10 +175,10 @@ export function UserInvitationsScreen() {
         <PrimaryButton
           label={
             sendInvitationMutation.isPending
-              ? "Sending..."
+              ? "Sending…"
               : seatsExhausted
                 ? "Seat limit reached"
-                : "Send Invitation"
+                : "Send invitation"
           }
           onPress={() => sendInvitationMutation.mutate()}
           disabled={sendInvitationMutation.isPending || !shopId || !canSendInvitations || seatsExhausted}

@@ -9,7 +9,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
-import { toastError } from "../../components/toast";
+import { toastError, toastSuccess } from "../../components/toast";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { TemperatureEquipmentType } from "../../types/enums";
@@ -98,7 +98,7 @@ export function TemperatureUnitsScreen() {
       setNewLocation("");
       setNewDisplayOrder("");
       setIsCreateModalVisible(false);
-      Alert.alert("Created", "Temperature unit created.");
+      toastSuccess("Temperature unit created.");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["temperature-units", shopId] }),
         queryClient.invalidateQueries({ queryKey: ["temperature-daily-log", shopId] }),
@@ -131,7 +131,7 @@ export function TemperatureUnitsScreen() {
             onPress={() => setIsCreateModalVisible(true)}
             disabled={!canManageUnits}
           >
-            <Text style={styles.addButtonText}>Add New Unit</Text>
+            <Text style={styles.addButtonText}>Add new unit</Text>
           </Pressable>
         </View>
         {!canManageUnits ? <Text style={styles.meta}>Only manager or company owner can add new units.</Text> : null}
@@ -151,7 +151,7 @@ export function TemperatureUnitsScreen() {
             {canManageUnits ? (
               <View style={styles.unitActions}>
                 <Pressable style={styles.editButton} onPress={() => navigation.navigate("TemperatureUnitEdit", { unitId: unit.id })}>
-                  <Text style={styles.editButtonText}>Edit Unit</Text>
+                  <Text style={styles.editButtonText}>Edit unit</Text>
                 </Pressable>
               </View>
             ) : null}
@@ -238,7 +238,7 @@ export function TemperatureUnitsScreen() {
             />
             <View style={styles.modalActions}>
               <PrimaryButton
-                label={createUnitMutation.isPending ? "Creating..." : "Create Unit"}
+                label={createUnitMutation.isPending ? "Creating…" : "Create unit"}
                 onPress={() => createUnitMutation.mutate(false)}
                 disabled={createUnitMutation.isPending || !shopId}
                 size="sm"

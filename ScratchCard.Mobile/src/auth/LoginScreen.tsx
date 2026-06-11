@@ -145,7 +145,7 @@ export function LoginScreen() {
           </View>
         </View>
         <PrimaryButton
-          label={busy ? "Signing in..." : "Sign In"}
+          label={busy ? "Signing in…" : "Sign in"}
           onPress={() => void onSignIn()}
           disabled={busy}
         />

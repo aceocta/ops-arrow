@@ -18,7 +18,7 @@ import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
 import { EmptyState } from "../../components/EmptyState";
 import { ReportActionBar } from "../../components/ReportActionBar";
 import { ScreenContainer } from "../../components/ScreenContainer";
-import { toastError } from "../../components/toast";
+import { toastError, toastSuccess } from "../../components/toast";
 import { SkeletonList } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { MainStackParamList } from "../../types/navigation";
@@ -220,7 +220,7 @@ export function RefusalReportScreen() {
     try {
       await emailReportMutation.mutateAsync();
       const recipient = profile?.email ?? "your inbox";
-      Alert.alert("Email sent", `Report has been sent to ${recipient}.`);
+      toastSuccess(`Report sent to ${recipient}.`);
     } catch (error: any) {
       toastError(error?.response?.data?.message ?? error?.message ?? "Unable to send report email.");
     }
@@ -285,7 +285,7 @@ export function RefusalReportScreen() {
               style={styles.rowActionButton}
               onPress={() => navigation.navigate("RefusalEntryDetails", { entryId: entry.id })}
             >
-              <Text style={styles.rowActionButtonText}>View Details</Text>
+              <Text style={styles.rowActionButtonText}>View details</Text>
             </Pressable>
           </View>
         </View>
@@ -340,7 +340,7 @@ export function RefusalReportScreen() {
               },
               {
                 icon: "mail-outline",
-                label: emailReportMutation.isPending ? "Sending..." : "Email",
+                label: emailReportMutation.isPending ? "Sending…" : "Email",
                 onPress: () => void emailReport(),
                 disabled: !rangeIsValid || rangeQuery.isLoading || entries.length === 0 || emailReportMutation.isPending,
               },

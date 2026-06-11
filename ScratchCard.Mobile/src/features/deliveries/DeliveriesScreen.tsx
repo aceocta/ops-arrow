@@ -69,7 +69,7 @@ export function DeliveriesScreen() {
         <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
         <Text style={styles.meta}>Recent deliveries are listed below.</Text>
 
-        <PrimaryButton label="Receive Delivery" onPress={() => navigation.navigate("ReceiveDelivery")} />
+        <PrimaryButton label="Receive delivery" onPress={() => navigation.navigate("ReceiveDelivery")} />
       </View>
 
       <View style={ui.card}>

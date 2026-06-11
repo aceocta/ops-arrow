@@ -166,7 +166,7 @@ export function CaptureTillReportScreen({ navigation, route }: Props) {
       footer={
         <View style={styles.footerWrap}>
           <PrimaryButton
-            label={isBusy ? "Reading..." : `Process ${photos.length || ""} photo${photos.length === 1 ? "" : "s"}`.trim()}
+            label={isBusy ? "Reading…" : `Process ${photos.length || ""} photo${photos.length === 1 ? "" : "s"}`.trim()}
             onPress={() => parseMutation.mutate()}
             disabled={!canProcess}
           />

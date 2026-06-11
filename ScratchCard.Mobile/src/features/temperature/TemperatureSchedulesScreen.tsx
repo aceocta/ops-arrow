@@ -248,10 +248,10 @@ export function TemperatureSchedulesScreen() {
           label={
             editingId
               ? updateMutation.isPending
-                ? "Saving..."
+                ? "Saving…"
                 : "Save changes"
               : createMutation.isPending
-                ? "Adding..."
+                ? "Adding…"
                 : selectedUnitIds.length > 1
                   ? `Add ${selectedUnitIds.length} schedules`
                   : "Add schedule"
