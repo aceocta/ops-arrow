@@ -1576,6 +1576,27 @@ public class RotaService : IRotaService
         review.ModifiedBy = _currentUserService.UserId;
         _timesheetReviewRepository.Update(review);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Milestone push: tell managers once the last outstanding review for the period is confirmed (best-effort).
+        try
+        {
+            var anyOutstanding = await _timesheetReviewRepository.Query()
+                .AsNoTracking()
+                .AnyAsync(x => x.ShopId == review.ShopId && x.PeriodFrom == review.PeriodFrom && x.PeriodTo == review.PeriodTo
+                    && (x.Status == RotaTimesheetReviewStatus.PendingStaff || x.Status == RotaTimesheetReviewStatus.Disputed),
+                    cancellationToken);
+            if (!anyOutstanding)
+            {
+                await NotifyManagersAsync(review.ShopId, NotificationType.TimesheetAllConfirmed,
+                    "Timesheets confirmed",
+                    $"All staff have confirmed their hours for {review.PeriodFrom:d MMM}–{review.PeriodTo:d MMM yyyy} — ready to approve and lock.",
+                    review.Id, cancellationToken);
+            }
+        }
+        catch
+        {
+            // Notification failures must not block the review workflow.
+        }
         return await MapReviewWithHoursAsync(review, cancellationToken);
     }
 
@@ -1667,6 +1688,9 @@ public class RotaService : IRotaService
         }
         await EnsureReviewPeriodNotLockedAsync(review.ShopId, review.PeriodTo, cancellationToken);
 
+        // A still-pending row means the member never confirmed — this approval is a manager override.
+        var wasManagerOverride = review.Status == RotaTimesheetReviewStatus.PendingStaff;
+
         var now = DateTimeOffset.UtcNow;
         review.Status = RotaTimesheetReviewStatus.ManagerApproved;
         review.ResolvedByUserId = CurrentUserId;
@@ -1675,6 +1699,14 @@ public class RotaService : IRotaService
         review.ModifiedBy = _currentUserService.UserId;
         _timesheetReviewRepository.Update(review);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (wasManagerOverride)
+        {
+            await NotifyUsersAsync(review.ShopId, [review.UserId], NotificationType.TimesheetApproved,
+                "Hours approved",
+                $"Your hours for {review.PeriodFrom:d MMM}–{review.PeriodTo:d MMM yyyy} were approved by your manager.",
+                review.Id, cancellationToken);
+        }
         return await MapReviewWithHoursAsync(review, cancellationToken);
     }
 

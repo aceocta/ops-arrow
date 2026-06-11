@@ -23,5 +23,7 @@ public enum NotificationType
     ShiftSwapDeclined = 19,
     TimesheetReviewRequested = 20,
     TimesheetIssueRaised = 21,
-    TimesheetReviewResolved = 22
+    TimesheetReviewResolved = 22,
+    TimesheetAllConfirmed = 23,
+    TimesheetApproved = 24
 }
