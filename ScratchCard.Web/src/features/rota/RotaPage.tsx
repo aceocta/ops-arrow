@@ -36,6 +36,26 @@ function avatarColor(name: string) {
   return AVATAR_COLORS[h % AVATAR_COLORS.length];
 }
 
+// Assignment reasons — "Regular shift" is stored as null on the API, "Other…" opens a free-text input.
+const REASON_REGULAR = "Regular shift";
+const REASON_OTHER = "Other…";
+const REASON_OPTIONS = [REASON_REGULAR, "Cleaning", "Delivery", "Stock take", "Training", "Cover", REASON_OTHER];
+
+type AssignmentDraft = {
+  userId?: string;
+  rotaStaffMemberId?: string;
+  reason: string;
+  otherReason: string;
+  note: string;
+};
+
+// Map a stored reason onto the preset list (anything unknown becomes "Other…" + free text).
+function seedReason(reason?: string | null) {
+  if (!reason || reason === REASON_REGULAR) return { reason: REASON_REGULAR, otherReason: "" };
+  if (reason !== REASON_OTHER && REASON_OPTIONS.includes(reason)) return { reason, otherReason: "" };
+  return { reason: REASON_OTHER, otherReason: reason };
+}
+
 export default function RotaPage() {
   const { activeShopId } = useAuth();
   const shopId = activeShopId!;
@@ -184,6 +204,11 @@ export default function RotaPage() {
                                       {initials(a.name)}
                                     </span>
                                     <span className="truncate text-xs font-medium text-slate-800">{a.name}</span>
+                                    {a.reason ? (
+                                      <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-500">
+                                        {a.reason}
+                                      </span>
+                                    ) : null}
                                     <span className={clsx("ml-auto shrink-0 text-[10px]", a.isExternal ? "text-amber-600" : "text-slate-400")}>
                                       {roleOf(a)}
                                     </span>
@@ -245,9 +270,13 @@ function ShiftEditor({
   const qc = useQueryClient();
   const [shiftDate, setShiftDate] = useState(shift?.shiftDate ?? date);
   const [templateId, setTemplateId] = useState(shift?.shiftTemplateId ?? initialTemplateId ?? "");
-  const [userIds, setUserIds] = useState<string[]>(shift?.assignees.filter((a) => a.userId).map((a) => a.userId!) ?? []);
-  const [memberIds, setMemberIds] = useState<string[]>(
-    shift?.assignees.filter((a) => a.rotaStaffMemberId).map((a) => a.rotaStaffMemberId!) ?? [],
+  const [assignments, setAssignments] = useState<AssignmentDraft[]>(() =>
+    (shift?.assignees ?? []).map((a) => ({
+      userId: a.userId ?? undefined,
+      rotaStaffMemberId: a.rotaStaffMemberId ?? undefined,
+      ...seedReason(a.reason),
+      note: a.note ?? "",
+    })),
   );
   const [extName, setExtName] = useState("");
   const [extPhone, setExtPhone] = useState("+44 ");
@@ -284,8 +313,20 @@ function ShiftEditor({
         shopId,
         shiftDate,
         shiftTemplateId: templateId,
-        assigneeUserIds: userIds,
-        assigneeStaffMemberIds: memberIds,
+        // Legacy id arrays kept alongside `assignments` (authoritative when present on the API).
+        assigneeUserIds: assignments.filter((a) => a.userId).map((a) => a.userId!),
+        assigneeStaffMemberIds: assignments.filter((a) => a.rotaStaffMemberId).map((a) => a.rotaStaffMemberId!),
+        assignments: assignments.map((a) => {
+          const reason = (a.reason === REASON_OTHER ? a.otherReason.trim() : a.reason).slice(0, 100);
+          const regular = !reason || reason === REASON_REGULAR;
+          const note = a.note.trim().slice(0, 300);
+          return {
+            userId: a.userId,
+            rotaStaffMemberId: a.rotaStaffMemberId,
+            reason: regular ? undefined : reason,
+            note: regular || !note ? undefined : note,
+          };
+        }),
       };
       return shift ? rotaApi.update(shift.id, payload) : rotaApi.create(payload);
     },
@@ -310,24 +351,26 @@ function ShiftEditor({
       });
     },
     onSuccess: (m) => {
-      setMemberIds((ids) => [...ids, m.id]);
+      setAssignments((list) => [...list, { rotaStaffMemberId: m.id, reason: REASON_REGULAR, otherReason: "", note: "" }]);
       setExtName(""); setExtPhone("+44 "); setExtEmail(""); setShowExt(false);
       qc.invalidateQueries({ queryKey: ["rota-assignable", shopId] });
     },
     onError: (e) => toast(apiErrorMessage(e), "error"),
   });
 
-  const isAssigned = (u: AssignableUser) =>
-    u.rotaStaffMemberId ? memberIds.includes(u.rotaStaffMemberId) : userIds.includes(u.userId!);
-  const toggle = (u: AssignableUser) => {
-    if (u.rotaStaffMemberId) {
-      const id = u.rotaStaffMemberId;
-      setMemberIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
-    } else {
-      const id = u.userId!;
-      setUserIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
-    }
-  };
+  const keyOf = (x: { userId?: string | null; rotaStaffMemberId?: string | null }) => x.rotaStaffMemberId ?? x.userId ?? "";
+  const draftFor = (u: AssignableUser) => assignments.find((a) => keyOf(a) === keyOf(u));
+  const toggle = (u: AssignableUser) =>
+    setAssignments((list) =>
+      list.some((a) => keyOf(a) === keyOf(u))
+        ? list.filter((a) => keyOf(a) !== keyOf(u))
+        : [
+            ...list,
+            { userId: u.userId ?? undefined, rotaStaffMemberId: u.rotaStaffMemberId ?? undefined, reason: REASON_REGULAR, otherReason: "", note: "" },
+          ],
+    );
+  const updateDraft = (u: AssignableUser, patch: Partial<AssignmentDraft>) =>
+    setAssignments((list) => list.map((a) => (keyOf(a) === keyOf(u) ? { ...a, ...patch } : a)));
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4">
@@ -376,25 +419,59 @@ function ShiftEditor({
 
           <div>
             <label className="label">Assign staff</label>
-            <div className="max-h-56 space-y-1 overflow-auto rounded-lg border border-slate-200 p-1">
-              {(assignableQ.data ?? []).map((u) => (
-                <button
-                  key={u.rotaStaffMemberId ?? u.userId ?? u.name}
-                  onClick={() => toggle(u)}
-                  className={clsx(
-                    "flex w-full items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-slate-50",
-                    isAssigned(u) && "bg-brand-50",
-                  )}
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="font-medium text-slate-800">{u.name}</span>
-                    <span className={clsx("text-xs", u.isExternal ? "text-amber-600" : "text-slate-400")}>
-                      {u.isExternal ? "External" : u.role}
-                    </span>
-                  </span>
-                  <input type="checkbox" readOnly checked={isAssigned(u)} className="h-4 w-4 accent-brand-600" />
-                </button>
-              ))}
+            <div className="max-h-64 space-y-1 overflow-auto rounded-lg border border-slate-200 p-1">
+              {(assignableQ.data ?? []).map((u) => {
+                const draft = draftFor(u);
+                return (
+                  <div key={u.rotaStaffMemberId ?? u.userId ?? u.name} className={clsx("rounded-md", draft && "bg-brand-50")}>
+                    <button
+                      onClick={() => toggle(u)}
+                      className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-slate-50"
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className="font-medium text-slate-800">{u.name}</span>
+                        <span className={clsx("text-xs", u.isExternal ? "text-amber-600" : "text-slate-400")}>
+                          {u.isExternal ? "External" : u.role}
+                        </span>
+                      </span>
+                      <input type="checkbox" readOnly checked={!!draft} className="h-4 w-4 accent-brand-600" />
+                    </button>
+                    {draft ? (
+                      <div className="flex flex-wrap items-center gap-2 px-3 pb-2">
+                        <select
+                          className="input h-8 w-auto py-1 text-xs"
+                          value={draft.reason}
+                          onChange={(e) => {
+                            const reason = e.target.value;
+                            // Back to regular → drop the now-hidden free text + note so stale values aren't sent.
+                            updateDraft(u, reason === REASON_REGULAR ? { reason, otherReason: "", note: "" } : { reason });
+                          }}
+                        >
+                          {REASON_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                        {draft.reason === REASON_OTHER ? (
+                          <input
+                            className="input h-8 min-w-[8rem] flex-1 py-1 text-xs"
+                            maxLength={100}
+                            placeholder="Reason"
+                            value={draft.otherReason}
+                            onChange={(e) => updateDraft(u, { otherReason: e.target.value })}
+                          />
+                        ) : null}
+                        {draft.reason !== REASON_REGULAR ? (
+                          <input
+                            className="input h-8 w-full py-1 text-xs"
+                            maxLength={300}
+                            placeholder="Note (optional)"
+                            value={draft.note}
+                            onChange={(e) => updateDraft(u, { note: e.target.value })}
+                          />
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
 
             {showExt ? (

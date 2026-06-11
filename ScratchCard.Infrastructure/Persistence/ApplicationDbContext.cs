@@ -808,6 +808,8 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(x => new { x.RotaShiftId, x.UserId });
             entity.HasIndex(x => new { x.RotaShiftId, x.RotaStaffMemberId });
             entity.HasIndex(x => new { x.ShopId, x.UserId });
+            entity.Property(x => x.Reason).HasMaxLength(100);
+            entity.Property(x => x.Note).HasMaxLength(300);
             entity.HasOne(x => x.RotaShift).WithMany(x => x.Assignments).HasForeignKey(x => x.RotaShiftId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.NoAction);
             entity.HasOne(x => x.RotaStaffMember).WithMany().HasForeignKey(x => x.RotaStaffMemberId).OnDelete(DeleteBehavior.NoAction);

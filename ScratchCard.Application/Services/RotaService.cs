@@ -130,6 +130,8 @@ public class RotaService : IRotaService
                 Phone = a.User != null ? a.User.PhoneNumber : a.RotaStaffMember != null ? a.RotaStaffMember.Phone : null,
                 Email = a.User != null ? a.User.Email : a.RotaStaffMember != null ? a.RotaStaffMember.Email : null,
                 IsExternal = a.RotaStaffMemberId != null,
+                Reason = a.Reason,
+                Note = a.Note,
             })
             .OrderBy(a => a.Name)
             .ToArray(),
@@ -199,13 +201,85 @@ public class RotaService : IRotaService
         }
     }
 
+    // A normalized desired assignee for a create/update save (reason/note already normalized).
+    private sealed record DesiredAssignment(Guid? UserId, Guid? RotaStaffMemberId, string? Reason, string? Note);
+
+    // NULL is the default "Regular shift" — only non-regular reasons are stored.
+    private static string? NormalizeAssignmentReason(string? reason)
+    {
+        var trimmed = reason?.Trim();
+        if (string.IsNullOrEmpty(trimmed) || string.Equals(trimmed, "Regular shift", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+        if (trimmed.Length > 100)
+        {
+            throw new AppException("rota_assignment_reason_too_long", "Keep the assignment reason under 100 characters.");
+        }
+        return trimmed;
+    }
+
+    private static string? NormalizeAssignmentNote(string? note)
+    {
+        var trimmed = note?.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return null;
+        }
+        if (trimmed.Length > 300)
+        {
+            throw new AppException("rota_assignment_note_too_long", "Keep the assignment note under 300 characters.");
+        }
+        return trimmed;
+    }
+
+    // The authoritative assignee list for a save: the explicit Assignments list when provided
+    // (carries reason/note), else the legacy AssigneeUserIds/AssigneeStaffMemberIds arrays.
+    private static List<DesiredAssignment> ResolveDesiredAssignments(
+        IReadOnlyCollection<Guid> assigneeUserIds,
+        IReadOnlyCollection<Guid> assigneeStaffMemberIds,
+        IReadOnlyCollection<SaveShiftAssignmentRequest>? assignments)
+    {
+        if (assignments is null)
+        {
+            return assigneeUserIds.Distinct().Select(id => new DesiredAssignment(id, null, null, null))
+                .Concat(assigneeStaffMemberIds.Distinct().Select(id => new DesiredAssignment(null, id, null, null)))
+                .ToList();
+        }
+
+        var desired = new List<DesiredAssignment>();
+        var seen = new HashSet<string>();
+        foreach (var assignment in assignments)
+        {
+            if (assignment.UserId is null == assignment.RotaStaffMemberId is null)
+            {
+                throw new AppException("rota_assignment_invalid",
+                    "Each assignment needs either a user or a roster staff member (not both).");
+            }
+            // One assignment per person — later duplicates are ignored.
+            if (!seen.Add(assignment.UserId != null ? $"u:{assignment.UserId}" : $"m:{assignment.RotaStaffMemberId}"))
+            {
+                continue;
+            }
+            desired.Add(new DesiredAssignment(
+                assignment.UserId,
+                assignment.RotaStaffMemberId,
+                NormalizeAssignmentReason(assignment.Reason),
+                NormalizeAssignmentNote(assignment.Note)));
+        }
+        return desired;
+    }
+
     public async Task<RotaShiftDto> CreateShiftAsync(CreateRotaShiftRequest request, CancellationToken cancellationToken = default)
     {
         await EnsureManageAsync(request.ShopId, cancellationToken);
         var template = await ResolveTemplateAsync(request.ShopId, request.ShiftTemplateId, cancellationToken);
+        var desired = ResolveDesiredAssignments(request.AssigneeUserIds, request.AssigneeStaffMemberIds, request.Assignments);
         await EnsureNoShiftConflictAsync(request.ShopId, request.ShiftDate, template.TemplateId,
             TimeOnly.FromTimeSpan(template.StartTime), TimeOnly.FromTimeSpan(template.EndTime),
-            request.AssigneeUserIds, request.AssigneeStaffMemberIds, null, cancellationToken);
+            desired.Where(d => d.UserId != null).Select(d => d.UserId!.Value),
+            desired.Where(d => d.RotaStaffMemberId != null).Select(d => d.RotaStaffMemberId!.Value),
+            null, cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
         var startTime = TimeOnly.FromTimeSpan(template.StartTime);
@@ -227,25 +301,16 @@ public class RotaService : IRotaService
         };
         await _shiftRepository.AddAsync(shift, cancellationToken);
 
-        foreach (var userId in request.AssigneeUserIds.Distinct())
+        foreach (var d in desired)
         {
             await _assignmentRepository.AddAsync(new ShiftAssignment
             {
                 RotaShiftId = shift.Id,
                 ShopId = request.ShopId,
-                UserId = userId,
-                CreatedOn = now,
-                CreatedBy = _currentUserService.UserId,
-            }, cancellationToken);
-        }
-
-        foreach (var memberId in request.AssigneeStaffMemberIds.Distinct())
-        {
-            await _assignmentRepository.AddAsync(new ShiftAssignment
-            {
-                RotaShiftId = shift.Id,
-                ShopId = request.ShopId,
-                RotaStaffMemberId = memberId,
+                UserId = d.UserId,
+                RotaStaffMemberId = d.RotaStaffMemberId,
+                Reason = d.Reason,
+                Note = d.Note,
                 CreatedOn = now,
                 CreatedBy = _currentUserService.UserId,
             }, cancellationToken);
@@ -343,9 +408,12 @@ public class RotaService : IRotaService
 
         await EnsureManageAsync(shift.ShopId, cancellationToken);
         var template = await ResolveTemplateAsync(shift.ShopId, request.ShiftTemplateId, cancellationToken);
+        var desired = ResolveDesiredAssignments(request.AssigneeUserIds, request.AssigneeStaffMemberIds, request.Assignments);
         await EnsureNoShiftConflictAsync(shift.ShopId, request.ShiftDate, template.TemplateId,
             TimeOnly.FromTimeSpan(template.StartTime), TimeOnly.FromTimeSpan(template.EndTime),
-            request.AssigneeUserIds, request.AssigneeStaffMemberIds, shiftId, cancellationToken);
+            desired.Where(d => d.UserId != null).Select(d => d.UserId!.Value),
+            desired.Where(d => d.RotaStaffMemberId != null).Select(d => d.RotaStaffMemberId!.Value),
+            shiftId, cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
         shift.ShiftDate = request.ShiftDate;
@@ -361,34 +429,36 @@ public class RotaService : IRotaService
         shift.ModifiedBy = _currentUserService.UserId;
         _shiftRepository.Update(shift);
 
-        var desiredUsers = request.AssigneeUserIds.Distinct().ToHashSet();
-        var desiredMembers = request.AssigneeStaffMemberIds.Distinct().ToHashSet();
+        static string PersonKey(Guid? userId, Guid? memberId) => userId != null ? $"u:{userId}" : $"m:{memberId}";
+        var desiredByKey = desired.ToDictionary(d => PersonKey(d.UserId, d.RotaStaffMemberId));
         var current = shift.Assignments.ToList();
 
-        // Remove assignments no longer wanted (registered users + roster members).
-        foreach (var existing in current.Where(a =>
-            (a.UserId != null && !desiredUsers.Contains(a.UserId.Value)) ||
-            (a.RotaStaffMemberId != null && !desiredMembers.Contains(a.RotaStaffMemberId.Value))))
+        // Remove assignments no longer wanted; sync reason/note on kept ones when the explicit
+        // Assignments list was sent (legacy id-array saves never touch stored reasons/notes).
+        foreach (var existing in current)
         {
-            _assignmentRepository.Remove(existing);
+            if (!desiredByKey.TryGetValue(PersonKey(existing.UserId, existing.RotaStaffMemberId), out var d))
+            {
+                _assignmentRepository.Remove(existing);
+            }
+            else if (request.Assignments is not null && (existing.Reason != d.Reason || existing.Note != d.Note))
+            {
+                existing.Reason = d.Reason;
+                existing.Note = d.Note;
+                existing.ModifiedOn = now;
+                existing.ModifiedBy = _currentUserService.UserId;
+                _assignmentRepository.Update(existing);
+            }
         }
 
-        var currentUserIds = current.Where(a => a.UserId != null).Select(a => a.UserId!.Value).ToHashSet();
-        foreach (var userId in desiredUsers.Where(id => !currentUserIds.Contains(id)))
+        var currentKeys = current.Select(a => PersonKey(a.UserId, a.RotaStaffMemberId)).ToHashSet();
+        foreach (var d in desired.Where(d => !currentKeys.Contains(PersonKey(d.UserId, d.RotaStaffMemberId))))
         {
             await _assignmentRepository.AddAsync(new ShiftAssignment
             {
-                RotaShiftId = shift.Id, ShopId = shift.ShopId, UserId = userId,
-                CreatedOn = now, CreatedBy = _currentUserService.UserId,
-            }, cancellationToken);
-        }
-
-        var currentMemberIds = current.Where(a => a.RotaStaffMemberId != null).Select(a => a.RotaStaffMemberId!.Value).ToHashSet();
-        foreach (var memberId in desiredMembers.Where(id => !currentMemberIds.Contains(id)))
-        {
-            await _assignmentRepository.AddAsync(new ShiftAssignment
-            {
-                RotaShiftId = shift.Id, ShopId = shift.ShopId, RotaStaffMemberId = memberId,
+                RotaShiftId = shift.Id, ShopId = shift.ShopId,
+                UserId = d.UserId, RotaStaffMemberId = d.RotaStaffMemberId,
+                Reason = d.Reason, Note = d.Note,
                 CreatedOn = now, CreatedBy = _currentUserService.UserId,
             }, cancellationToken);
         }
@@ -742,11 +812,23 @@ public class RotaService : IRotaService
             .ToListAsync(cancellationToken))
             .ToDictionary(x => x.Id, x => x.ShiftName);
 
+        // This person's assignment reason per shift (one query for the whole session set).
+        // Missing/NULL means a regular shift (or no assignment) → Reason stays null.
+        var reasonByShift = (await _assignmentRepository.Query()
+            .AsNoTracking()
+            .Where(a => shiftIds.Contains(a.RotaShiftId)
+                && (rotaStaffMemberId != null ? a.RotaStaffMemberId == rotaStaffMemberId : a.UserId == userId))
+            .Select(a => new { a.RotaShiftId, a.Reason })
+            .ToListAsync(cancellationToken))
+            .GroupBy(x => x.RotaShiftId)
+            .ToDictionary(g => g.Key, g => g.First().Reason);
+
         return rows.Select(r => new TimesheetSessionDto
         {
             Id = r.Id,
             Date = DateOnly.FromDateTime(r.CheckInAt.UtcDateTime),
             ShiftName = r.RotaShiftId != null && nameById.TryGetValue(r.RotaShiftId.Value, out var n) ? n : null,
+            Reason = r.RotaShiftId != null && reasonByShift.TryGetValue(r.RotaShiftId.Value, out var reason) ? reason : null,
             CheckInAt = r.CheckInAt,
             CheckOutAt = r.CheckOutAt,
             Hours = r.CheckOutAt != null ? Math.Round((decimal)(r.CheckOutAt.Value - r.CheckInAt).TotalHours, 2) : 0,
@@ -1596,6 +1678,41 @@ public class RotaService : IRotaService
             .Where(x => x.ShopId == shopId && x.PeriodFrom == from && x.PeriodTo == to)
             .ToListAsync(cancellationToken);
         return await BuildReviewDtosAsync(reviews, cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<RotaTimesheetReviewDto>> GetTimesheetReviewHistoryAsync(Guid shopId, int take, CancellationToken cancellationToken = default)
+    {
+        await EnsureManageAsync(shopId, cancellationToken);
+        if (take <= 0) take = 100;
+        var reviews = await _timesheetReviewRepository.Query()
+            .AsNoTracking()
+            .Include(x => x.User)
+            .Where(x => x.ShopId == shopId && x.Status == RotaTimesheetReviewStatus.ManagerApproved)
+            .OrderByDescending(x => x.PeriodTo)
+            .ThenBy(x => x.User.FirstName).ThenBy(x => x.User.LastName)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+        return (await BuildReviewDtosAsync(reviews, cancellationToken))
+            .OrderByDescending(x => x.PeriodTo)
+            .ThenBy(x => x.UserName)
+            .ToArray();
+    }
+
+    public async Task<IReadOnlyCollection<RotaTimesheetReviewDto>> GetMyTimesheetReviewHistoryAsync(Guid shopId, int take, CancellationToken cancellationToken = default)
+    {
+        await EnsureStaffAsync(shopId, cancellationToken);
+        var userId = CurrentUserId;
+        if (take <= 0) take = 50;
+        var reviews = await _timesheetReviewRepository.Query()
+            .AsNoTracking()
+            .Include(x => x.User)
+            .Where(x => x.ShopId == shopId && x.UserId == userId && x.Status == RotaTimesheetReviewStatus.ManagerApproved)
+            .OrderByDescending(x => x.PeriodTo)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+        return (await BuildReviewDtosAsync(reviews, cancellationToken))
+            .OrderByDescending(x => x.PeriodTo)
+            .ToArray();
     }
 
     public async Task<IReadOnlyCollection<RotaTimesheetReviewDto>> GetMyTimesheetReviewsAsync(Guid shopId, CancellationToken cancellationToken = default)

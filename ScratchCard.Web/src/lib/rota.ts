@@ -7,6 +7,8 @@ export type RotaAssignee = {
   phone?: string | null;
   email?: string | null;
   isExternal?: boolean;
+  reason?: string | null; // null = regular shift
+  note?: string | null;
 };
 
 export type RotaShift = {
@@ -27,6 +29,14 @@ export type RotaShiftTemplate = { templateId: string; name: string; startTime: s
 export type AssignableUser = { userId?: string | null; rotaStaffMemberId?: string | null; isExternal?: boolean; name: string; role: string };
 export type RotaStaffMember = { id: string; name: string; phone?: string | null; email?: string | null; isActive: boolean };
 
+// Per-assignee reason/note. Reason "Regular shift"/empty is stored as null (limits: reason 100, note 300).
+export type ShiftAssignmentInput = {
+  userId?: string;
+  rotaStaffMemberId?: string;
+  reason?: string;
+  note?: string;
+};
+
 export type SaveRotaShiftPayload = {
   shopId: string;
   shiftDate: string;
@@ -35,6 +45,8 @@ export type SaveRotaShiftPayload = {
   notes?: string;
   assigneeUserIds: string[];
   assigneeStaffMemberIds: string[];
+  // Authoritative when present; the legacy id arrays above are kept for older servers.
+  assignments?: ShiftAssignmentInput[];
 };
 
 export type TimesheetRow = {
@@ -72,6 +84,7 @@ export type TimesheetSession = {
   hours: number;
   entryMethod: "Clocked" | "Manual";
   isApproved: boolean;
+  reason?: string | null; // assignment reason (null = regular shift)
 };
 
 export type AttendanceApprovalRow = {
@@ -175,6 +188,9 @@ export const rotaApi = {
     unwrap<TimesheetReviewRow>((await api.post(`/rota/timesheet-reviews/${id}/resolve`, p)).data),
   approveTimesheetReview: async (id: string) =>
     unwrap<TimesheetReviewRow>((await api.post(`/rota/timesheet-reviews/${id}/approve`)).data),
+  // Past sign-off periods, newest period first.
+  timesheetReviewHistory: async (shopId: string, take?: number) =>
+    unwrap<TimesheetReviewRow[]>((await api.get("/rota/timesheet-reviews/history", { params: { shopId, take } })).data),
 };
 
 // Build check-in/out ISO from a date + HH:mm times (overnight → check-out next day).

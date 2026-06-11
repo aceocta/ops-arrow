@@ -7,6 +7,14 @@ export async function getBusinessDayStaff(shopId: string, date: string) {
   return response.data.data;
 }
 
+export type SaveRotaShiftAssignment = {
+  userId?: string;
+  rotaStaffMemberId?: string;
+  /** Omitted/empty/"Regular shift" normalizes to null (regular) server-side. */
+  reason?: string;
+  note?: string;
+};
+
 export type SaveRotaShiftPayload = {
   shopId: string;
   shiftDate: string; // yyyy-MM-dd
@@ -15,6 +23,8 @@ export type SaveRotaShiftPayload = {
   notes?: string;
   assigneeUserIds: string[];
   assigneeStaffMemberIds: string[];
+  /** When present, authoritative — replaces assigneeUserIds/assigneeStaffMemberIds. */
+  assignments?: SaveRotaShiftAssignment[];
 };
 
 export async function getShiftTemplates(shopId: string) {
@@ -201,6 +211,18 @@ export async function getMyTimesheetReviews(shopId: string) {
 
 export async function getTimesheetReviewSessions(reviewId: string) {
   const response = await apiClient.get<ApiResponse<TimesheetSession[]>>(`/rota/timesheet-reviews/${reviewId}/sessions`);
+  return response.data.data;
+}
+
+// Approved timesheet periods, newest period first (manager view — all staff).
+export async function getTimesheetReviewHistory(shopId: string, take?: number) {
+  const response = await apiClient.get<ApiResponse<RotaTimesheetReview[]>>("/rota/timesheet-reviews/history", { params: { shopId, take } });
+  return response.data.data;
+}
+
+// The signed-in staff member's own approved timesheet periods, newest first.
+export async function getMyTimesheetReviewHistory(shopId: string, take?: number) {
+  const response = await apiClient.get<ApiResponse<RotaTimesheetReview[]>>("/rota/timesheet-reviews/mine/history", { params: { shopId, take } });
   return response.data.data;
 }
 

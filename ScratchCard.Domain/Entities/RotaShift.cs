@@ -45,6 +45,10 @@ public class ShiftAssignment : AuditableEntity
     public Guid ShopId { get; set; }
     public Guid? UserId { get; set; }
     public Guid? RotaStaffMemberId { get; set; }
+    // Why this person is on the shift (e.g. "Overtime", "Cover"). NULL means the default
+    // "Regular shift" — only non-regular reasons are stored.
+    public string? Reason { get; set; }
+    public string? Note { get; set; }
 
     public RotaShift RotaShift { get; set; } = null!;
     public User? User { get; set; }

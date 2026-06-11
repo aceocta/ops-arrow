@@ -9,6 +9,9 @@ public class RotaAssigneeDto
     public string? Phone { get; set; }
     public string? Email { get; set; }
     public bool IsExternal { get; set; }
+    // Why this person is on the shift; null means the default "Regular shift".
+    public string? Reason { get; set; }
+    public string? Note { get; set; }
 }
 
 public class RotaStaffMemberDto
@@ -47,6 +50,17 @@ public class RotaShiftDto
     public ShiftAttendanceDto? MyAttendance { get; set; }
 }
 
+// One assignee in a save-shift request, with an optional non-regular reason + note.
+// Exactly one of UserId (registered) or RotaStaffMemberId (roster-only) should be set.
+public class SaveShiftAssignmentRequest
+{
+    public Guid? UserId { get; set; }
+    public Guid? RotaStaffMemberId { get; set; }
+    // Empty or "Regular shift" (any casing) is normalized to null (the default).
+    public string? Reason { get; set; }
+    public string? Note { get; set; }
+}
+
 public class CreateRotaShiftRequest
 {
     public Guid ShopId { get; set; }
@@ -56,6 +70,8 @@ public class CreateRotaShiftRequest
     public string? Notes { get; set; }
     public IReadOnlyCollection<Guid> AssigneeUserIds { get; set; } = [];
     public IReadOnlyCollection<Guid> AssigneeStaffMemberIds { get; set; } = [];
+    // When non-null this list is authoritative (the id arrays above are ignored).
+    public IReadOnlyCollection<SaveShiftAssignmentRequest>? Assignments { get; set; }
 }
 
 public class UpdateRotaShiftRequest
@@ -67,6 +83,8 @@ public class UpdateRotaShiftRequest
     public string? Notes { get; set; }
     public IReadOnlyCollection<Guid> AssigneeUserIds { get; set; } = [];
     public IReadOnlyCollection<Guid> AssigneeStaffMemberIds { get; set; } = [];
+    // When non-null this list is authoritative (the id arrays above are ignored).
+    public IReadOnlyCollection<SaveShiftAssignmentRequest>? Assignments { get; set; }
 }
 
 public class SaveRotaStaffMemberRequest
@@ -187,6 +205,9 @@ public class TimesheetSessionDto
     public Guid Id { get; set; }
     public DateOnly Date { get; set; }
     public string? ShiftName { get; set; }
+    // The person's assignment reason on the session's rota shift; null when there is no
+    // shift/assignment or it's a regular shift.
+    public string? Reason { get; set; }
     public DateTimeOffset CheckInAt { get; set; }
     public DateTimeOffset? CheckOutAt { get; set; }
     public decimal Hours { get; set; }

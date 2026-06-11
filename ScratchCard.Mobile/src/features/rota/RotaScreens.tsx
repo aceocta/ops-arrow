@@ -40,6 +40,8 @@ import {
   requestTimesheetReviews,
   getTimesheetReviews,
   getMyTimesheetReviews,
+  getTimesheetReviewHistory,
+  getMyTimesheetReviewHistory,
   getTimesheetReviewSessions,
   confirmTimesheetReview,
   disputeTimesheetReview,
@@ -214,11 +216,31 @@ function breakdownTotal(sessions: TimesheetSession[], serverTotalHours: number) 
   return `${total.toFixed(1)}h`;
 }
 
+// Assignment reasons. "Regular shift" is the default and normalizes to null server-side;
+// anything outside the presets is a free-text "Other…" reason.
+const REGULAR_REASON = "Regular shift";
+const ASSIGNMENT_REASONS = [REGULAR_REASON, "Cleaning", "Delivery", "Stock take", "Training", "Cover"];
+
+type AssignmentMeta = { reason: string; note: string };
+
+// Per-person assignment metadata keyed by person id (userId ?? rotaStaffMemberId).
+function metaFromAssignees(assignees: RotaAssignee[]): Record<string, AssignmentMeta> {
+  const meta: Record<string, AssignmentMeta> = {};
+  for (const a of assignees) {
+    const key = a.userId ?? a.rotaStaffMemberId;
+    if (key) meta[key] = { reason: a.reason ?? REGULAR_REASON, note: a.note ?? "" };
+  }
+  return meta;
+}
+
+// The "approved {date}" suffix for a history row — resolvedOn is an ISO timestamp.
+const approvedOnLabel = (resolvedOn?: string) => formatDayLabel(resolvedOn ? resolvedOn.slice(0, 10) : null);
+
 // ---------------------------------------------------------------------------
 // My Shifts + check in/out (staff)
 // ---------------------------------------------------------------------------
 export function MyShiftsScreen() {
-  const { activeShopId } = useAuth();
+  const { activeShopId, profile } = useAuth();
   const shopId = activeShopId;
   const queryClient = useQueryClient();
   const [range, setRange] = useState(() => next7());
@@ -231,6 +253,8 @@ export function MyShiftsScreen() {
   const [disputeNote, setDisputeNote] = useState("");
   // Review whose per-session breakdown is expanded (one at a time).
   const [expandedReviewId, setExpandedReviewId] = useState<string | null>(null);
+  // Past (approved) timesheet periods modal.
+  const [pastOpen, setPastOpen] = useState(false);
 
   const attendanceQuery = useQuery({
     queryKey: ["rota-attendance", shopId],
@@ -257,6 +281,12 @@ export function MyShiftsScreen() {
     queryKey: ["rota-review-sessions", expandedReviewId],
     queryFn: () => getTimesheetReviewSessions(expandedReviewId as string),
     enabled: Boolean(expandedReviewId),
+  });
+  // My approved timesheet history (fetched only while the modal is open).
+  const pastReviewsQuery = useQuery({
+    queryKey: ["rota-my-review-history", shopId],
+    queryFn: () => getMyTimesheetReviewHistory(shopId as string),
+    enabled: Boolean(shopId) && pastOpen,
   });
 
   const current = attendanceQuery.data;
@@ -348,6 +378,8 @@ export function MyShiftsScreen() {
 
   const renderShiftCard = (shift: RotaShift) => {
           const att = shift.myAttendance;
+          // My own assignment on this shift — carries the reason when it isn't a regular shift.
+          const myAssignment = profile?.userId ? shift.assignees.find((a) => a.userId === profile.userId) : undefined;
           const open = Boolean(att && !att.checkOutAt);
           const completed = Boolean(att && att.checkOutAt);
           const onAnotherShift = isCheckedInSomewhere && current?.rotaShiftId !== shift.id;
@@ -380,6 +412,12 @@ export function MyShiftsScreen() {
                   <View style={styles.infoChip}>
                     <Ionicons name="briefcase-outline" size={13} color={appTheme.colors.textMuted} />
                     <Text style={styles.infoChipText}>{shift.position}</Text>
+                  </View>
+                ) : null}
+                {myAssignment?.reason ? (
+                  <View style={styles.infoChip}>
+                    <Ionicons name="pricetag-outline" size={13} color={appTheme.colors.textMuted} />
+                    <Text style={styles.infoChipText}>{myAssignment.reason}</Text>
                   </View>
                 ) : null}
               </View>
@@ -505,7 +543,7 @@ export function MyShiftsScreen() {
                             <View style={{ flex: 1 }}>
                               <Text style={styles.sessionDate}>{dayLabel(s.date)} · {s.shiftName ?? "Shift"}</Text>
                               <Text style={styles.muted} numberOfLines={1}>
-                                {clockTime(s.checkInAt)} → {s.checkOutAt ? clockTime(s.checkOutAt) : "—"}
+                                {s.reason ? `${s.reason} · ` : ""}{clockTime(s.checkInAt)} → {s.checkOutAt ? clockTime(s.checkOutAt) : "—"}
                                 {s.entryMethod === "Manual" && !s.isApproved ? "  · manual · pending" : ""}
                               </Text>
                             </View>
@@ -542,8 +580,25 @@ export function MyShiftsScreen() {
                 </View>
               );
             })}
+            <Pressable
+              style={({ pressed }) => [styles.pastLink, pressed ? styles.reviewPeriodBtnPressed : null]}
+              onPress={() => setPastOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="View your past approved timesheets"
+            >
+              <Text style={styles.resendText}>Past timesheets</Text>
+            </Pressable>
           </View>
-        ) : null}
+        ) : (
+          <Pressable
+            style={({ pressed }) => [styles.pastLink, pressed ? styles.reviewPeriodBtnPressed : null]}
+            onPress={() => setPastOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="View your past approved timesheets"
+          >
+            <Text style={styles.resendText}>Past timesheets</Text>
+          </Pressable>
+        )}
 
         {/* Date range */}
         <View style={[ui.card, styles.rangeCard]}>
@@ -697,6 +752,42 @@ export function MyShiftsScreen() {
         </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Past (approved) timesheet periods */}
+      <Modal visible={pastOpen} transparent animationType="slide" onRequestClose={() => setPastOpen(false)}>
+        <View style={styles.sheetBackdrop}>
+          <View style={[styles.sheetCard, { maxHeight: "80%" }]}>
+            <View style={styles.sheetHeader}>
+              <View style={styles.sheetIcon}>
+                <Ionicons name="receipt-outline" size={22} color={appTheme.colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitleSm}>Past timesheets</Text>
+                <Text style={styles.muted}>Periods your manager has approved</Text>
+              </View>
+              <Pressable onPress={() => setPastOpen(false)} style={styles.editorHeaderBtn} accessibilityRole="button" accessibilityLabel="Close past timesheets">
+                <Ionicons name="close" size={22} color={appTheme.colors.text} />
+              </Pressable>
+            </View>
+
+            {pastReviewsQuery.isLoading ? <LoadingState inline /> : null}
+            {pastReviewsQuery.isSuccess && (pastReviewsQuery.data?.length ?? 0) === 0 ? (
+              <EmptyState icon="receipt-outline" title="No approved timesheets yet" message="Approved periods will appear here once your manager signs them off." />
+            ) : null}
+
+            <ScrollView contentContainerStyle={{ gap: 2 }}>
+              {(pastReviewsQuery.data ?? []).map((r) => (
+                <View key={r.id} style={styles.sessionRow}>
+                  <Text style={[styles.sessionDate, { flex: 1 }]} numberOfLines={1}>
+                    {formatDayLabel(r.periodFrom)} – {formatDayLabel(r.periodTo)}
+                  </Text>
+                  <Text style={styles.sessionHours}>{r.totalHours.toFixed(1)}h</Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -712,10 +803,12 @@ type ShiftDraft = {
   notes: string;
   assigneeUserIds: string[];
   assigneeStaffMemberIds: string[];
+  // Per-person reason/note keyed by person id (userId ?? rotaStaffMemberId).
+  assignmentMeta: Record<string, AssignmentMeta>;
 };
 
 function emptyDraft(): ShiftDraft {
-  return { id: null, shiftDate: formatDateValue(new Date()), shiftTemplateId: "", position: "", notes: "", assigneeUserIds: [], assigneeStaffMemberIds: [] };
+  return { id: null, shiftDate: formatDateValue(new Date()), shiftTemplateId: "", position: "", notes: "", assigneeUserIds: [], assigneeStaffMemberIds: [], assignmentMeta: {} };
 }
 
 export function RotaManageScreen() {
@@ -733,6 +826,8 @@ export function RotaManageScreen() {
   const [extName, setExtName] = useState("");
   const [extPhone, setExtPhone] = useState("+44 ");
   const [extEmail, setExtEmail] = useState("");
+  // Person id (userId ?? rotaStaffMemberId) whose reason chip row is expanded — one at a time.
+  const [expandedReasonKey, setExpandedReasonKey] = useState<string | null>(null);
   const [selectedAssignee, setSelectedAssignee] = useState<{ assignee: RotaAssignee; shift: RotaShift } | null>(null);
   const [recordTarget, setRecordTarget] = useState<{ shift: RotaShift; name: string; memberId?: string | null; userId?: string | null } | null>(null);
   const [recIn, setRecIn] = useState("09:00");
@@ -772,6 +867,23 @@ export function RotaManageScreen() {
 
   const saveMutation = useMutation({
     mutationFn: () => {
+      // Authoritative assignment list: each assigned person with their reason/note.
+      // "Regular shift" (or blank) reasons are omitted; notes ride along only with a reason.
+      const toAssignment = (person: { userId?: string; rotaStaffMemberId?: string }, key: string) => {
+        const meta = draft.assignmentMeta[key];
+        const reason = meta?.reason.trim() ?? "";
+        const note = meta?.note.trim() ?? "";
+        const isRegular = !reason || reason === REGULAR_REASON;
+        return {
+          ...person,
+          reason: isRegular ? undefined : reason,
+          note: isRegular || !note ? undefined : note,
+        };
+      };
+      const assignments = [
+        ...draft.assigneeUserIds.map((id) => toAssignment({ userId: id }, id)),
+        ...draft.assigneeStaffMemberIds.map((id) => toAssignment({ rotaStaffMemberId: id }, id)),
+      ];
       const payload: SaveRotaShiftPayload = {
         shopId: shopId as string,
         shiftDate: draft.shiftDate,
@@ -780,6 +892,7 @@ export function RotaManageScreen() {
         notes: draft.notes.trim() || undefined,
         assigneeUserIds: draft.assigneeUserIds,
         assigneeStaffMemberIds: draft.assigneeStaffMemberIds,
+        assignments,
       };
       return draft.id ? updateRotaShift(draft.id, payload) : createRotaShift(payload);
     },
@@ -871,6 +984,7 @@ export function RotaManageScreen() {
     setDraft(next);
     setOpenedDraftJson(JSON.stringify(next));
     setUserSearch("");
+    setExpandedReasonKey(null);
     setEditorOpen(true);
   };
   const openEdit = (shift: RotaShift) => {
@@ -882,10 +996,12 @@ export function RotaManageScreen() {
       notes: shift.notes ?? "",
       assigneeUserIds: shift.assignees.filter((a) => a.userId).map((a) => a.userId as string),
       assigneeStaffMemberIds: shift.assignees.filter((a) => a.rotaStaffMemberId).map((a) => a.rotaStaffMemberId as string),
+      assignmentMeta: metaFromAssignees(shift.assignees),
     };
     setDraft(next);
     setOpenedDraftJson(JSON.stringify(next));
     setUserSearch("");
+    setExpandedReasonKey(null);
     setEditorOpen(true);
   };
   // Closing the editor with unsaved edits asks before discarding them.
@@ -930,7 +1046,9 @@ export function RotaManageScreen() {
       notes: existing ? existing.notes ?? "" : "",
       assigneeUserIds: existing ? existing.assignees.filter((a) => a.userId).map((a) => a.userId as string) : [],
       assigneeStaffMemberIds: existing ? existing.assignees.filter((a) => a.rotaStaffMemberId).map((a) => a.rotaStaffMemberId as string) : [],
+      assignmentMeta: existing ? metaFromAssignees(existing.assignees) : {},
     }));
+    setExpandedReasonKey(null);
   };
 
   // Toggle a registered user or a roster-only member on the draft.
@@ -956,6 +1074,19 @@ export function RotaManageScreen() {
 
   const isAssigned = (u: AssignableUser) =>
     u.rotaStaffMemberId ? draft.assigneeStaffMemberIds.includes(u.rotaStaffMemberId) : draft.assigneeUserIds.includes(u.userId as string);
+
+  // Reason/note metadata for an assigned person — keyed by userId ?? rotaStaffMemberId,
+  // defaulting to a regular shift when nothing has been set.
+  const metaKeyOf = (u: AssignableUser) => (u.userId ?? u.rotaStaffMemberId ?? u.name) as string;
+  const metaFor = (key: string): AssignmentMeta => draft.assignmentMeta[key] ?? { reason: REGULAR_REASON, note: "" };
+  const setMetaFor = (key: string, patch: Partial<AssignmentMeta>) =>
+    setDraft((d) => ({
+      ...d,
+      assignmentMeta: {
+        ...d.assignmentMeta,
+        [key]: { ...(d.assignmentMeta[key] ?? { reason: REGULAR_REASON, note: "" }), ...patch },
+      },
+    }));
 
   // Shifts keyed by date (ordered by start time), for the week-grid render.
   const shiftsByDate = useMemo(() => {
@@ -1152,7 +1283,14 @@ export function RotaManageScreen() {
                               onPress={() => setSelectedAssignee({ assignee: a, shift })}
                               hitSlop={4}
                             >
-                              <Text style={[styles.rotaStaffText, styles.tdLink]} numberOfLines={1}>{a.name}</Text>
+                              <View style={styles.rotaStaffLine}>
+                                <Text style={[styles.rotaStaffText, styles.tdLink]} numberOfLines={1}>{a.name}</Text>
+                                {a.reason ? (
+                                  <View style={styles.reasonTag}>
+                                    <Text style={styles.reasonTagText} numberOfLines={1}>{a.reason}</Text>
+                                  </View>
+                                ) : null}
+                              </View>
                             </Pressable>
                           ))
                         ) : (
@@ -1262,24 +1400,91 @@ export function RotaManageScreen() {
                   {assigned.length === 0 ? (
                     <Text style={styles.muted}>No one assigned yet — add staff from below.</Text>
                   ) : (
-                    assigned.map((u) => (
-                      <Pressable
-                        key={keyOf(u)}
-                        style={({ pressed }) => [styles.userRow, pressed ? styles.userRowPressed : null]}
-                        onPress={() => toggleAssignee(u)}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Remove ${u.name} from this shift`}
-                      >
-                        <View style={[styles.userAvatar, styles.userAvatarOn]}>
-                          <Text style={styles.userAvatarText}>{initials(u.name)}</Text>
+                    assigned.map((u) => {
+                      const metaKey = metaKeyOf(u);
+                      const meta = metaFor(metaKey);
+                      const reasonExpanded = expandedReasonKey === metaKey;
+                      // Anything outside the presets is a free-text "Other…" reason.
+                      const isOtherReason = !ASSIGNMENT_REASONS.includes(meta.reason);
+                      const isRegular = !isOtherReason && meta.reason === REGULAR_REASON;
+                      return (
+                        <View key={keyOf(u)}>
+                          <Pressable
+                            style={({ pressed }) => [styles.userRow, pressed ? styles.userRowPressed : null]}
+                            onPress={() => toggleAssignee(u)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Remove ${u.name} from this shift`}
+                          >
+                            <View style={[styles.userAvatar, styles.userAvatarOn]}>
+                              <Text style={styles.userAvatarText}>{initials(u.name)}</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.userName} numberOfLines={1}>{u.name}</Text>
+                              <Text style={styles.muted}>{u.isExternal ? "External" : u.role}</Text>
+                              <Pressable
+                                style={({ pressed }) => [styles.reasonChip, pressed ? styles.userRowPressed : null]}
+                                onPress={() => setExpandedReasonKey(reasonExpanded ? null : metaKey)}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Change ${u.name}'s assignment reason, currently ${meta.reason.trim() || REGULAR_REASON}`}
+                              >
+                                <Ionicons name="pricetag-outline" size={11} color={appTheme.colors.textMuted} />
+                                <Text style={styles.reasonChipText} numberOfLines={1}>{meta.reason.trim() || "Other…"}</Text>
+                                <Ionicons name={reasonExpanded ? "chevron-up" : "chevron-down"} size={11} color={appTheme.colors.textMuted} />
+                              </Pressable>
+                            </View>
+                            <Ionicons name="checkmark-circle" size={24} color={appTheme.colors.success} />
+                          </Pressable>
+                          {reasonExpanded ? (
+                            <View style={styles.reasonBox}>
+                              <View style={styles.reasonPickRow}>
+                                {ASSIGNMENT_REASONS.map((r) => {
+                                  const active = !isOtherReason && meta.reason === r;
+                                  return (
+                                    <Pressable
+                                      key={r}
+                                      style={({ pressed }) => [styles.reasonPickChip, active ? styles.reasonPickChipActive : null, pressed ? styles.chipPressed : null]}
+                                      onPress={() => setMetaFor(metaKey, { reason: r })}
+                                      accessibilityRole="button"
+                                      accessibilityLabel={`Set ${u.name}'s reason to ${r}`}
+                                    >
+                                      <Text style={[styles.reasonPickText, active ? styles.reasonPickTextActive : null]}>{r}</Text>
+                                    </Pressable>
+                                  );
+                                })}
+                                <Pressable
+                                  style={({ pressed }) => [styles.reasonPickChip, isOtherReason ? styles.reasonPickChipActive : null, pressed ? styles.chipPressed : null]}
+                                  onPress={() => { if (!isOtherReason) setMetaFor(metaKey, { reason: "" }); }}
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`Set a custom reason for ${u.name}`}
+                                >
+                                  <Text style={[styles.reasonPickText, isOtherReason ? styles.reasonPickTextActive : null]}>Other…</Text>
+                                </Pressable>
+                              </View>
+                              {isOtherReason ? (
+                                <TextInput
+                                  style={[styles.externalInput, styles.reasonInput]}
+                                  value={meta.reason}
+                                  onChangeText={(v) => setMetaFor(metaKey, { reason: v })}
+                                  placeholder="Reason"
+                                  placeholderTextColor={appTheme.colors.textSubtle}
+                                  maxLength={100}
+                                />
+                              ) : null}
+                              {!isRegular ? (
+                                <TextInput
+                                  style={[styles.externalInput, styles.reasonInput]}
+                                  value={meta.note}
+                                  onChangeText={(v) => setMetaFor(metaKey, { note: v })}
+                                  placeholder="Note (optional)"
+                                  placeholderTextColor={appTheme.colors.textSubtle}
+                                  maxLength={300}
+                                />
+                              ) : null}
+                            </View>
+                          ) : null}
                         </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.userName} numberOfLines={1}>{u.name}</Text>
-                          <Text style={styles.muted}>{u.isExternal ? "External" : u.role}</Text>
-                        </View>
-                        <Ionicons name="checkmark-circle" size={24} color={appTheme.colors.success} />
-                      </Pressable>
-                    ))
+                      );
+                    })
                   )}
 
                   <Text style={[styles.fieldLabel, { marginTop: appTheme.spacing.sm }]}>Available ({available.length})</Text>
@@ -1510,6 +1715,8 @@ export function RotaTimesheetScreen() {
   // Disputed review being resolved (opens the resolve modal with the staff member's note).
   const [resolveTarget, setResolveTarget] = useState<RotaTimesheetReview | null>(null);
   const [resolveNote, setResolveNote] = useState("");
+  // Approved timesheet history modal (all staff, grouped by period).
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const sessionsQuery = useQuery({
     queryKey: ["rota-staff-sessions", shopId, selectedStaff?.userId, selectedStaff?.rotaStaffMemberId, range.from, range.to],
@@ -1603,6 +1810,23 @@ export function RotaTimesheetScreen() {
   const reviews = reviewsQuery.data ?? [];
   const allReviewsApproved = reviews.length > 0 && reviews.every((r) => r.status === "ManagerApproved");
   const refreshReviews = () => void queryClient.invalidateQueries({ queryKey: ["rota-reviews", shopId] });
+
+  // Approved history — fetched only while the modal is open, grouped by period (newest first).
+  const historyQuery = useQuery({
+    queryKey: ["rota-review-history", shopId],
+    queryFn: () => getTimesheetReviewHistory(shopId as string),
+    enabled: Boolean(shopId) && historyOpen,
+  });
+  const historyGroups = useMemo(() => {
+    const map = new Map<string, RotaTimesheetReview[]>();
+    for (const r of historyQuery.data ?? []) {
+      const key = `${r.periodFrom}|${r.periodTo}`;
+      const list = map.get(key) ?? [];
+      list.push(r);
+      map.set(key, list);
+    }
+    return [...map.entries()];
+  }, [historyQuery.data]);
 
   const requestReviewsMutation = useMutation({
     mutationFn: () => requestTimesheetReviews({ shopId: shopId as string, from: range.from, to: range.to }),
@@ -1885,17 +2109,27 @@ export function RotaTimesheetScreen() {
         <View style={[ui.card, styles.signoffCard]}>
           <View style={styles.signoffHeader}>
             <Text style={styles.sectionTitle}>Staff sign-off</Text>
-            {reviews.length > 0 ? (
+            <View style={styles.signoffHeaderActions}>
               <Pressable
-                style={({ pressed }) => [pressed ? styles.exportBtnPressed : null, requestReviewsMutation.isPending ? styles.exportBtnDisabled : null]}
-                onPress={() => void startRequestReviews()}
-                disabled={requestReviewsMutation.isPending}
+                style={({ pressed }) => [pressed ? styles.exportBtnPressed : null]}
+                onPress={() => setHistoryOpen(true)}
                 accessibilityRole="button"
-                accessibilityLabel="Re-send review requests to staff still awaiting review"
+                accessibilityLabel="View approved timesheet history"
               >
-                <Text style={styles.resendText}>{requestReviewsMutation.isPending ? "Sending…" : "Re-send requests"}</Text>
+                <Text style={styles.resendText}>Approved history</Text>
               </Pressable>
-            ) : null}
+              {reviews.length > 0 ? (
+                <Pressable
+                  style={({ pressed }) => [pressed ? styles.exportBtnPressed : null, requestReviewsMutation.isPending ? styles.exportBtnDisabled : null]}
+                  onPress={() => void startRequestReviews()}
+                  disabled={requestReviewsMutation.isPending}
+                  accessibilityRole="button"
+                  accessibilityLabel="Re-send review requests to staff still awaiting review"
+                >
+                  <Text style={styles.resendText}>{requestReviewsMutation.isPending ? "Sending…" : "Re-send requests"}</Text>
+                </Pressable>
+              ) : null}
+            </View>
           </View>
 
           {reviewsQuery.isLoading ? <LoadingState inline /> : null}
@@ -2055,7 +2289,7 @@ export function RotaTimesheetScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={styles.sessionDate}>{dayLabel(s.date)}</Text>
                       <Text style={styles.muted} numberOfLines={1}>
-                        {s.shiftName ? `${s.shiftName} · ` : ""}{clockTime(s.checkInAt)} → {s.checkOutAt ? clockTime(s.checkOutAt) : "—"}
+                        {s.shiftName ? `${s.shiftName} · ` : ""}{s.reason ? `${s.reason} · ` : ""}{clockTime(s.checkInAt)} → {s.checkOutAt ? clockTime(s.checkOutAt) : "—"}
                         {s.entryMethod === "Manual" ? (s.isApproved ? "  · manual" : "  · pending") : ""}
                       </Text>
                     </View>
@@ -2243,6 +2477,50 @@ export function RotaTimesheetScreen() {
           </View>
         </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Approved timesheet history — past periods grouped by period, newest first */}
+      <Modal visible={historyOpen} transparent animationType="slide" onRequestClose={() => setHistoryOpen(false)}>
+        <View style={styles.sheetBackdrop}>
+          <View style={[styles.sheetCard, { maxHeight: "80%" }]}>
+            <View style={styles.sheetHeader}>
+              <View style={styles.sheetIcon}>
+                <Ionicons name="receipt-outline" size={22} color={appTheme.colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitleSm}>Approved history</Text>
+                <Text style={styles.muted}>Past approved timesheet periods</Text>
+              </View>
+              <Pressable onPress={() => setHistoryOpen(false)} style={styles.editorHeaderBtn} accessibilityRole="button" accessibilityLabel="Close approved history">
+                <Ionicons name="close" size={22} color={appTheme.colors.text} />
+              </Pressable>
+            </View>
+
+            {historyQuery.isLoading ? <LoadingState inline /> : null}
+            {historyQuery.isSuccess && historyGroups.length === 0 ? (
+              <EmptyState icon="receipt-outline" title="No approved timesheets yet" message="Approved periods will appear here once staff hours are signed off." />
+            ) : null}
+
+            <ScrollView contentContainerStyle={{ gap: 2 }}>
+              {historyGroups.map(([key, rows]) => (
+                <View key={key}>
+                  <Text style={styles.historyPeriodHead}>
+                    {formatDayLabel(rows[0].periodFrom)} – {formatDayLabel(rows[0].periodTo)}
+                  </Text>
+                  {rows.map((r) => (
+                    <View key={r.id} style={styles.sessionRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.sessionDate} numberOfLines={1}>{r.userName}</Text>
+                        <Text style={styles.muted} numberOfLines={1}>Approved {approvedOnLabel(r.resolvedOn)}</Text>
+                      </View>
+                      <Text style={styles.sessionHours}>{r.totalHours.toFixed(1)}h</Text>
+                    </View>
+                  ))}
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
     </ScreenContainer>
   );
@@ -2789,6 +3067,16 @@ const styles = StyleSheet.create({
   rotaShiftCol: { width: 110 },
   rotaStaffCol: { flex: 1, paddingLeft: 8, gap: 8 },
   rotaStaffText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 13, lineHeight: 20, paddingVertical: 2 },
+  // Assignee name + optional reason tag on the week grid.
+  rotaStaffLine: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4 },
+  reasonTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    maxWidth: 120,
+  },
+  reasonTagText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 10, lineHeight: 14 },
   rotaActionCol: { width: 28, alignItems: "flex-end" },
   weekShiftRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
   weekShiftBar: { width: 3, alignSelf: "stretch", borderRadius: 2, backgroundColor: appTheme.colors.primary },
@@ -3025,6 +3313,40 @@ const styles = StyleSheet.create({
   userAvatarText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   userName: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 15 },
 
+  // Per-assignee reason control in the shift editor.
+  reasonChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 4,
+    marginTop: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surfaceMuted,
+  },
+  reasonChipText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11, maxWidth: 180 },
+  reasonBox: {
+    gap: appTheme.spacing.xs,
+    padding: 10,
+    marginBottom: 6,
+    borderRadius: appTheme.radius.md,
+    backgroundColor: appTheme.colors.surfaceMuted,
+  },
+  reasonPickRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  reasonPickChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: appTheme.radius.pill,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surface,
+  },
+  reasonPickChipActive: { borderColor: appTheme.colors.primary, backgroundColor: appTheme.colors.surfaceBrandSoft },
+  reasonPickText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
+  reasonPickTextActive: { color: appTheme.colors.primary },
+  reasonInput: { minHeight: 38, paddingVertical: 8, fontSize: 13 },
+
   // Timesheet review card on My Shifts (staff sign-off of a period).
   reviewCard: { gap: appTheme.spacing.sm },
   reviewCardHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
@@ -3040,6 +3362,11 @@ const styles = StyleSheet.create({
   // Staff sign-off section on the manager timesheet.
   signoffCard: { gap: appTheme.spacing.sm },
   signoffHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  signoffHeaderActions: { flexDirection: "row", alignItems: "center", gap: 14 },
+  // Period heading inside the approved-history modal.
+  historyPeriodHead: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, lineHeight: 18, marginTop: 8 },
+  // "Past timesheets" text action on My Shifts.
+  pastLink: { alignSelf: "flex-start", paddingVertical: 4 },
   signoffRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
   signoffActionBtn: {
     paddingHorizontal: 12,

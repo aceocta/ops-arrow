@@ -7,7 +7,7 @@ import { downloadCsv } from "../../lib/csv";
 import { apiErrorMessage } from "../../lib/api";
 import { confirmDialog, toast } from "../../components/feedback";
 import ExportButton from "../../components/ExportButton";
-import { X, ChevronRight, Plus, Lock, Unlock, Check, Send } from "lucide-react";
+import { X, ChevronRight, Plus, Lock, Unlock, Check, Send, History } from "lucide-react";
 import clsx from "clsx";
 
 function clock(iso?: string | null) {
@@ -336,6 +336,7 @@ const REVIEW_BADGES: Record<TimesheetReviewStatus, { label: string; cls: string 
 function PayrollSection({ shopId, from, to }: { shopId: string; from: string; to: string }) {
   const qc = useQueryClient();
   const [resolving, setResolving] = useState<TimesheetReviewRow | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const lockQ = useQuery({ queryKey: ["ts-lock", shopId], queryFn: () => rotaApi.timesheetLock(shopId), enabled: !!shopId });
   const reviewsQ = useQuery({
@@ -464,9 +465,14 @@ function PayrollSection({ shopId, from, to }: { shopId: string; from: string; to
             <h2 className="text-base font-semibold text-slate-900">Staff sign-off</h2>
             <p className="text-xs text-slate-500">{from} → {to}</p>
           </div>
-          <button className="btn-primary" disabled={requestM.isPending} onClick={requestReviews}>
-            <Send className="h-4 w-4" /> {requestM.isPending ? "Sending…" : reviews.length > 0 ? "Re-send requests" : "Request staff reviews"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button className="btn-ghost" onClick={() => setHistoryOpen(true)}>
+              <History className="h-4 w-4" /> Approved history
+            </button>
+            <button className="btn-primary" disabled={requestM.isPending} onClick={requestReviews}>
+              <Send className="h-4 w-4" /> {requestM.isPending ? "Sending…" : reviews.length > 0 ? "Re-send requests" : "Request staff reviews"}
+            </button>
+          </div>
         </div>
         {reviewsQ.isLoading ? <div className="border-t border-slate-100 px-5 py-6 text-sm text-slate-500">Loading…</div> : null}
         {!reviewsQ.isLoading && reviews.length === 0 ? (
@@ -522,6 +528,73 @@ function PayrollSection({ shopId, from, to }: { shopId: string; from: string; to
       {resolving ? (
         <ResolveReviewModal row={resolving} onClose={() => setResolving(null)} onSaved={() => { setResolving(null); refreshReviews(); }} />
       ) : null}
+
+      {historyOpen ? <ApprovedHistoryModal shopId={shopId} onClose={() => setHistoryOpen(false)} /> : null}
+    </div>
+  );
+}
+
+// Past approved sign-off periods — read-only; only fetched while the modal is mounted.
+function ApprovedHistoryModal({ shopId, onClose }: { shopId: string; onClose: () => void }) {
+  const q = useQuery({
+    queryKey: ["ts-review-history", shopId],
+    queryFn: () => rotaApi.timesheetReviewHistory(shopId),
+    enabled: !!shopId,
+  });
+
+  // Group rows by period, preserving the API's newest-first order. Only approved rows belong here.
+  const groups = useMemo(() => {
+    const m = new Map<string, TimesheetReviewRow[]>();
+    for (const r of q.data ?? []) {
+      if (r.status !== "ManagerApproved") continue;
+      const key = `${r.periodFrom}|${r.periodTo}`;
+      const list = m.get(key) ?? [];
+      list.push(r);
+      m.set(key, list);
+    }
+    return [...m.entries()];
+  }, [q.data]);
+
+  return (
+    <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
+      <div className="card w-full max-w-lg p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Approved history</h2>
+            <p className="text-sm text-slate-500">Past timesheet sign-offs</p>
+          </div>
+          <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="max-h-[60vh] space-y-4 overflow-auto">
+          {q.isLoading ? <div className="py-6 text-center text-sm text-slate-500">Loading…</div> : null}
+          {!q.isLoading && groups.length === 0 ? (
+            <div className="py-6 text-center text-sm text-slate-400">No approved timesheets yet.</div>
+          ) : null}
+          {groups.map(([key, rows]) => {
+            const [pFrom, pTo] = key.split("|");
+            return (
+              <div key={key}>
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  {dayLabel(pFrom.slice(0, 10))} – {dayLabel(pTo.slice(0, 10))}
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {rows.map((r) => (
+                    <div key={r.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                      <span className="truncate font-medium text-slate-800">{r.userName}</span>
+                      <span className="shrink-0 text-slate-600">
+                        {hm(r.totalHours)}
+                        {r.resolvedOn ? (
+                          <span className="ml-2 text-xs text-slate-400">approved {dayLabel(fmtDate(new Date(r.resolvedOn)))}</span>
+                        ) : null}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -703,7 +776,7 @@ function StaffSessions({
               <div>
                 <div className="text-sm font-medium text-slate-800">{dayLabel(s.date)}</div>
                 <div className="text-xs text-slate-500">
-                  {s.shiftName ? `${s.shiftName} · ` : ""}{clock(s.checkInAt)} → {clock(s.checkOutAt)}
+                  {s.shiftName ? `${s.shiftName} · ` : ""}{s.reason ? `${s.reason} · ` : ""}{clock(s.checkInAt)} → {clock(s.checkOutAt)}
                   {s.entryMethod === "Manual" ? (s.isApproved ? "  · manual" : "  · pending") : ""}
                 </div>
               </div>

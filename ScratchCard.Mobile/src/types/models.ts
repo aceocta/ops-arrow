@@ -456,7 +456,17 @@ export type StockReportRow = {
   remainingTickets: number;
 };
 
-export type RotaAssignee = { userId?: string | null; rotaStaffMemberId?: string | null; name: string; phone?: string | null; email?: string | null; isExternal?: boolean };
+export type RotaAssignee = {
+  userId?: string | null;
+  rotaStaffMemberId?: string | null;
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  isExternal?: boolean;
+  /** Why this person is on the shift (e.g. "Cleaning"). Null/absent = regular shift. */
+  reason?: string | null;
+  note?: string | null;
+};
 
 export type RotaStaffMember = { id: string; name: string; phone?: string | null; email?: string | null; isActive: boolean };
 
@@ -546,6 +556,8 @@ export type TimesheetSession = {
   hours: number;
   entryMethod: "Clocked" | "Manual";
   isApproved: boolean;
+  /** Assignment reason for the rostered shift (e.g. "Cleaning"). Null/absent = regular shift. */
+  reason?: string | null;
 };
 
 export type ShiftSession = {
