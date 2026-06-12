@@ -145,6 +145,9 @@ public class ShopSubscriptionSummaryDto
     public DateTimeOffset? CurrentPeriodEndsOn { get; set; }
     public int? TrialDaysRemaining { get; set; }
     public bool RequiresBillingAction { get; set; }
+    /// <summary>True once the company has a Stripe customer (first checkout completed) —
+    /// gates the billing-portal button, which can't open without one.</summary>
+    public bool HasBillingAccount { get; set; }
     public IReadOnlyCollection<string> IncludedFeatures { get; set; } = [];
     public int? MaxUsers { get; set; }
     public int? ReportExportsPerMonth { get; set; }

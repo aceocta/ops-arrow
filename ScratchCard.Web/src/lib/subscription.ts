@@ -42,6 +42,8 @@ export type ShopSubscriptionSummary = {
   currentPeriodEndsOn?: string | null;
   trialDaysRemaining?: number | null;
   requiresBillingAction: boolean;
+  /** True once the company has a Stripe customer (first checkout done) — gates the portal button. */
+  hasBillingAccount?: boolean;
   includedFeatures: string[];
   maxUsers?: number | null;
   reportExportsPerMonth?: number | null;

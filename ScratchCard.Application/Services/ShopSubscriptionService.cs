@@ -980,6 +980,15 @@ public class ShopSubscriptionService : IShopSubscriptionService
                 .ToList();
         }
 
+        // The Stripe billing portal needs the company's Stripe customer, which only exists
+        // after the first checkout — surface that so clients can hide the portal action.
+        var hasBillingAccount = false;
+        if (shop?.CompanyId is Guid companyId)
+        {
+            var company = await _companyRepository.GetByIdAsync(companyId, cancellationToken);
+            hasBillingAccount = !string.IsNullOrWhiteSpace(company?.StripeCustomerId);
+        }
+
         return new ShopSubscriptionSummaryDto
         {
             ShopId = subscription.ShopId,
@@ -996,6 +1005,7 @@ public class ShopSubscriptionService : IShopSubscriptionService
             CurrentPeriodEndsOn = subscription.CurrentPeriodEndsOn,
             TrialDaysRemaining = trialDaysRemaining,
             RequiresBillingAction = requiresBilling,
+            HasBillingAccount = hasBillingAccount,
             IncludedFeatures = features,
             MaxUsers = plan?.MaxUsers,
             ReportExportsPerMonth = plan?.ReportExportsPerMonth,

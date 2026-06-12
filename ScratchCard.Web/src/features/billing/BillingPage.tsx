@@ -360,8 +360,10 @@ function ShopBilling({ shopId, shopName }: { shopId: string; shopName: string })
               <div className="flex items-start gap-2.5 rounded-xl bg-red-50 p-3 text-sm text-red-700">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>
-                  This shop needs billing attention — payment is required to keep full access. Choose a plan below, or open
-                  the Stripe billing portal to update your payment details.
+                  This shop needs billing attention — payment is required to keep full access.{" "}
+                  {summary.hasBillingAccount
+                    ? "Choose a plan below, or open the Stripe billing portal to update your payment details."
+                    : "Choose a plan below to get started."}
                 </span>
               </div>
             ) : null}
@@ -443,10 +445,17 @@ function ShopBilling({ shopId, shopName }: { shopId: string; shopName: string })
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button className="btn-primary" onClick={() => portalM.mutate()} disabled={busy}>
-            <ExternalLink className="h-4 w-4" />
-            {portalM.isPending ? "Opening…" : "Open Stripe billing portal"}
-          </button>
+          {summary?.hasBillingAccount ? (
+            <button className="btn-primary" onClick={() => portalM.mutate()} disabled={busy}>
+              <ExternalLink className="h-4 w-4" />
+              {portalM.isPending ? "Opening…" : "Open Stripe billing portal"}
+            </button>
+          ) : (
+            <p className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-500">
+              <CreditCard className="h-4 w-4 shrink-0" />
+              The billing portal becomes available after your first checkout — choose a plan above to get started.
+            </p>
+          )}
           {canPause ? (
             <button className="btn-ghost" onClick={onPause} disabled={busy}>
               <PauseCircle className="h-4 w-4" /> {pauseM.isPending ? "Pausing…" : "Pause"}
