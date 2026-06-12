@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import {
@@ -26,6 +28,7 @@ import { formatDayLabel } from "../../utils/dateLabels";
 import { getApiErrorMessage } from "../../utils/apiErrorMessage";
 import { toastError, toastSuccess } from "../../components/toast";
 import { AssignableUser, LeaveEntitlement, LeaveRequest, LeaveType } from "../../types/models";
+import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -100,6 +103,131 @@ type EntitlementDraft = {
   usualHoursPerDay: string;
 };
 
+type PersonPickerProps = {
+  selected: AssignableUser | null;
+  onSelect: (u: AssignableUser) => void;
+  onClear: () => void;
+  search: string;
+  setSearch: (v: string) => void;
+};
+
+// Shared person picker (record-leave screen + entitlement modal). While nothing is selected,
+// typing a search reveals matching staff; choosing someone collapses the search away into a
+// compact selected row with a "Change" link that clears the selection and brings it back.
+function PersonPicker({ selected, onSelect, onClear, search, setSearch }: PersonPickerProps) {
+  const { activeShopId } = useAuth();
+  const shopId = activeShopId;
+  const usersQuery = useQuery({
+    queryKey: ["rota-assignable", shopId],
+    queryFn: () => getAssignableUsers(shopId as string),
+    enabled: Boolean(shopId),
+  });
+
+  if (selected !== null) {
+    return (
+      <>
+        <Text style={styles.fieldLabel}>Person</Text>
+        <View style={styles.userRow}>
+          <View style={[styles.userAvatar, styles.userAvatarOn]}>
+            <Text style={styles.userAvatarText}>{initials(selected.name)}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.userName} numberOfLines={1}>{selected.name}</Text>
+            <Text style={styles.muted}>{selected.isExternal ? "External" : selected.role}</Text>
+          </View>
+          <Ionicons name="checkmark-circle" size={22} color={appTheme.colors.success} />
+          <Pressable
+            style={({ pressed }) => [pressed ? styles.btnPressed : null]}
+            onPress={onClear}
+            accessibilityRole="button"
+            accessibilityLabel="Change person"
+          >
+            <Text style={styles.linkText}>Change</Text>
+          </Pressable>
+        </View>
+      </>
+    );
+  }
+
+  const query = search.trim().toLowerCase();
+  const matches = (usersQuery.data ?? []).filter(
+    (u) => u.name.toLowerCase().includes(query) || u.role.toLowerCase().includes(query),
+  );
+
+  return (
+    <>
+      <Text style={styles.fieldLabel}>Person</Text>
+      <View style={styles.searchBox}>
+        <Ionicons name="search-outline" size={16} color={appTheme.colors.textMuted} />
+        <TextInput
+          style={styles.searchInput}
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search staff"
+          placeholderTextColor={appTheme.colors.textSubtle}
+        />
+        {search.length > 0 ? (
+          <Pressable onPress={() => setSearch("")}>
+            <Ionicons name="close-circle" size={16} color={appTheme.colors.textMuted} />
+          </Pressable>
+        ) : null}
+      </View>
+      {usersQuery.isLoading ? <LoadingState inline /> : null}
+      <View style={styles.personList}>
+        {/* The staff list only appears once the manager starts typing. */}
+        {query.length > 0
+          ? matches.map((u) => (
+              <Pressable
+                key={personKey(u)}
+                style={({ pressed }) => [styles.userRow, pressed ? styles.userRowPressed : null]}
+                onPress={() => {
+                  onSelect(u);
+                  setSearch("");
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Select ${u.name}`}
+              >
+                <View style={styles.userAvatar}>
+                  <Text style={styles.userAvatarText}>{initials(u.name)}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.userName} numberOfLines={1}>{u.name}</Text>
+                  <Text style={styles.muted}>{u.isExternal ? "External" : u.role}</Text>
+                </View>
+              </Pressable>
+            ))
+          : null}
+        {!usersQuery.isLoading && query.length === 0 ? (
+          <Text style={styles.muted}>Start typing a name to find staff.</Text>
+        ) : null}
+        {!usersQuery.isLoading && query.length > 0 && matches.length === 0 ? (
+          <Text style={styles.muted}>No staff match your search.</Text>
+        ) : null}
+      </View>
+    </>
+  );
+}
+
+const renderTypeChips = (value: LeaveType, onChange: (t: LeaveType) => void) => (
+  <View style={styles.chipRow}>
+    {LEAVE_TYPES.map((t) => {
+      const active = value === t;
+      return (
+        <Pressable
+          key={t}
+          style={({ pressed }) => [styles.chip, active ? styles.chipActive : null, pressed ? styles.chipPressed : null]}
+          onPress={() => onChange(t)}
+          accessibilityRole="button"
+          accessibilityLabel={`Set the leave type to ${t}`}
+          accessibilityState={{ selected: active }}
+        >
+          <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>{t}</Text>
+        </Pressable>
+      );
+    })}
+  </View>
+);
+
 // ---------------------------------------------------------------------------
 // Leave management (manager): pending requests, who's off, record leave, entitlements
 // ---------------------------------------------------------------------------
@@ -107,6 +235,7 @@ export function LeaveManagementScreen() {
   const { activeShopId } = useAuth();
   const shopId = activeShopId;
   const queryClient = useQueryClient();
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const [range, setRange] = useState(() => thisMonth());
 
   // Approve editor (hours/day + paid toggle + optional note).
@@ -117,10 +246,6 @@ export function LeaveManagementScreen() {
   // Reject editor (note required).
   const [rejectTarget, setRejectTarget] = useState<LeaveRequest | null>(null);
   const [rejectNote, setRejectNote] = useState("");
-  // Record-on-behalf modal (instantly approved).
-  const [recordOpen, setRecordOpen] = useState(false);
-  const [record, setRecord] = useState<RecordDraft>(emptyRecordDraft());
-  const [personSearch, setPersonSearch] = useState("");
   // Entitlement add/edit modal.
   const [entDraft, setEntDraft] = useState<EntitlementDraft | null>(null);
   const [entSearch, setEntSearch] = useState("");
@@ -144,12 +269,6 @@ export function LeaveManagementScreen() {
     queryFn: () => getLeaveEntitlements(shopId as string),
     enabled: Boolean(shopId),
   });
-  const usersQuery = useQuery({
-    queryKey: ["rota-assignable", shopId],
-    queryFn: () => getAssignableUsers(shopId as string),
-    enabled: Boolean(shopId),
-  });
-
   const pending = pendingQuery.data ?? [];
   // "Who's off" — approved leave in the selected range, grouped by start date.
   const whosOffGroups = useMemo(() => {
@@ -209,28 +328,6 @@ export function LeaveManagementScreen() {
     onError: (error: unknown) => toastError(getApiErrorMessage(error, "Couldn't cancel the leave.")),
   });
 
-  const recordMutation = useMutation({
-    mutationFn: () => {
-      const person = record.person!;
-      return createLeaveRequest({
-        shopId: shopId as string,
-        userId: person.rotaStaffMemberId ? undefined : person.userId ?? undefined,
-        rotaStaffMemberId: person.rotaStaffMemberId ?? undefined,
-        type: record.type,
-        startDate: record.startDate,
-        endDate: record.endDate,
-        hoursPerDay: parseHours(record.hoursPerDay) as number,
-        staffNote: record.note.trim() || undefined,
-      });
-    },
-    onSuccess: () => {
-      setRecordOpen(false);
-      toastSuccess("Leave recorded.");
-      invalidateLeave();
-    },
-    onError: (error: unknown) => toastError(getApiErrorMessage(error, "Couldn't record the leave.")),
-  });
-
   const entitlementMutation = useMutation({
     mutationFn: () => {
       const d = entDraft!;
@@ -262,11 +359,6 @@ export function LeaveManagementScreen() {
     setRejectNote("");
     setRejectTarget(r);
   };
-  const openRecord = () => {
-    setRecord(emptyRecordDraft());
-    setPersonSearch("");
-    setRecordOpen(true);
-  };
   const openEditEntitlement = (e: LeaveEntitlement) => {
     setEntSearch("");
     setEntDraft({
@@ -294,90 +386,6 @@ export function LeaveManagementScreen() {
     if (ok) cancelMutation.mutate(r.id);
   };
 
-  // Person rows filtered by the search text — shared by the record-leave and entitlement pickers.
-  const filteredPeople = (q: string) => {
-    const query = q.trim().toLowerCase();
-    return (usersQuery.data ?? []).filter((u) => !query || u.name.toLowerCase().includes(query) || u.role.toLowerCase().includes(query));
-  };
-
-  const renderPersonPicker = (
-    selected: AssignableUser | null,
-    onSelect: (u: AssignableUser) => void,
-    search: string,
-    setSearch: (v: string) => void,
-  ) => (
-    <>
-      <Text style={styles.fieldLabel}>Person</Text>
-      <View style={styles.searchBox}>
-        <Ionicons name="search-outline" size={16} color={appTheme.colors.textMuted} />
-        <TextInput
-          style={styles.searchInput}
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Search staff"
-          placeholderTextColor={appTheme.colors.textSubtle}
-        />
-        {search.length > 0 ? (
-          <Pressable onPress={() => setSearch("")}>
-            <Ionicons name="close-circle" size={16} color={appTheme.colors.textMuted} />
-          </Pressable>
-        ) : null}
-      </View>
-      {usersQuery.isLoading ? <LoadingState inline /> : null}
-      <View style={styles.personList}>
-        {filteredPeople(search).map((u) => {
-          const isSelected = selected !== null && personKey(selected) === personKey(u);
-          return (
-            <Pressable
-              key={personKey(u)}
-              style={({ pressed }) => [styles.userRow, pressed ? styles.userRowPressed : null]}
-              onPress={() => onSelect(u)}
-              accessibilityRole="button"
-              accessibilityLabel={`Select ${u.name}`}
-              accessibilityState={{ selected: isSelected }}
-            >
-              <View style={[styles.userAvatar, isSelected ? styles.userAvatarOn : null]}>
-                <Text style={styles.userAvatarText}>{initials(u.name)}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.userName} numberOfLines={1}>{u.name}</Text>
-                <Text style={styles.muted}>{u.isExternal ? "External" : u.role}</Text>
-              </View>
-              {isSelected ? <Ionicons name="checkmark-circle" size={22} color={appTheme.colors.success} /> : null}
-            </Pressable>
-          );
-        })}
-        {!usersQuery.isLoading && filteredPeople(search).length === 0 ? (
-          <Text style={styles.muted}>No staff match your search.</Text>
-        ) : null}
-      </View>
-    </>
-  );
-
-  const renderTypeChips = (value: LeaveType, onChange: (t: LeaveType) => void) => (
-    <View style={styles.chipRow}>
-      {LEAVE_TYPES.map((t) => {
-        const active = value === t;
-        return (
-          <Pressable
-            key={t}
-            style={({ pressed }) => [styles.chip, active ? styles.chipActive : null, pressed ? styles.chipPressed : null]}
-            onPress={() => onChange(t)}
-            accessibilityRole="button"
-            accessibilityLabel={`Set the leave type to ${t}`}
-            accessibilityState={{ selected: active }}
-          >
-            <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>{t}</Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-
-  const recordValid =
-    record.person !== null &&
-    record.endDate >= record.startDate &&
-    parseHours(record.hoursPerDay) !== null;
   const entValid =
     entDraft !== null &&
     entDraft.person !== null &&
@@ -496,7 +504,7 @@ export function LeaveManagementScreen() {
           </View>
         ) : null}
 
-        <PrimaryButton label="Record leave" icon="add-circle-outline" onPress={openRecord} disabled={!shopId} />
+        <PrimaryButton label="Record leave" icon="add-circle-outline" onPress={() => navigation.navigate("LeaveRecord")} disabled={!shopId} />
 
         {/* Entitlements */}
         <SectionHeader
@@ -665,82 +673,6 @@ export function LeaveManagementScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Record leave on someone's behalf — saved instantly as approved */}
-      <Modal visible={recordOpen} transparent animationType="slide" onRequestClose={() => setRecordOpen(false)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <View style={styles.sheetBackdrop}>
-          <View style={[styles.sheetCard, { maxHeight: "88%" }]}>
-            <View style={styles.sheetHeader}>
-              <View style={styles.sheetIcon}>
-                <Ionicons name="airplane-outline" size={22} color={appTheme.colors.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.modalTitleSm}>Record leave</Text>
-                <Text style={styles.muted}>Recorded by a manager — saved as approved.</Text>
-              </View>
-              <Pressable onPress={() => setRecordOpen(false)} style={styles.headerBtn} accessibilityRole="button" accessibilityLabel="Close record leave">
-                <Ionicons name="close" size={22} color={appTheme.colors.text} />
-              </Pressable>
-            </View>
-
-            <ScrollView contentContainerStyle={styles.modalBody} keyboardShouldPersistTaps="handled">
-              {renderPersonPicker(record.person, (u) => setRecord((d) => ({ ...d, person: u })), personSearch, setPersonSearch)}
-
-              <Text style={styles.fieldLabel}>Type</Text>
-              {renderTypeChips(record.type, (t) => setRecord((d) => ({ ...d, type: t })))}
-
-              <View style={styles.row}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.fieldLabel}>First day</Text>
-                  <DateTimeField
-                    mode="date"
-                    value={record.startDate}
-                    onChange={(v) => setRecord((d) => ({ ...d, startDate: v, endDate: d.endDate < v ? v : d.endDate }))}
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.fieldLabel}>Last day</Text>
-                  <DateTimeField mode="date" value={record.endDate} onChange={(v) => setRecord((d) => ({ ...d, endDate: v }))} />
-                </View>
-              </View>
-              {record.endDate < record.startDate ? (
-                <Text style={[styles.mutedSmall, { color: appTheme.colors.danger }]}>The last day can't be before the first day.</Text>
-              ) : null}
-
-              <Text style={styles.fieldLabel}>Hours per day</Text>
-              <TextInput
-                style={styles.externalInput}
-                value={record.hoursPerDay}
-                onChangeText={(v) => setRecord((d) => ({ ...d, hoursPerDay: v }))}
-                placeholder="8"
-                placeholderTextColor={appTheme.colors.textSubtle}
-                keyboardType="decimal-pad"
-                maxLength={5}
-              />
-
-              <Text style={styles.fieldLabel}>Note (optional)</Text>
-              <TextInput
-                style={[styles.externalInput, styles.noteInput]}
-                value={record.note}
-                onChangeText={(v) => setRecord((d) => ({ ...d, note: v }))}
-                placeholder="e.g. Agreed over the phone"
-                placeholderTextColor={appTheme.colors.textSubtle}
-                multiline
-                maxLength={500}
-              />
-            </ScrollView>
-
-            <PrimaryButton
-              label={recordMutation.isPending ? "Recording…" : "Record leave"}
-              onPress={() => recordMutation.mutate()}
-              disabled={recordMutation.isPending || !recordValid}
-            />
-            <PrimaryButton label="Cancel" tone="neutral" onPress={() => setRecordOpen(false)} disabled={recordMutation.isPending} />
-          </View>
-        </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
       {/* Add / edit an entitlement */}
       <Modal visible={entDraft !== null} transparent animationType="slide" onRequestClose={() => setEntDraft(null)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
@@ -762,9 +694,18 @@ export function LeaveManagementScreen() {
             </View>
 
             <ScrollView contentContainerStyle={styles.modalBody} keyboardShouldPersistTaps="handled">
-              {entDraft && !entDraft.id
-                ? renderPersonPicker(entDraft.person, (u) => setEntDraft((d) => (d ? { ...d, person: u } : d)), entSearch, setEntSearch)
-                : null}
+              {entDraft && !entDraft.id ? (
+                <PersonPicker
+                  selected={entDraft.person}
+                  onSelect={(u) => setEntDraft((d) => (d ? { ...d, person: u } : d))}
+                  onClear={() => {
+                    setEntDraft((d) => (d ? { ...d, person: null } : d));
+                    setEntSearch("");
+                  }}
+                  search={entSearch}
+                  setSearch={setEntSearch}
+                />
+              ) : null}
 
               <Text style={styles.fieldLabel}>Holiday year starts</Text>
               <DateTimeField mode="date" value={entDraft?.yearStart ?? defaultYearStart()} onChange={(v) => setEntDraft((d) => (d ? { ...d, yearStart: v } : d))} />
@@ -810,6 +751,118 @@ export function LeaveManagementScreen() {
         </View>
         </KeyboardAvoidingView>
       </Modal>
+    </ScreenContainer>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Record leave on someone's behalf (manager) — saved instantly as approved
+// ---------------------------------------------------------------------------
+export function RecordLeaveScreen() {
+  const { activeShopId } = useAuth();
+  const shopId = activeShopId;
+  const queryClient = useQueryClient();
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+
+  const [record, setRecord] = useState<RecordDraft>(emptyRecordDraft());
+  const [personSearch, setPersonSearch] = useState("");
+
+  const recordMutation = useMutation({
+    mutationFn: () => {
+      const person = record.person!;
+      return createLeaveRequest({
+        shopId: shopId as string,
+        userId: person.rotaStaffMemberId ? undefined : person.userId ?? undefined,
+        rotaStaffMemberId: person.rotaStaffMemberId ?? undefined,
+        type: record.type,
+        startDate: record.startDate,
+        endDate: record.endDate,
+        hoursPerDay: parseHours(record.hoursPerDay) as number,
+        staffNote: record.note.trim() || undefined,
+      });
+    },
+    onSuccess: () => {
+      toastSuccess("Leave recorded.");
+      void queryClient.invalidateQueries({ queryKey: ["leave-pending", shopId] });
+      void queryClient.invalidateQueries({ queryKey: ["leave", shopId] });
+      void queryClient.invalidateQueries({ queryKey: ["leave-mine", shopId] });
+      void queryClient.invalidateQueries({ queryKey: ["leave-balance", shopId] });
+      void queryClient.invalidateQueries({ queryKey: ["leave-days", shopId] });
+      navigation.goBack();
+    },
+    onError: (error: unknown) => toastError(getApiErrorMessage(error, "Couldn't record the leave.")),
+  });
+
+  const recordValid =
+    record.person !== null &&
+    record.endDate >= record.startDate &&
+    parseHours(record.hoursPerDay) !== null;
+
+  return (
+    <ScreenContainer>
+      <View style={styles.content}>
+        <Text style={styles.muted}>Recorded by a manager — saved as approved.</Text>
+
+        <PersonPicker
+          selected={record.person}
+          onSelect={(u) => setRecord((d) => ({ ...d, person: u }))}
+          onClear={() => {
+            setRecord((d) => ({ ...d, person: null }));
+            setPersonSearch("");
+          }}
+          search={personSearch}
+          setSearch={setPersonSearch}
+        />
+
+        <Text style={styles.fieldLabel}>Type</Text>
+        {renderTypeChips(record.type, (t) => setRecord((d) => ({ ...d, type: t })))}
+
+        <View style={styles.row}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.fieldLabel}>First day</Text>
+            <DateTimeField
+              mode="date"
+              value={record.startDate}
+              onChange={(v) => setRecord((d) => ({ ...d, startDate: v, endDate: d.endDate < v ? v : d.endDate }))}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.fieldLabel}>Last day</Text>
+            <DateTimeField mode="date" value={record.endDate} onChange={(v) => setRecord((d) => ({ ...d, endDate: v }))} />
+          </View>
+        </View>
+        {record.endDate < record.startDate ? (
+          <Text style={[styles.mutedSmall, { color: appTheme.colors.danger }]}>The last day can't be before the first day.</Text>
+        ) : null}
+
+        <Text style={styles.fieldLabel}>Hours per day</Text>
+        <TextInput
+          style={styles.externalInput}
+          value={record.hoursPerDay}
+          onChangeText={(v) => setRecord((d) => ({ ...d, hoursPerDay: v }))}
+          placeholder="8"
+          placeholderTextColor={appTheme.colors.textSubtle}
+          keyboardType="decimal-pad"
+          maxLength={5}
+        />
+
+        <Text style={styles.fieldLabel}>Note (optional)</Text>
+        <TextInput
+          style={[styles.externalInput, styles.noteInput]}
+          value={record.note}
+          onChangeText={(v) => setRecord((d) => ({ ...d, note: v }))}
+          placeholder="e.g. Agreed over the phone"
+          placeholderTextColor={appTheme.colors.textSubtle}
+          multiline
+          maxLength={500}
+        />
+
+        <PrimaryButton
+          label={recordMutation.isPending ? "Recording…" : "Record leave"}
+          onPress={() => recordMutation.mutate()}
+          disabled={recordMutation.isPending || !shopId || !recordValid}
+        />
+      </View>
     </ScreenContainer>
   );
 }
