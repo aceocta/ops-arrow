@@ -24,6 +24,17 @@ public class ConfigurationService : IConfigurationService
     private const string OfflineGroup = "Offline Settings";
     private const string SubscriptionGroup = "Subscription Settings";
 
+    /// <summary>
+    /// Platform-level configuration groups (trial/grace periods, barcode parsing, backdated sales rules).
+    /// Hidden from list responses and rejected on update for everyone except PlatformAdmin.
+    /// </summary>
+    private static readonly HashSet<string> PlatformOnlyGroups = new(StringComparer.Ordinal)
+    {
+        SubscriptionGroup,
+        SalesGroup,
+        BarcodeGroup,
+    };
+
     private readonly IRepository<CfgGeneralSettings> _generalRepository;
     private readonly IRepository<CfgPackSettings> _packRepository;
     private readonly IRepository<CfgSalesSettings> _salesRepository;
@@ -170,7 +181,13 @@ public class ConfigurationService : IConfigurationService
         AddItem(items, shopId, SubscriptionGroup, "PaymentGracePeriodDays", ToConfigString(Resolve(shopSubscription?.PaymentGracePeriodDays, globalSubscription?.PaymentGracePeriodDays, 7)), "int", "Grace period in days for overdue payments");
         AddItem(items, shopId, SubscriptionGroup, "BulkDiscountEnabled", ToConfigString(Resolve(shopSubscription?.BulkDiscountEnabled, globalSubscription?.BulkDiscountEnabled, true)), "bool", "Enable subscription bulk discount rules");
 
-        return items
+        IEnumerable<ConfigurationItemDto> visibleItems = items;
+        if (!_currentUserService.IsInRole(RoleNames.PlatformAdmin))
+        {
+            visibleItems = visibleItems.Where(x => !PlatformOnlyGroups.Contains(x.GroupName));
+        }
+
+        return visibleItems
             .OrderBy(x => x.GroupName)
             .ThenBy(x => x.ConfigKey, StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -227,6 +244,14 @@ public class ConfigurationService : IConfigurationService
             }
 
             var normalizedGroup = NormalizeGroupName(item.GroupName, configKey);
+            if (PlatformOnlyGroups.Contains(normalizedGroup) && !_currentUserService.IsInRole(RoleNames.PlatformAdmin))
+            {
+                throw new AppException(
+                    "configuration_group_platform_only",
+                    $"Only platform administrators can modify {normalizedGroup}.",
+                    403);
+            }
+
             switch (normalizedGroup)
             {
                 case GeneralGroup:
