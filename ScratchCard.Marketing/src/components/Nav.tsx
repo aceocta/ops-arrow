@@ -1,14 +1,64 @@
 import { useEffect, useState } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, Sparkles, X } from "lucide-react";
 import { LogoMark, Wordmark } from "./Logo";
 import { APP_URL, SIGNUP_URL } from "../lib/links";
 
 const ANCHORS = [
+  { href: "#who-its-for", label: "Who it's for" },
   { href: "#features", label: "Features" },
   { href: "#how-it-works", label: "How it works" },
   { href: "#pricing", label: "Pricing" },
   { href: "#faq", label: "FAQ" },
 ];
+
+const ANNOUNCE_KEY = "oa-announce-dismissed";
+
+/** Slim dismissible announcement bar above the nav; scrolls away with the page. */
+function AnnouncementBar() {
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return sessionStorage.getItem(ANNOUNCE_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  if (dismissed) return null;
+
+  const dismiss = () => {
+    setDismissed(true);
+    try {
+      sessionStorage.setItem(ANNOUNCE_KEY, "1");
+    } catch {
+      // Session storage unavailable — dismiss for this render only.
+    }
+  };
+
+  return (
+    <div className="relative bg-ink-950 text-white" role="region" aria-label="Announcement">
+      <div className="container-page flex items-center justify-center gap-2 py-2 pr-10 text-center text-xs font-medium text-slate-300 sm:text-[13px]">
+        <Sparkles className="h-3.5 w-3.5 shrink-0 text-brand-300" aria-hidden="true" />
+        <p>
+          <span className="font-semibold text-white">Now with staff leave management</span>
+          <span className="hidden sm:inline"> — included on Growth and Pro</span>
+        </p>
+        <a
+          href="#features"
+          className="shrink-0 rounded font-semibold text-brand-300 underline-offset-2 transition-colors hover:text-brand-200 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/60"
+        >
+          See features
+        </a>
+      </div>
+      <button
+        onClick={dismiss}
+        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/60"
+        aria-label="Dismiss announcement"
+      >
+        <X className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
 
 export default function Nav() {
   const [open, setOpen] = useState(false);
@@ -22,7 +72,9 @@ export default function Nav() {
   }, [open]);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200/60 bg-white/70 backdrop-blur-xl supports-[backdrop-filter]:bg-white/60">
+    <>
+      <AnnouncementBar />
+      <header className="sticky top-0 z-40 border-b border-slate-200/60 bg-white/70 backdrop-blur-xl supports-[backdrop-filter]:bg-white/60">
       <div className="container-page flex h-16 items-center justify-between gap-4">
         <a
           href="#top"
@@ -94,6 +146,7 @@ export default function Nav() {
           </div>
         </nav>
       ) : null}
-    </header>
+      </header>
+    </>
   );
 }

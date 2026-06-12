@@ -87,8 +87,10 @@ export default function Footer() {
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Product</h3>
             <ul className="mt-3 space-y-2 text-sm">
+              <li><a href="/#who-its-for" className="text-slate-600 transition-colors hover:text-slate-900">Who it's for</a></li>
               <li><a href="/#features" className="text-slate-600 transition-colors hover:text-slate-900">Features</a></li>
               <li><a href="/#how-it-works" className="text-slate-600 transition-colors hover:text-slate-900">How it works</a></li>
+              <li><a href="/#security" className="text-slate-600 transition-colors hover:text-slate-900">Trust &amp; security</a></li>
               <li><a href="/#pricing" className="text-slate-600 transition-colors hover:text-slate-900">Pricing</a></li>
               <li><a href="/#faq" className="text-slate-600 transition-colors hover:text-slate-900">FAQ</a></li>
             </ul>
@@ -98,6 +100,7 @@ export default function Footer() {
             <ul className="mt-3 space-y-2 text-sm">
               <li><a href={APP_URL} className="text-slate-600 transition-colors hover:text-slate-900">Sign in</a></li>
               <li><a href={SIGNUP_URL} className="text-slate-600 transition-colors hover:text-slate-900">Start free trial</a></li>
+              <li><a href="/#contact" className="text-slate-600 transition-colors hover:text-slate-900">Contact</a></li>
             </ul>
           </div>
           <div>
@@ -110,8 +113,12 @@ export default function Footer() {
         </nav>
       </div>
       <div className="border-t border-slate-200/70">
-        <div className="container-page py-5 text-center text-xs text-slate-400 md:text-left">
-          © 2026 Ops Arrow · Ace Octa Limited. All rights reserved.
+        <div className="container-page flex flex-col items-center gap-2 py-5 text-xs text-slate-400 md:flex-row md:justify-between">
+          <span>© 2026 Ops Arrow · Ace Octa Limited. All rights reserved.</span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+            Made in the UK, for UK retailers
+          </span>
         </div>
       </div>
     </footer>

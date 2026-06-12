@@ -171,13 +171,13 @@ export default function Hero() {
           </div>
           <p className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-medium text-slate-500">
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> 14-day free trial
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" /> 14-day free trial
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> No card required
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" /> No card required
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Cancel anytime
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" /> Cancel anytime
             </span>
           </p>
         </Reveal>
