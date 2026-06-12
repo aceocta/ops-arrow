@@ -10,6 +10,17 @@ import clsx from "clsx";
 
 const gbp = (n: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n || 0);
 
+// Mon-first display; values are JS getDay() numbers (0=Sunday … 6=Saturday).
+const WEEK_DAYS: { value: number; label: string }[] = [
+  { value: 1, label: "Mon" },
+  { value: 2, label: "Tue" },
+  { value: 3, label: "Wed" },
+  { value: 4, label: "Thu" },
+  { value: 5, label: "Fri" },
+  { value: 6, label: "Sat" },
+  { value: 0, label: "Sun" },
+];
+
 export default function ShopsPage() {
   const { profile, activeShop, isOwner } = useAuth();
   const companyId = activeShop?.companyId ?? profile?.shops?.find((s) => s.companyId)?.companyId ?? null;
@@ -106,6 +117,7 @@ function ShopModal({
   const [postCode, setPostCode] = useState(shop?.postCode ?? "");
   const [country, setCountry] = useState(shop?.country ?? "United Kingdom");
   const [isActive, setIsActive] = useState(shop?.isActive ?? true);
+  const [weekStartDay, setWeekStartDay] = useState<number>(shop?.weekStartDay ?? 1);
   const [planId, setPlanId] = useState("");
   const [currentPlanId, setCurrentPlanId] = useState<string | null>(null);
 
@@ -131,6 +143,7 @@ function ShopModal({
         postCode: postCode.trim(),
         country: country.trim(),
         isActive,
+        weekStartDay,
       };
       if (shop) {
         await shopsApi.update(shop.id, payload);
@@ -166,6 +179,27 @@ function ShopModal({
             <div><label className="label">Post code</label><input className="input" value={postCode} onChange={(e) => setPostCode(e.target.value)} /></div>
           </div>
           <div><label className="label">Country</label><input className="input" value={country} onChange={(e) => setCountry(e.target.value)} /></div>
+          <div>
+            <label className="label">Week starts on</label>
+            <div className="flex flex-wrap gap-1.5">
+              {WEEK_DAYS.map((d) => (
+                <button
+                  key={d.value}
+                  type="button"
+                  className={clsx(
+                    "rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
+                    weekStartDay === d.value
+                      ? "border-brand-600 bg-brand-50 text-brand-700"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+                  )}
+                  onClick={() => setWeekStartDay(d.value)}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-slate-400">Rota weeks and weekly reports run from this day.</p>
+          </div>
           <div>
             <label className="label">Subscription package</label>
             <select className="input" value={planId} onChange={(e) => setPlanId(e.target.value)} disabled={!!shop && summaryQ.isLoading}>

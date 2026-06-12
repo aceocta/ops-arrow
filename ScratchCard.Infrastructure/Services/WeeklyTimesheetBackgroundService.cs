@@ -14,15 +14,16 @@ using ScratchCard.Infrastructure.Persistence;
 namespace ScratchCard.Infrastructure.Services;
 
 /// <summary>
-/// Emails (and WhatsApps) the previous week's timesheet to a shop's managers/owners on Monday
-/// morning in the shop's timezone. Gated by the staff_rota.timesheet_export subscription feature;
-/// channel/plan gates (notifications.email / .whatsapp) are applied by <see cref="INotificationService"/>.
-/// Runs hourly and fires once per shop per week (Monday ~07:00 shop-local; in-memory week guard).
+/// Emails (and WhatsApps) the previous week's timesheet to a shop's managers/owners on the
+/// shop's week-start day (Shop.WeekStartDay, default Monday) in the shop's timezone. Gated by
+/// the staff_rota.timesheet_export subscription feature; channel/plan gates
+/// (notifications.email / .whatsapp) are applied by <see cref="INotificationService"/>.
+/// Runs hourly and fires once per shop per week (~07:00 shop-local; in-memory week guard).
 /// </summary>
 public sealed class WeeklyTimesheetBackgroundService : BackgroundService
 {
     private static readonly TimeSpan SweepInterval = TimeSpan.FromHours(1);
-    private const int SendHourLocal = 7; // Monday 07:00 shop-local
+    private const int SendHourLocal = 7; // week-start day 07:00 shop-local
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<WeeklyTimesheetBackgroundService> _logger;
@@ -67,51 +68,62 @@ public sealed class WeeklyTimesheetBackgroundService : BackgroundService
             .Distinct()
             .ToListAsync(cancellationToken);
 
+        // Per-shop week start (0 = Sunday … 6 = Saturday, JS getDay() convention; default Monday).
+        var weekStartDays = await dbContext.Shops
+            .AsNoTracking()
+            .Where(s => shopIds.Contains(s.Id))
+            .Select(s => new { s.Id, s.WeekStartDay })
+            .ToDictionaryAsync(x => x.Id, x => x.WeekStartDay, cancellationToken);
+
         foreach (var shopId in shopIds)
         {
             var tz = ResolveTimeZone((await shopConfig.GetShiftSetupAsync(shopId, cancellationToken)).TimeZoneId);
             var shopNow = TimeZoneInfo.ConvertTime(nowUtc, tz);
+            var weekStartDay = weekStartDays.TryGetValue(shopId, out var configured) && configured is >= 0 and <= 6
+                ? configured
+                : (int)DayOfWeek.Monday;
 
-            if (shopNow.DayOfWeek != DayOfWeek.Monday || shopNow.Hour != SendHourLocal)
+            // .NET DayOfWeek is also 0 = Sunday … 6 = Saturday, so the int compare lines up.
+            if ((int)shopNow.DayOfWeek != weekStartDay || shopNow.Hour != SendHourLocal)
             {
                 continue;
             }
 
-            var thisMonday = DateOnly.FromDateTime(shopNow.DateTime);
-            if (_lastSentWeek.TryGetValue(shopId, out var sent) && sent == thisMonday)
+            var thisWeekStart = DateOnly.FromDateTime(shopNow.DateTime);
+            if (_lastSentWeek.TryGetValue(shopId, out var sent) && sent == thisWeekStart)
             {
                 continue; // already sent this week
             }
 
             if (!await featureGate.HasFeatureAsync(shopId, FeatureKeys.StaffRotaTimesheetExport, cancellationToken))
             {
-                _lastSentWeek[shopId] = thisMonday; // don't re-check every hour today
+                _lastSentWeek[shopId] = thisWeekStart; // don't re-check every hour today
                 continue;
             }
 
             try
             {
-                await SendShopWeeklyTimesheetAsync(dbContext, notificationService, shopId, thisMonday, tz, cancellationToken);
+                await SendShopWeeklyTimesheetAsync(dbContext, notificationService, shopId, thisWeekStart, tz, cancellationToken);
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to send weekly timesheet for shop {ShopId}", shopId);
             }
 
-            _lastSentWeek[shopId] = thisMonday;
+            _lastSentWeek[shopId] = thisWeekStart;
         }
     }
 
     private static async Task SendShopWeeklyTimesheetAsync(
         ApplicationDbContext dbContext, INotificationService notificationService,
-        Guid shopId, DateOnly thisMonday, TimeZoneInfo tz, CancellationToken cancellationToken)
+        Guid shopId, DateOnly thisWeekStart, TimeZoneInfo tz, CancellationToken cancellationToken)
     {
-        var weekStart = thisMonday.AddDays(-7);  // previous Monday
-        var weekEnd = thisMonday.AddDays(-1);    // previous Sunday
+        var weekStart = thisWeekStart.AddDays(-7);  // previous week's first day
+        var weekEnd = thisWeekStart.AddDays(-1);    // previous week's last day
 
         // Convert the shop-local week window to UTC bounds for the attendance query.
         var fromBound = new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(weekStart.ToDateTime(TimeOnly.MinValue), tz), TimeSpan.Zero);
-        var toExclusive = new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(thisMonday.ToDateTime(TimeOnly.MinValue), tz), TimeSpan.Zero);
+        var toExclusive = new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(thisWeekStart.ToDateTime(TimeOnly.MinValue), tz), TimeSpan.Zero);
 
         var rows = await dbContext.ShiftAttendances
             .AsNoTracking()

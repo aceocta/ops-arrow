@@ -353,7 +353,8 @@ public class CompanySignupService : ICompanySignupService
                     CompanyId = company.Id,
                     CompanyName = company.CompanyName,
                     ShopName = firstShop.ShopName,
-                    Role = RoleNames.CompanyOwner
+                    Role = RoleNames.CompanyOwner,
+                    WeekStartDay = firstShop.WeekStartDay
                 }
             ],
             HasCompanySetup = true,

@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import { optimizeImage } from "../../utils/imageOptimizer";
+import { DEFAULT_WEEK_START_DAY, startOfWeekFor } from "../../utils/week";
 import { useFeature } from "../subscription/useFeature";
 import { UpgradeNotice } from "../subscription/FeatureGate";
 import * as Print from "expo-print";
@@ -306,14 +307,15 @@ function flattenRows(groups: { rows: ComplianceCheckPeriodRow[] }[]) {
   return groups.flatMap((group) => group.rows);
 }
 
-function getWeekRangeFromDateValue(value: string) {
+// Weekly periods run from the shop's configured start-of-week day (0 = Sunday … 6 = Saturday)
+// so entries key to the same period the server computes.
+function getWeekRangeFromDateValue(value: string, weekStartDay: number) {
   const parsed = parseDateValue(value) ?? new Date();
-  const dayOfWeek = parsed.getDay();
-  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  const weekStart = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate() + mondayOffset);
+  const startDate = startOfWeekFor(formatDateValue(parsed), weekStartDay);
+  const weekStart = parseDateValue(startDate) ?? parsed;
   const weekEnd = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 6);
   return {
-    startDate: formatDateValue(weekStart),
+    startDate,
     endDate: formatDateValue(weekEnd),
   };
 }
@@ -417,7 +419,7 @@ function getIsoWeekNumber(date: Date) {
   return Math.ceil(diffDays / 7);
 }
 
-function getIsoWeekStartDateValue(isoYear: number, isoWeek: number) {
+function getIsoWeekStartDateValue(isoYear: number, isoWeek: number, weekStartDay: number) {
   const jan4 = new Date(Date.UTC(isoYear, 0, 4));
   const jan4Day = jan4.getUTCDay() || 7;
   const weekOneMonday = new Date(jan4);
@@ -425,8 +427,11 @@ function getIsoWeekStartDateValue(isoYear: number, isoWeek: number) {
   const targetMonday = new Date(weekOneMonday);
   targetMonday.setUTCDate(weekOneMonday.getUTCDate() + (isoWeek - 1) * 7);
 
-  return formatDateValue(
-    new Date(targetMonday.getUTCFullYear(), targetMonday.getUTCMonth(), targetMonday.getUTCDate()),
+  // Align the ISO week's Monday to the shop's configured start of week so the column
+  // dates key to the same weekly period the server computes.
+  return startOfWeekFor(
+    formatDateValue(new Date(targetMonday.getUTCFullYear(), targetMonday.getUTCMonth(), targetMonday.getUTCDate())),
+    weekStartDay,
   );
 }
 
@@ -435,6 +440,7 @@ function buildComplianceMatrixReportScope(input: {
   selectedDate: string;
   weeklyRangeStartDate: string;
   selectedMonthYear: number;
+  weekStartDay: number;
 }) {
   if (input.frequency === "Daily") {
     const anchor = parseDateValue(input.selectedDate) ?? new Date();
@@ -471,7 +477,7 @@ function buildComplianceMatrixReportScope(input: {
     const columns: ComplianceMatrixReportColumn[] = [];
 
     for (let week = startWeek; week <= endWeek; week += 1) {
-      const startDate = getIsoWeekStartDateValue(isoYear, week);
+      const startDate = getIsoWeekStartDateValue(isoYear, week, input.weekStartDay);
       columns.push({
         key: `${isoYear}-W${String(week).padStart(2, "0")}`,
         label: `W${String(week).padStart(2, "0")}`,
@@ -852,7 +858,8 @@ export function ComplianceChecksScreen() {
   const [attachmentPreviewUri, setAttachmentPreviewUri] = useState<string>();
   const [loadingAttachmentId, setLoadingAttachmentId] = useState<string | null>(null);
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<string | null>(null);
-  const weeklyRange = useMemo(() => getWeekRangeFromDateValue(selectedDate), [selectedDate]);
+  const weekStartDay = activeShop?.weekStartDay ?? DEFAULT_WEEK_START_DAY;
+  const weeklyRange = useMemo(() => getWeekRangeFromDateValue(selectedDate, weekStartDay), [selectedDate, weekStartDay]);
   const monthAnchorDate = useMemo(() => getMonthAnchorDate(selectedDate), [selectedDate]);
   const monthAnchor = useMemo(() => parseDateValue(monthAnchorDate) ?? new Date(), [monthAnchorDate]);
   const selectedMonthIndex = monthAnchor.getMonth();
@@ -1047,6 +1054,7 @@ export function ComplianceChecksScreen() {
         selectedDate,
         weeklyRangeStartDate: weeklyRange.startDate,
         selectedMonthYear,
+        weekStartDay,
       });
 
       if (scope.columns.length === 0) {

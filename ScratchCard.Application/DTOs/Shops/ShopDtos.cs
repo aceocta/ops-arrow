@@ -16,6 +16,10 @@ public class CreateShopRequest
     public int? ScratchCardDisplayCount { get; set; }
     public SellingOrder? PackSellingOrder { get; set; }
 
+    /// <summary>First day of the shop's week: 0 = Sunday … 6 = Saturday (JS getDay() convention).
+    /// Optional — defaults to 1 (Monday) when omitted on create; left unchanged when omitted on update.</summary>
+    public int? WeekStartDay { get; set; }
+
     /// <summary>Shift templates to seed for the new shop (set during shop setup).</summary>
     public List<CreateShopShiftTemplate>? ShiftTemplates { get; set; }
     /// <summary>Temperature check times to seed for the new shop (set during shop setup).</summary>
@@ -53,6 +57,8 @@ public class ShopDto
     public string PostCode { get; set; } = string.Empty;
     public string Country { get; set; } = string.Empty;
     public bool IsActive { get; set; }
+    /// <summary>First day of the shop's week: 0 = Sunday … 6 = Saturday (JS getDay() convention).</summary>
+    public int WeekStartDay { get; set; } = 1;
 }
 
 public class ShopFeatureModuleDto

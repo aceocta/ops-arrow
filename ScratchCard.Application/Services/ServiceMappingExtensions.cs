@@ -46,7 +46,8 @@ internal static class ServiceMappingExtensions
         City = shop.City,
         PostCode = shop.PostCode,
         Country = shop.Country,
-        IsActive = shop.IsActive
+        IsActive = shop.IsActive,
+        WeekStartDay = shop.WeekStartDay
     };
 
     public static CompanyDto ToDto(this Company company) => new()

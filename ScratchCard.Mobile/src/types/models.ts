@@ -132,7 +132,7 @@ export type AuthProfile = {
   phoneNumber?: string;
   displayName?: string;
   roles: string[];
-  shops: { shopId: string; companyId?: string; companyName?: string; shopName: string; role: string; isFuelStation?: boolean }[];
+  shops: { shopId: string; companyId?: string; companyName?: string; shopName: string; role: string; isFuelStation?: boolean; weekStartDay?: number }[];
   hasCompanySetup: boolean;
   hasShopSetup: boolean;
   primaryCompanyId?: string;
@@ -201,6 +201,8 @@ export type Shop = {
   postCode: string;
   country: string;
   isActive: boolean;
+  /** Day the shop's week starts on (0 = Sunday … 6 = Saturday). Defaults to Monday. */
+  weekStartDay?: number;
 };
 
 export type RoleOption = {

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { KeyboardAvoidingView, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -67,6 +67,7 @@ import { StatusBadge } from "../../components/StatusBadge";
 import { EmptyState } from "../../components/EmptyState";
 import { confirmDestructive } from "../../utils/confirm";
 import { formatDayLabel } from "../../utils/dateLabels";
+import { DEFAULT_WEEK_START_DAY, startOfWeekFor } from "../../utils/week";
 import { getApiErrorMessage } from "../../utils/apiErrorMessage";
 import { toastError, toastSuccess } from "../../components/toast";
 import { useFeature } from "../subscription/useFeature";
@@ -110,14 +111,6 @@ function weekAhead() {
   const to = new Date(from);
   to.setDate(to.getDate() + 6);
   return { from: formatDateValue(from), to: formatDateValue(to) };
-}
-
-// Monday that starts the week containing dateStr (weeks run Mon–Sun).
-function mondayOf(dateStr: string) {
-  const d = new Date(`${dateStr}T00:00:00`);
-  const mondayOffset = (d.getDay() + 6) % 7; // 0 = Monday
-  d.setDate(d.getDate() - mondayOffset);
-  return formatDateValue(d);
 }
 
 function addDaysStr(dateStr: string, n: number) {
@@ -1081,11 +1074,17 @@ function emptyDraft(): ShiftDraft {
 }
 
 export function RotaManageScreen() {
-  const { activeShopId } = useAuth();
+  const { activeShopId, activeShop } = useAuth();
   const shopId = activeShopId;
+  // Weeks run from the shop's configured start-of-week day (0 = Sunday … 6 = Saturday).
+  const weekStartDay = activeShop?.weekStartDay ?? DEFAULT_WEEK_START_DAY;
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
-  const [weekStart, setWeekStart] = useState(() => mondayOf(formatDateValue(new Date())));
+  const [weekStart, setWeekStart] = useState(() => startOfWeekFor(formatDateValue(new Date()), weekStartDay));
+  // Re-align the displayed week when the shop (and so its start-of-week day) changes.
+  useEffect(() => {
+    setWeekStart((current) => startOfWeekFor(current, weekStartDay));
+  }, [weekStartDay]);
   const [editorOpen, setEditorOpen] = useState(false);
   const [draft, setDraft] = useState<ShiftDraft>(emptyDraft());
   // Snapshot of the draft as opened, for the discard-changes guard on close.
@@ -1227,7 +1226,7 @@ export function RotaManageScreen() {
     },
     onSuccess: () => {
       // Jump to the saved shift's week so it's visible after saving.
-      setWeekStart(mondayOf(draft.shiftDate));
+      setWeekStart(startOfWeekFor(draft.shiftDate, weekStartDay));
       setEditorOpen(false);
       void invalidate();
     },
@@ -1736,9 +1735,9 @@ export function RotaManageScreen() {
           >
             <Ionicons name="chevron-back" size={20} color={appTheme.colors.primary} />
           </Pressable>
-          <Pressable style={{ flex: 1, alignItems: "center" }} onPress={() => setWeekStart(mondayOf(todayStr))}>
+          <Pressable style={{ flex: 1, alignItems: "center" }} onPress={() => setWeekStart(startOfWeekFor(todayStr, weekStartDay))}>
             <Text style={styles.weekNavLabel}>{weekLabel}</Text>
-            <Text style={styles.weekNavHint}>{weekStart === mondayOf(todayStr) ? "This week" : "Tap for this week"}</Text>
+            <Text style={styles.weekNavHint}>{weekStart === startOfWeekFor(todayStr, weekStartDay) ? "This week" : "Tap for this week"}</Text>
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.weekNavBtn, pressed ? styles.weekNavBtnPressed : null]}

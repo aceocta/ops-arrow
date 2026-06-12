@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import { apiErrorMessage } from "../../lib/api";
@@ -8,7 +8,7 @@ import {
   type AssignableUser,
   addDays,
   fmtDate,
-  mondayOf,
+  startOfWeekFor,
   shortTime,
   weekdayLabel,
   isOvernight,
@@ -58,12 +58,18 @@ function seedReason(reason?: string | null) {
 }
 
 export default function RotaPage() {
-  const { activeShopId } = useAuth();
+  const { activeShopId, activeShop } = useAuth();
   const shopId = activeShopId!;
+  const weekStartDay = activeShop?.weekStartDay ?? 1;
   const qc = useQueryClient();
-  const [weekStart, setWeekStart] = useState(() => mondayOf(fmtDate(new Date())));
+  const [weekStart, setWeekStart] = useState(() => startOfWeekFor(fmtDate(new Date()), weekStartDay));
   const [editor, setEditor] = useState<RotaShift | "new" | null>(null);
   const [editorDate, setEditorDate] = useState<string>(weekStart);
+
+  // Re-anchor the visible week when the active shop (or its start-of-week setting) changes.
+  useEffect(() => {
+    setWeekStart((w) => startOfWeekFor(w, weekStartDay));
+  }, [shopId, weekStartDay]);
 
   const range = { from: weekStart, to: addDays(weekStart, 6) };
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
@@ -128,7 +134,7 @@ export default function RotaPage() {
             <button className="px-2 py-2 text-slate-500 hover:text-slate-800" onClick={() => setWeekStart((w) => addDays(w, -7))}>
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <button className="px-3 text-sm font-medium text-slate-700" onClick={() => setWeekStart(mondayOf(today))}>{label}</button>
+            <button className="px-3 text-sm font-medium text-slate-700" onClick={() => setWeekStart(startOfWeekFor(today, weekStartDay))}>{label}</button>
             <button className="px-2 py-2 text-slate-500 hover:text-slate-800" onClick={() => setWeekStart((w) => addDays(w, 7))}>
               <ChevronRight className="h-4 w-4" />
             </button>

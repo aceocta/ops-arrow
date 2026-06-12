@@ -129,6 +129,7 @@ public class ShopService : IShopService
             Country = request.Country.Trim(),
             IsActive = true,
             IsDeleted = false,
+            WeekStartDay = NormalizeWeekStartDay(request.WeekStartDay) ?? 1,
             // Safe Drop + Store Sales start disabled; the owner enables them in Feature Toggles.
             DisabledFeatureKeys = FeatureKeys.DefaultDisabledModuleKeys.ToList(),
             CreatedOn = DateTimeOffset.UtcNow,
@@ -201,6 +202,12 @@ public class ShopService : IShopService
         shop.City = request.City.Trim();
         shop.PostCode = request.PostCode.Trim();
         shop.Country = request.Country.Trim();
+        // Omitted (null) keeps the current week start so older clients can't silently reset it.
+        var weekStartDay = NormalizeWeekStartDay(request.WeekStartDay);
+        if (weekStartDay.HasValue)
+        {
+            shop.WeekStartDay = weekStartDay.Value;
+        }
         var activeStateChanged = shop.IsActive != request.IsActive;
         shop.IsActive = request.IsActive;
         shop.ModifiedOn = DateTimeOffset.UtcNow;
@@ -886,6 +893,22 @@ public class ShopService : IShopService
     }
 
     private static string NormalizeEmail(string? value) => value?.Trim().ToLowerInvariant() ?? string.Empty;
+
+    /// <summary>Validates an optional week-start day: 0 (Sunday) … 6 (Saturday), JS getDay() convention.</summary>
+    private static int? NormalizeWeekStartDay(int? weekStartDay)
+    {
+        if (!weekStartDay.HasValue)
+        {
+            return null;
+        }
+
+        if (weekStartDay.Value is < 0 or > 6)
+        {
+            throw new AppException("validation_failed", "Week start day must be between 0 (Sunday) and 6 (Saturday).", 400);
+        }
+
+        return weekStartDay.Value;
+    }
 
     private async Task EnsureShopAccessAsync(Shop shop, CancellationToken cancellationToken)
     {

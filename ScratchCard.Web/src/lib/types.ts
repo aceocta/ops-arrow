@@ -7,6 +7,8 @@ export type ProfileShop = {
   shopName: string;
   role: string;
   isFuelStation?: boolean;
+  /** First day of the rota week: 0=Sunday … 6=Saturday (default 1 = Monday). */
+  weekStartDay?: number;
 };
 
 export type AuthProfile = {

@@ -24,6 +24,9 @@ public class UserShopDto
     public string ShopName { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
     public bool IsFuelStation { get; set; }
+    /// <summary>First day of the shop's week: 0 = Sunday … 6 = Saturday (JS getDay() convention).
+    /// Clients use this for every calendar-week boundary (rota week picker, "this week" ranges).</summary>
+    public int WeekStartDay { get; set; } = 1;
 }
 
 public class PasswordLoginRequest

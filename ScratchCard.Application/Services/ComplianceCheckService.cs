@@ -477,7 +477,7 @@ public class ComplianceCheckService : IComplianceCheckService
         CancellationToken cancellationToken = default)
     {
         var normalizedFrequency = NormalizeFrequency(frequency);
-        var period = NormalizePeriod(date, normalizedFrequency);
+        var period = NormalizePeriod(date, normalizedFrequency, await GetWeekStartDayAsync(shopId, cancellationToken));
 
         var groups = await _groupRepository.Query()
             .AsNoTracking()
@@ -632,7 +632,7 @@ public class ComplianceCheckService : IComplianceCheckService
         var notes = NormalizeOptionalText(request.Notes);
         var actionRequired = NormalizeOptionalText(request.ActionRequired);
 
-        var period = NormalizePeriod(request.Date, item.Frequency);
+        var period = NormalizePeriod(request.Date, item.Frequency, await GetWeekStartDayAsync(request.ShopId, cancellationToken));
         var entry = await QueryEntriesForPeriod(request.ShopId, item.Frequency, period)
             .FirstOrDefaultAsync(
                 x => x.ComplianceCheckItemId == request.ComplianceCheckItemId,
@@ -1167,7 +1167,7 @@ public class ComplianceCheckService : IComplianceCheckService
             .Where(x => itemIds.Contains(x.ComplianceCheckItemId));
     }
 
-    private static CompliancePeriod NormalizePeriod(DateOnly date, ComplianceCheckFrequency frequency)
+    private static CompliancePeriod NormalizePeriod(DateOnly date, ComplianceCheckFrequency frequency, int weekStartDay)
     {
         return frequency switch
         {
@@ -1178,15 +1178,16 @@ public class ComplianceCheckService : IComplianceCheckService
                 MonthName: null,
                 MonthNumber: null,
                 MonthYear: null),
-            ComplianceCheckFrequency.Weekly => BuildWeeklyPeriod(date),
+            ComplianceCheckFrequency.Weekly => BuildWeeklyPeriod(date, weekStartDay),
             ComplianceCheckFrequency.Monthly => BuildMonthlyPeriod(date),
             _ => throw new AppException("validation_failed", "Invalid compliance check frequency.")
         };
     }
 
-    private static CompliancePeriod BuildWeeklyPeriod(DateOnly date)
+    private static CompliancePeriod BuildWeeklyPeriod(DateOnly date, int weekStartDay)
     {
-        var weekStart = date.AddDays(-GetMondayOffset(date.DayOfWeek));
+        // weekStartDay: 0 = Sunday … 6 = Saturday (JS getDay() convention, same as .NET DayOfWeek).
+        var weekStart = date.AddDays(-(((int)date.DayOfWeek - weekStartDay + 7) % 7));
         var weekEnd = weekStart.AddDays(6);
         return new CompliancePeriod(
             ComplianceCheckFrequency.Weekly,
@@ -1235,9 +1236,16 @@ public class ComplianceCheckService : IComplianceCheckService
         }
     }
 
-    private static int GetMondayOffset(DayOfWeek dayOfWeek)
+    /// <summary>The shop's configured first day of week (0 = Sunday … 6 = Saturday); Monday when unset/invalid.</summary>
+    private async Task<int> GetWeekStartDayAsync(Guid shopId, CancellationToken cancellationToken)
     {
-        return dayOfWeek == DayOfWeek.Sunday ? 6 : (int)dayOfWeek - 1;
+        var weekStartDay = await _shopRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.Id == shopId)
+            .Select(x => (int?)x.WeekStartDay)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return weekStartDay is >= 0 and <= 6 ? weekStartDay.Value : (int)DayOfWeek.Monday;
     }
 
     private static ComplianceCheckEntry CreateEntryEntity(ComplianceCheckFrequency frequency)

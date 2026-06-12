@@ -185,6 +185,8 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.PostCode).HasMaxLength(20).IsRequired();
             entity.Property(x => x.Country).HasMaxLength(100).IsRequired();
             entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+            // 0 = Sunday … 6 = Saturday (JS getDay() convention); Monday default.
+            entity.Property(x => x.WeekStartDay).HasDefaultValue(1);
             entity.Property(x => x.DisabledFeatureKeys)
                 .HasConversion(
                     v => JsonSerializer.Serialize(v ?? new List<string>(), (JsonSerializerOptions?)null),

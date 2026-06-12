@@ -11,6 +11,8 @@ export type Shop = {
   postCode: string;
   country: string;
   isActive: boolean;
+  /** First day of the rota week: 0=Sunday … 6=Saturday (default 1 = Monday). */
+  weekStartDay?: number;
 };
 
 export type SaveShopPayload = {
@@ -23,6 +25,7 @@ export type SaveShopPayload = {
   postCode: string;
   country: string;
   isActive?: boolean;
+  weekStartDay?: number;
 };
 
 export const shopsApi = {

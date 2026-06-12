@@ -33,6 +33,7 @@ import { appTheme, type ThemeMode } from "../../ui/theme";
 import { getStoredThemeModePreference, setStoredThemeModePreference } from "../../ui/themePreference";
 import { confirmDestructive } from "../../utils/confirm";
 import { getRoleDisplayName } from "../../utils/roleLabels";
+import { DEFAULT_WEEK_START_DAY, WEEK_START_CHOICES } from "../../utils/week";
 import { buildShiftTemplateId, deriveShopOperationalSetup, SHOP_CONFIG_KEYS, serializeShiftTemplates, ShiftTemplateSetup } from "./shopConfiguration";
 
 async function reloadThemeImmediately() {
@@ -1475,6 +1476,7 @@ export function ShopManagementScreen() {
   const [country, setCountry] = useState("UK");
   const [scratchCardDisplayCount, setScratchCardDisplayCount] = useState("24");
   const [packSellingOrder, setPackSellingOrder] = useState<SellingOrder>(SellingOrder.Ascending);
+  const [weekStartDay, setWeekStartDay] = useState(DEFAULT_WEEK_START_DAY);
   const [hasEditedPackSettings, setHasEditedPackSettings] = useState(false);
   const [subscriptionPlanId, setSubscriptionPlanId] = useState<string | null>(null);
   const [setupExtras, setSetupExtras] = useState<ShopSetupExtras>({ shiftTemplates: [], temperatureCheckTimes: [] });
@@ -1544,6 +1546,7 @@ export function ShopManagementScreen() {
         city: city.trim(),
         postCode: postCode.trim(),
         country: country.trim(),
+        weekStartDay,
         ...(shouldPersistPackSettings
           ? {
               scratchCardDisplayCount: parsedDisplayCount as number,
@@ -1578,6 +1581,7 @@ export function ShopManagementScreen() {
       setCountry("UK");
       setScratchCardDisplayCount("24");
       setPackSellingOrder(SellingOrder.Ascending);
+      setWeekStartDay(DEFAULT_WEEK_START_DAY);
       setHasEditedPackSettings(false);
       setSubscriptionPlanId(null);
       if (wasEditing) {
@@ -1603,6 +1607,7 @@ export function ShopManagementScreen() {
     setCountry(shop.country);
     setScratchCardDisplayCount("24");
     setPackSellingOrder(SellingOrder.Ascending);
+    setWeekStartDay(shop.weekStartDay ?? DEFAULT_WEEK_START_DAY);
     setHasEditedPackSettings(false);
   }
 
@@ -1617,6 +1622,7 @@ export function ShopManagementScreen() {
     setCountry("UK");
     setScratchCardDisplayCount("24");
     setPackSellingOrder(SellingOrder.Ascending);
+    setWeekStartDay(DEFAULT_WEEK_START_DAY);
     setHasEditedPackSettings(false);
     setSubscriptionPlanId(null);
   }
@@ -1708,6 +1714,30 @@ export function ShopManagementScreen() {
         <FloatingLabelInput label="City" value={city} onChangeText={setCity} />
         <FloatingLabelInput label="Post code" value={postCode} onChangeText={setPostCode} autoCapitalize="characters" />
         <FloatingLabelInput label="Country" value={country} onChangeText={setCountry} />
+
+        <Text style={[styles.fieldLabel, { marginTop: 8 }]}>Week starts on</Text>
+        <Text style={styles.caption}>Rota weeks and weekly reports run from this day.</Text>
+        <View style={styles.choiceChipWrap}>
+          {WEEK_START_CHOICES.map((choice) => {
+            const selected = weekStartDay === choice.value;
+            return (
+              <Pressable
+                key={choice.value}
+                style={({ pressed }) => [
+                  styles.choiceChip,
+                  selected ? styles.choiceChipSelected : null,
+                  pressed ? styles.choiceChipPressed : null,
+                ]}
+                onPress={() => setWeekStartDay(choice.value)}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`Week starts on ${choice.label}`}
+              >
+                <Text style={[styles.choiceChipText, selected ? styles.choiceChipTextSelected : null]}>{choice.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
 
         {editingShopId ? (
           <View style={[styles.row, { marginTop: 8 }]}>

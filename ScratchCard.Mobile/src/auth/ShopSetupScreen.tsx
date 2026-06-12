@@ -11,6 +11,7 @@ import { ShiftTemperatureSetup, ShopSetupExtras } from "../components/ShiftTempe
 import { ui } from "../ui/primitives";
 import { appTheme } from "../ui/theme";
 import { SellingOrder } from "../types/enums";
+import { DEFAULT_WEEK_START_DAY, WEEK_START_CHOICES } from "../utils/week";
 
 export function ShopSetupScreen() {
   const { profile, refreshProfile, isLoading } = useAuth();
@@ -22,6 +23,7 @@ export function ShopSetupScreen() {
   const [country, setCountry] = useState("UK");
   const [scratchCardDisplayCount, setScratchCardDisplayCount] = useState("24");
   const [packSellingOrder, setPackSellingOrder] = useState<SellingOrder>(SellingOrder.Ascending);
+  const [weekStartDay, setWeekStartDay] = useState(DEFAULT_WEEK_START_DAY);
   const [subscriptionPlanId, setSubscriptionPlanId] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [progressMessage, setProgressMessage] = useState<string | null>(null);
@@ -79,6 +81,7 @@ export function ShopSetupScreen() {
         country: country.trim(),
         scratchCardDisplayCount: parsedDisplayCount,
         packSellingOrder,
+        weekStartDay,
         // Validation above already early-exits when this is null.
         subscriptionPlanId: subscriptionPlanId!,
         shiftTemplates: extras.shiftTemplates,
@@ -210,6 +213,33 @@ export function ShopSetupScreen() {
             >
               End To 0
             </Text>
+          </View>
+        </View>
+
+        <View style={styles.configSection}>
+          <Text style={styles.configTitle}>Week starts on</Text>
+          <Text style={styles.configSubtitle}>Rota weeks and weekly reports run from this day.</Text>
+          <View style={styles.dayChipRow}>
+            {WEEK_START_CHOICES.map((choice) => {
+              const selected = weekStartDay === choice.value;
+              return (
+                <Pressable
+                  key={choice.value}
+                  style={({ pressed }) => [
+                    styles.dayChip,
+                    selected ? styles.dayChipSelected : null,
+                    pressed ? styles.dayChipPressed : null,
+                  ]}
+                  onPress={() => setWeekStartDay(choice.value)}
+                  disabled={busy}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={`Week starts on ${choice.label}`}
+                >
+                  <Text style={[styles.dayChipText, selected ? styles.dayChipTextSelected : null]}>{choice.label}</Text>
+                </Pressable>
+              );
+            })}
           </View>
         </View>
 
@@ -355,6 +385,36 @@ const styles = StyleSheet.create({
   choiceChipSelected: {
     borderColor: appTheme.colors.borderStrong,
     backgroundColor: appTheme.colors.surfaceBrandSoft,
+    color: appTheme.colors.primary,
+  },
+  dayChipRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  dayChip: {
+    flex: 1,
+    alignItems: "center",
+    borderRadius: appTheme.radius.pill,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    paddingVertical: 8,
+  },
+  dayChipSelected: {
+    borderColor: appTheme.colors.borderStrong,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+  },
+  dayChipPressed: {
+    opacity: 0.7,
+  },
+  dayChipText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  dayChipTextSelected: {
     color: appTheme.colors.primary,
   },
   progressText: {

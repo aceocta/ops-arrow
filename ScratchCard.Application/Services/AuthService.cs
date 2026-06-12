@@ -690,7 +690,8 @@ public class AuthService : IAuthService
                 CompanyName = x.Shop.Company != null ? x.Shop.Company.CompanyName : null,
                 ShopName = x.Shop.ShopName,
                 Role = x.Role.Name,
-                IsFuelStation = x.Shop.IsFuelStation
+                IsFuelStation = x.Shop.IsFuelStation,
+                WeekStartDay = x.Shop.WeekStartDay
             })
             .ToListAsync(cancellationToken);
 
@@ -747,7 +748,8 @@ public class AuthService : IAuthService
                 CompanyName = x.Shop.Company?.CompanyName,
                 ShopName = x.Shop.ShopName,
                 Role = x.Role.Name,
-                IsFuelStation = x.Shop.IsFuelStation
+                IsFuelStation = x.Shop.IsFuelStation,
+                WeekStartDay = x.Shop.WeekStartDay
             })
             .ToArray();
 

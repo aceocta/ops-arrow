@@ -15,6 +15,8 @@ export type CreateShopPayload = {
   country: string;
   scratchCardDisplayCount?: number;
   packSellingOrder?: SellingOrder;
+  /** Day the shop's week starts on (0 = Sunday … 6 = Saturday). Omitted on update = unchanged. */
+  weekStartDay?: number;
   shiftTemplates?: { name: string; startTime: string; endTime: string }[];
   temperatureCheckTimes?: { label: string; time: string; toleranceMinutes?: number }[];
 };

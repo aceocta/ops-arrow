@@ -18,6 +18,11 @@ public class Shop : AuditableEntity
     // (SPA passport / permit-to-work / induction) — those are hidden for non-fuel shops.
     public bool IsFuelStation { get; set; }
 
+    // First day of the shop's working week: 0 = Sunday … 6 = Saturday (matches JS Date.getDay()).
+    // Drives every calendar-week boundary (rota week, weekly timesheet email, weekly compliance
+    // period). Defaults to Monday.
+    public int WeekStartDay { get; set; } = 1;
+
     // Per-shop opt-out toggles for the top-level feature modules (ScratchCardManagement,
     // TemperatureLog, RefusalNoIdNoSale, ComplianceChecklist, SafeDropManagement). Entries here
     // override the subscription plan: even if the plan includes a module, a key listed here

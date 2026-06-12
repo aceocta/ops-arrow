@@ -209,13 +209,15 @@ export function sessionIsos(dateStr: string, inHHmm: string, outHHmm: string) {
   return { checkInAt: toIso(dateStr, inHHmm), checkOutAt: toIso(outDate, outHHmm) };
 }
 
-// --- date helpers (Mon–Sun weeks) ---
+// --- date helpers (weeks anchored to the shop's configured start day) ---
 export function fmtDate(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
-export function mondayOf(dateStr: string) {
+/** Start of the week containing dateStr, where weekStartDay is 0=Sunday … 6=Saturday (defaults to Monday). */
+export function startOfWeekFor(dateStr: string, weekStartDay?: number | null) {
+  const start = weekStartDay != null && weekStartDay >= 0 && weekStartDay <= 6 ? weekStartDay : 1;
   const d = new Date(`${dateStr}T00:00:00`);
-  const offset = (d.getDay() + 6) % 7;
+  const offset = (d.getDay() - start + 7) % 7;
   d.setDate(d.getDate() - offset);
   return fmtDate(d);
 }
