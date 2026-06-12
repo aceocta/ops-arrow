@@ -169,7 +169,8 @@ export default function Features() {
             Nine modules. <span className="text-gradient">One shop system.</span>
           </h2>
           <p className="section-subtitle">
-            Everything your team writes down today, captured digitally — and only the modules you need, turned on per shop.
+            Everything your team scribbles on paper today, captured properly and impossible to lose — with
+            each module switched on per shop, so you only run what you need.
           </p>
         </Reveal>
 

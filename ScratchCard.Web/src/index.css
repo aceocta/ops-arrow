@@ -63,8 +63,9 @@
     @apply btn bg-brand-50 text-brand-700 hover:bg-brand-100;
   }
 
+  /* text-base on phones: iOS Safari auto-zooms on focus when an input's font-size is under 16px. */
   .input {
-    @apply w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 shadow-[inset_0_1px_1px_rgba(16,24,40,0.03)] outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10;
+    @apply w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-base text-slate-800 shadow-[inset_0_1px_1px_rgba(16,24,40,0.03)] outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 sm:text-sm;
   }
   .label {
     @apply mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500;

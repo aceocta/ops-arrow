@@ -149,16 +149,17 @@ export default function Hero() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-400 opacity-60" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-brand-500" />
             </span>
-            Built for UK independent retail
+            The operations platform for UK independent retail
           </span>
           <h1 className="mt-6 text-5xl font-black leading-[1.02] tracking-tighter text-slate-900 sm:text-6xl lg:text-7xl">
-            Run your shop{" "}
+            Run your shop like clockwork —{" "}
             <span className="text-gradient">without the paperwork</span>
           </h1>
           <p className="mt-6 max-w-xl text-lg leading-relaxed text-slate-500 sm:text-xl">
-            Temperature logs, refusal registers, compliance checklists, rotas and till reports — the daily
-            paperwork that runs a convenience store, off-licence or forecourt, moved to your staff's phones
-            and your web dashboard.
+            Ops Arrow turns the daily grind of a convenience store, off-licence or forecourt — temperature
+            logs, refusal registers, checklists, rotas and till reports — into quick taps on your staff's
+            phones. Every check done on time, every record inspection-ready, and you can see it all from
+            anywhere.
           </p>
           <div className="mt-9 flex flex-wrap items-center gap-3">
             <a href={SIGNUP_URL} className="btn-primary px-7 py-3.5 text-base">

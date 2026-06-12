@@ -176,7 +176,7 @@ export default function SettingsPage() {
                           <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition ${v === "true" ? "left-[22px]" : "left-0.5"}`} />
                         </button>
                       ) : isJson ? (
-                        <textarea className="input h-20 font-mono text-xs" value={v} onChange={(e) => setValue(c.configKey, e.target.value)} />
+                        <textarea className="input h-20 font-mono sm:text-xs" value={v} onChange={(e) => setValue(c.configKey, e.target.value)} />
                       ) : (
                         <input
                           className="input"

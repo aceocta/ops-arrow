@@ -178,7 +178,8 @@ export default function Pricing() {
             Simple <span className="text-gradient">per-shop</span> pricing
           </h2>
           <p className="section-subtitle">
-            Pick a plan per shop, try it free for two weeks, and only pay if it earns its keep.
+            Less than the cost of one wasted delivery. Pick a plan per shop, try it free for two weeks, and
+            only pay if it earns its keep — no contracts, no lock-in.
           </p>
         </Reveal>
 

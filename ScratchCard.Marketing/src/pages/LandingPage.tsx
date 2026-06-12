@@ -1,6 +1,7 @@
 import Nav from "../components/Nav";
 import Hero from "../components/Hero";
 import PainSolution from "../components/PainSolution";
+import WhoItsFor from "../components/WhoItsFor";
 import Features from "../components/Features";
 import HowItWorks from "../components/HowItWorks";
 import MobileWeb from "../components/MobileWeb";
@@ -15,6 +16,7 @@ export default function LandingPage() {
       <main>
         <Hero />
         <PainSolution />
+        <WhoItsFor />
         <Features />
         <HowItWorks />
         <MobileWeb />

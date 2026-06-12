@@ -49,7 +49,8 @@ export default function PainSolution() {
             Paper worked — until it didn't
           </h2>
           <p className="section-subtitle">
-            Every shop runs on the same daily routines. Ops Arrow keeps them all in one place, done properly.
+            Every shop runs on the same daily routines. Ops Arrow makes sure they actually happen — on time,
+            every time, with proof to show for it.
           </p>
         </Reveal>
         <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">

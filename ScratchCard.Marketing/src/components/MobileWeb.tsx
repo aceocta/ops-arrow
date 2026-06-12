@@ -34,7 +34,8 @@ export default function MobileWeb() {
             </span>
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
-            One account, two views — each built for the job in hand.
+            One account, two views — each built for the job in hand. Nothing to install behind the till,
+            nothing for head office to maintain.
           </p>
         </Reveal>
 

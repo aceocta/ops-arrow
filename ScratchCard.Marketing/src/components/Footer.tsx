@@ -28,7 +28,8 @@ export function FinalCta() {
             Put the clipboard <span className="bg-gradient-to-r from-brand-300 to-sky-300 bg-clip-text text-transparent">down</span>
           </h2>
           <p className="relative mx-auto mt-4 max-w-xl text-base leading-relaxed text-slate-400 sm:text-lg">
-            Set your shop up tonight and your team can be logging checks on their phones tomorrow morning.
+            The binders, the clipboards, the end-of-day guesswork — replaced in an evening. Set your shop up
+            tonight and your team will be logging checks on their phones before the morning delivery lands.
           </p>
           <div className="relative mt-9 flex flex-wrap items-center justify-center gap-3">
             <a

@@ -47,7 +47,10 @@ export default function HowItWorks() {
           <h2 id="how-heading" className="section-title">
             Up and running before the next delivery
           </h2>
-          <p className="section-subtitle">No installation, no training day, no consultants. Three steps and you're live.</p>
+          <p className="section-subtitle">
+            No installation, no training day, no consultants. If your team can use WhatsApp, they can use
+            Ops Arrow — three steps and you're live.
+          </p>
         </Reveal>
 
         <div className="relative mt-16">
