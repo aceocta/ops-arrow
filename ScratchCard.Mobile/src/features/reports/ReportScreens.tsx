@@ -1020,8 +1020,8 @@ export function AuditLogScreen() {
       <ScreenContainer>
         <UpgradeNotice
           feature="audit_log.basic"
-          title="Audit Log is a Growth feature"
-          message="Upgrade this shop's plan to Growth or Pro to view the audit log."
+          title="Audit log not included in your plan"
+          message="The audit log isn't included in this shop's current plan."
         />
       </ScreenContainer>
     );

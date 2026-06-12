@@ -107,6 +107,21 @@ public class ShopSubscriptionController : BaseApiController
         return Success(new BillingCheckoutResponse { Url = url, Provider = "stripe" });
     }
 
+    /// <summary>
+    /// Emails the caller their billing/account-management details (web portal URL, shop, plan and
+    /// status). App Store-compliant alternative to in-app links: the mobile app can't link out to
+    /// external subscription management, but it may send this email on the user's request.
+    /// Rate-limited to one email per user+shop per 10 minutes (429 when exceeded).
+    /// </summary>
+    [HttpPost("/api/subscriptions/email-portal-link")]
+    [HttpPost("email-portal-link")]
+    [Authorize(Roles = RoleNames.OwnerAndPlatform)]
+    public async Task<IActionResult> EmailPortalLink([FromBody] EmailPortalLinkRequest request, CancellationToken cancellationToken)
+    {
+        await _shopSubscriptionService.SendBillingPortalEmailAsync(request.ShopId, cancellationToken);
+        return Success(true, "Email sent.");
+    }
+
     [HttpPost("cancel")]
     [Authorize(Roles = RoleNames.ManagementAndAbove)]
     public async Task<IActionResult> Cancel([FromBody] CancelShopSubscriptionRequest request, CancellationToken cancellationToken)

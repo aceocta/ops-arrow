@@ -174,7 +174,7 @@ function ChannelRow({
         <Switch value={isEnabled} onValueChange={onChange} disabled={!isAllowed} />
       </View>
       {!isLoading && !isAllowed ? (
-        <UpgradeNotice feature={featureKey} compact title={`${title} is a ${upgradeLabel} feature`} />
+        <UpgradeNotice feature={featureKey} compact title={`${title} isn't included in your plan`} />
       ) : null}
     </>
   );

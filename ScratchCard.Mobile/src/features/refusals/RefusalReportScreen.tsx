@@ -231,8 +231,8 @@ export function RefusalReportScreen() {
       <ScreenContainer>
         <UpgradeNotice
           feature="refusal_log.analytics"
-          title="Refusal analytics is a Pro feature"
-          message="Date-range refusal reports and analytics are available on the Pro plan."
+          title="Refusal analytics not included in your plan"
+          message="Date-range refusal reports and analytics aren't included in this shop's current plan."
         />
       </ScreenContainer>
     );

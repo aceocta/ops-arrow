@@ -25,19 +25,19 @@ export function UpgradeNotice({ feature, title, message, compact }: UpgradeNotic
       </View>
       <View style={styles.textWrap}>
         <Text style={[styles.title, compact && styles.titleCompact]}>
-          {title ?? "Upgrade required"}
+          {title ?? "Not included in your plan"}
         </Text>
         <Text style={[styles.message, compact && styles.messageCompact]}>
-          {message ?? `This feature ("${feature}") isn't included in your current plan. Upgrade this shop's subscription to unlock it.`}
+          {message ?? `This feature ("${feature}") isn't included in this shop's current plan.`}
         </Text>
       </View>
       <Pressable
         style={styles.upgradeButton}
-        onPress={() => navigation.navigate("ChoosePlan")}
+        onPress={() => navigation.navigate("SubscriptionSummary")}
         accessibilityRole="button"
-        accessibilityLabel="View subscription plans"
+        accessibilityLabel="View subscription"
       >
-        <Text style={styles.upgradeButtonText}>{compact ? "Upgrade" : "View plans"}</Text>
+        <Text style={styles.upgradeButtonText}>View plan</Text>
       </Pressable>
     </View>
   );

@@ -1,16 +1,14 @@
 import React, { useMemo, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { listSubscriptionPlans } from "../../api/subscriptionApi";
 import { Skeleton } from "../../components/Skeleton";
 import { BillingCycle } from "../../types/enums";
 import { appTheme } from "../../ui/theme";
 
-// Apple Guideline 3.1.3(c): a free B2B companion app billing on the web cannot make
-// "calls to action for purchase outside the app." Showing a £ price in-app is the riskiest line
-// to cross. We hide prices on iOS only; Android (Google Play permits this pattern openly)
-// keeps the price for a clearer UX.
-const SHOULD_HIDE_PRICES = Platform.OS === "ios";
+// Apple Guideline 3.1.3(f) consumption-only model: the app shows no prices and no purchase
+// calls-to-action on any platform. This picker only chooses which plan a new shop's free
+// trial starts on — billing itself is handled by the account owner outside the app.
 
 function formatFeatureLabel(key: string) {
   // Convert a feature key (e.g. "scratch_card.attachments") into a readable label
@@ -87,11 +85,6 @@ export function SubscriptionPlanPicker({ value, onChange, disabled, label = "Sub
                 ) : null}
               </View>
               <Text style={styles.meta}>Cycle: {plan.billingCycle}</Text>
-              {SHOULD_HIDE_PRICES ? (
-                <Text style={styles.priceLine}>See pricing in the billing portal</Text>
-              ) : (
-                <Text style={styles.priceLine}>GBP {plan.pricePerShop.toFixed(2)} per shop</Text>
-              )}
               <Pressable
                 onPress={() => setExpandedId((cur) => (cur === plan.id ? null : plan.id))}
                 style={styles.detailsToggle}
@@ -192,10 +185,6 @@ const styles = StyleSheet.create({
   meta: {
     ...appTheme.typography.caption,
     color: appTheme.colors.textMuted,
-  },
-  priceLine: {
-    ...appTheme.typography.bodyEmphasis,
-    color: appTheme.colors.text,
   },
   detailsToggle: {
     marginTop: 6,

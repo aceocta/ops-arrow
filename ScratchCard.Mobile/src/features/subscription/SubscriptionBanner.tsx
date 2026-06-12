@@ -27,8 +27,8 @@ function deriveBanner(args: {
     return {
       tone: "danger",
       title: "Payment issue",
-      message: "Your last payment didn't go through. Fix billing to keep using the shop without interruption.",
-      cta: "Fix billing",
+      message: "There's a problem with this shop's subscription. Ask your account owner to review it.",
+      cta: "View details",
     };
   }
 
@@ -36,8 +36,8 @@ function deriveBanner(args: {
     return {
       tone: "warning",
       title: args.trialDaysRemaining <= 0 ? "Trial ends today" : `Trial ends in ${args.trialDaysRemaining} day${args.trialDaysRemaining === 1 ? "" : "s"}`,
-      message: "Pick a plan to keep this shop active after the trial ends.",
-      cta: "Choose plan",
+      message: "Your trial ends soon. Ask your account owner to keep this shop active.",
+      cta: "View details",
     };
   }
 
@@ -45,8 +45,8 @@ function deriveBanner(args: {
     return {
       tone: "danger",
       title: "Trial expired",
-      message: "Choose a subscription plan to keep using this shop.",
-      cta: "Choose plan",
+      message: "This shop's trial has ended. Ask your account owner to renew.",
+      cta: "View details",
     };
   }
 
@@ -72,7 +72,7 @@ export function SubscriptionBanner() {
   return (
     <Pressable
       style={[styles.banner, spec.tone === "danger" ? styles.bannerDanger : styles.bannerWarning]}
-      onPress={() => navigation.navigate(spec.tone === "danger" ? "BillingRequired" : "ChoosePlan")}
+      onPress={() => navigation.navigate(spec.tone === "danger" ? "BillingRequired" : "SubscriptionSummary")}
       accessibilityRole="button"
       accessibilityLabel={`${spec.title}. ${spec.cta}`}
     >

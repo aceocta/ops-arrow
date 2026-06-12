@@ -1,25 +1,15 @@
 import React from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  cancelShopSubscription,
-  getShopSubscriptionSummary,
-  pauseShopSubscription,
-  reactivateShopSubscription,
-  resumeShopSubscription,
-} from "../../api/subscriptionApi";
+import { StyleSheet, Text, View } from "react-native";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { emailAccountPortalLink, getShopSubscriptionSummary } from "../../api/subscriptionApi";
 import { useAuth } from "../../auth/AuthContext";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { Skeleton } from "../../components/Skeleton";
 import { toastError, toastSuccess } from "../../components/toast";
-import { confirmDestructive } from "../../utils/confirm";
-import { RootStackParamList } from "../../types/navigation";
+import { getApiErrorMessage } from "../../utils/apiErrorMessage";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
-import { SUBSCRIPTION_MANAGE_RESTRICTED_MESSAGE, useCanManageSubscription } from "./useCanManageSubscription";
 
 function formatDate(value?: string | null) {
   if (!value) return "-";
@@ -29,11 +19,13 @@ function formatDate(value?: string | null) {
 }
 
 export function SubscriptionSummaryScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const queryClient = useQueryClient();
-  const { activeShop, activeShopId } = useAuth();
-  const canManageSubscription = useCanManageSubscription();
+  const { activeShop, activeShopId, profile } = useAuth();
   const shopId = activeShopId;
+
+  // The email endpoint is owner-gated server-side (CompanyOwner / PlatformAdmin), so only show
+  // the button to users who can actually use it.
+  const isAccountOwner =
+    (profile?.roles?.includes("PlatformAdmin") ?? false) || activeShop?.role === "CompanyOwner";
 
   const summaryQuery = useQuery({
     queryKey: ["shop-subscription-summary", shopId],
@@ -43,93 +35,12 @@ export function SubscriptionSummaryScreen() {
   });
 
   const summary = summaryQuery.data;
-  const status = summary?.status?.toLowerCase();
-  const isCancelledAtPeriodEnd = Boolean(status === "active" && (summary as any)?.cancelAtPeriodEnd);
-  const isCancelled = status === "cancelled";
-  const isPaused = status === "suspended";
-  // 11-month heads-up: when fewer than 31 days remain before the 1-year auto-cancel, surface
-  // a banner so the owner knows to resume or accept the cancellation.
-  const showPauseCapBanner = isPaused
-    && summary?.pauseDaysRemaining != null
-    && summary.pauseDaysRemaining <= 30;
 
-  const cancelMutation = useMutation({
-    mutationFn: (cancelAtPeriodEnd: boolean) => cancelShopSubscription(shopId as string, cancelAtPeriodEnd),
-    onSuccess: async () => {
-      toastSuccess("Cancellation scheduled.");
-      await queryClient.invalidateQueries({ queryKey: ["shop-subscription-summary", shopId] });
-      await queryClient.invalidateQueries({ queryKey: ["shop-entitlements", shopId] });
-    },
-    onError: (error: any) => toastError(error?.response?.data?.message ?? "Unable to cancel."),
+  const emailInfoMutation = useMutation({
+    mutationFn: () => emailAccountPortalLink(shopId as string),
+    onSuccess: () => toastSuccess("Check your inbox — we've sent your account info."),
+    onError: (error: unknown) => toastError(getApiErrorMessage(error, "Unable to send the email. Please try again.")),
   });
-
-  const reactivateMutation = useMutation({
-    mutationFn: () => reactivateShopSubscription(shopId as string),
-    onSuccess: async () => {
-      toastSuccess("Subscription reactivated.");
-      await queryClient.invalidateQueries({ queryKey: ["shop-subscription-summary", shopId] });
-      await queryClient.invalidateQueries({ queryKey: ["shop-entitlements", shopId] });
-    },
-    onError: (error: any) => toastError(error?.response?.data?.message ?? "Unable to reactivate."),
-  });
-
-  const pauseMutation = useMutation({
-    mutationFn: () => pauseShopSubscription(shopId as string),
-    onSuccess: async () => {
-      toastSuccess("Shop paused. Resume any time within 1 year.");
-      await queryClient.invalidateQueries({ queryKey: ["shop-subscription-summary", shopId] });
-      await queryClient.invalidateQueries({ queryKey: ["shop-entitlements", shopId] });
-    },
-    onError: (error: any) => toastError(error?.response?.data?.message ?? "Unable to pause."),
-  });
-
-  const resumeMutation = useMutation({
-    mutationFn: () => resumeShopSubscription(shopId as string),
-    onSuccess: async () => {
-      toastSuccess("Shop resumed.");
-      await queryClient.invalidateQueries({ queryKey: ["shop-subscription-summary", shopId] });
-      await queryClient.invalidateQueries({ queryKey: ["shop-entitlements", shopId] });
-    },
-    onError: (error: any) => {
-      const code = error?.response?.data?.code;
-      const message = error?.response?.data?.message ?? "Unable to resume.";
-      if (code === "subscription_expired") {
-        // The Stripe sub was auto-cancelled by the 1-year cap (or admin action) — fresh
-        // checkout is the only path forward. Surface clearly and route to plan picker.
-        Alert.alert(
-          "Subscription expired",
-          message,
-          [
-            { text: "Close", style: "cancel" },
-            { text: "Choose plan", onPress: () => navigation.navigate("ChoosePlan") },
-          ],
-        );
-        return;
-      }
-      toastError(message);
-    },
-  });
-
-  function confirmPause() {
-    Alert.alert(
-      "Pause shop?",
-      "Billing stops immediately. You can resume any time within 1 year. After 1 year, the subscription is automatically cancelled.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Pause shop", onPress: () => pauseMutation.mutate() },
-      ],
-    );
-  }
-
-  async function confirmCancel() {
-    const ok = await confirmDestructive({
-      title: "Cancel subscription?",
-      message: "This shop will lose access at the end of the current period.",
-      cancelLabel: "Keep subscription",
-      confirmLabel: "Cancel at period end",
-    });
-    if (ok) cancelMutation.mutate(true);
-  }
 
   return (
     <ScreenContainer>
@@ -137,25 +48,12 @@ export function SubscriptionSummaryScreen() {
         <Text style={styles.title}>Subscription Summary</Text>
         <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
 
-        {showPauseCapBanner ? (
-          <View style={styles.capBanner}>
-            <Text style={styles.capBannerTitle}>
-              Paused — auto-cancel in {summary?.pauseDaysRemaining} day{summary?.pauseDaysRemaining === 1 ? "" : "s"}
-            </Text>
-            <Text style={styles.capBannerBody}>
-              Resume to keep this shop's subscription on the saved card. After auto-cancel, the
-              subscription must be re-created from scratch.
-            </Text>
-          </View>
-        ) : null}
-
         {summaryQuery.isLoading ? <Skeleton height={20} width="80%" /> : null}
         {summary ? (
           <>
             <Text style={styles.meta}>Plan: {summary.planName || "-"}</Text>
             <Text style={styles.meta}>Status: {summary.status}</Text>
             <Text style={styles.meta}>Billing Cycle: {summary.billingCycle}</Text>
-            <Text style={styles.meta}>Price: GBP {summary.price.toFixed(2)}</Text>
             <Text style={styles.meta}>Current Period Ends: {formatDate(summary.currentPeriodEndsOn)}</Text>
             <Text style={styles.meta}>Trial Ends: {formatDate(summary.trialEndsOn)}</Text>
             <Text style={styles.meta}>Trial Days Remaining: {summary.trialDaysRemaining ?? "-"}</Text>
@@ -185,51 +83,17 @@ export function SubscriptionSummaryScreen() {
             ) : null}
           </>
         ) : null}
-        {canManageSubscription ? (
-          <>
-            <PrimaryButton label="Choose plan" onPress={() => navigation.navigate("ChoosePlan")} disabled={!shopId} />
 
-            {summary && isPaused ? (
-              <PrimaryButton
-                label={resumeMutation.isPending ? "Resuming…" : "Resume shop"}
-                tone="success"
-                onPress={() => resumeMutation.mutate()}
-                disabled={resumeMutation.isPending}
-              />
-            ) : null}
-
-            {summary && !isPaused && !isCancelled && !isCancelledAtPeriodEnd ? (
-              <PrimaryButton
-                label={pauseMutation.isPending ? "Pausing…" : "Pause shop"}
-                tone="neutral"
-                onPress={confirmPause}
-                disabled={pauseMutation.isPending}
-              />
-            ) : null}
-
-            {summary && !isPaused && !isCancelled && !isCancelledAtPeriodEnd ? (
-              <PrimaryButton
-                label={cancelMutation.isPending ? "Cancelling…" : "Cancel subscription"}
-                tone="danger"
-                onPress={confirmCancel}
-                disabled={cancelMutation.isPending}
-              />
-            ) : null}
-
-            {summary && (isCancelled || isCancelledAtPeriodEnd) ? (
-              <PrimaryButton
-                label={reactivateMutation.isPending ? "Reactivating…" : "Reactivate subscription"}
-                tone="success"
-                onPress={() => reactivateMutation.mutate()}
-                disabled={reactivateMutation.isPending}
-              />
-            ) : null}
-          </>
-        ) : (
-          <View style={styles.restrictedNotice}>
-            <Text style={styles.restrictedText}>{SUBSCRIPTION_MANAGE_RESTRICTED_MESSAGE}</Text>
-          </View>
-        )}
+        {isAccountOwner && shopId ? (
+          <PrimaryButton
+            label={emailInfoMutation.isPending ? "Sending…" : "Email me my account info"}
+            onPress={() => emailInfoMutation.mutate()}
+            disabled={emailInfoMutation.isPending}
+          />
+        ) : null}
+        <Text style={styles.managedNote}>
+          Plans and billing are managed by your account owner outside the app.
+        </Text>
       </View>
     </ScreenContainer>
   );
@@ -273,30 +137,9 @@ const styles = StyleSheet.create({
     ...appTheme.typography.caption,
     color: appTheme.colors.textMuted,
   },
-  capBanner: {
-    backgroundColor: appTheme.colors.surfaceWarningSoft,
-    borderRadius: appTheme.radius.sm,
-    borderWidth: 1,
-    borderColor: appTheme.colors.borderWarningSoft,
-    paddingHorizontal: appTheme.spacing.sm,
-    paddingVertical: appTheme.spacing.sm,
-    gap: 4,
-  },
-  capBannerTitle: {
-    ...appTheme.typography.bodyEmphasis,
-    color: appTheme.colors.text,
-  },
-  capBannerBody: {
+  managedNote: {
     ...appTheme.typography.caption,
-    color: appTheme.colors.textMuted,
-  },
-  restrictedNotice: {
-    backgroundColor: appTheme.colors.surfaceInfoMuted,
-    borderRadius: appTheme.radius.sm,
-    padding: appTheme.spacing.sm,
-  },
-  restrictedText: {
-    ...appTheme.typography.body,
-    color: appTheme.colors.textInfoStrong,
+    color: appTheme.colors.textSubtle,
+    marginTop: appTheme.spacing.xs,
   },
 });

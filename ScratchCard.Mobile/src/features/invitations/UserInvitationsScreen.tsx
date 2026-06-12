@@ -138,7 +138,7 @@ export function UserInvitationsScreen() {
           <View style={[styles.seatBadge, seatsExhausted && styles.seatBadgeExhausted]}>
             <Text style={[styles.seatBadgeText, seatsExhausted && styles.seatBadgeTextExhausted]}>
               {seatStatus}
-              {seatsExhausted ? " — upgrade to add more" : ""}
+              {seatsExhausted ? " — seat limit reached" : ""}
             </Text>
           </View>
         ) : null}

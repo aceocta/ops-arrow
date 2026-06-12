@@ -1,10 +1,13 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Models;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Subscriptions;
+using ScratchCard.Domain.Constants;
 using ScratchCard.Domain.Entities;
 using ScratchCard.Domain.Enums;
 
@@ -27,8 +30,19 @@ public class ShopSubscriptionService : IShopSubscriptionService
     private readonly IEmailSender _emailSender;
     private readonly IShopNotificationDispatcher _shopNotificationDispatcher;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IShopMembershipService _shopMembershipService;
+    private readonly IRepository<User> _userRepository;
+    private readonly IMemoryCache _memoryCache;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<ShopSubscriptionService> _logger;
+    private readonly string _billingPortalUrl;
+
+    // Public marketing/web host for billing pages. Matches the host already used by the Stripe
+    // SuccessUrl / CancelUrl / PortalReturnUrl settings (see Stripe section in appsettings.json).
+    private const string DefaultBillingPortalUrl = "https://opsarrow.com/billing";
+
+    // One billing-portal email per user+shop per window. Simple IMemoryCache TTL gate.
+    private static readonly TimeSpan PortalEmailRateLimitWindow = TimeSpan.FromMinutes(10);
 
     public ShopSubscriptionService(
         IRepository<Shop> shopRepository,
@@ -41,8 +55,12 @@ public class ShopSubscriptionService : IShopSubscriptionService
         IEmailSender emailSender,
         IShopNotificationDispatcher shopNotificationDispatcher,
         ICurrentUserService currentUserService,
+        IShopMembershipService shopMembershipService,
+        IRepository<User> userRepository,
+        IMemoryCache memoryCache,
         IUnitOfWork unitOfWork,
-        ILogger<ShopSubscriptionService> logger)
+        ILogger<ShopSubscriptionService> logger,
+        IConfiguration configuration)
     {
         _shopRepository = shopRepository;
         _companyRepository = companyRepository;
@@ -54,8 +72,14 @@ public class ShopSubscriptionService : IShopSubscriptionService
         _emailSender = emailSender;
         _shopNotificationDispatcher = shopNotificationDispatcher;
         _currentUserService = currentUserService;
+        _shopMembershipService = shopMembershipService;
+        _userRepository = userRepository;
+        _memoryCache = memoryCache;
         _unitOfWork = unitOfWork;
         _logger = logger;
+        _billingPortalUrl =
+            configuration["Billing:PortalUrl"]?.Trim()
+            ?? DefaultBillingPortalUrl;
     }
 
     public async Task<ShopSubscriptionSummaryDto> EnsureTrialAsync(Guid shopId, Guid? intendedPlanId = null, CancellationToken cancellationToken = default)
@@ -586,6 +610,102 @@ public class ShopSubscriptionService : IShopSubscriptionService
         }
 
         return await _billingCheckoutService.CreatePortalSessionAsync(company.StripeCustomerId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Emails the calling owner the web billing-portal details for a shop. App Store compliance:
+    /// the iOS app must not link out to external subscription management, but it is allowed to
+    /// send the information by email when the user explicitly asks for it — this is that channel.
+    /// </summary>
+    public async Task SendBillingPortalEmailAsync(Guid shopId, CancellationToken cancellationToken = default)
+    {
+        if (shopId == Guid.Empty)
+        {
+            throw new AppException("validation_failed", "ShopId is required.", 400);
+        }
+
+        var userId = _currentUserService.UserId
+            ?? throw new AppException("unauthorized", "User context missing.", 401);
+
+        // Owner-only (PlatformAdmin bypasses inside the membership service), same gate the other
+        // owner-facing billing operations rely on.
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(
+            shopId, new[] { RoleNames.CompanyOwner }, cancellationToken);
+
+        // One email per user+shop per window — protects the SMTP sender from tap-spam.
+        var rateLimitKey = $"billing-portal-email:{userId:N}:{shopId:N}";
+        if (_memoryCache.TryGetValue(rateLimitKey, out _))
+        {
+            throw new AppException(
+                "rate_limited",
+                "A billing email was sent recently. Please wait a few minutes before requesting another.",
+                429);
+        }
+
+        var shop = await _shopRepository.GetByIdAsync(shopId, cancellationToken)
+            ?? throw new AppException("shop_not_found", "Shop not found.", 404);
+
+        if (shop.CompanyId is null)
+        {
+            throw new AppException("validation_failed", "Shop is not associated with a company.", 400);
+        }
+
+        var company = await _companyRepository.GetByIdAsync(shop.CompanyId.Value, cancellationToken)
+            ?? throw new AppException("company_not_found", "Company not found.", 404);
+
+        var user = await _userRepository.Query()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == userId, cancellationToken);
+
+        var recipient = user?.Email ?? _currentUserService.Email;
+        if (string.IsNullOrWhiteSpace(recipient))
+        {
+            throw new AppException("email_missing", "No email address is on file for your account.", 400);
+        }
+
+        var subscription = await _shopSubscriptionRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId)
+            .OrderByDescending(x => x.CreatedOn)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var plan = subscription?.SubscriptionPlanId is Guid planId
+            ? await _planRepository.GetByIdAsync(planId, cancellationToken)
+            : null;
+
+        var planName = plan?.Name
+            ?? (subscription?.Status == SubscriptionStatus.TrialActive ? "Free Trial" : "No plan selected");
+        var statusLabel = subscription?.Status.ToString() ?? "No subscription on record";
+
+        var hasStripeCustomer =
+            !string.IsNullOrWhiteSpace(company.StripeCustomerId)
+            || !string.IsNullOrWhiteSpace(subscription?.StripeCustomerId);
+
+        var stripeNote = hasStripeCustomer
+            ? "After signing in on the billing page you can update your payment method, view invoices, " +
+              "or cancel your subscription at any time.\n\n"
+            : string.Empty;
+
+        var subject = $"Manage your Ops Arrow subscription — {shop.ShopName}";
+        var body =
+            $"Hi,\n\n" +
+            $"You asked for your Ops Arrow billing details. Subscriptions for your shops are managed " +
+            $"on the Ops Arrow web billing portal:\n\n" +
+            $"{_billingPortalUrl}\n\n" +
+            $"Shop: {shop.ShopName}\n" +
+            $"Current plan: {planName}\n" +
+            $"Status: {statusLabel}\n\n" +
+            stripeNote +
+            $"If you didn't request this email you can safely ignore it.\n\n" +
+            $"Thanks,\nOps Arrow";
+
+        await _emailSender.SendAsync(recipient, subject, body, cancellationToken);
+
+        // Only arm the rate limit once the send succeeded so a transient SMTP failure can be retried.
+        _memoryCache.Set(rateLimitKey, DateTimeOffset.UtcNow, PortalEmailRateLimitWindow);
+
+        _logger.LogInformation(
+            "Billing portal email sent to user {UserId} for shop {ShopId}.", userId, shopId);
     }
 
     public async Task ProcessPauseCapAsync(CancellationToken cancellationToken = default)

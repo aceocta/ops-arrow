@@ -207,6 +207,13 @@ public interface IShopSubscriptionService
     /// every shop subscription in one place.
     /// </summary>
     Task<string> CreatePortalSessionAsync(Guid shopId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Emails the calling owner a link to the web billing portal for the given shop. This is the
+    /// App Store-compliant channel for pointing users at subscription management: the mobile app
+    /// can't link out to external billing directly, but it may send the details by email on the
+    /// user's explicit request. Rate-limited to one email per user+shop per 10 minutes.
+    /// </summary>
+    Task SendBillingPortalEmailAsync(Guid shopId, CancellationToken cancellationToken = default);
 }
 
 public interface ISubscriptionPlanAdminService

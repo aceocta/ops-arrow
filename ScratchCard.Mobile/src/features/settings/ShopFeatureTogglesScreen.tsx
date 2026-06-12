@@ -78,7 +78,7 @@ export function ShopFeatureTogglesScreen() {
           <Ionicons name="information-circle-outline" size={14} color={appTheme.colors.textMuted} />
           <Text style={styles.helperText}>
             Turn off any module your shop does not use. Disabling one module does not affect the others.
-            Re-enable any time. Modules locked by your plan can't be turned on here — upgrade first.
+            Re-enable any time. Modules not included in your plan can't be turned on here.
           </Text>
         </View>
 

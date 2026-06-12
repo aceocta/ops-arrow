@@ -276,7 +276,7 @@ export function BestEntryScreen() {
           icon="grid-outline"
           title="No features enabled yet"
           message={canManageRota
-            ? "This shop has no active modules. Choose a plan or contact support to enable features."
+            ? "This shop has no active modules. Contact support to enable features."
             : "Your manager hasn't enabled any features for you yet. Check back soon."}
         />
       ) : (

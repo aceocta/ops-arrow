@@ -284,6 +284,11 @@ public class PortalSessionRequest
     public Guid ShopId { get; set; }
 }
 
+public class EmailPortalLinkRequest
+{
+    public Guid ShopId { get; set; }
+}
+
 public class GlobalSubscriptionSettingsDto
 {
     public int? DefaultTrialDays { get; set; }

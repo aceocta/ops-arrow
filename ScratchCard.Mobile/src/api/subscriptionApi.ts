@@ -96,7 +96,8 @@ export async function pauseShopSubscription(shopId: string) {
 }
 
 // Resumes a paused shop. Throws with a structured error (status 409, code "subscription_expired")
-// if the Stripe subscription was auto-cancelled — callers should route the user to Choose Plan.
+// if the Stripe subscription was auto-cancelled. Billing management is web-only; the app no
+// longer calls this.
 export async function resumeShopSubscription(shopId: string) {
   const response = await apiClient.post<ApiResponse<ShopSubscriptionSummary>>("/shop-subscription/resume", {
     shopId,
@@ -143,4 +144,14 @@ export async function createBillingPortalSession(shopId: string) {
     { shopId }
   );
   return response.data.data;
+}
+
+// Emails the account owner their billing/account info (consumption-only store model — no
+// purchasing surface in-app). Owner/PlatformAdmin gated server-side; rate-limited to one send
+// per user+shop every 10 minutes (429/400 carry a clear message for the UI to surface).
+export async function emailAccountPortalLink(shopId: string) {
+  const response = await apiClient.post<ApiResponse<null>>("/subscriptions/email-portal-link", {
+    shopId,
+  });
+  return response.data;
 }

@@ -18,7 +18,6 @@ import { ShopSetupScreen } from "../auth/ShopSetupScreen";
 import { getShopSubscriptionSummary } from "../api/subscriptionApi";
 import { InvitationAcceptanceScreen } from "../features/invitations/InvitationAcceptanceScreen";
 import { BillingRequiredScreen } from "../features/subscription/BillingRequiredScreen";
-import { ChoosePlanScreen } from "../features/subscription/ChoosePlanScreen";
 import { SubscriptionSummaryScreen } from "../features/subscription/SubscriptionSummaryScreen";
 import { BarcodeScannerScreen } from "../features/barcode-scanner/BarcodeScannerScreen";
 import { PendingSyncScreen } from "../features/shift-close/PendingSyncScreen";
@@ -53,7 +52,7 @@ export function RootNavigator() {
       void queryClient.invalidateQueries({ queryKey: ["shop-subscription-summary-root"] });
 
       if (payload.kind === "user_seat_limit_reached") {
-        toastError(payload.message ?? "This shop has reached its user seat limit. Upgrade to add more users.", "Seat limit reached");
+        toastError(payload.message ?? "This shop has reached its user seat limit.", "Seat limit reached");
         navigation.navigate("SubscriptionSummary");
         return;
       }
@@ -64,9 +63,9 @@ export function RootNavigator() {
         return;
       }
 
-      // feature_not_in_plan — push to the plan picker so the user can upgrade in-context.
-      toastWarning(payload.message ?? "This feature is not in your current plan.", "Upgrade required");
-      navigation.navigate("ChoosePlan");
+      // feature_not_in_plan — show the read-only subscription summary for context.
+      toastWarning(payload.message ?? "This feature is not in your current plan.", "Feature unavailable");
+      navigation.navigate("SubscriptionSummary");
     });
 
     return () => installSubscriptionErrorHandler(null);
@@ -98,8 +97,8 @@ export function RootNavigator() {
 
   const requiresBillingAction = shouldLoadSubscription && Boolean(subscriptionSummaryQuery.data?.requiresBillingAction);
   const billingMessage = subscriptionSummaryQuery.data?.status === "TrialExpired"
-    ? "Your free trial has ended. Please select a monthly or annual subscription to continue."
-    : "Your subscription is not active. Please choose a plan to continue using the application.";
+    ? "Your free trial has ended. Once a subscription is active, sign in again — or ask your account owner."
+    : "This shop's subscription isn't active. Once it's renewed, sign in again — or ask your account owner.";
 
   return (
     <Stack.Navigator
@@ -153,17 +152,15 @@ export function RootNavigator() {
             name="BillingRequired"
             component={BillingRequiredScreen}
             initialParams={{ message: billingMessage }}
-            options={{ title: "Billing Required" }}
+            options={{ title: "Subscription" }}
           />
           <Stack.Screen name="SubscriptionSummary" component={SubscriptionSummaryScreen} options={{ title: "Subscription Summary" }} />
-          <Stack.Screen name="ChoosePlan" component={ChoosePlanScreen} options={{ title: "Choose Plan" }} />
         </>
       ) : (
         <>
           <Stack.Screen name="MainTabs" component={MainNavigator} options={{ headerShown: false }} />
           <Stack.Screen name="SubscriptionSummary" component={SubscriptionSummaryScreen} options={{ title: "Subscription Summary" }} />
-          <Stack.Screen name="ChoosePlan" component={ChoosePlanScreen} options={{ title: "Choose Plan" }} />
-          <Stack.Screen name="BillingRequired" component={BillingRequiredScreen} options={{ title: "Billing Required" }} />
+          <Stack.Screen name="BillingRequired" component={BillingRequiredScreen} options={{ title: "Subscription" }} />
           <Stack.Screen name="ShopSelector" component={ShopSelectorScreen} options={{ title: "Shop Selector" }} />
           <Stack.Screen
             name="BarcodeScanner"

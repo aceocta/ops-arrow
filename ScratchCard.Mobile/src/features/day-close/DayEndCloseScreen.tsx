@@ -2807,8 +2807,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
               ) : !attachmentsFeature.isLoading ? (
                 <UpgradeNotice
                   feature="scratch_card.attachments"
-                  title="Attachments are a Growth-tier feature"
-                  message="Upload supporting documents (e.g. scanned till receipts) to your day-close from the Growth plan and above."
+                  title="Attachments not included in your plan"
+                  message="Day-close attachments aren't included in this shop's current plan."
                   compact
                 />
               ) : null}

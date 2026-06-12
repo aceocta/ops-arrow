@@ -1619,8 +1619,8 @@ export function ComplianceChecksScreen() {
                     style={[styles.choiceChip, selected ? styles.choiceChipSelected : null, locked ? { opacity: 0.5 } : null]}
                     onPress={() => {
                       if (locked) {
-                        // ChoosePlan lives on the RootStack — cast to bypass the MainStack typing.
-                        (navigation as unknown as { navigate: (route: string) => void }).navigate("ChoosePlan");
+                        // SubscriptionSummary lives on the RootStack — cast to bypass the MainStack typing.
+                        (navigation as unknown as { navigate: (route: string) => void }).navigate("SubscriptionSummary");
                         return;
                       }
                       setFrequency(option);
@@ -2122,8 +2122,8 @@ export function ComplianceChecksScreen() {
                             <View style={{ flex: 1 }}>
                               <UpgradeNotice
                                 feature="compliance.photo_evidence"
-                                title="Attachments are a Pro feature"
-                                message="Upgrade this shop to attach photo evidence to compliance entries."
+                                title="Attachments not included in your plan"
+                                message="Photo evidence isn't included in this shop's current plan."
                                 compact
                               />
                             </View>

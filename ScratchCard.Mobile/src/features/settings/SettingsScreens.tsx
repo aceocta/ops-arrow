@@ -1805,7 +1805,7 @@ export function ShopManagementScreen() {
       {!editingShopId && canCreateShop ? (
         <View style={ui.card}>
           <Text style={styles.sectionTitle}>Subscription Plan</Text>
-          <Text style={styles.caption}>Choose the plan for the new shop. You can upgrade or downgrade later from Subscription.</Text>
+          <Text style={styles.caption}>Choose the plan for the new shop.</Text>
           <SubscriptionPlanPicker
             value={subscriptionPlanId}
             onChange={setSubscriptionPlanId}
@@ -1825,7 +1825,7 @@ export function ShopManagementScreen() {
       {editingShopId ? (
         <View style={ui.card}>
           <Text style={styles.caption}>
-            To change this shop's subscription plan, go to Settings → Account → Subscription &amp; Billing.
+            Plans and billing are managed by your account owner outside the app. View this shop's plan in Settings → Account → Subscription.
           </Text>
         </View>
       ) : null}
@@ -2098,8 +2098,8 @@ export function SettingsScreen() {
     });
     configurationActions.push({
       key: "subscription",
-      title: "Subscription & Billing",
-      description: "View plan, usage, and manage your subscription.",
+      title: "Subscription",
+      description: "View your plan and renewal dates.",
       icon: "card-outline",
       onPress: () => (navigation.getParent() as any)?.navigate("SubscriptionSummary"),
     });

@@ -146,8 +146,8 @@ export function RefusalManagerReviewScreen() {
       <ScreenContainer>
         <UpgradeNotice
           feature="refusal_log.multi_manager_review"
-          title="Multi-entry manager review is a Growth feature"
-          message="Upgrade this shop's plan to review multiple refusal entries together."
+          title="Multi-entry review not included in your plan"
+          message="Reviewing multiple refusal entries together isn't included in this shop's current plan."
         />
       </ScreenContainer>
     );

@@ -7,7 +7,6 @@ export type RootStackParamList = {
   ShopSetup: undefined;
   BillingRequired: { reasonCode?: string; message?: string } | undefined;
   SubscriptionSummary: undefined;
-  ChoosePlan: undefined;
   InvitationAccept: { token?: string } | undefined;
   MainTabs: undefined;
   ShopSelector: undefined;
