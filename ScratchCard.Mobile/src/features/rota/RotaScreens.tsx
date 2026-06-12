@@ -1105,6 +1105,9 @@ export function RotaManageScreen() {
   const [recOut, setRecOut] = useState("17:00");
   // Week layout: by day (default) or by staff. Session-only — resets when the screen remounts.
   const [rotaView, setRotaView] = useState<"day" | "staff">("day");
+  // Free-text filter over the week below the toggle — matches assignee names and assignment
+  // reasons. Render-side only; never touches mutations or the week-stats chips.
+  const [rotaSearch, setRotaSearch] = useState("");
   // Person + date the quick-assign sheet is open for (empty day cells in the by-staff view).
   const [quickAssign, setQuickAssign] = useState<{ name: string; date: string; userId?: string | null; rotaStaffMemberId?: string | null } | null>(null);
 
@@ -1618,6 +1621,60 @@ export function RotaManageScreen() {
         (row.rotaStaffMemberId ? r.rotaStaffMemberId === row.rotaStaffMemberId : Boolean(row.userId) && r.userId === row.userId),
     );
 
+  // Free-text week filter (case-insensitive substring). rotaQRaw keeps the typed casing for the
+  // "No matches" message; rotaQ drives the matching below.
+  const rotaQRaw = rotaSearch.trim();
+  const rotaQ = rotaQRaw.toLowerCase();
+
+  // By-day while searching: each date keeps only shifts with ≥1 assignee whose name or
+  // assignment reason matches; dates left with no matching shifts drop out of the map.
+  const filteredShiftsByDate = useMemo(() => {
+    if (!rotaQ) return shiftsByDate;
+    const matches = (a: RotaAssignee) => a.name.toLowerCase().includes(rotaQ) || (a.reason ?? "").toLowerCase().includes(rotaQ);
+    const map = new Map<string, RotaShift[]>();
+    for (const [date, list] of shiftsByDate) {
+      const matching = list.filter((s) => s.assignees.some(matches));
+      if (matching.length > 0) map.set(date, matching);
+    }
+    return map;
+  }, [shiftsByDate, rotaQ]);
+
+  // By-day while searching: leave chips reduced to people whose name matches.
+  const filteredLeaveByDate = useMemo(() => {
+    if (!rotaQ) return leaveByDate;
+    const map = new Map<string, LeaveRequest[]>();
+    for (const [date, list] of leaveByDate) {
+      const matching = list.filter((r) => r.userName.toLowerCase().includes(rotaQ));
+      if (matching.length > 0) map.set(date, matching);
+    }
+    return map;
+  }, [leaveByDate, rotaQ]);
+
+  // Day cards to render: all seven when not searching, otherwise only days with a matching
+  // shift or a matching person on leave.
+  const visibleWeekDays = useMemo(() => {
+    if (!rotaQ) return weekDays;
+    return weekDays.filter(
+      (date) => (filteredShiftsByDate.get(date)?.length ?? 0) > 0 || (filteredLeaveByDate.get(date)?.length ?? 0) > 0,
+    );
+  }, [weekDays, rotaQ, filteredShiftsByDate, filteredLeaveByDate]);
+
+  // By-staff while searching: person cards whose name matches, or with any assignment this week
+  // whose reason matches. Card content itself stays unfiltered (all seven day rows).
+  const visibleStaffRows = useMemo(() => {
+    if (!rotaQ) return staffWeekRows;
+    return staffWeekRows.filter((row) => {
+      if (row.name.toLowerCase().includes(rotaQ)) return true;
+      for (const list of row.shiftsByDate.values()) {
+        for (const s of list) {
+          const mine = s.assignees.find((a) => assigneePersonKey(a) === row.key);
+          if (mine?.reason && mine.reason.toLowerCase().includes(rotaQ)) return true;
+        }
+      }
+      return false;
+    });
+  }, [staffWeekRows, rotaQ]);
+
   // The day's shift templates for the quick-assign sheet, ordered by start time.
   const sortedTemplates = useMemo(
     () => [...(templatesQuery.data ?? [])].sort((a, b) => a.startTime.localeCompare(b.startTime)),
@@ -1753,11 +1810,39 @@ export function RotaManageScreen() {
         })}
       </View>
 
+      {/* Free-text filter for the week below — names and assignment reasons. */}
+      <View style={[styles.searchBox, styles.rotaSearchBox]}>
+        <Ionicons name="search-outline" size={16} color={appTheme.colors.textMuted} />
+        <TextInput
+          style={styles.searchInput}
+          value={rotaSearch}
+          onChangeText={setRotaSearch}
+          placeholder="Search staff or reason"
+          placeholderTextColor={appTheme.colors.textSubtle}
+        />
+        {rotaSearch.length > 0 ? (
+          <Pressable
+            style={({ pressed }) => (pressed ? styles.searchClearPressed : null)}
+            onPress={() => setRotaSearch("")}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Clear search"
+          >
+            <Ionicons name="close-circle" size={16} color={appTheme.colors.textMuted} />
+          </Pressable>
+        ) : null}
+      </View>
+
       {rotaQuery.isLoading ? <SkeletonList count={5} /> : null}
 
       {/* One row per weekday, Mon–Sun, with its shifts + assigned users. */}
-      {rotaView === "day" ? weekDays.map((date) => {
-        const shifts = shiftsByDate.get(date) ?? [];
+      {rotaView === "day" && rotaQ.length > 0 && visibleWeekDays.length === 0 ? (
+        <View style={ui.card}>
+          <EmptyState icon="search-outline" title="No matches" message={`No staff or reasons match "${rotaQRaw}" this week.`} />
+        </View>
+      ) : null}
+      {rotaView === "day" ? visibleWeekDays.map((date) => {
+        const shifts = filteredShiftsByDate.get(date) ?? [];
         const isToday = date === todayStr;
         return (
           <View key={date} style={[ui.card, styles.dayCard, isToday ? styles.dayCardToday : null]}>
@@ -1785,9 +1870,9 @@ export function RotaManageScreen() {
             </View>
 
             {/* Who's on approved leave this day (Leave Management feature) */}
-            {(leaveByDate.get(date)?.length ?? 0) > 0 ? (
+            {(filteredLeaveByDate.get(date)?.length ?? 0) > 0 ? (
               <View style={styles.leaveChipRow}>
-                {(leaveByDate.get(date) ?? []).map((r) => (
+                {(filteredLeaveByDate.get(date) ?? []).map((r) => (
                   <View key={r.id} style={styles.leaveChip}>
                     <Text style={styles.leaveChipText} numberOfLines={1}>🏖 {r.userName} · {r.type}</Text>
                   </View>
@@ -1796,16 +1881,19 @@ export function RotaManageScreen() {
             ) : null}
 
             {shifts.length === 0 ? (
-              <Pressable
-                style={({ pressed }) => [styles.dayEmptyAdd, pressed ? styles.dayEmptyAddPressed : null]}
-                onPress={() => openAdd(date)}
-                disabled={!shopId}
-                accessibilityRole="button"
-                accessibilityLabel={`Add a shift on ${weekday(date)}`}
-              >
-                <Ionicons name="add-circle-outline" size={16} color={appTheme.colors.textSubtle} />
-                <Text style={styles.dayEmptyAddText}>No shifts — tap to add</Text>
-              </Pressable>
+              // While searching, a shift-less card is leave-only — skip the add prompt.
+              rotaQ ? null : (
+                <Pressable
+                  style={({ pressed }) => [styles.dayEmptyAdd, pressed ? styles.dayEmptyAddPressed : null]}
+                  onPress={() => openAdd(date)}
+                  disabled={!shopId}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Add a shift on ${weekday(date)}`}
+                >
+                  <Ionicons name="add-circle-outline" size={16} color={appTheme.colors.textSubtle} />
+                  <Text style={styles.dayEmptyAddText}>No shifts — tap to add</Text>
+                </Pressable>
+              )
             ) : (
               <View style={styles.rotaTable}>
                 {shifts.map((shift, shiftIdx) => {
@@ -1871,7 +1959,12 @@ export function RotaManageScreen() {
               <EmptyState icon="people-outline" title="No staff to show" message="Add staff or assign people to shifts to see them here." />
             </View>
           ) : null}
-          {staffWeekRows.map((row) => {
+          {!usersQuery.isLoading && staffWeekRows.length > 0 && rotaQ.length > 0 && visibleStaffRows.length === 0 ? (
+            <View style={ui.card}>
+              <EmptyState icon="search-outline" title="No matches" message={`No staff or reasons match "${rotaQRaw}" this week.`} />
+            </View>
+          ) : null}
+          {visibleStaffRows.map((row) => {
             const zeroHours = row.totalHours === 0;
             return (
               <View key={row.key} style={[ui.card, styles.staffWeekCard]}>
@@ -4200,6 +4293,9 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   searchInput: { flex: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 14, padding: 0 },
+  // The week search sits between gap-spaced screen children — drop searchBox's editor margin.
+  rotaSearchBox: { marginTop: 0 },
+  searchClearPressed: { opacity: 0.5 },
   userRow: {
     flexDirection: "row",
     alignItems: "center",
