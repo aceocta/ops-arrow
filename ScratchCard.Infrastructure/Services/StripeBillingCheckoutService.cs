@@ -1,9 +1,11 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Domain.Entities;
+using ScratchCard.Domain.Enums;
 using Stripe;
 using Stripe.Checkout;
 
@@ -19,6 +21,7 @@ public sealed class StripeBillingCheckoutService : IBillingCheckoutService
     private readonly IRepository<Shop> _shopRepository;
     private readonly IRepository<Company> _companyRepository;
     private readonly IRepository<SubscriptionPlan> _planRepository;
+    private readonly IRepository<ShopSubscription> _shopSubscriptionRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly StripeOptions _options;
     private readonly ILogger<StripeBillingCheckoutService> _logger;
@@ -27,6 +30,7 @@ public sealed class StripeBillingCheckoutService : IBillingCheckoutService
         IRepository<Shop> shopRepository,
         IRepository<Company> companyRepository,
         IRepository<SubscriptionPlan> planRepository,
+        IRepository<ShopSubscription> shopSubscriptionRepository,
         IUnitOfWork unitOfWork,
         IOptions<StripeOptions> options,
         ILogger<StripeBillingCheckoutService> logger)
@@ -34,6 +38,7 @@ public sealed class StripeBillingCheckoutService : IBillingCheckoutService
         _shopRepository = shopRepository;
         _companyRepository = companyRepository;
         _planRepository = planRepository;
+        _shopSubscriptionRepository = shopSubscriptionRepository;
         _unitOfWork = unitOfWork;
         _options = options.Value;
         _logger = logger;
@@ -86,6 +91,26 @@ public sealed class StripeBillingCheckoutService : IBillingCheckoutService
         }
 
         var priceId = plan.StripePriceId;
+
+        // Supersede rule: a shop only ever has ONE live Stripe subscription. Starting a fresh
+        // Checkout while a previous subscription is still active is the plan-switch flow — we
+        // proceed, because the webhook that activates the new subscription cancels the old one
+        // immediately (see ShopSubscriptionService.ApplySnapshotAsync), so the customer is
+        // never double-billed.
+        var latestSubscription = await _shopSubscriptionRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shop.Id)
+            .OrderByDescending(x => x.CreatedOn)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (latestSubscription?.Status == SubscriptionStatus.Active
+            && !string.IsNullOrWhiteSpace(latestSubscription.StripeSubscriptionId))
+        {
+            _logger.LogWarning(
+                "Checkout session requested for shop {ShopId} which already has an ACTIVE Stripe subscription " +
+                "{StripeSubscriptionId}. Proceeding (plan switch); the old subscription will be cancelled when " +
+                "the new checkout completes.",
+                shop.Id, latestSubscription.StripeSubscriptionId);
+        }
 
         // Customer-per-Company model: every shop subscription under this company is billed
         // against the same Stripe Customer (one card on file). Lazy-create on first checkout.

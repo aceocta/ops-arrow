@@ -76,6 +76,7 @@ public static class DependencyInjection
         services.AddSingleton<IShopNotificationDispatcher>(provider => provider.GetRequiredService<ShopNotificationBackgroundQueue>());
         services.AddHostedService<ShopNotificationBackgroundService>();
         services.AddHostedService<ShopTrialExpiryBackgroundService>();
+        services.AddHostedService<TrialReminderBackgroundService>();
         services.AddHostedService<TemperatureMissedAlertsBackgroundService>();
         services.AddHostedService<TemperatureLogReminderBackgroundService>();
         services.AddHostedService<ShiftReminderBackgroundService>();

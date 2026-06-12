@@ -1173,6 +1173,8 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(x => x.StripeCustomerId);
             // Background job for the 1-year pause cap scans by (Status, PausedOn).
             entity.HasIndex(x => new { x.Status, x.PausedOn });
+            // Trial-ending reminder sweep: 0 = no reminder sent yet (see TrialReminderStage).
+            entity.Property(x => x.TrialReminderStage).HasDefaultValue(0);
             entity.Property(x => x.Price).HasPrecision(18, 2);
             entity.Property(x => x.PaymentProvider).HasMaxLength(50);
             entity.Property(x => x.ProviderProductId).HasMaxLength(200);

@@ -30,6 +30,14 @@ public class ShopSubscription : AuditableEntity
     /// </summary>
     public DateTimeOffset? PauseCapWarningSentOn { get; set; }
 
+    /// <summary>
+    /// Last trial-ending reminder threshold emailed to the company owners (7, 3 or 1 — days
+    /// before <see cref="TrialEndsOn"/>). Null/0 = no reminder sent yet. The background sweep
+    /// only sends when it crosses a SMALLER threshold than the one recorded here, so each
+    /// stage fires at most once per trial.
+    /// </summary>
+    public int? TrialReminderStage { get; set; }
+
     // Generic provider fields kept for backwards compatibility with the IAP code path.
     public string? PaymentProvider { get; set; }
     public string? ProviderProductId { get; set; }

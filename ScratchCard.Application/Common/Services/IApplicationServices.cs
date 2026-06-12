@@ -197,6 +197,12 @@ public interface IShopSubscriptionService
     /// </summary>
     Task ProcessPauseCapAsync(CancellationToken cancellationToken = default);
     /// <summary>
+    /// Background sweep that emails company owners before a shop's trial ends (7 / 3 / 1 day
+    /// thresholds). Duplicate sends are prevented by ShopSubscription.TrialReminderStage,
+    /// which records the last threshold already emailed.
+    /// </summary>
+    Task ProcessTrialRemindersAsync(CancellationToken cancellationToken = default);
+    /// <summary>
     /// Applies a normalised Stripe subscription event to the matching ShopSubscription. Called
     /// by the Stripe webhook controller after signature verification.
     /// </summary>

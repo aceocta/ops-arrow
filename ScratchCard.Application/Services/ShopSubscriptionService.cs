@@ -32,6 +32,7 @@ public class ShopSubscriptionService : IShopSubscriptionService
     private readonly ICurrentUserService _currentUserService;
     private readonly IShopMembershipService _shopMembershipService;
     private readonly IRepository<User> _userRepository;
+    private readonly IRepository<ShopUser> _shopUserRepository;
     private readonly IMemoryCache _memoryCache;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<ShopSubscriptionService> _logger;
@@ -57,6 +58,7 @@ public class ShopSubscriptionService : IShopSubscriptionService
         ICurrentUserService currentUserService,
         IShopMembershipService shopMembershipService,
         IRepository<User> userRepository,
+        IRepository<ShopUser> shopUserRepository,
         IMemoryCache memoryCache,
         IUnitOfWork unitOfWork,
         ILogger<ShopSubscriptionService> logger,
@@ -74,6 +76,7 @@ public class ShopSubscriptionService : IShopSubscriptionService
         _currentUserService = currentUserService;
         _shopMembershipService = shopMembershipService;
         _userRepository = userRepository;
+        _shopUserRepository = shopUserRepository;
         _memoryCache = memoryCache;
         _unitOfWork = unitOfWork;
         _logger = logger;
@@ -838,6 +841,116 @@ public class ShopSubscriptionService : IShopSubscriptionService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
+    // Trial-ending reminder thresholds, in days before TrialEndsOn. Ordered largest-first so
+    // a long sweep gap (or a short trial) only sends the single most relevant reminder.
+    private static readonly int[] TrialReminderThresholdDays = [7, 3, 1];
+
+    public async Task ProcessTrialRemindersAsync(CancellationToken cancellationToken = default)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var horizon = now.AddDays(TrialReminderThresholdDays[0]);
+
+        var upcoming = await _shopSubscriptionRepository.Query()
+            .Where(x => x.Status == SubscriptionStatus.TrialActive
+                        && x.TrialEndsOn.HasValue
+                        && x.TrialEndsOn.Value > now
+                        && x.TrialEndsOn.Value <= horizon)
+            .ToListAsync(cancellationToken);
+
+        if (upcoming.Count == 0) return;
+
+        foreach (var sub in upcoming)
+        {
+            var daysRemaining = (int)Math.Ceiling((sub.TrialEndsOn!.Value - now).TotalDays);
+
+            // Smallest threshold the trial has already crossed (7 → 3 → 1).
+            var stage = TrialReminderThresholdDays.Where(t => daysRemaining <= t).DefaultIfEmpty(0).Min();
+            if (stage == 0) continue;
+
+            // TrialReminderStage records the last threshold emailed; only fire again once a
+            // strictly smaller threshold is crossed, so each stage sends at most once.
+            var lastSentStage = sub.TrialReminderStage ?? 0;
+            if (lastSentStage != 0 && stage >= lastSentStage) continue;
+
+            try
+            {
+                await SendTrialReminderEmailAsync(sub, daysRemaining, cancellationToken);
+                sub.TrialReminderStage = stage;
+                sub.ModifiedOn = now;
+            }
+            catch (Exception ex)
+            {
+                // Stage not advanced, so the next sweep retries. Log so a tenant whose sends
+                // keep failing gets noticed.
+                _logger.LogError(ex,
+                    "TrialReminder: email failed for shop {ShopId}. Will retry on next sweep.",
+                    sub.ShopId);
+            }
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Plain-text heads-up to the company owner(s) of a shop whose trial is about to end.
+    /// Recipients are the shop's active CompanyOwner members; falls back to the company email
+    /// when no owner has an address on file.
+    /// </summary>
+    private async Task SendTrialReminderEmailAsync(ShopSubscription sub, int daysRemaining, CancellationToken cancellationToken)
+    {
+        var shop = await _shopRepository.GetByIdAsync(sub.ShopId, cancellationToken);
+        var shopLabel = shop?.ShopName ?? sub.ShopId.ToString();
+
+        var ownerEmails = await _shopUserRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == sub.ShopId
+                        && x.IsActive
+                        && x.Role.Name == RoleNames.CompanyOwner
+                        && x.User.Email != null
+                        && x.User.Email != "")
+            .Select(x => x.User.Email!)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        if (ownerEmails.Count == 0)
+        {
+            var company = await _companyRepository.GetByIdAsync(sub.CompanyId, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(company?.Email))
+            {
+                ownerEmails.Add(company.Email);
+            }
+        }
+
+        if (ownerEmails.Count == 0)
+        {
+            _logger.LogWarning(
+                "TrialReminder: no owner or company email on file for shop {ShopId} (company {CompanyId}); skipping.",
+                sub.ShopId, sub.CompanyId);
+            return;
+        }
+
+        var dayWord = daysRemaining == 1 ? "day" : "days";
+        var subject = $"Your Ops Arrow trial for {shopLabel} ends in {daysRemaining} {dayWord}";
+        var body =
+            $"Hi,\n\n" +
+            $"The free trial for shop \"{shopLabel}\" ends on {sub.TrialEndsOn:yyyy-MM-dd}.\n\n" +
+            $"To keep using Ops Arrow without interruption, choose a plan and set up billing on the " +
+            $"Ops Arrow web billing portal:\n\n" +
+            $"{_billingPortalUrl}\n\n" +
+            $"If you don't subscribe before the trial ends, the shop switches to read-only access — " +
+            $"your data stays safe and everything unlocks again as soon as you subscribe.\n\n" +
+            $"Thanks,\nOps Arrow";
+
+        foreach (var email in ownerEmails)
+        {
+            await _emailSender.SendAsync(email, subject, body, cancellationToken);
+        }
+
+        _logger.LogInformation(
+            "TrialReminder: {Days}-day reminder sent for shop {ShopId} to {RecipientCount} owner(s).",
+            daysRemaining, sub.ShopId, ownerEmails.Count);
+    }
+
     /// <summary>
     /// Single application point for any state we got from Stripe — whether via a webhook or a
     /// refresh. Maps Stripe status + cancel_at_period_end onto our SubscriptionStatus enum,
@@ -849,6 +962,48 @@ public class ShopSubscriptionService : IShopSubscriptionService
         StripeSubscriptionSnapshot snapshot,
         CancellationToken cancellationToken)
     {
+        // Supersede rule: a shop has at most ONE live Stripe subscription. A plan switch goes
+        // through a fresh Checkout Session, so when the activating webhook lands for a NEW
+        // Stripe subscription while this row still points at a different live one, the old
+        // subscription must be cancelled in Stripe immediately or the customer is billed
+        // twice. v1: cancel without proration credit — just log it for support.
+        var previousStripeSubscriptionId = subscription.StripeSubscriptionId;
+        var isDifferentSubscription =
+            !string.IsNullOrWhiteSpace(previousStripeSubscriptionId)
+            && !string.Equals(previousStripeSubscriptionId, snapshot.Id, StringComparison.Ordinal);
+        if (isDifferentSubscription)
+        {
+            var incomingStatus = MapStripeStatusToSubscriptionStatus(snapshot.Status);
+            if (incomingStatus is SubscriptionStatus.Cancelled or SubscriptionStatus.Expired)
+            {
+                // Event for a SUPERSEDED subscription (typically the deleted webhook fired by
+                // our own cancel below). Don't let it clobber the live subscription's state.
+                _logger.LogInformation(
+                    "Stripe {EventType} for superseded subscription {OldSubId} ignored; shop {ShopId} is now on {NewSubId}.",
+                    eventType, snapshot.Id, subscription.ShopId, previousStripeSubscriptionId);
+                return;
+            }
+
+            try
+            {
+                await _billingCheckoutService.CancelSubscriptionAsync(
+                    previousStripeSubscriptionId!, cancelAtPeriodEnd: false, cancellationToken);
+                _logger.LogWarning(
+                    "Plan switch for shop {ShopId}: old Stripe subscription {OldSubId} cancelled immediately " +
+                    "(no proration credit, v1) and superseded by {NewSubId}.",
+                    subscription.ShopId, previousStripeSubscriptionId, snapshot.Id);
+            }
+            catch (Exception ex)
+            {
+                // Adopt the new subscription regardless — the local row must follow the money.
+                // Log loudly so support can cancel the orphaned subscription by hand.
+                _logger.LogError(ex,
+                    "Plan switch for shop {ShopId}: failed to cancel old Stripe subscription {OldSubId} " +
+                    "before adopting {NewSubId}. Cancel it manually in the Stripe dashboard.",
+                    subscription.ShopId, previousStripeSubscriptionId, snapshot.Id);
+            }
+        }
+
         if (snapshot.PlanId.HasValue)
         {
             var matchedPlan = await _planRepository.GetByIdAsync(snapshot.PlanId.Value, cancellationToken);
@@ -878,6 +1033,19 @@ public class ShopSubscriptionService : IShopSubscriptionService
         if (!string.IsNullOrWhiteSpace(snapshot.CustomerId))
         {
             subscription.StripeCustomerId = snapshot.CustomerId;
+
+            // Backfill the company-level Stripe customer when it's missing. Checkout normally
+            // creates/reuses it up front, but if the row predates that (or the save was lost)
+            // the billing portal would stay locked — the webhook is the source of truth here.
+            var company = await _companyRepository.GetByIdAsync(subscription.CompanyId, cancellationToken);
+            if (company is not null && string.IsNullOrWhiteSpace(company.StripeCustomerId))
+            {
+                company.StripeCustomerId = snapshot.CustomerId;
+                company.ModifiedOn = DateTimeOffset.UtcNow;
+                _logger.LogInformation(
+                    "Stripe customer {CustomerId} backfilled onto company {CompanyId} from {EventType}.",
+                    snapshot.CustomerId, subscription.CompanyId, eventType);
+            }
         }
         subscription.ProviderSubscriptionId = snapshot.Id;
         subscription.PaymentProvider = "stripe";
