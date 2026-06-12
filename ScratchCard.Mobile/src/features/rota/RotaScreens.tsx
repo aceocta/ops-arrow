@@ -1098,6 +1098,9 @@ export function RotaManageScreen() {
   // Person id (userId ?? rotaStaffMemberId) whose reason chip row is expanded — one at a time.
   const [expandedReasonKey, setExpandedReasonKey] = useState<string | null>(null);
   const [selectedAssignee, setSelectedAssignee] = useState<{ assignee: RotaAssignee; shift: RotaShift } | null>(null);
+  // The assignee sheet opens as a simple action menu; the reason editor is a second step so the
+  // sheet never shows every control at once.
+  const [assigneeSheetMode, setAssigneeSheetMode] = useState<"menu" | "reason">("menu");
   // Reason/note being edited in the contact sheet for the selected assignee — reset on open.
   const [assigneeMeta, setAssigneeMeta] = useState<AssignmentMeta>({ reason: REGULAR_REASON, note: "" });
   const [recordTarget, setRecordTarget] = useState<{ shift: RotaShift; name: string; memberId?: string | null; userId?: string | null } | null>(null);
@@ -1347,6 +1350,7 @@ export function RotaManageScreen() {
   // current assignment (null reason = regular shift).
   const openAssigneeSheet = (assignee: RotaAssignee, shift: RotaShift) => {
     setAssigneeMeta({ reason: assignee.reason ?? REGULAR_REASON, note: assignee.note ?? "" });
+    setAssigneeSheetMode("menu");
     setSelectedAssignee({ assignee, shift });
   };
 
@@ -2420,99 +2424,134 @@ export function RotaManageScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.modalTitleSm}>{selectedAssignee?.assignee.name}</Text>
-                <Text style={styles.muted}>{selectedAssignee?.assignee.isExternal ? "External staff" : "Team member"}</Text>
+                <Text style={styles.muted}>
+                  {selectedAssignee
+                    ? `${selectedAssignee.shift.shiftName} · ${shortTime(selectedAssignee.shift.startTime)}–${shortTime(selectedAssignee.shift.endTime)}`
+                    : ""}
+                </Text>
               </View>
             </View>
 
-            {selectedAssignee?.assignee.phone ? (
-              <Pressable style={styles.contactRow} onPress={() => Linking.openURL(`tel:${selectedAssignee.assignee.phone}`)}>
-                <Ionicons name="call-outline" size={18} color={appTheme.colors.primary} />
-                <Text style={styles.contactValue}>{selectedAssignee.assignee.phone}</Text>
-                <Ionicons name="chevron-forward" size={16} color={appTheme.colors.textMuted} />
-              </Pressable>
-            ) : null}
-            {selectedAssignee?.assignee.email ? (
-              <Pressable style={styles.contactRow} onPress={() => Linking.openURL(`mailto:${selectedAssignee.assignee.email}`)}>
-                <Ionicons name="mail-outline" size={18} color={appTheme.colors.primary} />
-                <Text style={styles.contactValue} numberOfLines={1}>{selectedAssignee.assignee.email}</Text>
-                <Ionicons name="chevron-forward" size={16} color={appTheme.colors.textMuted} />
-              </Pressable>
-            ) : null}
-            {!selectedAssignee?.assignee.phone && !selectedAssignee?.assignee.email ? (
-              <Text style={styles.muted}>No contact details on file.</Text>
-            ) : null}
-
-            {/* Per-person assignment reason — the same chips + "Other…" control as the shift editor. */}
-            <Text style={styles.fieldLabel}>Reason</Text>
-            <View style={styles.reasonPickRow}>
-              {ASSIGNMENT_REASONS.map((r) => {
-                const active = !sheetReasonIsOther && assigneeMeta.reason === r;
-                return (
-                  <Pressable
-                    key={r}
-                    style={({ pressed }) => [styles.reasonPickChip, active ? styles.reasonPickChipActive : null, pressed ? styles.chipPressed : null]}
-                    onPress={() => setAssigneeMeta((m) => ({ ...m, reason: r }))}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Set ${selectedAssignee?.assignee.name ?? "this person"}'s reason to ${r}`}
-                  >
-                    <Text style={[styles.reasonPickText, active ? styles.reasonPickTextActive : null]}>{r}</Text>
+            {assigneeSheetMode === "menu" ? (
+              <>
+                {selectedAssignee?.assignee.phone ? (
+                  <Pressable style={styles.contactRow} onPress={() => Linking.openURL(`tel:${selectedAssignee.assignee.phone}`)}>
+                    <Ionicons name="call-outline" size={18} color={appTheme.colors.primary} />
+                    <Text style={styles.contactValue}>{selectedAssignee.assignee.phone}</Text>
+                    <Ionicons name="chevron-forward" size={16} color={appTheme.colors.textMuted} />
                   </Pressable>
-                );
-              })}
-              <Pressable
-                style={({ pressed }) => [styles.reasonPickChip, sheetReasonIsOther ? styles.reasonPickChipActive : null, pressed ? styles.chipPressed : null]}
-                onPress={() => { if (!sheetReasonIsOther) setAssigneeMeta((m) => ({ ...m, reason: "" })); }}
-                accessibilityRole="button"
-                accessibilityLabel={`Set a custom reason for ${selectedAssignee?.assignee.name ?? "this person"}`}
-              >
-                <Text style={[styles.reasonPickText, sheetReasonIsOther ? styles.reasonPickTextActive : null]}>Other…</Text>
-              </Pressable>
-            </View>
-            {sheetReasonIsOther ? (
-              <TextInput
-                style={[styles.externalInput, styles.reasonInput]}
-                value={assigneeMeta.reason}
-                onChangeText={(v) => setAssigneeMeta((m) => ({ ...m, reason: v }))}
-                placeholder="Reason"
-                placeholderTextColor={appTheme.colors.textSubtle}
-                maxLength={100}
-              />
-            ) : null}
-            {!sheetReasonIsRegular ? (
-              <TextInput
-                style={[styles.externalInput, styles.reasonInput]}
-                value={assigneeMeta.note}
-                onChangeText={(v) => setAssigneeMeta((m) => ({ ...m, note: v }))}
-                placeholder="Note (optional)"
-                placeholderTextColor={appTheme.colors.textSubtle}
-                maxLength={300}
-              />
-            ) : null}
-            <PrimaryButton
-              label={assigneeReasonMutation.isPending ? "Saving…" : "Save reason"}
-              onPress={() => assigneeReasonMutation.mutate()}
-              disabled={!assigneeMetaChanged || assigneeReasonMutation.isPending || removeAssigneeMutation.isPending}
-            />
+                ) : null}
+                {selectedAssignee?.assignee.email ? (
+                  <Pressable style={styles.contactRow} onPress={() => Linking.openURL(`mailto:${selectedAssignee.assignee.email}`)}>
+                    <Ionicons name="mail-outline" size={18} color={appTheme.colors.primary} />
+                    <Text style={styles.contactValue} numberOfLines={1}>{selectedAssignee.assignee.email}</Text>
+                    <Ionicons name="chevron-forward" size={16} color={appTheme.colors.textMuted} />
+                  </Pressable>
+                ) : null}
 
-            <PrimaryButton
-              label="Record hours"
-              onPress={() => {
-                const sel = selectedAssignee;
-                setSelectedAssignee(null);
-                if (sel) openRecordHours(sel.shift, sel.assignee);
-              }}
-            />
-            <Pressable
-              style={({ pressed }) => [styles.editorDeleteBtn, pressed ? styles.userRowPressed : null]}
-              onPress={() => void confirmRemoveAssignee()}
-              disabled={removeAssigneeMutation.isPending || assigneeReasonMutation.isPending}
-              accessibilityRole="button"
-              accessibilityLabel={`Remove ${selectedAssignee?.assignee.name ?? "this person"} from this shift`}
-            >
-              <Ionicons name="person-remove-outline" size={16} color={appTheme.colors.danger} />
-              <Text style={styles.editorDeleteText}>{removeAssigneeMutation.isPending ? "Removing…" : "Remove from this shift"}</Text>
-            </Pressable>
-            <PrimaryButton label="Close" tone="neutral" onPress={() => setSelectedAssignee(null)} />
+                {/* One row per task — the reason editor and hours recorder open as their own steps. */}
+                <Pressable
+                  style={({ pressed }) => [styles.contactRow, pressed ? styles.userRowPressed : null]}
+                  onPress={() => {
+                    const a = selectedAssignee?.assignee;
+                    setAssigneeMeta({ reason: a?.reason ?? REGULAR_REASON, note: a?.note ?? "" });
+                    setAssigneeSheetMode("reason");
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Change ${selectedAssignee?.assignee.name ?? "this person"}'s reason for this shift`}
+                >
+                  <Ionicons name="pricetag-outline" size={18} color={appTheme.colors.primary} />
+                  <Text style={styles.contactValue}>Reason</Text>
+                  <Text
+                    style={[styles.sheetRowValue, selectedAssignee?.assignee.reason ? styles.sheetRowValueInfo : null]}
+                    numberOfLines={1}
+                  >
+                    {selectedAssignee?.assignee.reason ?? REGULAR_REASON}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={16} color={appTheme.colors.textMuted} />
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [styles.contactRow, pressed ? styles.userRowPressed : null]}
+                  onPress={() => {
+                    const sel = selectedAssignee;
+                    setSelectedAssignee(null);
+                    if (sel) openRecordHours(sel.shift, sel.assignee);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Record hours for ${selectedAssignee?.assignee.name ?? "this person"}`}
+                >
+                  <Ionicons name="time-outline" size={18} color={appTheme.colors.primary} />
+                  <Text style={styles.contactValue}>Record hours</Text>
+                  <Ionicons name="chevron-forward" size={16} color={appTheme.colors.textMuted} />
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [styles.editorDeleteBtn, pressed ? styles.userRowPressed : null]}
+                  onPress={() => void confirmRemoveAssignee()}
+                  disabled={removeAssigneeMutation.isPending}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove ${selectedAssignee?.assignee.name ?? "this person"} from this shift`}
+                >
+                  <Ionicons name="person-remove-outline" size={16} color={appTheme.colors.danger} />
+                  <Text style={styles.editorDeleteText}>{removeAssigneeMutation.isPending ? "Removing…" : "Remove from this shift"}</Text>
+                </Pressable>
+                <PrimaryButton label="Close" tone="neutral" onPress={() => setSelectedAssignee(null)} />
+              </>
+            ) : (
+              <>
+                {/* Reason step — same chips + "Other…" control as the shift editor. */}
+                <Text style={styles.fieldLabel}>Reason for this shift</Text>
+                <View style={styles.reasonPickRow}>
+                  {ASSIGNMENT_REASONS.map((r) => {
+                    const active = !sheetReasonIsOther && assigneeMeta.reason === r;
+                    return (
+                      <Pressable
+                        key={r}
+                        style={({ pressed }) => [styles.reasonPickChip, active ? styles.reasonPickChipActive : null, pressed ? styles.chipPressed : null]}
+                        onPress={() => setAssigneeMeta((m) => ({ ...m, reason: r }))}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Set ${selectedAssignee?.assignee.name ?? "this person"}'s reason to ${r}`}
+                      >
+                        <Text style={[styles.reasonPickText, active ? styles.reasonPickTextActive : null]}>{r}</Text>
+                      </Pressable>
+                    );
+                  })}
+                  <Pressable
+                    style={({ pressed }) => [styles.reasonPickChip, sheetReasonIsOther ? styles.reasonPickChipActive : null, pressed ? styles.chipPressed : null]}
+                    onPress={() => { if (!sheetReasonIsOther) setAssigneeMeta((m) => ({ ...m, reason: "" })); }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Set a custom reason for ${selectedAssignee?.assignee.name ?? "this person"}`}
+                  >
+                    <Text style={[styles.reasonPickText, sheetReasonIsOther ? styles.reasonPickTextActive : null]}>Other…</Text>
+                  </Pressable>
+                </View>
+                {sheetReasonIsOther ? (
+                  <TextInput
+                    style={[styles.externalInput, styles.reasonInput]}
+                    value={assigneeMeta.reason}
+                    onChangeText={(v) => setAssigneeMeta((m) => ({ ...m, reason: v }))}
+                    placeholder="Reason"
+                    placeholderTextColor={appTheme.colors.textSubtle}
+                    maxLength={100}
+                  />
+                ) : null}
+                {!sheetReasonIsRegular ? (
+                  <TextInput
+                    style={[styles.externalInput, styles.reasonInput]}
+                    value={assigneeMeta.note}
+                    onChangeText={(v) => setAssigneeMeta((m) => ({ ...m, note: v }))}
+                    placeholder="Note (optional)"
+                    placeholderTextColor={appTheme.colors.textSubtle}
+                    maxLength={300}
+                  />
+                ) : null}
+                <PrimaryButton
+                  label={assigneeReasonMutation.isPending ? "Saving…" : "Save reason"}
+                  onPress={() => assigneeReasonMutation.mutate()}
+                  disabled={!assigneeMetaChanged || assigneeReasonMutation.isPending}
+                />
+                <PrimaryButton label="Back" tone="neutral" onPress={() => setAssigneeSheetMode("menu")} disabled={assigneeReasonMutation.isPending} />
+              </>
+            )}
           </View>
         </View>
         </KeyboardAvoidingView>
@@ -4077,6 +4116,8 @@ const styles = StyleSheet.create({
   memberCard: { flexDirection: "row", alignItems: "center", gap: 12 },
   contactRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
   contactValue: { flex: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 15 },
+  sheetRowValue: { maxWidth: 150, color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
+  sheetRowValueInfo: { color: appTheme.colors.textInfoStrong },
   dayCard: { gap: 8 },
   dayCardToday: { borderWidth: 1, borderColor: appTheme.colors.primary },
   dayCardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
