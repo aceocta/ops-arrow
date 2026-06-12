@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import { Link } from "react-router-dom";
 import { rotaApi, fmtDate, shortTime, sessionIsos, type TimesheetRow, type TimesheetReviewRow, type TimesheetReviewStatus, type TimesheetSession } from "../../lib/rota";
+import { leaveApi } from "../../lib/leave";
 import { downloadCsv } from "../../lib/csv";
 import { apiErrorMessage } from "../../lib/api";
 import { confirmDialog, toast } from "../../components/feedback";
@@ -27,11 +28,23 @@ function hm(hours: number) {
   const m = Math.round(hours * 60);
   return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
 }
+const lh = (hours: number) => `${Number(hours.toFixed(2))}h`;
+
+// Leave hours within the range, as "Holiday 8h" segments (paid types sky, unpaid slate).
+function leaveSegments(r: TimesheetRow) {
+  const segs: { label: string; paid: boolean }[] = [];
+  if (r.holidayHours) segs.push({ label: `Holiday ${lh(r.holidayHours)}`, paid: true });
+  if (r.sickHours) segs.push({ label: `Sick ${lh(r.sickHours)}`, paid: true });
+  if (r.otherLeaveHours) segs.push({ label: `Other leave ${lh(r.otherLeaveHours)}`, paid: true });
+  if (r.unpaidLeaveHours) segs.push({ label: `Unpaid ${lh(r.unpaidLeaveHours)}`, paid: false });
+  return segs;
+}
 
 export default function TimesheetsPage() {
   const { activeShopId, features, isOwner, isManager } = useAuth();
   const shopId = activeShopId!;
   const showCost = features.includes("staff_rota.labour_cost");
+  const showLeave = features.includes("LeaveManagement");
   const canManage = isOwner || isManager;
   const canRecord = canManage && features.includes("staff_rota.manual_approval");
   const gbp = (n: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n || 0);
@@ -104,9 +117,16 @@ export default function TimesheetsPage() {
     if (view === "staff") {
       downloadCsv(
         `timesheet-by-staff_${range.from}_${range.to}`,
-        ["Staff", "External", "Shifts worked", "Open sessions", "Total hours", "Reasons", ...(showCost ? ["Wage", "Pending wage"] : [])],
+        [
+          "Staff", "External", "Shifts worked", "Open sessions", "Total hours", "Reasons",
+          ...(showLeave ? ["Holiday hours", "Sick hours", "Other leave hours", "Unpaid leave hours"] : []),
+          ...(showCost ? ["Wage", "Pending wage"] : []),
+        ],
         (staffQ.data ?? []).map((r) => [
           r.userName, r.isExternal ? "Yes" : "", r.shiftsWorked, r.openSessions, r.totalHours.toFixed(2), r.reasons?.join("; ") ?? "",
+          ...(showLeave
+            ? [(r.holidayHours ?? 0).toFixed(2), (r.sickHours ?? 0).toFixed(2), (r.otherLeaveHours ?? 0).toFixed(2), (r.unpaidLeaveHours ?? 0).toFixed(2)]
+            : []),
           ...(showCost ? [r.labourCost != null ? r.labourCost.toFixed(2) : "", (r.pendingLabourCost ?? 0).toFixed(2)] : []),
         ]),
       );
@@ -230,6 +250,16 @@ export default function TimesheetsPage() {
                     <span className="font-medium text-slate-800">{r.userName}</span>
                     {r.isExternal ? <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">External</span> : null}
                     {r.reasons?.length ? <div className="text-xs font-medium text-sky-700">{r.reasons.join(" · ")}</div> : null}
+                    {showLeave && leaveSegments(r).length > 0 ? (
+                      <div className="text-xs font-medium">
+                        {leaveSegments(r).map((s, i) => (
+                          <span key={s.label}>
+                            {i > 0 ? <span className="text-slate-300"> · </span> : null}
+                            <span className={s.paid ? "text-sky-700" : "text-slate-500"}>{s.label}</span>
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                   </td>
                   <td className="px-5 py-3 text-slate-700">{r.shiftsWorked}{r.openSessions > 0 ? ` (+${r.openSessions})` : ""}</td>
                   <td className="px-5 py-3 font-medium text-slate-800">{hm(r.totalHours)}</td>
@@ -319,7 +349,7 @@ export default function TimesheetsPage() {
       )}
 
       {selected ? (
-        <StaffSessions shopId={shopId} row={selected.row} from={range.from} to={range.to} canManage={canManage} onClose={() => setSelected(null)} />
+        <StaffSessions shopId={shopId} row={selected.row} from={range.from} to={range.to} canManage={canManage} showLeave={showLeave} onClose={() => setSelected(null)} />
       ) : null}
 
       {recordOpen ? <RecordHoursModal shopId={shopId} onClose={() => setRecordOpen(false)} /> : null}
@@ -725,6 +755,7 @@ function StaffSessions({
   from,
   to,
   canManage,
+  showLeave,
   onClose,
 }: {
   shopId: string;
@@ -732,6 +763,7 @@ function StaffSessions({
   from: string;
   to: string;
   canManage: boolean;
+  showLeave: boolean;
   onClose: () => void;
 }) {
   const qc = useQueryClient();
@@ -739,6 +771,13 @@ function StaffSessions({
     queryKey: ["ts-sessions", shopId, row.userId, row.rotaStaffMemberId, from, to],
     queryFn: () => rotaApi.staffSessions(shopId, { userId: row.userId, rotaStaffMemberId: row.rotaStaffMemberId }, from, to),
   });
+  // Approved leave days for this person in the range — shown after worked sessions.
+  const leaveQ = useQuery({
+    queryKey: ["ts-leave-days", shopId, row.userId, row.rotaStaffMemberId, from, to],
+    queryFn: () => leaveApi.days(shopId, { userId: row.userId, rotaStaffMemberId: row.rotaStaffMemberId }, from, to),
+    enabled: showLeave,
+  });
+  const leaveDays = showLeave ? leaveQ.data ?? [] : [];
 
   // Per-row chosen end time for open sessions, defaulting to "now".
   const [defaultEnd] = useState(() => new Date().toTimeString().slice(0, 5));
@@ -772,7 +811,9 @@ function StaffSessions({
         </div>
         <div className="max-h-[60vh] divide-y divide-slate-100 overflow-auto">
           {q.isLoading ? <div className="py-6 text-center text-sm text-slate-500">Loading…</div> : null}
-          {!q.isLoading && (q.data?.length ?? 0) === 0 ? <div className="py-6 text-center text-sm text-slate-400">No sessions.</div> : null}
+          {!q.isLoading && (q.data?.length ?? 0) === 0 && leaveDays.length === 0 ? (
+            <div className="py-6 text-center text-sm text-slate-400">No sessions.</div>
+          ) : null}
           {(q.data ?? []).map((s) => (
             <div key={s.id} className="flex items-center justify-between py-3">
               <div>
@@ -803,6 +844,18 @@ function StaffSessions({
               ) : (
                 <div className="text-sm font-semibold text-slate-800">open</div>
               )}
+            </div>
+          ))}
+          {/* Approved leave days (LeaveManagement) — listed after worked sessions. */}
+          {leaveDays.map((d, i) => (
+            <div key={`leave-${d.date}-${i}`} className="flex items-center justify-between py-3">
+              <div>
+                <div className="text-sm font-medium text-slate-800">{dayLabel(d.date)}</div>
+                <div className={clsx("text-xs font-medium", d.isPaid ? "text-sky-700" : "text-slate-500")}>
+                  {d.type}{!d.isPaid && d.type !== "Unpaid" ? " (unpaid)" : ""}
+                </div>
+              </div>
+              <div className="text-sm font-semibold text-slate-800">{lh(d.hours)}</div>
             </div>
           ))}
         </div>

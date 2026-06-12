@@ -57,6 +57,7 @@ public static class DependencyInjection
         services.AddScoped<IReportService, ReportService>();
         services.AddScoped<IOwnerOverviewService, OwnerOverviewService>();
         services.AddScoped<IRotaService, RotaService>();
+        services.AddScoped<ILeaveService, LeaveService>();
         services.AddScoped<INotificationLogService, NotificationLogService>();
         services.AddScoped<ILookupService, LookupService>();
         services.AddScoped<ITemperatureLogService, TemperatureLogService>();

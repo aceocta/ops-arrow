@@ -63,6 +63,11 @@ export type TimesheetRow = {
   pendingLabourCost?: number | null;
   /** Distinct non-regular assignment reasons across the range (e.g. "Cover", "Overtime"). */
   reasons?: string[];
+  // Approved leave hours within the range (LeaveManagement module; absent when disabled).
+  holidayHours?: number;
+  sickHours?: number;
+  otherLeaveHours?: number;
+  unpaidLeaveHours?: number;
 };
 export type ShiftTimesheetRow = {
   shiftName: string;

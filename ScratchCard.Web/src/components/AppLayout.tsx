@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { useQuery } from "@tanstack/react-query";
-import { rotaApi } from "../lib/rota";
+import { rotaApi, fmtDate, addDays } from "../lib/rota";
+import { leaveApi } from "../lib/leave";
 import {
   LayoutDashboard,
   CalendarDays,
+  CalendarOff,
   Clock,
   CheckCheck,
   UsersRound,
@@ -42,6 +44,7 @@ const NAV: NavGroup[] = [
       { to: "/timesheets", label: "Timesheets", icon: Clock, feature: "StaffRota" },
       { to: "/timesheets/rates", label: "Pay Rates", icon: PoundSterling, feature: "staff_rota.labour_cost" },
       { to: "/approvals", label: "Time Approvals", icon: CheckCheck, feature: "staff_rota.manual_approval" },
+      { to: "/leave", label: "Leave", icon: CalendarOff, feature: "LeaveManagement" },
       { to: "/shift-swaps", label: "Shift Swaps", icon: ArrowLeftRight, feature: "staff_rota.shift_swap" },
       { to: "/staff", label: "External Staff", icon: UsersRound, feature: "StaffRota" },
     ],
@@ -147,6 +150,19 @@ export default function AppLayout() {
     refetchInterval: 60_000,
   });
   const pendingCount = pendingQ.data?.length ?? 0;
+
+  // Pending leave requests — wide window because requests can sit well into the future.
+  const leavePendingQ = useQuery({
+    queryKey: ["leave-pending", activeShopId],
+    queryFn: async () => {
+      const today = fmtDate(new Date());
+      const rows = await leaveApi.list(activeShopId!, addDays(today, -180), addDays(today, 366));
+      return rows.filter((r) => r.status === "Pending").length;
+    },
+    enabled: !!activeShopId && features.includes("LeaveManagement"),
+    refetchInterval: 60_000,
+  });
+  const leavePendingCount = leavePendingQ.data ?? 0;
   const name = profile?.displayName || [profile?.firstName, profile?.lastName].filter(Boolean).join(" ") || profile?.email;
 
   return (
@@ -179,6 +195,9 @@ export default function AppLayout() {
                   <span className="flex-1">{i.label}</span>
                   {i.to === "/approvals" && pendingCount > 0 ? (
                     <span className="rounded-full bg-red-500 px-1.5 text-[11px] font-semibold text-white">{pendingCount}</span>
+                  ) : null}
+                  {i.to === "/leave" && leavePendingCount > 0 ? (
+                    <span className="rounded-full bg-red-500 px-1.5 text-[11px] font-semibold text-white">{leavePendingCount}</span>
                   ) : null}
                 </NavLink>
               ))}

@@ -197,6 +197,13 @@ public class TimesheetRowDto
     public decimal? HourlyRate { get; set; }    // current rate (null if labour-cost not entitled / no rate)
     public decimal? LabourCost { get; set; }    // Σ session hours × rate effective on each session's date (all)
     public decimal? PendingLabourCost { get; set; } // portion of LabourCost from unapproved sessions
+    // Approved leave hours (days overlapping the range × hoursPerDay) per leave type. Sick counts
+    // toward SickHours whether paid or not. Paid leave hours are also included in LabourCost at
+    // the person's current rate when the labour-cost feature is enabled.
+    public decimal HolidayHours { get; set; }
+    public decimal SickHours { get; set; }
+    public decimal OtherLeaveHours { get; set; }
+    public decimal UnpaidLeaveHours { get; set; }
     // Distinct non-regular assignment reasons (e.g. "Overtime", "Cover") across this person's
     // sessions in the range, alphabetical. Empty when all sessions were regular/unrostered.
     public List<string> Reasons { get; set; } = [];

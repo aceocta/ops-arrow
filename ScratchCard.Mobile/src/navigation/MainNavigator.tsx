@@ -13,6 +13,7 @@ import { DashboardScreen } from "../features/dashboard/DashboardScreen";
 import { BestEntryScreen } from "../features/entry/BestEntryScreen";
 import { OwnerOverviewScreen } from "../features/dashboard/OwnerOverviewScreen";
 import { MyShiftsScreen, RotaManageScreen, RotaTimesheetScreen, RotaApprovalsScreen, RotaStaffMembersScreen } from "../features/rota/RotaScreens";
+import { LeaveManagementScreen } from "../features/rota/LeaveScreens";
 import { ShiftSwapsScreen } from "../features/rota/ShiftSwapsScreen";
 import { UserInvitationsScreen } from "../features/invitations/UserInvitationsScreen";
 import { DeliveriesScreen } from "../features/deliveries/DeliveriesScreen";
@@ -189,6 +190,7 @@ const shiftItems: MenuItem[] = [
   { label: "External Staff", screen: "RotaStaffMembers", icon: "people-circle-outline", allowedRoles: ["CompanyOwner", "Manager"], requiredFeature: "StaffRota" },
   { label: "Time Approvals", screen: "RotaApprovals", icon: "checkmark-done-outline", allowedRoles: ["CompanyOwner", "Manager"], requiredFeature: "staff_rota.manual_approval" },
   { label: "Timesheet", screen: "RotaTimesheet", icon: "documents-outline", allowedRoles: ["CompanyOwner", "Manager"], requiredFeature: "StaffRota" },
+  { label: "Leave", screen: "LeaveManage", icon: "airplane-outline", allowedRoles: ["CompanyOwner", "Manager"], requiredFeature: "LeaveManagement" },
 ];
 
 // --- Shop (cross-cutting items not tied to a single feature module) ---
@@ -478,6 +480,7 @@ function MainStackScreens() {
       <Stack.Screen name="RotaManage" component={RotaManageScreen} options={{ title: "Shift Rota" }} />
       <Stack.Screen name="RotaTimesheet" component={RotaTimesheetScreen} options={{ title: "Timesheet" }} />
       <Stack.Screen name="RotaApprovals" component={RotaApprovalsScreen} options={{ title: "Time Approvals" }} />
+      <Stack.Screen name="LeaveManage" component={LeaveManagementScreen} options={{ title: "Leave" }} />
       <Stack.Screen name="ShiftSwaps" component={ShiftSwapsScreen} options={{ title: "Shift Swaps" }} />
       <Stack.Screen name="RotaStaffMembers" component={RotaStaffMembersScreen} options={{ title: "External Staff" }} />
       <Stack.Screen name="ShopChecklist" component={ShopChecklistScreen} options={{ title: "Shop Checklist" }} />

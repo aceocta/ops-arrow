@@ -47,6 +47,12 @@ import {
   disputeTimesheetReview,
   resolveTimesheetReview,
   approveTimesheetReview,
+  cancelLeaveRequest,
+  createLeaveRequest,
+  getLeaveBalance,
+  getLeaveDays,
+  getLeaveRequests,
+  getMyLeaveRequests,
   type RotaTimesheetReview,
   type SaveRotaShiftPayload,
 } from "../../api/rotaApi";
@@ -63,7 +69,8 @@ import { formatDayLabel } from "../../utils/dateLabels";
 import { getApiErrorMessage } from "../../utils/apiErrorMessage";
 import { toastError, toastSuccess } from "../../components/toast";
 import { useFeature } from "../subscription/useFeature";
-import { AssignableUser, AttendanceApprovalRow, RotaAssignee, RotaShift, RotaStaffMember, TimesheetSession } from "../../types/models";
+import { AssignableUser, AttendanceApprovalRow, LeaveRequest, LeaveType, RotaAssignee, RotaShift, RotaStaffMember, TimesheetRow, TimesheetSession } from "../../types/models";
+import { LEAVE_TYPES, leavePeriodLabel, parseHours } from "./LeaveScreens";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -236,6 +243,20 @@ function metaFromAssignees(assignees: RotaAssignee[]): Record<string, Assignment
 // The "approved {date}" suffix for a history row — resolvedOn is an ISO timestamp.
 const approvedOnLabel = (resolvedOn?: string) => formatDayLabel(resolvedOn ? resolvedOn.slice(0, 10) : null);
 
+// Compact hours label for leave figures — trims a trailing ".0" ("8h", "7.5h").
+const leaveHoursLabel = (n: number) => `${Number(n.toFixed(1))}h`;
+
+// Non-zero approved-leave segments for a by-staff timesheet row ("Holiday 8h · Sick 4h").
+// Unpaid leave renders muted — it doesn't add paid hours — while the rest use the info-blue style.
+function leaveHourSegments(row: TimesheetRow): Array<{ label: string; muted: boolean }> {
+  const segments: Array<{ label: string; muted: boolean }> = [];
+  if (row.holidayHours) segments.push({ label: `Holiday ${leaveHoursLabel(row.holidayHours)}`, muted: false });
+  if (row.sickHours) segments.push({ label: `Sick ${leaveHoursLabel(row.sickHours)}`, muted: false });
+  if (row.otherLeaveHours) segments.push({ label: `Other leave ${leaveHoursLabel(row.otherLeaveHours)}`, muted: false });
+  if (row.unpaidLeaveHours) segments.push({ label: `Unpaid ${leaveHoursLabel(row.unpaidLeaveHours)}`, muted: true });
+  return segments;
+}
+
 // ---------------------------------------------------------------------------
 // My Shifts + check in/out (staff)
 // ---------------------------------------------------------------------------
@@ -255,6 +276,14 @@ export function MyShiftsScreen() {
   const [expandedReviewId, setExpandedReviewId] = useState<string | null>(null);
   // Past (approved) timesheet periods modal.
   const [pastOpen, setPastOpen] = useState(false);
+  // Leave (gated on the LeaveManagement feature) — request-leave modal state.
+  const leaveFeature = useFeature("LeaveManagement");
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const [leaveType, setLeaveType] = useState<LeaveType>("Holiday");
+  const [leaveStart, setLeaveStart] = useState(() => formatDateValue(new Date()));
+  const [leaveEnd, setLeaveEnd] = useState(() => formatDateValue(new Date()));
+  const [leaveHours, setLeaveHours] = useState("8");
+  const [leaveNote, setLeaveNote] = useState("");
 
   const attendanceQuery = useQuery({
     queryKey: ["rota-attendance", shopId],
@@ -288,6 +317,26 @@ export function MyShiftsScreen() {
     queryFn: () => getMyTimesheetReviewHistory(shopId as string),
     enabled: Boolean(shopId) && pastOpen,
   });
+  // My holiday balance + leave requests — only fetched when Leave Management is enabled.
+  const leaveBalanceQuery = useQuery({
+    queryKey: ["leave-balance", shopId, "mine"],
+    queryFn: () => getLeaveBalance(shopId as string),
+    enabled: Boolean(shopId) && leaveFeature.isAllowed,
+  });
+  const myLeaveQuery = useQuery({
+    queryKey: ["leave-mine", shopId],
+    queryFn: () => getMyLeaveRequests(shopId as string),
+    enabled: Boolean(shopId) && leaveFeature.isAllowed,
+  });
+  const leaveBalance = leaveBalanceQuery.data ?? null;
+  // What's worth showing on the card: anything pending, plus approved/rejected leave that
+  // hasn't finished yet (history stays out of the way).
+  const visibleLeave = useMemo(() => {
+    const today = formatDateValue(new Date());
+    return (myLeaveQuery.data ?? [])
+      .filter((r) => r.status === "Pending" || ((r.status === "Approved" || r.status === "Rejected") && r.endDate >= today))
+      .sort((a, b) => a.startDate.localeCompare(b.startDate));
+  }, [myLeaveQuery.data]);
 
   const current = attendanceQuery.data;
   const isCheckedInSomewhere = Boolean(current && !current.checkOutAt);
@@ -296,6 +345,10 @@ export function MyShiftsScreen() {
     void queryClient.invalidateQueries({ queryKey: ["rota-attendance", shopId] });
     void queryClient.invalidateQueries({ queryKey: ["rota-my-shifts", shopId] });
     void queryClient.invalidateQueries({ queryKey: ["rota-my-reviews", shopId] });
+    if (leaveFeature.isAllowed) {
+      void queryClient.invalidateQueries({ queryKey: ["leave-mine", shopId] });
+      void queryClient.invalidateQueries({ queryKey: ["leave-balance", shopId] });
+    }
   };
 
   const checkInMutation = useMutation({
@@ -340,6 +393,53 @@ export function MyShiftsScreen() {
     },
     onError: (error: unknown) => toastError(getApiErrorMessage(error, "Couldn't send the issue.")),
   });
+
+  const requestLeaveMutation = useMutation({
+    mutationFn: () =>
+      createLeaveRequest({
+        shopId: shopId as string,
+        type: leaveType,
+        startDate: leaveStart,
+        endDate: leaveEnd,
+        hoursPerDay: parseHours(leaveHours) as number,
+        staffNote: leaveNote.trim() || undefined,
+      }),
+    onSuccess: () => {
+      setLeaveOpen(false);
+      toastSuccess("Leave request sent.");
+      void queryClient.invalidateQueries({ queryKey: ["leave-mine", shopId] });
+      void queryClient.invalidateQueries({ queryKey: ["leave-balance", shopId] });
+    },
+    onError: (error: unknown) => toastError(getApiErrorMessage(error, "Couldn't send the leave request.")),
+  });
+  const cancelLeaveMutation = useMutation({
+    mutationFn: (id: string) => cancelLeaveRequest(id),
+    onSuccess: () => {
+      toastSuccess("Leave request cancelled.");
+      void queryClient.invalidateQueries({ queryKey: ["leave-mine", shopId] });
+      void queryClient.invalidateQueries({ queryKey: ["leave-balance", shopId] });
+    },
+    onError: (error: unknown) => toastError(getApiErrorMessage(error, "Couldn't cancel the leave request.")),
+  });
+
+  const openRequestLeave = () => {
+    setLeaveType("Holiday");
+    const today = formatDateValue(new Date());
+    setLeaveStart(today);
+    setLeaveEnd(today);
+    setLeaveHours(String(leaveBalance?.usualHoursPerDay ?? 8));
+    setLeaveNote("");
+    setLeaveOpen(true);
+  };
+  const startCancelLeave = async (r: LeaveRequest) => {
+    const ok = await confirmDestructive({
+      title: "Cancel request",
+      message: `Cancel your ${r.type.toLowerCase()} leave request for ${formatDayLabel(r.startDate)}${r.endDate !== r.startDate ? ` – ${formatDayLabel(r.endDate)}` : ""}?`,
+      confirmLabel: "Cancel request",
+      cancelLabel: "Keep",
+    });
+    if (ok) cancelLeaveMutation.mutate(r.id);
+  };
 
   const startConfirmReview = async (r: RotaTimesheetReview) => {
     const ok = await confirmDestructive({
@@ -600,6 +700,66 @@ export function MyShiftsScreen() {
           </Pressable>
         )}
 
+        {/* Leave — balance, upcoming/pending requests and a way to ask for more */}
+        {leaveFeature.isAllowed ? (
+          <View style={[ui.card, styles.reviewCard]}>
+            <View style={styles.reviewCardHeader}>
+              <Ionicons name="airplane-outline" size={16} color={appTheme.colors.primary} />
+              <Text style={styles.sectionTitle}>Leave</Text>
+            </View>
+
+            {leaveBalance ? (
+              <Text style={styles.leaveBalanceText}>
+                Holiday left: {leaveBalance.remainingHours.toFixed(0)}h of {leaveBalance.entitledHours.toFixed(0)}h
+              </Text>
+            ) : leaveBalanceQuery.isSuccess ? (
+              <Text style={styles.mutedSmall}>No holiday allowance set yet — ask your manager.</Text>
+            ) : null}
+
+            {myLeaveQuery.isLoading ? <LoadingState inline /> : null}
+            {myLeaveQuery.isSuccess && visibleLeave.length === 0 ? (
+              <Text style={styles.mutedSmall}>No upcoming or pending leave.</Text>
+            ) : null}
+
+            {visibleLeave.map((r) => {
+              const badge =
+                r.status === "Pending"
+                  ? { label: "Pending", tone: "neutral" as const }
+                  : r.status === "Approved"
+                    ? { label: "Approved", tone: "success" as const }
+                    : { label: "Rejected", tone: "danger" as const };
+              const cancellingThis = cancelLeaveMutation.isPending && cancelLeaveMutation.variables === r.id;
+              return (
+                <View key={r.id} style={styles.reviewRow}>
+                  <View style={styles.reviewRowTop}>
+                    <Text style={styles.reviewPeriod}>
+                      <Text style={styles.reasonText}>{r.type}</Text> · {leavePeriodLabel(r)}
+                    </Text>
+                    <StatusBadge label={badge.label} tone={badge.tone} />
+                  </View>
+                  {r.status !== "Pending" && r.managerNote ? (
+                    <Text style={styles.mutedSmall}>Manager: {r.managerNote}</Text>
+                  ) : null}
+                  {r.status === "Pending" ? (
+                    <Pressable
+                      style={({ pressed }) => [styles.actGhost, styles.reviewGhostBtn, pressed ? styles.actGhostPressed : null]}
+                      onPress={() => void startCancelLeave(r)}
+                      disabled={cancelLeaveMutation.isPending}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Cancel your ${r.type} leave request starting ${formatDayLabel(r.startDate)}`}
+                    >
+                      <Ionicons name="close-circle-outline" size={16} color={appTheme.colors.primary} />
+                      <Text style={styles.actGhostText}>{cancellingThis ? "Cancelling…" : "Cancel request"}</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              );
+            })}
+
+            <PrimaryButton label="Request leave" icon="airplane-outline" onPress={openRequestLeave} disabled={!shopId} />
+          </View>
+        ) : null}
+
         {/* Date range */}
         <View style={[ui.card, styles.rangeCard]}>
           <View style={styles.rangeTopRow}>
@@ -753,6 +913,99 @@ export function MyShiftsScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* Request leave */}
+      <Modal visible={leaveOpen} transparent animationType="fade" onRequestClose={() => setLeaveOpen(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <View style={styles.sheetBackdrop}>
+          <View style={styles.sheetCard}>
+            <View style={styles.sheetHeader}>
+              <View style={styles.sheetIcon}>
+                <Ionicons name="airplane-outline" size={22} color={appTheme.colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitleSm}>Request leave</Text>
+                <Text style={styles.muted} numberOfLines={1}>
+                  {leaveBalance ? `Holiday left: ${leaveBalance.remainingHours.toFixed(0)}h of ${leaveBalance.entitledHours.toFixed(0)}h` : "Sent to your manager for approval"}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.fieldLabel}>Type</Text>
+            <View style={styles.chipRow}>
+              {LEAVE_TYPES.map((t) => {
+                const active = leaveType === t;
+                return (
+                  <Pressable
+                    key={t}
+                    style={({ pressed }) => [styles.chip, active ? styles.chipActive : null, pressed ? styles.chipPressed : null]}
+                    onPress={() => setLeaveType(t)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Set the leave type to ${t}`}
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>{t}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={styles.row}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.fieldLabel}>First day</Text>
+                <DateTimeField
+                  mode="date"
+                  value={leaveStart}
+                  onChange={(v) => {
+                    setLeaveStart(v);
+                    setLeaveEnd((e) => (e < v ? v : e));
+                  }}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.fieldLabel}>Last day</Text>
+                <DateTimeField mode="date" value={leaveEnd} onChange={setLeaveEnd} />
+              </View>
+            </View>
+            {leaveEnd < leaveStart ? (
+              <Text style={[styles.mutedSmall, { color: appTheme.colors.danger }]}>The last day can't be before the first day.</Text>
+            ) : null}
+
+            <Text style={styles.fieldLabel}>Hours per day</Text>
+            <TextInput
+              style={styles.externalInput}
+              value={leaveHours}
+              onChangeText={setLeaveHours}
+              placeholder={String(leaveBalance?.usualHoursPerDay ?? 8)}
+              placeholderTextColor={appTheme.colors.textSubtle}
+              keyboardType="decimal-pad"
+              maxLength={5}
+            />
+            {parseHours(leaveHours) === null ? (
+              <Text style={[styles.mutedSmall, { color: appTheme.colors.danger }]}>Enter the hours each leave day counts for.</Text>
+            ) : null}
+
+            <Text style={styles.fieldLabel}>Note (optional)</Text>
+            <TextInput
+              style={[styles.externalInput, styles.noteInput]}
+              value={leaveNote}
+              onChangeText={setLeaveNote}
+              placeholder="Anything your manager should know"
+              placeholderTextColor={appTheme.colors.textSubtle}
+              multiline
+              maxLength={500}
+            />
+
+            <PrimaryButton
+              label={requestLeaveMutation.isPending ? "Sending…" : "Send request"}
+              onPress={() => requestLeaveMutation.mutate()}
+              disabled={requestLeaveMutation.isPending || leaveEnd < leaveStart || parseHours(leaveHours) === null}
+            />
+            <PrimaryButton label="Cancel" tone="neutral" onPress={() => setLeaveOpen(false)} disabled={requestLeaveMutation.isPending} />
+          </View>
+        </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       {/* Past (approved) timesheet periods */}
       <Modal visible={pastOpen} transparent animationType="slide" onRequestClose={() => setPastOpen(false)}>
         <View style={styles.sheetBackdrop}>
@@ -862,6 +1115,57 @@ export function RotaManageScreen() {
     () => (weekTimesheetQuery.data ?? []).reduce((sum, r) => sum + r.openSessions, 0),
     [weekTimesheetQuery.data],
   );
+
+  // Approved leave for the displayed week (one range call, filtered client-side) — drives the
+  // day-card "who's off" chips. (The shift editor has its own draft-date query below.) Rota stays
+  // fully functional when Leave Management isn't on the plan: the query simply never runs.
+  const leaveFeature = useFeature("LeaveManagement");
+  const weekLeaveQuery = useQuery({
+    queryKey: ["leave", shopId, range.from, range.to],
+    queryFn: () => getLeaveRequests(shopId as string, range.from, range.to),
+    enabled: Boolean(shopId) && leaveFeature.isAllowed,
+    staleTime: 60_000,
+  });
+  const approvedWeekLeave = useMemo(
+    () => (weekLeaveQuery.data ?? []).filter((r) => r.status === "Approved"),
+    [weekLeaveQuery.data],
+  );
+  // Approved leave per displayed day, for the day-card chips.
+  const leaveByDate = useMemo(() => {
+    const map = new Map<string, LeaveRequest[]>();
+    for (const r of approvedWeekLeave) {
+      for (const date of weekDays) {
+        if (date >= r.startDate && date <= r.endDate) {
+          const list = map.get(date) ?? [];
+          list.push(r);
+          map.set(date, list);
+        }
+      }
+    }
+    return map;
+  }, [approvedWeekLeave, weekDays]);
+  // Approved leave for the editor's draft date specifically — the date field can move
+  // draft.shiftDate outside the displayed week, so the editor can't rely on the week query.
+  const editorLeaveQuery = useQuery({
+    queryKey: ["leave", shopId, draft.shiftDate],
+    queryFn: () => getLeaveRequests(shopId as string, draft.shiftDate, draft.shiftDate),
+    enabled: Boolean(shopId) && editorOpen && Boolean(draft.shiftDate) && leaveFeature.isAllowed,
+    staleTime: 60_000,
+  });
+  const editorApprovedLeave = useMemo(
+    () => (editorLeaveQuery.data ?? []).filter((r) => r.status === "Approved"),
+    [editorLeaveQuery.data],
+  );
+  // Does this person have approved leave covering the draft's date? Backed by the draft-date
+  // query above so it stays accurate for any picked date. The server enforces the block too
+  // (rota_assignee_on_leave) — this is the friendly front line.
+  const personOnLeave = (u: AssignableUser) =>
+    editorApprovedLeave.some(
+      (r) =>
+        draft.shiftDate >= r.startDate &&
+        draft.shiftDate <= r.endDate &&
+        (u.rotaStaffMemberId ? r.rotaStaffMemberId === u.rotaStaffMemberId : Boolean(u.userId) && r.userId === u.userId),
+    );
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["rota", shopId] });
 
@@ -1241,6 +1545,17 @@ export function RotaManageScreen() {
               </Pressable>
             </View>
 
+            {/* Who's on approved leave this day (Leave Management feature) */}
+            {(leaveByDate.get(date)?.length ?? 0) > 0 ? (
+              <View style={styles.leaveChipRow}>
+                {(leaveByDate.get(date) ?? []).map((r) => (
+                  <View key={r.id} style={styles.leaveChip}>
+                    <Text style={styles.leaveChipText} numberOfLines={1}>🏖 {r.userName} · {r.type}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
             {shifts.length === 0 ? (
               <Pressable
                 style={({ pressed }) => [styles.dayEmptyAdd, pressed ? styles.dayEmptyAddPressed : null]}
@@ -1419,7 +1734,15 @@ export function RotaManageScreen() {
                               <Text style={styles.userAvatarText}>{initials(u.name)}</Text>
                             </View>
                             <View style={{ flex: 1 }}>
-                              <Text style={styles.userName} numberOfLines={1}>{u.name}</Text>
+                              <View style={styles.userNameRow}>
+                                <Text style={styles.userName} numberOfLines={1}>{u.name}</Text>
+                                {personOnLeave(u) ? (
+                                  <View style={styles.onLeaveTag}>
+                                    <Ionicons name="airplane-outline" size={11} color={appTheme.colors.textWarningStrong} />
+                                    <Text style={styles.onLeaveTagText}>On leave</Text>
+                                  </View>
+                                ) : null}
+                              </View>
                               <Text style={styles.muted}>{u.isExternal ? "External" : u.role}</Text>
                               <Pressable
                                 style={({ pressed }) => [styles.reasonChip, !isRegular ? styles.reasonChipInfo : null, pressed ? styles.userRowPressed : null]}
@@ -1493,24 +1816,44 @@ export function RotaManageScreen() {
                       {q ? "No staff match your search." : "Everyone available is already assigned."}
                     </Text>
                   ) : null}
-                  {available.map((u) => (
-                    <Pressable
-                      key={keyOf(u)}
-                      style={({ pressed }) => [styles.userRow, pressed ? styles.userRowPressed : null]}
-                      onPress={() => toggleAssignee(u)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Assign ${u.name} to this shift`}
-                    >
-                      <View style={styles.userAvatar}>
-                        <Text style={styles.userAvatarText}>{initials(u.name)}</Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.userName} numberOfLines={1}>{u.name}</Text>
-                        <Text style={styles.muted}>{u.isExternal ? "External" : u.role}</Text>
-                      </View>
-                      <Ionicons name="add-circle-outline" size={24} color={appTheme.colors.primary} />
-                    </Pressable>
-                  ))}
+                  {available.map((u) => {
+                    // Approved leave on the draft's date blocks assigning — the row is muted,
+                    // the add icon becomes the leave tag, and tapping explains instead of adding.
+                    const onLeave = personOnLeave(u);
+                    return (
+                      <Pressable
+                        key={keyOf(u)}
+                        style={({ pressed }) => [styles.userRow, onLeave ? styles.userRowOnLeave : null, pressed && !onLeave ? styles.userRowPressed : null]}
+                        onPress={() => {
+                          if (onLeave) {
+                            toastError(`${u.name} is on approved leave that day.`);
+                            return;
+                          }
+                          toggleAssignee(u);
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel={onLeave ? `${u.name} is on approved leave that day` : `Assign ${u.name} to this shift`}
+                      >
+                        <View style={styles.userAvatar}>
+                          <Text style={styles.userAvatarText}>{initials(u.name)}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <View style={styles.userNameRow}>
+                            <Text style={styles.userName} numberOfLines={1}>{u.name}</Text>
+                          </View>
+                          <Text style={styles.muted}>{u.isExternal ? "External" : u.role}</Text>
+                        </View>
+                        {onLeave ? (
+                          <View style={styles.onLeaveTag}>
+                            <Ionicons name="airplane-outline" size={11} color={appTheme.colors.textWarningStrong} />
+                            <Text style={styles.onLeaveTagText}>On leave</Text>
+                          </View>
+                        ) : (
+                          <Ionicons name="add-circle-outline" size={24} color={appTheme.colors.primary} />
+                        )}
+                      </Pressable>
+                    );
+                  })}
 
                   {/* Add someone who isn't an Ops Arrow user (external / casual). */}
                   <Pressable
@@ -1723,6 +2066,14 @@ export function RotaTimesheetScreen() {
     queryFn: () => getStaffSessions(shopId as string, { userId: selectedStaff!.userId, rotaStaffMemberId: selectedStaff!.rotaStaffMemberId }, range.from, range.to),
     enabled: Boolean(shopId) && Boolean(selectedStaff),
   });
+  // Approved leave days for the drilled-into person — rendered alongside their sessions.
+  const leaveFeature = useFeature("LeaveManagement");
+  const staffLeaveDaysQuery = useQuery({
+    queryKey: ["leave-days", shopId, selectedStaff?.userId, selectedStaff?.rotaStaffMemberId, range.from, range.to],
+    queryFn: () => getLeaveDays(shopId as string, { userId: selectedStaff!.userId, rotaStaffMemberId: selectedStaff!.rotaStaffMemberId }, range.from, range.to),
+    enabled: Boolean(shopId) && Boolean(selectedStaff) && leaveFeature.isAllowed,
+  });
+  const staffLeaveDays = staffLeaveDaysQuery.data ?? [];
   const shiftSessionsQuery = useQuery({
     queryKey: ["rota-shift-sessions", shopId, selectedShift?.shiftName, selectedShift?.date],
     queryFn: () => getShiftSessions(shopId as string, selectedShift!.shiftName, selectedShift!.date, selectedShift!.date),
@@ -1944,9 +2295,16 @@ export function RotaTimesheetScreen() {
     mutationFn: async () => {
       const lines: string[] = [];
       if (view === "staff") {
-        lines.push(["Staff", "Shifts worked", "Open sessions", "Hours", "Reasons"].map(csvField).join(","));
+        // Leave-hour columns ride along only when the Leave Management feature is on the plan.
+        const withLeave = leaveFeature.isAllowed;
+        const leaveHeaders = withLeave ? ["Holiday hours", "Sick hours", "Other leave hours", "Unpaid leave hours"] : [];
+        const leaveValues = (r: TimesheetRow) =>
+          withLeave
+            ? [(r.holidayHours ?? 0).toFixed(1), (r.sickHours ?? 0).toFixed(1), (r.otherLeaveHours ?? 0).toFixed(1), (r.unpaidLeaveHours ?? 0).toFixed(1)]
+            : [];
+        lines.push(["Staff", "Shifts worked", "Open sessions", "Hours", "Reasons", ...leaveHeaders].map(csvField).join(","));
         for (const r of staffRows) {
-          lines.push([r.userName, r.shiftsWorked, r.openSessions, r.totalHours.toFixed(1), r.reasons?.join("; ") ?? ""].map(csvField).join(","));
+          lines.push([r.userName, r.shiftsWorked, r.openSessions, r.totalHours.toFixed(1), r.reasons?.join("; ") ?? "", ...leaveValues(r)].map(csvField).join(","));
         }
         lines.push(
           [
@@ -1955,6 +2313,14 @@ export function RotaTimesheetScreen() {
             staffRows.reduce((s, r) => s + r.openSessions, 0),
             staffRows.reduce((s, r) => s + r.totalHours, 0).toFixed(1),
             "",
+            ...(withLeave
+              ? [
+                  staffRows.reduce((s, r) => s + (r.holidayHours ?? 0), 0).toFixed(1),
+                  staffRows.reduce((s, r) => s + (r.sickHours ?? 0), 0).toFixed(1),
+                  staffRows.reduce((s, r) => s + (r.otherLeaveHours ?? 0), 0).toFixed(1),
+                  staffRows.reduce((s, r) => s + (r.unpaidLeaveHours ?? 0), 0).toFixed(1),
+                ]
+              : []),
           ].map(csvField).join(","),
         );
       } else {
@@ -2234,6 +2600,15 @@ export function RotaTimesheetScreen() {
                       {row.reasons?.length ? (
                         <Text style={[styles.tdSub, styles.reasonText]} numberOfLines={1}>{row.reasons.join(" · ")}</Text>
                       ) : null}
+                      {leaveFeature.isAllowed && leaveHourSegments(row).length > 0 ? (
+                        <Text style={styles.tdSub} numberOfLines={1}>
+                          {leaveHourSegments(row).map((seg, i) => (
+                            <Text key={seg.label} style={seg.muted ? null : styles.reasonText}>
+                              {i > 0 ? " · " : ""}{seg.label}
+                            </Text>
+                          ))}
+                        </Text>
+                      ) : null}
                     </View>
                     <Text style={styles.tdNum}>{row.shiftsWorked}{row.openSessions > 0 ? ` (+${row.openSessions})` : ""}</Text>
                     <Text style={styles.tdNum}>{row.totalHours.toFixed(1)}</Text>
@@ -2287,8 +2662,8 @@ export function RotaTimesheetScreen() {
               </Pressable>
             </View>
 
-            {sessionsQuery.isLoading ? <LoadingState inline /> : null}
-            {!sessionsQuery.isLoading && (sessionsQuery.data?.length ?? 0) === 0 ? (
+            {sessionsQuery.isLoading || (leaveFeature.isAllowed && staffLeaveDaysQuery.isLoading) ? <LoadingState inline /> : null}
+            {!sessionsQuery.isLoading && !staffLeaveDaysQuery.isLoading && (sessionsQuery.data?.length ?? 0) === 0 && staffLeaveDays.length === 0 ? (
               <Text style={styles.muted}>No sessions in this range.</Text>
             ) : null}
 
@@ -2390,6 +2765,19 @@ export function RotaTimesheetScreen() {
                       </View>
                     </View>
                   ) : null}
+                </View>
+              ))}
+              {/* Approved leave days in the range (Leave Management feature) */}
+              {staffLeaveDays.map((d) => (
+                <View key={`${d.leaveRequestId}-${d.date}`} style={styles.sessionRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.sessionDate}>{dayLabel(d.date)}</Text>
+                    <Text style={styles.muted} numberOfLines={1}>
+                      <Text style={styles.reasonText}>{d.type === "Other" ? "Other leave" : `${d.type} leave`}</Text>
+                      {d.isPaid ? "" : "  · unpaid"}
+                    </Text>
+                  </View>
+                  <Text style={styles.sessionHours}>{leaveHoursLabel(d.hours)}</Text>
                 </View>
               ))}
             </ScrollView>
@@ -3088,6 +3476,28 @@ const styles = StyleSheet.create({
   },
   reasonTagText: { color: appTheme.colors.textInfoStrong, fontFamily: appTheme.fonts.bodyMedium, fontSize: 10, lineHeight: 14 },
   rotaActionCol: { width: 28, alignItems: "flex-end" },
+  // Approved-leave chips on a rota day card (info-blue, like other informational tags).
+  leaveChipRow: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
+  leaveChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surfaceInfoSoft,
+    maxWidth: "100%",
+  },
+  leaveChipText: { color: appTheme.colors.textInfoStrong, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11, lineHeight: 15 },
+  // "On leave" hint next to a person in the shift editor — warn, don't block.
+  userNameRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  onLeaveTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surfaceWarningSoft,
+  },
+  onLeaveTagText: { color: appTheme.colors.textWarningStrong, fontFamily: appTheme.fonts.bodyMedium, fontSize: 10, lineHeight: 14 },
   weekShiftRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
   weekShiftBar: { width: 3, alignSelf: "stretch", borderRadius: 2, backgroundColor: appTheme.colors.primary },
   weekShiftTitle: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
@@ -3316,6 +3726,8 @@ const styles = StyleSheet.create({
     borderBottomColor: appTheme.colors.borderSoft,
   },
   userRowPressed: { opacity: 0.6 },
+  // Available-list row for someone on approved leave that day — visible but not selectable.
+  userRowOnLeave: { opacity: 0.5 },
   userAvatar: {
     width: 38,
     height: 38,
@@ -3365,6 +3777,8 @@ const styles = StyleSheet.create({
   reasonPickTextActive: { color: appTheme.colors.primary },
   reasonInput: { minHeight: 38, paddingVertical: 8, fontSize: 13 },
 
+  // Leave card on My Shifts.
+  leaveBalanceText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 19 },
   // Timesheet review card on My Shifts (staff sign-off of a period).
   reviewCard: { gap: appTheme.spacing.sm },
   reviewCardHeader: { flexDirection: "row", alignItems: "center", gap: 6 },

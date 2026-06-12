@@ -63,6 +63,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<ShiftAttendance> ShiftAttendances => Set<ShiftAttendance>();
     public DbSet<RotaTimesheetLock> RotaTimesheetLocks => Set<RotaTimesheetLock>();
     public DbSet<RotaTimesheetReview> RotaTimesheetReviews => Set<RotaTimesheetReview>();
+    public DbSet<LeaveRequest> LeaveRequests => Set<LeaveRequest>();
+    public DbSet<StaffLeaveEntitlement> StaffLeaveEntitlements => Set<StaffLeaveEntitlement>();
     public DbSet<SignupEmailVerification> SignupEmailVerifications => Set<SignupEmailVerification>();
     public DbSet<ShopChecklistGroup> ShopChecklistGroups => Set<ShopChecklistGroup>();
     public DbSet<ShopChecklistTask> ShopChecklistTasks => Set<ShopChecklistTask>();
@@ -842,6 +844,29 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.NoAction);
             entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.NoAction);
             entity.HasOne(x => x.ResolvedByUser).WithMany().HasForeignKey(x => x.ResolvedByUserId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        modelBuilder.Entity<LeaveRequest>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.StartDate });
+            entity.HasIndex(x => new { x.ShopId, x.UserId, x.Status });
+            entity.Property(x => x.HoursPerDay).HasPrecision(5, 2);
+            entity.Property(x => x.StaffNote).HasMaxLength(500);
+            entity.Property(x => x.ManagerNote).HasMaxLength(500);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.RotaStaffMember).WithMany().HasForeignKey(x => x.RotaStaffMemberId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.DecidedByUser).WithMany().HasForeignKey(x => x.DecidedByUserId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        modelBuilder.Entity<StaffLeaveEntitlement>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.UserId, x.RotaStaffMemberId, x.YearStart }).IsUnique();
+            entity.Property(x => x.EntitledHours).HasPrecision(9, 2);
+            entity.Property(x => x.UsualHoursPerDay).HasPrecision(5, 2);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.RotaStaffMember).WithMany().HasForeignKey(x => x.RotaStaffMemberId).OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<ShopChecklistGroup>(entity =>

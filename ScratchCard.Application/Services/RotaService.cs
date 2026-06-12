@@ -23,6 +23,7 @@ public class RotaService : IRotaService
     private readonly IRepository<StaffPayRate> _payRateRepository;
     private readonly IRepository<RotaTimesheetLock> _timesheetLockRepository;
     private readonly IRepository<RotaTimesheetReview> _timesheetReviewRepository;
+    private readonly IRepository<LeaveRequest> _leaveRequestRepository;
     private readonly IRepository<ShopUser> _shopUserRepository;
     private readonly IRepository<BusinessDay> _businessDayRepository;
     private readonly IRepository<UserPushToken> _pushTokenRepository;
@@ -41,6 +42,7 @@ public class RotaService : IRotaService
         IRepository<StaffPayRate> payRateRepository,
         IRepository<RotaTimesheetLock> timesheetLockRepository,
         IRepository<RotaTimesheetReview> timesheetReviewRepository,
+        IRepository<LeaveRequest> leaveRequestRepository,
         IRepository<ShopUser> shopUserRepository,
         IRepository<BusinessDay> businessDayRepository,
         IRepository<UserPushToken> pushTokenRepository,
@@ -58,6 +60,7 @@ public class RotaService : IRotaService
         _payRateRepository = payRateRepository;
         _timesheetLockRepository = timesheetLockRepository;
         _timesheetReviewRepository = timesheetReviewRepository;
+        _leaveRequestRepository = leaveRequestRepository;
         _shopUserRepository = shopUserRepository;
         _businessDayRepository = businessDayRepository;
         _pushTokenRepository = pushTokenRepository;
@@ -152,6 +155,14 @@ public class RotaService : IRotaService
 
     private static int Minutes(TimeOnly t) => (t.Hour * 60) + t.Minute;
 
+    // Inclusive day count of the overlap between [start, end] and [from, to] (0 when disjoint).
+    private static int OverlapDays(DateOnly start, DateOnly end, DateOnly from, DateOnly to)
+    {
+        var s = start > from ? start : from;
+        var e = end < to ? end : to;
+        return e < s ? 0 : e.DayNumber - s.DayNumber + 1;
+    }
+
     // Two shift windows on the same day overlap (overnight windows extend past midnight).
     private static bool Overlaps(TimeOnly aStart, TimeOnly aEnd, TimeOnly bStart, TimeOnly bEnd)
     {
@@ -198,6 +209,40 @@ public class RotaService : IRotaService
         {
             throw new AppException("rota_overlapping_shift",
                 $"This person is already on the {clash.ShiftName} shift ({clash.StartTime:HH:mm}–{clash.EndTime:HH:mm}) on this day.");
+        }
+    }
+
+    // Someone with approved leave covering the shift date can't be (newly) assigned to it.
+    // Callers pass only the people being added — update saves exclude current assignees so a
+    // later-approved leave never makes an existing shift uneditable. Single batched query;
+    // no feature gate needed (no leave records → no effect).
+    private async Task EnsureNoApprovedLeaveAsync(
+        Guid shopId, DateOnly shiftDate,
+        IReadOnlyCollection<Guid> userIds, IReadOnlyCollection<Guid> rotaStaffMemberIds,
+        CancellationToken cancellationToken)
+    {
+        if (userIds.Count == 0 && rotaStaffMemberIds.Count == 0)
+        {
+            return;
+        }
+
+        var onLeave = await _leaveRequestRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId && x.Status == LeaveRequestStatus.Approved
+                && x.StartDate <= shiftDate && x.EndDate >= shiftDate
+                && ((x.UserId != null && userIds.Contains(x.UserId.Value))
+                    || (x.RotaStaffMemberId != null && rotaStaffMemberIds.Contains(x.RotaStaffMemberId.Value))))
+            .Select(x => new
+            {
+                Name = x.User != null
+                    ? x.User.FirstName + " " + x.User.LastName
+                    : x.RotaStaffMember != null ? x.RotaStaffMember.Name : "This person",
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (onLeave is not null)
+        {
+            throw new AppException("rota_assignee_on_leave",
+                $"{onLeave.Name.Trim()} is on approved leave on {shiftDate:d MMM yyyy} and can't be assigned.", 400);
         }
     }
 
@@ -280,6 +325,10 @@ public class RotaService : IRotaService
             desired.Where(d => d.UserId != null).Select(d => d.UserId!.Value),
             desired.Where(d => d.RotaStaffMemberId != null).Select(d => d.RotaStaffMemberId!.Value),
             null, cancellationToken);
+        await EnsureNoApprovedLeaveAsync(request.ShopId, request.ShiftDate,
+            desired.Where(d => d.UserId != null).Select(d => d.UserId!.Value).ToList(),
+            desired.Where(d => d.RotaStaffMemberId != null).Select(d => d.RotaStaffMemberId!.Value).ToList(),
+            cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
         var startTime = TimeOnly.FromTimeSpan(template.StartTime);
@@ -350,6 +399,17 @@ public class RotaService : IRotaService
             x => x.Assignments.Select(a => (a.UserId, a.RotaStaffMemberId)).ToList(),
             StringComparer.OrdinalIgnoreCase);
 
+        // Approved leave covering the target week — don't copy an assignment onto a day the
+        // person is off (leave data only; no LeaveManagement feature coupling).
+        var approvedLeave = await _leaveRequestRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId && x.Status == LeaveRequestStatus.Approved
+                && x.StartDate <= weekEnd && x.EndDate >= weekStart)
+            .Select(x => new { x.UserId, x.RotaStaffMemberId, x.StartDate, x.EndDate })
+            .ToListAsync(cancellationToken);
+        bool OnApprovedLeave(Guid? userId, Guid? memberId, DateOnly date) => approvedLeave.Any(l =>
+            l.UserId == userId && l.RotaStaffMemberId == memberId && l.StartDate <= date && l.EndDate >= date);
+
         var created = new List<Guid>();
         for (var offset = 0; offset < 7; offset++)
         {
@@ -381,6 +441,7 @@ public class RotaService : IRotaService
                 {
                     foreach (var (userId, memberId) in assignees)
                     {
+                        if (OnApprovedLeave(userId, memberId, date)) continue; // person is on leave that day
                         await _assignmentRepository.AddAsync(new ShiftAssignment
                         {
                             RotaShiftId = shift.Id,
@@ -414,6 +475,15 @@ public class RotaService : IRotaService
             desired.Where(d => d.UserId != null).Select(d => d.UserId!.Value),
             desired.Where(d => d.RotaStaffMemberId != null).Select(d => d.RotaStaffMemberId!.Value),
             shiftId, cancellationToken);
+
+        // Leave check applies only to NEWLY-ADDED people — an existing assignee whose leave was
+        // approved after they were rostered must not make the shift uneditable.
+        var assignedUserIds = shift.Assignments.Where(a => a.UserId != null).Select(a => a.UserId!.Value).ToHashSet();
+        var assignedMemberIds = shift.Assignments.Where(a => a.RotaStaffMemberId != null).Select(a => a.RotaStaffMemberId!.Value).ToHashSet();
+        await EnsureNoApprovedLeaveAsync(shift.ShopId, request.ShiftDate,
+            desired.Where(d => d.UserId != null && !assignedUserIds.Contains(d.UserId.Value)).Select(d => d.UserId!.Value).ToList(),
+            desired.Where(d => d.RotaStaffMemberId != null && !assignedMemberIds.Contains(d.RotaStaffMemberId.Value)).Select(d => d.RotaStaffMemberId!.Value).ToList(),
+            cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
         shift.ShiftDate = request.ShiftDate;
@@ -665,12 +735,45 @@ public class RotaService : IRotaService
                     showCost ? Math.Round(cost, 2) : null, showCost ? Math.Round(pendingCost, 2) : null);
         }
 
-        return rows
+        // Approved leave overlapping the range, summed per person per type (overlapping days ×
+        // hoursPerDay). Leave data only — no LeaveManagement feature coupling. Paid leave hours
+        // also add to LabourCost at the person's current rate (the same rate shown as HourlyRate).
+        var leaveRows = await _leaveRequestRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId && x.Status == LeaveRequestStatus.Approved
+                && x.StartDate <= to && x.EndDate >= from)
+            .Select(x => new { x.UserId, x.RotaStaffMemberId, x.Type, x.StartDate, x.EndDate, x.HoursPerDay, x.IsPaid })
+            .ToListAsync(cancellationToken);
+        var leaveByPerson = leaveRows
+            .GroupBy(x => x.UserId != null ? $"u:{x.UserId}" : $"m:{x.RotaStaffMemberId}")
+            .ToDictionary(g => g.Key, g =>
+            {
+                decimal holiday = 0, sick = 0, other = 0, unpaid = 0, paid = 0;
+                foreach (var l in g)
+                {
+                    var hours = OverlapDays(l.StartDate, l.EndDate, from, to) * l.HoursPerDay;
+                    switch (l.Type)
+                    {
+                        case LeaveType.Holiday: holiday += hours; break;
+                        case LeaveType.Sick: sick += hours; break;   // paid or not, sick stays sick
+                        case LeaveType.Unpaid: unpaid += hours; break;
+                        default: other += hours; break;
+                    }
+                    if (l.IsPaid) paid += hours;
+                }
+                return (Holiday: Math.Round(holiday, 2), Sick: Math.Round(sick, 2),
+                        Other: Math.Round(other, 2), Unpaid: Math.Round(unpaid, 2), Paid: paid,
+                        UserId: g.First().UserId, RotaStaffMemberId: g.First().RotaStaffMemberId);
+            });
+
+        var result = rows
             .GroupBy(x => x.UserId != null ? $"u:{x.UserId}" : $"m:{x.RotaStaffMemberId}")
             .Select(g =>
             {
                 var sample = g.First();
                 var agg = Aggregate(g.Select(x => (x.UserId, x.RotaStaffMemberId, x.CheckInAt, x.CheckOutAt, x.IsApproved)));
+                leaveByPerson.TryGetValue(g.Key, out var leave);
+                var currentRate = showCost ? RateOn(sample.UserId, sample.RotaStaffMemberId, to) : null;
                 return new TimesheetRowDto
                 {
                     UserId = sample.UserId,
@@ -681,9 +784,13 @@ public class RotaService : IRotaService
                     OpenSessions = g.Count(x => x.CheckOutAt == null),
                     TotalHours = agg.Hours,
                     PendingHours = agg.PendingHours,
-                    HourlyRate = showCost ? RateOn(sample.UserId, sample.RotaStaffMemberId, to) : null,
-                    LabourCost = agg.Cost,
+                    HourlyRate = currentRate,
+                    LabourCost = showCost ? Math.Round((agg.Cost ?? 0) + (leave.Paid * (currentRate ?? 0)), 2) : null,
                     PendingLabourCost = agg.PendingCost,
+                    HolidayHours = leave.Holiday,
+                    SickHours = leave.Sick,
+                    OtherLeaveHours = leave.Other,
+                    UnpaidLeaveHours = leave.Unpaid,
                     Reasons = g.Where(x => x.RotaShiftId != null)
                         .Select(x => reasonByShiftPerson.GetValueOrDefault((x.RotaShiftId!.Value, x.UserId, x.RotaStaffMemberId)))
                         .OfType<string>()
@@ -692,8 +799,55 @@ public class RotaService : IRotaService
                         .ToList(),
                 };
             })
-            .OrderBy(x => x.UserName)
-            .ToArray();
+            .ToList();
+
+        // People with approved leave but no sessions in the range still get a row (their leave
+        // hours matter to payroll even when they never clocked in).
+        var presentKeys = rows.Select(x => x.UserId != null ? $"u:{x.UserId}" : $"m:{x.RotaStaffMemberId}").ToHashSet();
+        var leaveOnly = leaveByPerson.Where(kv => !presentKeys.Contains(kv.Key)).Select(kv => kv.Value).ToList();
+        if (leaveOnly.Count > 0)
+        {
+            var leaveUserIds = leaveOnly.Where(l => l.UserId != null).Select(l => l.UserId!.Value).Distinct().ToList();
+            var leaveMemberIds = leaveOnly.Where(l => l.RotaStaffMemberId != null).Select(l => l.RotaStaffMemberId!.Value).Distinct().ToList();
+            var nameByUserId = leaveUserIds.Count == 0
+                ? new Dictionary<Guid, string>()
+                : (await _shopUserRepository.Query()
+                    .AsNoTracking()
+                    .Where(x => x.ShopId == shopId && leaveUserIds.Contains(x.UserId))
+                    .Select(x => new { x.UserId, x.User.FirstName, x.User.LastName })
+                    .ToListAsync(cancellationToken))
+                    .GroupBy(x => x.UserId)
+                    .ToDictionary(x => x.Key, x => $"{x.First().FirstName} {x.First().LastName}".Trim());
+            var nameByMemberId = leaveMemberIds.Count == 0
+                ? new Dictionary<Guid, string>()
+                : await _staffMemberRepository.Query()
+                    .AsNoTracking()
+                    .Where(x => x.ShopId == shopId && leaveMemberIds.Contains(x.Id))
+                    .ToDictionaryAsync(x => x.Id, x => x.Name, cancellationToken);
+
+            foreach (var leave in leaveOnly)
+            {
+                var currentRate = showCost ? RateOn(leave.UserId, leave.RotaStaffMemberId, to) : null;
+                result.Add(new TimesheetRowDto
+                {
+                    UserId = leave.UserId,
+                    RotaStaffMemberId = leave.RotaStaffMemberId,
+                    IsExternal = leave.RotaStaffMemberId != null,
+                    UserName = leave.UserId != null
+                        ? nameByUserId.GetValueOrDefault(leave.UserId.Value, "—")
+                        : nameByMemberId.GetValueOrDefault(leave.RotaStaffMemberId!.Value, "—"),
+                    HourlyRate = currentRate,
+                    LabourCost = showCost ? Math.Round(leave.Paid * (currentRate ?? 0), 2) : null,
+                    PendingLabourCost = showCost ? 0 : null,
+                    HolidayHours = leave.Holiday,
+                    SickHours = leave.Sick,
+                    OtherLeaveHours = leave.Other,
+                    UnpaidLeaveHours = leave.Unpaid,
+                });
+            }
+        }
+
+        return result.OrderBy(x => x.UserName).ToArray();
     }
 
     // Non-regular assignment reasons for the given shifts, keyed per (shift, person). One batched

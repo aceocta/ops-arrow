@@ -13,6 +13,7 @@ import {
   weekdayLabel,
   isOvernight,
 } from "../../lib/rota";
+import { leaveApi } from "../../lib/leave";
 import { confirmDialog, toast } from "../../components/feedback";
 import { ChevronLeft, ChevronRight, Plus, Sparkles, Trash2, X, UserPlus, Info } from "lucide-react";
 import clsx from "clsx";
@@ -268,6 +269,7 @@ function ShiftEditor({
   onSaved: () => void;
 }) {
   const qc = useQueryClient();
+  const { features } = useAuth();
   const [shiftDate, setShiftDate] = useState(shift?.shiftDate ?? date);
   const [templateId, setTemplateId] = useState(shift?.shiftTemplateId ?? initialTemplateId ?? "");
   const [assignments, setAssignments] = useState<AssignmentDraft[]>(() =>
@@ -285,6 +287,25 @@ function ShiftEditor({
 
   const templatesQ = useQuery({ queryKey: ["rota-templates", shopId], queryFn: () => rotaApi.templates(shopId) });
   const assignableQ = useQuery({ queryKey: ["rota-assignable", shopId], queryFn: () => rotaApi.assignable(shopId) });
+
+  // Approved leave covering the editor's selected date — someone on leave can't be newly
+  // assigned (the server enforces this too: rota_assignee_on_leave). Follows shiftDate, so the
+  // block stays accurate when the date is moved outside the displayed week. Without the
+  // LeaveManagement feature the query never runs and the rota behaves as before.
+  const leaveQ = useQuery({
+    queryKey: ["leave", shopId, shiftDate],
+    queryFn: () => leaveApi.list(shopId, shiftDate, shiftDate),
+    enabled: !!shopId && !!shiftDate && features.includes("LeaveManagement"),
+    staleTime: 60_000,
+  });
+  const onLeave = (u: AssignableUser) =>
+    (leaveQ.data ?? []).some(
+      (r) =>
+        r.status === "Approved" &&
+        shiftDate >= r.startDate &&
+        shiftDate <= r.endDate &&
+        (u.rotaStaffMemberId ? r.rotaStaffMemberId === u.rotaStaffMemberId : !!u.userId && r.userId === u.userId),
+    );
 
   // Another shift on this day whose window overlaps the selected one. Allowed (for different staff) —
   // the hint just reminds the manager each overlapping shift needs its own till.
@@ -422,17 +443,31 @@ function ShiftEditor({
             <div className="max-h-64 space-y-1 overflow-auto rounded-lg border border-slate-200 p-1">
               {(assignableQ.data ?? []).map((u) => {
                 const draft = draftFor(u);
+                const personOnLeave = onLeave(u);
+                // Approved leave blocks ADDING someone; an already-selected person stays
+                // removable (their tag still shows so the manager can spot and unassign them).
+                const leaveBlocked = !draft && personOnLeave;
                 return (
-                  <div key={u.rotaStaffMemberId ?? u.userId ?? u.name} className={clsx("rounded-md", draft && "bg-brand-50")}>
+                  <div key={u.rotaStaffMemberId ?? u.userId ?? u.name} className={clsx("rounded-md", draft && "bg-brand-50", leaveBlocked && "opacity-50")}>
                     <button
                       onClick={() => toggle(u)}
-                      className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-slate-50"
+                      disabled={leaveBlocked}
+                      title={leaveBlocked ? `${u.name} is on approved leave that day.` : undefined}
+                      className={clsx(
+                        "flex w-full items-center justify-between rounded-md px-3 py-2 text-sm",
+                        leaveBlocked ? "cursor-not-allowed" : "hover:bg-slate-50",
+                      )}
                     >
                       <span className="flex items-center gap-2">
                         <span className="font-medium text-slate-800">{u.name}</span>
                         <span className={clsx("text-xs", u.isExternal ? "text-amber-600" : "text-slate-400")}>
                           {u.isExternal ? "External" : u.role}
                         </span>
+                        {personOnLeave ? (
+                          <span className="shrink-0 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                            On leave
+                          </span>
+                        ) : null}
                       </span>
                       <input type="checkbox" readOnly checked={!!draft} className="h-4 w-4 accent-brand-600" />
                     </button>

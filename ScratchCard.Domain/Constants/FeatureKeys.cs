@@ -13,6 +13,7 @@ public static class FeatureKeys
     public const string StoreSales = "StoreSales";
     public const string VisitorsLog = "VisitorsLog";
     public const string StaffRota = "StaffRota";
+    public const string LeaveManagement = "LeaveManagement";
 
     // --- Scratch Card Management ---
     public const string ScratchCardBasic = "scratch_card.basic";
@@ -113,6 +114,7 @@ public static class FeatureKeys
         new FeatureCatalogEntry(StoreSales, "Store Sales", "Modules", "Top-level Store Sales / till-report import module.", 6),
         new FeatureCatalogEntry(VisitorsLog, "Visitors Log", "Modules", "Top-level Visitors / contractor sign-in module.", 7),
         new FeatureCatalogEntry(StaffRota, "Staff Rota", "Modules", "Top-level staff rota, attendance & timesheets module.", 8),
+        new FeatureCatalogEntry(LeaveManagement, "Leave Management", "Modules", "Top-level staff leave / holiday management module.", 9),
 
         // Scratch Card.
         new FeatureCatalogEntry(ScratchCardBasic, "Basic Scratch Card", "Scratch Card", null, 10),
@@ -203,6 +205,7 @@ public static class FeatureKeys
         new FeatureCatalogEntry(StoreSales,             "Store Sales",  "Modules", "Till-report capture, OCR/AI categorisation, tender tracking.", 6),
         new FeatureCatalogEntry(VisitorsLog,            "Visitors Log", "Modules", "Visitor / contractor sign-in, on-site roll call, reports.", 7),
         new FeatureCatalogEntry(StaffRota,              "Staff Rota",   "Modules", "Staff rota, check-in/out, attendance approvals, timesheets.", 8),
+        new FeatureCatalogEntry(LeaveManagement,        "Leave Management", "Modules", "Holiday / sick / unpaid leave requests, approvals, entitlements.", 9),
     };
 
     // Modules that start OFF for a newly created shop — the owner opts in via Feature Toggles when

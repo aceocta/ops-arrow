@@ -25,5 +25,7 @@ public enum NotificationType
     TimesheetIssueRaised = 21,
     TimesheetReviewResolved = 22,
     TimesheetAllConfirmed = 23,
-    TimesheetApproved = 24
+    TimesheetApproved = 24,
+    LeaveRequested = 25,
+    LeaveDecided = 26
 }

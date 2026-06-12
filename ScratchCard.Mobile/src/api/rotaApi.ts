@@ -1,6 +1,6 @@
 import { apiClient } from "./client";
 import { ApiResponse } from "./types";
-import { AssignableUser, AttendanceApprovalRow, BusinessDayStaff, RotaShift, RotaShiftTemplate, RotaStaffMember, ShiftAttendance, ShiftSession, ShiftTimesheetRow, TimesheetRow, TimesheetSession } from "../types/models";
+import { AssignableUser, AttendanceApprovalRow, BusinessDayStaff, LeaveBalance, LeaveDay, LeaveEntitlement, LeaveRequest, LeaveType, RotaShift, RotaShiftTemplate, RotaStaffMember, ShiftAttendance, ShiftSession, ShiftTimesheetRow, TimesheetRow, TimesheetSession } from "../types/models";
 
 export async function getBusinessDayStaff(shopId: string, date: string) {
   const response = await apiClient.get<ApiResponse<BusinessDayStaff>>("/rota/day-staff", { params: { shopId, date } });
@@ -243,5 +243,90 @@ export async function resolveTimesheetReview(id: string, payload: { approved: bo
 
 export async function approveTimesheetReview(id: string) {
   const response = await apiClient.post<ApiResponse<RotaTimesheetReview>>(`/rota/timesheet-reviews/${id}/approve`, null);
+  return response.data.data;
+}
+
+// ---------------------------------------------------------------------------
+// Leave management
+// ---------------------------------------------------------------------------
+export type CreateLeaveRequestPayload = {
+  shopId: string;
+  /** Set one of userId/rotaStaffMemberId when a manager records leave on someone's behalf
+   *  (instantly approved). Both omitted = the signed-in user's own request (pending). */
+  userId?: string;
+  rotaStaffMemberId?: string;
+  type: LeaveType;
+  startDate: string; // yyyy-MM-dd
+  endDate: string; // yyyy-MM-dd
+  hoursPerDay: number;
+  staffNote?: string;
+};
+
+export async function createLeaveRequest(payload: CreateLeaveRequestPayload) {
+  const response = await apiClient.post<ApiResponse<LeaveRequest>>("/rota/leave", payload);
+  return response.data.data;
+}
+
+// All staff's leave requests in the range (manager).
+export async function getLeaveRequests(shopId: string, from: string, to: string) {
+  const response = await apiClient.get<ApiResponse<LeaveRequest[]>>("/rota/leave", { params: { shopId, from, to } });
+  return response.data.data;
+}
+
+// The signed-in staff member's own leave requests.
+export async function getMyLeaveRequests(shopId: string) {
+  const response = await apiClient.get<ApiResponse<LeaveRequest[]>>("/rota/leave/mine", { params: { shopId } });
+  return response.data.data;
+}
+
+export async function approveLeaveRequest(id: string, payload: { managerNote?: string; hoursPerDay?: number; isPaid?: boolean }) {
+  const response = await apiClient.post<ApiResponse<LeaveRequest>>(`/rota/leave/${id}/approve`, payload);
+  return response.data.data;
+}
+
+export async function rejectLeaveRequest(id: string, managerNote: string) {
+  const response = await apiClient.post<ApiResponse<LeaveRequest>>(`/rota/leave/${id}/reject`, { managerNote });
+  return response.data.data;
+}
+
+// Staff can cancel their own Pending requests; managers any Pending/Approved one.
+export async function cancelLeaveRequest(id: string) {
+  const response = await apiClient.post<ApiResponse<LeaveRequest>>(`/rota/leave/${id}/cancel`, null);
+  return response.data.data;
+}
+
+// Holiday balance for the current year. Omit `person` for the signed-in user. Null = no entitlement set.
+export async function getLeaveBalance(shopId: string, person?: { userId?: string | null; rotaStaffMemberId?: string | null }) {
+  const response = await apiClient.get<ApiResponse<LeaveBalance | null>>("/rota/leave/balance", {
+    params: { shopId, userId: person?.userId ?? undefined, rotaStaffMemberId: person?.rotaStaffMemberId ?? undefined },
+  });
+  return response.data.data;
+}
+
+export async function getLeaveEntitlements(shopId: string) {
+  const response = await apiClient.get<ApiResponse<LeaveEntitlement[]>>("/rota/leave/entitlements", { params: { shopId } });
+  return response.data.data;
+}
+
+export type SaveLeaveEntitlementPayload = {
+  shopId: string;
+  userId?: string;
+  rotaStaffMemberId?: string;
+  yearStart: string; // yyyy-MM-dd
+  entitledHours: number;
+  usualHoursPerDay: number;
+};
+
+// Upserts the person's entitlement for the holiday year.
+export async function saveLeaveEntitlement(payload: SaveLeaveEntitlementPayload) {
+  const response = await apiClient.put<ApiResponse<LeaveEntitlement>>("/rota/leave/entitlements", payload);
+  return response.data.data;
+}
+
+// Approved leave expanded per day. Omit `person` for the signed-in user.
+export async function getLeaveDays(shopId: string, person: { userId?: string | null; rotaStaffMemberId?: string | null } | undefined, from: string, to: string) {
+  const response = await apiClient.get<ApiResponse<LeaveDay[]>>("/rota/leave/days", {
+    params: { shopId, userId: person?.userId ?? undefined, rotaStaffMemberId: person?.rotaStaffMemberId ?? undefined, from, to },
+  });
   return response.data.data;
 }

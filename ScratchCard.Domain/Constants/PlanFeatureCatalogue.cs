@@ -39,6 +39,7 @@ public static class PlanFeatureCatalogue
         FeatureKeys.StoreSalesAlerts, FeatureKeys.StoreSalesPostOffice, FeatureKeys.StoreSalesAccountingExport,
         FeatureKeys.StaffRotaManualApproval, FeatureKeys.StaffRotaShiftReminders, FeatureKeys.StaffRotaTimesheetExport,
         FeatureKeys.StaffRotaLabourCost, FeatureKeys.StaffRotaShiftSwap,
+        FeatureKeys.LeaveManagement,
     }).ToArray();
 
     public static readonly IReadOnlyList<string> Pro = ((IEnumerable<string>)Growth).Concat(new[]

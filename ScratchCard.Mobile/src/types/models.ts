@@ -536,6 +536,11 @@ export type TimesheetRow = {
   totalHours: number;
   /** Distinct non-regular assignment reasons across the range (e.g. "Cover", "Overtime"). */
   reasons?: string[];
+  /** Approved leave hours in the range, by type (only when Leave Management is enabled). */
+  holidayHours?: number;
+  sickHours?: number;
+  otherLeaveHours?: number;
+  unpaidLeaveHours?: number;
 };
 
 export type ShiftTimesheetRow = {
@@ -578,6 +583,61 @@ export type ShiftSession = {
   hours: number;
   entryMethod: "Clocked" | "Manual";
   isApproved: boolean;
+};
+
+export type LeaveType = "Holiday" | "Sick" | "Unpaid" | "Other";
+export type LeaveStatus = "Pending" | "Approved" | "Rejected" | "Cancelled";
+
+export type LeaveRequest = {
+  id: string;
+  shopId: string;
+  userId?: string | null;
+  rotaStaffMemberId?: string | null;
+  isExternal: boolean;
+  userName: string;
+  type: LeaveType;
+  startDate: string; // yyyy-MM-dd
+  endDate: string; // yyyy-MM-dd
+  hoursPerDay: number;
+  totalDays: number;
+  totalHours: number;
+  isPaid: boolean;
+  status: LeaveStatus;
+  staffNote?: string | null;
+  managerNote?: string | null;
+  decidedByUserId?: string | null;
+  decidedOn?: string | null; // ISO
+  requestedOn: string; // ISO
+};
+
+/** Leave allowance for the current holiday year. Null from the API = no entitlement configured. */
+export type LeaveBalance = {
+  yearStart: string; // yyyy-MM-dd
+  entitledHours: number;
+  usualHoursPerDay: number;
+  usedHours: number;
+  remainingHours: number;
+};
+
+export type LeaveEntitlement = {
+  id: string;
+  shopId: string;
+  userId?: string | null;
+  rotaStaffMemberId?: string | null;
+  isExternal: boolean;
+  userName: string;
+  yearStart: string; // yyyy-MM-dd
+  entitledHours: number;
+  usualHoursPerDay: number;
+};
+
+/** One approved leave day for a person (per-day expansion of approved requests). */
+export type LeaveDay = {
+  date: string; // yyyy-MM-dd
+  type: LeaveType;
+  hours: number;
+  isPaid: boolean;
+  leaveRequestId: string;
 };
 
 export type BusinessDayStaffRow = {
