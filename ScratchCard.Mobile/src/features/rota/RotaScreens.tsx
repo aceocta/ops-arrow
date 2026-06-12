@@ -1902,7 +1902,6 @@ export function RotaManageScreen() {
                       key={shift.id}
                       style={({ pressed }) => [
                         styles.rotaShiftBlock,
-                        shiftIdx > 0 ? styles.rotaShiftBlockDivider : null,
                         unstaffed ? styles.rotaShiftBlockUnstaffed : null,
                         pressed ? styles.rotaShiftBlockPressed : null,
                       ]}
@@ -1911,8 +1910,34 @@ export function RotaManageScreen() {
                       <View style={styles.rotaShiftTopRow}>
                         <Text style={[styles.weekShiftTitle, styles.rotaShiftName]} numberOfLines={1}>{shift.shiftName || "Shift"}</Text>
                         <Text style={[styles.tdSub, styles.rotaShiftTime]} numberOfLines={1}>{timeRange(shift.startTime, shift.endTime)}{overnightSuffix(shift.shiftDate, shift.endDate)}</Text>
-                        <Pressable onPress={() => confirmDelete(shift)} hitSlop={6} accessibilityRole="button" accessibilityLabel="Delete shift">
-                          <Ionicons name="trash-outline" size={16} color={appTheme.colors.danger} />
+                        {!unstaffed ? (
+                          <Pressable
+                            style={({ pressed }) => [styles.rotaShiftIconBtn, pressed ? styles.rotaShiftIconPressed : null]}
+                            onPress={() => openEdit(shift)}
+                            hitSlop={4}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Assign staff to ${shift.shiftName || "Shift"} on ${dayLabel(date)}`}
+                          >
+                            <Ionicons name="person-add-outline" size={19} color={appTheme.colors.primary} />
+                          </Pressable>
+                        ) : null}
+                        {/* <Pressable
+                          style={({ pressed }) => (pressed ? styles.rotaShiftIconPressed : null)}
+                          onPress={() => openEdit(shift)}
+                          hitSlop={6}
+                          accessibilityRole="button"
+                          accessibilityLabel="Edit shift"
+                        >
+                          <Ionicons name="create-outline" size={16} color={appTheme.colors.primary} />
+                        </Pressable> */}
+                        <Pressable
+                          style={({ pressed }) => [styles.rotaShiftIconBtn, pressed ? styles.rotaShiftIconPressed : null]}
+                          onPress={() => confirmDelete(shift)}
+                          hitSlop={4}
+                          accessibilityRole="button"
+                          accessibilityLabel="Delete shift"
+                        >
+                          <Ionicons name="trash-outline" size={19} color={appTheme.colors.danger} />
                         </Pressable>
                       </View>
                       {shift.assignees.length > 0 ? (
@@ -1934,12 +1959,25 @@ export function RotaManageScreen() {
                             </Pressable>
                           ))}
                         </View>
-                      ) : (
-                        <View style={styles.unstaffedRow}>
-                          <Ionicons name="alert-circle-outline" size={14} color={appTheme.colors.warning} />
-                          <Text style={styles.unstaffedText}>Needs staff — tap to assign</Text>
-                        </View>
-                      )}
+                      ) : null}
+                      {/* Loud assign call-to-action only where it's needed — unstaffed shifts.
+                          Staffed shifts get the quiet person-add icon in the top row instead. */}
+                      {unstaffed ? (
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.assignPill,
+                            styles.assignPillUnstaffed,
+                            pressed ? styles.assignPillPressed : null,
+                          ]}
+                          onPress={() => openEdit(shift)}
+                          hitSlop={4}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Assign staff to ${shift.shiftName || "Shift"} on ${dayLabel(date)}`}
+                        >
+                          <Ionicons name="person-add-outline" size={13} color={appTheme.colors.textWarningStrong} />
+                          <Text style={[styles.assignPillText, styles.assignPillTextUnstaffed]}>Assign staff</Text>
+                        </Pressable>
+                      ) : null}
                     </Pressable>
                   );
                 })}
@@ -4002,19 +4040,52 @@ const styles = StyleSheet.create({
   },
   dayEmptyAddPressed: { backgroundColor: appTheme.colors.surfaceMuted },
   dayEmptyAddText: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
-  rotaTable: { borderWidth: 1, borderColor: appTheme.colors.borderSoft, borderRadius: appTheme.radius.sm, overflow: "hidden" },
-  // Stacked shift block on a day card: name + time + delete on top, assignees underneath.
-  rotaShiftBlock: { paddingHorizontal: 10, paddingVertical: 9, gap: 6 },
-  rotaShiftBlockDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
+  // Shifts stack as separate bordered sections inside the day card.
+  rotaTable: { gap: 8 },
+  // Stacked shift section: name + time + actions on top, assignees underneath.
+  rotaShiftBlock: {
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderSoft,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    overflow: "hidden",
+  },
   rotaShiftBlockUnstaffed: { backgroundColor: appTheme.colors.surfaceWarningMuted },
   rotaShiftBlockPressed: { opacity: 0.7 },
-  rotaShiftTopRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  // Header band: hairline underline separates the shift name/actions from the assignee list.
+  rotaShiftTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingBottom: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: appTheme.colors.borderSoft,
+  },
   rotaShiftName: { flexShrink: 1 },
-  // Time fills the middle so the delete icon stays pinned to the far right.
+  // Time fills the middle so the action icons stay pinned to the far right.
   rotaShiftTime: { flex: 1 },
+  // Padded touch targets with breathing room between the row's action icons.
+  rotaShiftIconBtn: { padding: 6, marginLeft: 8 },
+  rotaShiftIconPressed: { opacity: 0.5 },
   rotaAssigneeList: { gap: 6 },
-  unstaffedRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  unstaffedText: { color: appTheme.colors.textWarningStrong, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 16, flexShrink: 1 },
+  // Compact secondary pill that makes assignment discoverable; amber variant on unstaffed blocks.
+  assignPill: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+  },
+  assignPillUnstaffed: { backgroundColor: appTheme.colors.surfaceWarningSoft },
+  assignPillPressed: { opacity: 0.7 },
+  assignPillText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 16 },
+  assignPillTextUnstaffed: { color: appTheme.colors.textWarningStrong },
   rotaStaffText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 13, lineHeight: 20, paddingVertical: 2 },
   // Assignee name + optional reason tag on the week grid.
   rotaStaffLine: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4 },
