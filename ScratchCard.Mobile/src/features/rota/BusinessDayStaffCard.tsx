@@ -53,9 +53,17 @@ export function BusinessDayStaffCard({ shopId, date }: { shopId: string; date: s
         <Text style={styles.meta}>{data.totalHours.toFixed(1)} h worked</Text>
       </View>
       {data.rows.map((row) => (
-        <View key={row.userId} style={styles.row}>
+        // External staff have no userId — key falls back so rows never share a null key.
+        <View key={row.userId ?? row.rotaStaffMemberId ?? row.userName} style={styles.row}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.name} numberOfLines={1}>{row.userName}</Text>
+            <View style={styles.nameRow}>
+              <Text style={styles.name} numberOfLines={1}>{row.userName}</Text>
+              {row.reason ? (
+                <View style={styles.reasonTag}>
+                  <Text style={styles.reasonTagText} numberOfLines={1}>{row.reason}</Text>
+                </View>
+              ) : null}
+            </View>
             <Text style={styles.meta} numberOfLines={1}>
               {row.shiftName ? `${row.shiftName} · ` : ""}
               {row.startTime ? timeRange(row.startTime, row.endTime) : "Not rostered"}
@@ -83,6 +91,15 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: appTheme.colors.borderSoft,
   },
-  name: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 18 },
+  name: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 18, flexShrink: 1 },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  // Info-blue assignment-reason tag, matching the rota screens' treatment.
+  reasonTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surfaceInfoSoft,
+  },
+  reasonTagText: { color: appTheme.colors.textInfoStrong, fontFamily: appTheme.fonts.bodyMedium, fontSize: 10, lineHeight: 14 },
   hours: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 14 },
 });

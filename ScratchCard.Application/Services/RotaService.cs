@@ -1149,6 +1149,7 @@ public class RotaService : IRotaService
                 if (row.StartTime is null || shift.StartTime < row.StartTime)
                 {
                     row.ShiftName = shift.ShiftName;
+                    row.Reason = a.Reason;
                     row.StartTime = shift.StartTime;
                     row.EndTime = shift.EndTime;
                 }

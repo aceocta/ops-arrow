@@ -14,6 +14,7 @@ import { getShopSubscriptionSummary } from "../../api/subscriptionApi";
 import { useAuth } from "../../auth/AuthContext";
 import { finalizeShift, getActivePacksForShift, getShift, getShiftCloseAttachmentContent, getShiftSales, listShiftClosingNumbers } from "../../api/shiftsApi";
 import { getTillShiftSummary } from "../../api/tillReportsApi";
+import { BusinessDayStaffCard } from "../rota/BusinessDayStaffCard";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError, toastSuccess } from "../../components/toast";
@@ -646,6 +647,11 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
             </View> */}
           </View>
         </View>
+
+        {/* Who's rostered/working this day — names, rota shift times, reasons, clocked hours. */}
+        {shiftShopId && businessDay?.businessDate ? (
+          <BusinessDayStaffCard shopId={shiftShopId} date={businessDay.businessDate} />
+        ) : null}
 
         <View style={[ui.card, styles.summaryCard]}>
           {isOpenShift ? (

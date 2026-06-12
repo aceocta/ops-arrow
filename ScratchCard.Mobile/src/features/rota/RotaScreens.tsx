@@ -1684,6 +1684,13 @@ export function RotaManageScreen() {
   const weekLabel = `${dayOfMonth(weekStart)} – ${dayOfMonth(addDaysStr(weekStart, 6))}`;
   const canSave = draft.shiftTemplateId.length > 0 && !saveMutation.isPending;
 
+  // Live context for the shift editor's header subtitle and footer summary — always reflects
+  // the draft as it stands (template, date, headcount), updating as the manager edits.
+  const draftTemplate = (templatesQuery.data ?? []).find((t) => t.templateId === draft.shiftTemplateId) ?? null;
+  const draftAssignedCount = draft.assigneeUserIds.length + draft.assigneeStaffMemberIds.length;
+  const editorSummary = `${draftTemplate?.name ?? "Pick a shift"} · ${draftAssignedCount} staff`;
+  const editorContextLine = `${draftTemplate?.name ?? "Pick a shift"} · ${formatDayLabel(draft.shiftDate)} · ${draftAssignedCount} staff`;
+
   // Week-at-a-glance counts for the header: total shifts and how many still have no one assigned.
   const weekShiftCount = rotaQuery.data?.length ?? 0;
   const unstaffedCount = useMemo(
@@ -2080,7 +2087,10 @@ export function RotaManageScreen() {
             <Pressable style={styles.editorHeaderBtn} onPress={() => void requestCloseEditor()} accessibilityRole="button" accessibilityLabel="Close">
               <Ionicons name="close" size={24} color={appTheme.colors.text} />
             </Pressable>
-            <Text style={styles.editorTitle}>{draft.id ? "Edit shift" : "Add shift"}</Text>
+            <View style={styles.editorTitleWrap}>
+              <Text style={styles.editorTitle}>{draft.id ? "Edit shift" : "Add shift"}</Text>
+              <Text style={styles.editorSubtitle} numberOfLines={1}>{editorContextLine}</Text>
+            </View>
             <Pressable
               style={styles.editorHeaderBtn}
               onPress={() => saveMutation.mutate()}
@@ -2094,242 +2104,299 @@ export function RotaManageScreen() {
           </View>
 
           <ScrollView contentContainerStyle={styles.editorBody} keyboardShouldPersistTaps="handled">
-            <Text style={styles.fieldLabel}>Date</Text>
-            <DateTimeField mode="date" value={draft.shiftDate} onChange={(v) => selectSlot(v, draft.shiftTemplateId)} />
-
-            <Text style={styles.fieldLabel}>Shift</Text>
-            <View style={styles.chipRow}>
-              {(templatesQuery.data ?? []).map((t) => {
-                const active = draft.shiftTemplateId === t.templateId;
-                return (
-                  <Pressable
-                    key={t.templateId}
-                    style={({ pressed }) => [styles.chip, active ? styles.chipActive : null, pressed ? styles.chipPressed : null]}
-                    onPress={() => selectSlot(draft.shiftDate, t.templateId)}
-                  >
-                    <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>{t.name}</Text>
-                    <Text style={[styles.chipSubText, active ? styles.chipSubTextActive : null]}>
-                      {timeRange(t.startTime, t.endTime)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-              {(templatesQuery.data?.length ?? 0) === 0 ? (
-                <Text style={styles.muted}>No shifts configured. Set them up in Shop Configuration → Shifts.</Text>
-              ) : null}
-            </View>
-            {(templatesQuery.data?.length ?? 0) > 0 && !draft.shiftTemplateId ? (
-              <Text style={styles.mutedSmall}>Select a shift time to continue.</Text>
-            ) : null}
-
-            {overlapShift ? (
-              <View style={styles.overlapHint}>
-                <Ionicons name="information-circle-outline" size={16} color={appTheme.colors.primary} />
-                <Text style={styles.overlapHintText}>
-                  Overlaps the {overlapShift.shiftName} shift ({timeRange(overlapShift.startTime, overlapShift.endTime)}). That's fine for a different staff member — just give each overlapping shift its own till when reconciling.
-                </Text>
+            {/* When — the date + shift-time slot this draft describes. */}
+            <View style={[ui.card, styles.editorSection]}>
+              <View style={styles.editorSectionHead}>
+                <Ionicons name="calendar-outline" size={15} color={appTheme.colors.primary} />
+                <Text style={styles.sectionTitle}>When</Text>
               </View>
-            ) : null}
 
-            {/* Staff search */}
-            <Text style={[styles.fieldLabel, { marginTop: appTheme.spacing.xs }]}>Staff</Text>
-            <View style={styles.searchBox}>
-              <Ionicons name="search-outline" size={16} color={appTheme.colors.textMuted} />
-              <TextInput
-                style={styles.searchInput}
-                value={userSearch}
-                onChangeText={setUserSearch}
-                placeholder="Search staff"
-                placeholderTextColor={appTheme.colors.textSubtle}
-              />
-              {userSearch.length > 0 ? (
-                <Pressable onPress={() => setUserSearch("")}><Ionicons name="close-circle" size={16} color={appTheme.colors.textMuted} /></Pressable>
+              <Text style={styles.fieldLabel}>Date</Text>
+              <View style={styles.dateStepRow}>
+                <Pressable
+                  style={({ pressed }) => [styles.dateStepBtn, pressed ? styles.dateStepBtnPressed : null]}
+                  onPress={() => selectSlot(addDaysStr(draft.shiftDate, -1), draft.shiftTemplateId)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Previous day"
+                >
+                  <Ionicons name="chevron-back" size={18} color={appTheme.colors.primary} />
+                </Pressable>
+                <View style={styles.dateStepField}>
+                  <DateTimeField mode="date" value={draft.shiftDate} onChange={(v) => selectSlot(v, draft.shiftTemplateId)} />
+                </View>
+                <Pressable
+                  style={({ pressed }) => [styles.dateStepBtn, pressed ? styles.dateStepBtnPressed : null]}
+                  onPress={() => selectSlot(addDaysStr(draft.shiftDate, 1), draft.shiftTemplateId)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Next day"
+                >
+                  <Ionicons name="chevron-forward" size={18} color={appTheme.colors.primary} />
+                </Pressable>
+              </View>
+
+              <Text style={styles.fieldLabel}>Shift</Text>
+              <View style={styles.chipRow}>
+                {(templatesQuery.data ?? []).map((t) => {
+                  const active = draft.shiftTemplateId === t.templateId;
+                  // Same (date, template) lookup selectSlot uses — when a shift already exists for
+                  // this slot, picking the chip loads it, so say up front how many are on it.
+                  const existing = (rotaQuery.data ?? []).find((s) => s.shiftDate === draft.shiftDate && s.shiftTemplateId === t.templateId);
+                  return (
+                    <Pressable
+                      key={t.templateId}
+                      style={({ pressed }) => [styles.chip, active ? styles.chipActive : null, pressed ? styles.chipPressed : null]}
+                      onPress={() => selectSlot(draft.shiftDate, t.templateId)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                      accessibilityLabel={`Use the ${t.name} shift${existing ? `, ${existing.assignees.length} already assigned on this date` : ""}`}
+                    >
+                      <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>{t.name}</Text>
+                      <Text style={[styles.chipSubText, active ? styles.chipSubTextActive : null]}>
+                        {timeRange(t.startTime, t.endTime)}
+                      </Text>
+                      {existing ? (
+                        <Text style={[styles.chipCaption, active ? styles.chipCaptionActive : null]}>
+                          {existing.assignees.length} assigned
+                        </Text>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
+                {(templatesQuery.data?.length ?? 0) === 0 ? (
+                  <Text style={styles.muted}>No shifts configured. Set them up in Shop Configuration → Shifts.</Text>
+                ) : null}
+              </View>
+              {(templatesQuery.data?.length ?? 0) > 0 && !draft.shiftTemplateId ? (
+                <Text style={styles.mutedSmall}>Select a shift time to continue.</Text>
+              ) : null}
+
+              {overlapShift ? (
+                <View style={styles.overlapHint}>
+                  <Ionicons name="information-circle-outline" size={16} color={appTheme.colors.primary} />
+                  <Text style={styles.overlapHintText}>
+                    Overlaps the {overlapShift.shiftName} shift ({timeRange(overlapShift.startTime, overlapShift.endTime)}). That's fine for a different staff member — just give each overlapping shift its own till when reconciling.
+                  </Text>
+                </View>
               ) : null}
             </View>
 
-            {(() => {
-              const all = usersQuery.data ?? [];
-              const q = userSearch.trim().toLowerCase();
-              const match = (u: AssignableUser) => !q || u.name.toLowerCase().includes(q) || u.role.toLowerCase().includes(q);
-              const keyOf = (u: AssignableUser) => u.rotaStaffMemberId ?? u.userId ?? u.name;
-              const assigned = all.filter((u) => isAssigned(u) && match(u));
-              const available = all.filter((u) => !isAssigned(u) && match(u));
-              const assignedCount = draft.assigneeUserIds.length + draft.assigneeStaffMemberIds.length;
-              return (
-                <>
-                  <Text style={styles.fieldLabel}>Assigned ({assignedCount})</Text>
-                  {assigned.length === 0 ? (
-                    <Text style={styles.muted}>No one assigned yet — add staff from below.</Text>
-                  ) : (
-                    assigned.map((u) => {
-                      const metaKey = metaKeyOf(u);
-                      const meta = metaFor(metaKey);
-                      const reasonExpanded = expandedReasonKey === metaKey;
-                      // Anything outside the presets is a free-text "Other…" reason.
-                      const isOtherReason = !ASSIGNMENT_REASONS.includes(meta.reason);
-                      const isRegular = !isOtherReason && meta.reason === REGULAR_REASON;
-                      return (
-                        <View key={keyOf(u)}>
-                          <Pressable
-                            style={({ pressed }) => [styles.userRow, pressed ? styles.userRowPressed : null]}
-                            onPress={() => toggleAssignee(u)}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Remove ${u.name} from this shift`}
-                          >
-                            <View style={[styles.userAvatar, styles.userAvatarOn]}>
-                              <Text style={styles.userAvatarText}>{initials(u.name)}</Text>
-                            </View>
-                            <View style={{ flex: 1 }}>
-                              <View style={styles.userNameRow}>
-                                <Text style={styles.userName} numberOfLines={1}>{u.name}</Text>
-                                {personOnLeave(u) ? (
-                                  <View style={styles.onLeaveTag}>
-                                    <Ionicons name="airplane-outline" size={11} color={appTheme.colors.textWarningStrong} />
-                                    <Text style={styles.onLeaveTagText}>On leave</Text>
-                                  </View>
-                                ) : null}
+            {/* Staff — search, who's assigned and who's still available for the draft. */}
+            <View style={[ui.card, styles.editorSection]}>
+              <View style={styles.editorSectionHead}>
+                <Ionicons name="people-outline" size={15} color={appTheme.colors.primary} />
+                <Text style={styles.sectionTitle}>Staff</Text>
+              </View>
+              <View style={styles.searchBox}>
+                <Ionicons name="search-outline" size={16} color={appTheme.colors.textMuted} />
+                <TextInput
+                  style={styles.searchInput}
+                  value={userSearch}
+                  onChangeText={setUserSearch}
+                  placeholder="Search staff"
+                  placeholderTextColor={appTheme.colors.textSubtle}
+                />
+                {userSearch.length > 0 ? (
+                  <Pressable onPress={() => setUserSearch("")}><Ionicons name="close-circle" size={16} color={appTheme.colors.textMuted} /></Pressable>
+                ) : null}
+              </View>
+
+              {(() => {
+                const all = usersQuery.data ?? [];
+                const q = userSearch.trim().toLowerCase();
+                const match = (u: AssignableUser) => !q || u.name.toLowerCase().includes(q) || u.role.toLowerCase().includes(q);
+                const keyOf = (u: AssignableUser) => u.rotaStaffMemberId ?? u.userId ?? u.name;
+                const assigned = all.filter((u) => isAssigned(u) && match(u));
+                const available = all.filter((u) => !isAssigned(u) && match(u));
+                const assignedCount = draft.assigneeUserIds.length + draft.assigneeStaffMemberIds.length;
+                return (
+                  <>
+                    <Text style={styles.fieldLabel}>Assigned ({assignedCount})</Text>
+                    {assigned.length === 0 ? (
+                      // With a slot selected, saving now would roster an unstaffed shift — warn in amber.
+                      assignedCount === 0 && draft.shiftTemplateId ? (
+                        <Text style={[styles.muted, styles.assignedEmptyWarning]}>No one assigned yet — this shift will need staff.</Text>
+                      ) : (
+                        <Text style={styles.muted}>No one assigned yet — add staff from below.</Text>
+                      )
+                    ) : (
+                      assigned.map((u) => {
+                        const metaKey = metaKeyOf(u);
+                        const meta = metaFor(metaKey);
+                        const reasonExpanded = expandedReasonKey === metaKey;
+                        // Anything outside the presets is a free-text "Other…" reason.
+                        const isOtherReason = !ASSIGNMENT_REASONS.includes(meta.reason);
+                        const isRegular = !isOtherReason && meta.reason === REGULAR_REASON;
+                        return (
+                          <View key={keyOf(u)}>
+                            {/* Removal only via the explicit ✕ — the row itself is inert so a
+                                stray tap on the name can't silently unassign someone. */}
+                            <View style={styles.userRow}>
+                              <View style={[styles.userAvatar, styles.userAvatarOn]}>
+                                <Text style={styles.userAvatarText}>{initials(u.name)}</Text>
                               </View>
-                              <Text style={styles.muted}>{u.isExternal ? "External" : u.role}</Text>
-                              <Pressable
-                                style={({ pressed }) => [styles.reasonChip, !isRegular ? styles.reasonChipInfo : null, pressed ? styles.userRowPressed : null]}
-                                onPress={() => setExpandedReasonKey(reasonExpanded ? null : metaKey)}
-                                accessibilityRole="button"
-                                accessibilityLabel={`Change ${u.name}'s assignment reason, currently ${meta.reason.trim() || REGULAR_REASON}`}
-                              >
-                                <Ionicons name="pricetag-outline" size={11} color={isRegular ? appTheme.colors.textMuted : appTheme.colors.textInfoStrong} />
-                                <Text style={[styles.reasonChipText, !isRegular ? styles.reasonChipTextInfo : null]} numberOfLines={1}>{meta.reason.trim() || "Other…"}</Text>
-                                <Ionicons name={reasonExpanded ? "chevron-up" : "chevron-down"} size={11} color={isRegular ? appTheme.colors.textMuted : appTheme.colors.textInfoStrong} />
-                              </Pressable>
-                            </View>
-                            <Ionicons name="checkmark-circle" size={24} color={appTheme.colors.success} />
-                          </Pressable>
-                          {reasonExpanded ? (
-                            <View style={styles.reasonBox}>
-                              <View style={styles.reasonPickRow}>
-                                {ASSIGNMENT_REASONS.map((r) => {
-                                  const active = !isOtherReason && meta.reason === r;
-                                  return (
-                                    <Pressable
-                                      key={r}
-                                      style={({ pressed }) => [styles.reasonPickChip, active ? styles.reasonPickChipActive : null, pressed ? styles.chipPressed : null]}
-                                      onPress={() => setMetaFor(metaKey, { reason: r })}
-                                      accessibilityRole="button"
-                                      accessibilityLabel={`Set ${u.name}'s reason to ${r}`}
-                                    >
-                                      <Text style={[styles.reasonPickText, active ? styles.reasonPickTextActive : null]}>{r}</Text>
-                                    </Pressable>
-                                  );
-                                })}
+                              <View style={{ flex: 1 }}>
+                                <View style={styles.userNameRow}>
+                                  <Text style={styles.userName} numberOfLines={1}>{u.name}</Text>
+                                  {personOnLeave(u) ? (
+                                    <View style={styles.onLeaveTag}>
+                                      <Ionicons name="airplane-outline" size={11} color={appTheme.colors.textWarningStrong} />
+                                      <Text style={styles.onLeaveTagText}>On leave</Text>
+                                    </View>
+                                  ) : null}
+                                </View>
+                                <Text style={styles.muted}>{u.isExternal ? "External" : u.role}</Text>
                                 <Pressable
-                                  style={({ pressed }) => [styles.reasonPickChip, isOtherReason ? styles.reasonPickChipActive : null, pressed ? styles.chipPressed : null]}
-                                  onPress={() => { if (!isOtherReason) setMetaFor(metaKey, { reason: "" }); }}
+                                  style={({ pressed }) => [styles.reasonChip, !isRegular ? styles.reasonChipInfo : null, pressed ? styles.userRowPressed : null]}
+                                  onPress={() => setExpandedReasonKey(reasonExpanded ? null : metaKey)}
                                   accessibilityRole="button"
-                                  accessibilityLabel={`Set a custom reason for ${u.name}`}
+                                  accessibilityLabel={`Change ${u.name}'s assignment reason, currently ${meta.reason.trim() || REGULAR_REASON}`}
                                 >
-                                  <Text style={[styles.reasonPickText, isOtherReason ? styles.reasonPickTextActive : null]}>Other…</Text>
+                                  <Ionicons name="pricetag-outline" size={11} color={isRegular ? appTheme.colors.textMuted : appTheme.colors.textInfoStrong} />
+                                  <Text style={[styles.reasonChipText, !isRegular ? styles.reasonChipTextInfo : null]} numberOfLines={1}>{meta.reason.trim() || "Other…"}</Text>
+                                  <Ionicons name={reasonExpanded ? "chevron-up" : "chevron-down"} size={11} color={isRegular ? appTheme.colors.textMuted : appTheme.colors.textInfoStrong} />
                                 </Pressable>
                               </View>
-                              {isOtherReason ? (
-                                <TextInput
-                                  style={[styles.externalInput, styles.reasonInput]}
-                                  value={meta.reason}
-                                  onChangeText={(v) => setMetaFor(metaKey, { reason: v })}
-                                  placeholder="Reason"
-                                  placeholderTextColor={appTheme.colors.textSubtle}
-                                  maxLength={100}
-                                />
-                              ) : null}
-                              {!isRegular ? (
-                                <TextInput
-                                  style={[styles.externalInput, styles.reasonInput]}
-                                  value={meta.note}
-                                  onChangeText={(v) => setMetaFor(metaKey, { note: v })}
-                                  placeholder="Note (optional)"
-                                  placeholderTextColor={appTheme.colors.textSubtle}
-                                  maxLength={300}
-                                />
-                              ) : null}
+                              <Pressable
+                                style={({ pressed }) => [styles.assignedRemoveBtn, pressed ? styles.rotaShiftIconPressed : null]}
+                                onPress={() => toggleAssignee(u)}
+                                hitSlop={6}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Remove ${u.name} from this shift`}
+                              >
+                                <Ionicons name="close-circle-outline" size={22} color={appTheme.colors.danger} style={styles.assignedRemoveIcon} />
+                              </Pressable>
                             </View>
-                          ) : null}
-                        </View>
+                            {reasonExpanded ? (
+                              <View style={styles.reasonBox}>
+                                <View style={styles.reasonPickRow}>
+                                  {ASSIGNMENT_REASONS.map((r) => {
+                                    const active = !isOtherReason && meta.reason === r;
+                                    return (
+                                      <Pressable
+                                        key={r}
+                                        style={({ pressed }) => [styles.reasonPickChip, active ? styles.reasonPickChipActive : null, pressed ? styles.chipPressed : null]}
+                                        onPress={() => setMetaFor(metaKey, { reason: r })}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={`Set ${u.name}'s reason to ${r}`}
+                                      >
+                                        <Text style={[styles.reasonPickText, active ? styles.reasonPickTextActive : null]}>{r}</Text>
+                                      </Pressable>
+                                    );
+                                  })}
+                                  <Pressable
+                                    style={({ pressed }) => [styles.reasonPickChip, isOtherReason ? styles.reasonPickChipActive : null, pressed ? styles.chipPressed : null]}
+                                    onPress={() => { if (!isOtherReason) setMetaFor(metaKey, { reason: "" }); }}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`Set a custom reason for ${u.name}`}
+                                  >
+                                    <Text style={[styles.reasonPickText, isOtherReason ? styles.reasonPickTextActive : null]}>Other…</Text>
+                                  </Pressable>
+                                </View>
+                                {isOtherReason ? (
+                                  <TextInput
+                                    style={[styles.externalInput, styles.reasonInput]}
+                                    value={meta.reason}
+                                    onChangeText={(v) => setMetaFor(metaKey, { reason: v })}
+                                    placeholder="Reason"
+                                    placeholderTextColor={appTheme.colors.textSubtle}
+                                    maxLength={100}
+                                  />
+                                ) : null}
+                                {!isRegular ? (
+                                  <TextInput
+                                    style={[styles.externalInput, styles.reasonInput]}
+                                    value={meta.note}
+                                    onChangeText={(v) => setMetaFor(metaKey, { note: v })}
+                                    placeholder="Note (optional)"
+                                    placeholderTextColor={appTheme.colors.textSubtle}
+                                    maxLength={300}
+                                  />
+                                ) : null}
+                              </View>
+                            ) : null}
+                          </View>
+                        );
+                      })
+                    )}
+
+                    <Text style={[styles.fieldLabel, { marginTop: appTheme.spacing.sm }]}>Available ({available.length})</Text>
+                    {available.length === 0 ? (
+                      <Text style={styles.muted}>
+                        {q ? "No staff match your search." : "Everyone available is already assigned."}
+                      </Text>
+                    ) : null}
+                    {available.map((u) => {
+                      // Approved leave on the draft's date blocks assigning — the row is muted,
+                      // the add icon becomes the leave tag, and tapping explains instead of adding.
+                      const onLeave = personOnLeave(u);
+                      return (
+                        <Pressable
+                          key={keyOf(u)}
+                          style={({ pressed }) => [styles.userRow, onLeave ? styles.userRowOnLeave : null, pressed && !onLeave ? styles.userRowPressed : null]}
+                          onPress={() => {
+                            if (onLeave) {
+                              toastError(`${u.name} is on approved leave that day.`);
+                              return;
+                            }
+                            toggleAssignee(u);
+                          }}
+                          accessibilityRole="button"
+                          accessibilityLabel={onLeave ? `${u.name} is on approved leave that day` : `Assign ${u.name} to this shift`}
+                        >
+                          <View style={styles.userAvatar}>
+                            <Text style={styles.userAvatarText}>{initials(u.name)}</Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <View style={styles.userNameRow}>
+                              <Text style={styles.userName} numberOfLines={1}>{u.name}</Text>
+                            </View>
+                            <Text style={styles.muted}>{u.isExternal ? "External" : u.role}</Text>
+                          </View>
+                          {onLeave ? (
+                            <View style={styles.onLeaveTag}>
+                              <Ionicons name="airplane-outline" size={11} color={appTheme.colors.textWarningStrong} />
+                              <Text style={styles.onLeaveTagText}>On leave</Text>
+                            </View>
+                          ) : (
+                            <Ionicons name="add-circle" size={24} color={appTheme.colors.primary} />
+                          )}
+                        </Pressable>
                       );
-                    })
-                  )}
+                    })}
 
-                  <Text style={[styles.fieldLabel, { marginTop: appTheme.spacing.sm }]}>Available ({available.length})</Text>
-                  {available.length === 0 ? (
-                    <Text style={styles.muted}>
-                      {q ? "No staff match your search." : "Everyone available is already assigned."}
-                    </Text>
-                  ) : null}
-                  {available.map((u) => {
-                    // Approved leave on the draft's date blocks assigning — the row is muted,
-                    // the add icon becomes the leave tag, and tapping explains instead of adding.
-                    const onLeave = personOnLeave(u);
-                    return (
-                      <Pressable
-                        key={keyOf(u)}
-                        style={({ pressed }) => [styles.userRow, onLeave ? styles.userRowOnLeave : null, pressed && !onLeave ? styles.userRowPressed : null]}
-                        onPress={() => {
-                          if (onLeave) {
-                            toastError(`${u.name} is on approved leave that day.`);
-                            return;
-                          }
-                          toggleAssignee(u);
-                        }}
-                        accessibilityRole="button"
-                        accessibilityLabel={onLeave ? `${u.name} is on approved leave that day` : `Assign ${u.name} to this shift`}
-                      >
-                        <View style={styles.userAvatar}>
-                          <Text style={styles.userAvatarText}>{initials(u.name)}</Text>
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <View style={styles.userNameRow}>
-                            <Text style={styles.userName} numberOfLines={1}>{u.name}</Text>
-                          </View>
-                          <Text style={styles.muted}>{u.isExternal ? "External" : u.role}</Text>
-                        </View>
-                        {onLeave ? (
-                          <View style={styles.onLeaveTag}>
-                            <Ionicons name="airplane-outline" size={11} color={appTheme.colors.textWarningStrong} />
-                            <Text style={styles.onLeaveTagText}>On leave</Text>
-                          </View>
-                        ) : (
-                          <Ionicons name="add-circle-outline" size={24} color={appTheme.colors.primary} />
-                        )}
-                      </Pressable>
-                    );
-                  })}
-
-                  {/* Add someone who isn't an Ops Arrow user (external / casual). */}
-                  <Pressable
-                    style={({ pressed }) => [styles.addExternalOpenBtn, pressed ? styles.userRowPressed : null]}
-                    onPress={() => setAddExternalOpen(true)}
-                    accessibilityRole="button"
-                  >
-                    <Ionicons name="person-add-outline" size={16} color={appTheme.colors.primary} />
-                    <Text style={styles.adjustBtnText}>Add external person</Text>
-                  </Pressable>
-
-                  {draft.id ? (
+                    {/* Add someone who isn't an Ops Arrow user (external / casual). */}
                     <Pressable
-                      style={({ pressed }) => [styles.editorDeleteBtn, pressed ? styles.userRowPressed : null]}
-                      onPress={() => void deleteFromEditor()}
-                      disabled={deleteMutation.isPending}
+                      style={({ pressed }) => [styles.addExternalOpenBtn, pressed ? styles.userRowPressed : null]}
+                      onPress={() => setAddExternalOpen(true)}
                       accessibilityRole="button"
-                      accessibilityLabel="Delete this shift"
                     >
-                      <Ionicons name="trash-outline" size={16} color={appTheme.colors.danger} />
-                      <Text style={styles.editorDeleteText}>Delete this shift</Text>
+                      <Ionicons name="person-add-outline" size={16} color={appTheme.colors.primary} />
+                      <Text style={styles.adjustBtnText}>Add external person</Text>
                     </Pressable>
-                  ) : null}
-                </>
-              );
-            })()}
+                  </>
+                );
+              })()}
+            </View>
+
+            {/* Destructive action stays last, outside the section cards. */}
+            {draft.id ? (
+              <Pressable
+                style={({ pressed }) => [styles.editorDeleteBtn, pressed ? styles.userRowPressed : null]}
+                onPress={() => void deleteFromEditor()}
+                disabled={deleteMutation.isPending}
+                accessibilityRole="button"
+                accessibilityLabel="Delete this shift"
+              >
+                <Ionicons name="trash-outline" size={16} color={appTheme.colors.danger} />
+                <Text style={styles.editorDeleteText}>Delete this shift</Text>
+              </Pressable>
+            ) : null}
           </ScrollView>
 
-          {/* Always-visible save bar so the action is never missed at the bottom of a long form. */}
+          {/* Always-visible save bar so the action is never missed at the bottom of a long form.
+              The slim summary keeps the draft's context visible after scrolling a long staff list. */}
           <View style={[styles.editorFooter, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+            <Text style={styles.editorFooterSummary} numberOfLines={1}>{editorSummary}</Text>
             <PrimaryButton
               label={saveMutation.isPending ? "Saving…" : draft.id ? "Save changes" : "Add shift"}
               onPress={() => saveMutation.mutate()}
@@ -4328,6 +4395,9 @@ const styles = StyleSheet.create({
   chipTextActive: { color: appTheme.colors.primary },
   chipSubText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 11, lineHeight: 14 },
   chipSubTextActive: { color: appTheme.colors.primary },
+  // Tiny truth-caption on a slot chip when a shift already exists for (date, template).
+  chipCaption: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 10, lineHeight: 13 },
+  chipCaptionActive: { color: appTheme.colors.primary },
 
   editorScreen: { flex: 1, backgroundColor: appTheme.colors.background },
   editorFooter: {
@@ -4348,10 +4418,28 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.surface,
   },
   editorHeaderBtn: { minWidth: 56, height: 40, alignItems: "center", justifyContent: "center" },
-  editorTitle: { flex: 1, textAlign: "center", color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 17 },
+  editorTitleWrap: { flex: 1, alignItems: "center", gap: 1 },
+  editorTitle: { textAlign: "center", color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 17 },
+  // Live one-line draft context under the title — template · date · headcount.
+  editorSubtitle: { maxWidth: "100%", color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 11, lineHeight: 14 },
   editorSave: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 16 },
   editorSaveDisabled: { color: appTheme.colors.textSubtle },
-  editorBody: { padding: appTheme.spacing.md, gap: appTheme.spacing.xs, paddingBottom: appTheme.spacing.xl },
+  editorBody: { padding: appTheme.spacing.md, gap: appTheme.spacing.sm, paddingBottom: appTheme.spacing.xl },
+  // "When" / "Staff" section cards — the app's card language with slightly tighter padding.
+  editorSection: { padding: appTheme.spacing.md, gap: appTheme.spacing.xs },
+  editorSectionHead: { flexDirection: "row", alignItems: "center", gap: 6 },
+  // ‹ › quick date stepping flanking the date field.
+  dateStepRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  dateStepField: { flex: 1 },
+  dateStepBtn: { width: 38, height: 44, alignItems: "center", justifyContent: "center", borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceBrandSoft },
+  dateStepBtnPressed: { opacity: 0.6 },
+  // Amber empty state when a selected slot would save with no one rostered.
+  assignedEmptyWarning: { color: appTheme.colors.textWarningStrong },
+  // Muted-danger remove affordance on assigned rows — the ✕ is the only removal tap target.
+  assignedRemoveBtn: { padding: 6 },
+  assignedRemoveIcon: { opacity: 0.75 },
+  // Slim context line above the footer Save button.
+  editorFooterSummary: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 16, textAlign: "center", marginBottom: 8 },
   searchBox: {
     flexDirection: "row",
     alignItems: "center",

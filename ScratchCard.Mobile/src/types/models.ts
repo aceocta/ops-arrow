@@ -648,6 +648,8 @@ export type BusinessDayStaffRow = {
   isExternal?: boolean;
   userName: string;
   shiftName?: string | null;
+  // Assignment reason for the displayed shift (null = regular shift).
+  reason?: string | null;
   startTime?: string | null;
   endTime?: string | null;
   checkInAt?: string | null;

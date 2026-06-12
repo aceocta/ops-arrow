@@ -167,6 +167,8 @@ public class BusinessDayStaffRowDto
     public bool IsExternal { get; set; }
     public string UserName { get; set; } = string.Empty;
     public string? ShiftName { get; set; }
+    // Assignment reason for the displayed shift (null = regular shift).
+    public string? Reason { get; set; }
     public TimeOnly? StartTime { get; set; }
     public TimeOnly? EndTime { get; set; }
     public DateTimeOffset? CheckInAt { get; set; }
