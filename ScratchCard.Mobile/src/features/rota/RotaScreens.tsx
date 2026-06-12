@@ -54,6 +54,7 @@ import {
   getLeaveRequests,
   getMyLeaveRequests,
   type RotaTimesheetReview,
+  type SaveRotaShiftAssignment,
   type SaveRotaShiftPayload,
 } from "../../api/rotaApi";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
@@ -69,7 +70,7 @@ import { formatDayLabel } from "../../utils/dateLabels";
 import { getApiErrorMessage } from "../../utils/apiErrorMessage";
 import { toastError, toastSuccess } from "../../components/toast";
 import { useFeature } from "../subscription/useFeature";
-import { AssignableUser, AttendanceApprovalRow, LeaveRequest, LeaveType, RotaAssignee, RotaShift, RotaStaffMember, TimesheetRow, TimesheetSession } from "../../types/models";
+import { AssignableUser, AttendanceApprovalRow, LeaveRequest, LeaveType, RotaAssignee, RotaShift, RotaShiftTemplate, RotaStaffMember, TimesheetRow, TimesheetSession } from "../../types/models";
 import { LEAVE_TYPES, leavePeriodLabel, parseHours } from "./LeaveScreens";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -156,6 +157,17 @@ function sessionIsos(dateStr: string, inHHmm: string, outHHmm: string) {
 
 // True when the two HH:mm[:ss] times describe an overnight shift (end not after start).
 const isOvernight = (startHHmm: string, endHHmm: string) => Boolean(startHHmm) && Boolean(endHHmm) && endHHmm <= startHHmm;
+
+// Planned hours of a shift: end − start, +24h when it runs overnight (end not after start).
+function plannedHours(start: string, end: string) {
+  const toMin = (t: string) => {
+    const [h, m] = t.split(":");
+    return (Number(h) || 0) * 60 + (Number(m) || 0);
+  };
+  let mins = toMin(end) - toMin(start);
+  if (mins <= 0) mins += 1440;
+  return mins / 60;
+}
 
 // Display a start–end range, flagging overnight shifts that finish the next day.
 function timeRange(start?: string | null, end?: string | null) {
@@ -1085,6 +1097,10 @@ export function RotaManageScreen() {
   const [recordTarget, setRecordTarget] = useState<{ shift: RotaShift; name: string; memberId?: string | null; userId?: string | null } | null>(null);
   const [recIn, setRecIn] = useState("09:00");
   const [recOut, setRecOut] = useState("17:00");
+  // Week layout: by day (default) or by staff. Session-only — resets when the screen remounts.
+  const [rotaView, setRotaView] = useState<"day" | "staff">("day");
+  // Person + date the quick-assign sheet is open for (empty day cells in the by-staff view).
+  const [quickAssign, setQuickAssign] = useState<{ name: string; date: string; userId?: string | null; rotaStaffMemberId?: string | null } | null>(null);
 
   const range = useMemo(() => ({ from: weekStart, to: addDaysStr(weekStart, 6) }), [weekStart]);
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDaysStr(weekStart, i)), [weekStart]);
@@ -1222,6 +1238,50 @@ export function RotaManageScreen() {
       toastSuccess(created.length > 0 ? `Added ${created.length} shift${created.length === 1 ? "" : "s"} for this week.` : "This week's rota is already complete.");
     },
     onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't generate the week."),
+  });
+
+  // Quick assign from the by-staff view: add one person to a day's template slot without opening
+  // the editor. Builds the same payload shape as saveMutation — when the slot's shift already
+  // exists, its current assignees ride along unchanged (reasons/notes preserved) with this person
+  // appended; otherwise a new shift is created with just this person.
+  const quickAssignMutation = useMutation({
+    mutationFn: ({ date, template, person }: { date: string; template: RotaShiftTemplate; person: { name: string; userId?: string | null; rotaStaffMemberId?: string | null } }) => {
+      const existing = (rotaQuery.data ?? []).find((s) => s.shiftDate === date && s.shiftTemplateId === template.templateId);
+      const newAssignment: SaveRotaShiftAssignment = person.userId
+        ? { userId: person.userId }
+        : { rotaStaffMemberId: person.rotaStaffMemberId as string };
+      const assignments: SaveRotaShiftAssignment[] = [
+        ...(existing?.assignees ?? []).map((a) => {
+          const reason = a.reason ?? undefined;
+          return {
+            userId: a.userId ?? undefined,
+            rotaStaffMemberId: a.rotaStaffMemberId ?? undefined,
+            reason,
+            // As in saveMutation, a note only rides along with a reason.
+            note: reason ? a.note ?? undefined : undefined,
+          };
+        }),
+        newAssignment,
+      ];
+      const payload: SaveRotaShiftPayload = {
+        shopId: shopId as string,
+        shiftDate: date,
+        shiftTemplateId: template.templateId,
+        position: existing?.position ?? undefined,
+        notes: existing?.notes ?? undefined,
+        assigneeUserIds: assignments.filter((a) => a.userId).map((a) => a.userId as string),
+        assigneeStaffMemberIds: assignments.filter((a) => a.rotaStaffMemberId).map((a) => a.rotaStaffMemberId as string),
+        assignments,
+      };
+      return existing ? updateRotaShift(existing.id, payload) : createRotaShift(payload);
+    },
+    onSuccess: (_shift, vars) => {
+      setQuickAssign(null);
+      toastSuccess(`${vars.person.name} assigned.`);
+      void invalidate();
+    },
+    // Surface the server message as-is — it carries the on-leave block among other validations.
+    onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't assign."),
   });
 
   // Create a roster-only (external/casual) person and assign them to the current draft.
@@ -1404,6 +1464,68 @@ export function RotaManageScreen() {
     return map;
   }, [rotaQuery.data]);
 
+  // By-staff view rows: every assignable person (incl. externals) plus anyone on the week's
+  // shifts who isn't in that list, with their shifts keyed by date and planned weekly hours.
+  // People with shifts come first (by name), then everyone else (by name).
+  const staffWeekRows = useMemo(() => {
+    type StaffWeekRow = {
+      key: string;
+      name: string;
+      userId?: string | null;
+      rotaStaffMemberId?: string | null;
+      isExternal?: boolean;
+      role?: string;
+      shiftsByDate: Map<string, RotaShift[]>;
+      totalHours: number;
+    };
+    const rows = new Map<string, StaffWeekRow>();
+    for (const u of usersQuery.data ?? []) {
+      const key = u.userId ?? u.rotaStaffMemberId ?? u.name;
+      rows.set(key, { key, name: u.name, userId: u.userId, rotaStaffMemberId: u.rotaStaffMemberId, isExternal: u.isExternal, role: u.role, shiftsByDate: new Map(), totalHours: 0 });
+    }
+    for (const s of rotaQuery.data ?? []) {
+      for (const a of s.assignees) {
+        const key = a.userId ?? a.rotaStaffMemberId ?? a.name;
+        let row = rows.get(key);
+        if (!row) {
+          row = { key, name: a.name, userId: a.userId, rotaStaffMemberId: a.rotaStaffMemberId, isExternal: a.isExternal, shiftsByDate: new Map(), totalHours: 0 };
+          rows.set(key, row);
+        }
+        const list = row.shiftsByDate.get(s.shiftDate) ?? [];
+        list.push(s);
+        row.shiftsByDate.set(s.shiftDate, list);
+        row.totalHours += plannedHours(s.startTime, s.endTime);
+      }
+    }
+    const all = [...rows.values()];
+    for (const row of all) {
+      for (const list of row.shiftsByDate.values()) list.sort((a, b) => a.startTime.localeCompare(b.startTime));
+    }
+    all.sort((a, b) => {
+      const aHas = a.shiftsByDate.size > 0;
+      const bHas = b.shiftsByDate.size > 0;
+      if (aHas !== bHas) return aHas ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+    return all;
+  }, [usersQuery.data, rotaQuery.data]);
+
+  // Approved leave covering this person on this date (by-staff day cells; same week data
+  // that drives the day-card leave chips).
+  const staffLeaveOn = (row: { userId?: string | null; rotaStaffMemberId?: string | null }, date: string) =>
+    approvedWeekLeave.some(
+      (r) =>
+        date >= r.startDate &&
+        date <= r.endDate &&
+        (row.rotaStaffMemberId ? r.rotaStaffMemberId === row.rotaStaffMemberId : Boolean(row.userId) && r.userId === row.userId),
+    );
+
+  // The day's shift templates for the quick-assign sheet, ordered by start time.
+  const sortedTemplates = useMemo(
+    () => [...(templatesQuery.data ?? [])].sort((a, b) => a.startTime.localeCompare(b.startTime)),
+    [templatesQuery.data],
+  );
+
   const todayStr = formatDateValue(new Date());
   const weekLabel = `${dayOfMonth(weekStart)} – ${dayOfMonth(addDaysStr(weekStart, 6))}`;
   const canSave = draft.shiftTemplateId.length > 0 && !saveMutation.isPending;
@@ -1514,10 +1636,29 @@ export function RotaManageScreen() {
         disabled={!shopId || generateMutation.isPending}
       />
 
+      {/* View toggle for the week below — by day (default) or by staff. */}
+      <View style={styles.segment}>
+        {(["day", "staff"] as const).map((v) => {
+          const active = rotaView === v;
+          return (
+            <Pressable
+              key={v}
+              style={({ pressed }) => [styles.segmentBtn, active ? styles.segmentBtnActive : null, pressed && !active ? styles.chipPressed : null]}
+              onPress={() => setRotaView(v)}
+              accessibilityRole="button"
+              accessibilityLabel={v === "day" ? "Show the week by day" : "Show the week by staff"}
+              accessibilityState={{ selected: active }}
+            >
+              <Text style={[styles.segmentText, active ? styles.segmentTextActive : null]}>{v === "day" ? "By day" : "By staff"}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
       {rotaQuery.isLoading ? <SkeletonList count={5} /> : null}
 
       {/* One row per weekday, Mon–Sun, with its shifts + assigned users. */}
-      {weekDays.map((date) => {
+      {rotaView === "day" ? weekDays.map((date) => {
         const shifts = shiftsByDate.get(date) ?? [];
         const isToday = date === todayStr;
         return (
@@ -1625,7 +1766,83 @@ export function RotaManageScreen() {
             )}
           </View>
         );
-      })}
+      }) : null}
+
+      {/* One card per person with their week strip — assignable people plus anyone rostered. */}
+      {rotaView === "staff" && !rotaQuery.isLoading ? (
+        <>
+          {usersQuery.isLoading ? <SkeletonList count={4} /> : null}
+          {!usersQuery.isLoading && staffWeekRows.length === 0 ? (
+            <View style={ui.card}>
+              <EmptyState icon="people-outline" title="No staff to show" message="Add staff or assign people to shifts to see them here." />
+            </View>
+          ) : null}
+          {staffWeekRows.map((row) => {
+            const zeroHours = row.totalHours === 0;
+            return (
+              <View key={row.key} style={[ui.card, styles.staffWeekCard]}>
+                <View style={styles.staffWeekHead}>
+                  <View style={[styles.userAvatar, !zeroHours ? styles.userAvatarOn : null]}>
+                    <Text style={styles.userAvatarText}>{initials(row.name)}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.userName} numberOfLines={1}>{row.name}</Text>
+                    {row.isExternal || row.role ? (
+                      <Text style={styles.mutedSmall} numberOfLines={1}>{row.isExternal ? "External" : row.role}</Text>
+                    ) : null}
+                  </View>
+                  <Text style={[styles.staffWeekTotal, zeroHours ? styles.staffWeekTotalZero : null]}>
+                    {leaveHoursLabel(row.totalHours)}
+                  </Text>
+                </View>
+                <View style={styles.staffDayStrip}>
+                  {weekDays.map((date) => {
+                    const dayShifts = row.shiftsByDate.get(date) ?? [];
+                    const onLeave = dayShifts.length === 0 && staffLeaveOn(row, date);
+                    const isToday = date === todayStr;
+                    return (
+                      <View key={date} style={styles.staffDayCell}>
+                        <Text style={[styles.staffDayLabel, isToday ? styles.staffDayLabelToday : null]}>{weekday(date)}</Text>
+                        {dayShifts.length > 0 ? (
+                          <>
+                            {dayShifts.slice(0, 2).map((shift) => (
+                              <Pressable
+                                key={shift.id}
+                                style={({ pressed }) => [styles.staffDayShift, pressed ? styles.staffDayShiftPressed : null]}
+                                onPress={() => openEdit(shift)}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Edit ${row.name}'s ${shift.shiftName || "shift"} shift on ${formatDayLabel(date)}`}
+                              >
+                                <Text style={styles.staffDayShiftName} numberOfLines={1}>{shift.shiftName || "Shift"}</Text>
+                                <Text style={styles.staffDayShiftTime} numberOfLines={1}>{shortTime(shift.startTime)}–{shortTime(shift.endTime)}</Text>
+                              </Pressable>
+                            ))}
+                            {dayShifts.length > 2 ? <Text style={styles.staffDayMore}>+{dayShifts.length - 2}</Text> : null}
+                          </>
+                        ) : onLeave ? (
+                          <View style={styles.staffDayLeave} accessible accessibilityLabel={`${row.name} is on approved leave on ${formatDayLabel(date)}`}>
+                            <Ionicons name="airplane-outline" size={13} color={appTheme.colors.textInfoStrong} />
+                          </View>
+                        ) : (
+                          <Pressable
+                            style={({ pressed }) => [styles.staffDayEmpty, pressed ? styles.dayEmptyAddPressed : null]}
+                            onPress={() => setQuickAssign({ name: row.name, date, userId: row.userId, rotaStaffMemberId: row.rotaStaffMemberId })}
+                            disabled={!shopId}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Assign ${row.name} on ${formatDayLabel(date)}`}
+                          >
+                            <Ionicons name="add" size={14} color={appTheme.colors.textSubtle} />
+                          </Pressable>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            );
+          })}
+        </>
+      ) : null}
 
       <Modal visible={editorOpen} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => void requestCloseEditor()}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
@@ -2021,6 +2238,81 @@ export function RotaManageScreen() {
               disabled={recordHoursMutation.isPending || recOut === recIn}
             />
             <PrimaryButton label="Cancel" tone="neutral" onPress={() => setRecordTarget(null)} disabled={recordHoursMutation.isPending} />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Quick assign (by-staff view) — put a person on one of the day's template slots. */}
+      <Modal visible={quickAssign !== null} transparent animationType="fade" onRequestClose={() => setQuickAssign(null)}>
+        <View style={styles.sheetBackdrop}>
+          <View style={[styles.sheetCard, { maxHeight: "80%" }]}>
+            <View style={styles.sheetHeader}>
+              <View style={styles.sheetIcon}>
+                <Ionicons name="person-add-outline" size={22} color={appTheme.colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitleSm} numberOfLines={2}>
+                  {quickAssign ? `Assign ${quickAssign.name} — ${formatDayLabel(quickAssign.date)}` : ""}
+                </Text>
+                <Text style={styles.muted}>Pick a shift to put them on.</Text>
+              </View>
+            </View>
+
+            <ScrollView contentContainerStyle={{ gap: 2 }}>
+              {sortedTemplates.map((t) => {
+                const existing = quickAssign
+                  ? (rotaQuery.data ?? []).find((s) => s.shiftDate === quickAssign.date && s.shiftTemplateId === t.templateId)
+                  : undefined;
+                const already = Boolean(
+                  existing &&
+                    quickAssign &&
+                    existing.assignees.some((a) =>
+                      quickAssign.userId
+                        ? a.userId === quickAssign.userId
+                        : Boolean(quickAssign.rotaStaffMemberId) && a.rotaStaffMemberId === quickAssign.rotaStaffMemberId,
+                    ),
+                );
+                const assigningThis = quickAssignMutation.isPending && quickAssignMutation.variables?.template.templateId === t.templateId;
+                return (
+                  <Pressable
+                    key={t.templateId}
+                    style={({ pressed }) => [styles.userRow, already ? styles.quickTemplateRowDisabled : null, pressed && !already ? styles.userRowPressed : null]}
+                    onPress={() => {
+                      if (quickAssign && !already) quickAssignMutation.mutate({ date: quickAssign.date, template: t, person: quickAssign });
+                    }}
+                    disabled={already || quickAssignMutation.isPending}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      already
+                        ? `${quickAssign?.name} is already on the ${t.name} shift`
+                        : `Assign ${quickAssign?.name} to the ${t.name} shift, ${timeRange(t.startTime, t.endTime)}`
+                    }
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.userName} numberOfLines={1}>{t.name}</Text>
+                      <Text style={styles.mutedSmall} numberOfLines={1}>
+                        {timeRange(t.startTime, t.endTime)}
+                        {existing
+                          ? ` · ${existing.assignees.length} assigned`
+                          : " · new shift will be added"}
+                      </Text>
+                    </View>
+                    {already ? (
+                      <Text style={styles.quickAlreadyText}>Already assigned</Text>
+                    ) : assigningThis ? (
+                      <Text style={styles.mutedSmall}>Assigning…</Text>
+                    ) : (
+                      <Ionicons name="add-circle-outline" size={22} color={appTheme.colors.primary} />
+                    )}
+                  </Pressable>
+                );
+              })}
+              {sortedTemplates.length === 0 ? (
+                <Text style={styles.muted}>No shifts configured. Set them up in Shop Configuration → Shifts.</Text>
+              ) : null}
+            </ScrollView>
+
+            <PrimaryButton label="Cancel" tone="neutral" onPress={() => setQuickAssign(null)} disabled={quickAssignMutation.isPending} />
           </View>
         </View>
       </Modal>
@@ -3502,6 +3794,28 @@ const styles = StyleSheet.create({
   weekShiftBar: { width: 3, alignSelf: "stretch", borderRadius: 2, backgroundColor: appTheme.colors.primary },
   weekShiftTitle: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
   iconBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceMuted },
+
+  // By-staff week view — one card per person with a Mon–Sun strip of small day cells.
+  staffWeekCard: { gap: 10 },
+  staffWeekHead: { flexDirection: "row", alignItems: "center", gap: 10 },
+  // Weekly planned-hours total, styled like the paper sheet's totals column.
+  staffWeekTotal: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 15 },
+  staffWeekTotalZero: { color: appTheme.colors.textSubtle },
+  staffDayStrip: { flexDirection: "row", gap: 4 },
+  staffDayCell: { flex: 1, gap: 3 },
+  staffDayLabel: { textAlign: "center", color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.3 },
+  staffDayLabelToday: { color: appTheme.colors.primary },
+  staffDayShift: { borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceBrandSoft, paddingHorizontal: 3, paddingVertical: 4, gap: 1 },
+  staffDayShiftPressed: { opacity: 0.6 },
+  staffDayShiftName: { textAlign: "center", color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 10, lineHeight: 13 },
+  staffDayShiftTime: { textAlign: "center", color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 10, lineHeight: 13 },
+  // Approved-leave day marker — informational (info-blue), not pressable.
+  staffDayLeave: { minHeight: 34, alignItems: "center", justifyContent: "center", borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceInfoSoft },
+  staffDayEmpty: { minHeight: 34, alignItems: "center", justifyContent: "center", borderRadius: appTheme.radius.sm, borderWidth: 1, borderStyle: "dashed", borderColor: appTheme.colors.border },
+  staffDayMore: { textAlign: "center", color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 10 },
+  // Quick-assign sheet rows.
+  quickTemplateRowDisabled: { opacity: 0.5 },
+  quickAlreadyText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11 },
 
   // My Shifts cards
   dayGroup: { gap: appTheme.spacing.xs },
