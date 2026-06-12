@@ -252,6 +252,10 @@ function metaFromAssignees(assignees: RotaAssignee[]): Record<string, Assignment
   return meta;
 }
 
+// Identity key for a shift assignee — userId ?? rotaStaffMemberId, with name as a last resort.
+const assigneePersonKey = (a: { userId?: string | null; rotaStaffMemberId?: string | null; name: string }) =>
+  a.userId ?? a.rotaStaffMemberId ?? a.name;
+
 // The "approved {date}" suffix for a history row — resolvedOn is an ISO timestamp.
 const approvedOnLabel = (resolvedOn?: string) => formatDayLabel(resolvedOn ? resolvedOn.slice(0, 10) : null);
 
@@ -1094,6 +1098,8 @@ export function RotaManageScreen() {
   // Person id (userId ?? rotaStaffMemberId) whose reason chip row is expanded — one at a time.
   const [expandedReasonKey, setExpandedReasonKey] = useState<string | null>(null);
   const [selectedAssignee, setSelectedAssignee] = useState<{ assignee: RotaAssignee; shift: RotaShift } | null>(null);
+  // Reason/note being edited in the contact sheet for the selected assignee — reset on open.
+  const [assigneeMeta, setAssigneeMeta] = useState<AssignmentMeta>({ reason: REGULAR_REASON, note: "" });
   const [recordTarget, setRecordTarget] = useState<{ shift: RotaShift; name: string; memberId?: string | null; userId?: string | null } | null>(null);
   const [recIn, setRecIn] = useState("09:00");
   const [recOut, setRecOut] = useState("17:00");
@@ -1333,6 +1339,98 @@ export function RotaManageScreen() {
     },
     onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't record hours."),
   });
+
+  // Open the contact sheet for one assignee, seeding the reason/note editor with their
+  // current assignment (null reason = regular shift).
+  const openAssigneeSheet = (assignee: RotaAssignee, shift: RotaShift) => {
+    setAssigneeMeta({ reason: assignee.reason ?? REGULAR_REASON, note: assignee.note ?? "" });
+    setSelectedAssignee({ assignee, shift });
+  };
+
+  // Rebuild a shift's full save payload from an assignee list — mirrors saveMutation's shape so a
+  // per-person edit/removal round-trips everyone else's reason/note untouched.
+  const shiftPayloadFrom = (shift: RotaShift, assignees: RotaAssignee[]): SaveRotaShiftPayload => {
+    const assignments: SaveRotaShiftAssignment[] = assignees.map((a) => {
+      const reason = a.reason ?? undefined;
+      return {
+        userId: a.userId ?? undefined,
+        rotaStaffMemberId: a.rotaStaffMemberId ?? undefined,
+        reason,
+        // As in saveMutation, a note only rides along with a reason.
+        note: reason ? a.note ?? undefined : undefined,
+      };
+    });
+    return {
+      shopId: shopId as string,
+      shiftDate: shift.shiftDate,
+      shiftTemplateId: shift.shiftTemplateId ?? "",
+      position: shift.position ?? undefined,
+      notes: shift.notes ?? undefined,
+      assigneeUserIds: assignments.filter((a) => a.userId).map((a) => a.userId as string),
+      assigneeStaffMemberIds: assignments.filter((a) => a.rotaStaffMemberId).map((a) => a.rotaStaffMemberId as string),
+      assignments,
+    };
+  };
+
+  // Sheet reason-editor state, normalized the same way saveMutation does: "Other…" with no text
+  // (or "Regular shift") collapses to regular, and a note only counts alongside a reason.
+  const sheetReasonIsOther = !ASSIGNMENT_REASONS.includes(assigneeMeta.reason);
+  const sheetReasonIsRegular = !sheetReasonIsOther && assigneeMeta.reason === REGULAR_REASON;
+  const sheetTrimmedReason = assigneeMeta.reason.trim();
+  const sheetEffectiveReason = !sheetTrimmedReason || sheetTrimmedReason === REGULAR_REASON ? REGULAR_REASON : sheetTrimmedReason;
+  const sheetEffectiveNote = sheetEffectiveReason === REGULAR_REASON ? "" : assigneeMeta.note.trim();
+  const assigneeMetaChanged =
+    selectedAssignee !== null &&
+    (sheetEffectiveReason !== (selectedAssignee.assignee.reason ?? REGULAR_REASON) ||
+      sheetEffectiveNote !== (selectedAssignee.assignee.note ?? ""));
+
+  // Save the sheet person's edited reason/note — only their assignment changes.
+  const assigneeReasonMutation = useMutation({
+    mutationFn: () => {
+      const sel = selectedAssignee!;
+      const key = assigneePersonKey(sel.assignee);
+      const isRegular = sheetEffectiveReason === REGULAR_REASON;
+      const assignees = sel.shift.assignees.map((a) =>
+        assigneePersonKey(a) === key
+          ? { ...a, reason: isRegular ? null : sheetEffectiveReason, note: isRegular || !sheetEffectiveNote ? null : sheetEffectiveNote }
+          : a,
+      );
+      return updateRotaShift(sel.shift.id, shiftPayloadFrom(sel.shift, assignees));
+    },
+    onSuccess: () => {
+      setSelectedAssignee(null);
+      toastSuccess("Reason updated.");
+      void invalidate();
+    },
+    onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't update the reason."),
+  });
+
+  // Take the sheet person off the shift entirely (everyone else rides along unchanged).
+  const removeAssigneeMutation = useMutation({
+    mutationFn: () => {
+      const sel = selectedAssignee!;
+      const key = assigneePersonKey(sel.assignee);
+      return updateRotaShift(sel.shift.id, shiftPayloadFrom(sel.shift, sel.shift.assignees.filter((a) => assigneePersonKey(a) !== key)));
+    },
+    onSuccess: () => {
+      const name = selectedAssignee?.assignee.name ?? "Person";
+      setSelectedAssignee(null);
+      toastSuccess(`${name} removed.`);
+      void invalidate();
+    },
+    onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't remove them from the shift."),
+  });
+
+  const confirmRemoveAssignee = async () => {
+    const sel = selectedAssignee;
+    if (!sel) return;
+    const ok = await confirmDestructive({
+      title: "Remove from shift",
+      message: `Take ${sel.assignee.name} off the ${sel.shift.shiftName || "shift"} shift on ${formatDayLabel(sel.shift.shiftDate)}?`,
+      confirmLabel: "Remove",
+    });
+    if (ok) removeAssigneeMutation.mutate();
+  };
 
   const confirmGenerate = async () => {
     const ok = await confirmDestructive({
@@ -1710,33 +1808,32 @@ export function RotaManageScreen() {
               </Pressable>
             ) : (
               <View style={styles.rotaTable}>
-                <View style={styles.rotaHeadRow}>
-                  <Text style={[styles.rotaHeadCell, styles.rotaShiftCol]}>Shift</Text>
-                  <Text style={[styles.rotaHeadCell, styles.rotaStaffCol]}>Staff</Text>
-                  <View style={styles.rotaActionCol} />
-                </View>
-                {shifts.map((shift) => {
+                {shifts.map((shift, shiftIdx) => {
                   const unstaffed = shift.assignees.length === 0;
                   return (
                     <Pressable
                       key={shift.id}
                       style={({ pressed }) => [
-                        styles.rotaBodyRow,
-                        unstaffed ? styles.rotaBodyRowUnstaffed : null,
-                        pressed ? styles.rotaBodyRowPressed : null,
+                        styles.rotaShiftBlock,
+                        shiftIdx > 0 ? styles.rotaShiftBlockDivider : null,
+                        unstaffed ? styles.rotaShiftBlockUnstaffed : null,
+                        pressed ? styles.rotaShiftBlockPressed : null,
                       ]}
                       onPress={() => openEdit(shift)}
                     >
-                      <View style={styles.rotaShiftCol}>
-                        <Text style={styles.weekShiftTitle} numberOfLines={1}>{shift.shiftName || "Shift"}</Text>
-                        <Text style={styles.tdSub}>{timeRange(shift.startTime, shift.endTime)}{overnightSuffix(shift.shiftDate, shift.endDate)}</Text>
+                      <View style={styles.rotaShiftTopRow}>
+                        <Text style={[styles.weekShiftTitle, styles.rotaShiftName]} numberOfLines={1}>{shift.shiftName || "Shift"}</Text>
+                        <Text style={[styles.tdSub, styles.rotaShiftTime]} numberOfLines={1}>{timeRange(shift.startTime, shift.endTime)}{overnightSuffix(shift.shiftDate, shift.endDate)}</Text>
+                        <Pressable onPress={() => confirmDelete(shift)} hitSlop={6} accessibilityRole="button" accessibilityLabel="Delete shift">
+                          <Ionicons name="trash-outline" size={16} color={appTheme.colors.danger} />
+                        </Pressable>
                       </View>
-                      <View style={styles.rotaStaffCol}>
-                        {shift.assignees.length > 0 ? (
-                          shift.assignees.map((a) => (
+                      {shift.assignees.length > 0 ? (
+                        <View style={styles.rotaAssigneeList}>
+                          {shift.assignees.map((a) => (
                             <Pressable
                               key={a.rotaStaffMemberId ?? a.userId ?? a.name}
-                              onPress={() => setSelectedAssignee({ assignee: a, shift })}
+                              onPress={() => openAssigneeSheet(a, shift)}
                               hitSlop={4}
                             >
                               <View style={styles.rotaStaffLine}>
@@ -1748,17 +1845,14 @@ export function RotaManageScreen() {
                                 ) : null}
                               </View>
                             </Pressable>
-                          ))
-                        ) : (
-                          <View style={styles.unstaffedRow}>
-                            <Ionicons name="alert-circle-outline" size={14} color={appTheme.colors.warning} />
-                            <Text style={styles.unstaffedText}>Needs staff — tap to assign</Text>
-                          </View>
-                        )}
-                      </View>
-                      <Pressable style={styles.rotaActionCol} onPress={() => confirmDelete(shift)} hitSlop={6} accessibilityRole="button" accessibilityLabel="Delete shift">
-                        <Ionicons name="trash-outline" size={16} color={appTheme.colors.danger} />
-                      </Pressable>
+                          ))}
+                        </View>
+                      ) : (
+                        <View style={styles.unstaffedRow}>
+                          <Ionicons name="alert-circle-outline" size={14} color={appTheme.colors.warning} />
+                          <Text style={styles.unstaffedText}>Needs staff — tap to assign</Text>
+                        </View>
+                      )}
                     </Pressable>
                   );
                 })}
@@ -2116,8 +2210,10 @@ export function RotaManageScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Staff contact details — tap a name on the rota to call/email them. */}
+      {/* Staff contact details — tap a name on the rota to call/email them, change their
+          assignment reason, or take them off the shift. */}
       <Modal visible={selectedAssignee !== null} transparent animationType="fade" onRequestClose={() => setSelectedAssignee(null)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={styles.sheetBackdrop}>
           <View style={styles.sheetCard}>
             <View style={styles.sheetHeader}>
@@ -2148,6 +2244,58 @@ export function RotaManageScreen() {
               <Text style={styles.muted}>No contact details on file.</Text>
             ) : null}
 
+            {/* Per-person assignment reason — the same chips + "Other…" control as the shift editor. */}
+            <Text style={styles.fieldLabel}>Reason</Text>
+            <View style={styles.reasonPickRow}>
+              {ASSIGNMENT_REASONS.map((r) => {
+                const active = !sheetReasonIsOther && assigneeMeta.reason === r;
+                return (
+                  <Pressable
+                    key={r}
+                    style={({ pressed }) => [styles.reasonPickChip, active ? styles.reasonPickChipActive : null, pressed ? styles.chipPressed : null]}
+                    onPress={() => setAssigneeMeta((m) => ({ ...m, reason: r }))}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Set ${selectedAssignee?.assignee.name ?? "this person"}'s reason to ${r}`}
+                  >
+                    <Text style={[styles.reasonPickText, active ? styles.reasonPickTextActive : null]}>{r}</Text>
+                  </Pressable>
+                );
+              })}
+              <Pressable
+                style={({ pressed }) => [styles.reasonPickChip, sheetReasonIsOther ? styles.reasonPickChipActive : null, pressed ? styles.chipPressed : null]}
+                onPress={() => { if (!sheetReasonIsOther) setAssigneeMeta((m) => ({ ...m, reason: "" })); }}
+                accessibilityRole="button"
+                accessibilityLabel={`Set a custom reason for ${selectedAssignee?.assignee.name ?? "this person"}`}
+              >
+                <Text style={[styles.reasonPickText, sheetReasonIsOther ? styles.reasonPickTextActive : null]}>Other…</Text>
+              </Pressable>
+            </View>
+            {sheetReasonIsOther ? (
+              <TextInput
+                style={[styles.externalInput, styles.reasonInput]}
+                value={assigneeMeta.reason}
+                onChangeText={(v) => setAssigneeMeta((m) => ({ ...m, reason: v }))}
+                placeholder="Reason"
+                placeholderTextColor={appTheme.colors.textSubtle}
+                maxLength={100}
+              />
+            ) : null}
+            {!sheetReasonIsRegular ? (
+              <TextInput
+                style={[styles.externalInput, styles.reasonInput]}
+                value={assigneeMeta.note}
+                onChangeText={(v) => setAssigneeMeta((m) => ({ ...m, note: v }))}
+                placeholder="Note (optional)"
+                placeholderTextColor={appTheme.colors.textSubtle}
+                maxLength={300}
+              />
+            ) : null}
+            <PrimaryButton
+              label={assigneeReasonMutation.isPending ? "Saving…" : "Save reason"}
+              onPress={() => assigneeReasonMutation.mutate()}
+              disabled={!assigneeMetaChanged || assigneeReasonMutation.isPending || removeAssigneeMutation.isPending}
+            />
+
             <PrimaryButton
               label="Record hours"
               onPress={() => {
@@ -2156,9 +2304,20 @@ export function RotaManageScreen() {
                 if (sel) openRecordHours(sel.shift, sel.assignee);
               }}
             />
+            <Pressable
+              style={({ pressed }) => [styles.editorDeleteBtn, pressed ? styles.userRowPressed : null]}
+              onPress={() => void confirmRemoveAssignee()}
+              disabled={removeAssigneeMutation.isPending || assigneeReasonMutation.isPending}
+              accessibilityRole="button"
+              accessibilityLabel={`Remove ${selectedAssignee?.assignee.name ?? "this person"} from this shift`}
+            >
+              <Ionicons name="person-remove-outline" size={16} color={appTheme.colors.danger} />
+              <Text style={styles.editorDeleteText}>{removeAssigneeMutation.isPending ? "Removing…" : "Remove from this shift"}</Text>
+            </Pressable>
             <PrimaryButton label="Close" tone="neutral" onPress={() => setSelectedAssignee(null)} />
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Add an external (roster-only) person — name required, phone & email optional. */}
@@ -3752,15 +3911,18 @@ const styles = StyleSheet.create({
   dayEmptyAddPressed: { backgroundColor: appTheme.colors.surfaceMuted },
   dayEmptyAddText: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   rotaTable: { borderWidth: 1, borderColor: appTheme.colors.borderSoft, borderRadius: appTheme.radius.sm, overflow: "hidden" },
-  rotaHeadRow: { flexDirection: "row", alignItems: "center", backgroundColor: appTheme.colors.surfaceMuted, paddingHorizontal: 10, paddingVertical: 7 },
-  rotaHeadCell: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 },
-  rotaBodyRow: { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 10, paddingVertical: 9, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
-  rotaBodyRowUnstaffed: { backgroundColor: appTheme.colors.surfaceWarningMuted },
-  rotaBodyRowPressed: { opacity: 0.7 },
+  // Stacked shift block on a day card: name + time + delete on top, assignees underneath.
+  rotaShiftBlock: { paddingHorizontal: 10, paddingVertical: 9, gap: 6 },
+  rotaShiftBlockDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
+  rotaShiftBlockUnstaffed: { backgroundColor: appTheme.colors.surfaceWarningMuted },
+  rotaShiftBlockPressed: { opacity: 0.7 },
+  rotaShiftTopRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  rotaShiftName: { flexShrink: 1 },
+  // Time fills the middle so the delete icon stays pinned to the far right.
+  rotaShiftTime: { flex: 1 },
+  rotaAssigneeList: { gap: 6 },
   unstaffedRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   unstaffedText: { color: appTheme.colors.textWarningStrong, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 16, flexShrink: 1 },
-  rotaShiftCol: { width: 110 },
-  rotaStaffCol: { flex: 1, paddingLeft: 8, gap: 8 },
   rotaStaffText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 13, lineHeight: 20, paddingVertical: 2 },
   // Assignee name + optional reason tag on the week grid.
   rotaStaffLine: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4 },
@@ -3772,7 +3934,6 @@ const styles = StyleSheet.create({
     maxWidth: 120,
   },
   reasonTagText: { color: appTheme.colors.textInfoStrong, fontFamily: appTheme.fonts.bodyMedium, fontSize: 10, lineHeight: 14 },
-  rotaActionCol: { width: 28, alignItems: "flex-end" },
   // Approved-leave chips on a rota day card (info-blue, like other informational tags).
   leaveChipRow: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
   leaveChip: {
