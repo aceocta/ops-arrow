@@ -31,6 +31,7 @@ export type MainStackParamList = {
   OwnerDashboard: undefined;
   MyShifts: undefined;
   MyLeave: undefined;
+  MyTimesheet: undefined;
   RotaManage: undefined;
   RotaTimesheet: undefined;
   RotaApprovals: undefined;

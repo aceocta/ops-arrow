@@ -1394,6 +1394,8 @@ public class RotaService : IRotaService
                 .OrderByDescending(x => x.CheckInAt)
                 .FirstOrDefaultAsync(cancellationToken);
         }
+        // Only an already-approved record counted toward the timesheet before this overwrite.
+        var previousCountedCheckInAt = attendance is { IsApproved: true } ? (DateTimeOffset?)attendance.CheckInAt : null;
         if (attendance is not null)
         {
             // The record being overwritten must not sit inside the payroll lock either.
@@ -1434,6 +1436,12 @@ public class RotaService : IRotaService
         attendance.ApprovedOn = null;
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (previousCountedCheckInAt is DateTimeOffset previousCounted)
+        {
+            // The overwritten approved hours no longer count — any sign-off covering them is stale.
+            await ResetSignedOffReviewsAsync(request.ShopId, userId, [previousCounted], cancellationToken);
+        }
 
         // Notify managers/owners that a manual entry needs approval (push; non-blocking).
         await NotifyManagersOfManualEntryAsync(request.ShopId, _currentUserService.FullName, cancellationToken);
@@ -1528,6 +1536,7 @@ public class RotaService : IRotaService
                 .OrderByDescending(x => x.CheckInAt)
                 .FirstOrDefaultAsync(cancellationToken);
         }
+        var previousCheckInAt = attendance?.CheckInAt;
         if (attendance is not null)
         {
             // The record being overwritten must not sit inside the payroll lock either.
@@ -1563,6 +1572,13 @@ public class RotaService : IRotaService
         attendance.ApprovedOn = now;
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Manager-edited hours invalidate any sign-off covering the old or new day.
+        var affectedTimes = previousCheckInAt is DateTimeOffset previous
+            ? new[] { previous, request.CheckInAt }
+            : new[] { request.CheckInAt };
+        await ResetSignedOffReviewsAsync(request.ShopId, targetUserId, affectedTimes, cancellationToken);
+
         return MapAttendance(attendance, $"{target.FirstName} {target.LastName}".Trim());
     }
 
@@ -1706,6 +1722,44 @@ public class RotaService : IRotaService
             throw new AppException("rota_timesheet_locked",
                 $"This period is locked for payroll (locked through {through:d MMM yyyy}). Unlock it in Timesheet before editing.");
         }
+    }
+
+    // Sign-off integrity: changing the counted hours inside a period the person already Confirmed
+    // (or that was ManagerApproved) would silently invalidate their sign-off. Those reviews drop
+    // back to PendingStaff for re-confirmation and the person is told why. Call AFTER the
+    // attendance change has been saved. Roster-only staff aren't in the review workflow.
+    private async Task ResetSignedOffReviewsAsync(Guid shopId, Guid? userId, IReadOnlyCollection<DateTimeOffset> affectedTimes, CancellationToken cancellationToken)
+    {
+        if (userId is not Guid uid || affectedTimes.Count == 0) return;
+        var dates = affectedTimes.Select(t => DateOnly.FromDateTime(t.UtcDateTime)).Distinct().ToList();
+        var min = dates.Min();
+        var max = dates.Max();
+        var candidates = await _timesheetReviewRepository.Query()
+            .Where(x => x.ShopId == shopId && x.UserId == uid
+                && x.PeriodFrom <= max && x.PeriodTo >= min
+                && (x.Status == RotaTimesheetReviewStatus.Confirmed || x.Status == RotaTimesheetReviewStatus.ManagerApproved))
+            .ToListAsync(cancellationToken);
+        var affected = candidates.Where(x => dates.Any(d => x.PeriodFrom <= d && x.PeriodTo >= d)).ToList();
+        if (affected.Count == 0) return;
+
+        var now = DateTimeOffset.UtcNow;
+        foreach (var review in affected)
+        {
+            review.Status = RotaTimesheetReviewStatus.PendingStaff;
+            review.ConfirmedOn = null;
+            review.ResolvedByUserId = null;
+            review.ResolvedOn = null;
+            review.ManagerNote = "Hours were changed after sign-off — please check the period and confirm again.";
+            review.ModifiedOn = now;
+            review.ModifiedBy = _currentUserService.UserId;
+            _timesheetReviewRepository.Update(review);
+        }
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await NotifyUsersAsync(shopId, [uid], NotificationType.TimesheetReviewRequested,
+            "Timesheet updated",
+            "Your hours were updated after you signed off — please review and confirm your timesheet again.",
+            affected[0].Id, cancellationToken);
     }
 
     private async Task<RotaTimesheetReview> GetReviewAsync(Guid reviewId, CancellationToken cancellationToken) =>
@@ -2200,6 +2254,10 @@ public class RotaService : IRotaService
         attendance.ModifiedBy = _currentUserService.UserId;
         _attendanceRepository.Update(attendance);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Newly counted hours invalidate any sign-off already covering that day.
+        await ResetSignedOffReviewsAsync(attendance.ShopId, attendance.UserId, [attendance.CheckInAt], cancellationToken);
+
         return MapAttendance(attendance, AttendanceName(attendance));
     }
 
@@ -2221,6 +2279,7 @@ public class RotaService : IRotaService
         await EnsureAttendanceNotLockedAsync(attendance.ShopId, attendance.CheckInAt, cancellationToken);
         await EnsureAttendanceNotLockedAsync(attendance.ShopId, request.CheckInAt, cancellationToken);
 
+        var previousCheckInAt = attendance.CheckInAt;
         var now = DateTimeOffset.UtcNow;
         attendance.CheckInAt = request.CheckInAt;
         attendance.CheckOutAt = request.CheckOutAt;
@@ -2232,6 +2291,11 @@ public class RotaService : IRotaService
         attendance.ModifiedBy = _currentUserService.UserId;
         _attendanceRepository.Update(attendance);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Manager-edited hours invalidate any sign-off covering the old or new day.
+        await ResetSignedOffReviewsAsync(attendance.ShopId, attendance.UserId,
+            [previousCheckInAt, request.CheckInAt], cancellationToken);
+
         return MapAttendance(attendance, AttendanceName(attendance));
     }
 
@@ -2243,9 +2307,20 @@ public class RotaService : IRotaService
         await EnsureManageAsync(attendance.ShopId, cancellationToken, FeatureKeys.StaffRotaManualApproval);
         await EnsureAttendanceNotLockedAsync(attendance.ShopId, attendance.CheckInAt, cancellationToken);
 
+        var wasCounted = attendance.IsApproved;
+        var ownerUserId = attendance.UserId;
+        var checkInAt = attendance.CheckInAt;
+        var shopId = attendance.ShopId;
+
         // Reject = discard the (manual) entry entirely.
         _attendanceRepository.Remove(attendance);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (wasCounted)
+        {
+            // Deleting hours that already counted invalidates any sign-off covering them.
+            await ResetSignedOffReviewsAsync(shopId, ownerUserId, [checkInAt], cancellationToken);
+        }
     }
 
     private async Task<RotaShiftDto> GetShiftByIdAsync(Guid shiftId, CancellationToken cancellationToken)

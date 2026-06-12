@@ -12,7 +12,7 @@ import { NetworkStatusBanner } from "../components/NetworkStatusBanner";
 import { DashboardScreen } from "../features/dashboard/DashboardScreen";
 import { BestEntryScreen } from "../features/entry/BestEntryScreen";
 import { OwnerOverviewScreen } from "../features/dashboard/OwnerOverviewScreen";
-import { MyShiftsScreen, RotaManageScreen, RotaTimesheetScreen, RotaApprovalsScreen, RotaStaffMembersScreen } from "../features/rota/RotaScreens";
+import { MyShiftsScreen, MyTimesheetScreen, RotaManageScreen, RotaTimesheetScreen, RotaApprovalsScreen, RotaStaffMembersScreen } from "../features/rota/RotaScreens";
 import { LeaveManagementScreen, MyLeaveScreen, RecordLeaveScreen } from "../features/rota/LeaveScreens";
 import { ShiftSwapsScreen } from "../features/rota/ShiftSwapsScreen";
 import { UserInvitationsScreen } from "../features/invitations/UserInvitationsScreen";
@@ -186,6 +186,7 @@ const complianceItems: MenuItem[] = [
 const shiftItems: MenuItem[] = [
   { label: "My Shifts", screen: "MyShifts", icon: "time-outline", requiredFeature: "StaffRota" },
   { label: "My Leave", screen: "MyLeave", icon: "airplane-outline", requiredFeature: "LeaveManagement" },
+  { label: "My Timesheet", screen: "MyTimesheet", icon: "document-text-outline", requiredFeature: "StaffRota" },
   { label: "Shift Swaps", screen: "ShiftSwaps", icon: "swap-horizontal-outline", requiredFeature: "staff_rota.shift_swap" },
   { label: "Shift Rota", screen: "RotaManage", icon: "calendar-number-outline", allowedRoles: ["CompanyOwner", "Manager"], requiredFeature: "StaffRota" },
   { label: "External Staff", screen: "RotaStaffMembers", icon: "people-circle-outline", allowedRoles: ["CompanyOwner", "Manager"], requiredFeature: "StaffRota" },
@@ -479,6 +480,7 @@ function MainStackScreens() {
       <Stack.Screen name="OwnerDashboard" component={OwnerOverviewScreen} options={{ title: "Dashboard" }} />
       <Stack.Screen name="MyShifts" component={MyShiftsScreen} options={{ title: "My Shifts" }} />
       <Stack.Screen name="MyLeave" component={MyLeaveScreen} options={{ title: "My Leave" }} />
+      <Stack.Screen name="MyTimesheet" component={MyTimesheetScreen} options={{ title: "My Timesheet" }} />
       <Stack.Screen name="RotaManage" component={RotaManageScreen} options={{ title: "Shift Rota" }} />
       <Stack.Screen name="RotaTimesheet" component={RotaTimesheetScreen} options={{ title: "Timesheet" }} />
       <Stack.Screen name="RotaApprovals" component={RotaApprovalsScreen} options={{ title: "Time Approvals" }} />
