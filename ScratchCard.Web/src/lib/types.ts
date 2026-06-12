@@ -19,6 +19,11 @@ export type AuthProfile = {
   displayName?: string;
   roles: string[];
   shops: ProfileShop[];
+  /** False until the owner has created their company (post-signup onboarding). */
+  hasCompanySetup?: boolean;
+  /** False until the company has at least one shop. */
+  hasShopSetup?: boolean;
+  primaryCompanyId?: string | null;
 };
 
 export type Entitlements = {

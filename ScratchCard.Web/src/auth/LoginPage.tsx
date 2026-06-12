@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import { apiErrorMessage } from "../lib/api";
 import { ArrowRight, Loader2 } from "lucide-react";
@@ -50,7 +50,13 @@ export default function LoginPage() {
             {busy ? "Signing in…" : "Sign in"}
           </button>
         </form>
-        <p className="mt-4 text-center text-xs text-slate-400">Owners & managers only. Staff use the mobile app.</p>
+        <p className="mt-4 text-center text-sm text-slate-500">
+          New to Ops Arrow?{" "}
+          <Link to="/signup" className="font-medium text-brand-600 hover:text-brand-700">
+            Create an account
+          </Link>
+        </p>
+        <p className="mt-2 text-center text-xs text-slate-400">Owners & managers only. Staff use the mobile app.</p>
       </div>
     </div>
   );

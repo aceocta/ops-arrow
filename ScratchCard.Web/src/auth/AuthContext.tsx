@@ -2,6 +2,14 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { api, setSessionExpiredHandler, tokens, unwrap } from "../lib/api";
 import type { AuthProfile, Entitlements, ProfileShop } from "../lib/types";
 
+export type SignupPayload = {
+  email: string;
+  password: string;
+  verificationCode: string;
+  firstName: string;
+  lastName: string;
+};
+
 type AuthState = {
   ready: boolean;
   profile: AuthProfile | null;
@@ -11,8 +19,11 @@ type AuthState = {
   isOwner: boolean;
   isManager: boolean;
   login: (email: string, password: string) => Promise<void>;
+  signup: (payload: SignupPayload) => Promise<void>;
   logout: () => void;
   setActiveShopId: (shopId: string) => void;
+  /** Re-fetch /auth/me — used after onboarding steps (company creation) change the profile. */
+  refreshProfile: () => Promise<void>;
   hasFeature: (key: string) => boolean;
 };
 
@@ -72,12 +83,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, [activeShopId]);
 
-  const login = async (email: string, password: string) => {
-    const res = await api.post("/auth/login", { email, password });
-    const d = unwrap<any>(res.data);
+  const applyAuthToken = async (body: any) => {
+    const d = unwrap<any>(body);
     const access = d?.accessToken ?? d?.token ?? d?.AccessToken;
     if (!access) throw new Error("No token returned.");
     tokens.set(access, d?.refreshToken ?? d?.RefreshToken ?? null);
+    await loadProfile();
+  };
+
+  const login = async (email: string, password: string) => {
+    const res = await api.post("/auth/login", { email, password });
+    await applyAuthToken(res.data);
+  };
+
+  // Signup returns the same token envelope as login — the new owner is signed in immediately.
+  const signup = async (payload: SignupPayload) => {
+    const res = await api.post("/auth/signup", payload);
+    await applyAuthToken(res.data);
+  };
+
+  const refreshProfile = async () => {
     await loadProfile();
   };
 
@@ -105,8 +130,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isOwner: roles.some((r) => r === "CompanyOwner" || r === "PlatformAdmin"),
       isManager: roles.some((r) => r === "Manager"),
       login,
+      signup,
       logout,
       setActiveShopId,
+      refreshProfile,
       hasFeature: (key: string) => features.includes(key),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps

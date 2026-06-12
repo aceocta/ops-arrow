@@ -21,6 +21,7 @@ import {
   ArrowLeftRight,
   ListTree,
   Settings,
+  CreditCard,
   ChevronDown,
   LogOut,
   Store,
@@ -29,7 +30,15 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 
-type NavItem = { to: string; label: string; icon: React.ComponentType<{ className?: string }>; feature?: string; role?: string };
+type NavItem = {
+  to: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  feature?: string;
+  role?: string;
+  /** Show when the user has ANY of these roles. */
+  anyRole?: string[];
+};
 type NavGroup = { group: string; items: NavItem[] };
 
 const NAV: NavGroup[] = [
@@ -70,6 +79,8 @@ const NAV: NavGroup[] = [
     group: "Setup",
     items: [
       { to: "/shops", label: "Shops", icon: Store },
+      // No feature gate — billing is universal. Owners/managers only (mobile users are sent here for all billing).
+      { to: "/billing", label: "Billing", icon: CreditCard, anyRole: ["CompanyOwner", "Manager", "PlatformAdmin"] },
       { to: "/settings", label: "Settings", icon: Settings },
     ],
   },
@@ -140,7 +151,15 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const roles = profile?.roles ?? [];
   const groups = NAV
-    .map((g) => ({ ...g, items: g.items.filter((i) => (!i.feature || features.includes(i.feature)) && (!i.role || roles.includes(i.role))) }))
+    .map((g) => ({
+      ...g,
+      items: g.items.filter(
+        (i) =>
+          (!i.feature || features.includes(i.feature)) &&
+          (!i.role || roles.includes(i.role)) &&
+          (!i.anyRole || i.anyRole.some((r) => roles.includes(r))),
+      ),
+    }))
     .filter((g) => g.items.length > 0);
 
   const pendingQ = useQuery({
