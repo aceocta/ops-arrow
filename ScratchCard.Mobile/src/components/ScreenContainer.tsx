@@ -23,6 +23,9 @@ type ScreenContainerProps = PropsWithChildren<{
   keyboardScrollOffset?: number;
   refreshControl?: React.ReactElement<RefreshControlProps>;
   scrollable?: boolean;
+  /** Stretch the body to fill the viewport so a flex:1 child can absorb the leftover height
+   *  (used by the home screen's quick-actions grid). Content taller than the screen still scrolls. */
+  stretch?: boolean;
 }>;
 
 export function ScreenContainer({
@@ -32,6 +35,7 @@ export function ScreenContainer({
   keyboardScrollOffset = 100,
   refreshControl,
   scrollable = true,
+  stretch = false,
 }: ScreenContainerProps) {
   const entrance = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
@@ -130,6 +134,7 @@ export function ScreenContainer({
               style={[
                 styles.body,
                 centerContent ? styles.bodyCentered : null,
+                stretch ? styles.bodyStretch : null,
                 { opacity: entrance, transform: [{ translateY }] },
               ]}
             >
@@ -185,6 +190,9 @@ const styles = StyleSheet.create({
   bodyCentered: {
     flexGrow: 1,
     justifyContent: "center",
+  },
+  bodyStretch: {
+    flexGrow: 1,
   },
   footerShell: {
     position: "absolute",

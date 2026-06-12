@@ -207,6 +207,13 @@ export function BestEntryScreen() {
     swapsCount > 0 ? { key: "swaps", label: `${swapsCount} shift ${swapsCount === 1 ? "swap" : "swaps"} to respond`, route: "ShiftSwaps", icon: "swap-horizontal-outline", count: swapsCount } : null,
   ].filter(Boolean) as any;
 
+  // Adaptive tile layout: when each grid row gets enough height, the label sits under the icon;
+  // in tight space (busy attention card, many features) it sits beside it instead.
+  const [gridHeight, setGridHeight] = useState(0);
+  const tileRows = Math.max(1, Math.ceil(visibleOptions.length / 2));
+  const estimatedTileHeight = gridHeight > 0 ? (gridHeight - 12 * (tileRows - 1)) / tileRows : 0;
+  const stackedTiles = estimatedTileHeight >= 96;
+
   const chooseShop = async (shopId: string) => {
     setSwitchOpen(false);
     if (shopId !== activeShopId) {
@@ -219,7 +226,7 @@ export function BestEntryScreen() {
   };
 
   return (
-    <ScreenContainer>
+    <ScreenContainer stretch>
       <SubscriptionBanner />
 
       {/* Compact top row: greeting + active-shop pill */}
@@ -280,15 +287,20 @@ export function BestEntryScreen() {
             : "Your manager hasn't enabled any features for you yet. Check back soon."}
         />
       ) : (
-        <View style={styles.section}>
+        <View style={[styles.section, styles.sectionFill]}>
           <Text style={styles.sectionLabel}>Quick actions</Text>
-          <View style={styles.featureGrid}>
+          <View style={styles.featureGrid} onLayout={(e) => setGridHeight(e.nativeEvent.layout.height)}>
             {visibleOptions.map((option) => {
               const selected = option.operation ? selectedOperation === option.operation : false;
               return (
                 <Pressable
                   key={option.key}
-                  style={[ui.card, styles.featureTile, selected ? styles.featureTileSelected : null]}
+                  style={[
+                    ui.card,
+                    styles.featureTile,
+                    stackedTiles ? styles.featureTileStacked : null,
+                    selected ? styles.featureTileSelected : null,
+                  ]}
                   onPress={() => {
                     if (option.operation) {
                       setSelectedOperation(option.operation);
@@ -297,12 +309,14 @@ export function BestEntryScreen() {
                   }}
                 >
                   <View style={[styles.featureIcon, { backgroundColor: option.iconBg }]}>
-                    <Ionicons name={option.icon} size={24} color={option.iconColor} />
+                    <Ionicons name={option.icon} size={22} color={option.iconColor} />
                   </View>
                   {(badgeByKey[option.key] ?? 0) > 0 ? (
                     <View style={styles.tileBadge}><Text style={styles.tileBadgeText}>{badgeByKey[option.key]}</Text></View>
                   ) : null}
-                  <Text style={styles.featureTitle}>{option.title}</Text>
+                  <Text style={[styles.featureTitle, stackedTiles ? styles.featureTitleStacked : null]} numberOfLines={2}>
+                    {option.title}
+                  </Text>
                 </Pressable>
               );
             })}
@@ -417,6 +431,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   section: { gap: appTheme.spacing.sm },
+  // Home screen only: the quick-actions section absorbs whatever height the sections above
+  // (attention card, ask bar, …) leave free, so the tiles spread over the full screen.
+  sectionFill: { flexGrow: 1 },
   sectionLabel: {
     color: appTheme.colors.textMuted,
     fontFamily: appTheme.fonts.bodyMedium,
@@ -454,19 +471,29 @@ const styles = StyleSheet.create({
   },
   shopRowText: { flex: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 15 },
   shopRowTextActive: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium },
+  // flex + alignContent stretch: tile rows share out the leftover height equally, so the grid
+  // fills the screen when there's room and compresses to content height when there isn't.
   featureGrid: {
+    flex: 1,
     flexDirection: "row",
     flexWrap: "wrap",
+    alignContent: "stretch",
     gap: 12,
   },
+  // Icon on the left, label beside it — a compact horizontal row per feature.
   featureTile: {
     width: "48%",
-    minHeight: 104,
+    flexDirection: "row",
+    alignItems: "center",
     borderRadius: appTheme.radius.md,
-    padding: appTheme.spacing.md,
-    alignItems: "flex-start",
-    justifyContent: "space-between",
+    padding: appTheme.spacing.sm,
     gap: 10,
+  },
+  // Tall-tile variant: icon above, label underneath.
+  featureTileStacked: {
+    flexDirection: "column",
+    alignItems: "flex-start",
+    justifyContent: "center",
   },
   featureTileSelected: {
     backgroundColor: appTheme.colors.surfaceBrandMuted,
@@ -474,17 +501,22 @@ const styles = StyleSheet.create({
     borderColor: appTheme.colors.borderBrandSoft,
   },
   featureIcon: {
-    width: 48,
-    height: 48,
+    width: 40,
+    height: 40,
     borderRadius: appTheme.radius.sm,
     alignItems: "center",
     justifyContent: "center",
   },
   featureTitle: {
+    flex: 1,
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 15,
-    lineHeight: 19,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  // In the stacked (column) variant the label must not flex-fill the column.
+  featureTitleStacked: {
+    flex: 0,
   },
 });
 
