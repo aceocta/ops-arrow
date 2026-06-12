@@ -24,6 +24,7 @@ public class LeaveRequestDto
     public string? StaffNote { get; set; }
     public string? ManagerNote { get; set; }
     public Guid? DecidedByUserId { get; set; }
+    public string? DecidedByName { get; set; }
     public DateTimeOffset? DecidedOn { get; set; }
     public DateTimeOffset RequestedOn { get; set; }
 }

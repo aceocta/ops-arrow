@@ -10,8 +10,10 @@ import {
   cancelLeaveRequest,
   createLeaveRequest,
   getAssignableUsers,
+  getLeaveBalance,
   getLeaveEntitlements,
   getLeaveRequests,
+  getMyLeaveRequests,
   rejectLeaveRequest,
   saveLeaveEntitlement,
 } from "../../api/rotaApi";
@@ -27,12 +29,24 @@ import { confirmDestructive } from "../../utils/confirm";
 import { formatDayLabel } from "../../utils/dateLabels";
 import { getApiErrorMessage } from "../../utils/apiErrorMessage";
 import { toastError, toastSuccess } from "../../components/toast";
-import { AssignableUser, LeaveEntitlement, LeaveRequest, LeaveType } from "../../types/models";
+import { useFeature } from "../subscription/useFeature";
+import { UpgradeNotice } from "../subscription/FeatureGate";
+import { AssignableUser, LeaveEntitlement, LeaveRequest, LeaveStatus, LeaveType } from "../../types/models";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
 export const LEAVE_TYPES: LeaveType[] = ["Holiday", "Sick", "Unpaid", "Other"];
+
+// Status → badge label/tone, shared by the staff list rows and the detail sheet.
+const leaveStatusBadge = (status: LeaveStatus) =>
+  status === "Pending"
+    ? { label: "Pending", tone: "neutral" as const }
+    : status === "Approved"
+      ? { label: "Approved", tone: "success" as const }
+      : status === "Rejected"
+        ? { label: "Rejected", tone: "danger" as const }
+        : { label: "Cancelled", tone: "neutral" as const };
 
 // "Mon, 1 Jun – Fri, 5 Jun 2026 · 40h" — the standard one-line summary of a request's span.
 export const leavePeriodLabel = (r: LeaveRequest) =>
@@ -867,6 +881,350 @@ export function RecordLeaveScreen() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// My Leave (staff): holiday balance, own requests + request/cancel leave
+// ---------------------------------------------------------------------------
+export function MyLeaveScreen() {
+  const { activeShopId } = useAuth();
+  const shopId = activeShopId;
+  const queryClient = useQueryClient();
+  // Leave is gated on the LeaveManagement feature — request-leave modal state.
+  const leaveFeature = useFeature("LeaveManagement");
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const [leaveType, setLeaveType] = useState<LeaveType>("Holiday");
+  const [leaveStart, setLeaveStart] = useState(() => formatDateValue(new Date()));
+  const [leaveEnd, setLeaveEnd] = useState(() => formatDateValue(new Date()));
+  const [leaveHours, setLeaveHours] = useState("8");
+  const [leaveNote, setLeaveNote] = useState("");
+  // Detail sheet — tapping a request row opens its details + approval history.
+  const [detail, setDetail] = useState<LeaveRequest | null>(null);
+
+  // My holiday balance + leave requests — only fetched when Leave Management is enabled.
+  const leaveBalanceQuery = useQuery({
+    queryKey: ["leave-balance", shopId, "mine"],
+    queryFn: () => getLeaveBalance(shopId as string),
+    enabled: Boolean(shopId) && leaveFeature.isAllowed,
+  });
+  const myLeaveQuery = useQuery({
+    queryKey: ["leave-mine", shopId],
+    queryFn: () => getMyLeaveRequests(shopId as string),
+    enabled: Boolean(shopId) && leaveFeature.isAllowed,
+  });
+  const leaveBalance = leaveBalanceQuery.data ?? null;
+  // What's worth showing: anything pending, plus approved/rejected leave that
+  // hasn't finished yet (history stays out of the way).
+  const visibleLeave = useMemo(() => {
+    const today = formatDateValue(new Date());
+    return (myLeaveQuery.data ?? [])
+      .filter((r) => r.status === "Pending" || ((r.status === "Approved" || r.status === "Rejected") && r.endDate >= today))
+      .sort((a, b) => a.startDate.localeCompare(b.startDate));
+  }, [myLeaveQuery.data]);
+
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ["leave-mine", shopId] });
+    void queryClient.invalidateQueries({ queryKey: ["leave-balance", shopId] });
+  };
+  const refreshing = myLeaveQuery.isRefetching || leaveBalanceQuery.isRefetching;
+
+  const requestLeaveMutation = useMutation({
+    mutationFn: () =>
+      createLeaveRequest({
+        shopId: shopId as string,
+        type: leaveType,
+        startDate: leaveStart,
+        endDate: leaveEnd,
+        hoursPerDay: parseHours(leaveHours) as number,
+        staffNote: leaveNote.trim() || undefined,
+      }),
+    onSuccess: () => {
+      setLeaveOpen(false);
+      toastSuccess("Leave request sent.");
+      void queryClient.invalidateQueries({ queryKey: ["leave-mine", shopId] });
+      void queryClient.invalidateQueries({ queryKey: ["leave-balance", shopId] });
+    },
+    onError: (error: unknown) => toastError(getApiErrorMessage(error, "Couldn't send the leave request.")),
+  });
+  const cancelLeaveMutation = useMutation({
+    mutationFn: (id: string) => cancelLeaveRequest(id),
+    onSuccess: () => {
+      setDetail(null);
+      toastSuccess("Leave request cancelled.");
+      void queryClient.invalidateQueries({ queryKey: ["leave-mine", shopId] });
+      void queryClient.invalidateQueries({ queryKey: ["leave-balance", shopId] });
+    },
+    onError: (error: unknown) => toastError(getApiErrorMessage(error, "Couldn't cancel the leave request.")),
+  });
+
+  const openRequestLeave = () => {
+    setLeaveType("Holiday");
+    const today = formatDateValue(new Date());
+    setLeaveStart(today);
+    setLeaveEnd(today);
+    setLeaveHours(String(leaveBalance?.usualHoursPerDay ?? 8));
+    setLeaveNote("");
+    setLeaveOpen(true);
+  };
+  const startCancelLeave = async (r: LeaveRequest) => {
+    const ok = await confirmDestructive({
+      title: "Cancel request",
+      message: `Cancel your ${r.type.toLowerCase()} leave request for ${formatDayLabel(r.startDate)}${r.endDate !== r.startDate ? ` – ${formatDayLabel(r.endDate)}` : ""}?`,
+      confirmLabel: "Cancel request",
+      cancelLabel: "Keep",
+    });
+    if (ok) cancelLeaveMutation.mutate(r.id);
+  };
+
+  // Friendly locked state — the drawer normally hides this screen when the feature is off,
+  // but keep the guard for safety (deep links, plan downgrades, …).
+  if (!leaveFeature.isAllowed) {
+    return (
+      <ScreenContainer>
+        <View style={styles.content}>
+          {leaveFeature.isLoading ? (
+            <LoadingState inline />
+          ) : (
+            <UpgradeNotice
+              feature="LeaveManagement"
+              title="Leave isn't included in your plan"
+              message="Leave management isn't included in this shop's current plan."
+            />
+          )}
+        </View>
+      </ScreenContainer>
+    );
+  }
+
+  return (
+    <ScreenContainer
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={appTheme.colors.primary} colors={[appTheme.colors.primary]} />
+      }
+    >
+      <View style={styles.content}>
+        <PrimaryButton label="Request leave" icon="airplane-outline" onPress={openRequestLeave} disabled={!shopId} />
+
+        {/* Leave — balance plus upcoming/pending requests; tap a row for details */}
+        <View style={[ui.card, styles.leaveCard]}>
+          <View style={styles.leaveCardHeader}>
+            <Ionicons name="airplane-outline" size={16} color={appTheme.colors.primary} />
+            <Text style={styles.sectionTitle}>Leave</Text>
+          </View>
+
+          {leaveBalance ? (
+            <Text style={styles.leaveBalanceText}>
+              Holiday left: {leaveBalance.remainingHours.toFixed(0)}h of {leaveBalance.entitledHours.toFixed(0)}h
+            </Text>
+          ) : leaveBalanceQuery.isSuccess ? (
+            <Text style={styles.mutedSmall}>No holiday allowance set yet — ask your manager.</Text>
+          ) : null}
+
+          {myLeaveQuery.isLoading ? <LoadingState inline /> : null}
+          {myLeaveQuery.isSuccess && visibleLeave.length === 0 ? (
+            <Text style={styles.mutedSmall}>No upcoming or pending leave.</Text>
+          ) : null}
+
+          {visibleLeave.map((r) => {
+            const badge = leaveStatusBadge(r.status);
+            return (
+              <Pressable
+                key={r.id}
+                style={({ pressed }) => [styles.leaveRow, pressed ? styles.userRowPressed : null]}
+                onPress={() => setDetail(r)}
+                accessibilityRole="button"
+                accessibilityLabel={`View ${r.type} leave details`}
+              >
+                <View style={styles.leaveRowTop}>
+                  <Text style={styles.leavePeriod}>
+                    <Text style={styles.typeInline}>{r.type}</Text> · {leavePeriodLabel(r)}
+                  </Text>
+                  <View style={styles.leaveRowEnd}>
+                    <StatusBadge label={badge.label} tone={badge.tone} />
+                    <Ionicons name="chevron-forward" size={16} color={appTheme.colors.textSubtle} />
+                  </View>
+                </View>
+                {r.status !== "Pending" && r.managerNote ? (
+                  <Text style={styles.mutedSmall}>Manager: {r.managerNote}</Text>
+                ) : null}
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* Leave details — read-only sheet with the request's facts and its approval history */}
+      <Modal visible={detail !== null} transparent animationType="fade" onRequestClose={() => setDetail(null)}>
+        <View style={styles.sheetBackdrop}>
+          <View style={[styles.sheetCard, { maxHeight: "88%" }]}>
+            <View style={styles.sheetHeader}>
+              <View style={styles.sheetIcon}>
+                <Ionicons name="airplane-outline" size={22} color={appTheme.colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitleSm}>Leave details</Text>
+                <Text style={styles.muted} numberOfLines={1}>
+                  {detail ? (detail.type === "Unpaid" ? "Unpaid" : `${detail.type} · ${detail.isPaid ? "Paid" : "Unpaid"}`) : ""}
+                </Text>
+              </View>
+              {detail ? <StatusBadge label={leaveStatusBadge(detail.status).label} tone={leaveStatusBadge(detail.status).tone} /> : null}
+            </View>
+
+            {detail ? (
+              <ScrollView contentContainerStyle={styles.modalBody}>
+                <View style={styles.detailRow}>
+                  <Text style={styles.fieldLabel}>Dates</Text>
+                  <Text style={styles.detailValue}>
+                    {detail.startDate === detail.endDate
+                      ? formatDayLabel(detail.startDate)
+                      : `${formatDayLabel(detail.startDate)} – ${formatDayLabel(detail.endDate)}`}
+                  </Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.fieldLabel}>Days</Text>
+                  <Text style={styles.detailValue}>{detail.totalDays} day{detail.totalDays === 1 ? "" : "s"}</Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.fieldLabel}>Hours per day</Text>
+                  <Text style={styles.detailValue}>{detail.hoursPerDay}h</Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.fieldLabel}>Total hours</Text>
+                  <Text style={styles.detailValue}>{detail.totalHours.toFixed(1)}h</Text>
+                </View>
+                {detail.staffNote ? (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.fieldLabel}>Your note</Text>
+                    <Text style={styles.detailValue}>{detail.staffNote}</Text>
+                  </View>
+                ) : null}
+
+                <Text style={[styles.fieldLabel, { marginTop: 6 }]}>History</Text>
+                <View style={styles.timelineRow}>
+                  <View style={styles.timelineDot} />
+                  <View style={[styles.timelineLine, { flex: 1 }]}>
+                    <Text style={styles.timelineText}>Requested</Text>
+                    <Text style={styles.mutedSmall}>{formatDayLabel(detail.requestedOn.slice(0, 10))}</Text>
+                  </View>
+                </View>
+                {detail.decidedOn && detail.status !== "Pending" ? (
+                  <View style={styles.timelineRow}>
+                    <View style={styles.timelineDot} />
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <View style={styles.timelineLine}>
+                        <Text style={styles.timelineText}>
+                          {detail.status === "Approved"
+                            ? `Approved by ${detail.decidedByName ?? "a manager"}`
+                            : detail.status === "Rejected"
+                              ? `Rejected by ${detail.decidedByName ?? "a manager"}`
+                              : `Cancelled by ${detail.decidedByName ?? "a manager"}`}
+                        </Text>
+                        <Text style={styles.mutedSmall}>{formatDayLabel(detail.decidedOn.slice(0, 10))}</Text>
+                      </View>
+                      {detail.managerNote ? <Text style={styles.mutedSmall}>“{detail.managerNote}”</Text> : null}
+                    </View>
+                  </View>
+                ) : null}
+                {detail.status === "Cancelled" && !detail.decidedOn ? (
+                  <View style={styles.timelineRow}>
+                    <View style={styles.timelineDot} />
+                    <Text style={styles.timelineText}>Cancelled</Text>
+                  </View>
+                ) : null}
+              </ScrollView>
+            ) : null}
+
+            {detail?.status === "Pending" ? (
+              <PrimaryButton
+                label={cancelLeaveMutation.isPending ? "Cancelling…" : "Cancel request"}
+                tone="danger"
+                onPress={() => detail && void startCancelLeave(detail)}
+                disabled={cancelLeaveMutation.isPending}
+              />
+            ) : null}
+            <PrimaryButton label="Close" tone="neutral" onPress={() => setDetail(null)} disabled={cancelLeaveMutation.isPending} />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Request leave */}
+      <Modal visible={leaveOpen} transparent animationType="fade" onRequestClose={() => setLeaveOpen(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <View style={styles.sheetBackdrop}>
+          <View style={styles.sheetCard}>
+            <View style={styles.sheetHeader}>
+              <View style={styles.sheetIcon}>
+                <Ionicons name="airplane-outline" size={22} color={appTheme.colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitleSm}>Request leave</Text>
+                <Text style={styles.muted} numberOfLines={1}>
+                  {leaveBalance ? `Holiday left: ${leaveBalance.remainingHours.toFixed(0)}h of ${leaveBalance.entitledHours.toFixed(0)}h` : "Sent to your manager for approval"}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.fieldLabel}>Type</Text>
+            {renderTypeChips(leaveType, setLeaveType)}
+
+            <View style={styles.row}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.fieldLabel}>First day</Text>
+                <DateTimeField
+                  mode="date"
+                  value={leaveStart}
+                  onChange={(v) => {
+                    setLeaveStart(v);
+                    setLeaveEnd((e) => (e < v ? v : e));
+                  }}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.fieldLabel}>Last day</Text>
+                <DateTimeField mode="date" value={leaveEnd} onChange={setLeaveEnd} />
+              </View>
+            </View>
+            {leaveEnd < leaveStart ? (
+              <Text style={[styles.mutedSmall, { color: appTheme.colors.danger }]}>The last day can't be before the first day.</Text>
+            ) : null}
+
+            <Text style={styles.fieldLabel}>Hours per day</Text>
+            <TextInput
+              style={styles.externalInput}
+              value={leaveHours}
+              onChangeText={setLeaveHours}
+              placeholder={String(leaveBalance?.usualHoursPerDay ?? 8)}
+              placeholderTextColor={appTheme.colors.textSubtle}
+              keyboardType="decimal-pad"
+              maxLength={5}
+            />
+            {parseHours(leaveHours) === null ? (
+              <Text style={[styles.mutedSmall, { color: appTheme.colors.danger }]}>Enter the hours each leave day counts for.</Text>
+            ) : null}
+
+            <Text style={styles.fieldLabel}>Note (optional)</Text>
+            <TextInput
+              style={[styles.externalInput, styles.noteInput]}
+              value={leaveNote}
+              onChangeText={setLeaveNote}
+              placeholder="Anything your manager should know"
+              placeholderTextColor={appTheme.colors.textSubtle}
+              multiline
+              maxLength={500}
+            />
+
+            <PrimaryButton
+              label={requestLeaveMutation.isPending ? "Sending…" : "Send request"}
+              onPress={() => requestLeaveMutation.mutate()}
+              disabled={requestLeaveMutation.isPending || leaveEnd < leaveStart || parseHours(leaveHours) === null}
+            />
+            <PrimaryButton label="Cancel" tone="neutral" onPress={() => setLeaveOpen(false)} disabled={requestLeaveMutation.isPending} />
+          </View>
+        </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </ScreenContainer>
+  );
+}
+
 const styles = StyleSheet.create({
   content: { gap: appTheme.spacing.sm, paddingBottom: appTheme.spacing.xl },
   row: { flexDirection: "row", gap: appTheme.spacing.sm },
@@ -914,6 +1272,24 @@ const styles = StyleSheet.create({
 
   // Entitlements
   entRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
+
+  // My Leave (staff) — balance card + own requests, matching the My Shifts card styling.
+  sectionTitle: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 15, lineHeight: 20, marginTop: 4 },
+  leaveCard: { gap: appTheme.spacing.sm },
+  leaveCardHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
+  leaveBalanceText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 19 },
+  leaveRow: { gap: 8, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
+  leaveRowTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 },
+  leaveRowEnd: { flexDirection: "row", alignItems: "center", gap: 6 },
+  leavePeriod: { flexShrink: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 19 },
+
+  // Leave detail sheet — label/value rows + a tiny approval-history timeline.
+  detailRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, paddingVertical: 2 },
+  detailValue: { flexShrink: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 19, textAlign: "right" },
+  timelineRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingVertical: 3 },
+  timelineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: appTheme.colors.primary, marginTop: 5 },
+  timelineLine: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" },
+  timelineText: { flexShrink: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 19 },
 
   // Modals (shared sheet styling, matching RotaScreens)
   sheetBackdrop: { flex: 1, backgroundColor: appTheme.colors.overlayStrong, justifyContent: "center", padding: appTheme.spacing.md },

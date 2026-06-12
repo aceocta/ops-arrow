@@ -608,6 +608,8 @@ export type LeaveRequest = {
   staffNote?: string | null;
   managerNote?: string | null;
   decidedByUserId?: string | null;
+  /** Display name of the manager who decided the request. Null for legacy rows or deciders who left. */
+  decidedByName?: string | null;
   decidedOn?: string | null; // ISO
   requestedOn: string; // ISO
 };

@@ -172,7 +172,7 @@ public class LeaveService : ILeaveService
         return name.Trim();
     }
 
-    private static LeaveRequestDto MapLeave(LeaveRequest x, string userName)
+    private static LeaveRequestDto MapLeave(LeaveRequest x, string userName, string? decidedByName = null)
     {
         var days = x.EndDate.DayNumber - x.StartDate.DayNumber + 1;
         return new LeaveRequestDto
@@ -194,6 +194,7 @@ public class LeaveService : ILeaveService
             StaffNote = x.StaffNote,
             ManagerNote = x.ManagerNote,
             DecidedByUserId = x.DecidedByUserId,
+            DecidedByName = decidedByName,
             DecidedOn = x.DecidedOn,
             RequestedOn = x.CreatedOn,
         };
@@ -201,6 +202,25 @@ public class LeaveService : ILeaveService
 
     private static string LeaveName(LeaveRequest x) =>
         x.User != null ? FullName(x.User) : (x.RotaStaffMember?.Name ?? "—");
+
+    // Display names for the deciders of a batch of leave rows (shop members only — a decider who
+    // has since left the shop simply resolves to null and the client falls back to "a manager").
+    private async Task<Dictionary<Guid, string>> DeciderNamesAsync(Guid shopId, IEnumerable<LeaveRequest> rows, CancellationToken cancellationToken)
+    {
+        var ids = rows.Where(x => x.DecidedByUserId != null).Select(x => x.DecidedByUserId!.Value).Distinct().ToList();
+        if (ids.Count == 0) return new Dictionary<Guid, string>();
+        var members = await _shopUserRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.ShopId == shopId && ids.Contains(x.UserId))
+            .Select(x => new { x.UserId, Name = x.User.FirstName + " " + x.User.LastName })
+            .ToListAsync(cancellationToken);
+        var names = new Dictionary<Guid, string>();
+        foreach (var m in members) names.TryAdd(m.UserId, m.Name.Trim());
+        return names;
+    }
+
+    private static string? DeciderNameFor(LeaveRequest x, Dictionary<Guid, string> names) =>
+        x.DecidedByUserId is Guid id && names.TryGetValue(id, out var n) ? n : null;
 
     private async Task<LeaveRequest> GetLeaveAsync(Guid leaveRequestId, CancellationToken cancellationToken) =>
         await _leaveRepository.Query()
@@ -305,7 +325,7 @@ public class LeaveService : ILeaveService
                 $"Your leave for {DateRangeLabel(leave.StartDate, leave.EndDate)} was recorded by your manager.",
                 leave.Id, cancellationToken);
         }
-        return MapLeave(leave, name);
+        return MapLeave(leave, name, _currentUserService.FullName);
     }
 
     public async Task<IReadOnlyCollection<LeaveRequestDto>> GetForShopAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
@@ -318,7 +338,8 @@ public class LeaveService : ILeaveService
             .Where(x => x.ShopId == shopId && x.StartDate <= to && x.EndDate >= from)
             .OrderByDescending(x => x.CreatedOn)
             .ToListAsync(cancellationToken);
-        return rows.Select(x => MapLeave(x, LeaveName(x))).ToArray();
+        var deciders = await DeciderNamesAsync(shopId, rows, cancellationToken);
+        return rows.Select(x => MapLeave(x, LeaveName(x), DeciderNameFor(x, deciders))).ToArray();
     }
 
     public async Task<IReadOnlyCollection<LeaveRequestDto>> GetMineAsync(Guid shopId, CancellationToken cancellationToken = default)
@@ -332,7 +353,8 @@ public class LeaveService : ILeaveService
             .Take(100)
             .ToListAsync(cancellationToken);
         var name = _currentUserService.FullName;
-        return rows.Select(x => MapLeave(x, name)).ToArray();
+        var deciders = await DeciderNamesAsync(shopId, rows, cancellationToken);
+        return rows.Select(x => MapLeave(x, name, DeciderNameFor(x, deciders))).ToArray();
     }
 
     public async Task<LeaveRequestDto> ApproveAsync(Guid leaveRequestId, ApproveLeaveRequest request, CancellationToken cancellationToken = default)
@@ -372,7 +394,7 @@ public class LeaveService : ILeaveService
                 $"Your leave for {DateRangeLabel(leave.StartDate, leave.EndDate)} was approved.",
                 leave.Id, cancellationToken);
         }
-        return MapLeave(leave, LeaveName(leave));
+        return MapLeave(leave, LeaveName(leave), _currentUserService.FullName);
     }
 
     public async Task<LeaveRequestDto> RejectAsync(Guid leaveRequestId, RejectLeaveRequest request, CancellationToken cancellationToken = default)
@@ -407,7 +429,7 @@ public class LeaveService : ILeaveService
                 $"Your leave request for {DateRangeLabel(leave.StartDate, leave.EndDate)} was rejected.",
                 leave.Id, cancellationToken);
         }
-        return MapLeave(leave, LeaveName(leave));
+        return MapLeave(leave, LeaveName(leave), _currentUserService.FullName);
     }
 
     public async Task<LeaveRequestDto> CancelAsync(Guid leaveRequestId, CancellationToken cancellationToken = default)
@@ -454,7 +476,8 @@ public class LeaveService : ILeaveService
                 $"Your leave for {rangeLabel} was cancelled by your manager.",
                 leave.Id, cancellationToken);
         }
-        return MapLeave(leave, LeaveName(leave));
+        return MapLeave(leave, LeaveName(leave),
+            leave.DecidedByUserId == _currentUserService.UserId ? _currentUserService.FullName : null);
     }
 
     public async Task<LeaveBalanceDto?> GetBalanceAsync(Guid shopId, Guid? userId, Guid? rotaStaffMemberId, CancellationToken cancellationToken = default)
