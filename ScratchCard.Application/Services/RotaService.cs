@@ -104,12 +104,22 @@ public class RotaService : IRotaService
     private static DateOnly ResolveEndDate(DateOnly shiftDate, TimeOnly start, TimeOnly end) =>
         end <= start ? shiftDate.AddDays(1) : shiftDate;
 
-    // The shop's business day for a calendar date, if one exists (null when not yet opened).
-    private Task<Guid?> ResolveBusinessDayIdAsync(Guid shopId, DateOnly date, CancellationToken cancellationToken) =>
-        _businessDayRepository.Query()
-            .Where(x => x.ShopId == shopId && x.BusinessDate == date)
+    // The shop's business day covering a shift that starts at startTime on shiftDate, if one
+    // exists (null when not yet opened). Day Management dates an overnight business window
+    // (start > end, e.g. 22:00 -> 09:59) by its CLOSE date, so a shift starting after the
+    // window's end time belongs to the NEXT calendar date's business day — the inverse of
+    // ShiftService.ResolveScheduledShiftDates. Same-day windows keep the shift's start date.
+    private async Task<Guid?> ResolveBusinessDayIdAsync(Guid shopId, DateOnly shiftDate, TimeOnly startTime, CancellationToken cancellationToken)
+    {
+        var setup = await _shopConfigurationService.GetBusinessDaySetupAsync(shopId, cancellationToken);
+        var businessDate = setup.BusinessStartTime > setup.BusinessEndTime && startTime.ToTimeSpan() > setup.BusinessEndTime
+            ? shiftDate.AddDays(1)
+            : shiftDate;
+        return await _businessDayRepository.Query()
+            .Where(x => x.ShopId == shopId && x.BusinessDate == businessDate)
             .Select(x => (Guid?)x.Id)
             .FirstOrDefaultAsync(cancellationToken);
+    }
 
     private static RotaShiftDto MapShift(RotaShift shift) => new()
     {
@@ -338,7 +348,7 @@ public class RotaService : IRotaService
             ShopId = request.ShopId,
             ShiftDate = request.ShiftDate,
             EndDate = ResolveEndDate(request.ShiftDate, startTime, endTime),
-            BusinessDayId = await ResolveBusinessDayIdAsync(request.ShopId, request.ShiftDate, cancellationToken),
+            BusinessDayId = await ResolveBusinessDayIdAsync(request.ShopId, request.ShiftDate, startTime, cancellationToken),
             ShiftTemplateId = template.TemplateId,
             ShiftName = template.Name,
             StartTime = startTime,
@@ -426,7 +436,7 @@ public class RotaService : IRotaService
                     ShopId = shopId,
                     ShiftDate = date,
                     EndDate = ResolveEndDate(date, startTime, endTime),
-                    BusinessDayId = await ResolveBusinessDayIdAsync(shopId, date, cancellationToken),
+                    BusinessDayId = await ResolveBusinessDayIdAsync(shopId, date, startTime, cancellationToken),
                     ShiftTemplateId = template.TemplateId,
                     ShiftName = template.Name,
                     StartTime = startTime,
@@ -490,7 +500,7 @@ public class RotaService : IRotaService
         shift.StartTime = TimeOnly.FromTimeSpan(template.StartTime);
         shift.EndTime = TimeOnly.FromTimeSpan(template.EndTime);
         shift.EndDate = ResolveEndDate(request.ShiftDate, shift.StartTime, shift.EndTime);
-        shift.BusinessDayId = await ResolveBusinessDayIdAsync(shift.ShopId, request.ShiftDate, cancellationToken);
+        shift.BusinessDayId = await ResolveBusinessDayIdAsync(shift.ShopId, request.ShiftDate, shift.StartTime, cancellationToken);
         shift.ShiftTemplateId = template.TemplateId;
         shift.ShiftName = template.Name;
         shift.Position = string.IsNullOrWhiteSpace(request.Position) ? null : request.Position.Trim();
@@ -1100,17 +1110,36 @@ public class RotaService : IRotaService
             .Select(x => new { x.Id, x.Status })
             .FirstOrDefaultAsync(cancellationToken);
 
-        // Rostered: assignees of this date's shifts (their shift name + times).
-        var shifts = await _shiftRepository.Query()
+        // Rostered: the shifts this BUSINESS day covers. For an overnight business window
+        // (start > end, e.g. 22:00 -> 09:59) the business date is the close date, so the day
+        // also owns shifts that start after the window's end time on the PREVIOUS calendar date
+        // (a 22:00 night shift on the 6th is the first shift of the 7th's business day) — and it
+        // does NOT own this date's late-starting shifts, which belong to the next business day.
+        var businessSetup = await _shopConfigurationService.GetBusinessDaySetupAsync(shopId, cancellationToken);
+        var overnightWindow = businessSetup.BusinessStartTime > businessSetup.BusinessEndTime;
+        var windowEnd = TimeOnly.FromTimeSpan(businessSetup.BusinessEndTime);
+        var previousDate = date.AddDays(-1);
+        var shiftsQuery = _shiftRepository.Query()
             .AsNoTracking()
-            .Where(x => x.ShopId == shopId && !x.IsDeleted && x.ShiftDate == date)
+            .Where(x => x.ShopId == shopId && !x.IsDeleted);
+        shiftsQuery = overnightWindow
+            ? shiftsQuery.Where(x =>
+                (x.ShiftDate == previousDate && x.StartTime > windowEnd) ||
+                (x.ShiftDate == date && x.StartTime <= windowEnd))
+            : shiftsQuery.Where(x => x.ShiftDate == date);
+        var shifts = await shiftsQuery
             .Include(x => x.Assignments).ThenInclude(a => a.User)
             .Include(x => x.Assignments).ThenInclude(a => a.RotaStaffMember)
             .ToListAsync(cancellationToken);
 
-        // Attendance for the day — by the linked business day if present, else by calendar date.
-        var fromBound = new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
-        var toExclusive = new DateTimeOffset(date.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+        // Attendance for the day — by the linked business day if present, else by the same
+        // window the roster uses (overnight: from the previous date's window end to this date's).
+        var fromBound = overnightWindow
+            ? new DateTimeOffset(previousDate.ToDateTime(windowEnd), TimeSpan.Zero)
+            : new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+        var toExclusive = overnightWindow
+            ? new DateTimeOffset(date.ToDateTime(windowEnd), TimeSpan.Zero)
+            : new DateTimeOffset(date.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
         var attendance = await _attendanceRepository.Query()
             .AsNoTracking()
             .Where(x => x.ShopId == shopId
