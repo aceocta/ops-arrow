@@ -1795,17 +1795,19 @@ export function RotaManageScreen() {
                     {leaveHoursLabel(row.totalHours)}
                   </Text>
                 </View>
-                <View style={styles.staffDayStrip}>
-                  {weekDays.map((date) => {
+                <View>
+                  {weekDays.map((date, dayIdx) => {
                     const dayShifts = row.shiftsByDate.get(date) ?? [];
                     const onLeave = dayShifts.length === 0 && staffLeaveOn(row, date);
                     const isToday = date === todayStr;
                     return (
-                      <View key={date} style={styles.staffDayCell}>
-                        <Text style={[styles.staffDayLabel, isToday ? styles.staffDayLabelToday : null]}>{weekday(date)}</Text>
+                      <View key={date} style={[styles.staffDayRow, dayIdx > 0 ? styles.staffDayRowDivider : null]}>
+                        <Text style={[styles.staffDayLabel, isToday ? styles.staffDayLabelToday : null]}>
+                          {weekday(date)} {dayOfMonth(date)}
+                        </Text>
                         {dayShifts.length > 0 ? (
-                          <>
-                            {dayShifts.slice(0, 2).map((shift) => (
+                          <View style={styles.staffDayShifts}>
+                            {dayShifts.map((shift) => (
                               <Pressable
                                 key={shift.id}
                                 style={({ pressed }) => [styles.staffDayShift, pressed ? styles.staffDayShiftPressed : null]}
@@ -1813,15 +1815,17 @@ export function RotaManageScreen() {
                                 accessibilityRole="button"
                                 accessibilityLabel={`Edit ${row.name}'s ${shift.shiftName || "shift"} shift on ${formatDayLabel(date)}`}
                               >
-                                <Text style={styles.staffDayShiftName} numberOfLines={1}>{shift.shiftName || "Shift"}</Text>
-                                <Text style={styles.staffDayShiftTime} numberOfLines={1}>{shortTime(shift.startTime)}–{shortTime(shift.endTime)}</Text>
+                                <Text style={styles.staffDayShiftName} numberOfLines={1}>
+                                  {shift.shiftName || "Shift"}
+                                  <Text style={styles.staffDayShiftTime}> {shortTime(shift.startTime)}–{shortTime(shift.endTime)}</Text>
+                                </Text>
                               </Pressable>
                             ))}
-                            {dayShifts.length > 2 ? <Text style={styles.staffDayMore}>+{dayShifts.length - 2}</Text> : null}
-                          </>
+                          </View>
                         ) : onLeave ? (
                           <View style={styles.staffDayLeave} accessible accessibilityLabel={`${row.name} is on approved leave on ${formatDayLabel(date)}`}>
                             <Ionicons name="airplane-outline" size={13} color={appTheme.colors.textInfoStrong} />
+                            <Text style={styles.staffDayLeaveText}>On leave</Text>
                           </View>
                         ) : (
                           <Pressable
@@ -1831,7 +1835,8 @@ export function RotaManageScreen() {
                             accessibilityRole="button"
                             accessibilityLabel={`Assign ${row.name} on ${formatDayLabel(date)}`}
                           >
-                            <Ionicons name="add" size={14} color={appTheme.colors.textSubtle} />
+                            <Ionicons name="add" size={13} color={appTheme.colors.textSubtle} />
+                            <Text style={styles.staffDayEmptyText}>Assign</Text>
                           </Pressable>
                         )}
                       </View>
@@ -3795,24 +3800,27 @@ const styles = StyleSheet.create({
   weekShiftTitle: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
   iconBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceMuted },
 
-  // By-staff week view — one card per person with a Mon–Sun strip of small day cells.
+  // By-staff week view — one card per person with a vertical Mon–Sun list of slim day rows.
   staffWeekCard: { gap: 10 },
   staffWeekHead: { flexDirection: "row", alignItems: "center", gap: 10 },
   // Weekly planned-hours total, styled like the paper sheet's totals column.
   staffWeekTotal: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 15 },
   staffWeekTotalZero: { color: appTheme.colors.textSubtle },
-  staffDayStrip: { flexDirection: "row", gap: 4 },
-  staffDayCell: { flex: 1, gap: 3 },
-  staffDayLabel: { textAlign: "center", color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.3 },
+  staffDayRow: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 38, paddingVertical: 3 },
+  staffDayRowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
+  staffDayLabel: { width: 64, color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11 },
   staffDayLabelToday: { color: appTheme.colors.primary },
-  staffDayShift: { borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceBrandSoft, paddingHorizontal: 3, paddingVertical: 4, gap: 1 },
+  staffDayShifts: { flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 4 },
+  staffDayShift: { borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceBrandSoft, paddingHorizontal: 8, paddingVertical: 4 },
   staffDayShiftPressed: { opacity: 0.6 },
-  staffDayShiftName: { textAlign: "center", color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 10, lineHeight: 13 },
-  staffDayShiftTime: { textAlign: "center", color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 10, lineHeight: 13 },
+  staffDayShiftName: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11, lineHeight: 15 },
+  staffDayShiftTime: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 11, lineHeight: 15 },
   // Approved-leave day marker — informational (info-blue), not pressable.
-  staffDayLeave: { minHeight: 34, alignItems: "center", justifyContent: "center", borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceInfoSoft },
-  staffDayEmpty: { minHeight: 34, alignItems: "center", justifyContent: "center", borderRadius: appTheme.radius.sm, borderWidth: 1, borderStyle: "dashed", borderColor: appTheme.colors.border },
-  staffDayMore: { textAlign: "center", color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 10 },
+  staffDayLeave: { flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start", borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceInfoSoft, paddingHorizontal: 8, paddingVertical: 4 },
+  staffDayLeaveText: { color: appTheme.colors.textInfoStrong, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11, lineHeight: 15 },
+  // Ghost "+ Assign" affordance for an empty day.
+  staffDayEmpty: { flexDirection: "row", alignItems: "center", gap: 3, alignSelf: "flex-start", borderRadius: appTheme.radius.sm, borderWidth: 1, borderStyle: "dashed", borderColor: appTheme.colors.border, paddingHorizontal: 8, paddingVertical: 4 },
+  staffDayEmptyText: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11, lineHeight: 15 },
   // Quick-assign sheet rows.
   quickTemplateRowDisabled: { opacity: 0.5 },
   quickAlreadyText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11 },
