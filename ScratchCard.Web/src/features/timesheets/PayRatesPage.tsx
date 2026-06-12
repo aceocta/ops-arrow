@@ -36,7 +36,7 @@ export default function PayRatesPage() {
         <button className="btn-primary" onClick={() => setAdding(true)}><Plus className="h-4 w-4" /> Add rate</button>
       </div>
 
-      <div className="card overflow-hidden">
+      <div className="card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
@@ -103,7 +103,7 @@ function RateEditor({ shopId, staff, onClose, onSaved }: { shopId: string; staff
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="card w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+      <div className="card max-h-[90vh] w-full max-w-md overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
         <h2 className="mb-4 text-lg font-semibold text-slate-800">Add pay rate</h2>
         <label className="label">Staff</label>
         <select className="input mb-3" value={staffKey} onChange={(e) => setStaffKey(e.target.value)}>

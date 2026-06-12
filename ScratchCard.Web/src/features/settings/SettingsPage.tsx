@@ -111,7 +111,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Shop settings</h1>
           <p className="text-sm text-slate-500">Configuration for the active shop</p>
@@ -148,12 +148,12 @@ export default function SettingsPage() {
                 const isTime = TIME_KEYS.has(c.configKey);
                 const wide = isRoleList || !!multiOpts;
                 return (
-                  <div key={c.configKey} className="flex items-start justify-between gap-4 px-5 py-3">
+                  <div key={c.configKey} className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                     <div className="min-w-0">
                       <div className="text-sm font-medium capitalize text-slate-800">{label(c.configKey)}</div>
                       {c.description ? <div className="text-xs text-slate-400">{c.description}</div> : null}
                     </div>
-                    <div className={clsx("shrink-0", wide ? "w-72" : "w-48")}>
+                    <div className={clsx("w-full shrink-0", wide ? "sm:w-72" : "sm:w-48")}>
                       {isRoleList ? (
                         <ChipMultiSelect value={v} options={roleNames} humanizeLabels onChange={(next) => setValue(c.configKey, next)} />
                       ) : multiOpts ? (
@@ -215,7 +215,7 @@ function ChipMultiSelect({
     onChange(next.join(","));
   };
   return (
-    <div className="flex flex-wrap justify-end gap-1.5">
+    <div className="flex flex-wrap justify-start gap-1.5 sm:justify-end">
       {all.length === 0 ? <span className="text-xs text-slate-400">Loading…</span> : null}
       {all.map((name) => {
         const on = selected.includes(name);
@@ -274,7 +274,7 @@ function ShiftTemplatesEditor({ shopId, initial }: { shopId: string; initial: Ro
 
   return (
     <div className="card overflow-hidden">
-      <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-3">
         <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
           <Clock className="h-4 w-4 text-slate-400" /> Shift templates
         </span>
@@ -311,7 +311,7 @@ function ShiftTemplatesEditor({ shopId, initial }: { shopId: string; initial: Ro
         ))}
       </div>
 
-      <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-5 py-3">
         <button className="btn-ghost" onClick={addRow}><Plus className="h-4 w-4" /> Add shift template</button>
         <span className="text-xs text-slate-400">An end time earlier than the start means the shift ends the next day.</span>
       </div>

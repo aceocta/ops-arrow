@@ -87,7 +87,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Dashboard</h1>
           <p className="text-sm text-slate-500">Across all your shops · {range.from} → {range.to}</p>
@@ -167,7 +167,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="card p-5">
-              <div className="mb-4 flex items-center justify-between">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-sm font-semibold text-slate-700">Temperature readings</h2>
                 <div className="flex items-center gap-3 text-xs text-slate-500">
                   <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" /> In range</span>
@@ -199,6 +199,7 @@ export default function DashboardPage() {
               <span className="text-sm font-semibold text-slate-700">Shops</span>
               <ExportButton onClick={exportShops} disabled={data.shops.length === 0} />
             </div>
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
@@ -231,6 +232,7 @@ export default function DashboardPage() {
                 ) : null}
               </tbody>
             </table>
+            </div>
           </div>
         </>
       ) : null}

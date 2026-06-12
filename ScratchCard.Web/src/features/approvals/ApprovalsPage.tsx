@@ -127,7 +127,7 @@ export default function ApprovalsPage() {
             {r.notes ? <div className="mt-2 text-sm italic text-slate-500">“{r.notes}”</div> : null}
             <div className="mt-1 text-xs text-slate-400">Submitted {dateTime(r.submittedOn)}</div>
 
-            <div className="mt-4 flex gap-2">
+            <div className="mt-4 flex flex-wrap gap-2">
               <button className="btn border border-red-200 text-red-600 hover:bg-red-50" disabled={bulkRunning} onClick={async () => { if (await confirmDialog({ title: "Reject times?", message: `Reject ${r.userName}'s manually entered times?`, confirmLabel: "Reject" })) rejectM.mutate(r.id); }}>
                 <X className="h-4 w-4" /> Reject
               </button>
@@ -172,7 +172,7 @@ function AdjustModal({ row, onClose, onSaved }: { row: AttendanceApprovalRow; on
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4">
-      <div className="card w-full max-w-md p-5">
+      <div className="card max-h-[90vh] w-full max-w-md overflow-y-auto p-5">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">Adjust times</h2>
           <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>

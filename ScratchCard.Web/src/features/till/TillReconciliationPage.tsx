@@ -77,6 +77,7 @@ export default function TillReconciliationPage() {
           {/* Per-till */}
           <div className="card overflow-hidden">
             <div className="border-b border-slate-100 px-5 py-3 text-sm font-semibold text-slate-700">Tills · {date}</div>
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
@@ -106,6 +107,7 @@ export default function TillReconciliationPage() {
                 ) : null}
               </tbody>
             </table>
+            </div>
           </div>
         </>
       ) : null}
@@ -128,6 +130,7 @@ export default function TillReconciliationPage() {
             <input type="date" className="input w-auto" value={range.to} onChange={(e) => setRange((x) => ({ ...x, to: e.target.value }))} />
           </div>
         </div>
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
@@ -157,6 +160,7 @@ export default function TillReconciliationPage() {
             ) : null}
           </tbody>
         </table>
+        </div>
       </div>
 
       {detailId ? <ReconciliationDetail id={detailId} onClose={() => setDetailId(null)} /> : null}
@@ -197,7 +201,7 @@ function ReconciliationDetail({ id, onClose }: { id: string; onClose: () => void
 
   return (
     <div className="fixed inset-0 z-30 flex items-start justify-center overflow-auto bg-black/40 p-4" onClick={onClose}>
-      <div className="card my-6 w-full max-w-2xl p-6" onClick={(e) => e.stopPropagation()}>
+      <div className="card my-6 w-full max-w-2xl p-4 sm:p-6" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-800">Reconciliation · {r ? r.businessDate : ""}</h2>
           <button className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100" onClick={onClose}><X className="h-5 w-5" /></button>
@@ -396,6 +400,7 @@ function SettlementsCard({ shopId, from, to }: { shopId: string; from: string; t
           <button className="btn-soft" onClick={() => createM.mutate()} disabled={createM.isPending}>Add period</button>
         </div>
       </div>
+      <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
@@ -413,6 +418,7 @@ function SettlementsCard({ shopId, from, to }: { shopId: string; from: string; t
           ) : null}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

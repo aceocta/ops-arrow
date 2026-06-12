@@ -130,8 +130,8 @@ export default function SignupPage() {
           <p className="text-sm text-slate-500">Step 1 of 3 — verify your email, then set up your company and first shop</p>
         </div>
 
-        <form onSubmit={submit} className="card space-y-4 p-6">
-          <div className="grid grid-cols-2 gap-3">
+        <form onSubmit={submit} className="card space-y-4 p-5 sm:p-6">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="label">First name</label>
               <input className="input" value={firstName} onChange={(e) => setFirstName(e.target.value)} disabled={busy} autoFocus required />
@@ -209,7 +209,7 @@ export default function SignupPage() {
                 {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
                 {creating ? "Creating account…" : "Verify email & create account"}
               </button>
-              <div className="flex items-center justify-between text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                 <button
                   type="button"
                   className="font-medium text-brand-600 hover:text-brand-700 disabled:cursor-not-allowed disabled:text-slate-400"

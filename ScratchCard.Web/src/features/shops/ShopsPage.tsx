@@ -34,7 +34,7 @@ export default function ShopsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Shops</h1>
           <p className="text-sm text-slate-500">{isOwner ? "Add and manage the shops in your company" : "Manage your shop's details"}</p>
@@ -164,7 +164,7 @@ function ShopModal({
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4">
-      <div className="card w-full max-w-lg p-5">
+      <div className="card max-h-[90vh] w-full max-w-lg overflow-y-auto p-5">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">{shop ? "Edit shop" : "Add shop"}</h2>
           <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>

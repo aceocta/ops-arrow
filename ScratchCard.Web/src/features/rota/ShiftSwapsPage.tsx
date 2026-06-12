@@ -62,6 +62,7 @@ function SwapTable({ title, rows, onAccept, onDecline, onCancel, busy }: {
   return (
     <div className="card overflow-hidden">
       <div className="border-b border-slate-100 px-5 py-3 text-sm font-semibold text-slate-700">{title}</div>
+      <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
@@ -104,6 +105,7 @@ function SwapTable({ title, rows, onAccept, onDecline, onCancel, busy }: {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

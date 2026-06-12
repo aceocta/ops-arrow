@@ -35,7 +35,7 @@ export default function LoginPage() {
           <p className="text-sm text-slate-500">Sign in to manage your shops</p>
         </div>
 
-        <form onSubmit={submit} className="card space-y-4 p-6">
+        <form onSubmit={submit} className="card space-y-4 p-5 sm:p-6">
           <div>
             <label className="label">Email</label>
             <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus required />

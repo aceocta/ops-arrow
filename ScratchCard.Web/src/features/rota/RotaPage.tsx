@@ -129,7 +129,7 @@ export default function RotaPage() {
           <h1 className="text-2xl font-semibold text-slate-900">Rota</h1>
           <p className="text-sm text-slate-500">Plan shifts &amp; assign staff</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center rounded-lg border border-slate-200 bg-white">
             <button className="px-2 py-2 text-slate-500 hover:text-slate-800" onClick={() => setWeekStart((w) => addDays(w, -7))}>
               <ChevronLeft className="h-4 w-4" />
@@ -401,7 +401,7 @@ function ShiftEditor({
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4">
-      <div className="card w-full max-w-lg p-5">
+      <div className="card max-h-[90vh] w-full max-w-lg overflow-y-auto p-5">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">{shift ? "Edit shift" : "Add shift"}</h2>
           <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>

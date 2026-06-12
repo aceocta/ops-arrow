@@ -27,6 +27,8 @@ import {
   Store,
   Sun,
   Moon,
+  Menu,
+  X,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -111,18 +113,18 @@ function ShopSwitcher() {
   if (shops.length === 0) return null;
 
   return (
-    <div className="relative">
-      <button onClick={() => setOpen((v) => !v)} className="btn-ghost min-w-[200px] justify-between">
-        <span className="flex items-center gap-2 truncate">
-          <Store className="h-4 w-4 text-slate-400" />
+    <div className="relative min-w-0">
+      <button onClick={() => setOpen((v) => !v)} className="btn-ghost w-full max-w-xs justify-between px-3 lg:w-auto lg:min-w-[200px] lg:max-w-none lg:px-4">
+        <span className="flex min-w-0 items-center gap-2 truncate">
+          <Store className="h-4 w-4 shrink-0 text-slate-400" />
           <span className="truncate">{activeShop?.shopName ?? "Select shop"}</span>
         </span>
-        <ChevronDown className="h-4 w-4 text-slate-400" />
+        <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
       </button>
       {open ? (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute z-20 mt-2 max-h-80 w-72 overflow-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+          <div className="absolute z-20 mt-2 max-h-80 w-72 max-w-[calc(100vw-2rem)] overflow-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
             {shops.map((s) => (
               <button
                 key={s.shopId}
@@ -149,6 +151,14 @@ function ShopSwitcher() {
 export default function AppLayout() {
   const { profile, features, activeShopId, logout } = useAuth();
   const navigate = useNavigate();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Lock body scroll while the mobile drawer is open.
+  useEffect(() => {
+    document.body.style.overflow = sidebarOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [sidebarOpen]);
   const roles = profile?.roles ?? [];
   const groups = NAV
     .map((g) => ({
@@ -184,59 +194,101 @@ export default function AppLayout() {
   const leavePendingCount = leavePendingQ.data ?? 0;
   const name = profile?.displayName || [profile?.firstName, profile?.lastName].filter(Boolean).join(" ") || profile?.email;
 
+  const sidebarContent = (
+    <>
+      <div className="flex items-center gap-2.5 px-5 py-5">
+        <img src="/logo.png" alt="Ops Arrow" className="h-9 w-9 rounded-xl object-contain shadow-sm" />
+        <span className="bg-gradient-to-r from-brand-700 to-brand-500 bg-clip-text text-lg font-bold tracking-tight text-transparent">Ops Arrow</span>
+        <button
+          onClick={() => setSidebarOpen(false)}
+          className="ml-auto rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 lg:hidden"
+          aria-label="Close menu"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+      <nav className="flex-1 space-y-4 overflow-y-auto px-3 pb-4">
+        {groups.map((g) => (
+          <div key={g.group} className="space-y-0.5">
+            <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{g.group}</div>
+            {g.items.map((i) => (
+              <NavLink
+                key={i.to}
+                to={i.to}
+                end={i.to === "/" || i.to === "/till"}
+                onClick={() => setSidebarOpen(false)}
+                className={({ isActive }) =>
+                  clsx(
+                    "relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
+                    isActive
+                      ? "bg-brand-50 text-brand-700 shadow-sm ring-1 ring-brand-100 before:absolute before:left-0 before:top-1/2 before:h-5 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-brand-600"
+                      : "text-slate-500 hover:bg-slate-100/70 hover:text-slate-900",
+                  )
+                }
+              >
+                <i.icon className="h-[18px] w-[18px]" />
+                <span className="flex-1">{i.label}</span>
+                {i.to === "/approvals" && pendingCount > 0 ? (
+                  <span className="rounded-full bg-red-500 px-1.5 text-[11px] font-semibold text-white">{pendingCount}</span>
+                ) : null}
+                {i.to === "/leave" && leavePendingCount > 0 ? (
+                  <span className="rounded-full bg-red-500 px-1.5 text-[11px] font-semibold text-white">{leavePendingCount}</span>
+                ) : null}
+              </NavLink>
+            ))}
+          </div>
+        ))}
+      </nav>
+      <div className="border-t border-slate-200 p-3">
+        <button onClick={() => { setSidebarOpen(false); logout(); navigate("/login"); }} className="btn-ghost w-full">
+          <LogOut className="h-4 w-4" /> Sign out
+        </button>
+      </div>
+    </>
+  );
+
   return (
     <div className="flex h-full">
-      {/* Sidebar */}
-      <aside className="flex w-64 flex-col border-r border-slate-200/70 bg-white/80 backdrop-blur">
-        <div className="flex items-center gap-2.5 px-5 py-5">
-          <img src="/logo.png" alt="Ops Arrow" className="h-9 w-9 rounded-xl object-contain shadow-sm" />
-          <span className="bg-gradient-to-r from-brand-700 to-brand-500 bg-clip-text text-lg font-bold tracking-tight text-transparent">Ops Arrow</span>
-        </div>
-        <nav className="flex-1 space-y-4 overflow-y-auto px-3 pb-4">
-          {groups.map((g) => (
-            <div key={g.group} className="space-y-0.5">
-              <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{g.group}</div>
-              {g.items.map((i) => (
-                <NavLink
-                  key={i.to}
-                  to={i.to}
-                  end={i.to === "/" || i.to === "/till"}
-                  className={({ isActive }) =>
-                    clsx(
-                      "relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
-                      isActive
-                        ? "bg-brand-50 text-brand-700 shadow-sm ring-1 ring-brand-100 before:absolute before:left-0 before:top-1/2 before:h-5 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-brand-600"
-                        : "text-slate-500 hover:bg-slate-100/70 hover:text-slate-900",
-                    )
-                  }
-                >
-                  <i.icon className="h-[18px] w-[18px]" />
-                  <span className="flex-1">{i.label}</span>
-                  {i.to === "/approvals" && pendingCount > 0 ? (
-                    <span className="rounded-full bg-red-500 px-1.5 text-[11px] font-semibold text-white">{pendingCount}</span>
-                  ) : null}
-                  {i.to === "/leave" && leavePendingCount > 0 ? (
-                    <span className="rounded-full bg-red-500 px-1.5 text-[11px] font-semibold text-white">{leavePendingCount}</span>
-                  ) : null}
-                </NavLink>
-              ))}
-            </div>
-          ))}
-        </nav>
-        <div className="border-t border-slate-200 p-3">
-          <button onClick={() => { logout(); navigate("/login"); }} className="btn-ghost w-full">
-            <LogOut className="h-4 w-4" /> Sign out
-          </button>
-        </div>
+      {/* Sidebar — static on desktop */}
+      <aside className="hidden w-64 flex-col border-r border-slate-200/70 bg-white/80 backdrop-blur lg:flex">
+        {sidebarContent}
       </aside>
+
+      {/* Sidebar — slide-over drawer on mobile */}
+      <div className={clsx("fixed inset-0 z-40 lg:hidden", sidebarOpen ? "" : "pointer-events-none")} aria-hidden={!sidebarOpen}>
+        <div
+          className={clsx(
+            "absolute inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity duration-200",
+            sidebarOpen ? "opacity-100" : "opacity-0",
+          )}
+          onClick={() => setSidebarOpen(false)}
+        />
+        <aside
+          className={clsx(
+            "absolute inset-y-0 left-0 flex w-64 max-w-[85vw] flex-col border-r border-slate-200/70 bg-white shadow-xl transition-transform duration-200",
+            sidebarOpen ? "translate-x-0" : "-translate-x-full",
+          )}
+        >
+          {sidebarContent}
+        </aside>
+      </div>
 
       {/* Main */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200/70 bg-white/70 px-6 py-3 backdrop-blur-md">
-          <ShopSwitcher />
-          <div className="flex items-center gap-3">
+        <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-slate-200/70 bg-white/70 px-3 py-3 backdrop-blur-md sm:gap-3 sm:px-6">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="rounded-lg border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 lg:hidden"
+            aria-label="Open menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <div className="min-w-0 flex-1">
+            <ShopSwitcher />
+          </div>
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <ThemeToggle />
-            <div className="text-right">
+            <div className="hidden text-right sm:block">
               <div className="text-sm font-medium text-slate-800">{name}</div>
               <div className="text-xs text-slate-400">{profile?.roles?.[0]}</div>
             </div>
@@ -245,7 +297,7 @@ export default function AppLayout() {
             </div>
           </div>
         </header>
-        <main className="flex-1 overflow-auto p-6 lg:p-8">
+        <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
           <div className="mx-auto max-w-7xl">
             <Outlet />
           </div>

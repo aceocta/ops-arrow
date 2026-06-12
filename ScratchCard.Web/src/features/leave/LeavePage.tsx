@@ -246,7 +246,7 @@ function ApproveModal({ row, onClose, onSaved }: { row: LeaveRequest; onClose: (
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
-      <div className="card w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+      <div className="card max-h-[90vh] w-full max-w-md overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">Approve leave</h2>
           <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
@@ -290,7 +290,7 @@ function RejectModal({ row, onClose, onSaved }: { row: LeaveRequest; onClose: ()
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
-      <div className="card w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+      <div className="card max-h-[90vh] w-full max-w-md overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">Reject leave</h2>
           <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
@@ -335,7 +335,7 @@ function RecordLeaveModal({ shopId, onClose, onSaved }: { shopId: string; onClos
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
-      <div className="card w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+      <div className="card max-h-[90vh] w-full max-w-md overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">Record leave</h2>
           <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
@@ -391,11 +391,11 @@ function EntitlementsSection({ shopId }: { shopId: string }) {
 
   return (
     <section className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold text-slate-900">Entitlements</h2>
         <button className="btn-ghost" onClick={() => setEditing("new")}><Plus className="h-4 w-4" /> Add entitlement</button>
       </div>
-      <div className="card overflow-hidden">
+      <div className="card overflow-x-auto">
         {q.isLoading ? <div className="px-5 py-6 text-sm text-slate-500">Loading…</div> : null}
         {!q.isLoading && rows.length === 0 ? (
           <div className="px-5 py-6 text-sm text-slate-400">No entitlements set — staff won't see a holiday balance.</div>
@@ -468,7 +468,7 @@ function EntitlementModal({ shopId, row, onClose, onSaved }: { shopId: string; r
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
-      <div className="card w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+      <div className="card max-h-[90vh] w-full max-w-md overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">{row ? "Edit entitlement" : "Add entitlement"}</h2>
           <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>

@@ -17,7 +17,7 @@ export default function StaffPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">External staff</h1>
           <p className="text-sm text-slate-500">People you roster &amp; record hours for who aren't Ops Arrow users</p>
@@ -69,7 +69,7 @@ function StaffModal({ shopId, member, onClose, onSaved }: { shopId: string; memb
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4">
-      <div className="card w-full max-w-md p-5">
+      <div className="card max-h-[90vh] w-full max-w-md overflow-y-auto p-5">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">{member ? "Edit person" : "Add external person"}</h2>
           <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>

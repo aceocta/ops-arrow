@@ -210,7 +210,7 @@ function TempCellDetail({ shopId, selected, onClose }: { shopId: string; selecte
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4">
-      <div className="card w-full max-w-md p-5">
+      <div className="card max-h-[90vh] w-full max-w-md overflow-y-auto p-5">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">{unitName}</h2>

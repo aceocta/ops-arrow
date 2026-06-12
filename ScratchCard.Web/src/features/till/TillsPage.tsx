@@ -37,13 +37,13 @@ export default function TillsPage() {
           <h1 className="page-title">Tills</h1>
           <p className="page-subtitle">Cash points / drawers reconciled separately at this shop</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button className="btn-ghost" onClick={() => setShowDefaults(true)}><Wand2 className="h-4 w-4" /> Set up defaults</button>
           <button className="btn-primary" onClick={() => setEditing("new")}><Plus className="h-4 w-4" /> Add till</button>
         </div>
       </div>
 
-      <div className="card overflow-hidden">
+      <div className="card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
@@ -95,7 +95,7 @@ function DefaultsModal({ shopId, companyId, onClose, onDone }: { shopId: string;
   });
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="card w-full max-w-md space-y-3 p-5" onClick={(e) => e.stopPropagation()}>
+      <div className="card max-h-[90vh] w-full max-w-md space-y-3 overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-lg font-semibold text-slate-800">Set up default till data</h2>
         <p className="text-sm text-slate-500">
           Adds the common payment types (Cash, Card, Credit Card, Fuel Card, Cheque) and a default "Till 1" — only where they're
@@ -130,7 +130,7 @@ function TillEditor({ shopId, till, onClose, onSaved }: { shopId: string; till: 
   });
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="card w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+      <div className="card max-h-[90vh] w-full max-w-md overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
         <h2 className="mb-4 text-lg font-semibold text-slate-800">{till ? "Edit till" : "Add till"}</h2>
         <label className="label">Name</label>
         <input className="input mb-3" placeholder="e.g. Front counter" value={name} onChange={(e) => setName(e.target.value)} autoFocus />

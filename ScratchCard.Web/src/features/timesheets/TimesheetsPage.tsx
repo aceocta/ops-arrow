@@ -231,7 +231,7 @@ export default function TimesheetsPage() {
       {loading ? <div className="card p-6 text-sm text-slate-500">Loading…</div> : null}
 
       {view === "staff" ? (
-        <div className="card overflow-hidden">
+        <div className="card overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
@@ -511,6 +511,7 @@ function PayrollSection({ shopId, from, to }: { shopId: string; from: string; to
           <div className="border-t border-slate-100 px-5 py-6 text-sm text-slate-400">No sign-off requested for this range yet.</div>
         ) : null}
         {reviews.length > 0 ? (
+          <div className="overflow-x-auto">
           <table className="w-full border-t border-slate-100 text-sm">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
@@ -554,6 +555,7 @@ function PayrollSection({ shopId, from, to }: { shopId: string; from: string; to
               ))}
             </tbody>
           </table>
+          </div>
         ) : null}
       </div>
 
@@ -647,7 +649,7 @@ function ResolveReviewModal({ row, onClose, onSaved }: { row: TimesheetReviewRow
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
-      <div className="card w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+      <div className="card max-h-[90vh] w-full max-w-md overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">Resolve issue</h2>
           <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
@@ -705,7 +707,7 @@ function RecordHoursModal({ shopId, onClose }: { shopId: string; onClose: () => 
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
-      <div className="card w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+      <div className="card max-h-[90vh] w-full max-w-md overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">Record hours</h2>
           <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
@@ -815,7 +817,7 @@ function StaffSessions({
             <div className="py-6 text-center text-sm text-slate-400">No sessions.</div>
           ) : null}
           {(q.data ?? []).map((s) => (
-            <div key={s.id} className="flex items-center justify-between py-3">
+            <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
               <div>
                 <div className="text-sm font-medium text-slate-800">{dayLabel(s.date)}</div>
                 <div className="text-xs text-slate-500">

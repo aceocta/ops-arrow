@@ -29,7 +29,7 @@ export default function TillCataloguePage() {
           <h1 className="page-title">Till field catalogue</h1>
           <p className="page-subtitle">The canonical taxonomy — edit categories, VAT & ledger without a deploy</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button className="btn-ghost" onClick={() => reload.mutate()} disabled={reload.isPending}>
             <RefreshCw className="h-4 w-4" /> Reload cache
           </button>
@@ -37,7 +37,7 @@ export default function TillCataloguePage() {
         </div>
       </div>
 
-      <div className="card overflow-hidden">
+      <div className="card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
@@ -104,7 +104,7 @@ function DefEditor({ def, isNew, onClose, onSaved }: { def: TillFieldDefinition;
   );
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="card w-full max-w-lg space-y-3 p-5" onClick={(e) => e.stopPropagation()}>
+      <div className="card max-h-[90vh] w-full max-w-lg space-y-3 overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-lg font-semibold text-slate-800">{isNew ? "New field" : def.code}</h2>
         {isNew ? (
           <div><label className="label">Code (alphanumeric, e.g. CharityBox)</label>
