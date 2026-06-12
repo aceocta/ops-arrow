@@ -25,6 +25,7 @@ import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError, toastSuccess } from "../../components/toast";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { formatGbp } from "../../utils/currency";
+import { cleanupLocalImage } from "../../utils/shareFile";
 import { SellingOrder } from "../../types/enums";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -197,7 +198,10 @@ export function ReceiveDeliveryScreen() {
         mimeType: input.mimeType,
       });
     },
-    onSuccess: (result) => {
+    onSuccess: (result, variables) => {
+      // The delivery-note photo has been uploaded and parsed — the local camera/picker copy is
+      // never shown again, so remove it from the sandbox (library originals are untouched).
+      void cleanupLocalImage(variables.uri);
       const normalizedRows: DraftPackRow[] = result.packSuggestions.map((suggestion, index) => {
         const totalTickets = suggestion.totalTickets ?? 100;
         const serialDefaults = getSerialBoundsByOrder(totalTickets, configuredPackSellingOrder);

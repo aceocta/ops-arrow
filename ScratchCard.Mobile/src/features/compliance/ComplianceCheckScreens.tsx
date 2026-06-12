@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import { optimizeImage } from "../../utils/imageOptimizer";
+import { cleanupLocalImage, shareFileAndCleanup, writeShareableFile } from "../../utils/shareFile";
 import { DEFAULT_WEEK_START_DAY, startOfWeekFor } from "../../utils/week";
 import { useFeature } from "../subscription/useFeature";
 import { UpgradeNotice } from "../subscription/FeatureGate";
@@ -962,8 +963,12 @@ export function ComplianceChecksScreen() {
     },
     onSuccess: async (_result, variables) => {
       // Did this save upload attachments? Only then do we need the server's records back.
-      const hadAttachments =
-        (variables.attachments ?? attachmentsByItemId[variables.item.id] ?? []).length > 0;
+      const uploadedAttachments = variables.attachments ?? attachmentsByItemId[variables.item.id] ?? [];
+      const hadAttachments = uploadedAttachments.length > 0;
+
+      // Uploaded successfully — the local state below is dropped (the UI switches to the server's
+      // records), so the resized local copies are no longer needed for preview. Delete them.
+      void Promise.allSettled(uploadedAttachments.map((attachment) => cleanupLocalImage(attachment.uri)));
 
       setAttachmentsByItemId((previous) => {
         if (!previous[variables.item.id]) {
@@ -1017,23 +1022,21 @@ export function ComplianceChecksScreen() {
       const contentType = getContentTypeFromDataUrl(dataUrl);
       const base64Payload = getBase64Payload(dataUrl);
       const safeFileName = ensureFileNameWithExtension(fileName, contentType);
-      const targetDirectory = FileSystem.documentDirectory ?? FileSystem.cacheDirectory;
-      if (!targetDirectory) {
-        throw new Error("Storage directory is unavailable on this device.");
-      }
-
-      const targetUri = `${targetDirectory}${Date.now()}-${safeFileName}`;
-      await FileSystem.writeAsStringAsync(targetUri, base64Payload, { encoding: FileSystem.EncodingType.Base64 });
+      const targetUri = await writeShareableFile(`${Date.now()}-${safeFileName}`, base64Payload, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
       return { fileUri: targetUri, fileName: safeFileName, contentType };
     },
     onSuccess: async ({ fileUri, fileName, contentType }) => {
       const canShare = await Sharing.isAvailableAsync();
       if (!canShare) {
-        toastSuccess(`File saved to:\n${fileUri}`);
+        // No share sheet → don't leave the attachment behind on a shared shop device.
+        await FileSystem.deleteAsync(fileUri, { idempotent: true }).catch(() => {});
+        toastError("Sharing isn't available on this device, so the file couldn't be saved.");
         return;
       }
 
-      await Sharing.shareAsync(fileUri, {
+      await shareFileAndCleanup(fileUri, {
         mimeType: contentType,
         dialogTitle: `Download ${fileName}`,
       });
@@ -1178,10 +1181,11 @@ export function ComplianceChecksScreen() {
       if (action === "share") {
         const canShare = await Sharing.isAvailableAsync();
         if (!canShare) {
+          await FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
           throw new Error("Sharing is not available on this device.");
         }
 
-        await Sharing.shareAsync(uri, {
+        await shareFileAndCleanup(uri, {
           mimeType: "application/pdf",
           dialogTitle: "Share Compliance Report",
         });
@@ -1191,6 +1195,8 @@ export function ComplianceChecksScreen() {
       const attachmentBase64 = await FileSystem.readAsStringAsync(uri, {
         encoding: FileSystem.EncodingType.Base64,
       });
+      // The PDF content is now held in memory for the email attachment — remove the temp file.
+      await FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
       await sendReportEmail({
         recipientEmail: profile?.email,
         subject: `${scope.title} (${scope.periodLabel})`,
@@ -1288,6 +1294,9 @@ export function ComplianceChecksScreen() {
       assets.map(async (asset) => {
         try {
           const optimized = await optimizeImage(asset.uri, { maxDimension: 1600, compress: 0.7 });
+          // The resized copy is all we need from here on — drop the full-size camera/picker copy
+          // (cleanupLocalImage only touches sandbox file:// uris, never photo-library originals).
+          void cleanupLocalImage(asset.uri);
           if (optimized.byteSize > MAX_COMPLIANCE_ATTACHMENT_BYTES) {
             oversizedCount++;
             return null;

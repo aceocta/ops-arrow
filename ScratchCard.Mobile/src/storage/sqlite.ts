@@ -47,3 +47,17 @@ export async function getDatabase() {
 
   return databasePromise;
 }
+
+/**
+ * Deletes every locally queued/drafted record (offline shift closes with cash counts, shift
+ * drafts, offline checklist completions). Called on sign-out so a shared shop device doesn't
+ * keep the previous user's payloads around.
+ */
+export async function wipeAllOfflineData() {
+  const db = await getDatabase();
+  await db.execAsync(`
+    DELETE FROM offline_shift_queue;
+    DELETE FROM local_shift_draft;
+    DELETE FROM offline_checklist_queue;
+  `);
+}

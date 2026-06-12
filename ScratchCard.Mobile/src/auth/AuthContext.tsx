@@ -10,9 +10,13 @@ import {
   signUpCompany as signUpCompanyApi,
   signUpWithPassword as signUpWithPasswordApi,
 } from "../api/authApi";
-import { registerPushToken } from "../api/notificationsApi";
+import { registerPushToken, unregisterPushToken } from "../api/notificationsApi";
 import { onSessionExpired } from "./authEvents";
+import { runSessionCleanup } from "./sessionCleanup";
 import { resolveFirebasePushTokenAsync } from "../notifications/pushRegistration";
+import { clearAllCachedEntitlements } from "../features/subscription/entitlements";
+import { clearAllNotificationPreferences } from "../features/settings/notificationPreferencesStorage";
+import { wipeAllOfflineData } from "../storage/sqlite";
 import { AuthProfile } from "../types/models";
 import { reportError } from "../utils/crashReporter";
 import { identifyUser, resetAnalytics } from "../utils/analytics";
@@ -74,6 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<AuthProfile | null>(null);
   const [activeShopId, setActiveShopId] = useState<string | null>(null);
   const [bootstrapError, setBootstrapError] = useState<Error | null>(null);
+  const isSigningOutRef = useRef(false);
 
   useEffect(() => {
     void bootstrap();
@@ -215,6 +220,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (isAuthFailure) {
         await clearAccessToken();
+        await clearRefreshToken();
         await clearAuthProfile();
         await clearActiveShopId();
         setProfile(null);
@@ -240,6 +246,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await applyAuthTokenResult(result);
     } catch (error) {
       await clearAccessToken();
+      await clearRefreshToken();
       await clearAuthProfile();
       await clearActiveShopId();
       setProfile(null);
@@ -257,6 +264,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await applyAuthTokenResult(result);
     } catch (error) {
       await clearAccessToken();
+      await clearRefreshToken();
       await clearAuthProfile();
       await clearActiveShopId();
       setProfile(null);
@@ -287,6 +295,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await applyAuthTokenResult(result);
     } catch (error) {
       await clearAccessToken();
+      await clearRefreshToken();
       await clearAuthProfile();
       await clearActiveShopId();
       setProfile(null);
@@ -304,6 +313,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await applyAuthTokenResult(result, payload.shopId);
     } catch (error) {
       await clearAccessToken();
+      await clearRefreshToken();
       await clearAuthProfile();
       await clearActiveShopId();
       setProfile(null);
@@ -352,6 +362,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signOut() {
+    // Re-entrancy guard: the unregister call below can itself 401 → emitSessionExpired → signOut,
+    // which would cascade. A second call while one is in flight is a no-op.
+    if (isSigningOutRef.current) {
+      return;
+    }
+    isSigningOutRef.current = true;
+    try {
+      await performSignOut();
+    } finally {
+      isSigningOutRef.current = false;
+    }
+  }
+
+  async function performSignOut() {
     // Grab the refresh token before clearing storage so we can still revoke it server-side.
     let refreshToken: string | null = null;
     try {
@@ -360,15 +384,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshToken = null;
     }
 
-    // Clear the local session FIRST so the app signs out instantly — never block the user on a slow
-    // or unreachable backend (the previous order awaited the logout call before clearing state, so a
-    // hung request left the user stuck on the logged-in screen).
+    // Unregister this device's push token while we still have an authenticated session (the call
+    // needs the access token, so it must run BEFORE the tokens are cleared). Best-effort and
+    // bounded: a slow/unreachable backend must not leave the user stuck on the logged-in screen,
+    // so we give it a few seconds and then move on regardless.
+    try {
+      const devicePushToken = await resolveFirebasePushTokenAsync();
+      const shopsToUnregister = profile?.shops ?? [];
+      if (devicePushToken && shopsToUnregister.length > 0) {
+        await Promise.race([
+          Promise.allSettled(
+            shopsToUnregister.map((shop) =>
+              unregisterPushToken({ shopId: shop.shopId, pushToken: devicePushToken.token })
+            )
+          ),
+          new Promise<void>((resolve) => {
+            setTimeout(() => resolve(), 4000);
+          }),
+        ]);
+      }
+    } catch {
+      // Push unregistration is best-effort and must not block sign-out.
+    }
+
+    // Clear the local session so the app signs out — never block the user on a slow or unreachable
+    // backend (the previous order awaited the logout call before clearing state, so a hung request
+    // left the user stuck on the logged-in screen).
     await clearAccessToken();
     await clearRefreshToken();
     await clearAuthProfile();
     await clearActiveShopId();
     setProfile(null);
     setActiveShopId(null);
+
+    // Shared shop devices: wipe everything the previous user's session left behind. Each step is
+    // best-effort so one failure doesn't abort the rest.
+    try {
+      // Registered callbacks, e.g. App.tsx clears the TanStack Query cache.
+      await runSessionCleanup();
+    } catch {}
+    try {
+      // Cached subscription entitlements for ALL shops, not just the active one.
+      await clearAllCachedEntitlements();
+    } catch {}
+    try {
+      // Locally stored per-shop notification channel preferences.
+      await clearAllNotificationPreferences();
+    } catch {}
+    try {
+      // Offline SQLite queues (shift-close payloads with cash counts, drafts, checklist queue).
+      await wipeAllOfflineData();
+    } catch {}
 
     // Best-effort server-side revoke in the background; failures don't affect the sign-out.
     if (refreshToken) {
@@ -438,6 +504,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const status = error?.response?.status as number | undefined;
       if (status === 401 || status === 403) {
         await clearAccessToken();
+        await clearRefreshToken();
         await clearAuthProfile();
         await clearActiveShopId();
         setProfile(null);

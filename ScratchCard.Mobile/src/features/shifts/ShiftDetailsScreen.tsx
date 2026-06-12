@@ -18,6 +18,7 @@ import { BusinessDayStaffCard } from "../rota/BusinessDayStaffCard";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError, toastSuccess } from "../../components/toast";
+import { cleanupLocalImage, shareFileAndCleanup, writeShareableFile } from "../../utils/shareFile";
 import { SectionHeader } from "../../components/SectionHeader";
 import { KpiGrid, KpiTile } from "../../components/KpiTile";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -303,23 +304,21 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
       const contentType = getContentTypeFromDataUrl(dataUrl);
       const base64Payload = getBase64Payload(dataUrl);
       const safeFileName = ensureFileNameWithExtension(fileName, contentType);
-      const targetDirectory = FileSystem.documentDirectory ?? FileSystem.cacheDirectory;
-      if (!targetDirectory) {
-        throw new Error("Storage directory is unavailable on this device.");
-      }
-
-      const targetUri = `${targetDirectory}${Date.now()}-${safeFileName}`;
-      await FileSystem.writeAsStringAsync(targetUri, base64Payload, { encoding: FileSystem.EncodingType.Base64 });
+      const targetUri = await writeShareableFile(`${Date.now()}-${safeFileName}`, base64Payload, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
       return { fileUri: targetUri, fileName: safeFileName, contentType };
     },
     onSuccess: async ({ fileUri, fileName, contentType }) => {
       const canShare = await Sharing.isAvailableAsync();
       if (!canShare) {
-        toastSuccess(`File saved to:\n${fileUri}`);
+        // No share sheet → don't leave the attachment behind on a shared shop device.
+        await FileSystem.deleteAsync(fileUri, { idempotent: true }).catch(() => {});
+        toastError("Sharing isn't available on this device, so the file couldn't be saved.");
         return;
       }
 
-      await Sharing.shareAsync(fileUri, {
+      await shareFileAndCleanup(fileUri, {
         mimeType: contentType,
         dialogTitle: `Download ${fileName}`,
       });
@@ -516,6 +515,10 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
       };
 
       const closeResult = await finalizeShift(shiftId, payload);
+      // The attachments were uploaded as base64 — remove the local camera/picker copies so the
+      // photos don't linger in the sandbox of a shared shop device (screen navigates away next,
+      // so the thumbnails are no longer needed).
+      void Promise.allSettled(pendingCloseAttachments.map((attachment) => cleanupLocalImage(attachment.uri)));
       void Promise.allSettled([
         queryClient.invalidateQueries({ queryKey: ["shift", shiftId] }),
         queryClient.invalidateQueries({ queryKey: ["shift-sales", shiftId] }),

@@ -20,6 +20,7 @@ public class UserService : IUserService
     private readonly IRepository<UserInvitation> _userInvitationRepository;
     private readonly IPasswordHashService _passwordHashService;
     private readonly IRefreshTokenService _refreshTokenService;
+    private readonly ISecurityStampService _securityStampService;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
@@ -34,6 +35,7 @@ public class UserService : IUserService
         IRepository<UserInvitation> userInvitationRepository,
         IPasswordHashService passwordHashService,
         IRefreshTokenService refreshTokenService,
+        ISecurityStampService securityStampService,
         IAuditService auditService,
         ICurrentUserService currentUserService,
         IUnitOfWork unitOfWork)
@@ -47,6 +49,7 @@ public class UserService : IUserService
         _userInvitationRepository = userInvitationRepository;
         _passwordHashService = passwordHashService;
         _refreshTokenService = refreshTokenService;
+        _securityStampService = securityStampService;
         _auditService = auditService;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
@@ -101,6 +104,9 @@ public class UserService : IUserService
 
         _shopUserRepository.Update(link);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Revoke outstanding access tokens — they were minted with the old role claims.
+        await _securityStampService.BumpAsync(userId, cancellationToken);
 
         await _auditService.LogAsync(
             nameof(ShopUser),
@@ -258,6 +264,13 @@ public class UserService : IUserService
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        if (!isActive)
+        {
+            // Deactivation must revoke live access tokens immediately. Reactivation deliberately
+            // does NOT bump — there are no tokens to revoke and the user simply signs in again.
+            await _securityStampService.BumpAsync(userId, cancellationToken);
+        }
+
         await _auditService.LogAsync(
             nameof(User),
             user.Id,
@@ -413,6 +426,9 @@ public class UserService : IUserService
 
         // Revoke every live refresh token so no session can be resumed (saves internally).
         await _refreshTokenService.RevokeAllActiveForUserAsync(userId, cancellationToken);
+
+        // Bump the security stamp so any still-live access token dies immediately too.
+        await _securityStampService.BumpAsync(userId, cancellationToken);
 
         await _auditService.LogAsync(
             nameof(User),

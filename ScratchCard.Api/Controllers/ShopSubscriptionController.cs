@@ -15,17 +15,20 @@ public class ShopSubscriptionController : BaseApiController
 {
     private readonly IShopSubscriptionService _shopSubscriptionService;
     private readonly IBillingCheckoutService _billingCheckoutService;
+    private readonly IShopMembershipService _shopMembershipService;
     private readonly StripeOptions _stripeOptions;
     private readonly Microsoft.Extensions.Logging.ILogger<ShopSubscriptionController> _logger;
 
     public ShopSubscriptionController(
         IShopSubscriptionService shopSubscriptionService,
         IBillingCheckoutService billingCheckoutService,
+        IShopMembershipService shopMembershipService,
         IOptions<StripeOptions> stripeOptions,
         Microsoft.Extensions.Logging.ILogger<ShopSubscriptionController> logger)
     {
         _shopSubscriptionService = shopSubscriptionService;
         _billingCheckoutService = billingCheckoutService;
+        _shopMembershipService = shopMembershipService;
         _stripeOptions = stripeOptions.Value;
         _logger = logger;
     }
@@ -85,6 +88,11 @@ public class ShopSubscriptionController : BaseApiController
     [Authorize(Roles = RoleNames.ManagementAndAbove)]
     public async Task<IActionResult> CreateCheckoutSession([FromBody] CreateBillingCheckoutRequest request, CancellationToken cancellationToken)
     {
+        // Tenancy guard: checkout bypasses IShopSubscriptionService, so enforce shop membership
+        // here. The caller must manage THIS shop (PlatformAdmin bypasses inside the check).
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(
+            request.ShopId, new[] { RoleNames.CompanyOwner, RoleNames.Manager }, cancellationToken);
+
         var session = await _billingCheckoutService.CreateCheckoutSessionAsync(new BillingCheckoutRequest
         {
             ShopId = request.ShopId,

@@ -9,6 +9,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-na
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { compressForUpload } from "../../utils/imageCompression";
+import { cleanupLocalImage, shareFileAndCleanup, writeShareableFile } from "../../utils/shareFile";
 import { useAuth } from "../../auth/AuthContext";
 import { useFeature } from "../subscription/useFeature";
 import { listTills } from "../../api/tillsApi";
@@ -221,6 +222,12 @@ export function TillReconciliationScreen() {
       for (const asset of assets) {
         const out = await compressForUpload(asset.uri);
         result = await ingestReconciliationPhoto({ id: data!.id, uri: out.uri, mimeType: "image/jpeg" });
+        // Uploaded — thumbnails are served from the server attachment records, so the local
+        // resized copy and the camera/picker copy are no longer needed. Delete both.
+        void cleanupLocalImage(out.uri);
+        if (out.uri !== asset.uri) {
+          void cleanupLocalImage(asset.uri);
+        }
       }
       return result;
     },
@@ -804,11 +811,16 @@ function ImageViewerModal({ attachment, onClose, canRemove, removing, onRemove }
       setBusy(true);
       const base64 = q.data.split(",")[1] ?? "";
       const ext = q.data.startsWith("data:image/png") ? "png" : "jpg";
-      const fileUri = `${FileSystem.cacheDirectory}${attachment.fileName || `till-${attachment.id}.${ext}`}`;
-      await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+      const fileUri = await writeShareableFile(
+        attachment.fileName || `till-${attachment.id}.${ext}`,
+        base64,
+        { encoding: FileSystem.EncodingType.Base64 },
+      );
       if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(fileUri);
+        await shareFileAndCleanup(fileUri);
       } else {
+        // No share sheet → don't leave the re-materialised attachment behind.
+        await FileSystem.deleteAsync(fileUri, { idempotent: true }).catch(() => {});
         toastError("Sharing isn't available on this device.");
       }
     } catch {

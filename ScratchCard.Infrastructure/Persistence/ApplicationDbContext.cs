@@ -125,6 +125,9 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.ExternalProvider).HasMaxLength(100);
             entity.Property(x => x.ExternalProviderUserId).HasMaxLength(200);
             entity.Property(x => x.PasswordResetTokenHash).HasMaxLength(200);
+            // NEWID() default backfills existing rows when the column is added and covers any
+            // insert path that bypasses the CLR initializer.
+            entity.Property(x => x.SecurityStamp).HasDefaultValueSql("NEWID()");
         });
 
         modelBuilder.Entity<SignupEmailVerification>(entity =>

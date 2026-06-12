@@ -54,6 +54,7 @@ import {
 } from "../../utils/attachments";
 import { confirmDestructive } from "../../utils/confirm";
 import { haptics } from "../../utils/haptics";
+import { cleanupLocalImage, shareFileAndCleanup, writeShareableFile } from "../../utils/shareFile";
 
 type Props = NativeStackScreenProps<MainStackParamList, "DayEndClose">;
 
@@ -490,6 +491,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       setScratchCardPayoutAmount(DEFAULT_CLOSE_DAY_PAYOUT);
       setTillPayoutAmount(DEFAULT_CLOSE_DAY_PAYOUT);
       setNotes("");
+      // Attachments uploaded as base64 and the local state is reset below — delete the local
+      // camera/picker copies so the photos don't linger on a shared shop device.
+      void Promise.allSettled(closeDayAttachments.map((attachment) => cleanupLocalImage(attachment.uri)));
       setCloseDayAttachments([]);
 
       const shopId = closedDay?.shopId ?? day?.shopId;
@@ -1326,23 +1330,21 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       const contentType = getContentTypeFromDataUrl(dataUrl);
       const base64Payload = getBase64Payload(dataUrl);
       const safeFileName = ensureFileNameWithExtension(fileName, contentType);
-      const targetDirectory = FileSystem.documentDirectory ?? FileSystem.cacheDirectory;
-      if (!targetDirectory) {
-        throw new Error("Storage directory is unavailable on this device.");
-      }
-
-      const targetUri = `${targetDirectory}${Date.now()}-${safeFileName}`;
-      await FileSystem.writeAsStringAsync(targetUri, base64Payload, { encoding: FileSystem.EncodingType.Base64 });
+      const targetUri = await writeShareableFile(`${Date.now()}-${safeFileName}`, base64Payload, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
       return { fileUri: targetUri, fileName: safeFileName, contentType };
     },
     onSuccess: async ({ fileUri, fileName, contentType }) => {
       const canShare = await Sharing.isAvailableAsync();
       if (!canShare) {
-        Alert.alert("Downloaded", `File saved to:\n${fileUri}`);
+        // No share sheet → don't leave the attachment behind on a shared shop device.
+        await FileSystem.deleteAsync(fileUri, { idempotent: true }).catch(() => {});
+        Alert.alert("Download unavailable", "Sharing isn't available on this device, so the file couldn't be saved.");
         return;
       }
 
-      await Sharing.shareAsync(fileUri, {
+      await shareFileAndCleanup(fileUri, {
         mimeType: contentType,
         dialogTitle: `Download ${fileName}`,
       });

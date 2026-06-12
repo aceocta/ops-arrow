@@ -96,6 +96,37 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             NameClaimType = ClaimTypes.Name,
             RoleClaimType = ClaimTypes.Role
         };
+
+        // Token-version revocation: every access token carries the user's security stamp ("sst").
+        // A signature-valid, unexpired token is still rejected here when the stamp no longer
+        // matches (user deactivated, shop role changed, password reset, account deleted) or when
+        // the claim is missing (tokens minted before this feature shipped — those callers get a
+        // 401 once and silently re-auth via the anonymous /api/auth/refresh-token endpoint).
+        // Stamp lookups are cached in IMemoryCache (~90s TTL) inside ISecurityStampService.
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var principal = context.Principal;
+                var userIdValue = principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                    ?? principal?.FindFirst("sub")?.Value;
+                var stampValue = principal?.FindFirst("sst")?.Value;
+
+                if (!Guid.TryParse(userIdValue, out var userId) || !Guid.TryParse(stampValue, out var stamp))
+                {
+                    context.Fail("Token is missing required security claims.");
+                    return;
+                }
+
+                var stampService = context.HttpContext.RequestServices
+                    .GetRequiredService<ScratchCard.Application.Common.Interfaces.ISecurityStampService>();
+                var isValid = await stampService.ValidateAsync(userId, stamp, context.HttpContext.RequestAborted);
+                if (!isValid)
+                {
+                    context.Fail("Token has been revoked.");
+                }
+            }
+        };
     });
 
 builder.Services.AddAuthorization();

@@ -29,6 +29,7 @@ public class AuthService : IAuthService
     private readonly IPasswordHashService _passwordHashService;
     private readonly IJwtTokenService _jwtTokenService;
     private readonly IRefreshTokenService _refreshTokenService;
+    private readonly ISecurityStampService _securityStampService;
     private readonly IInvitationTokenService _tokenService;
     private readonly IEmailSender _emailSender;
     private readonly IAuditService _auditService;
@@ -47,6 +48,7 @@ public class AuthService : IAuthService
         IPasswordHashService passwordHashService,
         IJwtTokenService jwtTokenService,
         IRefreshTokenService refreshTokenService,
+        ISecurityStampService securityStampService,
         IInvitationTokenService tokenService,
         IEmailSender emailSender,
         IAuditService auditService,
@@ -64,6 +66,7 @@ public class AuthService : IAuthService
         _passwordHashService = passwordHashService;
         _jwtTokenService = jwtTokenService;
         _refreshTokenService = refreshTokenService;
+        _securityStampService = securityStampService;
         _tokenService = tokenService;
         _emailSender = emailSender;
         _auditService = auditService;
@@ -551,6 +554,12 @@ public class AuthService : IAuthService
 
         _userRepository.Update(user);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // A password reset usually means the old credentials are suspect — kill every
+        // outstanding session: bump the stamp (revokes live access tokens) and revoke all
+        // refresh tokens so stolen sessions can't be resumed.
+        await _securityStampService.BumpAsync(user.Id, cancellationToken);
+        await _refreshTokenService.RevokeAllActiveForUserAsync(user.Id, cancellationToken);
 
         await _auditService.LogAsync(
             nameof(User),

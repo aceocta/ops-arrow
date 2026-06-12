@@ -45,7 +45,10 @@ public class JwtTokenService : IJwtTokenService
             new(ClaimTypes.Name, displayName),
             new(ClaimTypes.GivenName, user.FirstName),
             new(ClaimTypes.Surname, user.LastName),
-            new("provider", "Google")
+            new("provider", "Google"),
+            // Security stamp ("token version"): validated on every request so bumping the stamp
+            // (deactivation, role change, password reset, account deletion) revokes this token.
+            new("sst", user.SecurityStamp.ToString())
         };
 
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));

@@ -6,6 +6,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
+import { shareFileAndCleanup } from "../../utils/shareFile";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
 import { EmptyState } from "../../components/EmptyState";
@@ -126,10 +127,11 @@ export function VisitorLogReportScreen() {
     try {
       const { uri } = await Print.printToFileAsync({ html: buildHtml() });
       if (!(await Sharing.isAvailableAsync())) {
+        await FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
         Alert.alert("Share unavailable", "Sharing is not available on this device.");
         return;
       }
-      await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: `Visitors Log ${fromDate} to ${toDate}`, UTI: "com.adobe.pdf" });
+      await shareFileAndCleanup(uri, { mimeType: "application/pdf", dialogTitle: `Visitors Log ${fromDate} to ${toDate}`, UTI: "com.adobe.pdf" });
     } catch (e: any) {
       toastError(e?.message ?? "Unable to generate or share PDF.");
     }
@@ -140,6 +142,8 @@ export function VisitorLogReportScreen() {
       setEmailing(true);
       const { uri } = await Print.printToFileAsync({ html: buildHtml() });
       const attachmentBase64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+      // The PDF content is now held in memory for the email attachment — remove the temp file.
+      await FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
       await sendReportEmail({
         recipientEmail: profile?.email,
         subject: `Visitors Log Report (${fromDate} to ${toDate})`,

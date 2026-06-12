@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
+import { shareFileAndCleanup } from "../../utils/shareFile";
 import { getTemperatureLogsReport, sendReportEmail } from "../../api/reportsApi";
 import { useAuth } from "../../auth/AuthContext";
 import { useTemperatureDisplaySettings } from "./useTemperatureDisplaySettings";
@@ -143,6 +144,8 @@ export function TemperatureLogsReportScreen() {
       const attachmentBase64 = await FileSystem.readAsStringAsync(uri, {
         encoding: FileSystem.EncodingType.Base64,
       });
+      // The PDF content is now held in memory for the email attachment — remove the temp file.
+      await FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
       const attachmentFileName = `temperature-logs-report-${fromDate}-to-${toDate}.pdf`;
       const outOfRange = readings.filter((entry) => entry.isOutOfRange).length;
       const inRange = readings.length - outOfRange;
@@ -187,14 +190,15 @@ export function TemperatureLogsReportScreen() {
   const shareReport = async () => {
     try {
       const html = buildReportHtml();
-      const { uri } = await Print.printToFileAsync({ html, width: 792, height: 612 });
+      // Check share availability first so we never materialise a PDF we can't hand off.
       const canShare = await Sharing.isAvailableAsync();
       if (!canShare) {
         Alert.alert("Share unavailable", "Sharing is not available on this device.");
         return;
       }
+      const { uri } = await Print.printToFileAsync({ html, width: 792, height: 612 });
 
-      await Sharing.shareAsync(uri, {
+      await shareFileAndCleanup(uri, {
         mimeType: "application/pdf",
         dialogTitle: `Temperature Logs Report ${fromDate} to ${toDate}`,
         UTI: "com.adobe.pdf",

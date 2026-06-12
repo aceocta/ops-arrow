@@ -8,6 +8,7 @@ import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 import { useFeature } from "../subscription/useFeature";
 import { UpgradeNotice } from "../subscription/FeatureGate";
+import { NOTIFICATION_PREFS_STORAGE_PREFIX } from "./notificationPreferencesStorage";
 
 /**
  * Notification channel preferences per active shop. Preferences are persisted locally per
@@ -15,7 +16,7 @@ import { UpgradeNotice } from "../subscription/FeatureGate";
  * what's allowed by the shop's subscription plan.
  */
 
-const PREF_STORAGE_PREFIX = "notif-prefs:v1:";
+const PREF_STORAGE_PREFIX = NOTIFICATION_PREFS_STORAGE_PREFIX;
 
 type PrefsShape = {
   emailEnabled: boolean;

@@ -257,9 +257,11 @@ public class LeaveService : ILeaveService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var name = _currentUserService.FullName;
+        // Privacy: never put the leave TYPE (Sick is health-adjacent) into push bodies — they
+        // transit FCM and show on lock screens. The type stays in the API/app views.
         await NotifyManagersAsync(request.ShopId, NotificationType.LeaveRequested,
             "Leave requested",
-            $"{name} requested {leave.Type} {DateRangeLabel(leave.StartDate, leave.EndDate)}.",
+            $"{name} requested leave · {DateRangeLabel(leave.StartDate, leave.EndDate)}.",
             leave.Id, cancellationToken);
         return MapLeave(leave, name);
     }
@@ -300,7 +302,7 @@ public class LeaveService : ILeaveService
         {
             await NotifyUsersAsync(request.ShopId, [targetUserId], NotificationType.LeaveDecided,
                 "Leave recorded",
-                $"Your {leave.Type} leave for {DateRangeLabel(leave.StartDate, leave.EndDate)} was recorded by your manager.",
+                $"Your leave for {DateRangeLabel(leave.StartDate, leave.EndDate)} was recorded by your manager.",
                 leave.Id, cancellationToken);
         }
         return MapLeave(leave, name);
@@ -367,7 +369,7 @@ public class LeaveService : ILeaveService
         {
             await NotifyUsersAsync(leave.ShopId, [userId], NotificationType.LeaveDecided,
                 "Leave approved",
-                $"Your {leave.Type} leave for {DateRangeLabel(leave.StartDate, leave.EndDate)} was approved.",
+                $"Your leave for {DateRangeLabel(leave.StartDate, leave.EndDate)} was approved.",
                 leave.Id, cancellationToken);
         }
         return MapLeave(leave, LeaveName(leave));
@@ -402,7 +404,7 @@ public class LeaveService : ILeaveService
         {
             await NotifyUsersAsync(leave.ShopId, [userId], NotificationType.LeaveDecided,
                 "Leave rejected",
-                $"Your {leave.Type} leave request for {DateRangeLabel(leave.StartDate, leave.EndDate)} was rejected.",
+                $"Your leave request for {DateRangeLabel(leave.StartDate, leave.EndDate)} was rejected.",
                 leave.Id, cancellationToken);
         }
         return MapLeave(leave, LeaveName(leave));
@@ -442,14 +444,14 @@ public class LeaveService : ILeaveService
         {
             await NotifyManagersAsync(leave.ShopId, NotificationType.LeaveRequested,
                 "Leave cancelled",
-                $"{_currentUserService.FullName} cancelled their {leave.Type} leave for {rangeLabel}.",
+                $"{_currentUserService.FullName} cancelled their leave request for {rangeLabel}.",
                 leave.Id, cancellationToken);
         }
         else if (leave.UserId is Guid userId)
         {
             await NotifyUsersAsync(leave.ShopId, [userId], NotificationType.LeaveDecided,
                 "Leave cancelled",
-                $"Your {leave.Type} leave for {rangeLabel} was cancelled by your manager.",
+                $"Your leave for {rangeLabel} was cancelled by your manager.",
                 leave.Id, cancellationToken);
         }
         return MapLeave(leave, LeaveName(leave));

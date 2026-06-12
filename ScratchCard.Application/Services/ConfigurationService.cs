@@ -35,6 +35,9 @@ public class ConfigurationService : IConfigurationService
         BarcodeGroup,
     };
 
+    // Management role set for configuration writes (matches the rota/leave services).
+    private static readonly string[] ManagementRoles = [RoleNames.CompanyOwner, RoleNames.Manager];
+
     private readonly IRepository<CfgGeneralSettings> _generalRepository;
     private readonly IRepository<CfgPackSettings> _packRepository;
     private readonly IRepository<CfgSalesSettings> _salesRepository;
@@ -47,6 +50,7 @@ public class ConfigurationService : IConfigurationService
     private readonly IRepository<CfgSubscriptionSettings> _subscriptionRepository;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IShopMembershipService _shopMembershipService;
     private readonly IUnitOfWork _unitOfWork;
 
     public ConfigurationService(
@@ -62,6 +66,7 @@ public class ConfigurationService : IConfigurationService
         IRepository<CfgSubscriptionSettings> subscriptionRepository,
         IAuditService auditService,
         ICurrentUserService currentUserService,
+        IShopMembershipService shopMembershipService,
         IUnitOfWork unitOfWork)
     {
         _generalRepository = generalRepository;
@@ -76,11 +81,22 @@ public class ConfigurationService : IConfigurationService
         _subscriptionRepository = subscriptionRepository;
         _auditService = auditService;
         _currentUserService = currentUserService;
+        _shopMembershipService = shopMembershipService;
         _unitOfWork = unitOfWork;
     }
 
     public async Task<IReadOnlyCollection<ConfigurationItemDto>> GetAsync(Guid? shopId, CancellationToken cancellationToken = default)
     {
+        // Tenancy guard: reading a specific shop's configuration requires active membership of
+        // THAT shop. Any operational role qualifies — cashiers need read access (e.g. the mobile
+        // closing-numbers screen reads EnableMobileCameraBarcodeScanning). PlatformAdmin bypasses
+        // inside the membership service. A null shopId returns only the platform-wide defaults
+        // (no tenant data), with platform-only groups still stripped for non-admins below.
+        if (shopId.HasValue)
+        {
+            await _shopMembershipService.EnsureCurrentUserShopRoleAsync(shopId.Value, RoleNames.All, cancellationToken);
+        }
+
         var (globalGeneral, shopGeneral) = await LoadRowsAsync(_generalRepository, shopId, cancellationToken);
         var (globalPack, shopPack) = await LoadRowsAsync(_packRepository, shopId, cancellationToken);
         var (globalSales, shopSales) = await LoadRowsAsync(_salesRepository, shopId, cancellationToken);
@@ -195,6 +211,21 @@ public class ConfigurationService : IConfigurationService
 
     public async Task UpdateAsync(UpdateConfigurationRequest request, CancellationToken cancellationToken = default)
     {
+        // Privilege + tenancy guard: shop-scoped writes require management membership of THAT
+        // shop (PlatformAdmin bypasses inside the membership service). Global writes (null
+        // ShopId) touch every tenant's fallback values and are platform-admin only.
+        if (request.ShopId.HasValue)
+        {
+            await _shopMembershipService.EnsureCurrentUserShopRoleAsync(request.ShopId.Value, ManagementRoles, cancellationToken);
+        }
+        else if (!_currentUserService.IsInRole(RoleNames.PlatformAdmin))
+        {
+            throw new AppException(
+                "configuration_global_platform_only",
+                "Only platform administrators can modify global configuration.",
+                403);
+        }
+
         if (request.Items.Count == 0)
         {
             throw new AppException("configuration_update_empty", "No configuration updates were provided.");

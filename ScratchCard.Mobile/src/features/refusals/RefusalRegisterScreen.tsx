@@ -6,6 +6,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
+import { shareFileAndCleanup } from "../../utils/shareFile";
 import { LandscapeSignatureModal } from "../../components/LandscapeSignatureModal";
 import { getRefusalDailyLog, getRefusalEntryReviewSignature, getRefusalEntrySignature, recordRefusalEntry } from "../../api/refusalRegisterApi";
 import { useAuth } from "../../auth/AuthContext";
@@ -409,18 +410,20 @@ export function RefusalRegisterScreen() {
     try {
       const html = await buildReportHtml();
 
-      const { uri } = await Print.printToFileAsync({
-        html,
-        width: 792,
-        height: 612,
-      });
+      // Check share availability first so we never materialise a PDF we can't hand off.
       const canShare = await Sharing.isAvailableAsync();
       if (!canShare) {
         Alert.alert("Share unavailable", "Sharing is not available on this device.");
         return;
       }
 
-      await Sharing.shareAsync(uri, {
+      const { uri } = await Print.printToFileAsync({
+        html,
+        width: 792,
+        height: 612,
+      });
+
+      await shareFileAndCleanup(uri, {
         mimeType: "application/pdf",
         dialogTitle: `Refusals Register ${selectedDate}`,
         UTI: "com.adobe.pdf",

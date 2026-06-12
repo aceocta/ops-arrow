@@ -138,6 +138,22 @@ export async function clearCachedEntitlements(shopId: string | null | undefined)
   }
 }
 
+/**
+ * Removes the cached entitlements for every shop (not just the active one). Called on sign-out so
+ * a shared shop device doesn't keep the previous user's plan/feature data around.
+ */
+export async function clearAllCachedEntitlements() {
+  try {
+    const allKeys = await AsyncStorage.getAllKeys();
+    const entitlementKeys = allKeys.filter((key) => key.startsWith(ENTITLEMENTS_CACHE_KEY_PREFIX));
+    if (entitlementKeys.length > 0) {
+      await AsyncStorage.multiRemove(entitlementKeys);
+    }
+  } catch {
+    // best-effort
+  }
+}
+
 export function hasFeature(entitlements: Entitlements | null | undefined, feature: EntitlementFeature) {
   if (!entitlements) return false;
   if (!entitlements.isActive && !entitlements.inGracePeriod) return false;

@@ -23,6 +23,7 @@ import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 import { getApiErrorMessage } from "../../utils/apiErrorMessage";
+import { cleanupLocalImage } from "../../utils/shareFile";
 
 type Props = NativeStackScreenProps<MainStackParamList, "VisitorLogEntryEdit">;
 
@@ -108,6 +109,9 @@ export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
     const result = await ImagePicker.launchCameraAsync({ base64: true, quality: 0.5, allowsEditing: true });
     if (!result.canceled && result.assets?.[0]?.base64) {
       setPhotoDataUrl(`data:image/jpeg;base64,${result.assets[0].base64}`);
+      // Only the base64 data URL is kept (preview + upload) — the camera's file copy in the
+      // sandbox is never read again, so delete it straight away.
+      void cleanupLocalImage(result.assets[0].uri);
     }
   };
 

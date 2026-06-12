@@ -6,6 +6,7 @@ import { DarkTheme, DefaultTheme, NavigationContainer, type LinkingOptions } fro
 import * as Linking from "expo-linking";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "./src/auth/AuthContext";
+import { registerSessionCleanup } from "./src/auth/sessionCleanup";
 import { ErrorBoundary } from "./src/components/ErrorBoundary";
 import { navigationRef } from "./src/navigation/navigationRef";
 import { registerNotificationTapNavigation } from "./src/notifications/notificationTapNavigation";
@@ -44,6 +45,12 @@ const queryClient = new QueryClient({
       },
     },
   },
+});
+
+// On sign-out, drop every cached server response so the next user on a shared shop device can't
+// see the previous user's data through the query cache.
+registerSessionCleanup(() => {
+  queryClient.clear();
 });
 
 void initCrashReporter();

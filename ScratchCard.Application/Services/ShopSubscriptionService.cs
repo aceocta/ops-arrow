@@ -85,8 +85,29 @@ public class ShopSubscriptionService : IShopSubscriptionService
             ?? DefaultBillingPortalUrl;
     }
 
+    // Management role set for mutating billing operations (matches the rota/leave services).
+    private static readonly string[] ManageShopRoles = [RoleNames.CompanyOwner, RoleNames.Manager];
+
+    /// <summary>
+    /// Tenancy guard for the user-facing entry points: the caller must be an active member of
+    /// the shop they're acting on (management roles for mutations, any role for reads).
+    /// PlatformAdmin bypasses inside <see cref="IShopMembershipService.EnsureCurrentUserShopRoleAsync"/>
+    /// — they administer all tenants. Webhook and background paths
+    /// (<see cref="ApplyStripeSubscriptionEventAsync"/>, <see cref="ProcessTrialExpiriesAsync"/>,
+    /// <see cref="ProcessTrialRemindersAsync"/>, <see cref="ProcessPauseCapAsync"/>) run with no
+    /// HTTP user and intentionally do NOT call this.
+    /// </summary>
+    private Task EnsureShopAccessAsync(Guid shopId, bool manage, CancellationToken cancellationToken) =>
+        _shopMembershipService.EnsureCurrentUserShopRoleAsync(
+            shopId, manage ? ManageShopRoles : RoleNames.All, cancellationToken);
+
     public async Task<ShopSubscriptionSummaryDto> EnsureTrialAsync(Guid shopId, Guid? intendedPlanId = null, CancellationToken cancellationToken = default)
     {
+        // Caller must manage THIS shop. Safe for the shop-creation flow: ShopService grants the
+        // creator CompanyOwner membership (saved) before calling EnsureTrialAsync, and a
+        // PlatformAdmin creating on a customer's behalf bypasses inside the membership service.
+        await EnsureShopAccessAsync(shopId, manage: true, cancellationToken);
+
         var existing = await _shopSubscriptionRepository.Query()
             .AsNoTracking()
             .Where(x => x.ShopId == shopId)
@@ -153,6 +174,9 @@ public class ShopSubscriptionService : IShopSubscriptionService
 
     public async Task<ShopSubscriptionSummaryDto?> GetSummaryAsync(Guid shopId, CancellationToken cancellationToken = default)
     {
+        // Read: any active membership of this shop (cashiers poll entitlements/summary too).
+        await EnsureShopAccessAsync(shopId, manage: false, cancellationToken);
+
         // Pure read: no side-effects. If a shop has never had a subscription row created the
         // caller (mobile or admin) is responsible for explicitly starting a trial via
         // EnsureTrialAsync. This makes the endpoint safe to poll and makes deletes of broken
@@ -168,6 +192,9 @@ public class ShopSubscriptionService : IShopSubscriptionService
 
     public async Task<ShopEntitlementsDto> GetEntitlementsAsync(Guid shopId, CancellationToken cancellationToken = default)
     {
+        // Read: any active membership of this shop (GetSummaryAsync re-checks; harmless).
+        await EnsureShopAccessAsync(shopId, manage: false, cancellationToken);
+
         var summary = await GetSummaryAsync(shopId, cancellationToken);
         if (summary is null)
         {
@@ -210,6 +237,10 @@ public class ShopSubscriptionService : IShopSubscriptionService
         {
             throw new AppException("validation_failed", "ShopId and PlanId are required.", 400);
         }
+
+        // Mutation: management membership of this shop. PlatformAdmin (incl. AdminCustomerService
+        // flows behind the PlatformAdmin-only admin controller) bypasses inside the check.
+        await EnsureShopAccessAsync(request.ShopId, manage: true, cancellationToken);
 
         var plan = await _planRepository.GetByIdAsync(request.PlanId, cancellationToken)
             ?? throw new AppException("plan_not_found", "Subscription plan not found.", 404);
@@ -281,6 +312,8 @@ public class ShopSubscriptionService : IShopSubscriptionService
 
     public async Task<ShopSubscriptionSummaryDto> CancelAsync(Guid shopId, bool cancelAtPeriodEnd, CancellationToken cancellationToken = default)
     {
+        await EnsureShopAccessAsync(shopId, manage: true, cancellationToken);
+
         var subscription = await _shopSubscriptionRepository.Query()
             .Where(x => x.ShopId == shopId)
             .OrderByDescending(x => x.CreatedOn)
@@ -333,6 +366,8 @@ public class ShopSubscriptionService : IShopSubscriptionService
 
     public async Task<ShopSubscriptionSummaryDto> ReactivateAsync(Guid shopId, CancellationToken cancellationToken = default)
     {
+        await EnsureShopAccessAsync(shopId, manage: true, cancellationToken);
+
         var subscription = await _shopSubscriptionRepository.Query()
             .Where(x => x.ShopId == shopId)
             .OrderByDescending(x => x.CreatedOn)
@@ -380,6 +415,8 @@ public class ShopSubscriptionService : IShopSubscriptionService
 
     public async Task<ShopSubscriptionSummaryDto> PauseAsync(Guid shopId, CancellationToken cancellationToken = default)
     {
+        await EnsureShopAccessAsync(shopId, manage: true, cancellationToken);
+
         var shop = await _shopRepository.GetByIdAsync(shopId, cancellationToken)
             ?? throw new AppException("shop_not_found", "Shop not found.", 404);
 
@@ -433,6 +470,8 @@ public class ShopSubscriptionService : IShopSubscriptionService
 
     public async Task<ShopSubscriptionSummaryDto> ResumeAsync(Guid shopId, CancellationToken cancellationToken = default)
     {
+        await EnsureShopAccessAsync(shopId, manage: true, cancellationToken);
+
         var shop = await _shopRepository.GetByIdAsync(shopId, cancellationToken)
             ?? throw new AppException("shop_not_found", "Shop not found.", 404);
 
@@ -522,6 +561,8 @@ public class ShopSubscriptionService : IShopSubscriptionService
 
     public async Task<ShopSubscriptionSummaryDto> RefreshFromProviderAsync(Guid shopId, CancellationToken cancellationToken = default)
     {
+        await EnsureShopAccessAsync(shopId, manage: true, cancellationToken);
+
         var subscription = await _shopSubscriptionRepository.Query()
             .Where(x => x.ShopId == shopId)
             .OrderByDescending(x => x.CreatedOn)
@@ -593,6 +634,8 @@ public class ShopSubscriptionService : IShopSubscriptionService
 
     public async Task<string> CreatePortalSessionAsync(Guid shopId, CancellationToken cancellationToken = default)
     {
+        await EnsureShopAccessAsync(shopId, manage: true, cancellationToken);
+
         var shop = await _shopRepository.GetByIdAsync(shopId, cancellationToken)
             ?? throw new AppException("shop_not_found", "Shop not found.", 404);
 

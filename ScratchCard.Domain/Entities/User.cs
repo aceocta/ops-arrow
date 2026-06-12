@@ -20,6 +20,12 @@ public class User : AuditableEntity
     public DateTimeOffset? PasswordResetTokenExpiresOn { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTimeOffset? LastLoginOn { get; set; }
+    /// <summary>
+    /// Security stamp ("token version"). Embedded in every access token as the "sst" claim and
+    /// re-checked per request; bumping it to a new value immediately invalidates all previously
+    /// issued access tokens (deactivation, role change, password reset, account deletion).
+    /// </summary>
+    public Guid SecurityStamp { get; set; } = Guid.NewGuid();
 
     public ICollection<ShopUser> ShopUsers { get; set; } = new List<ShopUser>();
     public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();

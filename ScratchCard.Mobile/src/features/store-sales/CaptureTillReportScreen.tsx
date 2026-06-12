@@ -9,6 +9,7 @@ import { listBusinessDays } from "../../api/businessDaysApi";
 import { listShifts } from "../../api/shiftsApi";
 import { parseTillReport, TillReportPhoto } from "../../api/tillReportsApi";
 import { compressForUpload } from "../../utils/imageCompression";
+import { cleanupLocalImage } from "../../utils/shareFile";
 import { listTills } from "../../api/tillsApi";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -87,6 +88,9 @@ export function CaptureTillReportScreen({ navigation, route }: Props) {
       });
     },
     onSuccess: (report) => {
+      // Uploaded for OCR — the local compressed copies are no longer needed (the review screen
+      // works from the server-side report), so remove them from the sandbox.
+      void Promise.allSettled(photos.map((photo) => cleanupLocalImage(photo.uri)));
       setPhotos([]);
       navigation.navigate("TillReportReview", { reportId: report.id });
     },
@@ -129,6 +133,11 @@ export function CaptureTillReportScreen({ navigation, route }: Props) {
       const compressed = await Promise.all(
         result.assets.map(async (asset, index) => {
           const out = await compressForUpload(asset.uri);
+          // The compressed copy is what we preview and upload — drop the full-size camera/picker
+          // copy (library originals are content://-style uris and are never touched).
+          if (out.uri !== asset.uri) {
+            void cleanupLocalImage(asset.uri);
+          }
           return {
             uri: out.uri,
             fileName: asset.fileName ?? `till-report-${Date.now()}-${index}.jpg`,

@@ -5,6 +5,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import * as Print from "expo-print";
 import * as FileSystem from "expo-file-system/legacy";
+import { shareFileAndCleanup } from "../../utils/shareFile";
 import * as Sharing from "expo-sharing";
 import { listBusinessDays } from "../../api/businessDaysApi";
 import { useAuth } from "../../auth/AuthContext";
@@ -434,6 +435,8 @@ export function DailySalesReportScreen() {
       const attachmentBase64 = await FileSystem.readAsStringAsync(uri, {
         encoding: FileSystem.EncodingType.Base64,
       });
+      // The PDF content is now held in memory for the email attachment — remove the temp file.
+      await FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
       const attachmentFileName = `scratch-card-daily-sales-${from}-to-${to}.pdf`;
 
       await sendReportEmail({
@@ -472,11 +475,12 @@ export function DailySalesReportScreen() {
       });
       const canShare = await Sharing.isAvailableAsync();
       if (!canShare) {
+        await FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
         Alert.alert("Share unavailable", "Sharing is not available on this device.");
         return;
       }
 
-      await Sharing.shareAsync(uri, {
+      await shareFileAndCleanup(uri, {
         mimeType: "application/pdf",
         dialogTitle: `Daily Sales Report ${from} to ${to}`,
         UTI: "com.adobe.pdf",

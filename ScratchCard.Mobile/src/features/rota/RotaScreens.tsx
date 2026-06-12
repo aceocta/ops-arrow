@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
+import { shareFileAndCleanup, writeShareableFile } from "../../utils/shareFile";
 import { MainStackParamList } from "../../types/navigation";
 import { useAuth } from "../../auth/AuthContext";
 import { getRoleOptions } from "../../api/lookupsApi";
@@ -2991,21 +2992,19 @@ export function RotaTimesheetScreen() {
           ].map(csvField).join(","),
         );
       }
-      const targetDirectory = FileSystem.documentDirectory ?? FileSystem.cacheDirectory;
-      if (!targetDirectory) {
-        throw new Error("Storage directory is unavailable on this device.");
-      }
-      const fileUri = `${targetDirectory}timesheet_${range.from}_${range.to}.csv`;
-      await FileSystem.writeAsStringAsync(fileUri, lines.join("\r\n"), { encoding: FileSystem.EncodingType.UTF8 });
+      const fileUri = await writeShareableFile(`timesheet_${range.from}_${range.to}.csv`, lines.join("\r\n"));
       return fileUri;
     },
     onSuccess: async (fileUri) => {
       const canShare = await Sharing.isAvailableAsync();
       if (!canShare) {
-        toastSuccess(`File saved to:\n${fileUri}`);
+        // Without a share sheet there's nowhere safe to put the export — remove the temp file
+        // rather than leaving timesheet data behind on a shared shop device.
+        await FileSystem.deleteAsync(fileUri, { idempotent: true }).catch(() => {});
+        toastError("Sharing isn't available on this device, so the export couldn't be saved.");
         return;
       }
-      await Sharing.shareAsync(fileUri, { mimeType: "text/csv", dialogTitle: "Export timesheet CSV" });
+      await shareFileAndCleanup(fileUri, { mimeType: "text/csv", dialogTitle: "Export timesheet CSV" });
     },
     onError: (error: unknown) => toastError(getApiErrorMessage(error, "Couldn't export the timesheet.")),
   });

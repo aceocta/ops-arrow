@@ -39,7 +39,6 @@
       "versionCode": 2,
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
         "android.permission.POST_NOTIFICATIONS"
       ]
     },
@@ -62,14 +61,16 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Ops Arrow to use your camera for barcode scanning."
+          "cameraPermission": "Ops Arrow uses the camera to scan barcodes and capture photos of delivery notes, till reports, compliance evidence and visitor sign-ins.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
         }
       ],
       [
         "expo-image-picker",
         {
-          "cameraPermission": "Allow Ops Arrow to use your camera to capture delivery notes.",
-          "photosPermission": "Allow Ops Arrow to access photos to import delivery notes."
+          "cameraPermission": "Ops Arrow uses the camera to scan barcodes and capture photos of delivery notes, till reports, compliance evidence and visitor sign-ins.",
+          "photosPermission": "Ops Arrow accesses your photo library so you can attach existing photos of delivery notes, till reports and compliance evidence."
         }
       ],
       "expo-system-ui",

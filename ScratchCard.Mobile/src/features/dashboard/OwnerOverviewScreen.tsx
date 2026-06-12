@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
+import { shareFileAndCleanup } from "../../utils/shareFile";
 import { useAuth } from "../../auth/AuthContext";
 import { getOwnerOverview } from "../../api/reportsApi";
 import { LoadingState } from "../../components/LoadingState";
@@ -255,12 +256,13 @@ export function OwnerOverviewScreen() {
   const shareSummary = async () => {
     if (!overview) return;
     try {
-      const { uri } = await Print.printToFileAsync({ html: buildSummaryHtml(overview, RANGE_LABEL[range]) });
+      // Check share availability first so we never materialise a PDF we can't hand off.
       if (!(await Sharing.isAvailableAsync())) {
         toastError("Sharing is not available on this device.");
         return;
       }
-      await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: "Company overview" });
+      const { uri } = await Print.printToFileAsync({ html: buildSummaryHtml(overview, RANGE_LABEL[range]) });
+      await shareFileAndCleanup(uri, { mimeType: "application/pdf", dialogTitle: "Company overview" });
     } catch (error: any) {
       toastError(error?.message ?? "Couldn't create the summary.");
     }
