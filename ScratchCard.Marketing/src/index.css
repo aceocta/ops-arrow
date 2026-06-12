@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -20,6 +20,9 @@
     scrollbar-width: thin;
     scrollbar-color: #cbd5e1 transparent;
   }
+  ::selection {
+    @apply bg-brand-500/20 text-slate-900;
+  }
 }
 
 @layer components {
@@ -28,37 +31,111 @@
   }
 
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all duration-150 active:scale-[0.97];
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all duration-200 active:scale-[0.97];
   }
   .btn-primary {
-    @apply btn bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow-lg shadow-brand-600/25 hover:from-brand-500 hover:to-brand-700 hover:shadow-xl hover:shadow-brand-600/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white;
+    @apply btn bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow-lg shadow-brand-600/25 ring-1 ring-inset ring-white/20 hover:from-brand-400 hover:to-brand-600 hover:shadow-xl hover:shadow-brand-600/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white;
   }
   .btn-ghost {
-    @apply btn border border-slate-200 bg-white/80 text-slate-700 backdrop-blur hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300/50;
+    @apply btn border border-slate-200 bg-white/80 text-slate-700 backdrop-blur hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50 focus-visible:ring-offset-2;
   }
 
   .card {
-    @apply rounded-2xl border border-slate-200/60 bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04),0_12px_30px_-14px_rgba(16,24,40,0.14)];
+    @apply rounded-2xl bg-white ring-1 ring-slate-200/70 shadow-[0_1px_2px_rgba(16,24,40,0.04),0_12px_30px_-14px_rgba(16,24,40,0.12)];
   }
   .card-hover {
-    @apply transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300/70 hover:shadow-[0_3px_6px_rgba(16,24,40,0.06),0_22px_48px_-18px_rgba(16,24,40,0.26)];
+    @apply transition-all duration-300 hover:-translate-y-1 hover:ring-slate-300/80 hover:shadow-[0_3px_6px_rgba(16,24,40,0.06),0_24px_50px_-18px_rgba(16,24,40,0.25)];
+  }
+  /* Glass card for dark sections. */
+  .card-dark {
+    @apply rounded-3xl bg-white/[0.04] ring-1 ring-white/10 backdrop-blur-sm;
   }
 
   .badge {
     @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold;
   }
+  /* Pill badge with a status dot, e.g. "● 14-day free trial". */
+  .badge-pill {
+    @apply inline-flex items-center gap-2 rounded-full bg-white/70 px-3.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200/80 backdrop-blur;
+  }
 
   .icon-tile {
-    @apply flex h-11 w-11 items-center justify-center rounded-xl text-white shadow-sm;
+    @apply flex h-11 w-11 items-center justify-center rounded-xl text-white shadow-glow-sm ring-1 ring-inset ring-white/25;
   }
 
   .section-eyebrow {
-    @apply text-xs font-semibold uppercase tracking-widest text-brand-600;
+    @apply inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.22em] text-brand-600;
   }
   .section-title {
-    @apply mt-2 text-3xl font-bold leading-tight tracking-tight text-slate-900 sm:text-4xl;
+    @apply mt-3 text-3xl font-extrabold leading-[1.08] tracking-tighter text-slate-900 sm:text-4xl md:text-[2.75rem];
   }
   .section-subtitle {
-    @apply mt-3 text-base text-slate-500 sm:text-lg;
+    @apply mx-auto mt-4 max-w-2xl text-base leading-relaxed text-slate-500 sm:text-lg;
+  }
+
+  /* Gradient accent for key headline words. */
+  .text-gradient {
+    @apply bg-gradient-to-r from-brand-600 via-brand-500 to-sky-500 bg-clip-text text-transparent;
+  }
+}
+
+@layer utilities {
+  /* Hairline grid pattern, masked so it fades out — light surfaces. */
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, rgba(15, 23, 42, 0.045) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(15, 23, 42, 0.045) 1px, transparent 1px);
+    background-size: 52px 52px;
+    -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 35%, transparent 100%);
+    mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 35%, transparent 100%);
+  }
+  /* Dot pattern, masked — light surfaces. */
+  .bg-dots {
+    background-image: radial-gradient(rgba(15, 23, 42, 0.14) 1px, transparent 1px);
+    background-size: 22px 22px;
+    -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 30%, transparent 100%);
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 30%, transparent 100%);
+  }
+  /* Grid pattern for dark sections. */
+  .bg-grid-dark {
+    background-image:
+      linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 52px 52px;
+    -webkit-mask-image: radial-gradient(ellipse 85% 75% at 50% 30%, black 35%, transparent 100%);
+    mask-image: radial-gradient(ellipse 85% 75% at 50% 30%, black 35%, transparent 100%);
+  }
+}
+
+/* ---- Scroll-reveal (driven by the useReveal hook) ---- */
+.reveal {
+  opacity: 0;
+  transform: translateY(22px) scale(0.985);
+  transition:
+    opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+.reveal-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* Respect users who prefer reduced motion: no reveals, no decorative animation. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

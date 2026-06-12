@@ -87,28 +87,50 @@ export default function LegalPage({ page }: { page: "privacy" | "terms" }) {
 
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/80 backdrop-blur">
+      <header className="sticky top-0 z-40 border-b border-slate-200/60 bg-white/70 backdrop-blur-xl supports-[backdrop-filter]:bg-white/60">
         <div className="container-page flex h-16 items-center justify-between">
-          <Link to="/" className="flex items-center gap-2.5" aria-label="Ops Arrow home">
+          <Link
+            to="/"
+            className="flex items-center gap-2.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
+            aria-label="Ops Arrow home"
+          >
             <LogoMark />
             <Wordmark />
           </Link>
-          <Link to="/" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-slate-900">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
+          >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Back to home
           </Link>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-3xl px-4 py-14 sm:px-6 sm:py-16 lg:px-8">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">{content.title}</h1>
-        <p className="mt-2 text-sm text-slate-400">{content.updated}</p>
-        <div className="mt-10 space-y-8">
-          {content.sections.map((s) => (
-            <section key={s.heading}>
-              <h2 className="text-lg font-bold text-slate-900">{s.heading}</h2>
-              <p className="mt-2 text-[15px] leading-relaxed text-slate-600">{s.body}</p>
-            </section>
-          ))}
+      <main className="relative overflow-hidden">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-96 bg-grid" aria-hidden="true" />
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            backgroundImage:
+              "radial-gradient(40rem 24rem at 85% -10%, rgba(51,102,255,0.08), transparent 60%)",
+          }}
+          aria-hidden="true"
+        />
+        <div className="relative mx-auto w-full max-w-3xl px-4 py-14 sm:px-6 sm:py-20 lg:px-8">
+          <p className="section-eyebrow">
+            <span className="h-1 w-1 rounded-full bg-brand-500" aria-hidden="true" />
+            Legal
+          </p>
+          <h1 className="mt-3 text-4xl font-black tracking-tighter text-slate-900 sm:text-5xl">{content.title}</h1>
+          <p className="mt-3 text-sm font-medium text-slate-400">{content.updated}</p>
+          <div className="mt-12 space-y-10">
+            {content.sections.map((s) => (
+              <section key={s.heading}>
+                <h2 className="text-lg font-bold tracking-tight text-slate-900">{s.heading}</h2>
+                <p className="mt-2.5 max-w-prose text-[15px] leading-relaxed text-slate-500">{s.body}</p>
+              </section>
+            ))}
+          </div>
         </div>
       </main>
       <Footer />
