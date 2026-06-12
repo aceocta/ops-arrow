@@ -1913,6 +1913,16 @@ public class RotaService : IRotaService
             .ToListAsync(cancellationToken);
         var userIds = attendanceUserIds.Union(assignedUserIds).ToList();
 
+        // Targeted request: a single person instead of everyone with hours in the period.
+        if (request.UserId is Guid onlyUserId)
+        {
+            userIds = userIds.Where(id => id == onlyUserId).ToList();
+            if (userIds.Count == 0)
+            {
+                throw new AppException("rota_review_no_hours", "That person has no hours or shifts in this period.");
+            }
+        }
+
         // Create missing rows only — existing rows (whatever their status) are left untouched.
         var existing = await _timesheetReviewRepository.Query()
             .AsNoTracking()

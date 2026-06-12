@@ -289,6 +289,8 @@ public class RequestTimesheetReviewsRequest
     public Guid ShopId { get; set; }
     public DateOnly From { get; set; }
     public DateOnly To { get; set; }
+    // Null = everyone with hours in the period; set = request sign-off from this one person only.
+    public Guid? UserId { get; set; }
 }
 
 public class DisputeTimesheetReviewRequest

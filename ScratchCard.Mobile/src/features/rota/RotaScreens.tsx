@@ -919,6 +919,15 @@ export function RotaManageScreen() {
   const [rotaSearch, setRotaSearch] = useState("");
   // Person + date the quick-assign sheet is open for (empty day cells in the by-staff view).
   const [quickAssign, setQuickAssign] = useState<{ name: string; date: string; userId?: string | null; rotaStaffMemberId?: string | null } | null>(null);
+  // By-staff view: which staff cards are expanded to show the week detail (a search expands all).
+  const [expandedStaffKeys, setExpandedStaffKeys] = useState<Set<string>>(new Set());
+  const toggleStaffExpanded = (key: string) =>
+    setExpandedStaffKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   const range = useMemo(() => ({ from: weekStart, to: addDaysStr(weekStart, 6) }), [weekStart]);
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDaysStr(weekStart, i)), [weekStart]);
@@ -1821,9 +1830,17 @@ export function RotaManageScreen() {
           ) : null}
           {visibleStaffRows.map((row) => {
             const zeroHours = row.totalHours === 0;
+            // Searching expands everyone so reason/name matches inside the week stay visible.
+            const expanded = rotaQ.length > 0 || expandedStaffKeys.has(row.key);
             return (
               <View key={row.key} style={[ui.card, styles.staffWeekCard]}>
-                <View style={styles.staffWeekHead}>
+                <Pressable
+                  style={({ pressed }) => [styles.staffWeekHead, pressed ? styles.reviewPeriodBtnPressed : null]}
+                  onPress={() => toggleStaffExpanded(row.key)}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded }}
+                  accessibilityLabel={`${expanded ? "Collapse" : "Expand"} ${row.name}'s week`}
+                >
                   <View style={[styles.userAvatar, !zeroHours ? styles.userAvatarOn : null]}>
                     <Text style={styles.userAvatarText}>{initials(row.name)}</Text>
                   </View>
@@ -1836,7 +1853,9 @@ export function RotaManageScreen() {
                   <Text style={[styles.staffWeekTotal, zeroHours ? styles.staffWeekTotalZero : null]}>
                     {leaveHoursLabel(row.totalHours)}
                   </Text>
-                </View>
+                  <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={16} color={appTheme.colors.textSubtle} />
+                </Pressable>
+                {expanded ? (
                 <View>
                   {weekDays.map((date, dayIdx) => {
                     const dayShifts = row.shiftsByDate.get(date) ?? [];
@@ -1885,6 +1904,7 @@ export function RotaManageScreen() {
                     );
                   })}
                 </View>
+                ) : null}
               </View>
             );
           })}
@@ -2659,6 +2679,9 @@ export function RotaTimesheetScreen() {
   });
   const reviews = reviewsQuery.data ?? [];
   const allReviewsApproved = reviews.length > 0 && reviews.every((r) => r.status === "ManagerApproved");
+  // Users who already have a review row for the selected period — the reviews query is keyed
+  // on the same from/to as the timesheet, so the per-person request action can step aside.
+  const reviewedUserIds = useMemo(() => new Set(reviews.map((r) => r.userId)), [reviews]);
   const refreshReviews = () => void queryClient.invalidateQueries({ queryKey: ["rota-reviews", shopId] });
 
   // Approved history — fetched only while the modal is open, grouped by period (newest first).
@@ -2679,9 +2702,10 @@ export function RotaTimesheetScreen() {
   }, [historyQuery.data]);
 
   const requestReviewsMutation = useMutation({
-    mutationFn: () => requestTimesheetReviews({ shopId: shopId as string, from: range.from, to: range.to }),
-    onSuccess: () => {
-      toastSuccess("Review requests sent.");
+    // userId targets a single staff member; undefined asks everyone with hours in the period.
+    mutationFn: (userId?: string) => requestTimesheetReviews({ shopId: shopId as string, from: range.from, to: range.to, userId }),
+    onSuccess: (_rows, userId) => {
+      toastSuccess(userId ? "Sign-off requested." : "Review requests sent.");
       refreshReviews();
     },
     onError: (error: unknown) => toastError(getApiErrorMessage(error, "Couldn't send review requests.")),
@@ -2716,7 +2740,19 @@ export function RotaTimesheetScreen() {
       message: `Ask all staff who worked ${formatDayLabel(range.from)} – ${formatDayLabel(range.to)} to review and confirm their hours?`,
       confirmLabel: "Send",
     });
-    if (ok) requestReviewsMutation.mutate();
+    if (ok) requestReviewsMutation.mutate(undefined);
+  };
+
+  // Ask one registered staff member to sign off the selected period (external members
+  // have no account, so they sit outside the review workflow).
+  const startRequestSignoff = async (row: TimesheetRow) => {
+    if (!row.userId) return;
+    const ok = await confirmDestructive({
+      title: "Request sign-off",
+      message: `Ask ${row.userName} to review and confirm their hours for ${formatDayLabel(range.from)} – ${formatDayLabel(range.to)}?`,
+      confirmLabel: "Send",
+    });
+    if (ok) requestReviewsMutation.mutate(row.userId);
   };
 
   const openResolve = (review: RotaTimesheetReview) => {
@@ -3105,6 +3141,26 @@ export function RotaTimesheetScreen() {
                             </Text>
                           ))}
                         </Text>
+                      ) : null}
+                      {/* Per-person sign-off request — registered users only; external members
+                          have no account and sit outside the review workflow. */}
+                      {row.userId ? (
+                        reviewedUserIds.has(row.userId) ? (
+                          <Text style={styles.rowSignoffHint}>Sign-off requested</Text>
+                        ) : reviewsQuery.isSuccess ? (
+                          <Pressable
+                            style={({ pressed }) => [styles.editTimesBtn, styles.rowSignoffBtn, pressed ? styles.exportBtnPressed : null, requestReviewsMutation.isPending ? styles.exportBtnDisabled : null]}
+                            onPress={() => void startRequestSignoff(row)}
+                            disabled={requestReviewsMutation.isPending}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Request a timesheet sign-off from ${row.userName}`}
+                          >
+                            <Ionicons name="paper-plane-outline" size={14} color={appTheme.colors.primary} />
+                            <Text style={styles.editTimesBtnText}>
+                              {requestReviewsMutation.isPending && requestReviewsMutation.variables === row.userId ? "Requesting…" : "Request sign-off"}
+                            </Text>
+                          </Pressable>
+                        ) : null
                       ) : null}
                     </View>
                     <Text style={styles.tdNum}>{row.shiftsWorked}{row.openSessions > 0 ? ` (+${row.openSessions})` : ""}</Text>
@@ -4174,6 +4230,8 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.surfaceInfoSoft,
   },
   editTimesBtnText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
+  rowSignoffBtn: { alignSelf: "flex-start", marginTop: 4 },
+  rowSignoffHint: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, marginTop: 2 },
   endSessionBox: {
     gap: appTheme.spacing.xs,
     padding: 10,

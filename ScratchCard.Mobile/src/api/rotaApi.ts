@@ -194,7 +194,8 @@ export type RotaTimesheetReview = {
   openSessions: number;
 };
 
-export async function requestTimesheetReviews(payload: { shopId: string; from: string; to: string }) {
+// userId targets a single staff member; when omitted, everyone with hours in the period is asked.
+export async function requestTimesheetReviews(payload: { shopId: string; from: string; to: string; userId?: string }) {
   const response = await apiClient.post<ApiResponse<RotaTimesheetReview[]>>("/rota/timesheet-reviews/request", payload);
   return response.data.data;
 }

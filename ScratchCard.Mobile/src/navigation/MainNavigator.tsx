@@ -7,7 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthContext";
-import { getPendingApprovals } from "../api/rotaApi";
+import { getMyTimesheetReviews, getPendingApprovals } from "../api/rotaApi";
 import { NetworkStatusBanner } from "../components/NetworkStatusBanner";
 import { DashboardScreen } from "../features/dashboard/DashboardScreen";
 import { BestEntryScreen } from "../features/entry/BestEntryScreen";
@@ -757,9 +757,23 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
     enabled: Boolean(activeShopId) && canApproveTimes,
     refetchInterval: 60_000,
   });
+  // Timesheets waiting for the signed-in user's confirmation → badge on My Timesheet (all roles).
+  const myReviewsQuery = useQuery({
+    queryKey: ["rota-my-reviews", activeShopId],
+    queryFn: () => getMyTimesheetReviews(activeShopId as string),
+    enabled: Boolean(activeShopId) && features.includes("StaffRota"),
+    refetchInterval: 60_000,
+  });
+  const myPendingReviewCount = useMemo(
+    () => (myReviewsQuery.data ?? []).filter((r) => r.status === "PendingStaff" || r.status === "Disputed").length,
+    [myReviewsQuery.data],
+  );
   const shiftBadges = useMemo(
-    () => ({ RotaApprovals: pendingApprovalsQuery.data?.length ?? 0 }),
-    [pendingApprovalsQuery.data],
+    () => ({
+      RotaApprovals: pendingApprovalsQuery.data?.length ?? 0,
+      MyTimesheet: myPendingReviewCount,
+    }),
+    [pendingApprovalsQuery.data, myPendingReviewCount],
   );
   const activeRouteName = getDeepestRouteName(props.state);
   const activeScreen = activeRouteName as keyof MainStackParamList | undefined;
