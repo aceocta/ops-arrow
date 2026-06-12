@@ -5,6 +5,7 @@ using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Users;
 using ScratchCard.Domain.Constants;
 using ScratchCard.Domain.Entities;
+using ScratchCard.Domain.Enums;
 
 namespace ScratchCard.Application.Services;
 
@@ -13,6 +14,12 @@ public class UserService : IUserService
     private readonly IRepository<ShopUser> _shopUserRepository;
     private readonly IRepository<User> _userRepository;
     private readonly IRepository<Role> _roleRepository;
+    private readonly IRepository<Company> _companyRepository;
+    private readonly IRepository<ShopSubscription> _shopSubscriptionRepository;
+    private readonly IRepository<UserPushToken> _userPushTokenRepository;
+    private readonly IRepository<UserInvitation> _userInvitationRepository;
+    private readonly IPasswordHashService _passwordHashService;
+    private readonly IRefreshTokenService _refreshTokenService;
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
@@ -21,6 +28,12 @@ public class UserService : IUserService
         IRepository<ShopUser> shopUserRepository,
         IRepository<User> userRepository,
         IRepository<Role> roleRepository,
+        IRepository<Company> companyRepository,
+        IRepository<ShopSubscription> shopSubscriptionRepository,
+        IRepository<UserPushToken> userPushTokenRepository,
+        IRepository<UserInvitation> userInvitationRepository,
+        IPasswordHashService passwordHashService,
+        IRefreshTokenService refreshTokenService,
         IAuditService auditService,
         ICurrentUserService currentUserService,
         IUnitOfWork unitOfWork)
@@ -28,6 +41,12 @@ public class UserService : IUserService
         _shopUserRepository = shopUserRepository;
         _userRepository = userRepository;
         _roleRepository = roleRepository;
+        _companyRepository = companyRepository;
+        _shopSubscriptionRepository = shopSubscriptionRepository;
+        _userPushTokenRepository = userPushTokenRepository;
+        _userInvitationRepository = userInvitationRepository;
+        _passwordHashService = passwordHashService;
+        _refreshTokenService = refreshTokenService;
         _auditService = auditService;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
@@ -244,6 +263,163 @@ public class UserService : IUserService
             user.Id,
             isActive ? "UserReactivated" : "UserDeactivated",
             shopId,
+            cancellationToken: cancellationToken);
+    }
+
+    public async Task DeleteMyAccountAsync(DeleteMyAccountRequest request, CancellationToken cancellationToken = default)
+    {
+        if (!_currentUserService.UserId.HasValue)
+        {
+            throw new AppException("unauthorized", "User context is missing.", 401);
+        }
+
+        if (!string.Equals(request.Confirmation, "DELETE", StringComparison.Ordinal))
+        {
+            throw new AppException("invalid_confirmation", "Type DELETE to confirm account deletion.", 400);
+        }
+
+        var userId = _currentUserService.UserId.Value;
+        var user = await _userRepository.GetByIdAsync(userId, cancellationToken)
+            ?? throw new AppException("user_not_found", "User not found.", 404);
+
+        // Password accounts must re-authenticate; SSO-only accounts (no hash) skip this check.
+        if (!string.IsNullOrWhiteSpace(user.PasswordHash))
+        {
+            if (string.IsNullOrWhiteSpace(request.Password)
+                || !_passwordHashService.VerifyPassword(user.PasswordHash, request.Password))
+            {
+                await _auditService.LogAsync(nameof(User), userId, "AccountDeletionRejected", reason: "Wrong password", cancellationToken: cancellationToken);
+                throw new AppException("invalid_password", "The password you entered is incorrect.", 400);
+            }
+        }
+
+        var now = DateTimeOffset.UtcNow;
+
+        // GUARD: a sole company owner can't delete while the company still has other active
+        // members or a live (trial/active/paused) shop subscription — ownership must be
+        // transferred or the company wound down first. A sole owner of an empty company may
+        // delete; that company is archived (Closed + inactive) below.
+        var ownedCompanies = await _companyRepository.Query()
+            .Where(x => !x.IsDeleted && x.OwnerUserId == userId)
+            .ToListAsync(cancellationToken);
+
+        foreach (var company in ownedCompanies)
+        {
+            var hasAnotherActiveOwner = await _shopUserRepository.Query()
+                .AsNoTracking()
+                .AnyAsync(
+                    x => x.Shop.CompanyId == company.Id
+                         && x.UserId != userId
+                         && x.IsActive
+                         && x.User.IsActive
+                         && x.Role.Name == RoleNames.CompanyOwner,
+                    cancellationToken);
+
+            if (hasAnotherActiveOwner)
+            {
+                // Not the sole owner — someone else can keep running the company.
+                continue;
+            }
+
+            var hasOtherActiveMembers = await _shopUserRepository.Query()
+                .AsNoTracking()
+                .AnyAsync(
+                    x => x.Shop.CompanyId == company.Id
+                         && x.UserId != userId
+                         && x.IsActive
+                         && x.User.IsActive,
+                    cancellationToken);
+
+            var hasLiveSubscription = await _shopSubscriptionRepository.Query()
+                .AsNoTracking()
+                .AnyAsync(
+                    x => x.CompanyId == company.Id
+                         && (x.Status == SubscriptionStatus.TrialActive
+                             || x.Status == SubscriptionStatus.Active
+                             || x.Status == SubscriptionStatus.Suspended),
+                    cancellationToken);
+
+            if (hasOtherActiveMembers || hasLiveSubscription)
+            {
+                throw new AppException(
+                    "account_deletion_owner_blocked",
+                    "You are the only owner of a company that still has team members or a live subscription. Transfer ownership or close your company first, then try again.",
+                    409);
+            }
+
+            // Empty company with no live billing — archive it alongside the account.
+            company.Status = CompanyStatus.Closed;
+            company.IsActive = false;
+            company.ModifiedOn = now;
+            company.ModifiedBy = userId;
+            _companyRepository.Update(company);
+        }
+
+        var oldEmail = user.Email;
+
+        // Anonymise in place — rota/timesheet/refusal/visitor/audit records keep referencing
+        // this row, but it no longer carries personal data and can never sign in again.
+        user.FirstName = "Former";
+        user.LastName = "Staff member";
+        user.Email = $"deleted-{user.Id}@deleted.invalid";
+        user.PhoneNumber = null;
+        user.PasswordHash = null;
+        user.PasswordResetTokenHash = null;
+        user.PasswordResetTokenExpiresOn = null;
+        user.ExternalProvider = "Deleted";
+        user.ExternalProviderUserId = $"deleted-{user.Id:N}";
+        user.IsActive = false;
+        user.ModifiedOn = now;
+        user.ModifiedBy = userId;
+        _userRepository.Update(user);
+
+        // Deactivate (not delete) shop memberships — same semantics as deactivate today, and
+        // historical records keep their FK to the membership/user.
+        var shopLinks = await _shopUserRepository.Query()
+            .Where(x => x.UserId == userId && x.IsActive)
+            .ToListAsync(cancellationToken);
+        foreach (var link in shopLinks)
+        {
+            link.IsActive = false;
+            link.ModifiedOn = now;
+            link.ModifiedBy = userId;
+            _shopUserRepository.Update(link);
+        }
+
+        // Push tokens are pure device-routing data — hard-delete them.
+        var pushTokens = await _userPushTokenRepository.Query()
+            .Where(x => x.UserId == userId)
+            .ToListAsync(cancellationToken);
+        foreach (var token in pushTokens)
+        {
+            _userPushTokenRepository.Remove(token);
+        }
+
+        // Cancel any invitations still pending against the old email address.
+        var pendingInvitations = await _userInvitationRepository.Query()
+            .Where(x => x.Email == oldEmail && x.Status == InvitationStatus.Pending)
+            .ToListAsync(cancellationToken);
+        foreach (var invitation in pendingInvitations)
+        {
+            invitation.Status = InvitationStatus.Cancelled;
+            invitation.CancelledOn = now;
+            invitation.CancelledByUserId = userId;
+            invitation.ModifiedOn = now;
+            invitation.ModifiedBy = userId;
+            _userInvitationRepository.Update(invitation);
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Revoke every live refresh token so no session can be resumed (saves internally).
+        await _refreshTokenService.RevokeAllActiveForUserAsync(userId, cancellationToken);
+
+        await _auditService.LogAsync(
+            nameof(User),
+            userId,
+            "AccountDeleted",
+            oldValue: oldEmail,
+            reason: "Self-service account deletion",
             cancellationToken: cancellationToken);
     }
 

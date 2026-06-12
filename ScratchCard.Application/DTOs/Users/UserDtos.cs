@@ -19,6 +19,18 @@ public class UpdateUserRoleRequest
     public Guid RoleId { get; set; }
 }
 
+public class DeleteMyAccountRequest
+{
+    /// <summary>
+    /// Current password. Required when the account has a password set; ignored for SSO-only
+    /// accounts (no password hash), which can delete without it.
+    /// </summary>
+    public string? Password { get; set; }
+
+    /// <summary>Must be exactly "DELETE" (case-sensitive) to confirm the irreversible action.</summary>
+    public string Confirmation { get; set; } = string.Empty;
+}
+
 public class UpdateUserProfileRequest
 {
     public string? FirstName { get; set; }

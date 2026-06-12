@@ -120,6 +120,14 @@ public interface IUserService
     Task<UserDto> UpdateMyProfileAsync(UpdateUserProfileRequest request, CancellationToken cancellationToken = default);
     /// <summary>Lets a CompanyOwner or Manager update another user's name/phone on a shop they manage.</summary>
     Task<UserDto> UpdateUserDetailsAsync(Guid userId, Guid shopId, UpdateUserProfileRequest request, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Self-service account deletion (App Store 5.1.1(v) / Play Store compliance). Anonymises the
+    /// user's personal details in place (compliance records keep referencing the row), disables
+    /// login, revokes refresh tokens, deletes push tokens and cancels pending invitations.
+    /// Blocked with 409 when the caller is the sole owner of a company that still has other
+    /// active members or a live (active/trial/paused) shop subscription.
+    /// </summary>
+    Task DeleteMyAccountAsync(DeleteMyAccountRequest request, CancellationToken cancellationToken = default);
 }
 
 public interface IShopService

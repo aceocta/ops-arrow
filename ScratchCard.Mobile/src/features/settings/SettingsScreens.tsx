@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, DevSettings, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, DevSettings, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,7 +13,7 @@ import { resolvedApiBaseUrl } from "../../api/client";
 import { DateTimeField } from "../../components/DateTimeField";
 import { getRoleOptions } from "../../api/lookupsApi";
 import { createShop, listShops, updateShop } from "../../api/shopsApi";
-import { deactivateUser, listUsers, reactivateUser, updateUserDetails, updateUserRole } from "../../api/usersApi";
+import { deactivateUser, deleteMyAccount, listUsers, reactivateUser, updateUserDetails, updateUserRole } from "../../api/usersApi";
 import { useAuth } from "../../auth/AuthContext";
 import { LabeledValue } from "../../components/LabeledValue";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
@@ -31,6 +31,7 @@ import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme, type ThemeMode } from "../../ui/theme";
 import { getStoredThemeModePreference, setStoredThemeModePreference } from "../../ui/themePreference";
+import { getApiErrorMessage } from "../../utils/apiErrorMessage";
 import { confirmDestructive } from "../../utils/confirm";
 import { getRoleDisplayName } from "../../utils/roleLabels";
 import { DEFAULT_WEEK_START_DAY, WEEK_START_CHOICES } from "../../utils/week";
@@ -2113,6 +2114,51 @@ export function SettingsScreen() {
     }
   }
 
+  // Self-service account deletion (App Store 5.1.1(v) / Play Store). The sheet requires typing
+  // DELETE; the password is only checked server-side for password accounts (Google sign-ins
+  // leave it blank).
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const deleteConfirmValid = deleteConfirmText.trim() === "DELETE";
+
+  function openDeleteAccount() {
+    setDeleteConfirmText("");
+    setDeletePassword("");
+    setDeleteAccountError(null);
+    setDeleteAccountOpen(true);
+  }
+
+  function closeDeleteAccount() {
+    if (isDeletingAccount) return;
+    setDeleteAccountOpen(false);
+  }
+
+  async function onDeleteAccount() {
+    if (!deleteConfirmValid || isDeletingAccount) return;
+    setIsDeletingAccount(true);
+    setDeleteAccountError(null);
+    try {
+      await deleteMyAccount({
+        confirmation: deleteConfirmText.trim(),
+        password: deletePassword.length > 0 ? deletePassword : undefined,
+      });
+      setDeleteAccountOpen(false);
+      Alert.alert("Account deleted", "Your account has been deleted and your personal details removed.");
+      try {
+        await signOut();
+      } catch {
+        // Tokens are already revoked server-side; local state clears on next launch regardless.
+      }
+    } catch (error) {
+      setDeleteAccountError(getApiErrorMessage(error, "Unable to delete your account. Please try again."));
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  }
+
   async function confirmSignOut() {
     const ok = await confirmDestructive({
       title: "Sign out?",
@@ -2298,16 +2344,78 @@ export function SettingsScreen() {
       ) : null}
 
       <View style={ui.card}>
-        <SettingsNavRow
-          icon="log-out-outline"
-          title="Sign Out"
-          description="You can sign back in with your company account."
-          onPress={confirmSignOut}
-          tone="danger"
-        />
+        <View style={styles.settingsSectionRows}>
+          <SettingsNavRow
+            icon="log-out-outline"
+            title="Sign Out"
+            description="You can sign back in with your company account."
+            onPress={confirmSignOut}
+            tone="danger"
+          />
+          <SettingsNavRow
+            icon="trash-outline"
+            title="Delete account"
+            description="Permanently remove your login and personal details."
+            onPress={openDeleteAccount}
+            tone="danger"
+          />
+        </View>
       </View>
 
       <Text style={styles.versionFooter}>Version {appVersion}</Text>
+
+      {/* Delete account — typed-DELETE confirmation sheet (App Store / Play Store compliance) */}
+      <Modal visible={deleteAccountOpen} transparent animationType="fade" onRequestClose={closeDeleteAccount}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+          <View style={styles.deleteSheetBackdrop}>
+            <View style={styles.deleteSheetCard}>
+              <View style={styles.deleteSheetHeader}>
+                <View style={styles.deleteSheetIcon}>
+                  <Ionicons name="trash-outline" size={22} color={appTheme.colors.danger} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.deleteSheetTitle}>Delete account?</Text>
+                  <Text style={styles.deleteSheetSubtitle}>{profile?.email ?? ""}</Text>
+                </View>
+              </View>
+
+              <Text style={styles.deleteSheetBody}>
+                Your login is permanently removed and your personal details are anonymised. Records your shop must
+                keep by law — like timesheets and refusal logs — are kept without your name. This cannot be undone.
+              </Text>
+
+              <FloatingLabelInput
+                label="Type DELETE to confirm"
+                value={deleteConfirmText}
+                onChangeText={setDeleteConfirmText}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                accessibilityLabel="Type DELETE to confirm"
+              />
+              <FloatingLabelInput
+                label="Current password"
+                value={deletePassword}
+                onChangeText={setDeletePassword}
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                accessibilityLabel="Current password"
+              />
+              <Text style={styles.deleteSheetHelper}>Leave blank if you sign in with Google.</Text>
+
+              {deleteAccountError ? <Text style={styles.deleteSheetError}>{deleteAccountError}</Text> : null}
+
+              <PrimaryButton
+                label={isDeletingAccount ? "Deleting…" : "Delete my account"}
+                tone="danger"
+                onPress={() => void onDeleteAccount()}
+                disabled={!deleteConfirmValid || isDeletingAccount}
+              />
+              <PrimaryButton label="Cancel" tone="neutral" onPress={closeDeleteAccount} disabled={isDeletingAccount} />
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -2583,6 +2691,42 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     marginTop: 2,
   },
+  // Delete-account confirmation sheet (matches the shared sheet styling in RotaScreens/LeaveScreens)
+  deleteSheetBackdrop: { flex: 1, backgroundColor: appTheme.colors.overlayStrong, justifyContent: "center", padding: appTheme.spacing.md },
+  deleteSheetCard: {
+    backgroundColor: appTheme.colors.background,
+    borderRadius: appTheme.radius.lg,
+    padding: appTheme.spacing.md,
+    gap: appTheme.spacing.sm,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 12,
+  },
+  deleteSheetHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+  deleteSheetIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: appTheme.radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: appTheme.colors.surfaceDangerSoft,
+  },
+  deleteSheetTitle: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 18 },
+  deleteSheetSubtitle: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, lineHeight: 16 },
+  deleteSheetBody: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 13, lineHeight: 19 },
+  deleteSheetHelper: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: -6,
+    marginLeft: appTheme.spacing.sm,
+  },
+  deleteSheetError: { color: appTheme.colors.danger, fontFamily: appTheme.fonts.body, fontSize: 13, lineHeight: 18 },
   readyBackdrop: { flex: 1, backgroundColor: appTheme.colors.overlay, justifyContent: "center", padding: appTheme.spacing.lg },
   readyCard: { gap: 8 },
   readyIcon: { alignItems: "center", marginBottom: 4 },

@@ -27,6 +27,16 @@ export async function reactivateUser(userId: string, shopId: string) {
 }
 
 /**
+ * Self-service account deletion (App Store / Play Store compliance). The server anonymises the
+ * caller's personal details, disables login and revokes every session. `confirmation` must be
+ * exactly "DELETE"; `password` is required only for password accounts (omit for Google sign-in).
+ */
+export async function deleteMyAccount(payload: { password?: string; confirmation: string }) {
+  const response = await apiClient.post<ApiResponse<{ deleted: boolean }>>("/users/me/delete-account", payload);
+  return response.data.data;
+}
+
+/**
  * Manager-only edit of another user's profile (first/last name + optional phone). The phone is
  * never validated server-side; pass empty string to clear it.
  */
