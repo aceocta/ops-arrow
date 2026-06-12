@@ -18,6 +18,35 @@ public class SubscriptionPlanDto
     public bool IsActive { get; set; }
 }
 
+/// <summary>
+/// Curated plan shape for the anonymous marketing-site endpoint (GET /api/public/plans).
+/// Intentionally excludes internal-only fields (plan Id, Stripe price IDs, export limits, IsActive).
+/// </summary>
+public class PublicPlanDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public decimal PricePerShop { get; set; }
+    public string Currency { get; set; } = "GBP";
+    public BillingCycle BillingCycle { get; set; }
+    public int TrialDays { get; set; }
+    public int? MaxUsers { get; set; }
+    public int DisplayOrder { get; set; }
+    public IReadOnlyCollection<PublicPlanFeatureCategoryDto> FeatureCategories { get; set; } = [];
+}
+
+public class PublicPlanFeatureCategoryDto
+{
+    public string Category { get; set; } = string.Empty;
+    public IReadOnlyCollection<PublicPlanFeatureDto> Features { get; set; } = [];
+}
+
+public class PublicPlanFeatureDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+}
+
 public class SubscriptionCalculationRequest
 {
     public Guid CompanyId { get; set; }

@@ -43,6 +43,7 @@ builder.Services.AddCors(options =>
         "https://gaming-lent-startup.ngrok-free.dev",
         "https://wa-ops-arrow-uat-dvdrbjf9fraydwdd.canadacentral-01.azurewebsites.net",
         "https://opsarrow.co.uk",
+        "https://www.opsarrow.co.uk",
         "https://app.opsarrow.co.uk",
         "https://opsarrow.com",
         "https://app.opsarrow.com",

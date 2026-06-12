@@ -83,6 +83,58 @@ public class SubscriptionService : ISubscriptionService
         return result;
     }
 
+    public async Task<IReadOnlyCollection<PublicPlanDto>> GetPublicPlansAsync(CancellationToken cancellationToken = default)
+    {
+        // Reuse GetPlansAsync so we share its IMemoryCache entry rather than hitting the DB again.
+        var plans = await GetPlansAsync(cancellationToken);
+
+        return plans
+            .Where(p => p.IsActive)
+            .OrderBy(p => p.DisplayOrder)
+            .ThenBy(p => p.PricePerShop)
+            .Select(p => new PublicPlanDto
+            {
+                Name = p.Name,
+                Description = p.Description,
+                PricePerShop = p.PricePerShop,
+                BillingCycle = p.BillingCycle,
+                TrialDays = p.TrialDays,
+                MaxUsers = p.MaxUsers,
+                DisplayOrder = p.DisplayOrder,
+                FeatureCategories = BuildPublicFeatureCategories(p.IncludedFeatures),
+            })
+            .ToArray();
+    }
+
+    private static readonly IReadOnlyDictionary<string, FeatureCatalogEntry> FeatureCatalogueByKey =
+        FeatureKeys.Catalog.ToDictionary(e => e.Key, StringComparer.Ordinal);
+
+    private static IReadOnlyCollection<PublicPlanFeatureCategoryDto> BuildPublicFeatureCategories(
+        IEnumerable<string> includedFeatureKeys)
+    {
+        // Resolve raw keys (both legacy module keys and granular keys) against the catalogue;
+        // keys not in the catalogue are skipped.
+        var entries = includedFeatureKeys
+            .Distinct(StringComparer.Ordinal)
+            .Select(key => FeatureCatalogueByKey.TryGetValue(key, out var entry) ? entry : null)
+            .Where(e => e is not null)
+            .Select(e => e!)
+            .ToList();
+
+        return entries
+            .GroupBy(e => e.Category, StringComparer.Ordinal)
+            .OrderBy(g => g.Min(e => e.DisplayOrder))
+            .Select(g => new PublicPlanFeatureCategoryDto
+            {
+                Category = g.Key,
+                Features = g
+                    .OrderBy(e => e.DisplayOrder)
+                    .Select(e => new PublicPlanFeatureDto { Name = e.Name, Description = e.Description })
+                    .ToArray(),
+            })
+            .ToArray();
+    }
+
     public async Task<SubscriptionSummaryDto> GetSummaryAsync(Guid companyId, CancellationToken cancellationToken = default)
     {
         await EnsureCompanyAccessAsync(companyId, cancellationToken);

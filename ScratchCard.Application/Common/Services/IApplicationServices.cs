@@ -148,6 +148,12 @@ public interface ICompanySignupService
 public interface ISubscriptionService
 {
     Task<IReadOnlyCollection<SubscriptionPlanDto>> GetPlansAsync(CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Curated, public-safe plan catalogue for the anonymous marketing-site endpoint.
+    /// Active plans only, ordered by DisplayOrder then PricePerShop, with feature keys
+    /// resolved against <c>FeatureKeys.Catalog</c> and grouped by category.
+    /// </summary>
+    Task<IReadOnlyCollection<PublicPlanDto>> GetPublicPlansAsync(CancellationToken cancellationToken = default);
     Task<SubscriptionSummaryDto> GetSummaryAsync(Guid companyId, CancellationToken cancellationToken = default);
     Task<SubscriptionCalculationResultDto> CalculateAsync(SubscriptionCalculationRequest request, CancellationToken cancellationToken = default);
     Task<SubscriptionSummaryDto> SelectPlanAsync(SelectSubscriptionPlanRequest request, CancellationToken cancellationToken = default);
