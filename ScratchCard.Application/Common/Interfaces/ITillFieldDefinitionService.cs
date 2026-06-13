@@ -6,8 +6,9 @@ namespace ScratchCard.Application.Common.Interfaces;
 public interface ITillFieldDefinitionService
 {
     Task<IReadOnlyCollection<TillFieldDefinitionDto>> ListAsync(CancellationToken cancellationToken = default);
-    /// <summary>Active fields only, for line-editor pickers (any authenticated user).</summary>
-    Task<IReadOnlyCollection<TillFieldDefinitionDto>> ListActiveAsync(CancellationToken cancellationToken = default);
+    /// <summary>Active fields for line-editor pickers (any authenticated user): global built-ins plus,
+    /// when a shop is given, that shop's own custom fields.</summary>
+    Task<IReadOnlyCollection<TillFieldDefinitionDto>> ListActiveAsync(Guid? shopId = null, CancellationToken cancellationToken = default);
     Task<TillFieldDefinitionDto> CreateAsync(CreateTillFieldDefinitionRequest request, CancellationToken cancellationToken = default);
     Task<TillFieldDefinitionDto> UpdateAsync(UpdateTillFieldDefinitionRequest request, CancellationToken cancellationToken = default);
     Task ReloadAsync(CancellationToken cancellationToken = default);

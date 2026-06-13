@@ -171,7 +171,7 @@ export function TillReconciliationScreen() {
 
   // Field picker options come from the data-driven catalogue (built-in + custom), falling back to
   // the bundled defaults until the list loads.
-  const fieldOptionsQ = useQuery({ queryKey: ["till-fields"], queryFn: getFieldOptions, staleTime: 5 * 60 * 1000 });
+  const fieldOptionsQ = useQuery({ queryKey: ["till-fields", shopId], queryFn: () => getFieldOptions(shopId), enabled: Boolean(shopId), staleTime: 5 * 60 * 1000 });
   const fieldOptions = fieldOptionsQ.data ?? FIELD_OPTIONS;
 
   // Bulk actions on the checkbox-selected lines: remove them, or reassign them to another field.

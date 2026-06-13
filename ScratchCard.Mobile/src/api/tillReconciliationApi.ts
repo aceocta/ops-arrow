@@ -240,8 +240,8 @@ export type FieldOptionGroup = { group: string; fields: { value: FieldCode; labe
 
 // Active fields for the manual picker, loaded from the data-driven catalogue (built-in + custom).
 // Sections use the server-provided group display name.
-export async function getFieldOptions(): Promise<FieldOptionGroup[]> {
-  const res = await apiClient.get<ApiResponse<{ code: string; displayName: string; groupCode: string; groupName: string }[]>>("/till-fields");
+export async function getFieldOptions(shopId?: string): Promise<FieldOptionGroup[]> {
+  const res = await apiClient.get<ApiResponse<{ code: string; displayName: string; groupCode: string; groupName: string }[]>>("/till-fields", { params: shopId ? { shopId } : undefined });
   const byGroup = new Map<string, { value: FieldCode; label: string }[]>();
   for (const d of res.data.data) {
     const label = d.groupName || d.groupCode;

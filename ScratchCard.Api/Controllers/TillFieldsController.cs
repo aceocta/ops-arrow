@@ -16,7 +16,8 @@ public class TillFieldsController : BaseApiController
         _service = service;
     }
 
+    // shopId (optional) includes that shop's own custom fields alongside the global built-ins.
     [HttpGet]
-    public async Task<IActionResult> List(CancellationToken cancellationToken)
-        => Success(await _service.ListActiveAsync(cancellationToken));
+    public async Task<IActionResult> List([FromQuery] Guid? shopId, CancellationToken cancellationToken)
+        => Success(await _service.ListActiveAsync(shopId, cancellationToken));
 }

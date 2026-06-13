@@ -45,11 +45,45 @@ export type TillFieldOverride = {
   defaultGroupCode: string;
 };
 
-// Flat list of active catalogue fields with their default (built-in) group.
-export type TillFieldRow = { code: FieldCode; displayName: string; groupCode: string; groupName: string };
-export async function listTillFields(): Promise<TillFieldRow[]> {
-  const res = await apiClient.get<ApiResponse<TillFieldRow[]>>("/till-fields");
+// Flat list of active catalogue fields with their default group. Pass shopId to include the shop's
+// own custom fields alongside the built-ins.
+export type TillFieldRow = { code: FieldCode; displayName: string; groupCode: string; groupName: string; isBuiltIn: boolean };
+export async function listTillFields(shopId?: string): Promise<TillFieldRow[]> {
+  const res = await apiClient.get<ApiResponse<TillFieldRow[]>>("/till-fields", { params: shopId ? { shopId } : undefined });
   return res.data.data;
+}
+
+// ---------------------------------------------------------------------------
+// Per-shop custom fields (line items) with simple in/out/none cash behaviour.
+// ---------------------------------------------------------------------------
+export type CashEffect = "In" | "Out" | "None";
+export type TillShopField = {
+  id: string;
+  shopId?: string | null;
+  code: FieldCode;
+  displayName: string;
+  groupCode: string;
+  cashEffect: CashEffect;
+  isActive: boolean;
+};
+
+export async function listShopFields(shopId: string): Promise<TillShopField[]> {
+  const res = await apiClient.get<ApiResponse<TillShopField[]>>("/till-shop-fields", { params: { shopId } });
+  return res.data.data;
+}
+
+export async function createShopField(input: { shopId: string; displayName: string; groupCode: string; cashEffect: CashEffect }): Promise<TillShopField> {
+  const res = await apiClient.post<ApiResponse<TillShopField>>("/till-shop-fields", input);
+  return res.data.data;
+}
+
+export async function updateShopField(input: { id: string; displayName: string; groupCode: string; cashEffect: CashEffect; isActive?: boolean }): Promise<TillShopField> {
+  const res = await apiClient.put<ApiResponse<TillShopField>>("/till-shop-fields", { isActive: true, ...input });
+  return res.data.data;
+}
+
+export async function deleteShopField(id: string): Promise<void> {
+  await apiClient.delete<ApiResponse<boolean>>(`/till-shop-fields/${id}`);
 }
 
 export async function listTillFieldOverrides(shopId: string): Promise<TillFieldOverride[]> {

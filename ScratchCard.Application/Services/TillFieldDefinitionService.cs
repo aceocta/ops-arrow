@@ -36,9 +36,12 @@ public sealed class TillFieldDefinitionService : ITillFieldDefinitionService
         return rows.Select(Map).ToList();
     }
 
-    public async Task<IReadOnlyCollection<TillFieldDefinitionDto>> ListActiveAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyCollection<TillFieldDefinitionDto>> ListActiveAsync(Guid? shopId = null, CancellationToken cancellationToken = default)
     {
-        var rows = await _defs.Query().AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.SortOrder).ThenBy(x => x.DisplayName).ToListAsync(cancellationToken);
+        // Global built-ins (ShopId null) plus this shop's own custom fields — never another shop's.
+        var rows = await _defs.Query().AsNoTracking()
+            .Where(x => x.IsActive && (x.ShopId == null || x.ShopId == shopId))
+            .OrderBy(x => x.SortOrder).ThenBy(x => x.DisplayName).ToListAsync(cancellationToken);
         return rows.Select(Map).ToList();
     }
 
@@ -104,7 +107,7 @@ public sealed class TillFieldDefinitionService : ITillFieldDefinitionService
         foreach (var r in rows)
         {
             var field = Enum.TryParse<TillCanonicalField>(r.Code, out var f) ? f : TillCanonicalField.Unmapped;
-            metas[r.Code] = new TillFieldMeta(r.Code, field, r.Group, r.CashDirection, r.AffectsDrawer, r.Vat, r.IsCommissionIncome, r.DisplayName, r.Group.ToString());
+            metas[r.Code] = new TillFieldMeta(r.Code, field, r.Group, r.CashDirection, r.AffectsDrawer, r.Vat, r.IsCommissionIncome, r.DisplayName, string.IsNullOrWhiteSpace(r.GroupCode) ? r.Group.ToString() : r.GroupCode);
             ledgers[r.Code] = r.DefaultLedger;
         }
         TillCanonicalCatalogue.LoadRuntime(metas);
@@ -164,8 +167,8 @@ public sealed class TillFieldDefinitionService : ITillFieldDefinitionService
         Code = d.Code,
         DisplayName = d.DisplayName,
         Group = d.Group,
-        GroupCode = d.Group.ToString(),
-        GroupName = TillGroupCatalogue.ByCode.TryGetValue(d.Group.ToString(), out var gm) ? gm.DisplayName : d.Group.ToString(),
+        GroupCode = string.IsNullOrWhiteSpace(d.GroupCode) ? d.Group.ToString() : d.GroupCode,
+        GroupName = TillGroupCatalogue.ByCode.TryGetValue(string.IsNullOrWhiteSpace(d.GroupCode) ? d.Group.ToString() : d.GroupCode, out var gm) ? gm.DisplayName : (string.IsNullOrWhiteSpace(d.GroupCode) ? d.Group.ToString() : d.GroupCode),
         CashDirection = d.CashDirection,
         AffectsDrawer = d.AffectsDrawer,
         Vat = d.Vat,

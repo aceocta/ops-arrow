@@ -4,10 +4,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import {
+  CashEffect,
   TillGroup,
+  TillShopField,
   assignFieldGroup,
+  createShopField,
   createTillGroup,
+  deleteShopField,
   deleteTillGroup,
+  listShopFields,
   listTillFieldOverrides,
   listTillFields,
   listTillGroups,
@@ -43,12 +48,43 @@ export function TillGroupsConfigScreen() {
     return m;
   }, [overridesQuery.data]);
 
+  const shopFieldsQuery = useQuery({ queryKey: ["till-shop-fields", shopId], queryFn: () => listShopFields(shopId), enabled: Boolean(shopId) });
+
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ["till-groups", shopId] });
     void qc.invalidateQueries({ queryKey: ["till-field-overrides", shopId] });
-    // Open reconciliations re-section on next load.
+    void qc.invalidateQueries({ queryKey: ["till-shop-fields", shopId] });
+    // Picker + open reconciliations refresh so the new field is selectable / re-sections.
+    void qc.invalidateQueries({ queryKey: ["till-fields", shopId] });
+    void qc.invalidateQueries({ queryKey: ["till-fields-flat"] });
     void qc.invalidateQueries({ queryKey: ["till-reconciliation"] });
   };
+
+  // ---- Create / delete custom fields ----
+  const [fieldName, setFieldName] = useState("");
+  const [fieldGroupCode, setFieldGroupCode] = useState<string>("");
+  const [fieldEffect, setFieldEffect] = useState<CashEffect>("Out");
+  const createFieldM = useMutation({
+    mutationFn: () => createShopField({ shopId, displayName: fieldName.trim(), groupCode: fieldGroupCode || groups[0]?.code || "Movement", cashEffect: fieldEffect }),
+    onSuccess: () => { setFieldName(""); invalidate(); },
+    onError: (e: any) => Alert.alert("Add failed", e?.response?.data?.message ?? "Could not add this field."),
+  });
+
+  async function confirmDeleteField(f: TillShopField) {
+    const ok = await confirmDestructive({
+      title: "Delete field",
+      message: `Remove "${f.displayName}"? Past reconciliations that used it stay readable.`,
+    });
+    if (!ok) return;
+    try {
+      await deleteShopField(f.id);
+      invalidate();
+    } catch (e: any) {
+      Alert.alert("Delete failed", e?.response?.data?.message ?? "Could not delete this field.");
+    }
+  }
+
+  const effectLabel = (e: CashEffect) => (e === "In" ? "Money in" : e === "Out" ? "Money out" : "No cash effect");
 
   // ---- Create / rename / delete groups ----
   const [newName, setNewName] = useState("");
@@ -144,11 +180,75 @@ export function TillGroupsConfigScreen() {
         ) : null}
       </View>
 
+      {/* Custom fields */}
+      <View style={ui.card}>
+        <Text style={ui.sectionTitle}>Custom fields</Text>
+        <Text style={ui.caption}>
+          Add your own till line (e.g. "Wages from till"). "Money out" reduces the expected drawer, "Money in" adds to
+          it, "No cash effect" just records a figure. Pick which group it appears under.
+        </Text>
+        <TextInput
+          style={styles.input}
+          value={fieldName}
+          onChangeText={setFieldName}
+          placeholder="Field name"
+          placeholderTextColor={appTheme.colors.textSubtle}
+          editable={!createFieldM.isPending}
+        />
+
+        {/* Cash effect */}
+        <View style={styles.segment}>
+          {(["Out", "In", "None"] as CashEffect[]).map((e) => (
+            <Pressable
+              key={e}
+              style={[styles.segmentBtn, fieldEffect === e ? styles.segmentBtnActive : null]}
+              onPress={() => setFieldEffect(e)}
+            >
+              <Text style={[styles.segmentText, fieldEffect === e ? styles.segmentTextActive : null]}>{effectLabel(e)}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {/* Group picker */}
+        <Text style={[ui.caption, { marginTop: 2 }]}>Group</Text>
+        <View style={styles.chipsWrap}>
+          {groups.map((g) => {
+            const sel = (fieldGroupCode || groups[0]?.code) === g.code;
+            return (
+              <Pressable key={g.code} style={[styles.chip, sel ? styles.chipActive : null]} onPress={() => setFieldGroupCode(g.code)}>
+                <Text style={[styles.chipText, sel ? styles.chipTextActive : null]}>{g.displayName}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <PrimaryButton
+          label={createFieldM.isPending ? "Adding…" : "Add field"}
+          onPress={() => createFieldM.mutate()}
+          disabled={!fieldName.trim() || createFieldM.isPending || !shopId}
+        />
+
+        {(shopFieldsQuery.data ?? []).map((f) => (
+          <View key={f.id} style={styles.row}>
+            <View style={styles.rowMain}>
+              <Text style={styles.rowName}>{f.displayName}</Text>
+              <Text style={styles.rowMeta}>{effectLabel(f.cashEffect)} · {groupName.get(f.groupCode) ?? f.groupCode}</Text>
+            </View>
+            <Pressable style={styles.iconBtn} onPress={() => confirmDeleteField(f)}>
+              <Ionicons name="trash-outline" size={17} color={appTheme.colors.danger} />
+            </Pressable>
+          </View>
+        ))}
+        {!loading && (shopFieldsQuery.data?.length ?? 0) === 0 ? (
+          <Text style={ui.caption}>No custom fields yet.</Text>
+        ) : null}
+      </View>
+
       {/* Assign fields to groups */}
       <View style={ui.card}>
         <Text style={ui.sectionTitle}>Assign fields to groups</Text>
-        <Text style={ui.caption}>Tap a field to move it into a different group for this shop.</Text>
-        {(fieldsQuery.data ?? []).map((f) => {
+        <Text style={ui.caption}>Tap a field to move it into a different group for this shop. (Custom fields set their group above.)</Text>
+        {(fieldsQuery.data ?? []).filter((f) => f.isBuiltIn).map((f) => {
           const currentCode = overrideByField.get(f.code) ?? f.groupCode;
           const currentName = groupName.get(currentCode) ?? f.groupName ?? currentCode;
           return (
@@ -257,6 +357,31 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  segment: { flexDirection: "row", gap: 6, marginTop: 4 },
+  segmentBtn: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 8,
+    borderRadius: appTheme.radius.sm,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surfaceMuted,
+  },
+  segmentBtnActive: { borderColor: appTheme.colors.primary, backgroundColor: appTheme.colors.surfaceBrandMuted },
+  segmentText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12 },
+  segmentTextActive: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium },
+  chipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 2 },
+  chip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: appTheme.radius.pill,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surface,
+  },
+  chipActive: { borderColor: appTheme.colors.primary, backgroundColor: appTheme.colors.surfaceBrandMuted },
+  chipText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12 },
+  chipTextActive: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", padding: 24 },
   sheet: { backgroundColor: appTheme.colors.surface, borderRadius: appTheme.radius.md, padding: 16, gap: 10 },
   pickRow: {

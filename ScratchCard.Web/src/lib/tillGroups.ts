@@ -11,7 +11,7 @@ export type TillGroup = {
   isBuiltIn: boolean;
 };
 
-export type TillFieldRow = { code: string; displayName: string; groupCode: string; groupName: string };
+export type TillFieldRow = { code: string; displayName: string; groupCode: string; groupName: string; isBuiltIn: boolean };
 
 export type TillFieldOverride = {
   id: string;
@@ -31,12 +31,35 @@ export const tillGroupsApi = {
     unwrap<TillGroup>((await api.put("/till-groups", { isActive: true, ...g })).data),
   remove: async (id: string) => { await api.delete(`/till-groups/${id}`); },
 
-  // Active catalogue fields (flat) with their built-in default group.
-  listFields: async () => unwrap<TillFieldRow[]>((await api.get("/till-fields")).data),
+  // Active catalogue fields (flat) — built-ins + this shop's custom fields.
+  listFields: async (shopId: string) =>
+    unwrap<TillFieldRow[]>((await api.get("/till-fields", { params: { shopId } })).data),
 
   // Per-shop field → group assignment (writes a TillFieldOverride.GroupCode).
   listOverrides: async (shopId: string) =>
     unwrap<TillFieldOverride[]>((await api.get("/till-field-overrides", { params: { shopId } })).data),
   assignField: async (shopId: string, canonicalField: string, groupCode: string | null) =>
     unwrap<TillFieldOverride>((await api.post("/till-field-overrides", { shopId, canonicalField, groupCode })).data),
+};
+
+// Per-shop custom fields (line items) with simple in/out/none cash behaviour.
+export type CashEffect = "In" | "Out" | "None";
+export type TillShopField = {
+  id: string;
+  shopId?: string | null;
+  code: string;
+  displayName: string;
+  groupCode: string;
+  cashEffect: CashEffect;
+  isActive: boolean;
+};
+
+export const tillShopFieldsApi = {
+  list: async (shopId: string) =>
+    unwrap<TillShopField[]>((await api.get("/till-shop-fields", { params: { shopId } })).data),
+  create: async (input: { shopId: string; displayName: string; groupCode: string; cashEffect: CashEffect }) =>
+    unwrap<TillShopField>((await api.post("/till-shop-fields", input)).data),
+  update: async (input: { id: string; displayName: string; groupCode: string; cashEffect: CashEffect; isActive?: boolean }) =>
+    unwrap<TillShopField>((await api.put("/till-shop-fields", { isActive: true, ...input })).data),
+  remove: async (id: string) => { await api.delete(`/till-shop-fields/${id}`); },
 };

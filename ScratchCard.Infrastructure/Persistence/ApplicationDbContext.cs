@@ -426,7 +426,10 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(x => x.Code).IsUnique();
             entity.Property(x => x.Code).HasMaxLength(60).IsRequired();
             entity.Property(x => x.DisplayName).HasMaxLength(120).IsRequired();
+            entity.Property(x => x.GroupCode).HasMaxLength(60);
             entity.Property(x => x.IsActive).HasDefaultValue(true);
+            // ShopId is a plain nullable column (null = global built-in; set = a shop's custom field).
+            entity.HasIndex(x => x.ShopId);
         });
 
         modelBuilder.Entity<TillFieldOverride>(entity =>

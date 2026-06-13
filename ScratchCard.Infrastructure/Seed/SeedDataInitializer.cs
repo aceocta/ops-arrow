@@ -126,7 +126,7 @@ public static class SeedDataInitializer
             // Built-in codes map back onto the enum; custom codes use the Unmapped sentinel for the
             // engine's enum-based special cases but carry their own meta by code.
             var field = Enum.TryParse<TillCanonicalField>(r.Code, out var f) ? f : TillCanonicalField.Unmapped;
-            metas[r.Code] = new TillFieldMeta(r.Code, field, r.Group, r.CashDirection, r.AffectsDrawer, r.Vat, r.IsCommissionIncome, r.DisplayName, r.Group.ToString());
+            metas[r.Code] = new TillFieldMeta(r.Code, field, r.Group, r.CashDirection, r.AffectsDrawer, r.Vat, r.IsCommissionIncome, r.DisplayName, string.IsNullOrWhiteSpace(r.GroupCode) ? r.Group.ToString() : r.GroupCode);
             ledgers[r.Code] = r.DefaultLedger;
         }
         TillCanonicalCatalogue.LoadRuntime(metas);

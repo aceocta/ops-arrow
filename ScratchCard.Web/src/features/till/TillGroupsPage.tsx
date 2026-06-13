@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Pencil, Check, X } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext";
-import { tillGroupsApi, type TillGroup } from "../../lib/tillGroups";
+import { tillGroupsApi, tillShopFieldsApi, type CashEffect, type TillGroup, type TillShopField } from "../../lib/tillGroups";
 import { apiErrorMessage } from "../../lib/api";
 import { confirmDialog, toast } from "../../components/feedback";
 
@@ -12,8 +12,9 @@ export default function TillGroupsPage() {
   const qc = useQueryClient();
 
   const groupsQ = useQuery({ queryKey: ["till-groups", shopId], queryFn: () => tillGroupsApi.list(shopId), enabled: !!shopId });
-  const fieldsQ = useQuery({ queryKey: ["till-fields-flat"], queryFn: () => tillGroupsApi.listFields(), enabled: !!shopId });
+  const fieldsQ = useQuery({ queryKey: ["till-fields-flat", shopId], queryFn: () => tillGroupsApi.listFields(shopId), enabled: !!shopId });
   const overridesQ = useQuery({ queryKey: ["till-overrides", shopId], queryFn: () => tillGroupsApi.listOverrides(shopId), enabled: !!shopId });
+  const shopFieldsQ = useQuery({ queryKey: ["till-shop-fields", shopId], queryFn: () => tillShopFieldsApi.list(shopId), enabled: !!shopId });
 
   const groups = groupsQ.data ?? [];
   const groupName = useMemo(() => new Map(groups.map((g) => [g.code, g.displayName])), [groups]);
@@ -25,6 +26,32 @@ export default function TillGroupsPage() {
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["till-groups", shopId] });
     qc.invalidateQueries({ queryKey: ["till-overrides", shopId] });
+    qc.invalidateQueries({ queryKey: ["till-shop-fields", shopId] });
+    qc.invalidateQueries({ queryKey: ["till-fields-flat", shopId] });
+  };
+
+  const effectLabel = (e: CashEffect) => (e === "In" ? "Money in" : e === "Out" ? "Money out" : "No cash effect");
+
+  const [fName, setFName] = useState("");
+  const [fGroup, setFGroup] = useState("");
+  const [fEffect, setFEffect] = useState<CashEffect>("Out");
+  const createFieldM = useMutation({
+    mutationFn: () => tillShopFieldsApi.create({ shopId, displayName: fName.trim(), groupCode: fGroup || groups[0]?.code || "Movement", cashEffect: fEffect }),
+    onSuccess: () => { setFName(""); invalidate(); toast("Field added.", "success"); },
+    onError: (e) => toast(apiErrorMessage(e), "error"),
+  });
+  const deleteFieldM = useMutation({
+    mutationFn: (id: string) => tillShopFieldsApi.remove(id),
+    onSuccess: () => { invalidate(); toast("Field deleted.", "success"); },
+    onError: (e) => toast(apiErrorMessage(e), "error"),
+  });
+  const removeField = async (f: TillShopField) => {
+    if (await confirmDialog({
+      title: `Delete "${f.displayName}"?`,
+      message: "Past reconciliations that used it stay readable.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    })) deleteFieldM.mutate(f.id);
   };
 
   const [newName, setNewName] = useState("");
@@ -120,6 +147,51 @@ export default function TillGroupsPage() {
         </div>
       </div>
 
+      {/* Custom fields */}
+      <div className="card p-5">
+        <h2 className="text-base font-semibold text-slate-900">Custom fields</h2>
+        <p className="text-xs text-slate-500">
+          Add your own till line (e.g. "Wages from till"). "Money out" reduces the expected drawer, "Money in" adds to it,
+          "No cash effect" just records a figure.
+        </p>
+        <div className="mt-3 flex flex-wrap items-end gap-2">
+          <div className="min-w-[180px] flex-1">
+            <label className="label">Name</label>
+            <input className="input" value={fName} onChange={(e) => setFName(e.target.value)} placeholder="e.g. Wages from till" />
+          </div>
+          <div>
+            <label className="label">Cash effect</label>
+            <select className="input w-auto" value={fEffect} onChange={(e) => setFEffect(e.target.value as CashEffect)}>
+              <option value="Out">Money out</option>
+              <option value="In">Money in</option>
+              <option value="None">No cash effect</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Group</label>
+            <select className="input w-auto" value={fGroup || groups[0]?.code || ""} onChange={(e) => setFGroup(e.target.value)}>
+              {groups.map((g) => <option key={g.code} value={g.code}>{g.displayName}</option>)}
+            </select>
+          </div>
+          <button className="btn-primary" disabled={!fName.trim() || createFieldM.isPending} onClick={() => createFieldM.mutate()}>
+            <Plus className="h-4 w-4" /> Add field
+          </button>
+        </div>
+
+        <div className="mt-4 divide-y divide-slate-100">
+          {(shopFieldsQ.data ?? []).map((f) => (
+            <div key={f.id} className="flex items-center justify-between gap-3 py-2.5">
+              <div>
+                <span className="font-medium text-slate-800">{f.displayName}</span>
+                <span className="ml-2 text-xs text-slate-500">{effectLabel(f.cashEffect)} · {groupName.get(f.groupCode) ?? f.groupCode}</span>
+              </div>
+              <button className="btn border border-red-200 text-red-600 hover:bg-red-50" onClick={() => removeField(f)}><Trash2 className="h-4 w-4" /></button>
+            </div>
+          ))}
+          {(shopFieldsQ.data?.length ?? 0) === 0 ? <p className="py-2 text-sm text-slate-400">No custom fields yet.</p> : null}
+        </div>
+      </div>
+
       {/* Assign fields */}
       <div className="card overflow-x-auto">
         <div className="px-5 py-4">
@@ -134,7 +206,7 @@ export default function TillGroupsPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {(fieldsQ.data ?? []).map((f) => {
+            {(fieldsQ.data ?? []).filter((f) => f.isBuiltIn).map((f) => {
               const current = overrideByField.get(f.code) ?? f.groupCode;
               return (
                 <tr key={f.code}>

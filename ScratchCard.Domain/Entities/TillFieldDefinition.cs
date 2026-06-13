@@ -11,9 +11,14 @@ namespace ScratchCard.Domain.Entities;
 /// </summary>
 public class TillFieldDefinition : AuditableEntity
 {
+    /// <summary>Null = global/built-in field (all shops). Set = a custom field owned by that shop.</summary>
+    public Guid? ShopId { get; set; }
     public string Code { get; set; } = string.Empty;
     public string DisplayName { get; set; } = string.Empty;
     public TillFieldGroup Group { get; set; }
+    /// <summary>Reconciliation group as a string code (built-in name or a custom group). Null falls back
+    /// to <see cref="Group"/>.ToString(), so existing rows need no backfill.</summary>
+    public string? GroupCode { get; set; }
     public TillCashDirection CashDirection { get; set; }
     public bool AffectsDrawer { get; set; }
     public TillVatTreatment Vat { get; set; }
