@@ -1238,17 +1238,21 @@ public class RotaService : IRotaService
             .AsNoTracking()
             .Where(x => x.ShopId == shopId && x.UserId == userId && x.RotaShiftId != null && shiftIds.Contains(x.RotaShiftId.Value))
             .ToListAsync(cancellationToken);
-        var latestByShift = attendance
+        // All sessions per shift, oldest first — a shift can hold several when the user clocks
+        // out and back in (e.g. a lunch break). The most recent drives the card's current state.
+        var sessionsByShift = attendance
             .GroupBy(x => x.RotaShiftId!.Value)
-            .ToDictionary(g => g.Key, g => g.OrderByDescending(a => a.CheckInAt).First());
+            .ToDictionary(g => g.Key, g => g.OrderBy(a => a.CheckInAt).ToList());
 
         var name = _currentUserService.FullName;
         return shifts.Select(s =>
         {
             var dto = MapShift(s);
-            if (latestByShift.TryGetValue(s.Id, out var att))
+            if (sessionsByShift.TryGetValue(s.Id, out var sessions))
             {
-                dto.MyAttendance = MapAttendance(att, name);
+                var mapped = sessions.Select(a => MapAttendance(a, name)).ToArray();
+                dto.MySessions = mapped;
+                dto.MyAttendance = mapped[^1];
             }
             return dto;
         }).ToArray();

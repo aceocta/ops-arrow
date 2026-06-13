@@ -184,6 +184,20 @@ function workedLabel(inIso: string, outIso: string) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
+// Combined worked duration across all completed sessions (open ones contribute nothing yet).
+function totalWorkedLabel(sessions: { checkInAt: string; checkOutAt?: string | null }[]) {
+  const mins = sessions.reduce(
+    (sum, s) =>
+      s.checkOutAt
+        ? sum + Math.max(0, Math.round((new Date(s.checkOutAt).getTime() - new Date(s.checkInAt).getTime()) / 60000))
+        : sum,
+    0,
+  );
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
 // Escape a CSV field: wrap in quotes when it contains a comma, quote or newline, doubling inner quotes.
 function csvField(value: string | number) {
   const s = String(value);
@@ -348,6 +362,12 @@ export function MyShiftsScreen() {
           const vIn = att ? variance(att.checkInAt, shift.shiftDate, shift.startTime, "in") : null;
           const vOut = att?.checkOutAt ? variance(att.checkOutAt, shift.endDate, shift.endTime, "out") : null;
 
+          // All sessions logged against this shift, oldest first. Falls back to the single latest
+          // session for older payloads that don't carry the full list.
+          const sessions = shift.mySessions && shift.mySessions.length > 0 ? shift.mySessions : att ? [att] : [];
+          const multiSession = sessions.length > 1;
+          const anyManualPending = sessions.some((s) => s.entryMethod === "Manual" && !s.isApproved);
+
           const statusLabel = open ? "On shift" : completed ? "Completed" : "Upcoming";
           const statusTone: "success" | "neutral" = open ? "success" : "neutral";
 
@@ -385,7 +405,37 @@ export function MyShiftsScreen() {
               </View>
 
               {/* Attendance summary */}
-              {att ? (
+              {multiSession ? (
+                // Several sessions on one shift (e.g. clocked out and back in for a break) — list each
+                // plus the combined total so nothing looks lost.
+                <View style={styles.attBlock}>
+                  {sessions.map((s) => {
+                    const sOpen = !s.checkOutAt;
+                    return (
+                      <View key={s.id} style={styles.attMainRow}>
+                        <Ionicons
+                          name={sOpen ? "ellipse" : "checkmark-circle"}
+                          size={14}
+                          color={sOpen ? appTheme.colors.success : appTheme.colors.textMuted}
+                        />
+                        <Text style={styles.attMain}>
+                          {sOpen
+                            ? `Checked in ${clockTime(s.checkInAt)}`
+                            : `${clockTime(s.checkInAt)} → ${clockTime(s.checkOutAt)}`}
+                        </Text>
+                        {!sOpen ? <Text style={styles.attWorked}>{workedLabel(s.checkInAt, s.checkOutAt!)}</Text> : null}
+                      </View>
+                    );
+                  })}
+                  <View style={styles.attTotalRow}>
+                    <Text style={styles.attTotalLabel}>{sessions.length} sessions</Text>
+                    <Text style={styles.attWorked}>Total {totalWorkedLabel(sessions)}</Text>
+                  </View>
+                  {anyManualPending ? (
+                    <Text style={[styles.attNote, styles.attNotePending]}>Some sessions are pending approval</Text>
+                  ) : null}
+                </View>
+              ) : att ? (
                 <View style={styles.attBlock}>
                   <View style={styles.attMainRow}>
                     <Ionicons
@@ -4153,6 +4203,16 @@ const styles = StyleSheet.create({
   attMainRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   attMain: { flex: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
   attWorked: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 14 },
+  attTotalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 4,
+    paddingTop: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: appTheme.colors.borderSoft,
+  },
+  attTotalLabel: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12 },
   attVariance: { fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, marginLeft: 20 },
   attNote: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, marginLeft: 20 },
   attNotePending: { color: appTheme.colors.danger },

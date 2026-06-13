@@ -15,6 +15,7 @@ import { GetStartedCard } from "../../components/GetStartedCard";
 import { EmptyState } from "../../components/EmptyState";
 import { SetupAssistant } from "../../components/SetupAssistant";
 import { SubscriptionBanner } from "../subscription/SubscriptionBanner";
+import { CheckInOutCard } from "../rota/CheckInOutCard";
 import { useAuth } from "../../auth/AuthContext";
 import { useBestEntry } from "../../navigation/BestEntryContext";
 import { useEntitlements } from "../subscription/useEntitlements";
@@ -267,6 +268,10 @@ export function BestEntryScreen() {
             </Pressable>
           ))}
         </View>
+      ) : null}
+
+      {activeShopId && features.includes("StaffRota") ? (
+        <CheckInOutCard shopId={activeShopId} />
       ) : null}
 
       {canManageRota && activeShopId ? (

@@ -492,7 +492,10 @@ export type RotaShift = {
   position?: string | null;
   notes?: string | null;
   assignees: RotaAssignee[];
+  // Most recent session for this shift — drives the card's current state + check-in/out action.
   myAttendance?: ShiftAttendance | null;
+  // Every session logged against this shift, oldest first (several when clocking out/in for a break).
+  mySessions?: ShiftAttendance[];
 };
 
 export type AttendanceApprovalRow = {

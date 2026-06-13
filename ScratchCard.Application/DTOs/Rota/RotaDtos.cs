@@ -46,8 +46,12 @@ public class RotaShiftDto
     public string? Position { get; set; }
     public string? Notes { get; set; }
     public IReadOnlyCollection<RotaAssigneeDto> Assignees { get; set; } = [];
-    // Only populated in "my shifts": the current user's attendance for this shift, if any.
+    // Only populated in "my shifts": the current user's most recent attendance for this shift, if any.
+    // Drives the shift card's current state (on shift / completed) and check-in/out action.
     public ShiftAttendanceDto? MyAttendance { get; set; }
+    // Only populated in "my shifts": every attendance session the user logged against this shift,
+    // oldest first. A shift can have several when the user clocks out and back in (e.g. a lunch break).
+    public IReadOnlyCollection<ShiftAttendanceDto> MySessions { get; set; } = [];
 }
 
 // One assignee in a save-shift request, with an optional non-regular reason + note.
