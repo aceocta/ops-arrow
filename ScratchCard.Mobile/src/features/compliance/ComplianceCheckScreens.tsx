@@ -1618,14 +1618,14 @@ export function ComplianceChecksScreen() {
 
         <View style={styles.frequencyStickyWrap}>
           <View style={[ui.card, styles.frequencyStickyCard]}>
-            <View style={styles.chipRow}>
+            <View style={styles.segment}>
               {frequencyOptions.map((option) => {
                 const selected = frequency === option;
                 const locked = (option === "Weekly" || option === "Monthly") && !canUseExtendedFrequencies;
                 return (
                   <Pressable
                     key={option}
-                    style={[styles.choiceChip, selected ? styles.choiceChipSelected : null, locked ? { opacity: 0.5 } : null]}
+                    style={[styles.segmentBtn, selected ? styles.segmentBtnActive : null, locked ? { opacity: 0.5 } : null]}
                     onPress={() => {
                       if (locked) {
                         // SubscriptionSummary lives on the RootStack — cast to bypass the MainStack typing.
@@ -1635,7 +1635,7 @@ export function ComplianceChecksScreen() {
                       setFrequency(option);
                     }}
                   >
-                    <Text style={[styles.choiceChipText, selected ? styles.choiceChipTextSelected : null]}>
+                    <Text style={[styles.segmentText, selected ? styles.segmentTextActive : null]}>
                       {option}{locked ? " 🔒" : ""}
                     </Text>
                   </Pressable>
@@ -3326,6 +3326,12 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 4,
   },
+  // iOS-style segmented control (matches the Date/Week/Month-style selector used elsewhere).
+  segment: { flexDirection: "row", backgroundColor: appTheme.colors.surfaceMuted, borderRadius: appTheme.radius.md, padding: 3 },
+  segmentBtn: { flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: appTheme.radius.sm },
+  segmentBtnActive: { backgroundColor: appTheme.colors.surface, borderWidth: 1, borderColor: appTheme.colors.border },
+  segmentText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
+  segmentTextActive: { color: appTheme.colors.text },
   quickFilterRow: {
     flexDirection: "row",
     flexWrap: "wrap",
