@@ -1,7 +1,10 @@
-import React, { useRef } from "react";
-import { Alert, Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import SignatureScreen, { SignatureViewRef } from "react-native-signature-canvas";
+import React, { useEffect, useRef, useState } from "react";
+import { Alert, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { SignaturePad, SignaturePadRef } from "./SignaturePad";
+import { haptics } from "../utils/haptics";
 import { appTheme } from "../ui/theme";
 
 type Props = {
@@ -13,40 +16,46 @@ type Props = {
 };
 
 /**
- * Full-screen signature modal that displays the signature pad in landscape orientation
- * even when the device stays in portrait. The user holds the phone normally and gets a
- * wide pen-friendly signing area.
+ * Full-screen portrait signature capture. Native Skia ink (smooth, low-latency) with a baseline
+ * guide, Undo/Clear, Save disabled until signed, and a discard prompt if closed mid-signature.
+ * (Kept the historical export name so existing call sites need no change; it's portrait now.)
  */
 export function LandscapeSignatureModal({ visible, title = "Capture Signature", description, onClose, onSave }: Props) {
-  const ref = useRef<SignatureViewRef>(null);
-  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const padRef = useRef<SignaturePadRef>(null);
+  const insets = useSafeAreaInsets();
+  const [strokeCount, setStrokeCount] = useState(0);
+  const hasInk = strokeCount > 0;
 
-  // Rotated content is W x H of an unrotated landscape rectangle equal to the screen's H x W.
-  const rotatedWidth = screenHeight;
-  const rotatedHeight = screenWidth;
+  // Reset to a clean pad each time the sheet opens.
+  useEffect(() => {
+    if (visible) {
+      padRef.current?.clear();
+      setStrokeCount(0);
+    }
+  }, [visible]);
 
-  const handleSavePressed = () => {
-    ref.current?.readSignature();
+  const handleSave = () => {
+    const url = padRef.current?.toDataUrl();
+    if (!url) return;
+    haptics.success();
+    onSave(url);
   };
 
-  const handleClear = () => {
-    ref.current?.clearSignature();
+  const handleClose = () => {
+    if (hasInk) {
+      Alert.alert("Discard signature?", "Your signature hasn't been saved yet.", [
+        { text: "Keep editing", style: "cancel" },
+        { text: "Discard", style: "destructive", onPress: onClose },
+      ]);
+      return;
+    }
+    onClose();
   };
 
   return (
-    <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose}>
-      <View style={styles.fullScreen}>
-        <View
-          style={[
-            styles.rotatedContainer,
-            {
-              width: rotatedWidth,
-              height: rotatedHeight,
-              left: (screenWidth - rotatedWidth) / 2,
-              top: (screenHeight - rotatedHeight) / 2,
-            },
-          ]}
-        >
+    <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={handleClose}>
+      <GestureHandlerRootView style={styles.fullScreen}>
+        <View style={[styles.page, { paddingTop: insets.top + appTheme.spacing.sm, paddingBottom: insets.bottom + appTheme.spacing.md }]}>
           <View style={styles.headerRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>{title}</Text>
@@ -54,7 +63,7 @@ export function LandscapeSignatureModal({ visible, title = "Capture Signature", 
             </View>
             <Pressable
               style={styles.closeButton}
-              onPress={onClose}
+              onPress={handleClose}
               accessibilityRole="button"
               accessibilityLabel="Close signature pad"
             >
@@ -63,47 +72,60 @@ export function LandscapeSignatureModal({ visible, title = "Capture Signature", 
           </View>
 
           <View style={styles.padWrap}>
-            <SignatureScreen
-              ref={ref}
-              onOK={(value) => {
-                onSave(value);
-              }}
-              onEmpty={() => Alert.alert("Signature required", "Please sign before saving.")}
-              autoClear={false}
-              descriptionText=""
-              webStyle={`
-                .m-signature-pad--footer { display: none; margin: 0; }
-                .m-signature-pad { box-shadow: none; border: none; }
-                body, html { width: 100%; height: 100%; }
-                canvas { background: #ffffff; }
-              `}
-            />
+            <SignaturePad ref={padRef} onStrokeCountChange={setStrokeCount} />
+            {!hasInk ? (
+              <View pointerEvents="none" style={styles.guide}>
+                <Text style={styles.guideText}>✕ Sign here</Text>
+                <View style={styles.baseline} />
+              </View>
+            ) : null}
           </View>
 
           <View style={styles.actionRow}>
-            <Pressable style={[styles.actionButton, styles.secondary]} onPress={handleClear}>
+            <Pressable
+              style={[styles.actionButton, styles.secondary, !hasInk ? styles.disabled : null]}
+              onPress={() => padRef.current?.undo()}
+              disabled={!hasInk}
+              accessibilityRole="button"
+              accessibilityLabel="Undo last stroke"
+            >
+              <Ionicons name="arrow-undo-outline" size={16} color={appTheme.colors.text} />
+              <Text style={styles.secondaryText}>Undo</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.actionButton, styles.secondary, !hasInk ? styles.disabled : null]}
+              onPress={() => {
+                padRef.current?.clear();
+                setStrokeCount(0);
+              }}
+              disabled={!hasInk}
+              accessibilityRole="button"
+              accessibilityLabel="Clear signature"
+            >
+              <Ionicons name="trash-outline" size={16} color={appTheme.colors.text} />
               <Text style={styles.secondaryText}>Clear</Text>
             </Pressable>
-            <Pressable style={[styles.actionButton, styles.primary]} onPress={handleSavePressed}>
+            <Pressable
+              style={[styles.actionButton, styles.primary, !hasInk ? styles.disabled : null]}
+              onPress={handleSave}
+              disabled={!hasInk}
+              accessibilityRole="button"
+              accessibilityLabel="Save signature"
+            >
               <Text style={styles.primaryText}>Save signature</Text>
             </Pressable>
           </View>
         </View>
-      </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  fullScreen: {
+  fullScreen: { flex: 1, backgroundColor: appTheme.colors.background },
+  page: {
     flex: 1,
-    backgroundColor: appTheme.colors.background,
-  },
-  rotatedContainer: {
-    position: "absolute",
-    transform: [{ rotate: "90deg" }],
-    backgroundColor: appTheme.colors.background,
-    padding: appTheme.spacing.md,
+    paddingHorizontal: appTheme.spacing.md,
     gap: appTheme.spacing.sm,
   },
   headerRow: {
@@ -139,18 +161,37 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: appTheme.colors.border,
   },
+  // Faint paper-style guide, shown only while the pad is empty.
+  guide: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "flex-end",
+    paddingBottom: "16%",
+    paddingHorizontal: 24,
+  },
+  guideText: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 13,
+    marginBottom: 6,
+  },
+  baseline: {
+    height: 1,
+    backgroundColor: appTheme.colors.border,
+  },
   actionRow: {
     flexDirection: "row",
     gap: appTheme.spacing.sm,
   },
   actionButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: appTheme.radius.pill,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: appTheme.radius.pill,
   },
   primary: {
+    flex: 1.6,
     backgroundColor: appTheme.colors.primary,
   },
   primaryText: {
@@ -160,6 +201,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   secondary: {
+    flex: 1,
     backgroundColor: appTheme.colors.surfaceMuted,
     borderWidth: 1,
     borderColor: appTheme.colors.border,
@@ -169,5 +211,8 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 14,
     lineHeight: 18,
+  },
+  disabled: {
+    opacity: 0.4,
   },
 });

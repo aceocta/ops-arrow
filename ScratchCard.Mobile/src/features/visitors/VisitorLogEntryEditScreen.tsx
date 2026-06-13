@@ -176,12 +176,31 @@ export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
   return (
     <ScreenContainer
       footer={
-        <PrimaryButton
-          label={saveMutation.isPending ? "Saving…" : isEdit ? "Save changes" : "Sign in"}
-          icon="checkmark-outline"
-          onPress={() => saveMutation.mutate()}
-          disabled={saveMutation.isPending}
-        />
+        <View style={styles.signFooter}>
+          <Pressable
+            style={[styles.signFooterBtn, signaturePreview ? styles.signFooterBtnDone : null]}
+            onPress={() => setSignatureModalOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={signaturePreview ? "Re-sign" : "Sign"}
+          >
+            <Ionicons
+              name={signaturePreview ? "checkmark-circle" : "create-outline"}
+              size={18}
+              color={signaturePreview ? appTheme.colors.success : appTheme.colors.primary}
+            />
+            <Text style={[styles.signFooterBtnText, signaturePreview ? styles.signFooterBtnTextDone : null]}>
+              {signaturePreview ? "Signed" : "Sign"}
+            </Text>
+          </Pressable>
+          <View style={{ flex: 1 }}>
+            <PrimaryButton
+              label={saveMutation.isPending ? "Saving…" : isEdit ? "Save changes" : "Sign in"}
+              icon="checkmark-outline"
+              onPress={() => saveMutation.mutate()}
+              disabled={saveMutation.isPending}
+            />
+          </View>
+        </View>
       }
     >
       <View style={ui.card}>
@@ -336,6 +355,25 @@ const styles = StyleSheet.create({
   switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   switchLabel: { color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 14, flex: 1 },
   signaturePreview: { width: "100%", height: 120, backgroundColor: appTheme.colors.surfaceMuted, borderRadius: appTheme.radius.sm },
+  // Sticky bottom bar: Sign button + Save, always reachable without scrolling.
+  signFooter: { flexDirection: "row", alignItems: "center", gap: appTheme.spacing.sm },
+  signFooterBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: appTheme.radius.pill,
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderBrandSoft,
+    backgroundColor: appTheme.colors.surface,
+  },
+  signFooterBtnDone: {
+    borderColor: appTheme.colors.borderSuccessSoft,
+    backgroundColor: appTheme.colors.surfaceSuccessSoft,
+  },
+  signFooterBtnText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
+  signFooterBtnTextDone: { color: appTheme.colors.success },
   signatureHint: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, textAlign: "center", marginTop: 6 },
   signaturePad: { height: 120, borderRadius: appTheme.radius.sm, borderWidth: 1, borderStyle: "dashed", borderColor: appTheme.colors.primary, backgroundColor: appTheme.colors.surfaceMuted, alignItems: "center", justifyContent: "center", gap: 6 },
   signaturePadText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },

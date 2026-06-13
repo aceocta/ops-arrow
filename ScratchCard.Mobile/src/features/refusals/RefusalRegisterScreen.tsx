@@ -434,7 +434,34 @@ export function RefusalRegisterScreen() {
   };
 
   return (
-    <ScreenContainer>
+    <ScreenContainer
+      footer={
+        <View style={styles.signFooter}>
+          <Pressable
+            style={[styles.signFooterBtn, signatureDataUrl ? styles.signFooterBtnDone : null]}
+            onPress={openSignatureModal}
+            accessibilityRole="button"
+            accessibilityLabel={signatureDataUrl ? "Re-sign" : "Sign"}
+          >
+            <Ionicons
+              name={signatureDataUrl ? "checkmark-circle" : "create-outline"}
+              size={18}
+              color={signatureDataUrl ? appTheme.colors.success : appTheme.colors.primary}
+            />
+            <Text style={[styles.signFooterBtnText, signatureDataUrl ? styles.signFooterBtnTextDone : null]}>
+              {signatureDataUrl ? "Signed" : "Sign"}
+            </Text>
+          </Pressable>
+          <View style={{ flex: 1 }}>
+            <PrimaryButton
+              label={recordMutation.isPending ? "Saving…" : "Save refusal entry"}
+              onPress={() => recordMutation.mutate()}
+              disabled={recordMutation.isPending || !shopId || !signatureDataUrl.trim()}
+            />
+          </View>
+        </View>
+      }
+    >
       {/* <View style={styles.screenHeaderCard}>
         <View style={styles.screenHeaderTopRow}>
           <View style={styles.screenHeaderTitleWrap}>
@@ -563,14 +590,6 @@ export function RefusalRegisterScreen() {
             <Text style={styles.signaturePlaceholder}>✍  Tap here to sign</Text>
           )}
         </Pressable>
-
-        <PrimaryButton
-          label={recordMutation.isPending ? "Saving…" : "Save refusal entry"}
-          onPress={() => recordMutation.mutate()}
-          disabled={recordMutation.isPending || !shopId || !signatureDataUrl.trim()}
-        />
-
-      
       </View>
 
       <View style={ui.card}>
@@ -800,6 +819,45 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 12,
     lineHeight: 16,
+  },
+  // Sticky bottom bar: Sign button + Save, always reachable without scrolling.
+  signFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.sm,
+    backgroundColor: appTheme.colors.surface,
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderSoft,
+    borderRadius: appTheme.radius.lg,
+    padding: appTheme.spacing.sm,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  signFooterBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderRadius: appTheme.radius.pill,
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderBrandSoft,
+    backgroundColor: appTheme.colors.surfaceBrandMuted,
+  },
+  signFooterBtnDone: {
+    borderColor: appTheme.colors.borderSuccessSoft,
+    backgroundColor: appTheme.colors.surfaceSuccessSoft,
+  },
+  signFooterBtnText: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+  },
+  signFooterBtnTextDone: {
+    color: appTheme.colors.success,
   },
   signaturePreviewCard: {
     borderWidth: 0,
