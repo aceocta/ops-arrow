@@ -42,17 +42,6 @@ function comparePacksByDisplayOrder(a: { displayNumber?: number; packNumber: str
   return a.packNumber.localeCompare(b.packNumber);
 }
 
-function resolveGameCodeFromPack(pack: { gameCode?: string; packNumber: string }) {
-  if (pack.gameCode?.trim()) {
-    return pack.gameCode.trim().toUpperCase();
-  }
-  const normalized = pack.packNumber.trim();
-  if (!normalized.includes("-")) {
-    return "-";
-  }
-  return normalized.split("-")[0]?.trim().toUpperCase() || "-";
-}
-
 export function OpenShiftScreen({ navigation }: OpenShiftProps) {
   const { activeShopId, activeShop, profile } = useAuth();
   const shopId = activeShopId;
@@ -351,10 +340,10 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
                 const hasSerialValue = enteredOpeningSerial.trim().length > 0;
                 return (
                   <View key={pack.id} style={styles.serialConfirmRow}>
-                    <Text style={styles.serialPackTitle}>
-                      Display: {pack.displayNumber != null ? `#${pack.displayNumber}` : "-"} | {pack.gameName}
-                    </Text>
-                    <Text style={styles.meta}>Code: {resolveGameCodeFromPack(pack)} | Expected: {pack.currentSerialNumber}</Text>
+                    <View style={styles.serialPackLabelWrap}>
+                      <Text style={styles.serialPackTitle} numberOfLines={1}>Display:{pack.displayNumber != null ? `#${pack.displayNumber}` : "-"}</Text>
+                      <Text style={styles.serialPackTitle} numberOfLines={1}>Pack:{pack.packNumber}</Text>
+                    </View>
                     <View style={styles.serialConfirmInputRow}>
                       <TextInput
                         style={[styles.input, styles.serialConfirmInput]}
@@ -853,13 +842,20 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   serialConfirmRow: {
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
     borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surface,
     paddingHorizontal: appTheme.spacing.sm,
     paddingVertical: appTheme.spacing.xs,
-    gap: 4,
+    gap: appTheme.spacing.sm,
+  },
+  serialPackLabelWrap: {
+    gap: 2,
+    width: 100,
+    flexShrink: 0,
   },
   serialPackTitle: {
     color: appTheme.colors.text,
@@ -871,12 +867,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
   },
   serialConfirmInputRow: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: appTheme.spacing.xs,
   },
   serialConfirmInput: {
     flex: 1,
+    minWidth: 0,
   },
   row: {
     flexDirection: "row",

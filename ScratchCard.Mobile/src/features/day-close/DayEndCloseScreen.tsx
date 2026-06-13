@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Alert, Animated, Image, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -157,17 +158,6 @@ function comparePacksByDisplayOrder(a: { displayNumber?: number; packNumber: str
   if (aDisplay != null && bDisplay == null) return -1;
   if (aDisplay == null && bDisplay != null) return 1;
   return a.packNumber.localeCompare(b.packNumber);
-}
-
-function resolveGameCodeFromPack(pack: { gameCode?: string; packNumber: string }) {
-  if (pack.gameCode?.trim()) {
-    return pack.gameCode.trim().toUpperCase();
-  }
-  const normalized = pack.packNumber.trim();
-  if (!normalized.includes("-")) {
-    return "-";
-  }
-  return normalized.split("-")[0]?.trim().toUpperCase() || "-";
 }
 
 function formatCurrency(value?: number) {
@@ -393,6 +383,7 @@ function ShiftOperationsLoadingState() {
 
 export function DayEndCloseScreen({ route, navigation }: Props) {
   const { businessDayId } = route.params;
+  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const { profile, activeShop } = useAuth();
   const [notes, setNotes] = useState("");
@@ -951,12 +942,10 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             const hasSerialValue = enteredOpeningSerial.trim().length > 0;
             return (
               <View key={pack.id} style={styles.serialConfirmRow}>
-                <Text style={styles.serialPackTitle}>
-                  Display: {pack.displayNumber != null ? `#${pack.displayNumber}` : "-"} | {pack.gameName}
-                </Text>
-                <Text style={styles.meta}>
-                  Code: {resolveGameCodeFromPack(pack)} | Expected: {pack.currentSerialNumber}
-                </Text>
+                <View style={styles.serialPackLabelWrap}>
+                  <Text style={styles.serialPackTitle} numberOfLines={1}>Display:{pack.displayNumber != null ? `#${pack.displayNumber}` : "-"}</Text>
+                  <Text style={styles.serialPackTitle} numberOfLines={1}>Pack:{pack.packNumber}</Text>
+                </View>
                 <View style={styles.serialConfirmInputRow}>
                   <TextInput
                     style={[styles.input, styles.serialConfirmInput]}
@@ -2601,20 +2590,17 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
 
         <Modal
           visible={isStartScheduledShiftModalVisible}
-          transparent
-          animationType="fade"
+          animationType="slide"
           onRequestClose={closeStartScheduledShiftConfirmation}
         >
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-          <View style={styles.modalBackdrop}>
-            <ModalBackdropBlur />
-            <View style={[styles.modalCard, styles.shiftStartModalCard]}>
-              <Text style={styles.sectionTitle}>Start - {pendingScheduledShiftStart?.shiftName}</Text>
-              {/* <Text style={styles.meta}>
-                {pendingScheduledShiftStart
-                  ? `Shift: ${pendingScheduledShiftStart.shiftName}. Confirm each active pack before starting the shift.`
-                  : "Confirm each active pack before starting the shift."}
-              </Text> */}
+            <View style={[styles.shiftStartPage, { paddingTop: insets.top + appTheme.spacing.sm }]}>
+              <View style={styles.shiftStartPageHeader}>
+                <Pressable onPress={closeStartScheduledShiftConfirmation} hitSlop={8} style={styles.shiftStartPageBack}>
+                  <Ionicons name="arrow-back" size={24} color={appTheme.colors.text} />
+                </Pressable>
+                <Text style={styles.sectionTitle} numberOfLines={1}>Start - {pendingScheduledShiftStart?.shiftName}</Text>
+              </View>
               <View style={styles.shiftStartModalBody}>
                 {renderOpeningSerialConfirmationCard("Update any serial that is not correct, then confirm it before start.", true)}
               </View>
@@ -2649,7 +2635,6 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 </Pressable>
               </View>
             </View>
-          </View>
           </KeyboardAvoidingView>
         </Modal>
 
@@ -3679,13 +3664,20 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   serialConfirmRow: {
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 0,
     borderColor: appTheme.colors.border,
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surface,
     paddingHorizontal: appTheme.spacing.sm,
     paddingVertical: appTheme.spacing.xs,
-    gap: 4,
+    gap: appTheme.spacing.sm,
+  },
+  serialPackLabelWrap: {
+    gap: 2,
+    width: 100,
+    flexShrink: 0,
   },
   serialPackTitle: {
     color: appTheme.colors.text,
@@ -3698,12 +3690,14 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   serialConfirmInputRow: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: appTheme.spacing.xs,
   },
   serialConfirmInput: {
     flex: 1,
+    minWidth: 0,
   },
   serialConfirmAllInner: {
     flexDirection: "row",
@@ -4011,6 +4005,26 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "92%",
     maxHeight: "92%",
+  },
+  // Full-screen page presentation for the start-shift serial confirmation (not a centered popup).
+  shiftStartPage: {
+    flex: 1,
+    backgroundColor: appTheme.colors.background,
+    paddingHorizontal: appTheme.spacing.md,
+    paddingBottom: appTheme.spacing.md,
+    gap: appTheme.spacing.sm,
+  },
+  shiftStartPageHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.xs,
+  },
+  shiftStartPageBack: {
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
   },
   shiftStartModalBody: {
     flex: 1,
