@@ -2615,8 +2615,18 @@ export function RotaTimesheetScreen() {
   const exportFeature = useFeature("staff_rota.timesheet_export");
   const [range, setRange] = useState(() => last7());
   const [view, setView] = useState<"staff" | "shift">("staff");
-  const [selectedStaff, setSelectedStaff] = useState<{ userId?: string | null; rotaStaffMemberId?: string | null; name: string } | null>(null);
+  const [selectedStaff, setSelectedStaff] = useState<{ userId?: string | null; rotaStaffMemberId?: string | null; name: string; totalHours: number; openSessions: number } | null>(null);
   const [selectedShift, setSelectedShift] = useState<{ shiftName: string; date: string } | null>(null);
+  // Dates expanded in the staff drill-down — sessions are grouped by day, collapsed by default
+  // (the per-day total still shows in the header so the overview is useful without expanding).
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
+  const toggleDate = (date: string) =>
+    setExpandedDates((prev) => {
+      const next = new Set(prev);
+      if (next.has(date)) next.delete(date);
+      else next.add(date);
+      return next;
+    });
   // Open session being closed from the drill-down (inline expansion in the sessions list).
   const [endingSession, setEndingSession] = useState<TimesheetSession | null>(null);
   const [endOut, setEndOut] = useState("17:00");
@@ -2873,7 +2883,19 @@ export function RotaTimesheetScreen() {
     setSelectedStaff(null);
     setEndingSession(null);
     setEditingSession(null);
+    setExpandedDates(new Set());
   };
+
+  // Worked sessions grouped by day, preserving the server's newest-first order.
+  const sessionsByDate = useMemo(() => {
+    const map = new Map<string, TimesheetSession[]>();
+    for (const s of sessionsQuery.data ?? []) {
+      const list = map.get(s.date) ?? [];
+      list.push(s);
+      map.set(s.date, list);
+    }
+    return [...map.entries()];
+  }, [sessionsQuery.data]);
 
   // Build a CSV of the current view and hand it to the system share sheet.
   const exportMutation = useMutation({
@@ -3176,7 +3198,7 @@ export function RotaTimesheetScreen() {
                     // userId alone gives several rows the same null key.
                     key={row.userId ?? row.rotaStaffMemberId ?? row.userName}
                     style={({ pressed }) => [styles.tRow, pressed ? styles.tRowPressed : null]}
-                    onPress={() => setSelectedStaff({ userId: row.userId, rotaStaffMemberId: row.rotaStaffMemberId, name: row.userName })}
+                    onPress={() => setSelectedStaff({ userId: row.userId, rotaStaffMemberId: row.rotaStaffMemberId, name: row.userName, totalHours: row.totalHours, openSessions: row.openSessions })}
                   >
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.tdName, styles.tdLink]} numberOfLines={1}>{row.userName}</Text>
@@ -3265,19 +3287,51 @@ export function RotaTimesheetScreen() {
               </Pressable>
             </View>
 
+            {/* Total for the range — the sessions below add up to this. */}
+            {selectedStaff ? (
+              <View style={styles.staffTotalRow}>
+                <Text style={styles.staffTotalLabel}>
+                  Total{(sessionsQuery.data?.length ?? 0) > 0 ? ` · ${sessionsQuery.data!.length} ${sessionsQuery.data!.length === 1 ? "session" : "sessions"}` : ""}
+                  {selectedStaff.openSessions > 0 ? ` · ${selectedStaff.openSessions} open` : ""}
+                </Text>
+                <Text style={styles.staffTotalValue}>{selectedStaff.totalHours.toFixed(1)}h</Text>
+              </View>
+            ) : null}
+
             {sessionsQuery.isLoading || (leaveFeature.isAllowed && staffLeaveDaysQuery.isLoading) ? <LoadingState inline /> : null}
             {!sessionsQuery.isLoading && !staffLeaveDaysQuery.isLoading && (sessionsQuery.data?.length ?? 0) === 0 && staffLeaveDays.length === 0 ? (
               <Text style={styles.muted}>No sessions in this range.</Text>
             ) : null}
 
             <ScrollView contentContainerStyle={{ gap: 2 }} keyboardShouldPersistTaps="handled">
-              {(sessionsQuery.data ?? []).map((s) => (
-                <View key={s.id}>
+              {sessionsByDate.map(([date, daySessions]) => {
+                const expanded = expandedDates.has(date);
+                const dayOpen = daySessions.filter((ds) => !ds.checkOutAt).length;
+                return (
+                <View key={date}>
+                  {/* Tap a day to expand its sessions; the day's total shows even when collapsed. */}
+                  <Pressable
+                    style={({ pressed }) => [styles.dateGroupHeader, pressed ? styles.tRowPressed : null]}
+                    onPress={() => toggleDate(date)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${expanded ? "Collapse" : "Expand"} ${dayLabel(date)}`}
+                  >
+                    <Ionicons name={expanded ? "chevron-down" : "chevron-forward"} size={16} color={appTheme.colors.textSubtle} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.sessionDate}>{dayLabel(date)}</Text>
+                      <Text style={styles.muted}>
+                        {daySessions.length} {daySessions.length === 1 ? "session" : "sessions"}{dayOpen > 0 ? ` · ${dayOpen} open` : ""}
+                      </Text>
+                    </View>
+                    <Text style={styles.sessionHours}>{totalWorkedLabel(daySessions)}</Text>
+                  </Pressable>
+                  {expanded ? daySessions.map((s) => (
+                <View key={s.id} style={styles.dateGroupBody}>
                   <View style={styles.sessionRow}>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.sessionDate}>{dayLabel(s.date)}</Text>
+                      <Text style={styles.sessionDate}>{s.shiftName || "Session"}</Text>
                       <Text style={styles.muted} numberOfLines={1}>
-                        {s.shiftName ? `${s.shiftName} · ` : ""}{s.reason ? <Text style={styles.reasonText}>{`${s.reason} · `}</Text> : ""}{clockTime(s.checkInAt)} → {s.checkOutAt ? clockTime(s.checkOutAt) : "—"}
+                        {s.reason ? <Text style={styles.reasonText}>{`${s.reason} · `}</Text> : ""}{clockTime(s.checkInAt)} → {s.checkOutAt ? clockTime(s.checkOutAt) : "—"}
                         {s.entryMethod === "Manual" ? (s.isApproved ? "  · manual" : "  · pending") : ""}
                       </Text>
                     </View>
@@ -3369,7 +3423,10 @@ export function RotaTimesheetScreen() {
                     </View>
                   ) : null}
                 </View>
-              ))}
+                  )) : null}
+                </View>
+                );
+              })}
               {/* Approved leave days in the range (Leave Management feature) */}
               {staffLeaveDays.map((d) => (
                 <View key={`${d.leaveRequestId}-${d.date}`} style={styles.sessionRow}>
@@ -4312,8 +4369,23 @@ const styles = StyleSheet.create({
   // Inline assignment-reason segments — info-blue so they stand out from muted metadata.
   reasonText: { color: appTheme.colors.textInfoStrong, fontFamily: appTheme.fonts.bodyMedium },
   sessionRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
+  // Tappable day header in the staff drill-down — each groups that day's sessions.
+  dateGroupHeader: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
+  // Indents a day's sessions under its header so the grouping reads clearly.
+  dateGroupBody: { paddingLeft: 24 },
   sessionDate: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
   sessionHours: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 14 },
+  staffTotalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: appTheme.radius.md,
+    backgroundColor: appTheme.colors.surfaceMuted,
+  },
+  staffTotalLabel: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
+  staffTotalValue: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 16 },
   approvalActions: { flexDirection: "row", alignItems: "center", gap: 8, paddingTop: 2 },
   rejectBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 999, borderWidth: 1, borderColor: appTheme.colors.danger },
   rejectBtnText: { color: appTheme.colors.danger, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
