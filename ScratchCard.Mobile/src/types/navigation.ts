@@ -100,6 +100,7 @@ export type MainStackParamList = {
   StoreSales: { reportType?: "Shift" | "DayEnd"; shiftId?: string; businessDayId?: string } | undefined;
   TillsConfig: undefined;
   PaymentTypesConfig: undefined;
+  TillGroupsConfig: undefined;
   TillReportReview: { reportId: string };
   TillReportHistory: undefined;
   TillReconciliation: undefined;

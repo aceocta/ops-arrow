@@ -26,7 +26,11 @@ export type ReconciliationLine = {
   id: string;
   canonicalField: FieldCode;
   fieldName: string;
-  group: TillFieldGroup;
+  // Resolved reconciliation group (section) after per-shop overrides. `groupCode` is the stable id,
+  // `groupName` the display label (built-in or the shop's custom group), `groupSort` the section order.
+  groupCode: string;
+  groupName: string;
+  groupSort: number;
   section?: string | null;
   rawLabel?: string | null;
   extractedAmount?: number | null;
@@ -235,13 +239,15 @@ export async function getReconciliationRollup(shopId: string, date: string) {
 export type FieldOptionGroup = { group: string; fields: { value: FieldCode; label: string }[] };
 
 // Active fields for the manual picker, loaded from the data-driven catalogue (built-in + custom).
+// Sections use the server-provided group display name.
 export async function getFieldOptions(): Promise<FieldOptionGroup[]> {
-  const res = await apiClient.get<ApiResponse<{ code: string; displayName: string; group: string }[]>>("/till-fields");
+  const res = await apiClient.get<ApiResponse<{ code: string; displayName: string; groupCode: string; groupName: string }[]>>("/till-fields");
   const byGroup = new Map<string, { value: FieldCode; label: string }[]>();
   for (const d of res.data.data) {
-    const arr = byGroup.get(d.group) ?? [];
+    const label = d.groupName || d.groupCode;
+    const arr = byGroup.get(label) ?? [];
     arr.push({ value: d.code, label: d.displayName });
-    byGroup.set(d.group, arr);
+    byGroup.set(label, arr);
   }
   return [...byGroup.entries()].map(([group, fields]) => ({ group, fields }));
 }

@@ -32,6 +32,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
     private readonly IFeatureGateService _featureGate;
     private readonly IRepository<ShopServiceCounterConfig> _counterConfigs;
     private readonly IRepository<TillFieldOverride> _fieldOverrides;
+    private readonly IRepository<TillGroupDefinition> _groups;
     private readonly IRepository<CanisterDrop> _canisterDrops;
     private readonly IRepository<Till> _tills;
     private readonly IRepository<BusinessDay> _businessDays;
@@ -55,6 +56,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         IFeatureGateService featureGate,
         IRepository<ShopServiceCounterConfig> counterConfigs,
         IRepository<TillFieldOverride> fieldOverrides,
+        IRepository<TillGroupDefinition> groups,
         IRepository<CanisterDrop> canisterDrops,
         IRepository<Till> tills,
         IRepository<BusinessDay> businessDays,
@@ -77,6 +79,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         _featureGate = featureGate;
         _counterConfigs = counterConfigs;
         _fieldOverrides = fieldOverrides;
+        _groups = groups;
         _canisterDrops = canisterDrops;
         _tills = tills;
         _businessDays = businessDays;
@@ -169,7 +172,8 @@ public sealed class TillReconciliationService : ITillReconciliationService
             .OrderByDescending(r => r.BusinessDate)
             .ToListAsync(cancellationToken);
         var fieldOverrides = await LoadFieldOverridesAsync(shopId, cancellationToken);
-        return rows.Select(r => Map(r, fieldOverrides)).ToList();
+        var groups = await LoadGroupCatalogueAsync(shopId, cancellationToken);
+        return rows.Select(r => Map(r, fieldOverrides, groups)).ToList();
     }
 
     public async Task<TillReconciliationDto> SaveLineAsync(SaveReconciliationLineRequest request, CancellationToken cancellationToken = default)
@@ -677,10 +681,25 @@ public sealed class TillReconciliationService : ITillReconciliationService
             .Where(o => o.ShopId == shopId && !o.IsDeleted)
             .ToDictionaryAsync(o => o.CanonicalField, cancellationToken);
 
+    /// <summary>Resolved group display name + sort by code: built-in defaults, overlaid with the DB
+    /// rows (global built-ins then this shop's custom groups, so shop rows win on a code clash).</summary>
+    private async Task<IReadOnlyDictionary<string, (string Name, int Sort)>> LoadGroupCatalogueAsync(Guid shopId, CancellationToken cancellationToken)
+    {
+        var map = new Dictionary<string, (string Name, int Sort)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var g in TillGroupCatalogue.Defaults) map[g.Code] = (g.DisplayName, g.SortOrder);
+        var rows = await _groups.Query().AsNoTracking()
+            .Where(g => (g.ShopId == null || g.ShopId == shopId) && g.IsActive && !g.IsDeleted)
+            .ToListAsync(cancellationToken);
+        foreach (var g in rows.OrderBy(g => g.ShopId == null ? 0 : 1))
+            map[g.Code] = (g.DisplayName, g.SortOrder);
+        return map;
+    }
+
     private async Task<TillReconciliationDto> MapAsync(TillReconciliation rec, CancellationToken cancellationToken)
     {
         var fieldOverrides = await LoadFieldOverridesAsync(rec.ShopId, cancellationToken);
-        var dto = Map(rec, fieldOverrides);
+        var groups = await LoadGroupCatalogueAsync(rec.ShopId, cancellationToken);
+        var dto = Map(rec, fieldOverrides, groups);
         var declared = dto.Summary.ProofOfCash.SafeDrop;
 
         var start = new DateTimeOffset(rec.BusinessDate.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
@@ -703,7 +722,7 @@ public sealed class TillReconciliationService : ITillReconciliationService
         return dto;
     }
 
-    private static TillReconciliationDto Map(TillReconciliation r, IReadOnlyDictionary<TillCanonicalField, TillFieldOverride> fo)
+    private static TillReconciliationDto Map(TillReconciliation r, IReadOnlyDictionary<TillCanonicalField, TillFieldOverride> fo, IReadOnlyDictionary<string, (string Name, int Sort)> groups)
     {
         var varianceStatus = VarianceStatusOf(r.CashVariance);
         return new TillReconciliationDto
@@ -726,8 +745,8 @@ public sealed class TillReconciliationService : ITillReconciliationService
             VarianceNotes = r.VarianceNotes,
             ConfirmedOn = r.ConfirmedOn,
             Lines = r.Lines
-                .OrderBy(l => (int)TillCanonicalCatalogue.MetaByCode(l.FieldCode, fo).Group)
-                .Select(l => MapLine(l, fo)).ToList(),
+                .Select(l => MapLine(l, fo, groups))
+                .OrderBy(l => l.GroupSort).ToList(),
             Attachments = r.Attachments
                 .Select(a => new TillReconciliationAttachmentDto
                 {
@@ -746,15 +765,18 @@ public sealed class TillReconciliationService : ITillReconciliationService
         return idx > 0 && idx < name.Length - 1 ? name[(idx + 1)..] : name;
     }
 
-    private static TillReconciliationLineDto MapLine(TillReconciliationLine l, IReadOnlyDictionary<TillCanonicalField, TillFieldOverride> fo)
+    private static TillReconciliationLineDto MapLine(TillReconciliationLine l, IReadOnlyDictionary<TillCanonicalField, TillFieldOverride> fo, IReadOnlyDictionary<string, (string Name, int Sort)> groups)
     {
         var meta = TillCanonicalCatalogue.MetaByCode(l.FieldCode, fo);
+        var (groupName, groupSort) = groups.TryGetValue(meta.GroupCode, out var g) ? g : (meta.GroupCode, int.MaxValue);
         return new TillReconciliationLineDto
         {
             Id = l.Id,
             CanonicalField = l.FieldCode,
             FieldName = meta.DisplayName,
-            Group = meta.Group,
+            GroupCode = meta.GroupCode,
+            GroupName = groupName,
+            GroupSort = groupSort,
             Section = l.Section,
             RawLabel = l.RawLabel,
             ExtractedAmount = l.ExtractedAmount,

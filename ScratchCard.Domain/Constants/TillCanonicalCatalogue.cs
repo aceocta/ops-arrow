@@ -12,7 +12,11 @@ public sealed record TillFieldMeta(
     bool AffectsDrawer,
     TillVatTreatment Vat,
     bool IsCommissionIncome,
-    string DisplayName);
+    string DisplayName,
+    // Reconciliation group as a string code. Built-in default = Group.ToString(); a per-shop override
+    // can point it at a custom group code. Drives display/sectioning only (the Group enum still drives
+    // the accounting default-ledger fallback).
+    string GroupCode);
 
 /// <summary>
 /// The canonical field catalogue. Single source of truth for how each field behaves in
@@ -23,7 +27,7 @@ public static class TillCanonicalCatalogue
     private static TillFieldMeta M(
         TillCanonicalField f, TillFieldGroup g, TillCashDirection dir, bool drawer,
         TillVatTreatment vat, string name, bool commission = false)
-        => new(f.ToString(), f, g, dir, drawer, vat, commission, name);
+        => new(f.ToString(), f, g, dir, drawer, vat, commission, name, g.ToString());
 
     public static readonly IReadOnlyList<TillFieldMeta> All = new[]
     {
@@ -140,7 +144,7 @@ public static class TillCanonicalCatalogue
         if (overrides is not null && code is not null && System.Enum.TryParse<TillCanonicalField>(code, out var field)
             && overrides.TryGetValue(field, out var o))
         {
-            return meta with { Group = o.Group ?? meta.Group, Vat = o.Vat ?? meta.Vat };
+            return meta with { GroupCode = string.IsNullOrWhiteSpace(o.GroupCode) ? meta.GroupCode : o.GroupCode, Vat = o.Vat ?? meta.Vat };
         }
         return meta;
     }

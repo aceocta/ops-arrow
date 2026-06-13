@@ -9,12 +9,12 @@ public class TillFieldOverrideDto
     public TillCanonicalField CanonicalField { get; set; }
     public string FieldName { get; set; } = string.Empty;
 
-    public TillFieldGroup? Group { get; set; }
+    public string? GroupCode { get; set; }
     public TillVatTreatment? Vat { get; set; }
     public LedgerCategory? LedgerCategory { get; set; }
 
     // Built-in defaults, so the UI can show "what it would be" when no override is set.
-    public TillFieldGroup DefaultGroup { get; set; }
+    public string DefaultGroupCode { get; set; } = string.Empty;
     public TillVatTreatment DefaultVat { get; set; }
     public LedgerCategory DefaultLedgerCategory { get; set; }
 }
@@ -23,7 +23,7 @@ public class UpsertTillFieldOverrideRequest
 {
     public Guid ShopId { get; set; }
     public TillCanonicalField CanonicalField { get; set; }
-    public TillFieldGroup? Group { get; set; }
+    public string? GroupCode { get; set; }
     public TillVatTreatment? Vat { get; set; }
     public LedgerCategory? LedgerCategory { get; set; }
 }

@@ -13,8 +13,10 @@ public class TillFieldOverride : SoftDeletableAuditableEntity
     public Guid ShopId { get; set; }
     public TillCanonicalField CanonicalField { get; set; }
 
-    /// <summary>Override the reconciliation group / section. Null = catalogue default.</summary>
-    public TillFieldGroup? Group { get; set; }
+    /// <summary>Override the reconciliation group / section, by group code (built-in enum name or a
+    /// custom <see cref="TillGroupDefinition"/> code). Null = catalogue default (the field's built-in
+    /// group). Lets a shop move a field into one of its own custom groups.</summary>
+    public string? GroupCode { get; set; }
     /// <summary>Override the VAT treatment. Null = catalogue default.</summary>
     public TillVatTreatment? Vat { get; set; }
     /// <summary>Override the accounting ledger category. Null = catalogue default.</summary>

@@ -35,6 +35,38 @@ public static class SeedDataInitializer
         await SeedDefaultConfigurationsAsync(dbContext, cancellationToken);
         await SeedDemoGamesAsync(dbContext, cancellationToken);
         await SeedTillFieldDefinitionsAsync(dbContext, cancellationToken);
+        await SeedTillGroupDefinitionsAsync(dbContext, cancellationToken);
+    }
+
+    /// <summary>Seeds the built-in reconciliation groups (global, ShopId null) shops start with.
+    /// Idempotent — only inserts a built-in whose code isn't already present.</summary>
+    private static async Task SeedTillGroupDefinitionsAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var existing = await dbContext.TillGroupDefinitions.AsNoTracking()
+            .Where(g => g.ShopId == null)
+            .Select(g => g.Code)
+            .ToListAsync(cancellationToken);
+        var have = new HashSet<string>(existing, StringComparer.OrdinalIgnoreCase);
+
+        var now = DateTimeOffset.UtcNow;
+        var toAdd = TillGroupCatalogue.Defaults
+            .Where(g => !have.Contains(g.Code))
+            .Select(g => new TillGroupDefinition
+            {
+                ShopId = null,
+                Code = g.Code,
+                DisplayName = g.DisplayName,
+                SortOrder = g.SortOrder,
+                IsActive = true,
+                IsBuiltIn = true,
+                CreatedOn = now,
+            })
+            .ToList();
+        if (toAdd.Count > 0)
+        {
+            await dbContext.TillGroupDefinitions.AddRangeAsync(toAdd, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
     }
 
     /// <summary>
@@ -94,7 +126,7 @@ public static class SeedDataInitializer
             // Built-in codes map back onto the enum; custom codes use the Unmapped sentinel for the
             // engine's enum-based special cases but carry their own meta by code.
             var field = Enum.TryParse<TillCanonicalField>(r.Code, out var f) ? f : TillCanonicalField.Unmapped;
-            metas[r.Code] = new TillFieldMeta(r.Code, field, r.Group, r.CashDirection, r.AffectsDrawer, r.Vat, r.IsCommissionIncome, r.DisplayName);
+            metas[r.Code] = new TillFieldMeta(r.Code, field, r.Group, r.CashDirection, r.AffectsDrawer, r.Vat, r.IsCommissionIncome, r.DisplayName, r.Group.ToString());
             ledgers[r.Code] = r.DefaultLedger;
         }
         TillCanonicalCatalogue.LoadRuntime(metas);

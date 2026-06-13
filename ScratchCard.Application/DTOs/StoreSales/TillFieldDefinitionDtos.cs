@@ -8,6 +8,10 @@ public class TillFieldDefinitionDto
     public string Code { get; set; } = string.Empty;
     public string DisplayName { get; set; } = string.Empty;
     public TillFieldGroup Group { get; set; }
+    /// <summary>The field's group as a string code (= <see cref="Group"/> name) + its display name,
+    /// so clients can section the field picker without their own hardcoded group list.</summary>
+    public string GroupCode { get; set; } = string.Empty;
+    public string GroupName { get; set; } = string.Empty;
     public TillCashDirection CashDirection { get; set; }
     public bool AffectsDrawer { get; set; }
     public TillVatTreatment Vat { get; set; }

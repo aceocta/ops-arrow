@@ -66,7 +66,7 @@ public sealed class TillFieldOverrideService : ITillFieldOverrideService
             {
                 ShopId = request.ShopId,
                 CanonicalField = request.CanonicalField,
-                Group = request.Group,
+                GroupCode = string.IsNullOrWhiteSpace(request.GroupCode) ? null : request.GroupCode.Trim(),
                 Vat = request.Vat,
                 LedgerCategory = request.LedgerCategory,
                 CreatedOn = DateTimeOffset.UtcNow,
@@ -76,7 +76,7 @@ public sealed class TillFieldOverrideService : ITillFieldOverrideService
         }
         else
         {
-            existing.Group = request.Group;
+            existing.GroupCode = string.IsNullOrWhiteSpace(request.GroupCode) ? null : request.GroupCode.Trim();
             existing.Vat = request.Vat;
             existing.LedgerCategory = request.LedgerCategory;
             existing.ModifiedOn = DateTimeOffset.UtcNow;
@@ -141,7 +141,7 @@ public sealed class TillFieldOverrideService : ITillFieldOverrideService
                     {
                         ShopId = targetId,
                         CanonicalField = s.CanonicalField,
-                        Group = s.Group,
+                        GroupCode = s.GroupCode,
                         Vat = s.Vat,
                         LedgerCategory = s.LedgerCategory,
                         CreatedOn = now,
@@ -185,10 +185,10 @@ public sealed class TillFieldOverrideService : ITillFieldOverrideService
             ShopId = o.ShopId,
             CanonicalField = o.CanonicalField,
             FieldName = meta.DisplayName,
-            Group = o.Group,
+            GroupCode = o.GroupCode,
             Vat = o.Vat,
             LedgerCategory = o.LedgerCategory,
-            DefaultGroup = meta.Group,
+            DefaultGroupCode = meta.GroupCode,
             DefaultVat = meta.Vat,
             DefaultLedgerCategory = TillAccountingCatalogue.LedgerFor(o.CanonicalField),
         };

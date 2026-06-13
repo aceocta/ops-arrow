@@ -50,18 +50,6 @@ import {
 
 const gbp = formatGbp;
 
-const GROUP_TITLE: Record<string, string> = {
-  Tender: "Tenders",
-  Counter: "Service counters",
-  Movement: "Cash movements",
-  Exception: "Exceptions",
-  Income: "Income",
-  Total: "Totals",
-  Stat: "Stats",
-  Department: "Departments",
-  Control: "Other",
-};
-
 const DENOMS = [
   { label: "£50", value: 50 }, { label: "£20", value: 20 }, { label: "£10", value: 10 }, { label: "£5", value: 5 },
   { label: "£2", value: 2 }, { label: "£1", value: 1 }, { label: "50p", value: 0.5 }, { label: "20p", value: 0.2 },
@@ -262,14 +250,17 @@ export function TillReconciliationScreen() {
   const autoIgnored = useMemo(() => (data?.lines ?? []).filter((l) => l.canonicalField === "SubtotalIgnore"), [data?.lines]);
   const [showIgnored, setShowIgnored] = useState(false);
 
+  // Group lines by their server-resolved group (built-in or the shop's custom group), ordered by
+  // the group's sort so sections render consistently. Names/codes come from the server — no hardcoded list.
   const grouped = useMemo(() => {
-    const map = new Map<string, ReconciliationLine[]>();
+    const map = new Map<string, { code: string; name: string; sort: number; lines: ReconciliationLine[] }>();
     for (const l of data?.lines ?? []) {
       if (l.canonicalField === "SubtotalIgnore") continue;
-      const g = l.group;
-      map.set(g, [...(map.get(g) ?? []), l]);
+      const entry = map.get(l.groupCode) ?? { code: l.groupCode, name: l.groupName || l.groupCode, sort: l.groupSort ?? 0, lines: [] };
+      entry.lines.push(l);
+      map.set(l.groupCode, entry);
     }
-    return [...map.entries()];
+    return [...map.values()].sort((a, b) => a.sort - b.sort);
   }, [data?.lines]);
 
   // Summary counts for the origin banner.
@@ -471,11 +462,12 @@ export function TillReconciliationScreen() {
             ) : null}
 
             {/* Lines grouped */}
-            {grouped.map(([group, lines]) => {
+            {grouped.map((section) => {
+              const lines = section.lines;
               const subtotal = lines.reduce((s, l) => s + l.verifiedAmount, 0);
               return (
-                <View key={group} style={[ui.card, styles.groupCard]}>
-                  <Text style={[ui.sectionTitle, styles.groupTitle]}>{GROUP_TITLE[group] ?? group}</Text>
+                <View key={section.code} style={[ui.card, styles.groupCard]}>
+                  <Text style={[ui.sectionTitle, styles.groupTitle]}>{section.name}</Text>
                   {lines.map((l) => {
                     const isSel = selected.has(l.id);
                     return (

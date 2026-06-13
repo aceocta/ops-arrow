@@ -70,6 +70,7 @@ import { TillReconciliationScreen } from "../features/till-reconciliation/TillRe
 import { TillPaymentSummaryScreen } from "../features/store-sales/TillPaymentSummaryScreen";
 import { TillsConfigScreen } from "../features/store-sales/TillsConfigScreen";
 import { PaymentTypesConfigScreen } from "../features/store-sales/PaymentTypesConfigScreen";
+import { TillGroupsConfigScreen } from "../features/store-sales/TillGroupsConfigScreen";
 import { ScratchCardSummaryScreen } from "../features/scratch-card/ScratchCardSummaryScreen";
 import { BestEntryProvider, EntryOperation, useBestEntry } from "./BestEntryContext";
 import { confirmDestructive } from "../utils/confirm";
@@ -243,6 +244,7 @@ const tillItems: MenuItem[] = [
   { label: "Till Reconciliation", screen: "TillReconciliation", icon: "cash-outline", requiredFeature: "StoreSales" },
   { label: "Tills", screen: "TillsConfig", icon: "albums-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"] },
   { label: "Payment Types", screen: "PaymentTypesConfig", icon: "card-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"] },
+  { label: "Till Groups", screen: "TillGroupsConfig", icon: "layers-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"] },
 ];
 
 function getOperationLabel(operation: EntryOperation | null) {
@@ -583,6 +585,7 @@ function MainStackScreens() {
       <Stack.Screen name="TillPaymentSummary" component={TillPaymentSummaryScreen} options={{ title: "Payment Totals" }} />
       <Stack.Screen name="TillsConfig" component={TillsConfigScreen} options={{ title: "Tills" }} />
       <Stack.Screen name="PaymentTypesConfig" component={PaymentTypesConfigScreen} options={{ title: "Payment Types" }} />
+      <Stack.Screen name="TillGroupsConfig" component={TillGroupsConfigScreen} options={{ title: "Till Groups" }} />
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
       <Stack.Screen name="NotificationPreferences" component={NotificationPreferencesScreen} options={{ title: "Notifications" }} />
     </Stack.Navigator>

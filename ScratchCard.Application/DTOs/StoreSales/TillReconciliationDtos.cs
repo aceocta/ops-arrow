@@ -57,7 +57,12 @@ public class TillReconciliationLineDto
     /// <summary>Canonical field code (built-in name or custom).</summary>
     public string CanonicalField { get; set; } = nameof(Domain.Enums.TillCanonicalField.Unmapped);
     public string FieldName { get; set; } = string.Empty;
-    public TillFieldGroup Group { get; set; }
+    /// <summary>Reconciliation group (section) code this line belongs to, after per-shop overrides.</summary>
+    public string GroupCode { get; set; } = string.Empty;
+    /// <summary>Display name for <see cref="GroupCode"/> (built-in or the shop's custom group).</summary>
+    public string GroupName { get; set; } = string.Empty;
+    /// <summary>Sort order of the group, so clients render sections in a consistent order.</summary>
+    public int GroupSort { get; set; }
     public string? Section { get; set; }
     public string? RawLabel { get; set; }
     public decimal? ExtractedAmount { get; set; }

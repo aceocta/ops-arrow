@@ -104,7 +104,7 @@ public sealed class TillFieldDefinitionService : ITillFieldDefinitionService
         foreach (var r in rows)
         {
             var field = Enum.TryParse<TillCanonicalField>(r.Code, out var f) ? f : TillCanonicalField.Unmapped;
-            metas[r.Code] = new TillFieldMeta(r.Code, field, r.Group, r.CashDirection, r.AffectsDrawer, r.Vat, r.IsCommissionIncome, r.DisplayName);
+            metas[r.Code] = new TillFieldMeta(r.Code, field, r.Group, r.CashDirection, r.AffectsDrawer, r.Vat, r.IsCommissionIncome, r.DisplayName, r.Group.ToString());
             ledgers[r.Code] = r.DefaultLedger;
         }
         TillCanonicalCatalogue.LoadRuntime(metas);
@@ -164,6 +164,8 @@ public sealed class TillFieldDefinitionService : ITillFieldDefinitionService
         Code = d.Code,
         DisplayName = d.DisplayName,
         Group = d.Group,
+        GroupCode = d.Group.ToString(),
+        GroupName = TillGroupCatalogue.ByCode.TryGetValue(d.Group.ToString(), out var gm) ? gm.DisplayName : d.Group.ToString(),
         CashDirection = d.CashDirection,
         AffectsDrawer = d.AffectsDrawer,
         Vat = d.Vat,
