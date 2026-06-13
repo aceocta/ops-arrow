@@ -943,8 +943,8 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             return (
               <View key={pack.id} style={styles.serialConfirmRow}>
                 <View style={styles.serialPackLabelWrap}>
-                  <Text style={styles.serialPackTitle} numberOfLines={1}>Display:{pack.displayNumber != null ? `#${pack.displayNumber}` : "-"}</Text>
-                  <Text style={styles.serialPackTitle} numberOfLines={1}>Pack:{pack.packNumber}</Text>
+                  <Text style={styles.serialPackTitle} numberOfLines={1}>Display: {pack.displayNumber != null ? `#${pack.displayNumber}` : "-"}</Text>
+                  <Text style={styles.serialPackTitle} numberOfLines={1}>Pack: {pack.packNumber}</Text>
                 </View>
                 <View style={styles.serialConfirmInputRow}>
                   <TextInput
