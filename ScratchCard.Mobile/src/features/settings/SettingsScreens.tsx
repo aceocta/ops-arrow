@@ -20,6 +20,7 @@ import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { PhoneNumberInput } from "../../components/PhoneNumberInput";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { SegmentedControl } from "../../components/SegmentedControl";
 import { toastError, toastSuccess } from "../../components/toast";
 import { SkeletonList } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -890,28 +891,17 @@ function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
               </Text>
             </View>
           </View>
-          <View style={styles.configScopeToggleRow}>
-            <Pressable
-              style={[styles.choiceChip, scope === "shop" ? styles.choiceChipSelected : null]}
-              onPress={() => {
-                if (scope !== "shop") navigation.navigate("ShopConfiguration");
-              }}
-              accessibilityRole="button"
-              accessibilityState={{ selected: scope === "shop" }}
-            >
-              <Text style={[styles.choiceChipText, scope === "shop" ? styles.choiceChipTextSelected : null]}>Shop</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.choiceChip, scope === "app" ? styles.choiceChipSelected : null]}
-              onPress={() => {
-                if (scope !== "app") navigation.navigate("AppConfiguration");
-              }}
-              accessibilityRole="button"
-              accessibilityState={{ selected: scope === "app" }}
-            >
-              <Text style={[styles.choiceChipText, scope === "app" ? styles.choiceChipTextSelected : null]}>App</Text>
-            </Pressable>
-          </View>
+          <SegmentedControl
+            value={scope}
+            onChange={(next) => {
+              if (next === scope) return;
+              navigation.navigate(next === "shop" ? "ShopConfiguration" : "AppConfiguration");
+            }}
+            options={[
+              { value: "shop", label: "Shop" },
+              { value: "app", label: "App" },
+            ]}
+          />
         </View>
 
         {configurationsQuery.isLoading ? (
@@ -1072,20 +1062,14 @@ function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
                                     />
                                   </View>
                                 </View>
-                                <View style={styles.row}>
-                                  <Pressable
-                                    style={[styles.choiceChip, template.isActive ? styles.choiceChipSelected : null]}
-                                    onPress={() => updateCurrentTemplate({ isActive: true })}
-                                  >
-                                    <Text style={[styles.choiceChipText, template.isActive ? styles.choiceChipTextSelected : null]}>Active</Text>
-                                  </Pressable>
-                                  <Pressable
-                                    style={[styles.choiceChip, !template.isActive ? styles.choiceChipSelected : null]}
-                                    onPress={() => updateCurrentTemplate({ isActive: false })}
-                                  >
-                                    <Text style={[styles.choiceChipText, !template.isActive ? styles.choiceChipTextSelected : null]}>Inactive</Text>
-                                  </Pressable>
-                                </View>
+                                <SegmentedControl
+                                  value={template.isActive ? "active" : "inactive"}
+                                  onChange={(v) => updateCurrentTemplate({ isActive: v === "active" })}
+                                  options={[
+                                    { value: "active", label: "Active" },
+                                    { value: "inactive", label: "Inactive" },
+                                  ]}
+                                />
                               </View>
                             );
                           })}

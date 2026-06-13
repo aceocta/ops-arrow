@@ -8,6 +8,7 @@ import { listBusinessDays, openBusinessDay } from "../../api/businessDaysApi";
 import { BusinessDayStaffCard } from "../rota/BusinessDayStaffCard";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { SegmentedControl } from "../../components/SegmentedControl";
 import { toastError, toastSuccess } from "../../components/toast";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -107,26 +108,17 @@ export function BusinessDayScreen() {
             <StatusBadge label="No open day" tone="neutral" />
           )}
         </View>
-        <View style={styles.modeRow}>
-          <Pressable
-            onPress={() => {
-              haptics.selection();
-              setViewMode("open");
-            }}
-            style={[styles.modeChip, viewMode === "open" ? styles.modeChipSelected : null]}
-          >
-            <Text style={[styles.modeChipText, viewMode === "open" ? styles.modeChipTextSelected : null]}>Open day</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => {
-              haptics.selection();
-              setViewMode("manage");
-            }}
-            style={[styles.modeChip, viewMode === "manage" ? styles.modeChipSelected : null]}
-          >
-            <Text style={[styles.modeChipText, viewMode === "manage" ? styles.modeChipTextSelected : null]}>Manage day</Text>
-          </Pressable>
-        </View>
+        <SegmentedControl
+          value={viewMode}
+          onChange={(v) => {
+            haptics.selection();
+            setViewMode(v);
+          }}
+          options={[
+            { value: "open", label: "Open day" },
+            { value: "manage", label: "Manage day" },
+          ]}
+        />
       </View>
 
       {shopId ? <BusinessDayStaffCard shopId={shopId} date={businessDate} /> : null}

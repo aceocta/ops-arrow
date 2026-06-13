@@ -6,6 +6,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
+import { SegmentedControl } from "../../components/SegmentedControl";
 import { toastError, toastSuccess } from "../../components/toast";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -248,38 +249,26 @@ function GameEditorFields({
         onChangeText={(value) => onChange({ ...state, endSerial: value })}
       />
       <Text style={styles.fieldLabel}>Selling Order</Text>
-      <View style={styles.row}>
-        <Pressable
-          style={[styles.choice, state.sellingOrder === SellingOrder.Ascending && styles.choiceSelected]}
-          onPress={() => onChange({ ...state, sellingOrder: SellingOrder.Ascending })}
-        >
-          <Text style={[styles.choiceText, state.sellingOrder === SellingOrder.Ascending && styles.choiceTextSelected]}>Ascending</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.choice, state.sellingOrder === SellingOrder.Descending && styles.choiceSelected]}
-          onPress={() => onChange({ ...state, sellingOrder: SellingOrder.Descending })}
-        >
-          <Text style={[styles.choiceText, state.sellingOrder === SellingOrder.Descending && styles.choiceTextSelected]}>Descending</Text>
-        </Pressable>
-      </View>
+      <SegmentedControl
+        value={state.sellingOrder === SellingOrder.Ascending ? "asc" : "desc"}
+        onChange={(v) => onChange({ ...state, sellingOrder: v === "asc" ? SellingOrder.Ascending : SellingOrder.Descending })}
+        options={[
+          { value: "asc", label: "Ascending" },
+          { value: "desc", label: "Descending" },
+        ]}
+      />
 
       {showStatus ? (
         <>
           <Text style={styles.fieldLabel}>Status</Text>
-          <View style={styles.row}>
-            <Pressable
-              style={[styles.choice, state.isActive && styles.choiceSelected]}
-              onPress={() => onChange({ ...state, isActive: true })}
-            >
-              <Text style={[styles.choiceText, state.isActive && styles.choiceTextSelected]}>Active</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.choice, !state.isActive && styles.choiceSelected]}
-              onPress={() => onChange({ ...state, isActive: false })}
-            >
-              <Text style={[styles.choiceText, !state.isActive && styles.choiceTextSelected]}>Inactive</Text>
-            </Pressable>
-          </View>
+          <SegmentedControl
+            value={state.isActive ? "active" : "inactive"}
+            onChange={(v) => onChange({ ...state, isActive: v === "active" })}
+            options={[
+              { value: "active", label: "Active" },
+              { value: "inactive", label: "Inactive" },
+            ]}
+          />
         </>
       ) : null}
     </>

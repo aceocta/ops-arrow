@@ -9,6 +9,7 @@ import { listPacks } from "../../api/packsApi";
 import { deleteShift, getShift, getShiftSales, listShiftCloseCandidates, listShifts, openShift, startScheduledShift } from "../../api/shiftsApi";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { SegmentedControl } from "../../components/SegmentedControl";
 import { toastError, toastSuccess } from "../../components/toast";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { deriveShopOperationalSetup } from "../settings/shopConfiguration";
@@ -255,20 +256,14 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
       <View style={styles.screenContent}>
         <View style={ui.card}>
           <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
-          <View style={styles.modeRow}>
-            <Pressable
-              onPress={() => setViewMode("open")}
-              style={[styles.modeChip, viewMode === "open" ? styles.modeChipSelected : null]}
-            >
-              <Text style={[styles.modeChipText, viewMode === "open" ? styles.modeChipTextSelected : null]}>Open shift</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setViewMode("close")}
-              style={[styles.modeChip, viewMode === "close" ? styles.modeChipSelected : null]}
-            >
-              <Text style={[styles.modeChipText, viewMode === "close" ? styles.modeChipTextSelected : null]}>Close shift</Text>
-            </Pressable>
-          </View>
+          <SegmentedControl
+            value={viewMode}
+            onChange={setViewMode}
+            options={[
+              { value: "open", label: "Open shift" },
+              { value: "close", label: "Close shift" },
+            ]}
+          />
         </View>
 
         {viewMode === "open" ? (

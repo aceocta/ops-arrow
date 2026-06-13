@@ -33,6 +33,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
+import { SegmentedControl } from "../../components/SegmentedControl";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ReportActionBar } from "../../components/ReportActionBar";
@@ -1618,30 +1619,22 @@ export function ComplianceChecksScreen() {
 
         <View style={styles.frequencyStickyWrap}>
           <View style={[ui.card, styles.frequencyStickyCard]}>
-            <View style={styles.segment}>
-              {frequencyOptions.map((option) => {
-                const selected = frequency === option;
+            <SegmentedControl
+              value={frequency}
+              onChange={(option) => {
                 const locked = (option === "Weekly" || option === "Monthly") && !canUseExtendedFrequencies;
-                return (
-                  <Pressable
-                    key={option}
-                    style={[styles.segmentBtn, selected ? styles.segmentBtnActive : null, locked ? { opacity: 0.5 } : null]}
-                    onPress={() => {
-                      if (locked) {
-                        // SubscriptionSummary lives on the RootStack — cast to bypass the MainStack typing.
-                        (navigation as unknown as { navigate: (route: string) => void }).navigate("SubscriptionSummary");
-                        return;
-                      }
-                      setFrequency(option);
-                    }}
-                  >
-                    <Text style={[styles.segmentText, selected ? styles.segmentTextActive : null]}>
-                      {option}{locked ? " 🔒" : ""}
-                    </Text>
-                  </Pressable>
-                );
+                if (locked) {
+                  // SubscriptionSummary lives on the RootStack — cast to bypass the MainStack typing.
+                  (navigation as unknown as { navigate: (route: string) => void }).navigate("SubscriptionSummary");
+                  return;
+                }
+                setFrequency(option);
+              }}
+              options={frequencyOptions.map((option) => {
+                const locked = (option === "Weekly" || option === "Monthly") && !canUseExtendedFrequencies;
+                return { value: option, label: locked ? `${option} 🔒` : option, dimmed: locked };
               })}
-            </View>
+            />
           </View>
         </View>
 
@@ -3326,12 +3319,6 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 4,
   },
-  // iOS-style segmented control (matches the Date/Week/Month-style selector used elsewhere).
-  segment: { flexDirection: "row", backgroundColor: appTheme.colors.surfaceMuted, borderRadius: appTheme.radius.md, padding: 3 },
-  segmentBtn: { flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: appTheme.radius.sm },
-  segmentBtnActive: { backgroundColor: appTheme.colors.surface, borderWidth: 1, borderColor: appTheme.colors.border },
-  segmentText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
-  segmentTextActive: { color: appTheme.colors.text },
   quickFilterRow: {
     flexDirection: "row",
     flexWrap: "wrap",
