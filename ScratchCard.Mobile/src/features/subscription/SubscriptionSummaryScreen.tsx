@@ -1,5 +1,6 @@
-import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import React, { useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { emailAccountPortalLink, getShopSubscriptionSummary } from "../../api/subscriptionApi";
 import { useAuth } from "../../auth/AuthContext";
@@ -21,6 +22,7 @@ function formatDate(value?: string | null) {
 export function SubscriptionSummaryScreen() {
   const { activeShop, activeShopId, profile } = useAuth();
   const shopId = activeShopId;
+  const [featuresOpen, setFeaturesOpen] = useState(false);
 
   // The email endpoint is owner-gated server-side (CompanyOwner / PlatformAdmin), so only show
   // the button to users who can actually use it.
@@ -75,14 +77,44 @@ export function SubscriptionSummaryScreen() {
 
             {summary.includedFeatures.length > 0 ? (
               <View style={styles.featuresBlock}>
-                <Text style={styles.featuresHeading}>Included features</Text>
-                {summary.includedFeatures.map((feature) => (
-                  <Text key={feature} style={styles.featureBullet}>• {feature}</Text>
-                ))}
+                <Pressable
+                  style={styles.featuresHeader}
+                  onPress={() => setFeaturesOpen((open) => !open)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${featuresOpen ? "Hide" : "Show"} included features`}
+                >
+                  <Text style={styles.featuresHeading}>Included features ({summary.includedFeatures.length})</Text>
+                  <Ionicons
+                    name={featuresOpen ? "chevron-up" : "chevron-down"}
+                    size={18}
+                    color={appTheme.colors.textMuted}
+                  />
+                </Pressable>
+                {featuresOpen ? (
+                  <View style={styles.featuresList}>
+                    {summary.includedFeatures.map((feature) => (
+                      <Text key={feature} style={styles.featureBullet}>• {feature}</Text>
+                    ))}
+                  </View>
+                ) : null}
               </View>
             ) : null}
           </>
         ) : null}
+
+        {/* Apple's rules don't allow changing a web-purchased subscription inside the app, so this
+            screen is view-only. Mirrors the pattern ChatGPT / Claude / LinkedIn use. */}
+        <View style={styles.managedCard}>
+          <View style={styles.managedHeader}>
+            <Ionicons name="information-circle" size={18} color={appTheme.colors.info} />
+            <Text style={styles.managedTitle}>Managed on the web</Text>
+          </View>
+          <Text style={styles.managedBody}>
+            {isAccountOwner
+              ? "You can't change your plan inside the app, because your subscription is billed on the web. To upgrade, downgrade, or cancel, manage it in a browser. Tap “Email me my account info” below for a secure link to your billing portal."
+              : "You can't change your plan inside the app. Your subscription is managed by your account owner on the web."}
+          </Text>
+        </View>
 
         {isAccountOwner && shopId ? (
           <PrimaryButton
@@ -91,9 +123,6 @@ export function SubscriptionSummaryScreen() {
             disabled={emailInfoMutation.isPending}
           />
         ) : null}
-        <Text style={styles.managedNote}>
-          Plans and billing are managed by your account owner outside the app.
-        </Text>
       </View>
     </ScreenContainer>
   );
@@ -128,6 +157,16 @@ const styles = StyleSheet.create({
     marginTop: appTheme.spacing.sm,
     gap: 2,
   },
+  featuresHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 4,
+  },
+  featuresList: {
+    gap: 2,
+    marginTop: 2,
+  },
   featuresHeading: {
     ...appTheme.typography.bodyEmphasis,
     color: appTheme.colors.text,
@@ -137,9 +176,26 @@ const styles = StyleSheet.create({
     ...appTheme.typography.caption,
     color: appTheme.colors.textMuted,
   },
-  managedNote: {
-    ...appTheme.typography.caption,
-    color: appTheme.colors.textSubtle,
+  managedCard: {
     marginTop: appTheme.spacing.xs,
+    padding: appTheme.spacing.sm,
+    borderRadius: appTheme.radius.md,
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderInfoSoft,
+    backgroundColor: appTheme.colors.surfaceInfoMuted,
+    gap: 4,
+  },
+  managedHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  managedTitle: {
+    ...appTheme.typography.bodyEmphasis,
+    color: appTheme.colors.textInfoStrong,
+  },
+  managedBody: {
+    ...appTheme.typography.caption,
+    color: appTheme.colors.textInfoStrong,
   },
 });
