@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, AlertButton, AlertOptions, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, AlertButton, AlertOptions, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ModalBackdropBlur } from "./ModalBackdropBlur";
 import { appTheme } from "../ui/theme";
@@ -187,7 +187,14 @@ export function showAppAlert(title: string, message?: string, buttons?: AlertBut
   const hasExplicitButtons = Boolean(buttons && buttons.length > 0);
   const normalizedButtons = normalizeButtons(buttons);
 
-  if (presenter) {
+  // iOS can't reliably present our in-app dialog (a root-level <Modal>) on top of a screen-level
+  // <Modal> that's already open — the dialog renders behind it and the UI gets stuck waiting for a
+  // tap that can't land. The native alert lives in its own window and always stacks above any RN
+  // Modal, so route interactive dialogs (anything with buttons — confirmations, choices) there on
+  // iOS. Toasts (no buttons, auto-dismiss) and all of Android keep the styled in-app host.
+  const mustUseNative = hasExplicitButtons && Platform.OS === "ios";
+
+  if (presenter && !mustUseNative) {
     presenter({
       title: normalizedTitle,
       message,
