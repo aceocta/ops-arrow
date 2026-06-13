@@ -853,15 +853,15 @@ const styles = StyleSheet.create({
     gap: appTheme.spacing.sm,
   },
   serialPackLabelWrap: {
-    gap: 2,
-    width: 100,
+    gap: 1,
+    width: 92,
     flexShrink: 0,
   },
   serialPackTitle: {
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 13,
-    lineHeight: 17,
+    fontSize: 12,
+    lineHeight: 15,
   },
   serialConfirmActionRow: {
     flexDirection: "row",
@@ -875,6 +875,8 @@ const styles = StyleSheet.create({
   serialConfirmInput: {
     flex: 1,
     minWidth: 0,
+    height: 38,
+    paddingVertical: 6,
   },
   row: {
     flexDirection: "row",
