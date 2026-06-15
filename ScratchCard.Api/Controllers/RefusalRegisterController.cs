@@ -36,7 +36,9 @@ public class RefusalRegisterController : BaseApiController
     }
 
     [HttpGet("entries/range")]
-    [Authorize(Roles = RoleNames.OwnerAndManager)]
+    // Cashiers and sales assistants can view the refusal report (read-only range list), same as the
+    // daily log. Management-only actions (review, sign-off, staff-summary) keep the OwnerAndManager gate.
+    [Authorize(Roles = RoleNames.OperationalRoles)]
     [RequireFeature(FeatureKeys.RefusalLogAnalytics)]
     public async Task<IActionResult> ListEntriesByRange([FromQuery] Guid shopId, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken cancellationToken)
     {

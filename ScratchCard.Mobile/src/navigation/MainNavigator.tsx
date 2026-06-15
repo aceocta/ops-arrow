@@ -113,11 +113,12 @@ const Stack = createNativeStackNavigator<MainStackParamList>();
 
 // --- Scratch Card ---
 const scratchCardItems: MenuItem[] = [
-  { label: "Daily Sales Report", screen: "DailySalesReport", icon: "stats-chart-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
+  // Manager-level reports/catalogue (backend ReportsController + Games create/update = Owner/Manager).
+  { label: "Daily Sales Report", screen: "DailySalesReport", icon: "stats-chart-outline", mode: "scratchCard", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"], requiredFeature: "ScratchCardManagement" },
   { label: "Add Packs", screen: "ScratchCardPacks", icon: "ticket-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
   { label: "Add Deliveries", screen: "Deliveries", icon: "cube-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
-  { label: "Card Games", screen: "ScratchCardGames", icon: "game-controller-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
-  { label: "Pack Stock", screen: "StockReport", icon: "archive-outline", mode: "scratchCard", requiredFeature: "ScratchCardManagement" },
+  { label: "Card Games", screen: "ScratchCardGames", icon: "game-controller-outline", mode: "scratchCard", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"], requiredFeature: "ScratchCardManagement" },
+  { label: "Pack Stock", screen: "StockReport", icon: "archive-outline", mode: "scratchCard", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"], requiredFeature: "ScratchCardManagement" },
 ];
 
 // --- Temperature Log ---
@@ -156,7 +157,7 @@ const temperatureItems: MenuItem[] = [
 const refusalItems: MenuItem[] = [
   { label: "Refusal Log", screen: "RefusalRegister", icon: "shield-checkmark-outline", mode: "refusals", requiredFeature: "RefusalNoIdNoSale" },
   { label: "Refusal Report", screen: "RefusalReport", icon: "document-text-outline", mode: "refusals", requiredFeature: "RefusalNoIdNoSale" },
-  { label: "Refusal Manager Review", screen: "RefusalManagerReview", icon: "clipboard-outline", mode: "refusals", requiredFeature: "refusal_log.multi_manager_review" },
+  { label: "Refusal Manager Review", screen: "RefusalManagerReview", icon: "clipboard-outline", mode: "refusals", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"], requiredFeature: "refusal_log.multi_manager_review" },
 ];
 
 const visitorItems: MenuItem[] = [
@@ -220,8 +221,9 @@ const shopItems: MenuItem[] = [
   //   mode: "checklist",
   //   allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
   // },
-  { label: "Audit Log", screen: "AuditLog", icon: "document-text-outline", requiredFeature: "audit_log.basic" },
-  { label: "Notification Log", screen: "NotificationLog", icon: "notifications-outline" },
+  // Both back onto ReportsController (Owner/Manager only) — hide from cashiers/sales assistants.
+  { label: "Audit Log", screen: "AuditLog", icon: "document-text-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"], requiredFeature: "audit_log.basic" },
+  { label: "Notification Log", screen: "NotificationLog", icon: "notifications-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"] },
 ];
 
 // --- Administration ---

@@ -83,7 +83,10 @@
       "Bash(Get-ChildItem -Path \"J:\\\\ScratchCard\\\\ScratchCard.Mobile\\\\src\" -Directory)",
       "Bash(Get-ChildItem -Path \"J:\\\\ScratchCard\\\\ScratchCard.Mobile\\\\src\\\\features\" -Directory)",
       "Bash(cd /j/ScratchCard && grep -rniE \"email.*portal|portal.*email|account.info|EmailAccount|SendAccount|AccountPortal\" ScratchCard.Api ScratchCard.Application ScratchCard.Infrastructure --include=*.cs -l)",
-      "Read(//j/j/ScratchCard/**)"
+      "Read(//j/j/ScratchCard/**)",
+      "Bash(grep -nE \"import .*refusal|refusalRegisterApi|useQuery|queryFn|get[A-Z][A-Za-z]*\\\\\\\\\\(|listRefusal|StaffSummary|byRange|Entries\" features/refusals/RefusalReportScreen.tsx)",
+      "Bash(grep -nE \"Authorize|HttpGet|HttpPost|by-range|Range|EntriesByRange|public.*Async\\\\\\\\\\(\" ScratchCard.Api/Controllers/RefusalRegisterController.cs)",
+      "Bash(echo \"MOBILE_EXIT=$?\")"
     ]
   }
 }

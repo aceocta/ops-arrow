@@ -34,6 +34,9 @@ type OperationOption = {
   /** Top-level module key. Tile hides if the shop's plan does not include it OR the owner
    *  has toggled it off in Feature Toggles. */
   requiredFeature?: string;
+  /** If set, the tile only shows when the user has one of these roles. Use for tiles whose
+   *  destination is management-only on the backend (e.g. the scratch-card sales report). */
+  allowedRoles?: string[];
 };
 
 const operationOptions: OperationOption[] = [
@@ -51,10 +54,13 @@ const operationOptions: OperationOption[] = [
   {
     key: "scratchCardGames",
     title: "Scratch Card",
+    // Daily Sales Report is a manager-only report (backend ReportsController). Cashiers / sales
+    // assistants do their scratch-card work via the "Day Management" tile (open day → shift).
     route: "DailySalesReport",
     icon: "ticket-outline",
     iconColor: appTheme.colors.primary,
     iconBg: appTheme.colors.surfaceBrandMuted,
+    allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"],
     requiredFeature: "ScratchCardManagement",
   },
   {
@@ -128,6 +134,7 @@ export function BestEntryScreen() {
   const canManageRota = roles.some((r) => r === "CompanyOwner" || r === "Manager" || r === "PlatformAdmin");
   const visibleOptions = operationOptions
     .filter((o) => !o.requiredFeature || features.includes(o.requiredFeature))
+    .filter((o) => !o.allowedRoles || o.allowedRoles.some((r) => roles.includes(r)))
     .map((o) =>
       o.key === "shifts" && canManageRota
         ? { ...o, title: "Shift Rota", route: "RotaManage" as keyof MainStackParamList }
