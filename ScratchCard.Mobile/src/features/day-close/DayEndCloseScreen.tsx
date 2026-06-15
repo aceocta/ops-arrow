@@ -25,6 +25,7 @@ import { getComplianceCheckPeriodLog } from "../../api/complianceChecksApi";
 import { listPacks } from "../../api/packsApi";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
+import { LoadingState } from "../../components/LoadingState";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { SectionHeader } from "../../components/SectionHeader";
 import { KpiGrid, KpiTile } from "../../components/KpiTile";
@@ -925,7 +926,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
         <Text style={[styles.meta, styles.serialConfirmHint]}>{confirmationHint}</Text>
        
 
-        {packsQuery.isFetching ? <Text style={styles.meta}>Loading active packs...</Text> : null}
+        {packsQuery.isFetching ? <LoadingState message="Loading active packs…" inline /> : null}
         {!packsQuery.isFetching && activePacksForOpening.length === 0 ? (
           <Text style={styles.meta}>No active packs found for this shop.</Text>
         ) : null}

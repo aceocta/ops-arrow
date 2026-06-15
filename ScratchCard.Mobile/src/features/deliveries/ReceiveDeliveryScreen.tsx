@@ -480,8 +480,32 @@ export function ReceiveDeliveryScreen() {
     closeRowEditor();
   }
 
+  const hasSupplier = supplierName.trim().length > 0;
+  const hasDuplicates = duplicatePackNumbers.size > 0;
+  const canSave = Boolean(shopId) && hasSupplier && !hasDuplicates && !createDeliveryMutation.isPending;
+  const blockers = [
+    !shopId ? "select a shop" : null,
+    !hasSupplier ? "supplier name" : null,
+    hasDuplicates ? "resolve duplicate pack numbers" : null,
+  ].filter(Boolean) as string[];
+
   return (
-    <ScreenContainer>
+    <ScreenContainer
+      footer={
+        <View style={styles.footerWrap}>
+          {blockers.length > 0 ? (
+            <View style={styles.footerHintRow}>
+              <Text style={styles.footerHint}>Needs: {blockers.join(", ")}</Text>
+            </View>
+          ) : null}
+          <PrimaryButton
+            label={createDeliveryMutation.isPending ? "Saving…" : "Save delivery"}
+            onPress={handleSaveDelivery}
+            disabled={!canSave}
+          />
+        </View>
+      }
+    >
       <View style={ui.card}>
         <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
         <Text style={styles.meta}>Pack Selling Order: {configuredPackSellingOrder}</Text>
@@ -586,11 +610,6 @@ export function ReceiveDeliveryScreen() {
         })}
 
         <PrimaryButton label="Add pack row" tone="neutral" onPress={addRowAndOpenEditor} />
-        <PrimaryButton
-          label={createDeliveryMutation.isPending ? "Saving…" : "Save delivery"}
-          onPress={handleSaveDelivery}
-          disabled={createDeliveryMutation.isPending || !shopId}
-        />
       </View>
 
       <Modal visible={Boolean(editingRow)} animationType="slide" transparent onRequestClose={closeRowEditor}>
@@ -724,6 +743,20 @@ export function ReceiveDeliveryScreen() {
 }
 
 const styles = StyleSheet.create({
+  footerWrap: {
+    gap: appTheme.spacing.xs,
+  },
+  footerHintRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  footerHint: {
+    color: appTheme.colors.textMuted,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: appTheme.fonts.body,
+  },
   activateRow: {
     flexDirection: "row",
     alignItems: "center",

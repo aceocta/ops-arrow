@@ -113,6 +113,12 @@ export function SafeDropScreen() {
     };
   }, [drops]);
 
+  const hasCanister = canisterNumber.trim().length > 0;
+  const parsedAmount = Number(amount.trim());
+  const hasAmount = amount.trim().length > 0 && Number.isFinite(parsedAmount) && parsedAmount > 0;
+  const canSave = hasCanister && hasAmount && !addMutation.isPending;
+  const missing = [!hasCanister ? "canister number" : null, !hasAmount ? "amount" : null].filter(Boolean) as string[];
+
   return (
     <ScreenContainer
       refreshControl={
@@ -121,6 +127,21 @@ export function SafeDropScreen() {
           onRefresh={() => void dropsQuery.refetch()}
           tintColor={appTheme.colors.primary}
         />
+      }
+      footer={
+        <View style={styles.footerWrap}>
+          {missing.length > 0 ? (
+            <View style={styles.footerHintRow}>
+              <Ionicons name="information-circle-outline" size={14} color={appTheme.colors.textMuted} />
+              <Text style={styles.footerHint}>Add {missing.join(", ")} to save</Text>
+            </View>
+          ) : null}
+          <PrimaryButton
+            label={addMutation.isPending ? "Saving…" : "Add safe drop"}
+            onPress={() => addMutation.mutate()}
+            disabled={!canSave}
+          />
+        </View>
       }
     >
       <View style={[ui.card, styles.card]}>
@@ -174,11 +195,6 @@ export function SafeDropScreen() {
           editable={!addMutation.isPending}
           autoCapitalize="words"
           returnKeyType="done"
-        />
-        <PrimaryButton
-          label={addMutation.isPending ? "Saving…" : "Add safe drop"}
-          onPress={() => addMutation.mutate()}
-          disabled={addMutation.isPending}
         />
       </View>
 
@@ -313,6 +329,20 @@ export function SafeDropScreen() {
 const styles = StyleSheet.create({
   card: {
     gap: appTheme.spacing.sm,
+  },
+  footerWrap: {
+    gap: appTheme.spacing.xs,
+  },
+  footerHintRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  footerHint: {
+    color: appTheme.colors.textMuted,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: appTheme.fonts.body,
   },
   dropList: {
     gap: appTheme.spacing.xs,

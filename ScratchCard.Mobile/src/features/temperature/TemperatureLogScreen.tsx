@@ -13,6 +13,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { useTemperatureDisplaySettings } from "./useTemperatureDisplaySettings";
 import { DateTimeField, formatDateValue, formatTimeValue, parseDateTimeValue } from "../../components/DateTimeField";
 import { EmptyState } from "../../components/EmptyState";
+import { LoadingState } from "../../components/LoadingState";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { toastError, toastSuccess } from "../../components/toast";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
@@ -830,6 +831,15 @@ export function TemperatureLogScreen() {
     };
   }, [selectedUnit, temperatureCelsius]);
 
+  // A reading is only saveable once a real number has been typed — "", "-" and "+" all parse to
+  // NaN/0 and would otherwise throw inside the mutation, so gate the Save button on this instead.
+  const trimmedTemperature = temperatureCelsius.trim();
+  const hasValidTemperature =
+    trimmedTemperature.length > 0 &&
+    trimmedTemperature !== "-" &&
+    trimmedTemperature !== "+" &&
+    Number.isFinite(Number(trimmedTemperature));
+
   useEffect(() => () => {
     if (savedFlashTimerRef.current) {
       clearTimeout(savedFlashTimerRef.current);
@@ -1167,7 +1177,7 @@ export function TemperatureLogScreen() {
               />
             }
           />
-          {dailyLogQuery.isLoading ? <Text style={styles.meta}>Loading units...</Text> : null}
+          {dailyLogQuery.isLoading ? <LoadingState message="Loading units…" inline /> : null}
           <View style={styles.unitList}>
             {filteredUnitLogs.map((unitLog) => {
               const unit = unitLog.unit;
@@ -1262,7 +1272,7 @@ export function TemperatureLogScreen() {
             subtitle={formatDayLabel(selectedDate)}
             icon="list-outline"
           />
-          {dailyLogQuery.isLoading ? <Text style={styles.meta}>Loading daily readings...</Text> : null}
+          {dailyLogQuery.isLoading ? <LoadingState message="Loading daily readings…" inline /> : null}
           {dailyUnitLogs.map((unitLog) => (
             <View key={unitLog.unit.id} style={[ui.card, styles.unitSheet]}>
               <View style={styles.unitSheetHeader}>
@@ -1355,7 +1365,7 @@ export function TemperatureLogScreen() {
               {reading.notes ? <Text style={styles.meta}>Notes: {reading.notes}</Text> : null}
             </View>
           ))}
-          {(historyQuery.data ?? []).length === 0 ? <Text style={styles.meta}>No records in selected range.</Text> : null}
+          {(historyQuery.data ?? []).length === 0 ? <EmptyState icon="document-outline" title="No records" message="No records in the selected range." /> : null}
         </View> */}
 
         <Modal
@@ -1640,7 +1650,7 @@ export function TemperatureLogScreen() {
                           : "Save & finish"
                     }
                     onPress={() => triggerSave(nextPendingUnitId ? "next" : "close")}
-                    disabled={recordMutation.isPending || !shopId || !selectedUnit}
+                    disabled={recordMutation.isPending || !shopId || !selectedUnit || !hasValidTemperature}
                   />
                 </View>
               </View>

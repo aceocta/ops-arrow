@@ -7,6 +7,8 @@ import { useAuth } from "../../auth/AuthContext";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { LoadingState } from "../../components/LoadingState";
+import { EmptyState } from "../../components/EmptyState";
 import { toastError, toastSuccess } from "../../components/toast";
 import { SectionHeader } from "../../components/SectionHeader";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -95,8 +97,8 @@ export function RefusalEntryDetailsScreen({ route, navigation }: Props) {
       </View>
 
       <View style={ui.card}>
-        {entryQuery.isLoading ? <Text style={styles.meta}>Loading entry...</Text> : null}
-        {!entryQuery.isLoading && !entry ? <Text style={styles.meta}>Entry not found.</Text> : null}
+        {entryQuery.isLoading ? <LoadingState message="Loading entry…" inline /> : null}
+        {!entryQuery.isLoading && !entry ? <EmptyState icon="alert-circle-outline" title="Entry not found" message="This refusal entry may have been removed." /> : null}
         {entry ? (
           <>
             <Text style={styles.title}>No. {entry.sequenceNo}</Text>

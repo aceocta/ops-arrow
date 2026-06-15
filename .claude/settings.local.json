@@ -75,7 +75,13 @@
       "Bash(node -e \"console.log\\('skia', require\\('./package.json'\\).dependencies['@shopify/react-native-skia']\\)\")",
       "Bash(node -e \"try{const s=require\\('@shopify/react-native-skia'\\);console.log\\(['Canvas','Path','Skia','useCanvasRef','Group','Fill','Rect'].map\\(k=>k+':'+\\(k in s\\)\\).join\\(' '\\)\\)}catch\\(e\\){console.log\\('require failed \\(native, expected in node\\):', e.message.split\\('\\\\n'\\)[0]\\)}\")",
       "Bash(grep -n \"Ionicons\\\\|openSignatureModal\\\\|import.*appTheme\\\\|import.*{ ui }\\\\|from \\\\\"../../ui\" features/refusals/RefusalRegisterScreen.tsx)",
-      "Bash(xargs grep -l \"footer=\")"
+      "Bash(xargs grep -l \"footer=\")",
+      "Bash(sed -n '1,40p' src/components/EmptyState.tsx)",
+      "Bash(sed -n '1,40p' src/components/LoadingState.tsx)",
+      "Bash(grep -nE \"choiceRow|choice|segment|\\\\.map\\\\\\(\\\\\\(.*\\\\\\) => \\\\\\(?$|Pressable\" prize-payouts/PrizePayoutScreen.tsx)",
+      "Read(//j/j/ScratchCard/ScratchCard.Mobile/src/**)",
+      "Bash(Get-ChildItem -Path \"J:\\\\ScratchCard\\\\ScratchCard.Mobile\\\\src\" -Directory)",
+      "Bash(Get-ChildItem -Path \"J:\\\\ScratchCard\\\\ScratchCard.Mobile\\\\src\\\\features\" -Directory)"
     ]
   }
 }

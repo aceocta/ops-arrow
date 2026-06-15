@@ -16,6 +16,7 @@ import { createShop, listShops, updateShop } from "../../api/shopsApi";
 import { deactivateUser, deleteMyAccount, listUsers, reactivateUser, updateUserDetails, updateUserRole } from "../../api/usersApi";
 import { useAuth } from "../../auth/AuthContext";
 import { LabeledValue } from "../../components/LabeledValue";
+import { LoadingState } from "../../components/LoadingState";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { PhoneNumberInput } from "../../components/PhoneNumberInput";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -1112,7 +1113,7 @@ function ConfigurationScreen({ scope }: { scope: ConfigurationScope }) {
                       ) : isRoleSelectionConfiguration(item.configKey) ? (
                         <View style={styles.notificationRoleSelectionWrap}>
                           <Text style={styles.caption}>Tap roles below to choose who receives this notification or can perform this action.</Text>
-                          {notificationRolesQuery.isLoading ? <Text style={styles.caption}>Loading roles...</Text> : null}
+                          {notificationRolesQuery.isLoading ? <LoadingState message="Loading roles…" inline /> : null}
                           <View style={styles.choiceChipWrap}>
                             {notificationRoleChoices.map((roleName) => {
                               const selected = selectedRoleKeys.has(roleName.toLowerCase());

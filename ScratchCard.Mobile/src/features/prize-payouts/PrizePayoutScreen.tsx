@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -8,6 +9,7 @@ import { listPacks } from "../../api/packsApi";
 import { approvePrizePayout, createPrizePayout, listPrizePayouts } from "../../api/prizePayoutsApi";
 import { getShift } from "../../api/shiftsApi";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { SegmentedControl } from "../../components/SegmentedControl";
 import { toastError, toastSuccess } from "../../components/toast";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { MainStackParamList } from "../../types/navigation";
@@ -91,8 +93,30 @@ export function PrizePayoutScreen({ route }: Props) {
     },
   });
 
+  const amountValue = Number(prizeAmount);
+  const hasAmount = Number.isFinite(amountValue) && amountValue > 0;
+  const contextReady = Boolean(shopId) && Boolean(shiftQuery.data?.businessDayId);
+  const canSave = hasAmount && contextReady && !createMutation.isPending;
+  const missing = [!hasAmount ? "prize amount" : null, !contextReady ? "shift context" : null].filter(Boolean) as string[];
+
   return (
-    <ScreenContainer>
+    <ScreenContainer
+      footer={
+        <View style={styles.footerWrap}>
+          {missing.length > 0 ? (
+            <View style={styles.footerHintRow}>
+              <Ionicons name="information-circle-outline" size={14} color={appTheme.colors.textMuted} />
+              <Text style={styles.footerHint}>Add {missing.join(", ")} to save</Text>
+            </View>
+          ) : null}
+          <PrimaryButton
+            label={createMutation.isPending ? "Saving…" : "Create payout"}
+            onPress={() => createMutation.mutate()}
+            disabled={!canSave}
+          />
+        </View>
+      }
+    >
       <View style={[ui.card, styles.card]}>
         <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
         <Text style={styles.meta}>
@@ -143,35 +167,17 @@ export function PrizePayoutScreen({ route }: Props) {
           onSubmitEditing={() => notesRef.current?.focus()}
         />
         <Text style={styles.fieldLabel}>Payment method</Text>
-        <View style={styles.methodRow}>
-          {PAYMENT_METHODS.map((method) => {
-            const selected = paymentMethod === method;
-            return (
-              <Pressable
-                key={method}
-                style={[styles.choice, selected && styles.choiceSelected]}
-                onPress={() => setPaymentMethod(method)}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                accessibilityLabel={`Pay by ${method}`}
-              >
-                <Text style={[styles.choiceText, selected && styles.choiceTextSelected]}>{method}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        <SegmentedControl
+          options={PAYMENT_METHODS.map((method) => ({ value: method, label: method }))}
+          value={paymentMethod}
+          onChange={setPaymentMethod}
+        />
         <FloatingLabelInput
           ref={notesRef}
           label="Notes (optional)"
           value={notes}
           onChangeText={setNotes}
           returnKeyType="done"
-        />
-
-        <PrimaryButton
-          label={createMutation.isPending ? "Saving…" : "Create payout"}
-          onPress={() => createMutation.mutate()}
-          disabled={createMutation.isPending}
         />
       </View>
 
@@ -197,6 +203,20 @@ export function PrizePayoutScreen({ route }: Props) {
 const styles = StyleSheet.create({
   card: {
     gap: appTheme.spacing.sm,
+  },
+  footerWrap: {
+    gap: appTheme.spacing.xs,
+  },
+  footerHintRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  footerHint: {
+    color: appTheme.colors.textMuted,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: appTheme.fonts.body,
   },
   sectionTitle: {
     color: appTheme.colors.text,

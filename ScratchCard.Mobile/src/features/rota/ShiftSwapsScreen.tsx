@@ -6,6 +6,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { LoadingState } from "../../components/LoadingState";
+import { EmptyState } from "../../components/EmptyState";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { toastError, toastSuccess } from "../../components/toast";
 import { confirmDestructive } from "../../utils/confirm";
@@ -201,7 +202,7 @@ function ComposeSwapModal({ shopId, me, rota, onClose, onCreated }: {
             </View>
 
             <Text style={styles.label}>Your shift</Text>
-            {myShifts.length === 0 ? <Text style={styles.muted}>You have no upcoming shifts.</Text> : myShifts.map((s) => (
+            {myShifts.length === 0 ? <EmptyState icon="calendar-outline" title="No upcoming shifts" message="You have no upcoming shifts." /> : myShifts.map((s) => (
               <Pressable key={s.id} style={[styles.pick, fromShiftId === s.id ? styles.pickActive : null]} onPress={() => setFromShiftId(s.id)}>
                 <Text style={styles.pickText}>{label(s)}</Text>
               </Pressable>
@@ -209,13 +210,13 @@ function ComposeSwapModal({ shopId, me, rota, onClose, onCreated }: {
 
             <Text style={styles.label}>{type === "Swap" ? "Swap into (their shift)" : "Give to"}</Text>
             {type === "Swap" ? (
-              otherShifts.length === 0 ? <Text style={styles.muted}>No other shifts to swap into.</Text> : otherShifts.map((s) => (
+              otherShifts.length === 0 ? <EmptyState icon="swap-horizontal-outline" title="No shifts to swap into" message="No other shifts to swap into." /> : otherShifts.map((s) => (
                 <Pressable key={s.id} style={[styles.pick, targetKey === s.id ? styles.pickActive : null]} onPress={() => setTargetKey(s.id)}>
                   <Text style={styles.pickText}>{label(s)} — {s.assignees[0]?.name ?? "?"}</Text>
                 </Pressable>
               ))
             ) : (
-              giveAwayStaff.length === 0 ? <Text style={styles.muted}>No other staff found.</Text> : giveAwayStaff.map((g) => (
+              giveAwayStaff.length === 0 ? <EmptyState icon="people-outline" title="No other staff" message="No other staff found." /> : giveAwayStaff.map((g) => (
                 <Pressable key={g.key} style={[styles.pick, targetKey === g.key ? styles.pickActive : null]} onPress={() => setTargetKey(g.key)}>
                   <Text style={styles.pickText}>{g.name}{g.memberId ? " (external)" : ""}</Text>
                 </Pressable>

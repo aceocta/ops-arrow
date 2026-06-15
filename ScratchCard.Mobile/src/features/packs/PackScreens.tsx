@@ -11,6 +11,8 @@ import { toastError, toastSuccess } from "../../components/toast";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { StatusBadge } from "../../components/StatusBadge";
+import { LoadingState } from "../../components/LoadingState";
+import { EmptyState } from "../../components/EmptyState";
 import { SellingOrder } from "../../types/enums";
 import { Game } from "../../types/models";
 import { MainStackParamList } from "../../types/navigation";
@@ -298,7 +300,7 @@ export function ScratchCardGamesScreen() {
       <View style={ui.card}>
         <Text style={styles.sectionTitle}>Assigned Games</Text>
         {!shopId ? <Text style={styles.meta}>Select a shop before managing games.</Text> : null}
-        {shopId && gamesQuery.isLoading ? <Text style={styles.meta}>Loading games...</Text> : null}
+        {shopId && gamesQuery.isLoading ? <LoadingState message="Loading games…" inline /> : null}
         {shopId && !gamesQuery.isLoading && (gamesQuery.data ?? []).length === 0 ? (
           <Text style={styles.meta}>No games found.</Text>
         ) : null}
@@ -444,8 +446,8 @@ export function ScratchCardGameEditScreen({ route, navigation }: GameEditProps) 
       </View>
       <View style={ui.card}>
         {!shopId ? <Text style={styles.meta}>Select a shop before editing games.</Text> : null}
-        {shopId && gamesQuery.isLoading ? <Text style={styles.meta}>Loading game...</Text> : null}
-        {shopId && !gamesQuery.isLoading && !game ? <Text style={styles.meta}>Game not found.</Text> : null}
+        {shopId && gamesQuery.isLoading ? <LoadingState message="Loading game…" inline /> : null}
+        {shopId && !gamesQuery.isLoading && !game ? <EmptyState icon="alert-circle-outline" title="Game not found" /> : null}
 
         {game ? (
           <>
@@ -585,7 +587,7 @@ export function ScratchCardPacksScreen({ navigation }: PackListProps) {
           ) : null}
         </View>
         {!shopId ? <Text style={styles.meta}>Select a shop to see packs.</Text> : null}
-        {shopId && packsQuery.isLoading ? <Text style={styles.meta}>Loading packs...</Text> : null}
+        {shopId && packsQuery.isLoading ? <LoadingState message="Loading packs…" inline /> : null}
         {shopId && packsQuery.isError ? <Text style={styles.meta}>Unable to load packs. Please try again.</Text> : null}
         {shopId && !packsQuery.isLoading && !packsQuery.isError && sortedPacks.length === 0 ? (
           <Text style={styles.meta}>No packs found for this shop.</Text>

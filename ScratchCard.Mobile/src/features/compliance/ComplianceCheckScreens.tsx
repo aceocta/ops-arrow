@@ -33,6 +33,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue, parseDateValue } from "../../components/DateTimeField";
 import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
+import { LoadingState } from "../../components/LoadingState";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -1814,7 +1815,7 @@ export function ComplianceChecksScreen() {
           </View>
         ) : null}
 
-        {logQuery.isLoading ? <Text style={styles.meta}>Loading checks...</Text> : null}
+        {logQuery.isLoading ? <LoadingState message="Loading checks…" inline /> : null}
         {visiblePeriodGroups.map((periodGroup) => (
           <View key={periodGroup.group.id} style={[ui.card, styles.periodGroupCardTight]}>
             <View style={[styles.rowBetween, styles.groupHeaderRow]}>
@@ -2885,7 +2886,7 @@ export function ComplianceActionsScreen() {
           </Pressable>
         </View>
 
-        {actionsQuery.isLoading ? <Text style={styles.meta}>Loading action report...</Text> : null}
+        {actionsQuery.isLoading ? <LoadingState message="Loading action report…" inline /> : null}
         {(actionsQuery.data ?? []).map((row) => (
           <View key={row.entryId} style={ui.card}>
             <View style={styles.rowBetween}>

@@ -22,6 +22,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
 import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
+import { LoadingState } from "../../components/LoadingState";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -326,7 +327,7 @@ export function ShopChecklistScreen() {
         <DateTimeField mode="date" value={selectedDate} onChange={setSelectedDate} />
       </View>
 
-      {dailyQuery.isLoading ? <Text style={styles.meta}>Loading checklist...</Text> : null}
+      {dailyQuery.isLoading ? <LoadingState message="Loading checklist…" inline /> : null}
 
       {(dailyQuery.data?.groups ?? []).map((groupLog) => (
         <View key={groupLog.group.id} style={ui.card}>
@@ -690,7 +691,7 @@ export function ChecklistConfigurationScreen() {
           <Text style={styles.meta}>Long press the drag icon to reorder groups or tasks.</Text>
         </View>
 
-        {configQuery.isLoading ? <Text style={styles.meta}>Loading checklist configuration...</Text> : null}
+        {configQuery.isLoading ? <LoadingState message="Loading checklist configuration…" inline /> : null}
         {configGroups.length === 0 && !configQuery.isLoading ? (
           <View style={ui.card}>
             <Text style={styles.meta}>No checklist groups configured yet.</Text>
@@ -897,7 +898,7 @@ export function ChecklistHistoryScreen() {
       </View>
 
       <View style={ui.card}>
-        {historyQuery.isLoading ? <Text style={styles.meta}>Loading history...</Text> : null}
+        {historyQuery.isLoading ? <LoadingState message="Loading history…" inline /> : null}
         {(historyQuery.data ?? []).length === 0 && !historyQuery.isLoading ? (
           <Text style={styles.meta}>No checklist completion history found for this date range.</Text>
         ) : null}

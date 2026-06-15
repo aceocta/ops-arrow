@@ -8,6 +8,7 @@ import { getConfigurations } from "../../api/configurationsApi";
 import { listPacks } from "../../api/packsApi";
 import { deleteShift, getShift, getShiftSales, listShiftCloseCandidates, listShifts, openShift, startScheduledShift } from "../../api/shiftsApi";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
+import { LoadingState } from "../../components/LoadingState";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { toastError, toastSuccess } from "../../components/toast";
@@ -325,7 +326,7 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
               ) : null}
               </View>
              
-              {packsQuery.isFetching ? <Text style={styles.meta}>Loading active packs...</Text> : null}
+              {packsQuery.isFetching ? <LoadingState message="Loading active packs…" inline /> : null}
               {!packsQuery.isFetching && activePacksForOpening.length === 0 ? (
                 <Text style={styles.meta}>No active packs found for this shop.</Text>
               ) : null}
@@ -422,7 +423,16 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
                   {canDeleteAutoShift ? (
                     <Pressable
                       style={[styles.smallButton, styles.smallButtonDanger]}
-                      onPress={() => deleteAutoShiftMutation.mutate(shift.id)}
+                      onPress={() =>
+                        Alert.alert(
+                          "Remove scheduled shift?",
+                          "This removes the scheduled shift. This can't be undone.",
+                          [
+                            { text: "Cancel", style: "cancel" },
+                            { text: "Remove", style: "destructive", onPress: () => deleteAutoShiftMutation.mutate(shift.id) },
+                          ],
+                        )
+                      }
                       disabled={startScheduledShiftMutation.isPending || deleteAutoShiftMutation.isPending}
                     >
                       <Text style={styles.smallButtonText}>{deleteAutoShiftMutation.isPending ? "Removing…" : "Remove"}</Text>

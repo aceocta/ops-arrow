@@ -1,7 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { EmptyState } from "../../components/EmptyState";
+import { LoadingState } from "../../components/LoadingState";
 import { LandscapeSignatureModal } from "../../components/LandscapeSignatureModal";
 import { getRefusalEntry, getRefusalEntrySignature, updateRefusalEntry } from "../../api/refusalRegisterApi";
 import { useAuth } from "../../auth/AuthContext";
@@ -32,6 +35,15 @@ const productSuggestions = [
   "Energy Drink",
   "PEGI 18 Game/DVD",
   "PEGI 16 Game/DVD",
+];
+
+const refusalReasons = [
+  "No ID",
+  "Underage",
+  "Failed Challenge 25",
+  "Intoxicated",
+  "Proxy / agency sale",
+  "No reason given",
 ];
 
 export function RefusalEntryEditScreen({ route, navigation }: Props) {
@@ -117,24 +129,95 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
   const entry = entryQuery.data;
   const signaturePreviewUri = signatureDataUrl || signatureQuery.data;
 
-  return (
-    <ScreenContainer>
+  // Required to save (signature is optional on edit — the existing one is kept).
+  const hasProduct = product.trim().length > 0;
+  const hasDescription = personDescription.trim().length > 0;
+  const hasTime = refusalTime.trim().length > 0;
+  const canSave = hasProduct && hasDescription && hasTime && !updateMutation.isPending;
+  const missing = [
+    !hasProduct ? "product" : null,
+    !hasDescription ? "description" : null,
+    !hasTime ? "time" : null,
+  ].filter(Boolean) as string[];
 
-      <View style={ui.card}>
-        {entryQuery.isLoading ? <Text style={styles.meta}>Loading entry...</Text> : null}
-        {!entryQuery.isLoading && !entry ? <Text style={styles.meta}>Entry not found.</Text> : null}
-        {entry ? (
-          <>
-            <Text style={styles.meta}>No. {entry.sequenceNo}</Text>
-            <Text style={styles.meta}>Date: {entry.refusalDate}</Text>
-            <View style={styles.badgeRow}>
-              <StatusBadge label={entry.signatureImagePath ? "Signed" : "No Signature"} tone={entry.signatureImagePath ? "success" : "danger"} />
-              <StatusBadge label={entry.reviewedOn ? "Reviewed" : "Pending Review"} tone={entry.reviewedOn ? "success" : "warning"} />
+  const reasonActive = (reason: string) =>
+    observations.split("·").map((s) => s.trim().toLowerCase()).includes(reason.toLowerCase());
+  const toggleReason = (reason: string) => {
+    setObservations((cur) => {
+      const parts = cur.split("·").map((s) => s.trim()).filter(Boolean);
+      const idx = parts.findIndex((p) => p.toLowerCase() === reason.toLowerCase());
+      if (idx >= 0) parts.splice(idx, 1);
+      else parts.push(reason);
+      return parts.join(" · ");
+    });
+  };
+
+  return (
+    <ScreenContainer
+      footer={
+        entry ? (
+          <View style={styles.footerWrap}>
+            {missing.length > 0 ? (
+              <View style={styles.footerHintRow}>
+                <Ionicons name="information-circle-outline" size={14} color={appTheme.colors.textMuted} />
+                <Text style={styles.footerHint}>Add {missing.join(", ")} to save</Text>
+              </View>
+            ) : null}
+            <View style={styles.signFooter}>
+              <Pressable
+                style={[styles.signFooterBtn, signaturePreviewUri ? styles.signFooterBtnDone : null]}
+                onPress={openSignatureModal}
+                accessibilityRole="button"
+                accessibilityLabel={signaturePreviewUri ? "Re-sign" : "Sign"}
+              >
+                <Ionicons name={signaturePreviewUri ? "checkmark-circle" : "create-outline"} size={18} color={signaturePreviewUri ? appTheme.colors.success : appTheme.colors.primary} />
+                <Text style={[styles.signFooterBtnText, signaturePreviewUri ? styles.signFooterBtnTextDone : null]}>{signaturePreviewUri ? "Signed" : "Sign"}</Text>
+              </Pressable>
+              <View style={{ flex: 1 }}>
+                <PrimaryButton
+                  label={updateMutation.isPending ? "Saving…" : "Save changes"}
+                  onPress={() => updateMutation.mutate()}
+                  disabled={!canSave}
+                />
+              </View>
             </View>
+          </View>
+        ) : undefined
+      }
+    >
+      {entryQuery.isLoading ? <View style={ui.card}><LoadingState inline /></View> : null}
+      {!entryQuery.isLoading && !entry ? (
+        <View style={ui.card}>
+          <EmptyState icon="alert-circle-outline" title="Entry not found" message="This refusal entry may have been removed." />
+        </View>
+      ) : null}
+
+      {entry ? (
+        <>
+          {/* Entry summary */}
+          <View style={ui.card}>
+            <View style={styles.entryMetaRow}>
+              <Text style={styles.entryMetaTitle}>Refusal No. {entry.sequenceNo}</Text>
+              <Text style={styles.meta}>{entry.refusalDate}</Text>
+            </View>
+            <View style={styles.badgeRow}>
+              <StatusBadge label={entry.signatureImagePath ? "Signed" : "No signature"} tone={entry.signatureImagePath ? "success" : "danger"} />
+              <StatusBadge label={entry.reviewedOn ? "Reviewed" : "Pending review"} tone={entry.reviewedOn ? "success" : "warning"} />
+            </View>
+          </View>
+
+          {/* Refusal details */}
+          <View style={ui.card}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="hand-left-outline" size={18} color={appTheme.colors.primary} />
+              <Text style={styles.sectionTitle}>Refusal details</Text>
+            </View>
+
+            <Text style={styles.fieldLabel}>Time *</Text>
             <DateTimeField mode="time" value={refusalTime} onChange={setRefusalTime} />
 
             <FloatingLabelInput
-              label="Refused product"
+              label="Refused product *"
               value={product}
               onChangeText={setProduct}
               returnKeyType="next"
@@ -153,17 +236,29 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
               ))}
             </ScrollView>
 
-            <Text style={styles.fieldLabel}>Description</Text>
+            <Text style={styles.fieldLabel}>Person description *</Text>
             <TextInput
               ref={personDescriptionRef}
               style={[styles.input, styles.textArea]}
               value={personDescription}
               onChangeText={setPersonDescription}
-              placeholder="Person description"
+              placeholder="Example: Male, around 14 years old, blonde, blue jacket"
               placeholderTextColor={appTheme.colors.textSubtle}
               multiline
               textAlignVertical="top"
             />
+
+            <Text style={styles.fieldLabel}>Reason (tap to add)</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+              {refusalReasons.map((reason) => {
+                const active = reasonActive(reason);
+                return (
+                  <Pressable key={reason} style={[styles.chip, active ? styles.chipSelected : null]} onPress={() => toggleReason(reason)}>
+                    <Text style={[styles.chipText, active ? styles.chipTextSelected : null]}>{reason}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
 
             <Text style={styles.fieldLabel}>Observations</Text>
             <TextInput
@@ -171,11 +266,19 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
               style={[styles.input, styles.textArea]}
               value={observations}
               onChangeText={setObservations}
-              placeholder="Observations"
+              placeholder="Example: Nervous and refused to show ID"
               placeholderTextColor={appTheme.colors.textSubtle}
               multiline
               textAlignVertical="top"
             />
+          </View>
+
+          {/* Recorded by */}
+          <View style={ui.card}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="person-outline" size={18} color={appTheme.colors.primary} />
+              <Text style={styles.sectionTitle}>Recorded by</Text>
+            </View>
 
             <FloatingLabelInput
               ref={staffRef}
@@ -202,20 +305,13 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
             {signatureDataUrl ? (
               <View style={styles.signatureActionRow}>
                 <Pressable style={styles.secondaryButton} onPress={() => setSignatureDataUrl("")}>
-                  <Text style={styles.secondaryButtonText}>Clear</Text>
+                  <Text style={styles.secondaryButtonText}>Clear re-sign</Text>
                 </Pressable>
               </View>
             ) : null}
-
-            <PrimaryButton
-              label={updateMutation.isPending ? "Saving…" : "Save changes"}
-              onPress={() => updateMutation.mutate()}
-              disabled={updateMutation.isPending}
-            />
-            <PrimaryButton label="Cancel" tone="neutral" onPress={() => navigation.goBack()} disabled={updateMutation.isPending} />
-          </>
-        ) : null}
-      </View>
+          </View>
+        </>
+      ) : null}
 
       <LandscapeSignatureModal
         visible={isSignatureModalVisible}
@@ -266,6 +362,66 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 22,
     fontFamily: appTheme.fonts.bodyMedium,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+    marginBottom: appTheme.spacing.xs,
+  },
+  entryMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.xs,
+  },
+  entryMetaTitle: {
+    color: appTheme.colors.text,
+    fontSize: 17,
+    lineHeight: 22,
+    fontFamily: appTheme.fonts.heading,
+  },
+  footerWrap: {
+    gap: appTheme.spacing.xs,
+  },
+  footerHintRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  footerHint: {
+    color: appTheme.colors.textMuted,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: appTheme.fonts.body,
+  },
+  signFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.sm,
+  },
+  signFooterBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: appTheme.spacing.md,
+    paddingVertical: appTheme.spacing.sm,
+    borderRadius: appTheme.radius.sm,
+    borderWidth: 1,
+    borderColor: appTheme.colors.primary,
+    backgroundColor: appTheme.colors.surface,
+  },
+  signFooterBtnDone: {
+    borderColor: appTheme.colors.success,
+  },
+  signFooterBtnText: {
+    color: appTheme.colors.primary,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: appTheme.fonts.bodyMedium,
+  },
+  signFooterBtnTextDone: {
+    color: appTheme.colors.success,
   },
   badgeRow: {
     flexDirection: "row",

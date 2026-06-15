@@ -20,6 +20,7 @@ import {
 } from "../../api/reportsApi";
 import { listShifts } from "../../api/shiftsApi";
 import { formatDateValue, MonthCalendar, parseDateValue } from "../../components/DateTimeField";
+import { LoadingState } from "../../components/LoadingState";
 import { ReportActionBar } from "../../components/ReportActionBar";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError, toastSuccess } from "../../components/toast";
@@ -641,7 +642,7 @@ export function DailySalesReportScreen() {
             ]}
           />
 
-          {query.isLoading ? <Text style={styles.meta}>Loading report rows...</Text> : null}
+          {query.isLoading ? <LoadingState message="Loading report rows…" inline /> : null}
           {!query.isLoading && totalShifts === 0 ? (
             <Text style={styles.meta}>No scratch card sales found for this date range.</Text>
           ) : null}
