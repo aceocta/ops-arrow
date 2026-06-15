@@ -3,6 +3,11 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useAuth } from "./auth/AuthContext";
 import LoginPage from "./auth/LoginPage";
 import AppLayout from "./components/AppLayout";
+import { Smartphone, LogOut } from "lucide-react";
+
+// The web portal is for company owners and shop managers only. Cashiers / sales assistants use the
+// mobile app. PlatformAdmin keeps access as the support hatch.
+const WEB_PORTAL_ROLES = ["PlatformAdmin", "CompanyOwner", "Manager"];
 
 // Route-level code splitting — each page is its own chunk so the initial bundle stays small.
 const DashboardPage = lazy(() => import("./features/dashboard/DashboardPage"));
@@ -29,6 +34,30 @@ const TillLineReportPage = lazy(() => import("./features/till/TillLineReportPage
 const SignupPage = lazy(() => import("./auth/SignupPage"));
 const CompanySetupPage = lazy(() => import("./features/setup/CompanySetupPage"));
 
+function NoWebAccess() {
+  const { profile, logout } = useAuth();
+  const name = profile?.displayName || [profile?.firstName, profile?.lastName].filter(Boolean).join(" ") || profile?.email;
+  return (
+    <div className="flex min-h-full items-center justify-center bg-gradient-to-br from-brand-50 to-slate-100 p-4 dark:from-slate-900 dark:to-slate-950">
+      <div className="card w-full max-w-md space-y-4 p-6 text-center">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
+          <Smartphone className="h-7 w-7" />
+        </div>
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900">Use the mobile app</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            {name ? <span className="font-medium text-slate-700">{name}</span> : "Your account"} — the web portal is for
+            company owners and shop managers. Day-to-day work like shifts, sales and logs is done in the Ops Arrow mobile app.
+          </p>
+        </div>
+        <button className="btn-ghost w-full" onClick={() => logout()}>
+          <LogOut className="h-4 w-4" /> Sign out
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Protected({ children, requireCompany = true }: { children: React.ReactNode; requireCompany?: boolean }) {
   const { ready, profile } = useAuth();
   const location = useLocation();
@@ -36,6 +65,10 @@ function Protected({ children, requireCompany = true }: { children: React.ReactN
   // Remember where the user was heading (e.g. a /billing?shopId=… email deep link) so login can
   // send them back there instead of always dropping them on the dashboard.
   if (!profile) return <Navigate to="/login" replace state={{ from: location }} />;
+  // Owners & managers only — cashiers / sales assistants belong on the mobile app. Enforced here so
+  // it holds for fresh logins, restored sessions on refresh, and direct deep links alike.
+  const webAllowed = (profile.roles ?? []).some((r) => WEB_PORTAL_ROLES.includes(r));
+  if (!webAllowed) return <NoWebAccess />;
   // Fresh signups have an account but no company yet — finish onboarding before entering the app.
   if (requireCompany && profile.hasCompanySetup === false) return <Navigate to="/setup" replace />;
   return <>{children}</>;
