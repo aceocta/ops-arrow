@@ -257,9 +257,14 @@ export function TillReconciliationScreen() {
     const map = new Map<string, { code: string; name: string; sort: number; lines: ReconciliationLine[] }>();
     for (const l of data?.lines ?? []) {
       if (l.canonicalField === "SubtotalIgnore") continue;
-      const entry = map.get(l.groupCode) ?? { code: l.groupCode, name: l.groupName || l.groupCode, sort: l.groupSort ?? 0, lines: [] };
+      // Fall back to the legacy enum `group` so grouping (and "move to group") still works if the
+      // API hasn't been restarted with groupCode support yet.
+      const legacyGroup = (l as unknown as { group?: string }).group;
+      const code = l.groupCode || legacyGroup || "Other";
+      const name = l.groupName || legacyGroup || code;
+      const entry = map.get(code) ?? { code, name, sort: l.groupSort ?? 0, lines: [] };
       entry.lines.push(l);
-      map.set(l.groupCode, entry);
+      map.set(code, entry);
     }
     return [...map.values()].sort((a, b) => a.sort - b.sort);
   }, [data?.lines]);

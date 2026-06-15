@@ -16,6 +16,7 @@ import {
   listTillFieldOverrides,
   listTillFields,
   listTillGroups,
+  resetFieldGroupAssignments,
   updateTillGroup,
 } from "../../api/tillGroupsApi";
 import { FieldCode } from "../../api/tillReconciliationApi";
@@ -123,6 +124,21 @@ export function TillGroupsConfigScreen() {
     onSuccess: () => { setAssignTarget(null); invalidate(); },
     onError: (e: any) => Alert.alert("Couldn't move field", e?.response?.data?.message ?? "Please try again."),
   });
+
+  const resetM = useMutation({
+    mutationFn: () => resetFieldGroupAssignments(shopId),
+    onSuccess: (n) => { invalidate(); Alert.alert("Reset done", n > 0 ? `${n} field${n === 1 ? "" : "s"} returned to their default group.` : "Nothing to reset — all fields are already on their default group."); },
+    onError: (e: any) => Alert.alert("Couldn't reset", e?.response?.data?.message ?? "Please try again."),
+  });
+
+  async function confirmReset() {
+    const ok = await confirmDestructive({
+      title: "Reset field groups?",
+      message: "Every field goes back to its default group for this shop. Your custom groups and custom fields are kept.",
+      confirmLabel: "Reset",
+    });
+    if (ok) resetM.mutate();
+  }
 
   const loading = groupsQuery.isLoading || fieldsQuery.isLoading || overridesQuery.isLoading;
   const customGroups = groups.filter((g) => !g.isBuiltIn);
@@ -246,7 +262,12 @@ export function TillGroupsConfigScreen() {
 
       {/* Assign fields to groups */}
       <View style={ui.card}>
-        <Text style={ui.sectionTitle}>Assign fields to groups</Text>
+        <View style={styles.assignHeader}>
+          <Text style={ui.sectionTitle}>Assign fields to groups</Text>
+          <Pressable onPress={confirmReset} disabled={resetM.isPending} hitSlop={6}>
+            <Text style={styles.resetLink}>{resetM.isPending ? "Resetting…" : "Reset to default"}</Text>
+          </Pressable>
+        </View>
         <Text style={ui.caption}>Tap a field to move it into a different group for this shop. (Custom fields set their group above.)</Text>
         {(fieldsQuery.data ?? []).filter((f) => f.isBuiltIn).map((f) => {
           const currentCode = overrideByField.get(f.code) ?? f.groupCode;
@@ -346,6 +367,8 @@ const styles = StyleSheet.create({
   rowMain: { flex: 1, gap: 2 },
   rowName: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 18 },
   rowMeta: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, lineHeight: 15 },
+  assignHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  resetLink: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   rowActions: { flexDirection: "row", gap: 6 },
   iconBtn: {
     width: 34,

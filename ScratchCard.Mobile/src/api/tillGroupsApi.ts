@@ -96,3 +96,12 @@ export async function assignFieldGroup(input: { shopId: string; canonicalField: 
   const res = await apiClient.post<ApiResponse<TillFieldOverride>>("/till-field-overrides", input);
   return res.data.data;
 }
+
+// Clears every field→group assignment for the shop so fields fall back to their default groups.
+// Returns how many were reset.
+export async function resetFieldGroupAssignments(shopId: string): Promise<number> {
+  const overrides = await listTillFieldOverrides(shopId);
+  const assigned = overrides.filter((o) => o.groupCode);
+  await Promise.all(assigned.map((o) => assignFieldGroup({ shopId, canonicalField: o.canonicalField, groupCode: null })));
+  return assigned.length;
+}
