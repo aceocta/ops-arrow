@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import { apiErrorMessage } from "../../lib/api";
@@ -54,10 +55,28 @@ export default function BillingPage() {
   const { profile, activeShopId, isOwner, isManager } = useAuth();
   const canManage = isOwner || isManager;
   const shops = profile?.shops ?? [];
+  // Deep link support: a `?shopId=` query param (e.g. from the "Email me my account info" link sent
+  // by the mobile app) opens this page focused on that shop. Falls back to the active/first shop.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const linkedShopId = searchParams.get("shopId");
   const [shopId, setShopId] = useState<string | null>(
-    () => shops.find((s) => s.shopId === activeShopId)?.shopId ?? shops[0]?.shopId ?? null,
+    () =>
+      shops.find((s) => s.shopId === linkedShopId)?.shopId ??
+      shops.find((s) => s.shopId === activeShopId)?.shopId ??
+      shops[0]?.shopId ??
+      null,
   );
   const shop = shops.find((s) => s.shopId === shopId) ?? null;
+
+  // The profile's shops may load after first render; once they do, honour the linked shop and then
+  // drop the param from the URL so a later manual shop switch isn't overridden on refresh.
+  useEffect(() => {
+    if (!linkedShopId) return;
+    const match = shops.find((s) => s.shopId === linkedShopId);
+    if (match) setShopId(match.shopId);
+    setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkedShopId, shops.length]);
 
   if (!canManage) {
     return (

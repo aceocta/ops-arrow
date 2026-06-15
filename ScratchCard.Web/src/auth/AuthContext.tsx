@@ -36,6 +36,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [activeShopId, setActiveShopIdState] = useState<string | null>(localStorage.getItem(SHOP_KEY));
   const [features, setFeatures] = useState<string[]>([]);
 
+  // Fetch the entitlements (feature flags) for a shop. Pulled out of the effect below so it can
+  // also be invoked right after login — when the chosen shop is unchanged from a previous session
+  // the [activeShopId] effect won't re-fire, so we must load features explicitly there.
+  const loadEntitlements = async (shopId: string | null) => {
+    if (!shopId) {
+      setFeatures([]);
+      return;
+    }
+    try {
+      const res = await api.get("/shop-subscription/entitlements", { params: { shopId } });
+      const e = unwrap<Entitlements>(res.data);
+      setFeatures(e?.features ?? []);
+    } catch {
+      setFeatures([]);
+    }
+  };
+
   const loadProfile = async () => {
     const res = await api.get("/auth/me");
     const p = unwrap<AuthProfile>(res.data);
@@ -47,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(SHOP_KEY, chosen);
       setActiveShopIdState(chosen);
     }
-    return p;
+    return chosen;
   };
 
   // Boot: if we have a token, restore the session.
@@ -72,15 +89,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Load entitlements whenever the active shop changes.
   useEffect(() => {
     if (!activeShopId) return;
-    (async () => {
-      try {
-        const res = await api.get("/shop-subscription/entitlements", { params: { shopId: activeShopId } });
-        const e = unwrap<Entitlements>(res.data);
-        setFeatures(e?.features ?? []);
-      } catch {
-        setFeatures([]);
-      }
-    })();
+    void loadEntitlements(activeShopId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeShopId]);
 
   const applyAuthToken = async (body: any) => {
@@ -88,7 +98,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const access = d?.accessToken ?? d?.token ?? d?.AccessToken;
     if (!access) throw new Error("No token returned.");
     tokens.set(access, d?.refreshToken ?? d?.RefreshToken ?? null);
-    await loadProfile();
+    // Load features explicitly: if the chosen shop matches a previous session's stored shop the
+    // [activeShopId] effect won't fire (value unchanged), leaving the nav unpopulated until refresh.
+    const chosen = await loadProfile();
+    await loadEntitlements(chosen);
   };
 
   const login = async (email: string, password: string) => {

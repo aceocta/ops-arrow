@@ -81,7 +81,9 @@
       "Bash(grep -nE \"choiceRow|choice|segment|\\\\.map\\\\\\(\\\\\\(.*\\\\\\) => \\\\\\(?$|Pressable\" prize-payouts/PrizePayoutScreen.tsx)",
       "Read(//j/j/ScratchCard/ScratchCard.Mobile/src/**)",
       "Bash(Get-ChildItem -Path \"J:\\\\ScratchCard\\\\ScratchCard.Mobile\\\\src\" -Directory)",
-      "Bash(Get-ChildItem -Path \"J:\\\\ScratchCard\\\\ScratchCard.Mobile\\\\src\\\\features\" -Directory)"
+      "Bash(Get-ChildItem -Path \"J:\\\\ScratchCard\\\\ScratchCard.Mobile\\\\src\\\\features\" -Directory)",
+      "Bash(cd /j/ScratchCard && grep -rniE \"email.*portal|portal.*email|account.info|EmailAccount|SendAccount|AccountPortal\" ScratchCard.Api ScratchCard.Application ScratchCard.Infrastructure --include=*.cs -l)",
+      "Read(//j/j/ScratchCard/**)"
     ]
   }
 }

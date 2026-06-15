@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import { apiErrorMessage } from "../lib/api";
 import { ArrowRight, Loader2 } from "lucide-react";
@@ -7,6 +7,10 @@ import { ArrowRight, Loader2 } from "lucide-react";
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  // Set by <Protected> when it bounced an unauthenticated user away from a deep link.
+  const from = (location.state as { from?: { pathname: string; search: string } } | null)?.from;
+  const dest = from ? `${from.pathname}${from.search}` : "/";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +22,7 @@ export default function LoginPage() {
     setBusy(true);
     try {
       await login(email.trim(), password);
-      navigate("/", { replace: true });
+      navigate(dest, { replace: true });
     } catch (err) {
       setError(apiErrorMessage(err, "Could not sign in. Check your details."));
     } finally {

@@ -732,12 +732,18 @@ public class ShopSubscriptionService : IShopSubscriptionService
               "or cancel your subscription at any time.\n\n"
             : string.Empty;
 
+        // Deep-link straight to this shop's subscription on the web so the recipient lands on the
+        // right shop without having to pick it from the switcher (the web BillingPage reads ?shopId=).
+        var portalLink = _billingPortalUrl.Contains('?')
+            ? $"{_billingPortalUrl}&shopId={shopId}"
+            : $"{_billingPortalUrl}?shopId={shopId}";
+
         var subject = $"Manage your Ops Arrow subscription — {shop.ShopName}";
         var body =
             $"Hi,\n\n" +
             $"You asked for your Ops Arrow billing details. Subscriptions for your shops are managed " +
             $"on the Ops Arrow web billing portal:\n\n" +
-            $"{_billingPortalUrl}\n\n" +
+            $"{portalLink}\n\n" +
             $"Shop: {shop.ShopName}\n" +
             $"Current plan: {planName}\n" +
             $"Status: {statusLabel}\n\n" +

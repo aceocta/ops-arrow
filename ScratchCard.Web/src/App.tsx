@@ -1,5 +1,5 @@
 import { Suspense, lazy } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useAuth } from "./auth/AuthContext";
 import LoginPage from "./auth/LoginPage";
 import AppLayout from "./components/AppLayout";
@@ -31,8 +31,11 @@ const CompanySetupPage = lazy(() => import("./features/setup/CompanySetupPage"))
 
 function Protected({ children, requireCompany = true }: { children: React.ReactNode; requireCompany?: boolean }) {
   const { ready, profile } = useAuth();
+  const location = useLocation();
   if (!ready) return <div className="flex h-full items-center justify-center text-sm text-slate-400">Loading…</div>;
-  if (!profile) return <Navigate to="/login" replace />;
+  // Remember where the user was heading (e.g. a /billing?shopId=… email deep link) so login can
+  // send them back there instead of always dropping them on the dashboard.
+  if (!profile) return <Navigate to="/login" replace state={{ from: location }} />;
   // Fresh signups have an account but no company yet — finish onboarding before entering the app.
   if (requireCompany && profile.hasCompanySetup === false) return <Navigate to="/setup" replace />;
   return <>{children}</>;
