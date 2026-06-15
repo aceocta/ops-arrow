@@ -203,6 +203,9 @@ export function TillReconciliationScreen() {
     onError: (e: any) => toastError(e?.response?.data?.message ?? "Couldn't update lines."),
   });
 
+  // Photos staged locally (from camera and/or library) but not yet uploaded — submitted together.
+  const [pending, setPending] = useState<ImagePicker.ImagePickerAsset[]>([]);
+
   const ingestMutation = useMutation({
     mutationFn: async (assets: ImagePicker.ImagePickerAsset[]) => {
       // A report can span several photos — ingest each; each call accumulates lines + attachments.
@@ -219,15 +222,13 @@ export function TillReconciliationScreen() {
       }
       return result;
     },
-    onSuccess: (r) => { if (r) { setData(r); toastSuccess("Photo(s) read — verify the amounts."); } },
+    onSuccess: (r) => { if (r) { setData(r); setPending([]); toastSuccess("Photo(s) read — verify the amounts."); } },
     onError: (e: any) => toastError(e?.response?.data?.message ?? e?.message ?? "Couldn't read the photo."),
   });
 
-  // Permission + picking happen OUTSIDE the mutation: the "Reading…" overlay is a Modal
-  // keyed off isPending, and presenting it before the system camera/library UI hides the
-  // picker (and on iOS can block it from opening at all). The overlay must only appear
-  // once photos are actually chosen.
-  const pickAndIngest = async (source: "camera" | "library") => {
+  // Stage photos locally instead of uploading immediately: the camera adds one at a time (tap again
+  // for more), the library allows multi-select. The user then submits them all together below.
+  const addPhotos = async (source: "camera" | "library") => {
     try {
       const perm = source === "camera"
         ? await ImagePicker.requestCameraPermissionsAsync()
@@ -240,7 +241,7 @@ export function TillReconciliationScreen() {
         ? await ImagePicker.launchCameraAsync({ mediaTypes: "images", quality: 0.85 })
         : await ImagePicker.launchImageLibraryAsync({ mediaTypes: "images", quality: 0.85, allowsMultipleSelection: true, selectionLimit: 10 });
       if (picked.canceled || picked.assets.length === 0) return;
-      ingestMutation.mutate(picked.assets);
+      setPending((prev) => [...prev, ...picked.assets]);
     } catch (e: any) {
       toastError(e?.message ?? "Couldn't open the photo picker.");
     }
@@ -311,6 +312,29 @@ export function TillReconciliationScreen() {
   ) : undefined;
 
   return (
+    <View style={styles.screenWrap}>
+      {/* Sticky bulk-action bar for checkbox-selected lines — pinned to the top while selecting. */}
+      {!locked && selected.size > 0 ? (
+        <View style={styles.stickySelectBar}>
+          <Text style={styles.selectCount}>{selected.size} selected</Text>
+          <View style={styles.selectActions}>
+            <Pressable style={styles.selectBtn} onPress={() => setMoveOpen(true)} disabled={bulkMutation.isPending}>
+              <Ionicons name="swap-horizontal-outline" size={16} color={appTheme.colors.primary} />
+              <Text style={styles.selectBtnText}>Move to…</Text>
+            </Pressable>
+            <Pressable style={styles.selectBtn} onPress={async () => {
+              if (await confirmDestructive({ title: `Remove ${selected.size} line(s)?`, confirmLabel: "Remove" })) bulkMutation.mutate({ type: "delete" });
+            }} disabled={bulkMutation.isPending}>
+              <Ionicons name="trash-outline" size={16} color={appTheme.colors.danger} />
+              <Text style={[styles.selectBtnText, { color: appTheme.colors.danger }]}>Remove</Text>
+            </Pressable>
+            <Pressable style={styles.selectBtn} onPress={() => setSelected(new Set())} disabled={bulkMutation.isPending}>
+              <Text style={styles.selectBtnText}>Clear</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+
     <ScreenContainer footer={footerBar}>
         <View style={[ui.card, styles.groupCard]}>
           {data ? (
@@ -369,21 +393,51 @@ export function TillReconciliationScreen() {
             <View style={styles.captureRow}>
               <Pressable
                 style={({ pressed }) => [styles.captureBtn, styles.captureBtnPrimary, pressed && styles.capturePressed, ingestMutation.isPending && styles.captureDisabled]}
-                onPress={() => void pickAndIngest("camera")}
+                onPress={() => void addPhotos("camera")}
                 disabled={ingestMutation.isPending}
               >
                 <Ionicons name="camera" size={20} color={appTheme.colors.onPrimary} />
-                <Text style={[styles.captureText, styles.captureTextPrimary]}>{ingestMutation.isPending ? "Reading…" : "Take photo"}</Text>
+                <Text style={[styles.captureText, styles.captureTextPrimary]}>Take photo</Text>
               </Pressable>
               <Pressable
                 style={({ pressed }) => [styles.captureBtn, styles.captureBtnOutline, pressed && styles.capturePressed, ingestMutation.isPending && styles.captureDisabled]}
-                onPress={() => void pickAndIngest("library")}
+                onPress={() => void addPhotos("library")}
                 disabled={ingestMutation.isPending}
               >
                 <Ionicons name="image" size={20} color={appTheme.colors.primary} />
                 <Text style={[styles.captureText, styles.captureTextOutline]}>Upload</Text>
               </Pressable>
             </View>
+
+            {/* Staging tray: collect several photos (camera + library), then submit them all at once. */}
+            {pending.length > 0 ? (
+              <>
+                <Text style={styles.pendingLabel}>{pending.length} photo{pending.length === 1 ? "" : "s"} ready to read</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pendingStrip}>
+                  {pending.map((a, i) => (
+                    <View key={a.assetId ?? a.uri ?? String(i)} style={styles.pendingThumbWrap}>
+                      <Image source={{ uri: a.uri }} style={styles.pendingThumb} />
+                      {!ingestMutation.isPending ? (
+                        <Pressable
+                          style={styles.pendingRemove}
+                          hitSlop={6}
+                          onPress={() => setPending((prev) => prev.filter((_, idx) => idx !== i))}
+                          accessibilityRole="button"
+                          accessibilityLabel="Remove photo"
+                        >
+                          <Ionicons name="close-circle" size={20} color={appTheme.colors.danger} />
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  ))}
+                </ScrollView>
+                <PrimaryButton
+                  label={ingestMutation.isPending ? "Reading…" : `Read ${pending.length} photo${pending.length === 1 ? "" : "s"}`}
+                  onPress={() => ingestMutation.mutate(pending)}
+                  disabled={ingestMutation.isPending}
+                />
+              </>
+            ) : null}
           </View>
         ) : null}
 
@@ -436,28 +490,6 @@ export function TillReconciliationScreen() {
                 {data.summary.owedToProviders.map((o) => (
                   <Row key={o.provider} k={`Owed · ${o.provider}`} v={gbp(o.amount)} muted />
                 ))}
-              </View>
-            ) : null}
-
-            {/* Bulk-action bar for checkbox-selected lines */}
-            {!locked && selected.size > 0 ? (
-              <View style={[ui.card, styles.groupCard, styles.selectBar]}>
-                <Text style={styles.selectCount}>{selected.size} selected</Text>
-                <View style={styles.selectActions}>
-                  <Pressable style={styles.selectBtn} onPress={() => setMoveOpen(true)} disabled={bulkMutation.isPending}>
-                    <Ionicons name="swap-horizontal-outline" size={16} color={appTheme.colors.primary} />
-                    <Text style={styles.selectBtnText}>Move to…</Text>
-                  </Pressable>
-                  <Pressable style={styles.selectBtn} onPress={async () => {
-                    if (await confirmDestructive({ title: `Remove ${selected.size} line(s)?`, confirmLabel: "Remove" })) bulkMutation.mutate({ type: "delete" });
-                  }} disabled={bulkMutation.isPending}>
-                    <Ionicons name="trash-outline" size={16} color={appTheme.colors.danger} />
-                    <Text style={[styles.selectBtnText, { color: appTheme.colors.danger }]}>Remove</Text>
-                  </Pressable>
-                  <Pressable style={styles.selectBtn} onPress={() => setSelected(new Set())} disabled={bulkMutation.isPending}>
-                    <Text style={styles.selectBtnText}>Clear</Text>
-                  </Pressable>
-                </View>
               </View>
             ) : null}
 
@@ -600,6 +632,7 @@ export function TillReconciliationScreen() {
 
       <IngestOverlay visible={ingestMutation.isPending} />
     </ScreenContainer>
+    </View>
   );
 }
 
@@ -1117,6 +1150,11 @@ const styles = StyleSheet.create({
   varianceValue: { fontFamily: appTheme.fonts.heading, fontSize: 20 },
   captureHint: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, lineHeight: 16, marginBottom: 10 },
   captureRow: { flexDirection: "row", gap: appTheme.spacing.sm },
+  pendingLabel: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, marginTop: 8 },
+  pendingStrip: { gap: 8, paddingVertical: 4, paddingRight: 8 },
+  pendingThumbWrap: { position: "relative" },
+  pendingThumb: { width: 64, height: 64, borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceMuted, borderWidth: 1, borderColor: appTheme.colors.borderSoft },
+  pendingRemove: { position: "absolute", top: -6, right: -6, backgroundColor: appTheme.colors.surface, borderRadius: 10 },
   captureBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingVertical: 13, paddingHorizontal: 12, borderRadius: appTheme.radius.md, borderWidth: 1 },
   captureBtnPrimary: { backgroundColor: appTheme.colors.primary, borderColor: appTheme.colors.primary },
   captureBtnOutline: { backgroundColor: appTheme.colors.surface, borderColor: appTheme.colors.primary },
@@ -1177,6 +1215,24 @@ const styles = StyleSheet.create({
   sectionTotalRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 2, paddingTop: 6, borderTopWidth: 1, borderTopColor: appTheme.colors.border },
   sectionTotalLabel: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   sectionTotal: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 14 },
+  screenWrap: { flex: 1 },
+  // Pinned to the top while lines are selected, so Move/Remove/Clear stay reachable.
+  stickySelectBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: appTheme.spacing.md,
+    paddingVertical: appTheme.spacing.sm,
+    backgroundColor: appTheme.colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: appTheme.colors.borderBrandSoft,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
+    zIndex: 10,
+  },
   selectBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderColor: appTheme.colors.primary, borderWidth: 1 },
   selectCount: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
   selectActions: { flexDirection: "row", gap: appTheme.spacing.sm },
