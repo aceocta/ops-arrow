@@ -101,6 +101,7 @@ export type MainStackParamList = {
   TillsConfig: undefined;
   PaymentTypesConfig: undefined;
   TillGroupsConfig: undefined;
+  TillLineReport: undefined;
   TillReportReview: { reportId: string };
   TillReportHistory: undefined;
   TillReconciliation: undefined;

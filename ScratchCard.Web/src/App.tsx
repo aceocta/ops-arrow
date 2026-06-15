@@ -25,6 +25,7 @@ const TillReconciliationPage = lazy(() => import("./features/till/TillReconcilia
 const TillsPage = lazy(() => import("./features/till/TillsPage"));
 const TillCataloguePage = lazy(() => import("./features/till/TillCataloguePage"));
 const TillGroupsPage = lazy(() => import("./features/till/TillGroupsPage"));
+const TillLineReportPage = lazy(() => import("./features/till/TillLineReportPage"));
 const SignupPage = lazy(() => import("./auth/SignupPage"));
 const CompanySetupPage = lazy(() => import("./features/setup/CompanySetupPage"));
 
@@ -86,6 +87,7 @@ export default function App() {
         <Route path="/till/tills" element={<Suspense fallback={<Fallback />}><TillsPage /></Suspense>} />
         <Route path="/till/catalogue" element={<Suspense fallback={<Fallback />}><TillCataloguePage /></Suspense>} />
         <Route path="/till/groups" element={<Suspense fallback={<Fallback />}><TillGroupsPage /></Suspense>} />
+        <Route path="/till/report" element={<Suspense fallback={<Fallback />}><TillLineReportPage /></Suspense>} />
         <Route path="/settings" element={<Suspense fallback={<Fallback />}><SettingsPage /></Suspense>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

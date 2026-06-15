@@ -49,6 +49,31 @@ export type Analytics = {
   staff: StaffAnalyticsRow[];
 };
 
+// ---- Per-field breakdown over a period ----
+export type FieldBreakdownRow = {
+  fieldCode: string;
+  fieldName: string;
+  groupCode: string;
+  groupName: string;
+  groupSort: number;
+  total: number;
+  lineCount: number;
+  quantityTotal: number;
+};
+export type FieldBreakdown = {
+  shopId: string;
+  from: string;
+  to: string;
+  rows: FieldBreakdownRow[];
+  grandTotal: number;
+};
+export type FieldBreakdownEntry = {
+  reconciliationId: string;
+  businessDate: string;
+  amount: number;
+  quantity?: number | null;
+};
+
 // ---- Single reconciliation detail (drill-down) ----
 export type ReconLine = {
   id: string;
@@ -85,6 +110,14 @@ export const tillReconApi = {
     unwrap<Rollup>((await api.get("/till-reconciliation/rollup", { params: { shopId, date } })).data),
   analytics: async (shopId: string, from: string, to: string) =>
     unwrap<Analytics>((await api.get("/till-reconciliation/analytics", { params: { shopId, from, to } })).data),
+  fieldBreakdown: async (shopId: string, from: string, to: string, fields?: string[]) =>
+    unwrap<FieldBreakdown>((await api.get("/till-reconciliation/field-breakdown", {
+      params: { shopId, from, to, fields: fields && fields.length > 0 ? fields.join(",") : undefined },
+    })).data),
+  fieldBreakdownEntries: async (shopId: string, from: string, to: string, field: string) =>
+    unwrap<FieldBreakdownEntry[]>((await api.get("/till-reconciliation/field-breakdown/entries", {
+      params: { shopId, from, to, field },
+    })).data),
   get: async (id: string) =>
     unwrap<Reconciliation>((await api.get(`/till-reconciliation/${id}`)).data),
   attachment: async (attachmentId: string) =>

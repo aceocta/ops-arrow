@@ -40,6 +40,12 @@ public interface ITillReconciliationService
     /// <summary>Phase 2: per-staff variance/exception analytics over a date range (loss prevention).</summary>
     Task<TillAnalyticsDto> GetAnalyticsAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
 
+    /// <summary>Per-field totals over a period (optionally filtered to specific field codes).</summary>
+    Task<TillFieldBreakdownDto> GetFieldBreakdownAsync(Guid shopId, DateOnly from, DateOnly to, IReadOnlyCollection<string>? fieldCodes, CancellationToken cancellationToken = default);
+
+    /// <summary>The reconciliation lines that make up one field's total over a period (drill-down).</summary>
+    Task<IReadOnlyCollection<TillFieldBreakdownEntryDto>> GetFieldBreakdownEntriesAsync(Guid shopId, DateOnly from, DateOnly to, string fieldCode, CancellationToken cancellationToken = default);
+
     /// <summary>Returns a captured photo as a data URL (base64) for viewing/download.</summary>
     Task<string?> GetAttachmentContentAsync(Guid attachmentId, CancellationToken cancellationToken = default);
 }

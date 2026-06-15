@@ -177,6 +177,37 @@ public class TillAnalyticsDto
     public List<TillStaffAnalyticsRow> Staff { get; set; } = new();
 }
 
+// Per-field totals over a period (e.g. how much went through Void / Discount / Drive-off).
+public class TillFieldBreakdownRow
+{
+    public string FieldCode { get; set; } = string.Empty;
+    public string FieldName { get; set; } = string.Empty;
+    public string GroupCode { get; set; } = string.Empty;
+    public string GroupName { get; set; } = string.Empty;
+    public int GroupSort { get; set; }
+    public decimal Total { get; set; }
+    public int LineCount { get; set; }
+    public int QuantityTotal { get; set; }
+}
+
+public class TillFieldBreakdownDto
+{
+    public Guid ShopId { get; set; }
+    public DateOnly From { get; set; }
+    public DateOnly To { get; set; }
+    public List<TillFieldBreakdownRow> Rows { get; set; } = new();
+    public decimal GrandTotal { get; set; }
+}
+
+// One reconciliation line that contributed to a field's total (drill-down).
+public class TillFieldBreakdownEntryDto
+{
+    public Guid ReconciliationId { get; set; }
+    public DateOnly BusinessDate { get; set; }
+    public decimal Amount { get; set; }
+    public int? Quantity { get; set; }
+}
+
 public class TillReconciliationDto
 {
     public Guid Id { get; set; }

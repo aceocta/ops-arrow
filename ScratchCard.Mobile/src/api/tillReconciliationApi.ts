@@ -236,6 +236,47 @@ export async function getReconciliationRollup(shopId: string, date: string) {
   return response.data.data;
 }
 
+// --- Per-field breakdown over a period (manager report) ---
+export type TillFieldBreakdownRow = {
+  fieldCode: FieldCode;
+  fieldName: string;
+  groupCode: string;
+  groupName: string;
+  groupSort: number;
+  total: number;
+  lineCount: number;
+  quantityTotal: number;
+};
+
+export type TillFieldBreakdown = {
+  shopId: string;
+  from: string;
+  to: string;
+  rows: TillFieldBreakdownRow[];
+  grandTotal: number;
+};
+
+export type TillFieldBreakdownEntry = {
+  reconciliationId: string;
+  businessDate: string;
+  amount: number;
+  quantity?: number | null;
+};
+
+export async function getTillFieldBreakdown(shopId: string, from: string, to: string, fieldCodes?: string[]) {
+  const response = await apiClient.get<ApiResponse<TillFieldBreakdown>>("/till-reconciliation/field-breakdown", {
+    params: { shopId, from, to, fields: fieldCodes && fieldCodes.length > 0 ? fieldCodes.join(",") : undefined },
+  });
+  return response.data.data;
+}
+
+export async function getTillFieldBreakdownEntries(shopId: string, from: string, to: string, fieldCode: string) {
+  const response = await apiClient.get<ApiResponse<TillFieldBreakdownEntry[]>>("/till-reconciliation/field-breakdown/entries", {
+    params: { shopId, from, to, field: fieldCode },
+  });
+  return response.data.data;
+}
+
 export type FieldOptionGroup = { group: string; fields: { value: FieldCode; label: string }[] };
 
 // Active fields for the manual picker, loaded from the data-driven catalogue (built-in + custom).

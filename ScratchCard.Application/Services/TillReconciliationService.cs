@@ -596,6 +596,73 @@ public sealed class TillReconciliationService : ITillReconciliationService
         return dto;
     }
 
+    public async Task<TillFieldBreakdownDto> GetFieldBreakdownAsync(Guid shopId, DateOnly from, DateOnly to, IReadOnlyCollection<string>? fieldCodes, CancellationToken cancellationToken = default)
+    {
+        await EnsureAccessAsync(shopId, ManagementRoles, FeatureKeys.StoreSalesDashboard, cancellationToken);
+        var recs = await Query()
+            .Where(r => r.ShopId == shopId && r.BusinessDate >= from && r.BusinessDate <= to)
+            .ToListAsync(cancellationToken);
+
+        var fo = await LoadFieldOverridesAsync(shopId, cancellationToken);
+        var groups = await LoadGroupCatalogueAsync(shopId, cancellationToken);
+        var wanted = fieldCodes is { Count: > 0 }
+            ? new HashSet<string>(fieldCodes, StringComparer.OrdinalIgnoreCase)
+            : null;
+
+        var lines = recs.SelectMany(r => r.Lines)
+            .Where(l => l.FieldCode != nameof(TillCanonicalField.SubtotalIgnore))
+            .Where(l => wanted is null || wanted.Contains(l.FieldCode));
+
+        var rows = lines
+            .GroupBy(l => l.FieldCode)
+            .Select(g =>
+            {
+                var meta = TillCanonicalCatalogue.MetaByCode(g.Key, fo);
+                var (groupName, groupSort) = groups.TryGetValue(meta.GroupCode, out var gm) ? gm : (meta.GroupCode, int.MaxValue);
+                return new TillFieldBreakdownRow
+                {
+                    FieldCode = g.Key,
+                    FieldName = meta.DisplayName,
+                    GroupCode = meta.GroupCode,
+                    GroupName = groupName,
+                    GroupSort = groupSort,
+                    Total = g.Sum(l => l.VerifiedAmount),
+                    LineCount = g.Count(),
+                    QuantityTotal = g.Sum(l => l.Quantity ?? 0),
+                };
+            })
+            .OrderByDescending(r => r.Total)
+            .ToList();
+
+        return new TillFieldBreakdownDto
+        {
+            ShopId = shopId,
+            From = from,
+            To = to,
+            Rows = rows,
+            GrandTotal = rows.Sum(r => r.Total),
+        };
+    }
+
+    public async Task<IReadOnlyCollection<TillFieldBreakdownEntryDto>> GetFieldBreakdownEntriesAsync(Guid shopId, DateOnly from, DateOnly to, string fieldCode, CancellationToken cancellationToken = default)
+    {
+        await EnsureAccessAsync(shopId, ManagementRoles, FeatureKeys.StoreSalesDashboard, cancellationToken);
+        var recs = await Query()
+            .Where(r => r.ShopId == shopId && r.BusinessDate >= from && r.BusinessDate <= to)
+            .ToListAsync(cancellationToken);
+
+        return recs
+            .SelectMany(r => r.Lines.Where(l => l.FieldCode == fieldCode).Select(l => new TillFieldBreakdownEntryDto
+            {
+                ReconciliationId = r.Id,
+                BusinessDate = r.BusinessDate,
+                Amount = l.VerifiedAmount,
+                Quantity = l.Quantity,
+            }))
+            .OrderByDescending(e => e.BusinessDate)
+            .ToList();
+    }
+
     public async Task<string?> GetAttachmentContentAsync(Guid attachmentId, CancellationToken cancellationToken = default)
     {
         var att = await _attachments.Query().FirstOrDefaultAsync(a => a.Id == attachmentId, cancellationToken)

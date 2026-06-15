@@ -96,6 +96,20 @@ public class TillReconciliationController : BaseApiController
     public async Task<IActionResult> Analytics([FromQuery] Guid shopId, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken cancellationToken)
         => Success(await _service.GetAnalyticsAsync(shopId, from, to, cancellationToken));
 
+    // Per-field totals over a period. `fields` = comma-separated field codes (empty = all).
+    [HttpGet("field-breakdown")]
+    public async Task<IActionResult> FieldBreakdown([FromQuery] Guid shopId, [FromQuery] DateOnly from, [FromQuery] DateOnly to, [FromQuery] string? fields, CancellationToken cancellationToken)
+    {
+        var codes = string.IsNullOrWhiteSpace(fields)
+            ? null
+            : fields.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return Success(await _service.GetFieldBreakdownAsync(shopId, from, to, codes, cancellationToken));
+    }
+
+    [HttpGet("field-breakdown/entries")]
+    public async Task<IActionResult> FieldBreakdownEntries([FromQuery] Guid shopId, [FromQuery] DateOnly from, [FromQuery] DateOnly to, [FromQuery] string field, CancellationToken cancellationToken)
+        => Success(await _service.GetFieldBreakdownEntriesAsync(shopId, from, to, field, cancellationToken));
+
     [HttpGet("attachments/{attachmentId:guid}/content")]
     public async Task<IActionResult> AttachmentContent(Guid attachmentId, CancellationToken cancellationToken)
         => Success(await _service.GetAttachmentContentAsync(attachmentId, cancellationToken));

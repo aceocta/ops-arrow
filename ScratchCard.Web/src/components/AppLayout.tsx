@@ -30,6 +30,7 @@ import {
   Menu,
   X,
   Layers,
+  BarChart3,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -76,6 +77,7 @@ const NAV: NavGroup[] = [
       { to: "/till", label: "Reconciliation", icon: Receipt, feature: "store_sales.dashboard" },
       { to: "/till/tills", label: "Tills", icon: Calculator, feature: "store_sales.dashboard" },
       { to: "/till/groups", label: "Groups", icon: Layers, feature: "store_sales.dashboard" },
+      { to: "/till/report", label: "Line report", icon: BarChart3, feature: "store_sales.dashboard" },
       { to: "/till/catalogue", label: "Field Catalogue", icon: ListTree, role: "PlatformAdmin" },
     ],
   },
