@@ -1,4 +1,4 @@
-import React, { forwardRef, useCallback, useImperativeHandle, useMemo, useState } from "react";
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { StyleSheet, View, ViewStyle } from "react-native";
 import { Canvas, Fill, Path, Skia, SkPath, useCanvasRef } from "@shopify/react-native-skia";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -54,23 +54,31 @@ export const SignaturePad = forwardRef<SignaturePadRef, Props>(function Signatur
   const canvasRef = useCanvasRef();
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [current, setCurrent] = useState<Stroke | null>(null);
+  // Mirror of the active stroke so finalize can read it synchronously without nesting setState calls.
+  const currentRef = useRef<Stroke | null>(null);
 
-  const begin = useCallback((x: number, y: number) => setCurrent([{ x, y }]), []);
+  // Report the count from an effect — never from inside a setState updater (that runs during render
+  // and would update the parent mid-render → "Cannot update a component while rendering another").
+  useEffect(() => {
+    onStrokeCountChange?.(strokes.length);
+  }, [strokes.length, onStrokeCountChange]);
+
+  const begin = useCallback((x: number, y: number) => {
+    const s: Stroke = [{ x, y }];
+    currentRef.current = s;
+    setCurrent(s);
+  }, []);
   const move = useCallback((x: number, y: number) => {
-    setCurrent((prev) => (prev ? [...prev, { x, y }] : [{ x, y }]));
+    const s: Stroke = [...(currentRef.current ?? []), { x, y }];
+    currentRef.current = s;
+    setCurrent(s);
   }, []);
   const finalize = useCallback(() => {
-    setCurrent((prev) => {
-      if (prev && prev.length > 0) {
-        setStrokes((s) => {
-          const next = [...s, prev];
-          onStrokeCountChange?.(next.length);
-          return next;
-        });
-      }
-      return null;
-    });
-  }, [onStrokeCountChange]);
+    const s = currentRef.current;
+    currentRef.current = null;
+    setCurrent(null);
+    if (s && s.length > 0) setStrokes((prev) => [...prev, s]);
+  }, []);
 
   // minDistance 0 so a quick dot/short stroke still registers.
   const pan = useMemo(
@@ -97,26 +105,20 @@ export const SignaturePad = forwardRef<SignaturePadRef, Props>(function Signatur
     ref,
     () => ({
       clear: () => {
+        currentRef.current = null;
         setStrokes([]);
         setCurrent(null);
-        onStrokeCountChange?.(0);
       },
-      undo: () => {
-        setStrokes((s) => {
-          const next = s.slice(0, -1);
-          onStrokeCountChange?.(next.length);
-          return next;
-        });
-      },
-      isEmpty: () => strokes.length === 0 && (current?.length ?? 0) === 0,
+      undo: () => setStrokes((s) => s.slice(0, -1)),
+      isEmpty: () => strokes.length === 0 && (currentRef.current?.length ?? 0) === 0,
       toDataUrl: () => {
-        if (strokes.length === 0 && (current?.length ?? 0) === 0) return null;
+        if (strokes.length === 0 && (currentRef.current?.length ?? 0) === 0) return null;
         const image = canvasRef.current?.makeImageSnapshot();
         if (!image) return null;
         return `data:image/png;base64,${image.encodeToBase64()}`;
       },
     }),
-    [strokes, current, onStrokeCountChange, canvasRef],
+    [strokes, canvasRef],
   );
 
   return (

@@ -39,6 +39,16 @@ const productSuggestions = [
   "PEGI 16 Game/DVD",
 ];
 
+// Common refusal reasons — quick-add into Observations.
+const refusalReasons = [
+  "No ID",
+  "Underage",
+  "Failed Challenge 25",
+  "Intoxicated",
+  "Proxy / agency sale",
+  "No reason given",
+];
+
 function escapeHtml(value: string) {
   return value
     .replaceAll("&", "&amp;")
@@ -355,6 +365,30 @@ export function RefusalRegisterScreen() {
   };
   const refusalDateTimeValue = `${selectedDate} ${refusalTime}`;
 
+  // Required-field state drives the Save button + the "what's needed" footer hint.
+  const hasProduct = product.trim().length > 0;
+  const hasDescription = personDescription.trim().length > 0;
+  const hasSignature = signatureDataUrl.trim().length > 0;
+  const canSave = Boolean(shopId) && hasProduct && hasDescription && hasSignature && !recordMutation.isPending;
+  const missing = [
+    !hasProduct ? "product" : null,
+    !hasDescription ? "description" : null,
+    !hasSignature ? "signature" : null,
+  ].filter(Boolean) as string[];
+
+  // Reason quick-picks toggle into Observations (no dedicated field yet), " · "-separated.
+  const reasonActive = (reason: string) =>
+    observations.split("·").map((s) => s.trim().toLowerCase()).includes(reason.toLowerCase());
+  const toggleReason = (reason: string) => {
+    setObservations((cur) => {
+      const parts = cur.split("·").map((s) => s.trim()).filter(Boolean);
+      const idx = parts.findIndex((p) => p.toLowerCase() === reason.toLowerCase());
+      if (idx >= 0) parts.splice(idx, 1);
+      else parts.push(reason);
+      return parts.join(" · ");
+    });
+  };
+
   const buildReportHtml = async () => {
     const reportEntries = await Promise.all(
       entries.map(async (entry) => {
@@ -436,28 +470,36 @@ export function RefusalRegisterScreen() {
   return (
     <ScreenContainer
       footer={
-        <View style={styles.signFooter}>
-          <Pressable
-            style={[styles.signFooterBtn, signatureDataUrl ? styles.signFooterBtnDone : null]}
-            onPress={openSignatureModal}
-            accessibilityRole="button"
-            accessibilityLabel={signatureDataUrl ? "Re-sign" : "Sign"}
-          >
-            <Ionicons
-              name={signatureDataUrl ? "checkmark-circle" : "create-outline"}
-              size={18}
-              color={signatureDataUrl ? appTheme.colors.success : appTheme.colors.primary}
-            />
-            <Text style={[styles.signFooterBtnText, signatureDataUrl ? styles.signFooterBtnTextDone : null]}>
-              {signatureDataUrl ? "Signed" : "Sign"}
-            </Text>
-          </Pressable>
-          <View style={{ flex: 1 }}>
-            <PrimaryButton
-              label={recordMutation.isPending ? "Saving…" : "Save refusal entry"}
-              onPress={() => recordMutation.mutate()}
-              disabled={recordMutation.isPending || !shopId || !signatureDataUrl.trim()}
-            />
+        <View style={styles.footerWrap}>
+          {missing.length > 0 ? (
+            <View style={styles.footerHintRow}>
+              <Ionicons name="information-circle-outline" size={14} color={appTheme.colors.textMuted} />
+              <Text style={styles.footerHint}>Add {missing.join(", ")} to save</Text>
+            </View>
+          ) : null}
+          <View style={styles.signFooter}>
+            <Pressable
+              style={[styles.signFooterBtn, hasSignature ? styles.signFooterBtnDone : null]}
+              onPress={openSignatureModal}
+              accessibilityRole="button"
+              accessibilityLabel={hasSignature ? "Re-sign" : "Sign"}
+            >
+              <Ionicons
+                name={hasSignature ? "checkmark-circle" : "create-outline"}
+                size={18}
+                color={hasSignature ? appTheme.colors.success : appTheme.colors.primary}
+              />
+              <Text style={[styles.signFooterBtnText, hasSignature ? styles.signFooterBtnTextDone : null]}>
+                {hasSignature ? "Signed" : "Sign"}
+              </Text>
+            </Pressable>
+            <View style={{ flex: 1 }}>
+              <PrimaryButton
+                label={recordMutation.isPending ? "Saving…" : "Save refusal entry"}
+                onPress={() => recordMutation.mutate()}
+                disabled={!canSave}
+              />
+            </View>
           </View>
         </View>
       }
@@ -486,9 +528,14 @@ export function RefusalRegisterScreen() {
         </View>
       </View> */}
 
+      {/* Section 1 — what was refused */}
       <View style={ui.card}>
-        {/* <Text style={styles.sectionTitle}>Refusal</Text> */}
-        {/* <Text style={styles.sectionSubtitle}>Record refusal details and capture a staff signature.</Text> */}
+        <View style={styles.sectionHeader}>
+          <Ionicons name="hand-left-outline" size={18} color={appTheme.colors.primary} />
+          <Text style={styles.sectionTitle}>Refusal details</Text>
+        </View>
+
+        <Text style={styles.fieldLabel}>Date &amp; time</Text>
         <View style={styles.dateNavRow}>
           <Pressable
             style={styles.dateNavButton}
@@ -523,7 +570,7 @@ export function RefusalRegisterScreen() {
         </View>
 
         <FloatingLabelInput
-          label="Refused product"
+          label="Refused product *"
           value={product}
           onChangeText={setProduct}
           returnKeyType="next"
@@ -542,7 +589,7 @@ export function RefusalRegisterScreen() {
           ))}
         </ScrollView>
 
-        <Text style={styles.fieldLabel}>Description</Text>
+        <Text style={[styles.fieldLabel, styles.required]}>Person description *</Text>
         <TextInput
           ref={personDescriptionRef}
           style={[styles.input, styles.textArea]}
@@ -554,6 +601,22 @@ export function RefusalRegisterScreen() {
           textAlignVertical="top"
         />
 
+        <Text style={styles.fieldLabel}>Reason (tap to add)</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+          {refusalReasons.map((reason) => {
+            const active = reasonActive(reason);
+            return (
+              <Pressable
+                key={reason}
+                style={[styles.chip, active ? styles.chipSelected : null]}
+                onPress={() => toggleReason(reason)}
+              >
+                <Text style={[styles.chipText, active ? styles.chipTextSelected : null]}>{reason}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
         <Text style={styles.fieldLabel}>Observations</Text>
         <TextInput
           style={[styles.input, styles.textArea]}
@@ -564,6 +627,14 @@ export function RefusalRegisterScreen() {
           multiline
           textAlignVertical="top"
         />
+      </View>
+
+      {/* Section 2 — who recorded it */}
+      <View style={ui.card}>
+        <View style={styles.sectionHeader}>
+          <Ionicons name="person-outline" size={18} color={appTheme.colors.primary} />
+          <Text style={styles.sectionTitle}>Recorded by</Text>
+        </View>
 
         <FloatingLabelInput
           ref={staffRef}
@@ -574,9 +645,9 @@ export function RefusalRegisterScreen() {
           returnKeyType="done"
         />
 
-        <Text style={styles.fieldLabel}>Staff Signature</Text>
+        <Text style={styles.fieldLabel}>Signature *</Text>
         <Pressable
-          style={styles.signaturePreviewCard}
+          style={[styles.signaturePreviewCard, !hasSignature ? styles.signatureMissing : null]}
           onPress={openSignatureModal}
           accessibilityRole="button"
           accessibilityLabel={signatureDataUrl ? "Tap to re-sign" : "Tap to sign"}
@@ -604,40 +675,47 @@ export function RefusalRegisterScreen() {
           />
         ) : null}
         {entries.map((entry) => (
-          <View key={entry.id} style={styles.entryItem}>
-            <View style={styles.entryHeaderTop}>
-              <View style={styles.entryTopRow}>
-                <Text style={styles.entryNo}>No. {entry.sequenceNo}</Text>
+          <Pressable
+            key={entry.id}
+            style={styles.entryItem}
+            onPress={() => navigation.navigate("RefusalEntryDetails", { entryId: entry.id })}
+            accessibilityRole="button"
+            accessibilityLabel={`View refusal ${entry.sequenceNo}`}
+          >
+            {/* Title row: product + time, with the sequence number as a leading badge */}
+            <View style={styles.entryTopRow}>
+              <View style={styles.entrySeq}><Text style={styles.entrySeqText}>{entry.sequenceNo}</Text></View>
+              <Text style={styles.entryProduct} numberOfLines={1}>{entry.product}</Text>
+              <View style={styles.entryTimePill}>
+                <Ionicons name="time-outline" size={12} color={appTheme.colors.textMuted} />
                 <Text style={styles.entryTime}>{entry.refusalTime || "--:--"}</Text>
               </View>
-              <View style={styles.entryBadgeRow}>
-                <StatusBadge label={entry.signatureImagePath ? "Signed" : "No Signature"} tone={entry.signatureImagePath ? "success" : "danger"} />
-                <StatusBadge
-                  label={entry.reviewedOn ? "Reviewed" : "Pending Review"}
-                  tone={entry.reviewedOn ? "success" : "warning"}
-                />
-              </View>
             </View>
-            <Text style={styles.entryProduct}>{entry.product}</Text>
-            <Text style={styles.meta}>Person: {entry.personDescription}</Text>
-            {entry.observations ? <Text style={styles.meta}>Obs: {entry.observations}</Text> : null}
-            <Text style={styles.meta}>Staff: {getStaffDisplayName(entry)}</Text>
-            <Text style={styles.meta}>Manager Review: {entry.reviewedOn ? `Reviewed by ${entry.reviewedByName ?? "-"}` : "Pending"}</Text>
-            <View style={styles.entryActions}>
+
+            {entry.personDescription ? <Text style={styles.entryDesc} numberOfLines={2}>{entry.personDescription}</Text> : null}
+            {entry.observations ? <Text style={styles.entryObs} numberOfLines={2}>{entry.observations}</Text> : null}
+
+            <View style={styles.entryBadgeRow}>
+              <StatusBadge label={entry.signatureImagePath ? "Signed" : "No signature"} tone={entry.signatureImagePath ? "success" : "danger"} />
+              <StatusBadge label={entry.reviewedOn ? "Reviewed" : "Pending review"} tone={entry.reviewedOn ? "success" : "warning"} />
+            </View>
+
+            <View style={styles.entryFooterRow}>
+              <Text style={styles.entryStaff} numberOfLines={1}>
+                {getStaffDisplayName(entry)}{entry.reviewedOn ? ` · reviewed by ${entry.reviewedByName ?? "-"}` : ""}
+              </Text>
               <Pressable
-                style={styles.rowActionButton}
-                onPress={() => navigation.navigate("RefusalEntryDetails", { entryId: entry.id })}
-              >
-                <Text style={styles.rowActionButtonText}>View details</Text>
-              </Pressable>
-              <Pressable
-                style={styles.rowActionButton}
+                style={styles.entryEditBtn}
+                hitSlop={8}
                 onPress={() => navigation.navigate("RefusalEntryEdit", { entryId: entry.id })}
+                accessibilityRole="button"
+                accessibilityLabel={`Edit refusal ${entry.sequenceNo}`}
               >
-                <Text style={styles.rowActionButtonText}>Edit</Text>
+                <Ionicons name="create-outline" size={15} color={appTheme.colors.primary} />
+                <Text style={styles.entryEditText}>Edit</Text>
               </Pressable>
             </View>
-          </View>
+          </Pressable>
         ))}
       </View>
 
@@ -909,8 +987,41 @@ const styles = StyleSheet.create({
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceMuted,
     padding: appTheme.spacing.sm,
-    gap: 3,
+    gap: 6,
+    marginBottom: appTheme.spacing.xs,
   },
+  entrySeq: {
+    minWidth: 24,
+    height: 22,
+    paddingHorizontal: 6,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surfaceBrandMuted,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  entrySeqText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
+  entryTimePill: { flexDirection: "row", alignItems: "center", gap: 3 },
+  entryDesc: { color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 13, lineHeight: 18 },
+  entryObs: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, lineHeight: 16 },
+  entryFooterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    marginTop: 2,
+    paddingTop: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: appTheme.colors.borderSoft,
+  },
+  entryStaff: { flex: 1, color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12 },
+  entryEditBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4, paddingHorizontal: 8, borderRadius: appTheme.radius.pill, backgroundColor: appTheme.colors.surfaceBrandMuted },
+  entryEditText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
+  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 },
+  required: {},
+  signatureMissing: { borderWidth: 1, borderStyle: "dashed", borderColor: appTheme.colors.borderStrong },
+  footerWrap: { gap: 8 },
+  footerHintRow: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "center" },
+  footerHint: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12 },
   entryHeaderTop: {
     gap: appTheme.spacing.xs,
   },
@@ -938,6 +1049,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   entryProduct: {
+    flex: 1,
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 14,

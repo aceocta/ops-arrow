@@ -74,7 +74,8 @@
       "Bash(node -e \"const p=require\\('./package.json'\\);const d={...p.dependencies};const keys=Object.keys\\(d\\).filter\\(k=>/signature|skia|orientation|gesture|reanimated|svg|webview/i.test\\(k\\)\\);keys.forEach\\(k=>console.log\\(k, d[k]\\)\\);\")",
       "Bash(node -e \"console.log\\('skia', require\\('./package.json'\\).dependencies['@shopify/react-native-skia']\\)\")",
       "Bash(node -e \"try{const s=require\\('@shopify/react-native-skia'\\);console.log\\(['Canvas','Path','Skia','useCanvasRef','Group','Fill','Rect'].map\\(k=>k+':'+\\(k in s\\)\\).join\\(' '\\)\\)}catch\\(e\\){console.log\\('require failed \\(native, expected in node\\):', e.message.split\\('\\\\n'\\)[0]\\)}\")",
-      "Bash(grep -n \"Ionicons\\\\|openSignatureModal\\\\|import.*appTheme\\\\|import.*{ ui }\\\\|from \\\\\"../../ui\" features/refusals/RefusalRegisterScreen.tsx)"
+      "Bash(grep -n \"Ionicons\\\\|openSignatureModal\\\\|import.*appTheme\\\\|import.*{ ui }\\\\|from \\\\\"../../ui\" features/refusals/RefusalRegisterScreen.tsx)",
+      "Bash(xargs grep -l \"footer=\")"
     ]
   }
 }
