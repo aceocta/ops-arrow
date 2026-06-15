@@ -56,6 +56,9 @@ public class ReportsController : BaseApiController
     }
 
     [HttpGet("temperature-schedule-grid")]
+    // Overrides the controller-level OwnerAndManager gate: the temperature report grid is a read-only
+    // view cashiers and sales assistants are allowed to see (same as the daily temperature log).
+    [Authorize(Roles = RoleNames.OperationalRoles)]
     public async Task<IActionResult> TemperatureScheduleGrid(
         [FromQuery] Guid shopId,
         [FromQuery] DateOnly from,

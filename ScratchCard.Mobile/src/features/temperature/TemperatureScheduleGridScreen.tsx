@@ -148,6 +148,9 @@ function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
   const { showTiming, showReadingTime, showRange } = useTemperatureDisplaySettings();
   const [selected, setSelected] = React.useState<SelectedCell | null>(null);
   const [emailing, setEmailing] = React.useState(false);
+  // Emailing the report uses a manager-only backend endpoint; cashiers / sales assistants can still
+  // view, print and share. Hide the Email action for them so they don't hit a 403.
+  const canEmailReport = (profile?.roles ?? []).some((r) => r === "PlatformAdmin" || r === "CompanyOwner" || r === "Manager");
 
   const cellsByKey = React.useMemo(() => {
     const map = new Map<string, TemperatureScheduleGridCell>();
@@ -288,7 +291,9 @@ function ScheduleGridReport({ grid }: { grid: TemperatureScheduleGrid }) {
         <ReportActionBar
           actions={[
             { icon: "print-outline", label: "Print", onPress: () => void printReport(), disabled: actionsDisabled },
-            { icon: "mail-outline", label: emailing ? "Sending…" : "Email", onPress: () => void emailReport(), disabled: actionsDisabled || emailing },
+            ...(canEmailReport
+              ? [{ icon: "mail-outline" as const, label: emailing ? "Sending…" : "Email", onPress: () => void emailReport(), disabled: actionsDisabled || emailing }]
+              : []),
             { icon: "share-social-outline", label: "Share", onPress: () => void shareReport(), disabled: actionsDisabled },
           ]}
         />
