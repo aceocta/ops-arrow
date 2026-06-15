@@ -432,7 +432,7 @@ export function TillReconciliationScreen() {
                   ))}
                 </ScrollView>
                 <PrimaryButton
-                  label={ingestMutation.isPending ? "Reading…" : `Read ${pending.length} photo${pending.length === 1 ? "" : "s"}`}
+                  label={ingestMutation.isPending ? "Scanning…" : `Scan ${pending.length} photo${pending.length === 1 ? "" : "s"}`}
                   onPress={() => ingestMutation.mutate(pending)}
                   disabled={ingestMutation.isPending}
                 />
