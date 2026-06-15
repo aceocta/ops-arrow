@@ -766,7 +766,7 @@ function Row({ k, v, muted }: { k: string; v: string; muted?: boolean }) {
 function AttachmentsCard({ attachments, locked, removing, onRemovePhoto }: {
   attachments: ReconciliationAttachment[]; locked: boolean; removing: boolean; onRemovePhoto: (attachmentId: string) => void;
 }) {
-  const [viewing, setViewing] = useState<ReconciliationAttachment | null>(null);
+  const [viewIndex, setViewIndex] = useState<number | null>(null);
   const shown = attachments.slice(0, 3);
   const extra = attachments.length - shown.length;
 
@@ -775,7 +775,7 @@ function AttachmentsCard({ attachments, locked, removing, onRemovePhoto }: {
       title: "Remove this photo?",
       message: "The photo and the lines its scan added will be removed. Lines you added or edited yourself stay.",
     });
-    if (ok) { onRemovePhoto(att.id); setViewing(null); }
+    if (ok) { onRemovePhoto(att.id); setViewIndex(null); }
   }
 
   return (
@@ -783,20 +783,23 @@ function AttachmentsCard({ attachments, locked, removing, onRemovePhoto }: {
       <Ionicons name="images-outline" size={15} color={appTheme.colors.textMuted} />
       <Text style={styles.attachLabel}>Captured ({attachments.length})</Text>
       <View style={styles.attachThumbs}>
-        {shown.map((a) => <AttachmentThumb key={a.id} attachment={a} size={34} onPress={() => setViewing(a)} />)}
+        {shown.map((a, i) => <AttachmentThumb key={a.id} attachment={a} size={34} onPress={() => setViewIndex(i)} />)}
         {extra > 0 ? (
-          <Pressable style={styles.attachMore} onPress={() => setViewing(attachments[shown.length])}>
+          // Opens the gallery at the first hidden photo; page through all of them from there.
+          <Pressable style={styles.attachMore} onPress={() => setViewIndex(shown.length)}>
             <Text style={styles.attachMoreText}>+{extra}</Text>
           </Pressable>
         ) : null}
       </View>
-      {viewing ? (
+      {viewIndex != null && attachments[viewIndex] ? (
         <ImageViewerModal
-          attachment={viewing}
-          onClose={() => setViewing(null)}
+          attachments={attachments}
+          index={viewIndex}
+          onIndexChange={setViewIndex}
+          onClose={() => setViewIndex(null)}
           canRemove={!locked}
           removing={removing}
-          onRemove={() => confirmRemove(viewing)}
+          onRemove={() => confirmRemove(attachments[viewIndex])}
         />
       ) : null}
     </View>
@@ -824,9 +827,12 @@ function AttachmentThumb({ attachment, onPress, size = 56 }: { attachment: Recon
   );
 }
 
-function ImageViewerModal({ attachment, onClose, canRemove, removing, onRemove }: {
-  attachment: ReconciliationAttachment; onClose: () => void; canRemove?: boolean; removing?: boolean; onRemove?: () => void;
+function ImageViewerModal({ attachments, index, onIndexChange, onClose, canRemove, removing, onRemove }: {
+  attachments: ReconciliationAttachment[]; index: number; onIndexChange: (i: number) => void;
+  onClose: () => void; canRemove?: boolean; removing?: boolean; onRemove?: () => void;
 }) {
+  const total = attachments.length;
+  const attachment = attachments[index];
   const q = useAttachmentData(attachment.id);
   const [busy, setBusy] = useState(false);
 
@@ -859,7 +865,9 @@ function ImageViewerModal({ attachment, onClose, canRemove, removing, onRemove }
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <GestureHandlerRootView style={styles.viewerBackdrop}>
         <View style={styles.viewerHeader}>
-          <Text style={styles.viewerTitle} numberOfLines={1}>{attachment.sourceLabel || attachment.fileName || "Image"}</Text>
+          <Text style={styles.viewerTitle} numberOfLines={1}>
+            {attachment.sourceLabel || attachment.fileName || "Image"}{total > 1 ? `  (${index + 1}/${total})` : ""}
+          </Text>
           <View style={styles.viewerActions}>
             {canRemove && onRemove ? (
               <Pressable onPress={onRemove} hitSlop={8} disabled={removing} style={styles.viewerAction}>
@@ -875,10 +883,22 @@ function ImageViewerModal({ attachment, onClose, canRemove, removing, onRemove }
           </View>
         </View>
         {q.data ? (
-          <ZoomableImage uri={q.data} />
+          // key resets zoom/pan when paging to another photo.
+          <ZoomableImage key={attachment.id} uri={q.data} />
         ) : (
           <View style={styles.viewerImg}><ActivityIndicator color="#fff" size="large" /></View>
         )}
+        {total > 1 ? (
+          <View style={styles.viewerPager}>
+            <Pressable onPress={() => onIndexChange(index - 1)} disabled={index === 0} hitSlop={10} style={styles.viewerPagerBtn}>
+              <Ionicons name="chevron-back" size={26} color={index === 0 ? appTheme.colors.textSubtle : "#fff"} />
+            </Pressable>
+            <Text style={styles.viewerPagerText}>{index + 1} / {total}</Text>
+            <Pressable onPress={() => onIndexChange(index + 1)} disabled={index >= total - 1} hitSlop={10} style={styles.viewerPagerBtn}>
+              <Ionicons name="chevron-forward" size={26} color={index >= total - 1 ? appTheme.colors.textSubtle : "#fff"} />
+            </Pressable>
+          </View>
+        ) : null}
         <Text style={styles.viewerHint}>Pinch to zoom · double-tap · drag to pan</Text>
       </GestureHandlerRootView>
     </Modal>
@@ -1195,6 +1215,9 @@ const styles = StyleSheet.create({
   viewerActions: { flexDirection: "row", gap: appTheme.spacing.md },
   viewerAction: { padding: 4 },
   viewerImg: { flex: 1, width: "100%", alignItems: "center", justifyContent: "center" },
+  viewerPager: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 24, paddingTop: 12 },
+  viewerPagerBtn: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.12)" },
+  viewerPagerText: { color: "#fff", fontFamily: appTheme.fonts.bodyMedium, fontSize: 15, minWidth: 56, textAlign: "center" },
   viewerHint: { textAlign: "center", color: "rgba(255,255,255,0.5)", fontFamily: appTheme.fonts.body, fontSize: 12, paddingVertical: 10 },
   verifyDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: appTheme.colors.warning },
   verifyHint: { color: appTheme.colors.warning, fontFamily: appTheme.fonts.body, fontSize: 11, marginTop: 2 },
