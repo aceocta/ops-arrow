@@ -51,6 +51,7 @@ import { ShiftDetailsScreen } from "../features/shifts/ShiftDetailsScreen";
 import { EnterClosingNumbersScreen } from "../features/scratch-card/EnterClosingNumbersScreen";
 import { PrizePayoutScreen } from "../features/prize-payouts/PrizePayoutScreen";
 import { DayEndCloseScreen } from "../features/day-close/DayEndCloseScreen";
+import { CloseDayScreen } from "../features/day-close/CloseDayScreen";
 import {
   DailySalesReportScreen,
   ShiftSalesReportScreen,
@@ -576,6 +577,7 @@ function MainStackScreens() {
         options={{ presentation: "modal", title: "Shift Reconciliation" }}
       />
       <Stack.Screen name="DayEndClose" component={DayEndCloseScreen} options={{ title: "Day Management" }} />
+      <Stack.Screen name="CloseDay" component={CloseDayScreen} options={{ title: "Close Day" }} />
       <Stack.Screen name="DailySalesReport" component={DailySalesReportScreen} options={{ title: "Daily Sales Report" }} />
       {/* <Stack.Screen name="ShiftSalesReport" component={ShiftSalesReportScreen} options={{ title: "Shift Sales Report" }} /> */}
       <Stack.Screen name="ManualClosingReview" component={ManualClosingReviewScreen} options={{ title: "Manual Entry Review" }} />

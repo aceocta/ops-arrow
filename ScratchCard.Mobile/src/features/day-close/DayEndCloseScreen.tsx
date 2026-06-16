@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Animated, Image, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Animated, Image, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -403,9 +403,10 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
   const [attachmentPreviewId, setAttachmentPreviewId] = useState<string | null>(null);
   const [newShiftName, setNewShiftName] = useState("");
   const [closeDayAttachments, setCloseDayAttachments] = useState<CloseAttachmentState[]>([]);
-  // After a successful day-close the next business day is always opened and the user is taken
-  // there. The previous opt-in checkbox was removed at product request — closing always rolls
-  // straight into the next day's trading.
+  // Whether closing the day should automatically open the next business day and roll the user
+  // straight into it. Defaults ON (the long-standing behaviour); turning it off closes the day
+  // only and leaves the user on the summary to open the next day manually later.
+  const [autoOpenNextDay, setAutoOpenNextDay] = useState(true);
   // scratch_card.attachments is Growth+. Starter shops see a compact upgrade notice in place
   // of the attachment uploader so they can still complete the close.
   const attachmentsFeature = useFeature("scratch_card.attachments");
@@ -487,6 +488,13 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       // camera/picker copies so the photos don't linger on a shared shop device.
       void Promise.allSettled(closeDayAttachments.map((attachment) => cleanupLocalImage(attachment.uri)));
       setCloseDayAttachments([]);
+
+      // Auto-open the next day only when the toggle is on. Off → just close and stay on the summary.
+      if (!autoOpenNextDay) {
+        Alert.alert("Closed", "Business day closed. Open the next day when you're ready.");
+        void dayQuery.refetch();
+        return;
+      }
 
       const shopId = closedDay?.shopId ?? day?.shopId;
       if (!shopId || !closedDay?.businessDate) {
@@ -1610,7 +1618,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
       {canClose ? (
         <PrimaryButton
           label={closeMutation.isPending ? "Closing…" : "Close day"}
-          onPress={() => setIsCloseDayModalVisible(true)}
+          onPress={() => navigation.navigate("CloseDay", { businessDayId, closedShiftCount, totalSales: summaryTotalSales })}
           disabled={hasOpenShifts || closeMutation.isPending}
         />
       ) : null}
@@ -2332,7 +2340,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           {canClose ? (
             <PrimaryButton
               label="Close Day"
-              onPress={() => setIsCloseDayModalVisible(true)}
+              onPress={() => navigation.navigate("CloseDay", { businessDayId, closedShiftCount, totalSales: summaryTotalSales })}
               disabled={hasOpenShifts}
             />
           ) : null}
@@ -2641,23 +2649,31 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
 
         <Modal
           visible={isCloseDayModalVisible}
-          transparent
-          animationType="fade"
+          animationType="slide"
           onRequestClose={() => setIsCloseDayModalVisible(false)}
         >
-          <KeyboardAvoidingView
-            style={styles.modalBackdrop}
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-          >
-            <ModalBackdropBlur />
-            <ScrollView
-              style={styles.closeDayModalScroll}
-              contentContainerStyle={styles.closeDayModalScrollContent}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-            <View style={styles.modalCard}>
-              <Text style={styles.sectionTitle}>Close Day</Text>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+            <View style={[styles.closeDayPage, { paddingTop: insets.top + appTheme.spacing.sm }]}>
+              <View style={styles.shiftStartPageHeader}>
+                <Pressable
+                  onPress={() => setIsCloseDayModalVisible(false)}
+                  hitSlop={8}
+                  style={styles.shiftStartPageBack}
+                  disabled={closeMutation.isPending}
+                  accessibilityRole="button"
+                  accessibilityLabel="Back"
+                >
+                  <Ionicons name="arrow-back" size={24} color={appTheme.colors.text} />
+                </Pressable>
+                <Text style={styles.sectionTitle} numberOfLines={1}>Close Day</Text>
+              </View>
+              <ScrollView
+                style={styles.closeDayModalScroll}
+                contentContainerStyle={styles.closeDayModalScrollContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+              <View style={styles.closeDayPageBody}>
               <Text style={styles.meta}>Review the recap below, then close this business day.</Text>
 
               {/* Recap card — shows the figures the close will commit so the shopkeeper can
@@ -2890,6 +2906,22 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                 </View>
               ) : null}
               </View>
+              <View style={styles.autoOpenRow}>
+                <View style={styles.autoOpenTextWrap}>
+                  <Text style={styles.autoOpenTitle}>Open next business day</Text>
+                  <Text style={styles.autoOpenHint}>
+                    {autoOpenNextDay
+                      ? "After closing, the next day opens automatically and you continue there."
+                      : "Closes this day only — you can open the next day yourself later."}
+                  </Text>
+                </View>
+                <Switch
+                  value={autoOpenNextDay}
+                  onValueChange={setAutoOpenNextDay}
+                  disabled={closeMutation.isPending}
+                  accessibilityLabel="Open the next business day automatically after closing"
+                />
+              </View>
               <View style={styles.modalActionRow}>
                 <Pressable
                   style={[
@@ -2953,8 +2985,9 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                   <Text style={styles.modalActionNeutralText}>Cancel</Text>
                 </Pressable>
               </View>
+              </View>
+              </ScrollView>
             </View>
-            </ScrollView>
           </KeyboardAvoidingView>
         </Modal>
 
@@ -4247,6 +4280,32 @@ const styles = StyleSheet.create({
   attachmentActionButtonTextDanger: {
     color: appTheme.colors.onPrimary,
   },
+  autoOpenRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.sm,
+    marginBottom: appTheme.spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: appTheme.colors.borderSoft,
+  },
+  autoOpenTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  autoOpenTitle: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  autoOpenHint: {
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
+  },
   modalActionRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -4667,8 +4726,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 16,
   },
+  closeDayPage: {
+    flex: 1,
+    backgroundColor: appTheme.colors.background,
+    paddingHorizontal: appTheme.spacing.md,
+  },
+  closeDayPageBody: {
+    gap: appTheme.spacing.sm,
+    paddingBottom: appTheme.spacing.md,
+  },
   closeDayModalScroll: {
-    maxHeight: "92%",
+    flex: 1,
   },
   closeDayModalScrollContent: {
     flexGrow: 1,

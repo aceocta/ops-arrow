@@ -89,6 +89,7 @@ export type MainStackParamList = {
   ScratchCardSummary: { businessDayId: string; businessDate: string; shopId: string };
   ShiftReconciliation: { shiftId: string };
   DayEndClose: { businessDayId: string };
+  CloseDay: { businessDayId: string; closedShiftCount: number; totalSales: number };
   DailySalesReport: { date?: string } | undefined;
   ShiftSalesReport: undefined;
   ManualClosingReview: undefined;
