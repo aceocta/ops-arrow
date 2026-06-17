@@ -25,14 +25,16 @@ public class ConfigurationService : IConfigurationService
     private const string SubscriptionGroup = "Subscription Settings";
 
     /// <summary>
-    /// Platform-level configuration groups (trial/grace periods, barcode parsing, backdated sales rules).
+    /// Platform-level configuration groups (trial/grace periods, backdated sales rules).
     /// Hidden from list responses and rejected on update for everyone except PlatformAdmin.
+    /// Note: Barcode parsing is intentionally NOT here — barcode format is device/shop-specific, so
+    /// shop owners/managers must be able to read and configure it (writes still require management +
+    /// shop membership via UpdateAsync; cashiers get read-only access like other operational config).
     /// </summary>
     private static readonly HashSet<string> PlatformOnlyGroups = new(StringComparer.Ordinal)
     {
         SubscriptionGroup,
         SalesGroup,
-        BarcodeGroup,
     };
 
     // Management role set for configuration writes (matches the rota/leave services).

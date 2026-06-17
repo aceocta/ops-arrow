@@ -726,20 +726,14 @@ public sealed class TillReconciliationService : ITillReconciliationService
             }
 
             if (!affects) continue;
-            if (direction == TillCashDirection.In) drawer += line.VerifiedAmount;
-            else if (direction == TillCashDirection.Out) drawer -= line.VerifiedAmount;
+            drawer += TillReconciliationMath.DrawerDelta(line.VerifiedAmount, direction);
         }
-        rec.ExpectedCash = rec.OpeningFloat + drawer;
-        rec.CashVariance = (rec.CountedCash ?? 0) - rec.ExpectedCash;
+        rec.ExpectedCash = TillReconciliationMath.ExpectedCash(rec.OpeningFloat, drawer);
+        rec.CashVariance = TillReconciliationMath.CashVariance(rec.CountedCash, rec.ExpectedCash);
     }
 
     private static TillVarianceStatus VarianceStatusOf(decimal variance)
-    {
-        var abs = Math.Abs(variance);
-        if (abs <= VarianceTolerance) return TillVarianceStatus.Ok;
-        if (abs <= VarianceTolerance * 2) return TillVarianceStatus.Warning;
-        return TillVarianceStatus.Alert;
-    }
+        => TillReconciliationMath.VarianceStatus(variance, VarianceTolerance);
 
     /// <summary>Maps to DTO and enriches with the safe-drop cross-check (needs a DB lookup against
     /// the Safe Drop module), so a fabricated drop can't quietly absorb a shortfall.</summary>

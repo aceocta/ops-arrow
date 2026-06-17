@@ -157,7 +157,9 @@ const temperatureItems: MenuItem[] = [
 // --- Refusal Log ---
 const refusalItems: MenuItem[] = [
   { label: "Refusal Log", screen: "RefusalRegister", icon: "shield-checkmark-outline", mode: "refusals", requiredFeature: "RefusalNoIdNoSale" },
-  { label: "Refusal Report", screen: "RefusalReport", icon: "document-text-outline", mode: "refusals", requiredFeature: "RefusalNoIdNoSale" },
+  // The report screen calls the range endpoint, which the backend gates on refusal_log.analytics
+  // (Growth+). Gate the menu on the same feature so it only appears when it will actually work.
+  { label: "Refusal Report", screen: "RefusalReport", icon: "document-text-outline", mode: "refusals", requiredFeature: "refusal_log.analytics" },
   { label: "Refusal Manager Review", screen: "RefusalManagerReview", icon: "clipboard-outline", mode: "refusals", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"], requiredFeature: "refusal_log.multi_manager_review" },
 ];
 

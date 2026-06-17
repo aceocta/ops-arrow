@@ -82,6 +82,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             throw new InvalidOperationException("Jwt:Secret must be configured with at least 32 characters.");
         }
 
+        // Reject known-weak / previously-committed placeholder signing keys. The signing key must be a
+        // dedicated high-entropy secret supplied per environment (e.g. the Jwt__Secret env var / Key
+        // Vault) — never a reused OAuth client secret or a value that has lived in source control.
+        var weakSecrets = new[] { "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" };
+        if (weakSecrets.Contains(secret) || secret.StartsWith("GOCSPX-", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "Jwt:Secret is set to a known-weak / reused value. Configure a dedicated random signing key via Jwt__Secret (env var or Key Vault).");
+        }
+
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
 
         options.TokenValidationParameters = new TokenValidationParameters

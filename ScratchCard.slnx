@@ -4,4 +4,5 @@
   <Project Path="ScratchCard.Domain/ScratchCard.Domain.csproj" />
   <Project Path="ScratchCard.Infrastructure/ScratchCard.Infrastructure.csproj" />
   <Project Path="ScratchCard.Shared/ScratchCard.Shared.csproj" />
+  <Project Path="ScratchCard.Tests/ScratchCard.Tests.csproj" />
 </Solution>

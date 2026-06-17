@@ -88,7 +88,16 @@
       "Bash(grep -nE \"Authorize|HttpGet|HttpPost|by-range|Range|EntriesByRange|public.*Async\\\\\\\\\\(\" ScratchCard.Api/Controllers/RefusalRegisterController.cs)",
       "Bash(echo \"MOBILE_EXIT=$?\")",
       "Bash(grep -nE \"Authorize|HttpGet|HttpPost|schedule-grid|readings|grid|public.*Async\\\\\\\\\\(\" ScratchCard.Api/Controllers/TemperatureLogsController.cs)",
-      "Bash(grep -nE \"Authorize|class ReportsController|temperature-schedule-grid|ScheduleGrid|RequireFeature|public.*Async\\\\\\\\\\(\" ScratchCard.Api/Controllers/ReportsController.cs)"
+      "Bash(grep -nE \"Authorize|class ReportsController|temperature-schedule-grid|ScheduleGrid|RequireFeature|public.*Async\\\\\\\\\\(\" ScratchCard.Api/Controllers/ReportsController.cs)",
+      "Bash(sed -n '2648,2654p' src/features/day-close/DayEndCloseScreen.tsx)",
+      "Bash(sed -n '2990,2996p' src/features/day-close/DayEndCloseScreen.tsx)",
+      "Bash(cp src/features/day-close/DayEndCloseScreen.tsx /tmp/DayEndCloseScreen.bak.tsx)",
+      "Bash(sed -i '2650,2993d' src/features/day-close/DayEndCloseScreen.tsx)",
+      "Bash(sed -n '2645,2652p' src/features/day-close/DayEndCloseScreen.tsx)",
+      "Bash(sed -i '462,540d' src/features/day-close/DayEndCloseScreen.tsx)",
+      "Bash(sed -n '458,464p' src/features/day-close/DayEndCloseScreen.tsx)",
+      "Bash(sed -i '1393,1518d' src/features/day-close/DayEndCloseScreen.tsx)",
+      "Bash(sed -n '1389,1396p' src/features/day-close/DayEndCloseScreen.tsx)"
     ]
   }
 }

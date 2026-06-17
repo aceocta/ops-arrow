@@ -636,8 +636,8 @@ public class BusinessDayService : IBusinessDayService
 
         day.TotalSalesAmount = totalSales;
         day.TotalPrizePayout = totalPayout;
-        day.ExpectedCash = totalSales - totalPayout;
-        day.Difference = request.TillPayout - day.ExpectedCash;
+        day.ExpectedCash = DayCloseMath.ExpectedCash(totalSales, totalPayout);
+        day.Difference = DayCloseMath.Difference(request.TillPayout, day.ExpectedCash);
         day.Notes = request.Notes;
 
         // Attachments are uploaded off the request (enqueued after SaveChanges below) so the close
@@ -673,12 +673,13 @@ public class BusinessDayService : IBusinessDayService
                 .Where(d => d.BusinessDayId == day.Id && d.ApprovalStatus != ApprovalStatus.Rejected)
                 .SumAsync(d => (decimal?)d.Amount, cancellationToken) ?? 0m;
 
-            var expectedDrop = day.TotalSalesAmount
-                - day.TotalPrizePayout
-                - request.LottoPayout
-                - request.ScratchCardPayout
-                - request.TillPayout;
-            cashVariance = totalDropAmount.Value - expectedDrop;
+            var expectedDrop = DayCloseMath.ExpectedDrop(
+                day.TotalSalesAmount,
+                day.TotalPrizePayout,
+                request.LottoPayout,
+                request.ScratchCardPayout,
+                request.TillPayout);
+            cashVariance = DayCloseMath.CashVariance(totalDropAmount.Value, expectedDrop);
         }
 
         if (existingSummary is null)
