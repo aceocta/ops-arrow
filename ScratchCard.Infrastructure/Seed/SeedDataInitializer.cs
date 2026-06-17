@@ -36,6 +36,40 @@ public static class SeedDataInitializer
         await SeedDemoGamesAsync(dbContext, cancellationToken);
         await SeedTillFieldDefinitionsAsync(dbContext, cancellationToken);
         await SeedTillGroupDefinitionsAsync(dbContext, cancellationToken);
+        await SeedProductCategoriesAsync(dbContext, cancellationToken);
+    }
+
+    /// <summary>Seeds the built-in product categories (Dairy, Bakery, …) with their default expiry
+    /// reminder stages as global defaults (ShopId null) on first run. Idempotent by category name.</summary>
+    private static async Task SeedProductCategoriesAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var existing = await dbContext.ProductCategories.AsNoTracking()
+            .Where(c => c.ShopId == null)
+            .Select(c => c.Name)
+            .ToListAsync(cancellationToken);
+        var have = new HashSet<string>(existing, StringComparer.OrdinalIgnoreCase);
+
+        var now = DateTimeOffset.UtcNow;
+        var toAdd = ProductCategoryCatalogue.Defaults
+            .Where(c => !have.Contains(c.Name))
+            .Select(c => new ProductCategory
+            {
+                ShopId = null,
+                Name = c.Name,
+                SortOrder = c.SortOrder,
+                IsActive = true,
+                IsBuiltIn = true,
+                CreatedOn = now,
+                ReminderRules = c.ReminderDaysBeforeExpiry
+                    .Select(d => new ProductExpiryReminderRule { DaysBeforeExpiry = d, CreatedOn = now })
+                    .ToList(),
+            })
+            .ToList();
+        if (toAdd.Count > 0)
+        {
+            await dbContext.ProductCategories.AddRangeAsync(toAdd, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
     }
 
     /// <summary>Seeds the built-in reconciliation groups (global, ShopId null) shops start with.

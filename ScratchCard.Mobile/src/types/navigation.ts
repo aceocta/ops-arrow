@@ -94,6 +94,11 @@ export type MainStackParamList = {
   ShiftSalesReport: undefined;
   ManualClosingReview: undefined;
   StockReport: undefined;
+  ProductExpiryList: undefined;
+  AddProduct: undefined;
+  ProductExpiryDetail: { id: string };
+  ProductCategories: undefined;
+  ProductExpiryScoreboard: undefined;
   AuditLog: undefined;
   NotificationLog: undefined;
   Settings: undefined;

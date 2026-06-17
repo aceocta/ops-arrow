@@ -111,10 +111,55 @@ public class ApplicationDbContext : DbContext
     public DbSet<TillReconciliationAttachment> TillReconciliationAttachments => Set<TillReconciliationAttachment>();
     public DbSet<PostOfficeBalance> PostOfficeBalances => Set<PostOfficeBalance>();
     public DbSet<ProviderSettlement> ProviderSettlements => Set<ProviderSettlement>();
+    public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
+    public DbSet<ProductExpiryReminderRule> ProductExpiryReminderRules => Set<ProductExpiryReminderRule>();
+    public DbSet<ProductBatch> ProductBatches => Set<ProductBatch>();
+    public DbSet<ProductExpiryAction> ProductExpiryActions => Set<ProductExpiryAction>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        // --- Product Expiry Management ---
+        modelBuilder.Entity<ProductCategory>(entity =>
+        {
+            entity.Property(x => x.Name).HasMaxLength(120);
+            entity.HasIndex(x => new { x.ShopId, x.Name, x.IsDeleted }).IsUnique();
+            entity.HasIndex(x => x.IsActive);
+            entity.HasMany(x => x.ReminderRules)
+                .WithOne(r => r.ProductCategory)
+                .HasForeignKey(r => r.ProductCategoryId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ProductExpiryReminderRule>(entity =>
+        {
+            entity.HasIndex(x => x.ProductCategoryId);
+        });
+
+        modelBuilder.Entity<ProductBatch>(entity =>
+        {
+            entity.Property(x => x.ProductName).HasMaxLength(200);
+            entity.Property(x => x.Barcode).HasMaxLength(64);
+            entity.Property(x => x.BatchNumber).HasMaxLength(100);
+            entity.Property(x => x.UnitCost).HasColumnType("decimal(18,2)");
+            entity.Property(x => x.UnitPrice).HasColumnType("decimal(18,2)");
+            entity.HasIndex(x => new { x.ShopId, x.ExpiryDate });
+            entity.HasIndex(x => x.ProductCategoryId);
+            entity.HasOne(x => x.ProductCategory)
+                .WithMany()
+                .HasForeignKey(x => x.ProductCategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasMany(x => x.Actions)
+                .WithOne(a => a.ProductBatch)
+                .HasForeignKey(a => a.ProductBatchId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ProductExpiryAction>(entity =>
+        {
+            entity.HasIndex(x => x.ProductBatchId);
+        });
 
         modelBuilder.Entity<User>(entity =>
         {

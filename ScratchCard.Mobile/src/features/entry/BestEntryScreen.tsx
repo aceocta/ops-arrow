@@ -24,7 +24,7 @@ import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
 type OperationOption = {
-  key: "scratchCard" | "scratchCardGames" | "temperature" | "refusals" | "checklist" | "compliance" | "visitors" | "shifts" | "till";
+  key: "scratchCard" | "scratchCardGames" | "temperature" | "refusals" | "checklist" | "compliance" | "visitors" | "shifts" | "till" | "productExpiry";
   title: string;
   route: keyof MainStackParamList;
   icon: keyof typeof Ionicons.glyphMap;
@@ -120,6 +120,15 @@ const operationOptions: OperationOption[] = [
     iconColor: appTheme.colors.info,
     iconBg: appTheme.colors.surfaceInfoMuted,
     requiredFeature: "StaffRota",
+  },
+  {
+    key: "productExpiry",
+    title: "Expiring Stock",
+    route: "ProductExpiryList",
+    icon: "cube-outline",
+    iconColor: appTheme.colors.warning,
+    iconBg: appTheme.colors.surfaceWarningSoft,
+    requiredFeature: "product_expiry.basic",
   }
 ];
 

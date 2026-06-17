@@ -60,6 +60,11 @@ import {
   AuditLogScreen,
   NotificationLogScreen,
 } from "../features/reports/ReportScreens";
+import { ProductExpiryListScreen } from "../features/product-expiry/ProductExpiryListScreen";
+import { AddProductScreen } from "../features/product-expiry/AddProductScreen";
+import { ProductExpiryDetailScreen } from "../features/product-expiry/ProductExpiryDetailScreen";
+import { ProductCategoriesScreen } from "../features/product-expiry/ProductCategoriesScreen";
+import { ProductExpiryScoreboardScreen } from "../features/product-expiry/ProductExpiryScoreboardScreen";
 import { UserManagementScreen, ShopConfigurationScreen, AppConfigurationScreen, CompanyManagementScreen, ShopManagementScreen, SettingsScreen } from "../features/settings/SettingsScreens";
 import { NotificationPreferencesScreen } from "../features/settings/NotificationPreferencesScreen";
 import { ShopFeatureTogglesScreen } from "../features/settings/ShopFeatureTogglesScreen";
@@ -103,7 +108,7 @@ type MenuItem = {
   requiredFeature?: string;
 };
 
-type DrawerSectionKey = "scratchCard" | "temperature" | "refusals" | "visitors" | "compliance" | "shifts" | "till" | "shop" | "admin";
+type DrawerSectionKey = "scratchCard" | "temperature" | "refusals" | "visitors" | "compliance" | "shifts" | "till" | "productExpiry" | "shop" | "admin";
 
 const Drawer = createDrawerNavigator<MainDrawerParamList>();
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -352,6 +357,14 @@ function resolveActiveBottomDockScreen(routeName: string | undefined): keyof Mai
   return "BestEntry";
 }
 
+// --- Product Expiry ---
+const productExpiryItems: MenuItem[] = [
+  { label: "Expiring Stock", screen: "ProductExpiryList", icon: "cube-outline", requiredFeature: "product_expiry.basic" },
+  { label: "Add Product", screen: "AddProduct", icon: "add-circle-outline", requiredFeature: "product_expiry.basic" },
+  { label: "Categories", screen: "ProductCategories", icon: "pricetags-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"], requiredFeature: "product_expiry.basic" },
+  { label: "Waste Scoreboard", screen: "ProductExpiryScoreboard", icon: "stats-chart-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"], requiredFeature: "product_expiry.reports" },
+];
+
 // Which drawer section owns each menu screen — used to auto-expand the section
 // containing the screen the user is currently on when the drawer opens.
 const SECTION_ITEMS: Record<DrawerSectionKey, MenuItem[]> = {
@@ -362,6 +375,7 @@ const SECTION_ITEMS: Record<DrawerSectionKey, MenuItem[]> = {
   compliance: complianceItems,
   shifts: shiftItems,
   till: tillItems,
+  productExpiry: productExpiryItems,
   shop: shopItems,
   admin: adminItems,
 };
@@ -584,6 +598,11 @@ function MainStackScreens() {
       {/* <Stack.Screen name="ShiftSalesReport" component={ShiftSalesReportScreen} options={{ title: "Shift Sales Report" }} /> */}
       <Stack.Screen name="ManualClosingReview" component={ManualClosingReviewScreen} options={{ title: "Manual Entry Review" }} />
       <Stack.Screen name="StockReport" component={StockReportScreen} options={{ title: "Stock Report" }} />
+      <Stack.Screen name="ProductExpiryList" component={ProductExpiryListScreen} options={{ title: "Expiring Stock" }} />
+      <Stack.Screen name="AddProduct" component={AddProductScreen} options={{ title: "Add Product" }} />
+      <Stack.Screen name="ProductExpiryDetail" component={ProductExpiryDetailScreen} options={{ title: "Product" }} />
+      <Stack.Screen name="ProductCategories" component={ProductCategoriesScreen} options={{ title: "Product Categories" }} />
+      <Stack.Screen name="ProductExpiryScoreboard" component={ProductExpiryScoreboardScreen} options={{ title: "Waste Scoreboard" }} />
       <Stack.Screen name="AuditLog" component={AuditLogScreen} options={{ title: "Audit Log" }} />
       <Stack.Screen name="NotificationLog" component={NotificationLogScreen} options={{ title: "Notification Log" }} />
       <Stack.Screen name="StoreSales" component={CaptureTillReportScreen} options={{ title: "Store Sales" }} />
@@ -807,6 +826,7 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
     compliance: false,
     shifts: false,
     till: false,
+    productExpiry: false,
     shop: false,
     admin: false,
   });
@@ -1141,6 +1161,22 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
           features={features}
           onPress={goTo}
           expanded={expandedSections.till}
+          onToggle={toggleSection}
+          activeScreen={activeScreen}
+        />
+
+        <DrawerSection
+          sectionKey="productExpiry"
+          title="Product Expiry"
+          icon="cube-outline"
+          accentColor={appTheme.colors.warning}
+          accentSoftBackground={appTheme.colors.surfaceWarningSoft}
+          items={productExpiryItems}
+          isCompanyOwner={isCompanyOwner}
+          userRoles={userRoles}
+          features={features}
+          onPress={goTo}
+          expanded={expandedSections.productExpiry}
           onToggle={toggleSection}
           activeScreen={activeScreen}
         />
