@@ -92,6 +92,15 @@ public static class DependencyInjection
         services.AddScoped<IEmailSender>(provider => provider.GetRequiredService<ConfiguredEmailSender>());
         services.AddScoped<ISmsSender, NoopSmsSender>();
 
+        // Online product-barcode lookup (Open Food Facts — free, no key). Best-effort: short timeout,
+        // cached, never throws. Suggests a product name for an unrecognised scanned barcode.
+        services.AddHttpClient<IBarcodeProductLookup, OpenFoodFactsBarcodeLookup>(client =>
+        {
+            client.BaseAddress = new Uri("https://world.openfoodfacts.org/");
+            client.Timeout = TimeSpan.FromSeconds(4);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("OpsArrow-ProductExpiry/1.0 (support@opsarrow.com)");
+        });
+
         // WhatsApp: register Meta sender when AccessToken + PhoneNumberId are both present,
         // else the no-op so feature-gated callers don't blow up in dev or fresh staging.
         var whatsAppConfig = configuration.GetSection("WhatsApp");

@@ -119,6 +119,23 @@ export async function addProduct(input: {
   return res.data.data;
 }
 
+export type ProductBarcodeLookup = {
+  found: boolean;
+  source: "local" | "online" | "none";
+  barcode: string;
+  productName?: string | null;
+  productCategoryId?: string | null;
+  categoryName?: string | null;
+  dateType?: ProductDateType | null;
+  unitCost?: number | null;
+  unitPrice?: number | null;
+};
+
+export async function lookupProductByBarcode(shopId: string, barcode: string): Promise<ProductBarcodeLookup> {
+  const res = await apiClient.get<ApiResponse<ProductBarcodeLookup>>("/product-expiry/lookup", { params: { shopId, barcode } });
+  return res.data.data;
+}
+
 export async function listProducts(shopId: string, status?: ProductExpiryStatus): Promise<ProductBatch[]> {
   const res = await apiClient.get<ApiResponse<ProductBatch[]>>("/product-expiry", {
     params: status ? { shopId, status } : { shopId },

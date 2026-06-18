@@ -96,6 +96,7 @@ export type MainStackParamList = {
   StockReport: undefined;
   ProductExpiryList: undefined;
   AddProduct: undefined;
+  ProductBarcodeScanner: { mode?: "barcode" | "date" } | undefined;
   ProductExpiryDetail: { id: string };
   ProductCategories: undefined;
   ProductExpiryScoreboard: undefined;

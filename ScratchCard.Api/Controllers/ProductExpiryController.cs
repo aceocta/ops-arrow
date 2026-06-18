@@ -29,6 +29,10 @@ public class ProductExpiryController : BaseApiController
     public async Task<IActionResult> List([FromQuery] Guid shopId, [FromQuery] ProductExpiryStatus? status, CancellationToken cancellationToken)
         => Success(await _service.ListAsync(shopId, status, cancellationToken));
 
+    [HttpGet("lookup")]
+    public async Task<IActionResult> Lookup([FromQuery] Guid shopId, [FromQuery] string barcode, CancellationToken cancellationToken)
+        => Success(await _service.LookupByBarcodeAsync(shopId, barcode, cancellationToken));
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken cancellationToken)
         => Success(await _service.GetAsync(id, cancellationToken));

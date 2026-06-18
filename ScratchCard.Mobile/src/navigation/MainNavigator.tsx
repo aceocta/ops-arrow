@@ -65,6 +65,7 @@ import { AddProductScreen } from "../features/product-expiry/AddProductScreen";
 import { ProductExpiryDetailScreen } from "../features/product-expiry/ProductExpiryDetailScreen";
 import { ProductCategoriesScreen } from "../features/product-expiry/ProductCategoriesScreen";
 import { ProductExpiryScoreboardScreen } from "../features/product-expiry/ProductExpiryScoreboardScreen";
+import { ProductBarcodeScannerScreen } from "../features/product-expiry/ProductBarcodeScannerScreen";
 import { UserManagementScreen, ShopConfigurationScreen, AppConfigurationScreen, CompanyManagementScreen, ShopManagementScreen, SettingsScreen } from "../features/settings/SettingsScreens";
 import { NotificationPreferencesScreen } from "../features/settings/NotificationPreferencesScreen";
 import { ShopFeatureTogglesScreen } from "../features/settings/ShopFeatureTogglesScreen";
@@ -600,6 +601,7 @@ function MainStackScreens() {
       <Stack.Screen name="StockReport" component={StockReportScreen} options={{ title: "Stock Report" }} />
       <Stack.Screen name="ProductExpiryList" component={ProductExpiryListScreen} options={{ title: "Expiring Stock" }} />
       <Stack.Screen name="AddProduct" component={AddProductScreen} options={{ title: "Add Product" }} />
+      <Stack.Screen name="ProductBarcodeScanner" component={ProductBarcodeScannerScreen} options={{ title: "Scan Barcode" }} />
       <Stack.Screen name="ProductExpiryDetail" component={ProductExpiryDetailScreen} options={{ title: "Product" }} />
       <Stack.Screen name="ProductCategories" component={ProductCategoriesScreen} options={{ title: "Product Categories" }} />
       <Stack.Screen name="ProductExpiryScoreboard" component={ProductExpiryScoreboardScreen} options={{ title: "Waste Scoreboard" }} />

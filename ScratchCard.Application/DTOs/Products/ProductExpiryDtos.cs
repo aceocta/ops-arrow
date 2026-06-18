@@ -61,6 +61,23 @@ public class ProductBatchDto
     public IReadOnlyList<ProductExpiryActionDto> Actions { get; set; } = [];
 }
 
+/// <summary>Prefill suggestion from the most recent batch with a matching barcode (self-completing
+/// catalogue). <see cref="Found"/> is false when the barcode hasn't been seen at this shop before.</summary>
+public class ProductBarcodeLookupDto
+{
+    public bool Found { get; set; }
+    /// <summary>"local" (a previous batch at this shop), "online" (external DB), or "none".</summary>
+    public string Source { get; set; } = "none";
+    public string Barcode { get; set; } = string.Empty;
+    /// <summary>For an online match this already includes the brand (e.g. "Cadbury Dairy Milk").</summary>
+    public string? ProductName { get; set; }
+    public Guid? ProductCategoryId { get; set; }
+    public string? CategoryName { get; set; }
+    public ProductDateType? DateType { get; set; }
+    public decimal? UnitCost { get; set; }
+    public decimal? UnitPrice { get; set; }
+}
+
 public class AddProductRequest
 {
     public Guid ShopId { get; set; }

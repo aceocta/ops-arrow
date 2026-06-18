@@ -21,6 +21,7 @@ public sealed class ProductExpiryService : IProductExpiryService
     private readonly IShopMembershipService _shopMembership;
     private readonly IFeatureGateService _featureGate;
     private readonly ICurrentUserService _currentUser;
+    private readonly IBarcodeProductLookup _barcodeLookup;
     private readonly IUnitOfWork _unitOfWork;
 
     public ProductExpiryService(
@@ -30,6 +31,7 @@ public sealed class ProductExpiryService : IProductExpiryService
         IShopMembershipService shopMembership,
         IFeatureGateService featureGate,
         ICurrentUserService currentUser,
+        IBarcodeProductLookup barcodeLookup,
         IUnitOfWork unitOfWork)
     {
         _batches = batches;
@@ -38,10 +40,22 @@ public sealed class ProductExpiryService : IProductExpiryService
         _shopMembership = shopMembership;
         _featureGate = featureGate;
         _currentUser = currentUser;
+        _barcodeLookup = barcodeLookup;
         _unitOfWork = unitOfWork;
     }
 
     private static DateOnly Today => DateOnly.FromDateTime(DateTime.UtcNow);
+
+    /// <summary>Canonical barcode form (server is the source of truth): pad a numeric 12-14 digit code
+    /// (EAN-13 / UPC / GTIN) to GTIN-14 so add and lookup share one key regardless of which client or
+    /// entry path produced it. Non-numeric codes (e.g. code128 alphanumerics) are trimmed unchanged.
+    /// Mirrors the mobile <c>normalizeGtin</c>. Returns null when empty.</summary>
+    private static string? NormalizeBarcode(string? raw)
+    {
+        var code = raw?.Trim();
+        if (string.IsNullOrEmpty(code)) return null;
+        return code.Length is >= 12 and <= 14 && code.All(char.IsAsciiDigit) ? code.PadLeft(14, '0') : code;
+    }
 
     private async Task EnsureAccessAsync(Guid shopId, CancellationToken ct)
     {
@@ -80,7 +94,7 @@ public sealed class ProductExpiryService : IProductExpiryService
             ShopId = request.ShopId,
             ProductCategoryId = category.Id,
             ProductName = name,
-            Barcode = string.IsNullOrWhiteSpace(request.Barcode) ? null : request.Barcode.Trim(),
+            Barcode = NormalizeBarcode(request.Barcode),
             Quantity = request.Quantity,
             RemainingQuantity = request.Quantity,
             ExpiryDate = request.ExpiryDate,
@@ -97,6 +111,68 @@ public sealed class ProductExpiryService : IProductExpiryService
 
         var rules = category.ReminderRules?.Select(r => r.DaysBeforeExpiry).ToList() ?? await RuleDaysForCategoryAsync(category.Id, cancellationToken);
         return Map(batch, category.Name, rules);
+    }
+
+    public async Task<ProductBarcodeLookupDto> LookupByBarcodeAsync(Guid shopId, string barcode, CancellationToken cancellationToken = default)
+    {
+        await EnsureAccessAsync(shopId, cancellationToken);
+        var code = NormalizeBarcode(barcode);
+        if (code is null) return new ProductBarcodeLookupDto { Found = false, Source = "none", Barcode = string.Empty };
+
+        // 1) Most recent batch with this barcode at this shop → seeds the next add for the product.
+        var last = await _batches.Query().AsNoTracking()
+            .Where(b => b.ShopId == shopId && !b.IsDeleted && b.Barcode == code)
+            .OrderByDescending(b => b.AddedOn)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (last is not null)
+        {
+            var categoryName = await _categories.Query().AsNoTracking()
+                .Where(c => c.Id == last.ProductCategoryId).Select(c => c.Name).FirstOrDefaultAsync(cancellationToken);
+            return new ProductBarcodeLookupDto
+            {
+                Found = true,
+                Source = "local",
+                Barcode = code,
+                ProductName = last.ProductName,
+                ProductCategoryId = last.ProductCategoryId,
+                CategoryName = categoryName,
+                DateType = last.DateType,
+                UnitCost = last.UnitCost,
+                UnitPrice = last.UnitPrice,
+            };
+        }
+
+        // 2) Not seen here before — try the external product database for a name (best-effort).
+        var online = await _barcodeLookup.LookupAsync(code, cancellationToken);
+        if (online is not null)
+        {
+            // Resolve the suggested category name to one this shop actually has (prefer a custom
+            // category over the built-in when both share the name).
+            Guid? catId = null;
+            string? catName = null;
+            if (!string.IsNullOrWhiteSpace(online.CategoryHint))
+            {
+                var cat = await _categories.Query().AsNoTracking()
+                    .Where(c => !c.IsDeleted && c.IsActive && (c.ShopId == null || c.ShopId == shopId) && c.Name == online.CategoryHint)
+                    .OrderBy(c => c.ShopId == null ? 1 : 0)
+                    .FirstOrDefaultAsync(cancellationToken);
+                if (cat is not null) { catId = cat.Id; catName = cat.Name; }
+            }
+
+            return new ProductBarcodeLookupDto
+            {
+                Found = true,
+                Source = "online",
+                Barcode = code,
+                // ProductName already folds in the brand — don't also expose it separately (one source of truth).
+                ProductName = string.IsNullOrWhiteSpace(online.Brand) ? online.Name : $"{online.Brand} {online.Name}",
+                ProductCategoryId = catId,
+                CategoryName = catName,
+            };
+        }
+
+        return new ProductBarcodeLookupDto { Found = false, Source = "none", Barcode = code };
     }
 
     public async Task<IReadOnlyCollection<ProductBatchDto>> ListAsync(Guid shopId, ProductExpiryStatus? status, CancellationToken cancellationToken = default)
