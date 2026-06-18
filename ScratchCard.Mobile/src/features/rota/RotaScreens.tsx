@@ -777,26 +777,33 @@ export function MyTimesheetScreen() {
                     <Text style={styles.actGhostText}>{expanded ? "Hide breakdown" : "View breakdown"}</Text>
                   </Pressable>
                   {expanded ? renderBreakdown(review) : null}
-                  <PrimaryButton
-                    label={confirmingThis ? "Confirming…" : "Confirm my hours"}
-                    icon="checkmark-circle-outline"
-                    onPress={() => void startConfirmReview(review)}
-                    disabled={confirmReviewMutation.isPending}
-                  />
-                  {disputed ? (
-                    <Text style={styles.mutedSmall}>Waiting for your manager. Confirming your hours withdraws the issue.</Text>
-                  ) : (
+                  <View style={styles.reviewActionRow}>
                     <Pressable
-                      style={({ pressed }) => [styles.actGhost, styles.reviewGhostBtn, pressed ? styles.actGhostPressed : null]}
-                      onPress={() => openDispute(review)}
+                      style={({ pressed }) => [styles.actGhost, styles.reviewGhostBtn, styles.reviewActionFill, pressed ? styles.actGhostPressed : null]}
+                      onPress={() => void startConfirmReview(review)}
                       disabled={confirmReviewMutation.isPending}
                       accessibilityRole="button"
-                      accessibilityLabel={`Raise an issue with your hours for ${formatDayLabel(review.periodFrom)} to ${formatDayLabel(review.periodTo)}`}
+                      accessibilityLabel={`Confirm your hours for ${formatDayLabel(review.periodFrom)} to ${formatDayLabel(review.periodTo)}`}
                     >
-                      <Ionicons name="alert-circle-outline" size={16} color={appTheme.colors.primary} />
-                      <Text style={styles.actGhostText}>Raise an issue</Text>
+                      <Ionicons name="checkmark-circle-outline" size={16} color={appTheme.colors.primary} />
+                      <Text style={styles.actGhostText}>{confirmingThis ? "Confirming…" : "Confirm hours"}</Text>
                     </Pressable>
-                  )}
+                    {!disputed ? (
+                      <Pressable
+                        style={({ pressed }) => [styles.actGhost, styles.reviewGhostBtn, styles.reviewActionFill, pressed ? styles.actGhostPressed : null]}
+                        onPress={() => openDispute(review)}
+                        disabled={confirmReviewMutation.isPending}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Raise an issue with your hours for ${formatDayLabel(review.periodFrom)} to ${formatDayLabel(review.periodTo)}`}
+                      >
+                        <Ionicons name="alert-circle-outline" size={16} color={appTheme.colors.primary} />
+                        <Text style={styles.actGhostText}>Raise an issue</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                  {disputed ? (
+                    <Text style={styles.mutedSmall}>Waiting for your manager. Confirming your hours withdraws the issue.</Text>
+                  ) : null}
                 </View>
               );
             })}
@@ -4562,6 +4569,9 @@ const styles = StyleSheet.create({
   reviewPeriodBtnPressed: { opacity: 0.6 },
   reviewPeriodHint: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.body, fontSize: 11, lineHeight: 14 },
   reviewGhostBtn: { justifyContent: "center" },
+  // Confirm + Raise sit side by side, each taking half the width and matching the taller button's height.
+  reviewActionRow: { flexDirection: "row", alignItems: "stretch", gap: 8 },
+  reviewActionFill: { flex: 1 },
   // Multiline note input (dispute / resolve modals).
   noteInput: { minHeight: 84, paddingTop: 10, textAlignVertical: "top" },
   // Staff sign-off section on the manager timesheet.
