@@ -262,6 +262,56 @@ const assigneePersonKey = (a: { userId?: string | null; rotaStaffMemberId?: stri
 // The "approved {date}" suffix for a history row — resolvedOn is an ISO timestamp.
 const approvedOnLabel = (resolvedOn?: string) => formatDayLabel(resolvedOn ? resolvedOn.slice(0, 10) : null);
 
+// The staff-side lifecycle of a timesheet review, rendered as a 3-step tracker:
+// the manager requests it, the staff member confirms, then the manager approves.
+const REVIEW_FLOW_STEPS: { key: string; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { key: "requested", label: "Requested", icon: "paper-plane-outline" },
+  { key: "confirmed", label: "Confirmed", icon: "checkmark-circle-outline" },
+  { key: "approved", label: "Approved", icon: "shield-checkmark-outline" },
+];
+
+type ReviewFlowState = "done" | "current" | "upcoming";
+
+// Maps a review status to the state of each step above. Disputed sits back at the confirm step
+// (the staff member raised an issue, so they haven't confirmed yet).
+function reviewFlowStates(status: RotaTimesheetReview["status"]): ReviewFlowState[] {
+  switch (status) {
+    case "ManagerApproved":
+      return ["done", "done", "done"];
+    case "Confirmed":
+      return ["done", "done", "current"];
+    case "Disputed":
+    case "PendingStaff":
+    default:
+      return ["done", "current", "upcoming"];
+  }
+}
+
+function TimesheetReviewFlow({ status, confirmedOn }: { status: RotaTimesheetReview["status"]; confirmedOn?: string }) {
+  const states = reviewFlowStates(status);
+  // Only the confirm step carries a timestamp we can show (the request/approval times aren't exposed here).
+  const captions = ["", confirmedOn ? formatDayLabel(confirmedOn.slice(0, 10)) : "", ""];
+  const last = REVIEW_FLOW_STEPS.length - 1;
+  return (
+    <View style={styles.flowRow} accessibilityRole="text" accessibilityLabel={`Progress: ${REVIEW_FLOW_STEPS.map((s, i) => `${s.label} ${states[i]}`).join(", ")}`}>
+      {REVIEW_FLOW_STEPS.map((step, i) => {
+        const state = states[i];
+        return (
+          <View key={step.key} style={styles.flowStep}>
+            {i > 0 ? <View style={[styles.flowConnector, styles.flowConnectorLeft, states[i - 1] === "done" ? styles.flowConnectorOn : null]} /> : null}
+            {i < last ? <View style={[styles.flowConnector, styles.flowConnectorRight, states[i] === "done" ? styles.flowConnectorOn : null]} /> : null}
+            <View style={[styles.flowDot, state === "done" ? styles.flowDotDone : null, state === "current" ? styles.flowDotCurrent : null]}>
+              <Ionicons name={state === "done" ? "checkmark" : step.icon} size={13} color={state === "upcoming" ? appTheme.colors.textSubtle : appTheme.colors.onPrimary} />
+            </View>
+            <Text style={[styles.flowLabel, state === "upcoming" ? styles.flowLabelMuted : null]} numberOfLines={1}>{step.label}</Text>
+            {captions[i] ? <Text style={styles.flowCaption} numberOfLines={1}>{captions[i]}</Text> : null}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 // Compact hours label for leave figures — trims a trailing ".0" ("8h", "7.5h").
 const leaveHoursLabel = (n: number) => `${Number(n.toFixed(1))}h`;
 
@@ -830,9 +880,9 @@ export function MyTimesheetScreen() {
                     <Text style={[styles.reviewPeriod, { flex: 1 }]} numberOfLines={1}>
                       {formatDayLabel(r.periodFrom)} – {formatDayLabel(r.periodTo)} · {r.totalHours.toFixed(1)}h
                     </Text>
-                    <StatusBadge label="Confirmed by you" tone="success" />
                     <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={16} color={appTheme.colors.textSubtle} />
                   </Pressable>
+                  <TimesheetReviewFlow status={r.status} confirmedOn={r.confirmedOn} />
                   {expanded ? renderBreakdown(r) : null}
                 </View>
               );
@@ -4572,6 +4622,20 @@ const styles = StyleSheet.create({
   // Confirm + Raise sit side by side, each taking half the width and matching the taller button's height.
   reviewActionRow: { flexDirection: "row", alignItems: "stretch", gap: 8 },
   reviewActionFill: { flex: 1 },
+  // 3-step timesheet-review workflow tracker (Requested → Confirmed → Approved).
+  flowRow: { flexDirection: "row", alignItems: "flex-start", paddingTop: 2 },
+  flowStep: { flex: 1, alignItems: "center", position: "relative", paddingHorizontal: 2 },
+  // Half-width connector lines behind each dot; top aligns to the dot's vertical centre (24px dot → 11px).
+  flowConnector: { position: "absolute", top: 11, height: 2, backgroundColor: appTheme.colors.borderSoft },
+  flowConnectorLeft: { left: 0, right: "50%" },
+  flowConnectorRight: { left: "50%", right: 0 },
+  flowConnectorOn: { backgroundColor: appTheme.colors.primary },
+  flowDot: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: appTheme.colors.surface, borderWidth: 1.5, borderColor: appTheme.colors.border, zIndex: 1 },
+  flowDotDone: { backgroundColor: appTheme.colors.success, borderColor: appTheme.colors.success },
+  flowDotCurrent: { backgroundColor: appTheme.colors.primary, borderColor: appTheme.colors.primary },
+  flowLabel: { marginTop: 5, color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11, lineHeight: 14 },
+  flowLabelMuted: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.body },
+  flowCaption: { marginTop: 1, color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 10, lineHeight: 13 },
   // Multiline note input (dispute / resolve modals).
   noteInput: { minHeight: 84, paddingTop: 10, textAlignVertical: "top" },
   // Staff sign-off section on the manager timesheet.
