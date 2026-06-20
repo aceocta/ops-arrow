@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import { Link } from "react-router-dom";
@@ -29,6 +29,8 @@ function hm(hours: number) {
   return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
 }
 const lh = (hours: number) => `${Number(hours.toFixed(2))}h`;
+const staffKeyOf = (r: { userId?: string | null; rotaStaffMemberId?: string | null; userName: string }) =>
+  r.userId ?? r.rotaStaffMemberId ?? r.userName;
 
 // Leave hours within the range, as "Holiday 8h" segments (paid types sky, unpaid slate).
 function leaveSegments(r: TimesheetRow) {
@@ -38,6 +40,19 @@ function leaveSegments(r: TimesheetRow) {
   if (r.otherLeaveHours) segs.push({ label: `Other leave ${lh(r.otherLeaveHours)}`, paid: true });
   if (r.unpaidLeaveHours) segs.push({ label: `Unpaid ${lh(r.unpaidLeaveHours)}`, paid: false });
   return segs;
+}
+
+// Tailwind's sm breakpoint is 640px; below it we keep the modal, above it we expand inline.
+function useIsMobile() {
+  const query = "(max-width: 639px)";
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.matchMedia(query).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const onChange = () => setIsMobile(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return isMobile;
 }
 
 export default function TimesheetsPage() {
@@ -50,6 +65,7 @@ export default function TimesheetsPage() {
   const gbp = (n: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n || 0);
   const [view, setView] = useState<"staff" | "shift" | "week">("week");
   const [metric, setMetric] = useState<"hours" | "both">("hours");
+  const [staffFilter, setStaffFilter] = useState("");
   const [recordOpen, setRecordOpen] = useState(false);
   const [range, setRange] = useState(() => {
     const to = new Date();
@@ -58,6 +74,9 @@ export default function TimesheetsPage() {
     return { from: fmtDate(from), to: fmtDate(to) };
   });
   const [selected, setSelected] = useState<{ row: TimesheetRow; from?: string; to?: string } | null>(null);
+  // By-staff rows expand inline on desktop; on mobile they open the modal instead.
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const isMobile = useIsMobile();
 
   const setQuick = (days: number) => {
     const to = new Date();
@@ -92,7 +111,17 @@ export default function TimesheetsPage() {
     return days;
   }, [range.from, range.to]);
 
-  const weekStaff = staffQ.data ?? [];
+  // Filter the staff-based views (By staff + Weekly) to a single person when chosen.
+  const staffRows = useMemo(() => {
+    const all = staffQ.data ?? [];
+    return staffFilter ? all.filter((r) => staffKeyOf(r) === staffFilter) : all;
+  }, [staffQ.data, staffFilter]);
+  // Drop the filter if the chosen staff isn't in the current range's data.
+  useEffect(() => {
+    if (staffFilter && !(staffQ.data ?? []).some((r) => staffKeyOf(r) === staffFilter)) setStaffFilter("");
+  }, [staffQ.data, staffFilter]);
+
+  const weekStaff = staffRows;
   const weekGridQ = useQuery({
     queryKey: ["ts-week", shopId, range.from, range.to, weekStaff.map((r) => r.userId ?? r.rotaStaffMemberId).join(",")],
     enabled: !!shopId && view === "week" && weekStaff.length > 0,
@@ -108,26 +137,26 @@ export default function TimesheetsPage() {
   });
 
   const total = useMemo(() => {
-    const rows = view === "shift" ? shiftQ.data ?? [] : staffQ.data ?? [];
+    const rows = view === "shift" ? shiftQ.data ?? [] : staffRows;
     return rows.reduce((s: number, r: { totalHours: number }) => s + r.totalHours, 0);
-  }, [view, staffQ.data, shiftQ.data]);
+  }, [view, staffRows, shiftQ.data]);
 
   // Wage split: approved vs pending (awaiting approval), so the total is never inflated silently.
   const wage = useMemo(() => {
-    const rows = (view === "shift" ? shiftQ.data ?? [] : staffQ.data ?? []) as {
+    const rows = (view === "shift" ? shiftQ.data ?? [] : staffRows) as {
       labourCost?: number | null; pendingLabourCost?: number | null; pendingHours?: number;
     }[];
     const totalCost = rows.reduce((s, r) => s + (r.labourCost ?? 0), 0);
     const pendingCost = rows.reduce((s, r) => s + (r.pendingLabourCost ?? 0), 0);
     const pendingHours = rows.reduce((s, r) => s + (r.pendingHours ?? 0), 0);
     return { total: totalCost, pending: pendingCost, approved: totalCost - pendingCost, pendingHours };
-  }, [view, staffQ.data, shiftQ.data]);
+  }, [view, staffRows, shiftQ.data]);
 
   // Open (not checked out) sessions contribute no hours — flag them so totals aren't trusted blindly.
   const openTotal = useMemo(() => {
-    const rows = (view === "shift" ? shiftQ.data ?? [] : staffQ.data ?? []) as { openSessions: number }[];
+    const rows = (view === "shift" ? shiftQ.data ?? [] : staffRows) as { openSessions: number }[];
     return rows.reduce((s, r) => s + r.openSessions, 0);
-  }, [view, staffQ.data, shiftQ.data]);
+  }, [view, staffRows, shiftQ.data]);
 
   const loading =
     view === "shift" ? shiftQ.isLoading : view === "week" ? staffQ.isLoading || weekGridQ.isLoading : staffQ.isLoading;
@@ -167,7 +196,7 @@ export default function TimesheetsPage() {
           ...(showLeave ? ["Holiday hours", "Sick hours", "Other leave hours", "Unpaid leave hours"] : []),
           ...(showCost ? ["Wage", "Pending wage"] : []),
         ],
-        (staffQ.data ?? []).map((r) => [
+        staffRows.map((r) => [
           r.userName, r.isExternal ? "Yes" : "", r.shiftsWorked, r.openSessions, r.totalHours.toFixed(2), r.reasons?.join("; ") ?? "",
           ...(showLeave
             ? [(r.holidayHours ?? 0).toFixed(2), (r.sickHours ?? 0).toFixed(2), (r.otherLeaveHours ?? 0).toFixed(2), (r.unpaidLeaveHours ?? 0).toFixed(2)]
@@ -198,26 +227,23 @@ export default function TimesheetsPage() {
     return [...m.entries()] as [string, NonNullable<typeof shiftQ.data>][];
   }, [shiftQ.data]);
 
+  // Highlight a quick-range chip when the range matches "last N days ending today".
+  const isQuickRange = (days: number) => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - (days - 1));
+    return range.to === fmtDate(end) && range.from === fmtDate(start);
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Title + primary actions */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Timesheets</h1>
-          <p className="text-sm text-slate-500">Worked hours · {range.from} → {range.to}</p>
+          <h1 className="page-title">Timesheets</h1>
+          <p className="page-subtitle">Worked hours · {range.from} → {range.to}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-lg border border-slate-200 bg-white p-1">
-            {[
-              { label: "7 days", days: 7 },
-              { label: "30 days", days: 30 },
-            ].map((q) => (
-              <button key={q.days} onClick={() => setQuick(q.days)} className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
-                {q.label}
-              </button>
-            ))}
-          </div>
-          <input type="date" className="input w-auto" value={range.from} onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))} />
-          <input type="date" className="input w-auto" value={range.to} onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))} />
           {canRecord ? (
             <button className="btn-primary" onClick={() => setRecordOpen(true)}><Plus className="h-4 w-4" /> Record hours</button>
           ) : null}
@@ -225,34 +251,90 @@ export default function TimesheetsPage() {
         </div>
       </div>
 
-      {/* View + metric toggles */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex w-fit rounded-lg border border-slate-200 bg-white p-1">
+      {/* Controls: view (left) · metric + range (right) */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="segment">
           {(["week", "staff", "shift"] as const).map((v) => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              className={clsx("rounded-md px-4 py-1.5 text-sm font-medium", view === v ? "bg-brand-600 text-white" : "text-slate-600")}
-            >
+            <button key={v} data-active={view === v} onClick={() => setView(v)}>
               {v === "staff" ? "By staff" : v === "shift" ? "By shift" : "Weekly"}
             </button>
           ))}
         </div>
 
-        {view === "week" && showCost ? (
-          <div className="flex w-fit rounded-lg border border-slate-200 bg-white p-1">
-            {(["hours", "both"] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => setMetric(m)}
-                className={clsx("rounded-md px-4 py-1.5 text-sm font-medium", metric === m ? "bg-brand-600 text-white" : "text-slate-600")}
-              >
-                {m === "hours" ? "Hours" : "Hours + wage"}
+        <div className="flex flex-wrap items-center gap-2">
+          {view !== "shift" ? (
+            <select
+              className="input w-auto"
+              value={staffFilter}
+              onChange={(e) => setStaffFilter(e.target.value)}
+              title="Filter by staff"
+            >
+              <option value="">All staff</option>
+              {(staffQ.data ?? []).map((r) => {
+                const k = staffKeyOf(r);
+                return (
+                  <option key={k} value={k}>
+                    {r.userName}{r.isExternal ? " (external)" : ""}
+                  </option>
+                );
+              })}
+            </select>
+          ) : null}
+
+          {view === "week" && showCost ? (
+            <div className="segment">
+              {(["hours", "both"] as const).map((m) => (
+                <button key={m} data-active={metric === m} onClick={() => setMetric(m)}>
+                  {m === "hours" ? "Hours" : "Hours + wage"}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="segment">
+            {[
+              { label: "7 days", days: 7 },
+              { label: "30 days", days: 30 },
+            ].map((q) => (
+              <button key={q.days} data-active={isQuickRange(q.days)} onClick={() => setQuick(q.days)}>
+                {q.label}
               </button>
             ))}
           </div>
-        ) : null}
+
+          <div className="flex items-center gap-1.5">
+            <input type="date" className="input w-auto" value={range.from} max={range.to} onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))} />
+            <span className="text-slate-400">→</span>
+            <input type="date" className="input w-auto" value={range.to} min={range.from} onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))} />
+          </div>
+        </div>
       </div>
+
+      {/* Wage split — approved vs awaiting approval */}
+      {showCost && !loading && wage.total > 0 ? (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="card p-4">
+            <div className="text-xs uppercase tracking-wide text-slate-400">Approved wage</div>
+            <div className="mt-1 text-xl font-semibold text-emerald-600">{gbp(wage.approved)}</div>
+          </div>
+          <Link
+            to="/approvals"
+            className={clsx("card card-hover block p-4", wage.pending > 0 && "ring-1 ring-amber-200")}
+            title="Go to time approvals"
+          >
+            <div className="flex items-center justify-between text-xs uppercase tracking-wide text-slate-400">
+              Pending approval
+              <ChevronRight className="h-4 w-4" />
+            </div>
+            <div className="mt-1 text-xl font-semibold text-amber-600">{gbp(wage.pending)}</div>
+            {wage.pendingHours > 0 ? <div className="text-xs text-slate-400">{hm(wage.pendingHours)} awaiting approval</div> : null}
+          </Link>
+          <div className="card p-4">
+            <div className="text-xs uppercase tracking-wide text-slate-400">Total if all approved</div>
+            <div className="mt-1 text-xl font-semibold text-slate-800">{gbp(wage.total)}</div>
+          </div>
+        </div>
+      ) : null}
 
       {loading ? <div className="card p-6 text-sm text-slate-500">Loading…</div> : null}
 
@@ -270,47 +352,76 @@ export default function TimesheetsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {(staffQ.data ?? []).map((r) => (
-                <tr key={r.userId ?? r.rotaStaffMemberId} className="cursor-pointer hover:bg-slate-50" onClick={() => setSelected({ row: r })}>
-                  <td className="px-5 py-3">
-                    <span className="font-medium text-slate-800">{r.userName}</span>
-                    {r.isExternal ? <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">External</span> : null}
-                    {r.reasons?.length ? <div className="text-xs font-medium text-sky-700">{r.reasons.join(" · ")}</div> : null}
-                    {showLeave && leaveSegments(r).length > 0 ? (
-                      <div className="text-xs font-medium">
-                        {leaveSegments(r).map((s, i) => (
-                          <span key={s.label}>
-                            {i > 0 ? <span className="text-slate-300"> · </span> : null}
-                            <span className={s.paid ? "text-sky-700" : "text-slate-500"}>{s.label}</span>
-                          </span>
-                        ))}
-                      </div>
+              {staffRows.map((r) => {
+                const rowKey = r.userId ?? r.rotaStaffMemberId ?? r.userName;
+                const isExpanded = !isMobile && expandedKey === rowKey;
+                return (
+                  <Fragment key={rowKey}>
+                    <tr
+                      className="cursor-pointer hover:bg-slate-50"
+                      onClick={() => {
+                        if (isMobile) setSelected({ row: r });
+                        else setExpandedKey((k) => (k === rowKey ? null : rowKey));
+                      }}
+                    >
+                      <td className="px-5 py-3">
+                        <span className="font-medium text-slate-800">{r.userName}</span>
+                        {r.isExternal ? <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">External</span> : null}
+                        {r.reasons?.length ? <div className="text-xs font-medium text-sky-700">{r.reasons.join(" · ")}</div> : null}
+                        {showLeave && leaveSegments(r).length > 0 ? (
+                          <div className="text-xs font-medium">
+                            {leaveSegments(r).map((s, i) => (
+                              <span key={s.label}>
+                                {i > 0 ? <span className="text-slate-300"> · </span> : null}
+                                <span className={s.paid ? "text-sky-700" : "text-slate-500"}>{s.label}</span>
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td className="px-5 py-3 text-slate-700">{r.shiftsWorked}{r.openSessions > 0 ? ` (+${r.openSessions})` : ""}</td>
+                      <td className="px-5 py-3 font-medium text-slate-800">{hm(r.totalHours)}</td>
+                      {showCost ? <td className="px-5 py-3 text-slate-700">{r.hourlyRate != null ? gbp(r.hourlyRate) : <span className="text-amber-600">— set</span>}</td> : null}
+                      {showCost ? (
+                        <td className="px-5 py-3 font-medium text-slate-800">
+                          {r.labourCost != null ? gbp(r.labourCost) : "—"}
+                          {r.pendingLabourCost ? <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">{gbp(r.pendingLabourCost)} pending</span> : null}
+                        </td>
+                      ) : null}
+                      <td className="px-5 py-3 text-right">
+                        <ChevronRight className={clsx("ml-auto h-4 w-4 text-slate-300 transition-transform", isExpanded && "rotate-90")} />
+                      </td>
+                    </tr>
+                    {isExpanded ? (
+                      <tr>
+                        <td colSpan={showCost ? 6 : 4} className="bg-slate-50/60 px-5 py-3">
+                          <StaffWeekBreakdown
+                            shopId={shopId}
+                            row={r}
+                            from={range.from}
+                            to={range.to}
+                            showWage={showCost}
+                            gbp={gbp}
+                            onSelectDay={(day) => setSelected({ row: r, from: day, to: day })}
+                          />
+                        </td>
+                      </tr>
                     ) : null}
-                  </td>
-                  <td className="px-5 py-3 text-slate-700">{r.shiftsWorked}{r.openSessions > 0 ? ` (+${r.openSessions})` : ""}</td>
-                  <td className="px-5 py-3 font-medium text-slate-800">{hm(r.totalHours)}</td>
-                  {showCost ? <td className="px-5 py-3 text-slate-700">{r.hourlyRate != null ? gbp(r.hourlyRate) : <span className="text-amber-600">— set</span>}</td> : null}
-                  {showCost ? (
-                    <td className="px-5 py-3 font-medium text-slate-800">
-                      {r.labourCost != null ? gbp(r.labourCost) : "—"}
-                      {r.pendingLabourCost ? <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">{gbp(r.pendingLabourCost)} pending</span> : null}
-                    </td>
-                  ) : null}
-                  <td className="px-5 py-3 text-right"><ChevronRight className="ml-auto h-4 w-4 text-slate-300" /></td>
-                </tr>
-              ))}
-              {!loading && (staffQ.data?.length ?? 0) === 0 ? (
+                  </Fragment>
+                );
+              })}
+              {!loading && staffRows.length === 0 ? (
                 <tr><td colSpan={showCost ? 6 : 4} className="px-5 py-6 text-center text-slate-400">No hours in this range.</td></tr>
               ) : null}
             </tbody>
-            {(staffQ.data?.length ?? 0) > 0 ? (
+            {staffRows.length > 0 ? (
               <tfoot>
                 <tr className="border-t border-slate-200 bg-slate-50 font-semibold text-slate-800">
                   <td className="px-5 py-3">Total</td>
                   <td></td>
                   <td className="px-5 py-3">{hm(total)}</td>
                   {showCost ? <td></td> : null}
-                  {showCost ? <td className="px-5 py-3">{gbp((staffQ.data ?? []).reduce((s, r) => s + (r.labourCost ?? 0), 0))}</td> : null}
+                  {showCost ? <td className="px-5 py-3">{gbp(staffRows.reduce((s, r) => s + (r.labourCost ?? 0), 0))}</td> : null}
                   <td></td>
                 </tr>
               </tfoot>
@@ -376,32 +487,6 @@ export default function TimesheetsPage() {
         <WeekGrid days={weekDays} grid={weekGridQ.data ?? []} loading={loading} metric={showCost ? metric : "hours"} gbp={gbp} onSelect={(row, day) => setSelected(day ? { row, from: day, to: day } : { row })} />
       )}
 
-      {/* Wage split — approved vs awaiting approval */}
-      {showCost && !loading && wage.total > 0 ? (
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="card p-4">
-            <div className="text-xs uppercase tracking-wide text-slate-400">Approved wage</div>
-            <div className="mt-1 text-xl font-semibold text-emerald-600">{gbp(wage.approved)}</div>
-          </div>
-          <Link
-            to="/approvals"
-            className={clsx("card card-hover block p-4", wage.pending > 0 && "ring-1 ring-amber-200")}
-            title="Go to time approvals"
-          >
-            <div className="flex items-center justify-between text-xs uppercase tracking-wide text-slate-400">
-              Pending approval
-              <ChevronRight className="h-4 w-4" />
-            </div>
-            <div className="mt-1 text-xl font-semibold text-amber-600">{gbp(wage.pending)}</div>
-            {wage.pendingHours > 0 ? <div className="text-xs text-slate-400">{hm(wage.pendingHours)} awaiting approval</div> : null}
-          </Link>
-          <div className="card p-4">
-            <div className="text-xs uppercase tracking-wide text-slate-400">Total if all approved</div>
-            <div className="mt-1 text-xl font-semibold text-slate-800">{gbp(wage.total)}</div>
-          </div>
-        </div>
-      ) : null}
-
       {canManage ? <PayrollSection shopId={shopId} from={range.from} to={range.to} /> : null}
 
       {!loading && openTotal > 0 ? (
@@ -451,11 +536,11 @@ function WeekGrid({
   const grandHours = grid.reduce((s, g) => s + g.row.totalHours, 0);
   const grandWage = grid.reduce((s, g) => s + g.row.totalHours * rateOf(g), 0);
   // Hours on top; wage underneath only in "Hours + wage" mode.
-  const stack = (hoursLabel: string, wageLabel: string) =>
-    showWage ? (
+  const stack = (hoursLabel: string, wageLabel: string | null) =>
+    showWage && wageLabel ? (
       <div className="leading-tight">
         <div>{hoursLabel}</div>
-        <div className="text-[11px] font-normal text-slate-400">{wageLabel}</div>
+        <div className="text-[11px] font-medium text-emerald-600">{wageLabel}</div>
       </div>
     ) : (
       hoursLabel
@@ -506,12 +591,12 @@ function WeekGrid({
                       h > 0 ? "cursor-pointer font-medium text-slate-800 hover:bg-brand-50 hover:text-brand-700" : "text-slate-300",
                     )}
                   >
-                    {h > 0 ? stack(hm(h), rateOf(g) > 0 ? gbp(h * rateOf(g)) : "—") : "·"}
+                    {h > 0 ? stack(hm(h), rateOf(g) > 0 ? gbp(h * rateOf(g)) : null) : "·"}
                   </td>
                 );
               })}
               <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-800">
-                {stack(hm(g.row.totalHours), rateOf(g) > 0 ? gbp(g.row.totalHours * rateOf(g)) : "—")}
+                {stack(hm(g.row.totalHours), rateOf(g) > 0 ? gbp(g.row.totalHours * rateOf(g)) : null)}
               </td>
             </tr>
           ))}
@@ -931,6 +1016,109 @@ function RecordHoursModal({ shopId, onClose }: { shopId: string; onClose: () => 
   );
 }
 
+// Weekly-style day breakdown for a single staff member — used inside the inline
+// expanded row of the By-staff table. Each day is clickable to drill into that day.
+function StaffWeekBreakdown({
+  shopId,
+  row,
+  from,
+  to,
+  showWage,
+  gbp,
+  onSelectDay,
+}: {
+  shopId: string;
+  row: TimesheetRow;
+  from: string;
+  to: string;
+  showWage: boolean;
+  gbp: (n: number) => string;
+  onSelectDay: (day: string) => void;
+}) {
+  const days = useMemo(() => {
+    const out: string[] = [];
+    const cur = new Date(`${from}T12:00:00`);
+    const end = new Date(`${to}T12:00:00`);
+    while (cur <= end && out.length < 31) {
+      out.push(fmtDate(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
+    return out;
+  }, [from, to]);
+
+  const q = useQuery({
+    queryKey: ["ts-sessions", shopId, row.userId, row.rotaStaffMemberId, from, to],
+    queryFn: () => rotaApi.staffSessions(shopId, { userId: row.userId, rotaStaffMemberId: row.rotaStaffMemberId }, from, to),
+  });
+  const byDay = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const s of q.data ?? []) m[s.date] = (m[s.date] ?? 0) + s.hours;
+    return m;
+  }, [q.data]);
+  const total = useMemo(() => Object.values(byDay).reduce((s, h) => s + h, 0), [byDay]);
+  const rate = row.hourlyRate ?? 0;
+  // Hours on top; wage (hours × rate) underneath when the labour-cost feature is on.
+  const stack = (hoursLabel: string, wageLabel: string | null) =>
+    showWage && wageLabel ? (
+      <div className="leading-tight">
+        <div>{hoursLabel}</div>
+        <div className="text-[11px] font-medium text-emerald-600">{wageLabel}</div>
+      </div>
+    ) : (
+      hoursLabel
+    );
+
+  if (q.isLoading) return <div className="py-4 text-center text-sm text-slate-500">Loading…</div>;
+
+  return (
+    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
+            {days.map((d) => {
+              const dt = new Date(`${d}T00:00:00`);
+              const weekend = dt.getDay() === 0 || dt.getDay() === 6;
+              return (
+                <th key={d} className={clsx("border-r border-slate-100 px-3 py-2 text-center font-medium", weekend && "text-slate-300")}>
+                  <div>{dt.toLocaleDateString("en-GB", { weekday: "short" })}</div>
+                  <div className="text-[11px] font-normal normal-case text-slate-400">
+                    {dt.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                  </div>
+                </th>
+              );
+            })}
+            <th className="px-4 py-2 text-right font-medium">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            {days.map((d) => {
+              const h = byDay[d] ?? 0;
+              const has = h > 0;
+              return (
+                <td
+                  key={d}
+                  onClick={has ? () => onSelectDay(d) : undefined}
+                  title={has ? "View this day" : undefined}
+                  className={clsx(
+                    "border-r border-slate-100 px-3 py-3 text-center tabular-nums",
+                    has ? "cursor-pointer font-medium text-slate-800 hover:bg-brand-50 hover:text-brand-700" : "text-slate-300",
+                  )}
+                >
+                  {has ? stack(hm(h), rate > 0 ? gbp(h * rate) : null) : "·"}
+                </td>
+              );
+            })}
+            <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-800">
+              {stack(hm(total), rate > 0 ? gbp(total * rate) : null)}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function StaffSessions({
   shopId,
   row,
@@ -947,6 +1135,39 @@ function StaffSessions({
   canManage: boolean;
   showLeave: boolean;
   onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4">
+      <div className="card w-full max-w-lg p-5">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">{row.userName}</h2>
+            <p className="text-sm text-slate-500">{from === to ? dayLabel(from) : `${from} → ${to}`}</p>
+          </div>
+          <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
+        </div>
+        <StaffSessionsBody shopId={shopId} row={row} from={from} to={to} canManage={canManage} showLeave={showLeave} />
+      </div>
+    </div>
+  );
+}
+
+// The sessions + leave list for one staff member over a range. Shared by the modal
+// (mobile) and the inline expanded row (desktop) in the By-staff table.
+function StaffSessionsBody({
+  shopId,
+  row,
+  from,
+  to,
+  canManage,
+  showLeave,
+}: {
+  shopId: string;
+  row: TimesheetRow;
+  from: string;
+  to: string;
+  canManage: boolean;
+  showLeave: boolean;
 }) {
   const qc = useQueryClient();
   const q = useQuery({
@@ -982,16 +1203,7 @@ function StaffSessions({
   });
 
   return (
-    <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4">
-      <div className="card w-full max-w-lg p-5">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">{row.userName}</h2>
-            <p className="text-sm text-slate-500">{from === to ? dayLabel(from) : `${from} → ${to}`}</p>
-          </div>
-          <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
-        </div>
-        <div className="max-h-[60vh] divide-y divide-slate-100 overflow-auto">
+    <div className="max-h-[60vh] divide-y divide-slate-100 overflow-auto">
           {q.isLoading ? <div className="py-6 text-center text-sm text-slate-500">Loading…</div> : null}
           {!q.isLoading && (q.data?.length ?? 0) === 0 && leaveDays.length === 0 ? (
             <div className="py-6 text-center text-sm text-slate-400">No sessions.</div>
@@ -1041,7 +1253,5 @@ function StaffSessions({
             </div>
           ))}
         </div>
-      </div>
-    </div>
   );
 }
