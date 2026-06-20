@@ -617,7 +617,6 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
   const completedRows = computedRows.filter(isRowReady).length;
   const errorRows = computedRows.filter((row) => row.hasError).length;
   const pendingRows = computedRows.filter((row) => !isRowReady(row) && !row.hasError).length;
-  const scannedRows = computedRows.length - pendingRows;
   const toPackHint = (row: typeof computedRows[number]) => ({
     packId: row.pack.id,
     packNumber: row.pack.packNumber,
@@ -772,8 +771,7 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
     <ScreenContainer footer={finalizeFooter} keyboardScrollOffset={160}>
       <View style={styles.content}>
         <View style={[ui.card, styles.summaryCard]}>
-          {/* Compact header: shift + date on top, progress + an inline "Scan any" pill beneath —
-              keeps the title section to two short lines so the pack list gets the screen space. */}
+          {/* Single-line title: shift name + date, with the "Scan any" pill inline on the right. */}
           <View style={styles.summaryHeaderRow}>
             <Text style={styles.summaryTitle} numberOfLines={1}>
               {shiftQuery.data?.shiftName ?? "-"}
@@ -781,18 +779,6 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
             <Text style={styles.summaryDate} numberOfLines={1}>
               {businessDayQuery.data?.businessDate ?? "-"}
             </Text>
-          </View>
-
-          <View style={styles.summaryActionRow}>
-            <Text style={[styles.scanProgressText, styles.summaryProgressText]} numberOfLines={1}>
-              {computedRows.length > 0
-                ? `${scannedRows} scanned · ${pendingRows} pending`
-                : "No active packs"}
-              {errorRows > 0 ? (
-                <Text style={styles.finalizeProgressTextError}> · {errorRows} error{errorRows === 1 ? "" : "s"}</Text>
-              ) : null}
-            </Text>
-
             {isCameraScanningEnabled ? (
               <Pressable
                 style={[styles.compactScanBtn, isSubmitting ? styles.actionButtonDisabled : null]}
@@ -881,10 +867,16 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
                   <Text style={styles.packLabelNum} numberOfLines={1}>
                     {row.pack.displayNumber != null ? `#${row.pack.displayNumber}` : row.pack.packNumber}
                   </Text>
-                  <Text style={styles.packLabelSub} numberOfLines={1}>
-                    {row.pack.displayNumber != null ? row.pack.packNumber : `Open ${row.pack.currentSerialNumber}`}
-                  </Text>
+                  {row.pack.displayNumber != null ? (
+                    <Text style={styles.packLabelSub} numberOfLines={1}>{row.pack.packNumber}</Text>
+                  ) : null}
                 </Pressable>
+
+                {/* Opening serial reference (same normalised form the input is seeded with). */}
+                <View style={styles.openCol}>
+                  <Text style={styles.openLabel}>OPEN</Text>
+                  <Text style={styles.openValue} numberOfLines={1}>{openingSerialDefault}</Text>
+                </View>
 
                 <ClosingSerialInput
                   ref={(el) => {
@@ -1073,7 +1065,7 @@ const styles = StyleSheet.create({
   summaryHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
     gap: appTheme.spacing.sm,
   },
   summaryHeading: {
@@ -1190,9 +1182,12 @@ const styles = StyleSheet.create({
   packRowReady: { borderColor: appTheme.colors.borderSuccessSoft },
   packRowError: { borderColor: appTheme.colors.danger },
   packRowMain: { flexDirection: "row", alignItems: "center", gap: 6 },
-  packLabelCol: { width: 60 },
+  packLabelCol: { width: 56 },
   packLabelNum: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 17 },
   packLabelSub: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 10, lineHeight: 13 },
+  openCol: { width: 46 },
+  openLabel: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 9, lineHeight: 11, letterSpacing: 0.3 },
+  openValue: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, lineHeight: 16 },
   denseSerialInput: { flex: 1, height: 32, paddingVertical: 4, textAlign: "center" },
   denseSoldOut: {
     height: 32,
