@@ -1,5 +1,5 @@
 import React, { forwardRef, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, TextInputProps, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, TextInput, TextInputProps, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNetInfo } from "@react-native-community/netinfo";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -614,7 +614,6 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
     const openingDefault = normalizeClosingSerialInput(row.pack.currentSerialNumber);
     return Boolean(entry?.closingSerialNumber) && entry.closingSerialNumber === openingDefault;
   }
-  const completedRows = computedRows.filter(isRowReady).length;
   const errorRows = computedRows.filter((row) => row.hasError).length;
   const pendingRows = computedRows.filter((row) => !isRowReady(row) && !row.hasError).length;
   const toPackHint = (row: typeof computedRows[number]) => ({
@@ -731,23 +730,10 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
           ? `${pendingRows} pack${pendingRows === 1 ? "" : "s"} still need a closing serial${pendingPackList ? ` (${pendingPackList}${pendingPackOverflow})` : ""}.`
           : "")
     : "";
-  const readyProgress = computedRows.length > 0
-    ? `${completedRows} of ${computedRows.length} pack${computedRows.length === 1 ? "" : "s"} ready`
-    : "No active packs — this will be a zero-sales close.";
 
   const finalizeFooter = (
     <View style={[ui.card, styles.fixedFooterCard]}>
       <View style={styles.finalizeFooterContent}>
-        {readyProgress ? (
-          <View style={styles.finalizeProgressRow}>
-            <Text style={styles.finalizeProgressText}>{readyProgress}</Text>
-            {errorRows > 0 ? (
-              <Text style={[styles.finalizeProgressText, styles.finalizeProgressTextError]}>
-                {errorRows} error{errorRows === 1 ? "" : "s"}
-              </Text>
-            ) : null}
-          </View>
-        ) : null}
         {!canFinalize && blockingReason ? (
           <Text
             style={[styles.meta, errorRows > 0 ? styles.finalizeProgressTextError : null]}
@@ -1023,8 +1009,9 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
         })}
         </View>
 
-        <View style={[ui.card, styles.compactCard]}>
-          <Text style={styles.cardTitle}>Total sales: {formatCurrency(totals.salesAmount)}</Text>
+        <View style={styles.totalRow}>
+          <Text style={styles.totalLabel}>Total sales</Text>
+          <Text style={styles.totalValue}>{formatCurrency(totals.salesAmount)}</Text>
         </View>
 
       </View>
@@ -1038,7 +1025,9 @@ const styles = StyleSheet.create({
   },
   fixedFooterCard: {
     paddingVertical: appTheme.spacing.sm,
-    marginBottom: Platform.OS === "android" ? appTheme.spacing.sm : 0,
+    // Lift the Save button clear of the bottom edge on both platforms (home indicator on iOS,
+    // gesture/nav bar on Android — the ScreenContainer already adds the Android safe-area inset).
+    marginBottom: appTheme.spacing.md,
   },
   finalizeFooterContent: {
     gap: 6,
@@ -1060,6 +1049,29 @@ const styles = StyleSheet.create({
   },
   compactCard: {
     gap: appTheme.spacing.sm,
+  },
+  // Slim total-sales bar: muted label left, emphasised amount right.
+  totalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceTint,
+    gap: appTheme.spacing.sm,
+  },
+  totalLabel: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 16,
+  },
+  totalValue: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.heading,
+    fontSize: 18,
+    lineHeight: 22,
   },
   summaryCard: {
     gap: appTheme.spacing.xs,
