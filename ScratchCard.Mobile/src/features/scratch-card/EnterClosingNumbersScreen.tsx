@@ -854,16 +854,13 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
           </View>
         ) : null}
 
+        <View style={styles.packList}>
         {computedRows.map((row, rowIndex) => {
           const entry = entries[row.pack.id];
           const hasClosingSerial = Boolean(entry?.closingSerialNumber?.trim());
           // Pre-fill the opening serial as a suggested starting point so the box is never blank.
           // It is shown muted and the pack stays "Pending" until actually scanned or edited.
           const openingSerialDefault = normalizeClosingSerialInput(row.pack.currentSerialNumber);
-          const isFlagged =
-            entry?.entryMethod === EntryMethod.Manual ||
-            (entry?.originalScannedSerialNumber &&
-              entry.originalScannedSerialNumber !== entry.closingSerialNumber);
           // Next pack in the visible order. Used to chain the Android numeric "Next" return key
           // and the iOS inline arrow button.
           const nextRow = rowIndex + 1 < computedRows.length ? computedRows[rowIndex + 1] : null;
@@ -873,209 +870,177 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
           };
           // Unchanged opening serials (no-sales packs) count as Ready without needing a touch.
           const rowReady = isRowReady(row);
-          const rowStatusLabel = row.hasError ? "Error" : rowReady ? "Ready" : "Pending";
-          const rowStatusTone: "danger" | "success" | "warning" = row.hasError ? "danger" : rowReady ? "success" : "warning";
-          const isPendingRow = rowStatusLabel === "Pending";
-          const isReadyRow = rowStatusLabel === "Ready";
+          const isPendingRow = !row.hasError && !rowReady;
+          const isReadyRow = !row.hasError && rowReady;
 
           return (
             <View
               style={[
-                ui.card,
-                styles.packCard,
-                isPendingRow ? styles.packCardPending : null,
-                isReadyRow ? styles.packCardReady : null,
+                styles.packRowDense,
+                isPendingRow ? styles.packRowPending : null,
+                isReadyRow ? styles.packRowReady : null,
+                row.hasError ? styles.packRowError : null,
               ]}
               key={row.pack.id}
             >
-              <View style={styles.packHeaderRow}>
+              {/* Dense single-line row: compact label · closing-serial input · Sold · Scan. */}
+              <View style={styles.packRowMain}>
                 <Pressable
-                  style={styles.packTitlePressable}
+                  style={styles.packLabelCol}
                   onPress={() => showGameNameTooltip(row.pack.id)}
                   accessibilityRole="button"
                   accessibilityLabel={`Show game name for pack ${row.pack.packNumber}`}
                 >
-                  <Text style={styles.packTitle} numberOfLines={1}>
-                    {row.pack.displayNumber != null ? `#${row.pack.displayNumber} | ` : ""}
-                    Pack - {row.pack.packNumber}
+                  <Text style={styles.packLabelNum} numberOfLines={1}>
+                    {row.pack.displayNumber != null ? `#${row.pack.displayNumber}` : row.pack.packNumber}
+                  </Text>
+                  <Text style={styles.packLabelSub} numberOfLines={1}>
+                    {row.pack.displayNumber != null ? row.pack.packNumber : `Open ${row.pack.currentSerialNumber}`}
                   </Text>
                 </Pressable>
-                <Text style={styles.packMeta}>Opening: {row.pack.currentSerialNumber}</Text>
-                {/* <StatusBadge label={rowStatusLabel} tone={rowStatusTone} /> */}
-              </View>
-              {gameNameTooltipPackId === row.pack.id ? (
-                <Text style={styles.packTooltip}>{row.pack.gameName}</Text>
-              ) : null}
 
-              {/* <Text style={styles.fieldLabel}>Closing Serial Number</Text> */}
-              <View style={styles.scanInputRow}>
-                <View style={styles.scanInputCell}>
-                  <ClosingSerialInput
-                    ref={(el) => {
-                      inputRefs.current[row.pack.id] = el;
-                    }}
-                    style={[
-                      styles.input,
-                      styles.inlineSerialInput,
-                      !hasClosingSerial ? styles.inlineSerialInputDefault : null,
-                    ]}
-                    // Value is seeded to the opening serial when the pack list arrives (see
-                    // useEffect above), so the box always shows a real editable number rather
-                    // than a placeholder. The user can backspace + type to adjust the trailing
-                    // digits without retyping the whole serial.
-                    value={entry?.closingSerialNumber ?? ""}
-                    placeholder="Serial no"
-                    placeholderTextColor={appTheme.colors.textSubtle}
-                    keyboardType="numeric"
-                    editable={!isSubmitting}
-                    // Android: number-pad keyboards include a return key, so "next" + onSubmitEditing
-                    // works natively. iOS: number-pad has no return key — the inline ⬇ button below
-                    // gives the same affordance there. "done" on the last row dismisses.
-                    returnKeyType={nextRow ? "next" : "done"}
-                    submitBehavior={nextRow ? "submit" : undefined}
-                    onSubmitEditing={focusNextInput}
-                    onBlur={() => {
-                      // If the user emptied the field and tapped away, snap it back to the
-                      // opening serial (the seeded default) and revert the row to Pending so
-                      // the screen never sits in an "empty + ambiguous" state.
-                      if (!entry?.closingSerialNumber || entry.closingSerialNumber.trim().length === 0) {
-                        setEntries((previous) => ({
-                          ...previous,
-                          [row.pack.id]: {
-                            closingSerialNumber: openingSerialDefault,
-                            originalScannedSerialNumber: undefined,
-                            entryMethod: undefined,
-                            manualEntryReason: undefined,
-                          },
-                        }));
-                        setTouchedPackIds((prev) => {
-                          if (!prev.has(row.pack.id)) return prev;
-                          const next = new Set(prev);
-                          next.delete(row.pack.id);
-                          return next;
-                        });
-                      }
-                    }}
-                    onChangeText={(value) => {
-                      const normalizedValue = normalizeClosingSerialInput(value);
-
+                <ClosingSerialInput
+                  ref={(el) => {
+                    inputRefs.current[row.pack.id] = el;
+                  }}
+                  style={[
+                    styles.input,
+                    styles.denseSerialInput,
+                    !hasClosingSerial ? styles.inlineSerialInputDefault : null,
+                  ]}
+                  // Seeded to the opening serial when the pack list arrives (see useEffect above),
+                  // so the box always shows a real editable number; the user adjusts the trailing digits.
+                  value={entry?.closingSerialNumber ?? ""}
+                  placeholder="Serial"
+                  placeholderTextColor={appTheme.colors.textSubtle}
+                  keyboardType="numeric"
+                  editable={!isSubmitting}
+                  returnKeyType={nextRow ? "next" : "done"}
+                  submitBehavior={nextRow ? "submit" : undefined}
+                  onSubmitEditing={focusNextInput}
+                  onBlur={() => {
+                    // If the user emptied the field and tapped away, snap it back to the opening
+                    // serial (the seeded default) and revert the row to Pending.
+                    if (!entry?.closingSerialNumber || entry.closingSerialNumber.trim().length === 0) {
                       setEntries((previous) => ({
                         ...previous,
                         [row.pack.id]: {
-                          closingSerialNumber: normalizedValue,
-                          originalScannedSerialNumber: previous[row.pack.id]?.originalScannedSerialNumber,
-                          entryMethod: previous[row.pack.id]?.originalScannedSerialNumber
-                            ? EntryMethod.ScannedEdited
-                            : EntryMethod.Manual,
-                          manualEntryReason: previous[row.pack.id]?.manualEntryReason,
+                          closingSerialNumber: openingSerialDefault,
+                          originalScannedSerialNumber: undefined,
+                          entryMethod: undefined,
+                          manualEntryReason: undefined,
                         },
                       }));
-                      // Any edit marks the pack as user-acknowledged — flips the status badge
-                      // from Pending to Ready (or Error if validation fails).
                       setTouchedPackIds((prev) => {
-                        if (prev.has(row.pack.id)) return prev;
+                        if (!prev.has(row.pack.id)) return prev;
                         const next = new Set(prev);
-                        next.add(row.pack.id);
+                        next.delete(row.pack.id);
                         return next;
                       });
-                    }}
-                  />
-                </View>
+                    }
+                  }}
+                  onChangeText={(value) => {
+                    const normalizedValue = normalizeClosingSerialInput(value);
 
-                <View style={styles.scanInputCell}>
-                  <Pressable
-                    style={[
-                      styles.soldOutButton,
-                      isSubmitting ? styles.actionButtonDisabled : null,
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Mark pack ${row.pack.packNumber} as sold out`}
-                    disabled={isSubmitting}
-                    onPress={async () => {
-                      // Marking sold-out sets the closing serial to the end of the pack which
-                      // cannot be undone short of editing the textbox — confirm first so a
-                      // mis-tap doesn't silently empty the inventory.
-                      const soldOutSerial = normalizeClosingSerialInput(getLastSerialForPack(row.pack));
-                      haptics.warning();
-                      const ok = await confirmDestructive({
-                        title: "Mark pack as sold out?",
-                        message: `Pack ${row.pack.packNumber} closing serial will be set to ${soldOutSerial}.`,
-                        confirmLabel: "Mark sold out",
-                      });
-                      if (!ok) return;
-                      haptics.success();
-                      setEntries((previous) => ({
-                        ...previous,
-                        [row.pack.id]: {
-                          closingSerialNumber: soldOutSerial,
-                          originalScannedSerialNumber: previous[row.pack.id]?.originalScannedSerialNumber,
-                          entryMethod: previous[row.pack.id]?.originalScannedSerialNumber
-                            ? EntryMethod.ScannedEdited
-                            : EntryMethod.Manual,
-                          manualEntryReason: previous[row.pack.id]?.manualEntryReason,
-                        },
-                      }));
-                      markPackTouched(row.pack.id);
-                    }}
-                  >
-                    <Text style={styles.soldOutButtonText}>Sold out</Text>
-                  </Pressable>
-                </View>
+                    setEntries((previous) => ({
+                      ...previous,
+                      [row.pack.id]: {
+                        closingSerialNumber: normalizedValue,
+                        originalScannedSerialNumber: previous[row.pack.id]?.originalScannedSerialNumber,
+                        entryMethod: previous[row.pack.id]?.originalScannedSerialNumber
+                          ? EntryMethod.ScannedEdited
+                          : EntryMethod.Manual,
+                        manualEntryReason: previous[row.pack.id]?.manualEntryReason,
+                      },
+                    }));
+                    // Any edit marks the pack as user-acknowledged — flips Pending to Ready (or Error).
+                    setTouchedPackIds((prev) => {
+                      if (prev.has(row.pack.id)) return prev;
+                      const next = new Set(prev);
+                      next.add(row.pack.id);
+                      return next;
+                    });
+                  }}
+                />
 
-                <View style={styles.scanInputCell}>
-                  <Pressable
-                    style={[
-                      styles.inlineScanButton,
-                      (!isCameraScanningEnabled || isSubmitting) ? styles.actionButtonDisabled : null,
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Scan barcode for pack ${row.pack.packNumber}`}
-                    disabled={!isCameraScanningEnabled || isSubmitting}
-                    onPress={() => openBarcodeScanner({ mode: "single", packId: row.pack.id, packNumber: row.pack.packNumber })}
-                  >
-                    <View style={styles.scanIconWrap}>
-                      <View style={[styles.scanCorner, styles.scanCornerTopLeft]} />
-                      <View style={[styles.scanCorner, styles.scanCornerTopRight]} />
-                      <View style={[styles.scanCorner, styles.scanCornerBottomLeft]} />
-                      <View style={[styles.scanCorner, styles.scanCornerBottomRight]} />
+                <Pressable
+                  style={[styles.denseSoldOut, isSubmitting ? styles.actionButtonDisabled : null]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Mark pack ${row.pack.packNumber} as sold out`}
+                  disabled={isSubmitting}
+                  onPress={async () => {
+                    // Marking sold-out sets the closing serial to the end of the pack — confirm first.
+                    const soldOutSerial = normalizeClosingSerialInput(getLastSerialForPack(row.pack));
+                    haptics.warning();
+                    const ok = await confirmDestructive({
+                      title: "Mark pack as sold out?",
+                      message: `Pack ${row.pack.packNumber} closing serial will be set to ${soldOutSerial}.`,
+                      confirmLabel: "Mark sold out",
+                    });
+                    if (!ok) return;
+                    haptics.success();
+                    setEntries((previous) => ({
+                      ...previous,
+                      [row.pack.id]: {
+                        closingSerialNumber: soldOutSerial,
+                        originalScannedSerialNumber: previous[row.pack.id]?.originalScannedSerialNumber,
+                        entryMethod: previous[row.pack.id]?.originalScannedSerialNumber
+                          ? EntryMethod.ScannedEdited
+                          : EntryMethod.Manual,
+                        manualEntryReason: previous[row.pack.id]?.manualEntryReason,
+                      },
+                    }));
+                    markPackTouched(row.pack.id);
+                  }}
+                >
+                  <Text style={styles.denseSoldOutText}>Sold</Text>
+                </Pressable>
 
-                      <View style={styles.inlineScanGlyph}>
-                        <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
-                        <View style={[styles.barcodeBar, styles.barcodeBarWide]} />
-                        <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
-                        <View style={[styles.barcodeBar, styles.barcodeBarMedium]} />
-                        <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
-                        <View style={[styles.barcodeBar, styles.barcodeBarWide]} />
-                        <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
-                      </View>
+                <Pressable
+                  style={[
+                    styles.denseScan,
+                    (!isCameraScanningEnabled || isSubmitting) ? styles.actionButtonDisabled : null,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Scan barcode for pack ${row.pack.packNumber}`}
+                  disabled={!isCameraScanningEnabled || isSubmitting}
+                  onPress={() => openBarcodeScanner({ mode: "single", packId: row.pack.id, packNumber: row.pack.packNumber })}
+                >
+                  <View style={styles.scanIconWrap}>
+                    <View style={[styles.scanCorner, styles.scanCornerTopLeft]} />
+                    <View style={[styles.scanCorner, styles.scanCornerTopRight]} />
+                    <View style={[styles.scanCorner, styles.scanCornerBottomLeft]} />
+                    <View style={[styles.scanCorner, styles.scanCornerBottomRight]} />
+
+                    <View style={styles.inlineScanGlyph}>
+                      <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
+                      <View style={[styles.barcodeBar, styles.barcodeBarWide]} />
+                      <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
+                      <View style={[styles.barcodeBar, styles.barcodeBarMedium]} />
+                      <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
+                      <View style={[styles.barcodeBar, styles.barcodeBarWide]} />
+                      <View style={[styles.barcodeBar, styles.barcodeBarThin]} />
                     </View>
-                  </Pressable>
-                </View>
+                  </View>
+                </Pressable>
               </View>
 
-              {entry?.originalScannedSerialNumber ? (
-                <Text style={styles.meta}>Original scanned serial: {entry.originalScannedSerialNumber}</Text>
+              {/* Thin conditional sub-line: error wins; otherwise sales feedback only once entered. */}
+              {row.hasError ? (
+                <Text style={styles.denseError} numberOfLines={2}>{row.message}</Text>
+              ) : hasClosingSerial && row.soldQuantity > 0 ? (
+                <Text style={styles.denseMetrics} numberOfLines={1}>
+                  Qty {row.soldQuantity} · Sales {formatCurrency(row.salesAmount)}
+                </Text>
               ) : null}
 
-              {/* {isFlagged ? <StatusBadge label="Edited serial" tone="warning" /> : null} */}
-              {row.hasError ? <Text style={styles.error}>{row.message}</Text> : null}
-
-              {hasClosingSerial ? (
-                <View style={styles.metricsInlineRow}>
-                  <Text style={[styles.packMeta, styles.metricsInlineItem]}>
-                    Price {formatCurrency(row.pack.ticketPrice)}
-                  </Text>
-                  <Text style={[styles.packMeta, styles.metricsInlineItemCenter]}>
-                    Qty {row.soldQuantity}
-                  </Text>
-                  <Text style={[styles.packMeta, styles.metricsInlineItemRight]}>
-                    Sales {formatCurrency(row.salesAmount)}
-                  </Text>
-                </View>
+              {gameNameTooltipPackId === row.pack.id ? (
+                <Text style={styles.packTooltip}>{row.pack.gameName}</Text>
               ) : null}
             </View>
           );
         })}
+        </View>
 
         <View style={[ui.card, styles.compactCard]}>
           <Text style={styles.cardTitle}>Total sales: {formatCurrency(totals.salesAmount)}</Text>
@@ -1199,6 +1164,44 @@ const styles = StyleSheet.create({
     borderWidth: 0.8,
     borderColor: appTheme.colors.borderSuccessSoft,
   },
+  // Dense pack rows — compact enough to show ~12 closing-serial rows on screen at once.
+  packList: { gap: 4 },
+  packRowDense: {
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    borderWidth: 0.8,
+    borderColor: appTheme.colors.borderSoft,
+    gap: 2,
+  },
+  packRowPending: { borderColor: appTheme.colors.borderWarningSoft },
+  packRowReady: { borderColor: appTheme.colors.borderSuccessSoft },
+  packRowError: { borderColor: appTheme.colors.danger },
+  packRowMain: { flexDirection: "row", alignItems: "center", gap: 6 },
+  packLabelCol: { width: 60 },
+  packLabelNum: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 17 },
+  packLabelSub: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 10, lineHeight: 13 },
+  denseSerialInput: { flex: 1, height: 32, paddingVertical: 4, textAlign: "center" },
+  denseSoldOut: {
+    height: 32,
+    paddingHorizontal: 10,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceTintSoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  denseSoldOutText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 14 },
+  denseScan: {
+    width: 40,
+    height: 32,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceInfoSoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  denseMetrics: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 11, lineHeight: 14, paddingLeft: 66 },
+  denseError: { color: appTheme.colors.danger, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11, lineHeight: 14, paddingLeft: 66 },
   cardTitle: {
     fontSize: 18,
     lineHeight: 23,
