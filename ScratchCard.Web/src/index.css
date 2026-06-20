@@ -71,6 +71,20 @@
     @apply mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500;
   }
 
+  /* Native <select> dropdowns: drop the default OS arrow for a consistent chevron so every
+     dropdown across the app matches (the .input box supplies the field styling). */
+  select.input {
+    @apply cursor-pointer appearance-none bg-no-repeat pr-10;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-position: right 0.7rem center;
+    background-size: 1.05rem;
+  }
+  /* The popup option list is OS-rendered; we can at least theme its colours. */
+  select.input option {
+    background-color: #ffffff;
+    color: #0f172a;
+  }
+
   /* Page heading helpers */
   .page-title {
     @apply text-[26px] font-bold leading-tight tracking-tight text-slate-900;
@@ -124,6 +138,11 @@ html.dark body {
   color: #e2e8f0;
 }
 .dark .input::placeholder { color: #64748b; }
+/* Themed dropdown option list in dark mode (honoured by Chromium/Firefox; Safari keeps its native menu). */
+.dark select.input option {
+  background-color: #121829;
+  color: #e2e8f0;
+}
 .dark .btn-ghost {
   background-color: #121829;
   border-color: rgba(255, 255, 255, 0.1);

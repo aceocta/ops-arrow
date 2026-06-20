@@ -48,7 +48,7 @@ export default function TimesheetsPage() {
   const canManage = isOwner || isManager;
   const canRecord = canManage && features.includes("staff_rota.manual_approval");
   const gbp = (n: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n || 0);
-  const [view, setView] = useState<"staff" | "shift">("staff");
+  const [view, setView] = useState<"staff" | "shift" | "week">("week");
   const [recordOpen, setRecordOpen] = useState(false);
   const [range, setRange] = useState(() => {
     const to = new Date();
@@ -56,7 +56,7 @@ export default function TimesheetsPage() {
     from.setDate(from.getDate() - 6);
     return { from: fmtDate(from), to: fmtDate(to) };
   });
-  const [selected, setSelected] = useState<{ row: TimesheetRow } | null>(null);
+  const [selected, setSelected] = useState<{ row: TimesheetRow; from?: string; to?: string } | null>(null);
 
   const setQuick = (days: number) => {
     const to = new Date();
@@ -68,7 +68,8 @@ export default function TimesheetsPage() {
   const staffQ = useQuery({
     queryKey: ["ts-staff", shopId, range.from, range.to],
     queryFn: () => rotaApi.timesheet(shopId, range.from, range.to),
-    enabled: !!shopId && view === "staff",
+    // The week grid reuses the by-staff rows as its staff list + per-staff totals.
+    enabled: !!shopId && (view === "staff" || view === "week"),
   });
   const shiftQ = useQuery({
     queryKey: ["ts-shift", shopId, range.from, range.to],
@@ -76,14 +77,43 @@ export default function TimesheetsPage() {
     enabled: !!shopId && view === "shift",
   });
 
+  // Week grid: one column per day across the range (a 7-day range = a Mon–Sun week), hours per
+  // staff per day. Built by fetching each staff member's sessions and bucketing them by date.
+  const weekDays = useMemo(() => {
+    const days: string[] = [];
+    // Noon avoids DST edges; setDate handles month boundaries cleanly.
+    const cur = new Date(`${range.from}T12:00:00`);
+    const end = new Date(`${range.to}T12:00:00`);
+    while (cur <= end && days.length < 31) {
+      days.push(fmtDate(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
+    return days;
+  }, [range.from, range.to]);
+
+  const weekStaff = staffQ.data ?? [];
+  const weekGridQ = useQuery({
+    queryKey: ["ts-week", shopId, range.from, range.to, weekStaff.map((r) => r.userId ?? r.rotaStaffMemberId).join(",")],
+    enabled: !!shopId && view === "week" && weekStaff.length > 0,
+    queryFn: async () =>
+      Promise.all(
+        weekStaff.map(async (r) => {
+          const sessions = await rotaApi.staffSessions(shopId, { userId: r.userId, rotaStaffMemberId: r.rotaStaffMemberId }, range.from, range.to);
+          const byDay: Record<string, number> = {};
+          for (const s of sessions) byDay[s.date] = (byDay[s.date] ?? 0) + s.hours;
+          return { row: r, byDay };
+        }),
+      ),
+  });
+
   const total = useMemo(() => {
-    const rows = view === "staff" ? staffQ.data ?? [] : shiftQ.data ?? [];
+    const rows = view === "shift" ? shiftQ.data ?? [] : staffQ.data ?? [];
     return rows.reduce((s: number, r: { totalHours: number }) => s + r.totalHours, 0);
   }, [view, staffQ.data, shiftQ.data]);
 
   // Wage split: approved vs pending (awaiting approval), so the total is never inflated silently.
   const wage = useMemo(() => {
-    const rows = (view === "staff" ? staffQ.data ?? [] : shiftQ.data ?? []) as {
+    const rows = (view === "shift" ? shiftQ.data ?? [] : staffQ.data ?? []) as {
       labourCost?: number | null; pendingLabourCost?: number | null; pendingHours?: number;
     }[];
     const totalCost = rows.reduce((s, r) => s + (r.labourCost ?? 0), 0);
@@ -94,11 +124,12 @@ export default function TimesheetsPage() {
 
   // Open (not checked out) sessions contribute no hours — flag them so totals aren't trusted blindly.
   const openTotal = useMemo(() => {
-    const rows = (view === "staff" ? staffQ.data ?? [] : shiftQ.data ?? []) as { openSessions: number }[];
+    const rows = (view === "shift" ? shiftQ.data ?? [] : staffQ.data ?? []) as { openSessions: number }[];
     return rows.reduce((s, r) => s + r.openSessions, 0);
   }, [view, staffQ.data, shiftQ.data]);
 
-  const loading = view === "staff" ? staffQ.isLoading : shiftQ.isLoading;
+  const loading =
+    view === "shift" ? shiftQ.isLoading : view === "week" ? staffQ.isLoading || weekGridQ.isLoading : staffQ.isLoading;
 
   // Pending manual approvals — same endpoint/key the nav badge uses, narrowed to the selected range.
   const pendingApprovalsQ = useQuery({
@@ -114,6 +145,19 @@ export default function TimesheetsPage() {
   }, [pendingApprovalsQ.data, range.from, range.to]);
 
   const exportCsv = () => {
+    if (view === "week") {
+      downloadCsv(
+        `timesheet-weekly_${range.from}_${range.to}`,
+        ["Staff", "External", ...weekDays.map((d) => dayLabel(d)), "Total"],
+        (weekGridQ.data ?? []).map((g) => [
+          g.row.userName,
+          g.row.isExternal ? "Yes" : "",
+          ...weekDays.map((d) => (g.byDay[d] ? g.byDay[d].toFixed(2) : "")),
+          g.row.totalHours.toFixed(2),
+        ]),
+      );
+      return;
+    }
     if (view === "staff") {
       downloadCsv(
         `timesheet-by-staff_${range.from}_${range.to}`,
@@ -182,51 +226,16 @@ export default function TimesheetsPage() {
 
       {/* View toggle */}
       <div className="flex w-fit rounded-lg border border-slate-200 bg-white p-1">
-        {(["staff", "shift"] as const).map((v) => (
+        {(["week", "staff", "shift"] as const).map((v) => (
           <button
             key={v}
             onClick={() => setView(v)}
             className={clsx("rounded-md px-4 py-1.5 text-sm font-medium", view === v ? "bg-brand-600 text-white" : "text-slate-600")}
           >
-            {v === "staff" ? "By staff" : "By shift"}
+            {v === "staff" ? "By staff" : v === "shift" ? "By shift" : "Weekly"}
           </button>
         ))}
       </div>
-
-      {/* Wage split — approved vs awaiting approval */}
-      {showCost && !loading && wage.total > 0 ? (
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="card p-4">
-            <div className="text-xs uppercase tracking-wide text-slate-400">Approved wage</div>
-            <div className="mt-1 text-xl font-semibold text-emerald-600">{gbp(wage.approved)}</div>
-          </div>
-          <div className={clsx("card p-4", wage.pending > 0 && "ring-1 ring-amber-200")}>
-            <div className="text-xs uppercase tracking-wide text-slate-400">Pending approval</div>
-            <div className="mt-1 text-xl font-semibold text-amber-600">{gbp(wage.pending)}</div>
-            {wage.pendingHours > 0 ? <div className="text-xs text-slate-400">{hm(wage.pendingHours)} awaiting approval</div> : null}
-          </div>
-          <div className="card p-4">
-            <div className="text-xs uppercase tracking-wide text-slate-400">Total if all approved</div>
-            <div className="mt-1 text-xl font-semibold text-slate-800">{gbp(wage.total)}</div>
-          </div>
-        </div>
-      ) : null}
-
-      {canManage ? <PayrollSection shopId={shopId} from={range.from} to={range.to} /> : null}
-
-      {!loading && openTotal > 0 ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
-          {openTotal} open session{openTotal === 1 ? "" : "s"} — hours missing from totals.
-        </div>
-      ) : null}
-
-      {pendingApprovalCount > 0 ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
-          <Link to="/approvals" className="font-medium underline hover:text-amber-900">
-            {pendingApprovalCount} manual {pendingApprovalCount === 1 ? "entry" : "entries"} awaiting approval
-          </Link>
-        </div>
-      ) : null}
 
       {loading ? <div className="card p-6 text-sm text-slate-500">Loading…</div> : null}
 
@@ -291,7 +300,7 @@ export default function TimesheetsPage() {
             ) : null}
           </table>
         </div>
-      ) : (
+      ) : view === "shift" ? (
         <div className="card overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -346,13 +355,138 @@ export default function TimesheetsPage() {
             ) : null}
           </table>
         </div>
+      ) : (
+        <WeekGrid days={weekDays} grid={weekGridQ.data ?? []} loading={loading} onSelect={(row, day) => setSelected(day ? { row, from: day, to: day } : { row })} />
       )}
 
+      {/* Wage split — approved vs awaiting approval */}
+      {showCost && !loading && wage.total > 0 ? (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="card p-4">
+            <div className="text-xs uppercase tracking-wide text-slate-400">Approved wage</div>
+            <div className="mt-1 text-xl font-semibold text-emerald-600">{gbp(wage.approved)}</div>
+          </div>
+          <div className={clsx("card p-4", wage.pending > 0 && "ring-1 ring-amber-200")}>
+            <div className="text-xs uppercase tracking-wide text-slate-400">Pending approval</div>
+            <div className="mt-1 text-xl font-semibold text-amber-600">{gbp(wage.pending)}</div>
+            {wage.pendingHours > 0 ? <div className="text-xs text-slate-400">{hm(wage.pendingHours)} awaiting approval</div> : null}
+          </div>
+          <div className="card p-4">
+            <div className="text-xs uppercase tracking-wide text-slate-400">Total if all approved</div>
+            <div className="mt-1 text-xl font-semibold text-slate-800">{gbp(wage.total)}</div>
+          </div>
+        </div>
+      ) : null}
+
+      {canManage ? <PayrollSection shopId={shopId} from={range.from} to={range.to} /> : null}
+
+      {!loading && openTotal > 0 ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+          {openTotal} open session{openTotal === 1 ? "" : "s"} — hours missing from totals.
+        </div>
+      ) : null}
+
+      {pendingApprovalCount > 0 ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+          <Link to="/approvals" className="font-medium underline hover:text-amber-900">
+            {pendingApprovalCount} manual {pendingApprovalCount === 1 ? "entry" : "entries"} awaiting approval
+          </Link>
+        </div>
+      ) : null}
+
       {selected ? (
-        <StaffSessions shopId={shopId} row={selected.row} from={range.from} to={range.to} canManage={canManage} showLeave={showLeave} onClose={() => setSelected(null)} />
+        <StaffSessions shopId={shopId} row={selected.row} from={selected.from ?? range.from} to={selected.to ?? range.to} canManage={canManage} showLeave={showLeave} onClose={() => setSelected(null)} />
       ) : null}
 
       {recordOpen ? <RecordHoursModal shopId={shopId} onClose={() => setRecordOpen(false)} /> : null}
+    </div>
+  );
+}
+
+// Weekly matrix: staff down the rows, each day of the range across the columns, hours in the cells.
+// The Staff column is sticky so it stays visible while the days scroll horizontally.
+function WeekGrid({
+  days,
+  grid,
+  loading,
+  onSelect,
+}: {
+  days: string[];
+  grid: { row: TimesheetRow; byDay: Record<string, number> }[];
+  loading: boolean;
+  onSelect: (row: TimesheetRow, day?: string) => void;
+}) {
+  const dayTotals = days.map((d) => grid.reduce((s, g) => s + (g.byDay[d] ?? 0), 0));
+  const grand = grid.reduce((s, g) => s + g.row.totalHours, 0);
+  return (
+    <div className="card overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-400">
+            <th className="sticky left-0 z-10 border-r border-slate-200 bg-white px-5 py-2 font-medium">Staff</th>
+            {days.map((d) => {
+              const dt = new Date(`${d}T00:00:00`);
+              const weekend = dt.getDay() === 0 || dt.getDay() === 6;
+              return (
+                <th key={d} className={clsx("border-r border-slate-100 px-3 py-2 text-center font-medium", weekend && "text-slate-300")}>
+                  <div>{dt.toLocaleDateString("en-GB", { weekday: "short" })}</div>
+                  <div className="text-[11px] font-normal normal-case text-slate-400">
+                    {dt.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                  </div>
+                </th>
+              );
+            })}
+            <th className="px-4 py-2 text-right font-medium">Total</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {grid.map((g) => (
+            <tr
+              key={g.row.userId ?? g.row.rotaStaffMemberId}
+              className="cursor-pointer hover:bg-slate-50"
+              onClick={() => onSelect(g.row)}
+            >
+              <td className="sticky left-0 z-10 border-r border-slate-200 bg-white px-5 py-3">
+                <span className="font-medium text-slate-800">{g.row.userName}</span>
+                {g.row.isExternal ? (
+                  <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">External</span>
+                ) : null}
+              </td>
+              {days.map((d) => {
+                const h = g.byDay[d] ?? 0;
+                return (
+                  <td
+                    key={d}
+                    onClick={h > 0 ? (e) => { e.stopPropagation(); onSelect(g.row, d); } : undefined}
+                    title={h > 0 ? "View this day" : undefined}
+                    className={clsx(
+                      "border-r border-slate-100 px-3 py-3 text-center tabular-nums",
+                      h > 0 ? "cursor-pointer font-medium text-slate-800 hover:bg-brand-50 hover:text-brand-700" : "text-slate-300",
+                    )}
+                  >
+                    {h > 0 ? hm(h) : "·"}
+                  </td>
+                );
+              })}
+              <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-800">{hm(g.row.totalHours)}</td>
+            </tr>
+          ))}
+          {!loading && grid.length === 0 ? (
+            <tr><td colSpan={days.length + 2} className="px-5 py-6 text-center text-slate-400">No hours in this range.</td></tr>
+          ) : null}
+        </tbody>
+        {grid.length > 0 ? (
+          <tfoot>
+            <tr className="border-t border-slate-200 bg-slate-50 font-semibold text-slate-800">
+              <td className="sticky left-0 z-10 border-r border-slate-200 bg-slate-50 px-5 py-3">Total</td>
+              {dayTotals.map((t, i) => (
+                <td key={i} className="border-r border-slate-100 px-3 py-3 text-center tabular-nums">{t > 0 ? hm(t) : "·"}</td>
+              ))}
+              <td className="px-4 py-3 text-right tabular-nums">{hm(grand)}</td>
+            </tr>
+          </tfoot>
+        ) : null}
+      </table>
     </div>
   );
 }
@@ -807,7 +941,7 @@ function StaffSessions({
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">{row.userName}</h2>
-            <p className="text-sm text-slate-500">{from} → {to}</p>
+            <p className="text-sm text-slate-500">{from === to ? dayLabel(from) : `${from} → ${to}`}</p>
           </div>
           <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
         </div>
