@@ -152,10 +152,16 @@ public class ReportService : IReportService
 
         var schedules = await _temperatureScheduleRepository.Query()
             .AsNoTracking()
+            .Include(x => x.Units)
             .Where(x => x.ShopId == shopId && x.IsActive && !x.IsRandom)
             .OrderBy(x => x.ExpectedTime)
             .ThenBy(x => x.Label)
             .ToListAsync(cancellationToken);
+
+        // schedule id -> the units it links (empty == all units).
+        var linksBySchedule = schedules.ToDictionary(
+            s => s.Id,
+            s => (ISet<Guid>)s.Units.Select(u => u.TemperatureMonitoringUnitId).ToHashSet());
 
         var units = await _temperatureUnitRepository.Query()
             .AsNoTracking()
@@ -194,11 +200,20 @@ public class ReportService : IReportService
             .GroupBy(r => (r.ReadingDate, r.UnitId))
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        // Applicable, window-sorted slots per unit — computed once and reused across every date.
+        // Applicable, window-sorted slots per unit — computed once and reused across every date. A
+        // schedule applies to a unit when it links that unit or has no links (all-units); a
+        // unit-specific schedule (non-empty links containing the unit) wins same-time ties.
         var slotsByUnit = units.ToDictionary(
             u => u.UnitId,
-            u => TemperatureScheduleWindows.SortByTime(
-                schedules.Where(s => s.TemperatureMonitoringUnitId == null || s.TemperatureMonitoringUnitId == u.UnitId)));
+            u =>
+            {
+                var applicable = schedules.Where(s => TemperatureScheduleWindows.AppliesToUnit(linksBySchedule[s.Id], u.UnitId));
+                var unitSpecific = (ISet<Guid>)schedules
+                    .Where(s => linksBySchedule[s.Id].Count > 0 && linksBySchedule[s.Id].Contains(u.UnitId))
+                    .Select(s => s.Id)
+                    .ToHashSet();
+                return TemperatureScheduleWindows.SortByTime(applicable, unitSpecific);
+            });
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var nowTime = TimeOnly.FromDateTime(DateTime.UtcNow);
@@ -288,14 +303,16 @@ public class ReportService : IReportService
             From = from,
             To = to,
             Units = units,
-            Slots = schedules.Select(s => new TemperatureScheduleGridSlotDto
+            // One slot per (unit, applicable schedule) — a schedule covering many units (or all units)
+            // expands to a slot for each unit it applies to, so each unit column resolves its own slot.
+            Slots = units.SelectMany(u => slotsByUnit[u.UnitId].Select(s => new TemperatureScheduleGridSlotDto
             {
                 ScheduleId = s.Id,
-                UnitId = s.TemperatureMonitoringUnitId,
+                UnitId = u.UnitId,
                 Label = s.Label,
                 ExpectedTime = s.ExpectedTime,
                 ToleranceMinutes = s.ToleranceMinutes
-            }).ToArray(),
+            })).ToArray(),
             Cells = cells,
             OnTimeCount = onTime,
             EarlyCount = early,

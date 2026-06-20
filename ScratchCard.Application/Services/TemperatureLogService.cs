@@ -22,6 +22,7 @@ public class TemperatureLogService : ITemperatureLogService
     private readonly IRepository<TemperatureReading> _readingRepository;
     private readonly IRepository<TemperatureDailySignoff> _signoffRepository;
     private readonly IRepository<CfgTemperatureSchedule> _scheduleRepository;
+    private readonly IRepository<TemperatureScheduleUnit> _scheduleUnitRepository;
     private readonly IFeatureGateService _featureGateService;
     private readonly IShopMembershipService _shopMembershipService;
     private readonly IAuditService _auditService;
@@ -33,6 +34,7 @@ public class TemperatureLogService : ITemperatureLogService
         IRepository<TemperatureReading> readingRepository,
         IRepository<TemperatureDailySignoff> signoffRepository,
         IRepository<CfgTemperatureSchedule> scheduleRepository,
+        IRepository<TemperatureScheduleUnit> scheduleUnitRepository,
         IFeatureGateService featureGateService,
         IShopMembershipService shopMembershipService,
         IAuditService auditService,
@@ -43,6 +45,7 @@ public class TemperatureLogService : ITemperatureLogService
         _readingRepository = readingRepository;
         _signoffRepository = signoffRepository;
         _scheduleRepository = scheduleRepository;
+        _scheduleUnitRepository = scheduleUnitRepository;
         _featureGateService = featureGateService;
         _shopMembershipService = shopMembershipService;
         _auditService = auditService;
@@ -59,11 +62,15 @@ public class TemperatureLogService : ITemperatureLogService
             .Where(x => x.ShopId == shopId && !x.IsRandom)
             .OrderBy(x => x.ExpectedTime)
             .ToListAsync(cancellationToken);
+
+        var scheduleIds = rows.Select(x => x.Id).ToList();
+        var unitsBySchedule = await LoadUnitIdsByScheduleAsync(scheduleIds, cancellationToken);
+
         return rows.Select(x => new TemperatureScheduleDto
         {
             Id = x.Id,
             ShopId = x.ShopId,
-            TemperatureMonitoringUnitId = x.TemperatureMonitoringUnitId,
+            UnitIds = unitsBySchedule.TryGetValue(x.Id, out var ids) ? ids : [],
             Label = x.Label,
             ExpectedTime = x.ExpectedTime,
             ToleranceMinutes = x.ToleranceMinutes,
@@ -73,12 +80,12 @@ public class TemperatureLogService : ITemperatureLogService
 
     public async Task<TemperatureScheduleDto> CreateScheduleAsync(UpsertTemperatureScheduleRequest request, CancellationToken cancellationToken = default)
     {
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(request.ShopId, TemperatureManagementRoles, cancellationToken);
         await _featureGateService.EnsureFeatureAsync(request.ShopId, FeatureKeys.TemperatureLogScheduledChecks, cancellationToken);
-        ValidateSchedule(request);
+        var unitIds = await ValidateScheduleAsync(request, request.ShopId, cancellationToken);
         var row = new CfgTemperatureSchedule
         {
             ShopId = request.ShopId,
-            TemperatureMonitoringUnitId = request.TemperatureMonitoringUnitId,
             Label = request.Label.Trim(),
             ExpectedTime = request.ExpectedTime,
             ToleranceMinutes = request.ToleranceMinutes,
@@ -87,6 +94,12 @@ public class TemperatureLogService : ITemperatureLogService
             CreatedBy = _currentUserService.UserId
         };
         await _scheduleRepository.AddAsync(row, cancellationToken);
+        if (unitIds.Count > 0)
+        {
+            await _scheduleUnitRepository.AddRangeAsync(
+                unitIds.Select(uid => new TemperatureScheduleUnit { ScheduleId = row.Id, TemperatureMonitoringUnitId = uid }),
+                cancellationToken);
+        }
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return await GetScheduleDtoAsync(row.Id, cancellationToken);
     }
@@ -97,8 +110,8 @@ public class TemperatureLogService : ITemperatureLogService
             ?? throw new AppException("temperature_schedule_not_found", "Temperature schedule not found.", 404);
         await _shopMembershipService.EnsureCurrentUserShopRoleAsync(row.ShopId, TemperatureManagementRoles, cancellationToken);
         await _featureGateService.EnsureFeatureAsync(row.ShopId, FeatureKeys.TemperatureLogScheduledChecks, cancellationToken);
-        ValidateSchedule(request);
-        row.TemperatureMonitoringUnitId = request.TemperatureMonitoringUnitId;
+        // Validate the unit set against the schedule's own shop (not the request's, which the client controls).
+        var unitIds = await ValidateScheduleAsync(request, row.ShopId, cancellationToken);
         row.Label = request.Label.Trim();
         row.ExpectedTime = request.ExpectedTime;
         row.ToleranceMinutes = request.ToleranceMinutes;
@@ -106,6 +119,25 @@ public class TemperatureLogService : ITemperatureLogService
         row.ModifiedOn = DateTimeOffset.UtcNow;
         row.ModifiedBy = _currentUserService.UserId;
         _scheduleRepository.Update(row);
+
+        // Sync the join rows to the requested set: drop links no longer wanted, add the new ones.
+        var existingLinks = await _scheduleUnitRepository.Query()
+            .Where(j => j.ScheduleId == id)
+            .ToListAsync(cancellationToken);
+        var target = new HashSet<Guid>(unitIds);
+        foreach (var link in existingLinks.Where(l => !target.Contains(l.TemperatureMonitoringUnitId)))
+        {
+            _scheduleUnitRepository.Remove(link);
+        }
+        var present = existingLinks.Select(l => l.TemperatureMonitoringUnitId).ToHashSet();
+        var toAdd = target.Where(uid => !present.Contains(uid))
+            .Select(uid => new TemperatureScheduleUnit { ScheduleId = id, TemperatureMonitoringUnitId = uid })
+            .ToList();
+        if (toAdd.Count > 0)
+        {
+            await _scheduleUnitRepository.AddRangeAsync(toAdd, cancellationToken);
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return await GetScheduleDtoAsync(row.Id, cancellationToken);
     }
@@ -116,11 +148,21 @@ public class TemperatureLogService : ITemperatureLogService
             ?? throw new AppException("temperature_schedule_not_found", "Temperature schedule not found.", 404);
         await _shopMembershipService.EnsureCurrentUserShopRoleAsync(row.ShopId, TemperatureManagementRoles, cancellationToken);
         await _featureGateService.EnsureFeatureAsync(row.ShopId, FeatureKeys.TemperatureLogScheduledChecks, cancellationToken);
+        // Drop link rows explicitly (don't rely solely on the DB cascade, which EF may downgrade).
+        var links = await _scheduleUnitRepository.Query()
+            .Where(j => j.ScheduleId == id)
+            .ToListAsync(cancellationToken);
+        foreach (var link in links)
+        {
+            _scheduleUnitRepository.Remove(link);
+        }
         _scheduleRepository.Remove(row);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
-    private static void ValidateSchedule(UpsertTemperatureScheduleRequest request)
+    // Validates the request and returns the deduped, shop-verified unit ids for the schedule.
+    // An empty result means the schedule applies to ALL units (shop-wide).
+    private async Task<IReadOnlyList<Guid>> ValidateScheduleAsync(UpsertTemperatureScheduleRequest request, Guid shopId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Label))
         {
@@ -130,21 +172,57 @@ public class TemperatureLogService : ITemperatureLogService
         {
             throw new AppException("validation_failed", "ToleranceMinutes must be between 0 and 360.", 400);
         }
+
+        var unitIds = (request.UnitIds ?? []).Distinct().ToList();
+        if (unitIds.Count == 0)
+        {
+            return unitIds; // all units
+        }
+
+        // Every referenced unit must belong to this shop and not be deleted.
+        var validIds = await _unitRepository.Query()
+            .AsNoTracking()
+            .Where(u => u.ShopId == shopId && !u.IsDeleted && unitIds.Contains(u.Id))
+            .Select(u => u.Id)
+            .ToListAsync(cancellationToken);
+        if (validIds.Count != unitIds.Count)
+        {
+            throw new AppException("validation_failed", "One or more selected units don't belong to this shop.", 400);
+        }
+        return unitIds;
     }
 
     private async Task<TemperatureScheduleDto> GetScheduleDtoAsync(Guid id, CancellationToken cancellationToken)
     {
         var row = await _scheduleRepository.Query().AsNoTracking().FirstAsync(x => x.Id == id, cancellationToken);
+        var unitsBySchedule = await LoadUnitIdsByScheduleAsync([id], cancellationToken);
         return new TemperatureScheduleDto
         {
             Id = row.Id,
             ShopId = row.ShopId,
-            TemperatureMonitoringUnitId = row.TemperatureMonitoringUnitId,
+            UnitIds = unitsBySchedule.TryGetValue(row.Id, out var ids) ? ids : [],
             Label = row.Label,
             ExpectedTime = row.ExpectedTime,
             ToleranceMinutes = row.ToleranceMinutes,
             IsActive = row.IsActive
         };
+    }
+
+    // Maps each schedule id to its linked unit ids (empty/absent == all units).
+    private async Task<Dictionary<Guid, Guid[]>> LoadUnitIdsByScheduleAsync(IReadOnlyCollection<Guid> scheduleIds, CancellationToken cancellationToken)
+    {
+        if (scheduleIds.Count == 0)
+        {
+            return new Dictionary<Guid, Guid[]>();
+        }
+        var links = await _scheduleUnitRepository.Query()
+            .AsNoTracking()
+            .Where(j => scheduleIds.Contains(j.ScheduleId))
+            .Select(j => new { j.ScheduleId, j.TemperatureMonitoringUnitId })
+            .ToListAsync(cancellationToken);
+        return links
+            .GroupBy(j => j.ScheduleId)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.TemperatureMonitoringUnitId).ToArray());
     }
 
     public async Task<IReadOnlyCollection<TemperatureMonitoringUnitDto>> ListUnitsAsync(Guid shopId, CancellationToken cancellationToken = default)
@@ -639,7 +717,6 @@ public class TemperatureLogService : ITemperatureLogService
         var row = new CfgTemperatureSchedule
         {
             ShopId = shopId,
-            TemperatureMonitoringUnitId = null,
             Label = "Random",
             ExpectedTime = new TimeOnly(0, 0),
             ToleranceMinutes = 0,

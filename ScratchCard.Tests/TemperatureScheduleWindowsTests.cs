@@ -10,8 +10,9 @@ namespace ScratchCard.Tests;
 // sweeps. If this drifts, compliance records mis-grade fridge/freezer checks.
 public class TemperatureScheduleWindowsTests
 {
-    private static CfgTemperatureSchedule Slot(int hour, int minute = 0, int tolerance = 30, Guid? unitId = null)
-        => new() { ExpectedTime = new TimeOnly(hour, minute), ToleranceMinutes = tolerance, TemperatureMonitoringUnitId = unitId };
+    // Each Slot gets a distinct Id (BaseEntity default) so unit-specific tie-breaks can reference it.
+    private static CfgTemperatureSchedule Slot(int hour, int minute = 0, int tolerance = 30)
+        => new() { ExpectedTime = new TimeOnly(hour, minute), ToleranceMinutes = tolerance };
 
     // ── IsLate: only after expected + tolerance ──────────────────────────────
     [Fact]
@@ -56,7 +57,7 @@ public class TemperatureScheduleWindowsTests
     [InlineData(18, 0, 2)]  // after last → last slot
     public void AssignIndex_picks_owning_slot(int h, int m, int expectedIndex)
     {
-        var sorted = TemperatureScheduleWindows.SortByTime(new[] { Slot(9), Slot(13), Slot(17) });
+        var sorted = TemperatureScheduleWindows.SortByTime(new[] { Slot(9), Slot(13), Slot(17) }, new HashSet<Guid>());
         Assert.Equal(expectedIndex, TemperatureScheduleWindows.AssignIndex(sorted, new TimeOnly(h, m)));
     }
 
@@ -69,10 +70,40 @@ public class TemperatureScheduleWindowsTests
     public void SortByTime_unit_specific_slot_wins_on_time_tie()
     {
         var shopWide = Slot(9);
-        var unitSpecific = Slot(9, unitId: Guid.NewGuid());
-        var sorted = TemperatureScheduleWindows.SortByTime(new[] { unitSpecific, shopWide });
+        var unitSpecific = Slot(9);
+        // The caller marks unit-specific schedules (non-empty link set containing the unit) so they
+        // sort last and win the assignment for that unit (AssignIndex keeps the last match).
+        var unitSpecificIds = new HashSet<Guid> { unitSpecific.Id };
+        var sorted = TemperatureScheduleWindows.SortByTime(new[] { unitSpecific, shopWide }, unitSpecificIds);
         Assert.Same(shopWide, sorted[0]);
         Assert.Same(unitSpecific, sorted[1]);
+    }
+
+    // ── AppliesToUnit: empty links == all units; otherwise only the linked units ──
+    [Fact]
+    public void AppliesToUnit_empty_links_matches_any_unit()
+        => Assert.True(TemperatureScheduleWindows.AppliesToUnit(new HashSet<Guid>(), Guid.NewGuid()));
+
+    [Fact]
+    public void AppliesToUnit_matches_only_linked_units()
+    {
+        var unitA = Guid.NewGuid();
+        var unitB = Guid.NewGuid();
+        var links = new HashSet<Guid> { unitA };
+        Assert.True(TemperatureScheduleWindows.AppliesToUnit(links, unitA));
+        Assert.False(TemperatureScheduleWindows.AppliesToUnit(links, unitB));
+    }
+
+    [Fact]
+    public void AppliesToUnit_multi_unit_schedule_covers_each_linked_unit()
+    {
+        var unitA = Guid.NewGuid();
+        var unitB = Guid.NewGuid();
+        var unitC = Guid.NewGuid();
+        var links = new HashSet<Guid> { unitA, unitB };
+        Assert.True(TemperatureScheduleWindows.AppliesToUnit(links, unitA));
+        Assert.True(TemperatureScheduleWindows.AppliesToUnit(links, unitB));
+        Assert.False(TemperatureScheduleWindows.AppliesToUnit(links, unitC));
     }
 
     [Fact]

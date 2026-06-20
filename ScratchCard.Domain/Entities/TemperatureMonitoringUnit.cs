@@ -18,4 +18,6 @@ public class TemperatureMonitoringUnit : SoftDeletableAuditableEntity
 
     public Shop Shop { get; set; } = null!;
     public ICollection<TemperatureReading> Readings { get; set; } = new List<TemperatureReading>();
+    // Schedules that target this unit (via the TemperatureScheduleUnit join).
+    public ICollection<TemperatureScheduleUnit> ScheduleLinks { get; set; } = new List<TemperatureScheduleUnit>();
 }

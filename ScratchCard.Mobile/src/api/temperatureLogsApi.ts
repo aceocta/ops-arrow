@@ -189,12 +189,13 @@ export async function listTemperatureSchedules(shopId: string) {
   const response = await apiClient.get<ApiResponse<TemperatureSchedule[]>>("/temperature-logs/schedules", {
     params: { shopId },
   });
-  return response.data.data;
+  // Defensive: coerce unitIds to an array so older/missing payloads read as "all units" rather than undefined.
+  return (response.data.data ?? []).map((s) => ({ ...s, unitIds: (s.unitIds ?? []).map(String) }));
 }
 
 export async function createTemperatureSchedule(payload: {
   shopId: string;
-  temperatureMonitoringUnitId?: string;
+  unitIds: string[];
   label: string;
   expectedTime: string;
   toleranceMinutes: number;
@@ -206,7 +207,7 @@ export async function createTemperatureSchedule(payload: {
 
 export async function updateTemperatureSchedule(id: string, payload: {
   shopId: string;
-  temperatureMonitoringUnitId?: string;
+  unitIds: string[];
   label: string;
   expectedTime: string;
   toleranceMinutes: number;

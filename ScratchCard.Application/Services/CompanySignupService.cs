@@ -231,7 +231,6 @@ public class CompanySignupService : ICompanySignupService
             new CfgTemperatureSchedule
             {
                 ShopId = firstShop.Id,
-                TemperatureMonitoringUnitId = null,
                 ExpectedTime = new TimeOnly(10, 0),
                 ToleranceMinutes = 3,
                 Label = "Morning check",
@@ -242,7 +241,6 @@ public class CompanySignupService : ICompanySignupService
             new CfgTemperatureSchedule
             {
                 ShopId = firstShop.Id,
-                TemperatureMonitoringUnitId = null,
                 ExpectedTime = new TimeOnly(17, 0),
                 ToleranceMinutes = 3,
                 Label = "Evening check",

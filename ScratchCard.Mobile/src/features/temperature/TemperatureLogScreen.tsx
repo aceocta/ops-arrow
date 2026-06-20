@@ -270,7 +270,7 @@ function buildScheduledSlots(
     .filter(
       (schedule) =>
         schedule.isActive &&
-        (!schedule.temperatureMonitoringUnitId || schedule.temperatureMonitoringUnitId === unit.id),
+        (schedule.unitIds.length === 0 || schedule.unitIds.includes(unit.id)),
     )
     .sort((a, b) => a.expectedTime.localeCompare(b.expectedTime))
     .map((schedule) => ({
@@ -761,7 +761,7 @@ export function TemperatureLogScreen() {
       .filter(
         (schedule) =>
           schedule.isActive &&
-          (!schedule.temperatureMonitoringUnitId || schedule.temperatureMonitoringUnitId === selectedUnit.id),
+          (schedule.unitIds.length === 0 || schedule.unitIds.includes(selectedUnit.id)),
       )
       .map((schedule) => ({
         id: schedule.id,
@@ -943,7 +943,7 @@ export function TemperatureLogScreen() {
           s.isActive &&
           s.label === check.label &&
           s.expectedTime.slice(0, 5) === check.time &&
-          (!s.temperatureMonitoringUnitId || s.temperatureMonitoringUnitId === unitId),
+          (s.unitIds.length === 0 || s.unitIds.includes(unitId)),
       );
       return match?.id ?? null;
     },

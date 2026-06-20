@@ -7,10 +7,13 @@ namespace ScratchCard.Domain.Entities;
 // temperature_log.scheduled_checks ignore these rows entirely; plans with the feature use
 // them both to nudge users (via TemperatureMissedAlertsBackgroundService) and to validate
 // that recorded readings fall within a slot window.
+//
+// A schedule targets a SET of units via <see cref="Units"/> (a many-to-many through
+// TemperatureScheduleUnit): one schedule can cover several units. A schedule with ZERO unit links
+// applies to ALL units (the "shop-wide" case that was previously TemperatureMonitoringUnitId == null).
 public class CfgTemperatureSchedule : AuditableEntity
 {
     public Guid ShopId { get; set; }
-    public Guid? TemperatureMonitoringUnitId { get; set; }
     public TimeOnly ExpectedTime { get; set; }
     public int ToleranceMinutes { get; set; } = 30;
     public string Label { get; set; } = string.Empty;
@@ -24,5 +27,6 @@ public class CfgTemperatureSchedule : AuditableEntity
     public bool IsRandom { get; set; }
 
     public Shop Shop { get; set; } = null!;
-    public TemperatureMonitoringUnit? TemperatureMonitoringUnit { get; set; }
+    // The units this schedule covers. Empty == all units (shop-wide).
+    public ICollection<TemperatureScheduleUnit> Units { get; set; } = new List<TemperatureScheduleUnit>();
 }

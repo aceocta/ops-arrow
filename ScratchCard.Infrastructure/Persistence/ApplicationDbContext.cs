@@ -93,6 +93,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Feature> Features => Set<Feature>();
     public DbSet<SubscriptionPlanFeature> SubscriptionPlanFeatures => Set<SubscriptionPlanFeature>();
     public DbSet<CfgTemperatureSchedule> CfgTemperatureSchedules => Set<CfgTemperatureSchedule>();
+    public DbSet<TemperatureScheduleUnit> TemperatureScheduleUnits => Set<TemperatureScheduleUnit>();
     public DbSet<Till> Tills => Set<Till>();
     public DbSet<ShopPaymentType> ShopPaymentTypes => Set<ShopPaymentType>();
     public DbSet<TillReport> TillReports => Set<TillReport>();
@@ -1204,7 +1205,20 @@ public class ApplicationDbContext : DbContext
                 .HasFilter("[IsRandom] = 1");
             entity.Property(x => x.Label).HasMaxLength(200);
             entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(x => x.TemperatureMonitoringUnit).WithMany().HasForeignKey(x => x.TemperatureMonitoringUnitId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<TemperatureScheduleUnit>(entity =>
+        {
+            // One link per (schedule, unit). Empty link set for a schedule == all units.
+            entity.HasIndex(x => new { x.ScheduleId, x.TemperatureMonitoringUnitId }).IsUnique();
+            entity.HasIndex(x => x.TemperatureMonitoringUnitId);
+            // Deleting a schedule drops its links (matches the hard-delete path in TemperatureLogService).
+            entity.HasOne(x => x.Schedule).WithMany(x => x.Units)
+                .HasForeignKey(x => x.ScheduleId).OnDelete(DeleteBehavior.Cascade);
+            // Unit side stays NoAction: units are soft-deleted only, and two cascade paths into one
+            // table (both principals chain to Shop) would trip SQL Server's multiple-cascade-paths rule.
+            entity.HasOne(x => x.TemperatureMonitoringUnit).WithMany(x => x.ScheduleLinks)
+                .HasForeignKey(x => x.TemperatureMonitoringUnitId).OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<CompanySubscription>(entity =>

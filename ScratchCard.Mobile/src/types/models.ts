@@ -1052,7 +1052,8 @@ export type TemperatureReading = {
 export type TemperatureSchedule = {
   id: string;
   shopId: string;
-  temperatureMonitoringUnitId?: string;
+  // The units this check covers. Empty = all units (shop-wide).
+  unitIds: string[];
   label: string;
   expectedTime: string;
   toleranceMinutes: number;

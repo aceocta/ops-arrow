@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Models;
+using ScratchCard.Application.Services;
 using ScratchCard.Domain.Entities;
 using ScratchCard.Domain.Enums;
 using ScratchCard.Infrastructure.Persistence;
@@ -87,9 +88,15 @@ public sealed class TemperatureLogReminderBackgroundService : BackgroundService
 
         var schedules = await dbContext.CfgTemperatureSchedules
             .AsNoTracking()
+            .Include(s => s.Units)
             .Where(s => s.IsActive)
             .ToListAsync(cancellationToken);
         if (schedules.Count == 0) return;
+
+        // schedule id -> the units it links (empty == all units).
+        var linksBySchedule = schedules.ToDictionary(
+            s => s.Id,
+            s => (ISet<Guid>)s.Units.Select(u => u.TemperatureMonitoringUnitId).ToHashSet());
 
         var shopIds = schedules.Select(s => s.ShopId).Distinct().ToArray();
         foreach (var shopId in shopIds)
@@ -112,8 +119,9 @@ public sealed class TemperatureLogReminderBackgroundService : BackgroundService
                 if (nowTime < slotEnd) continue; // window not closed yet — not overdue.
 
                 var slotStart = schedule.ExpectedTime.AddMinutes(-schedule.ToleranceMinutes);
+                var unitSet = linksBySchedule[schedule.Id];
                 var hit = readings.Any(r =>
-                    (schedule.TemperatureMonitoringUnitId == null || r.TemperatureMonitoringUnitId == schedule.TemperatureMonitoringUnitId) &&
+                    TemperatureScheduleWindows.AppliesToUnit(unitSet, r.TemperatureMonitoringUnitId) &&
                     r.ReadingTime >= slotStart && r.ReadingTime <= slotEnd);
                 if (!hit) pendingSlots++;
             }

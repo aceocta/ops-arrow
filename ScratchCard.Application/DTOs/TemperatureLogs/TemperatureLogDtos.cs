@@ -20,7 +20,8 @@ public class TemperatureScheduleDto
 {
     public Guid Id { get; set; }
     public Guid ShopId { get; set; }
-    public Guid? TemperatureMonitoringUnitId { get; set; }
+    // The units this schedule covers. Empty == all units (shop-wide).
+    public IReadOnlyCollection<Guid> UnitIds { get; set; } = [];
     public string Label { get; set; } = string.Empty;
     public TimeOnly ExpectedTime { get; set; }
     public int ToleranceMinutes { get; set; }
@@ -30,7 +31,8 @@ public class TemperatureScheduleDto
 public class UpsertTemperatureScheduleRequest
 {
     public Guid ShopId { get; set; }
-    public Guid? TemperatureMonitoringUnitId { get; set; }
+    // The units this schedule covers. Empty/omitted == all units (shop-wide).
+    public IReadOnlyCollection<Guid> UnitIds { get; set; } = [];
     public string Label { get; set; } = string.Empty;
     public TimeOnly ExpectedTime { get; set; }
     public int ToleranceMinutes { get; set; } = 30;

@@ -16,14 +16,21 @@ namespace ScratchCard.Application.Services;
 /// </summary>
 public static class TemperatureScheduleWindows
 {
+    /// <summary>A schedule applies to a unit when it links that unit, or has no unit links at all
+    /// (the all-units / shop-wide case).</summary>
+    public static bool AppliesToUnit(ISet<Guid> linkedUnitIds, Guid unitId)
+        => linkedUnitIds.Count == 0 || linkedUnitIds.Contains(unitId);
+
     /// <summary>
-    /// Orders schedules by expected time. On an exact time tie a unit-specific schedule sorts
-    /// last so it wins assignment (see <see cref="AssignIndex"/>, which keeps the last match).
+    /// Orders schedules by expected time. On an exact time tie a unit-specific schedule (one whose id
+    /// is in <paramref name="unitSpecificScheduleIds"/>) sorts last so it wins assignment for that unit
+    /// (see <see cref="AssignIndex"/>, which keeps the last match). The caller builds the set per unit:
+    /// a schedule is unit-specific for unit u when its link set is non-empty AND contains u.
     /// </summary>
-    public static List<CfgTemperatureSchedule> SortByTime(IEnumerable<CfgTemperatureSchedule> schedules)
+    public static List<CfgTemperatureSchedule> SortByTime(IEnumerable<CfgTemperatureSchedule> schedules, ISet<Guid> unitSpecificScheduleIds)
         => schedules
             .OrderBy(s => s.ExpectedTime)
-            .ThenBy(s => s.TemperatureMonitoringUnitId.HasValue ? 1 : 0)
+            .ThenBy(s => unitSpecificScheduleIds.Contains(s.Id) ? 1 : 0)
             .ToList();
 
     /// <summary>

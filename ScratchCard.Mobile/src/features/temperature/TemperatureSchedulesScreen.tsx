@@ -52,8 +52,8 @@ export function TemperatureSchedulesScreen() {
   const [label, setLabel] = React.useState("");
   const [time, setTime] = React.useState("10:00");
   const [tolerance, setTolerance] = React.useState(30);
-  // Units this scheduled check applies to. Empty = "All units". When adding you can pick several and
-  // one schedule record is created per unit; when editing a single record only one unit applies.
+  // Units this scheduled check applies to. Empty = "All units"; one schedule record points at all the
+  // selected units (a single check covering several fridges).
   const [selectedUnitIds, setSelectedUnitIds] = React.useState<string[]>([]);
   // When set, the top form edits this existing slot instead of adding a new one.
   const [editingId, setEditingId] = React.useState<string | null>(null);
@@ -74,18 +74,12 @@ export function TemperatureSchedulesScreen() {
     setLabel(schedule.label);
     setTime(schedule.expectedTime.slice(0, 5));
     setTolerance(schedule.toleranceMinutes);
-    setSelectedUnitIds(schedule.temperatureMonitoringUnitId ? [schedule.temperatureMonitoringUnitId] : []);
+    setSelectedUnitIds(schedule.unitIds);
   }
 
-  // "All units" clears the selection. Otherwise toggle membership when adding; when editing a single
-  // record, selecting a unit replaces the choice (one record can only target one unit).
+  // Toggle this unit's membership. The "All units" chip clears the selection entirely (empty = all).
   function toggleUnit(id: string) {
-    setSelectedUnitIds((prev) => {
-      if (editingId) {
-        return [id];
-      }
-      return prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-    });
+    setSelectedUnitIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
   function cancelEdit() {
@@ -94,61 +88,31 @@ export function TemperatureSchedulesScreen() {
   }
 
   const createMutation = useMutation({
-    mutationFn: async () => {
-      // No specific units → one "All units" schedule; otherwise one schedule per chosen unit.
-      const targets: (string | undefined)[] = selectedUnitIds.length > 0 ? selectedUnitIds : [undefined];
-      for (const target of targets) {
-        await createTemperatureSchedule({
-          shopId: shopId as string,
-          temperatureMonitoringUnitId: target,
-          label: label.trim(),
-          expectedTime: toExpectedTime(time),
-          toleranceMinutes: tolerance,
-          isActive: true,
-        });
-      }
-      return targets.length;
-    },
-    onSuccess: (created) => {
+    // One schedule record that points at all the selected units (empty = all units).
+    mutationFn: () =>
+      createTemperatureSchedule({
+        shopId: shopId as string,
+        unitIds: selectedUnitIds,
+        label: label.trim(),
+        expectedTime: toExpectedTime(time),
+        toleranceMinutes: tolerance,
+        isActive: true,
+      }),
+    onSuccess: () => {
       resetForm();
       invalidate();
-      toastSuccess(created > 1 ? `${created} scheduled checks added.` : "Scheduled check added.");
+      toastSuccess("Scheduled check added.");
     },
-    onError: (error: any) => {
-      // Creation is sequential, so a mid-batch failure may leave some checks created —
-      // refresh the list so it shows exactly what exists.
-      invalidate();
-      Alert.alert("Add failed", getApiErrorMessage(error, "Could not add this scheduled check."));
-    },
+    onError: (error: any) =>
+      Alert.alert("Add failed", getApiErrorMessage(error, "Could not add this scheduled check.")),
   });
-
-  // Multi-unit adds create one record per unit — confirm the fan-out so a manager
-  // isn't surprised by 8 new rows from one tap.
-  function submitCreate() {
-    const count = selectedUnitIds.length;
-    if (count > 1) {
-      const names = selectedUnitIds
-        .map((id) => units.find((unit) => unit.id === id)?.unitName ?? "Unit")
-        .join(", ");
-      Alert.alert(
-        `Create ${count} scheduled checks?`,
-        `One "${label.trim()}" check at ${time} ±${tolerance}m will be created for each of: ${names}.`,
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: `Create ${count}`, onPress: () => createMutation.mutate() },
-        ],
-      );
-      return;
-    }
-    createMutation.mutate();
-  }
 
   const updateMutation = useMutation({
     mutationFn: () => {
       const current = schedulesQuery.data?.find((s) => s.id === editingId);
       return updateTemperatureSchedule(editingId as string, {
         shopId: shopId as string,
-        temperatureMonitoringUnitId: selectedUnitIds[0],
+        unitIds: selectedUnitIds,
         label: label.trim(),
         expectedTime: toExpectedTime(time),
         toleranceMinutes: tolerance,
@@ -182,7 +146,7 @@ export function TemperatureSchedulesScreen() {
     try {
       await updateTemperatureSchedule(schedule.id, {
         shopId: schedule.shopId,
-        temperatureMonitoringUnitId: schedule.temperatureMonitoringUnitId,
+        unitIds: schedule.unitIds,
         label: schedule.label,
         expectedTime: schedule.expectedTime,
         toleranceMinutes: schedule.toleranceMinutes,
@@ -245,9 +209,7 @@ export function TemperatureSchedulesScreen() {
         </View>
 
         <View>
-          <Text style={styles.fieldLabel}>
-            Units {editingId ? "(pick one, or All units)" : "(pick one or more, or All units)"}
-          </Text>
+          <Text style={styles.fieldLabel}>Units (pick one or more, or All units)</Text>
           <View style={styles.chipRow}>
             <Pressable
               style={[styles.chip, selectedUnitIds.length === 0 ? styles.chipActive : null]}
@@ -268,19 +230,16 @@ export function TemperatureSchedulesScreen() {
               );
             })}
           </View>
-          {!editingId && selectedUnitIds.length > 1 ? (
+          {selectedUnitIds.length > 0 ? (
             <View style={styles.previewBox}>
               <View style={styles.previewHeader}>
                 <Ionicons name="information-circle-outline" size={15} color={appTheme.colors.primary} />
                 <Text style={styles.previewTitle}>
-                  This will create {selectedUnitIds.length} scheduled checks — one per unit
+                  One check covering {selectedUnitIds.length} unit{selectedUnitIds.length > 1 ? "s" : ""}
                 </Text>
               </View>
               <Text style={styles.previewUnits}>
                 {selectedUnitIds.map((id) => units.find((unit) => unit.id === id)?.unitName ?? "Unit").join(", ")}
-              </Text>
-              <Text style={styles.previewMeta}>
-                Each at {time} ±{tolerance}m{label.trim() ? ` · "${label.trim()}"` : ""}
               </Text>
             </View>
           ) : null}
@@ -294,11 +253,9 @@ export function TemperatureSchedulesScreen() {
                 : "Save changes"
               : createMutation.isPending
                 ? "Adding…"
-                : selectedUnitIds.length > 1
-                  ? `Add ${selectedUnitIds.length} schedules`
-                  : "Add schedule"
+                : "Add schedule"
           }
-          onPress={() => (editingId ? updateMutation.mutate() : submitCreate())}
+          onPress={() => (editingId ? updateMutation.mutate() : createMutation.mutate())}
           disabled={!canSubmit}
         />
         {editingId ? (
@@ -315,15 +272,18 @@ export function TemperatureSchedulesScreen() {
           <EmptyState icon="thermometer-outline" title="No scheduled checks yet" message="Add a check time above so staff are prompted to log temperatures (with your tolerance window)." />
         ) : null}
         {schedules.map((schedule) => {
-          const unit = units.find((u) => u.id === schedule.temperatureMonitoringUnitId);
+          const unitNames = schedule.unitIds
+            .map((id) => units.find((u) => u.id === id)?.unitName)
+            .filter(Boolean)
+            .join(", ");
           return (
             <View key={schedule.id} style={[styles.row, !schedule.isActive ? styles.rowInactive : null]}>
               <View style={styles.rowMain}>
                 <Text style={styles.rowName}>
                   {schedule.label} · {formatTime(schedule.expectedTime)} ±{schedule.toleranceMinutes}m
                 </Text>
-                <Text style={styles.rowMeta}>
-                  {schedule.isActive ? "Active" : "Inactive"} · {unit ? unit.unitName : "All units"}
+                <Text style={styles.rowMeta} numberOfLines={1}>
+                  {schedule.isActive ? "Active" : "Inactive"} · {unitNames || "All units"}
                 </Text>
               </View>
               <View style={styles.rowActions}>

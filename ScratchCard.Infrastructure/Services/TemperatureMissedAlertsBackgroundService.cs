@@ -82,10 +82,16 @@ public sealed class TemperatureMissedAlertsBackgroundService : BackgroundService
         // shop is skipped. We don't filter by feature here — the per-shop check happens below.
         var schedules = await dbContext.CfgTemperatureSchedules
             .AsNoTracking()
+            .Include(s => s.Units)
             .Where(s => s.IsActive && !s.IsRandom)
             .ToListAsync(cancellationToken);
 
         if (schedules.Count == 0) return;
+
+        // schedule id -> the units it links (empty == all units).
+        var linksBySchedule = schedules.ToDictionary(
+            s => s.Id,
+            s => (ISet<Guid>)s.Units.Select(u => u.TemperatureMonitoringUnitId).ToHashSet());
 
         var shopIds = schedules.Select(s => s.ShopId).Distinct().ToArray();
         foreach (var shopId in shopIds)
@@ -112,9 +118,14 @@ public sealed class TemperatureMissedAlertsBackgroundService : BackgroundService
             var coveredScheduleIds = new HashSet<Guid>();
             foreach (var unitReadings in readings.GroupBy(r => r.TemperatureMonitoringUnitId))
             {
+                var unitId = unitReadings.Key;
+                var unitSpecific = (ISet<Guid>)shopSchedules
+                    .Where(s => linksBySchedule[s.Id].Count > 0 && linksBySchedule[s.Id].Contains(unitId))
+                    .Select(s => s.Id)
+                    .ToHashSet();
                 var applicable = TemperatureScheduleWindows.SortByTime(
-                    shopSchedules.Where(s => s.TemperatureMonitoringUnitId == null
-                        || s.TemperatureMonitoringUnitId == unitReadings.Key));
+                    shopSchedules.Where(s => TemperatureScheduleWindows.AppliesToUnit(linksBySchedule[s.Id], unitId)),
+                    unitSpecific);
                 if (applicable.Count == 0) continue;
                 foreach (var reading in unitReadings)
                 {

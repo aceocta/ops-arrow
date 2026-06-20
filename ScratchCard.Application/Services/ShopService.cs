@@ -446,7 +446,6 @@ public class ShopService : IShopService
                 schedules.Add(new CfgTemperatureSchedule
                 {
                     ShopId = shopId,
-                    TemperatureMonitoringUnitId = null,
                     ExpectedTime = when,
                     ToleranceMinutes = t.ToleranceMinutes is > 0 ? t.ToleranceMinutes.Value : 30,
                     Label = string.IsNullOrWhiteSpace(t.Label) ? when.ToString("HH:mm") + " check" : t.Label.Trim(),
