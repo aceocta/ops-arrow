@@ -49,6 +49,7 @@ export default function TimesheetsPage() {
   const canRecord = canManage && features.includes("staff_rota.manual_approval");
   const gbp = (n: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n || 0);
   const [view, setView] = useState<"staff" | "shift" | "week">("week");
+  const [metric, setMetric] = useState<"hours" | "both">("hours");
   const [recordOpen, setRecordOpen] = useState(false);
   const [range, setRange] = useState(() => {
     const to = new Date();
@@ -224,17 +225,33 @@ export default function TimesheetsPage() {
         </div>
       </div>
 
-      {/* View toggle */}
-      <div className="flex w-fit rounded-lg border border-slate-200 bg-white p-1">
-        {(["week", "staff", "shift"] as const).map((v) => (
-          <button
-            key={v}
-            onClick={() => setView(v)}
-            className={clsx("rounded-md px-4 py-1.5 text-sm font-medium", view === v ? "bg-brand-600 text-white" : "text-slate-600")}
-          >
-            {v === "staff" ? "By staff" : v === "shift" ? "By shift" : "Weekly"}
-          </button>
-        ))}
+      {/* View + metric toggles */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex w-fit rounded-lg border border-slate-200 bg-white p-1">
+          {(["week", "staff", "shift"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              className={clsx("rounded-md px-4 py-1.5 text-sm font-medium", view === v ? "bg-brand-600 text-white" : "text-slate-600")}
+            >
+              {v === "staff" ? "By staff" : v === "shift" ? "By shift" : "Weekly"}
+            </button>
+          ))}
+        </div>
+
+        {view === "week" && showCost ? (
+          <div className="flex w-fit rounded-lg border border-slate-200 bg-white p-1">
+            {(["hours", "both"] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMetric(m)}
+                className={clsx("rounded-md px-4 py-1.5 text-sm font-medium", metric === m ? "bg-brand-600 text-white" : "text-slate-600")}
+              >
+                {m === "hours" ? "Hours" : "Hours + wage"}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       {loading ? <div className="card p-6 text-sm text-slate-500">Loading…</div> : null}
@@ -356,7 +373,7 @@ export default function TimesheetsPage() {
           </table>
         </div>
       ) : (
-        <WeekGrid days={weekDays} grid={weekGridQ.data ?? []} loading={loading} onSelect={(row, day) => setSelected(day ? { row, from: day, to: day } : { row })} />
+        <WeekGrid days={weekDays} grid={weekGridQ.data ?? []} loading={loading} metric={showCost ? metric : "hours"} gbp={gbp} onSelect={(row, day) => setSelected(day ? { row, from: day, to: day } : { row })} />
       )}
 
       {/* Wage split — approved vs awaiting approval */}
@@ -416,15 +433,33 @@ function WeekGrid({
   days,
   grid,
   loading,
+  metric,
+  gbp,
   onSelect,
 }: {
   days: string[];
   grid: { row: TimesheetRow; byDay: Record<string, number> }[];
   loading: boolean;
+  metric: "hours" | "both";
+  gbp: (n: number) => string;
   onSelect: (row: TimesheetRow, day?: string) => void;
 }) {
-  const dayTotals = days.map((d) => grid.reduce((s, g) => s + (g.byDay[d] ?? 0), 0));
-  const grand = grid.reduce((s, g) => s + g.row.totalHours, 0);
+  const showWage = metric === "both";
+  const rateOf = (g: { row: TimesheetRow }) => g.row.hourlyRate ?? 0;
+  const dayHourTotals = days.map((d) => grid.reduce((s, g) => s + (g.byDay[d] ?? 0), 0));
+  const dayWageTotals = days.map((d) => grid.reduce((s, g) => s + (g.byDay[d] ?? 0) * rateOf(g), 0));
+  const grandHours = grid.reduce((s, g) => s + g.row.totalHours, 0);
+  const grandWage = grid.reduce((s, g) => s + g.row.totalHours * rateOf(g), 0);
+  // Hours on top; wage underneath only in "Hours + wage" mode.
+  const stack = (hoursLabel: string, wageLabel: string) =>
+    showWage ? (
+      <div className="leading-tight">
+        <div>{hoursLabel}</div>
+        <div className="text-[11px] font-normal text-slate-400">{wageLabel}</div>
+      </div>
+    ) : (
+      hoursLabel
+    );
   return (
     <div className="card overflow-x-auto">
       <table className="w-full text-sm">
@@ -471,11 +506,13 @@ function WeekGrid({
                       h > 0 ? "cursor-pointer font-medium text-slate-800 hover:bg-brand-50 hover:text-brand-700" : "text-slate-300",
                     )}
                   >
-                    {h > 0 ? hm(h) : "·"}
+                    {h > 0 ? stack(hm(h), rateOf(g) > 0 ? gbp(h * rateOf(g)) : "—") : "·"}
                   </td>
                 );
               })}
-              <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-800">{hm(g.row.totalHours)}</td>
+              <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-800">
+                {stack(hm(g.row.totalHours), rateOf(g) > 0 ? gbp(g.row.totalHours * rateOf(g)) : "—")}
+              </td>
             </tr>
           ))}
           {!loading && grid.length === 0 ? (
@@ -486,10 +523,12 @@ function WeekGrid({
           <tfoot>
             <tr className="border-t border-slate-200 bg-slate-50 font-semibold text-slate-800">
               <td className="sticky left-0 z-10 border-r border-slate-200 bg-slate-50 px-5 py-3">Total</td>
-              {dayTotals.map((t, i) => (
-                <td key={i} className="border-r border-slate-100 px-3 py-3 text-center tabular-nums">{t > 0 ? hm(t) : "·"}</td>
+              {dayHourTotals.map((t, i) => (
+                <td key={i} className="border-r border-slate-100 px-3 py-3 text-center tabular-nums">
+                  {t > 0 ? stack(hm(t), gbp(dayWageTotals[i])) : "·"}
+                </td>
               ))}
-              <td className="px-4 py-3 text-right tabular-nums">{hm(grand)}</td>
+              <td className="px-4 py-3 text-right tabular-nums">{stack(hm(grandHours), gbp(grandWage))}</td>
             </tr>
           </tfoot>
         ) : null}
