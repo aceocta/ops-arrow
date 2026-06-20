@@ -772,6 +772,8 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
     <ScreenContainer footer={finalizeFooter} keyboardScrollOffset={160}>
       <View style={styles.content}>
         <View style={[ui.card, styles.summaryCard]}>
+          {/* Compact header: shift + date on top, progress + an inline "Scan any" pill beneath —
+              keeps the title section to two short lines so the pack list gets the screen space. */}
           <View style={styles.summaryHeaderRow}>
             <Text style={styles.summaryTitle} numberOfLines={1}>
               {shiftQuery.data?.shiftName ?? "-"}
@@ -780,55 +782,40 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
               {businessDayQuery.data?.businessDate ?? "-"}
             </Text>
           </View>
-          {/* <View style={styles.progressRow}> */}
-            {/* <View style={styles.progressTile}>
-              <Text style={styles.progressLabel}>Active Packs</Text>
-              <Text style={styles.progressValue}>{computedRows.length}</Text>
-            </View>
-            <View style={styles.progressTile}>
-              <Text style={styles.progressLabel}>Ready</Text>
-              <Text style={styles.progressValue}>{completedRows}</Text>
-            </View> */}
-            {/* <View style={styles.progressTile}>
-              <Text style={styles.progressLabel}>Pending</Text>
-              <Text style={styles.progressValue}>{pendingRows}</Text>
-            </View>
-            <View style={styles.progressTile}>
-              <Text style={styles.progressLabel}>Issues</Text>
-              <Text style={styles.progressValue}>{errorRows}</Text>
-            </View> */}
-          {/* </View> */}
-          {/* <Text style={styles.meta}>{readinessMessage}</Text> */}
 
-          {computedRows.length > 0 ? (
-            <View style={styles.scanProgressRow}>
-              <Text style={styles.scanProgressText}>
-                {scannedRows} scanned · {pendingRows} pending
-              </Text>
+          <View style={styles.summaryActionRow}>
+            <Text style={[styles.scanProgressText, styles.summaryProgressText]} numberOfLines={1}>
+              {computedRows.length > 0
+                ? `${scannedRows} scanned · ${pendingRows} pending`
+                : "No active packs"}
               {errorRows > 0 ? (
-                <Text style={[styles.scanProgressText, styles.finalizeProgressTextError]}>
-                  {errorRows} error{errorRows === 1 ? "" : "s"}
-                </Text>
+                <Text style={styles.finalizeProgressTextError}> · {errorRows} error{errorRows === 1 ? "" : "s"}</Text>
               ) : null}
-            </View>
-          ) : null}
+            </Text>
 
-              {isCameraScanningEnabled ? (
-            <PrimaryButton
-              label="Scan any pack"
-              tone="neutral"
-              onPress={() =>
-                openBarcodeScanner({
-                  mode: "auto",
-                  // Fall back to every pack once nothing is pending, so the button still scans.
-                  pendingPacks: pendingPackHints.length > 0 ? pendingPackHints : allPackHints,
-                })
-              }
-              disabled={isSubmitting}
-            />
-          ) : (
-            <Text style={styles.meta}>Camera scanning is disabled for this shop. Use the closing serial textbox.</Text>
-          )}
+            {isCameraScanningEnabled ? (
+              <Pressable
+                style={[styles.compactScanBtn, isSubmitting ? styles.actionButtonDisabled : null]}
+                accessibilityRole="button"
+                accessibilityLabel="Scan any pack"
+                disabled={isSubmitting}
+                onPress={() =>
+                  openBarcodeScanner({
+                    mode: "auto",
+                    // Fall back to every pack once nothing is pending, so the button still scans.
+                    pendingPacks: pendingPackHints.length > 0 ? pendingPackHints : allPackHints,
+                  })
+                }
+              >
+                <Ionicons name="scan-outline" size={15} color={appTheme.colors.text} />
+                <Text style={styles.compactScanBtnText}>Scan any</Text>
+              </Pressable>
+            ) : null}
+          </View>
+
+          {!isCameraScanningEnabled ? (
+            <Text style={styles.meta}>Camera scanning is disabled — use the serial box.</Text>
+          ) : null}
         </View>
 
         {/* <View style={[ui.card, styles.quickScanCard]}> */}
@@ -1120,6 +1107,30 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexWrap: "wrap",
     gap: appTheme.spacing.xs,
+  },
+  summaryActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.sm,
+  },
+  summaryProgressText: {
+    flex: 1,
+  },
+  compactScanBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    height: 30,
+    paddingHorizontal: 12,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surfaceInfoSoft,
+  },
+  compactScanBtnText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 14,
   },
   progressRow: {
     flexDirection: "row",
