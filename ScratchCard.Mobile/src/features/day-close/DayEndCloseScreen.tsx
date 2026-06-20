@@ -1429,83 +1429,55 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
         ) : null}
 
         <View style={[ui.card, styles.dayHeaderCard]}>
-          <View style={styles.summaryHeaderRow}>
-            <View style={styles.summaryHeading}>
-              {/* <Text style={styles.summaryEyebrow}>Business Date</Text> */}
-              <Text style={styles.summaryDate}>{formatDayLabel(day?.businessDate)}</Text>
-            </View>
-            <StatusBadge label={status ?? "-"} tone={getStatusTone(status)} />
-          </View>
-           <View style={styles.dateNavigationRow}>
+          {/* Compact one-line header: prev/next day chevrons around a tappable date, status on the right. */}
+          <View style={styles.dayHeaderRow}>
+            <View style={styles.dayNavGroup}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={previousBusinessDay ? `Go to previous day ${previousBusinessDay.businessDate}` : "No previous day available"}
-                style={[
-                  styles.dateNavigationButton,
-                  !previousBusinessDay ? styles.dateActionButtonDisabled : null,
-                ]}
+                style={[styles.dayNavBtn, !previousBusinessDay ? styles.dateActionButtonDisabled : null]}
+                disabled={!previousBusinessDay}
                 onPress={() => {
                   if (!previousBusinessDay) {
                     return;
                   }
                   navigation.replace("DayEndClose", { businessDayId: previousBusinessDay.id });
                 }}
-                disabled={!previousBusinessDay}
               >
-                <Text style={styles.dateNavigationButtonText}>Previous day</Text>
+                <Ionicons name="chevron-back" size={18} color={previousBusinessDay ? appTheme.colors.text : appTheme.colors.textSubtle} />
               </Pressable>
+
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Change business date"
-                style={styles.dateActionInlineButton}
+                style={styles.dayDatePressable}
                 onPress={() => {
                   setTargetBusinessDate(day?.businessDate ?? formatDateValue(new Date()));
                   setIsDayPickerModalVisible(true);
                 }}
               >
-                <Text style={styles.dateActionInlineButtonText}>Change date</Text>
+                <Text style={styles.summaryDate} numberOfLines={1}>{formatDayLabel(day?.businessDate)}</Text>
+                <Ionicons name="calendar-outline" size={13} color={appTheme.colors.textMuted} />
               </Pressable>
+
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={nextBusinessDay ? `Go to next day ${nextBusinessDay.businessDate}` : "No next day available"}
-                style={[
-                  styles.dateNavigationButton,
-                  !nextBusinessDay ? styles.dateActionButtonDisabled : null,
-                ]}
+                style={[styles.dayNavBtn, !nextBusinessDay ? styles.dateActionButtonDisabled : null]}
+                disabled={!nextBusinessDay}
                 onPress={() => {
                   if (!nextBusinessDay) {
                     return;
                   }
                   navigation.replace("DayEndClose", { businessDayId: nextBusinessDay.id });
                 }}
-                disabled={!nextBusinessDay}
               >
-                <Text style={styles.dateNavigationButtonText}>Next day</Text>
+                <Ionicons name="chevron-forward" size={18} color={nextBusinessDay ? appTheme.colors.text : appTheme.colors.textSubtle} />
               </Pressable>
             </View>
-          {/* <Text style={styles.meta}>{dayStatusMessage}</Text> */}
-          {/* <View style={styles.summaryMetaGrid}>
-            <View style={styles.summaryMetaItem}>
-              <Text style={styles.summaryMetaText}>Open Shifts - {openShiftCount}</Text>
-            </View>
-            <View style={styles.summaryMetaItem}>
-              <Text style={styles.summaryMetaText}>Closed Shifts - {closedShiftCount}</Text>
-            </View>
-            <View style={styles.summaryMetaItem}>
-              <Text style={styles.summaryMetaText}>Scheduled - {scheduledShiftCount}</Text>
-            </View>
-            <View style={styles.summaryMetaItem}>
-              <Text
-                style={[
-                  styles.summaryMetaText,
-                  missingOpeningTicketCount > 0 ? styles.summaryMetaTextDanger : null,
-                ]}
-              >
-                Missing Tickets - {missingOpeningTicketCount}
-              </Text>
-            </View>
-           
-          </View> */}
+
+            <StatusBadge label={status ?? "-"} tone={getStatusTone(status)} />
+          </View>
         </View>
 
         <View style={[ui.card, styles.sectionCard]}>
@@ -2601,7 +2573,38 @@ const styles = StyleSheet.create({
     paddingBottom: appTheme.spacing.xs,
   },
   dayHeaderCard: {
+    padding: appTheme.spacing.md,
     gap: appTheme.spacing.xs,
+  },
+  dayHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.sm,
+  },
+  dayNavGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+    flexShrink: 1,
+  },
+  dayNavBtn: {
+    width: 34,
+    height: 32,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dayDatePressable: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 1,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: 6,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceMuted,
   },
   summaryHeaderRow: {
     flexDirection: "row",
@@ -2698,7 +2701,9 @@ const styles = StyleSheet.create({
     paddingTop: appTheme.spacing.xs,
   },
   sectionCard: {
-    gap: appTheme.spacing.sm,
+    // Tighter than ui.card's default lg padding so the many stacked sections fit more on screen.
+    padding: appTheme.spacing.md,
+    gap: appTheme.spacing.xs,
   },
   sectionTitleRow: {
     flexDirection: "row",
