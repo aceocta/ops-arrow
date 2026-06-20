@@ -872,6 +872,8 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
                   ) : null}
                 </Pressable>
 
+                <View style={styles.vDivider} />
+
                 {/* Opening serial reference (same normalised form the input is seeded with). */}
                 <View style={styles.openCol}>
                   <Text style={styles.openLabel}>OPEN</Text>
@@ -1182,9 +1184,11 @@ const styles = StyleSheet.create({
   packRowReady: { borderColor: appTheme.colors.borderSuccessSoft },
   packRowError: { borderColor: appTheme.colors.danger },
   packRowMain: { flexDirection: "row", alignItems: "center", gap: 6 },
-  packLabelCol: { width: 56 },
+  packLabelCol: { width: 78 },
   packLabelNum: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 17 },
-  packLabelSub: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 10, lineHeight: 13 },
+  packLabelSub: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 11, lineHeight: 14 },
+  // Thin vertical rule between the display/pack label and the OPEN column.
+  vDivider: { width: StyleSheet.hairlineWidth, alignSelf: "stretch", backgroundColor: appTheme.colors.border },
   openCol: { width: 46 },
   openLabel: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 9, lineHeight: 11, letterSpacing: 0.3 },
   openValue: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, lineHeight: 16 },
