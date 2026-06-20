@@ -42,6 +42,9 @@ export function AddProductScreen() {
   const [unitPrice, setUnitPrice] = useState("");
   const [barcode, setBarcode] = useState("");
   const [scanHint, setScanHint] = useState<string | null>(null);
+  // True after a barcode scan whose lookup found nothing locally or online — surfaces the OCR
+  // "scan the label" option so the user can read the name (and expiry) straight off the packaging.
+  const [lookupMissed, setLookupMissed] = useState(false);
   // expiryDate is seeded to today (never empty), so track manual edits explicitly: a barcode scan
   // must not clobber a date the user typed (or OCR'd via "Scan date").
   const expiryTouched = useRef(false);
@@ -51,6 +54,22 @@ export function AddProductScreen() {
   // (self-completing catalogue) — only filling fields the user hasn't typed.
   useEffect(() => {
     const unsubscribe = subscribeProductScan((scan) => {
+      // Name-OCR scan ("scan the label"): the user explicitly read the name off the packaging, so it
+      // is authoritative. It may also carry the expiry captured in the same shot.
+      if (scan.name) {
+        setProductName(scan.name);
+        setLookupMissed(false);
+        if (scan.expiry) {
+          expiryTouched.current = true;
+          setExpiryDate(scan.expiry);
+        }
+        setScanHint(
+          scan.expiry
+            ? `Read “${scan.name}” and expiry ${scan.expiry} from the label.`
+            : `Read “${scan.name}” from the label. Set the expiry date.`,
+        );
+        return;
+      }
       // Date-OCR scan: the user explicitly tapped "Scan date", so this is the authoritative expiry.
       if (scan.expiry) {
         expiryTouched.current = true;
@@ -65,6 +84,7 @@ export function AddProductScreen() {
       const key = normalizeGtin(gs1?.gtin ?? raw);
       setBarcode(key);
       setScanHint(null);
+      setLookupMissed(false);
 
       const scannedDate = gs1?.expiry ?? gs1?.bestBefore;
       if (scannedDate && !expiryTouched.current) setExpiryDate(scannedDate); // don't overwrite a typed date
@@ -87,13 +107,15 @@ export function AddProductScreen() {
         try {
           const match = await lookupProductByBarcode(shopId, key);
           if (!match.found) {
+            setLookupMissed(true);
             setScanHint(
               scannedBits.length
-                ? `Scanned ${scannedBits.join(", ")}. Add the rest once — it'll prefill next time.`
-                : "New barcode — fill the details once and it'll prefill next time.",
+                ? `Scanned ${scannedBits.join(", ")}. Not in your catalogue or online — scan the label to read its name.`
+                : "Not in your catalogue or online — scan the label to read its name & date.",
             );
             return;
           }
+          setLookupMissed(false);
 
           // Always offer the product name. Category / date-type / price only come from a previous
           // batch at THIS shop (a "local" match), never from the online product database.
@@ -188,7 +210,7 @@ export function AddProductScreen() {
           <Ionicons name="barcode-outline" size={20} color={appTheme.colors.primary} />
           <Text style={styles.scanText}>{barcode ? `Barcode: ${barcode}` : "Scan barcode (optional)"}</Text>
           {barcode ? (
-            <Pressable onPress={() => { setBarcode(""); setScanHint(null); }} hitSlop={8} accessibilityLabel="Clear barcode">
+            <Pressable onPress={() => { setBarcode(""); setScanHint(null); setLookupMissed(false); }} hitSlop={8} accessibilityLabel="Clear barcode">
               <Ionicons name="close-circle" size={18} color={appTheme.colors.textSubtle} />
             </Pressable>
           ) : (
@@ -197,6 +219,29 @@ export function AddProductScreen() {
         </Pressable>
         {scanHint ? <Text style={styles.scanHint}>{scanHint}</Text> : null}
 
+        {lookupMissed && !productName.trim() ? (
+          <Pressable
+            style={styles.ocrCta}
+            onPress={() => navigation.navigate("ProductBarcodeScanner", { mode: "name" })}
+            accessibilityRole="button"
+            accessibilityLabel="Scan the product label to read its name and expiry date"
+          >
+            <Ionicons name="scan-outline" size={18} color={appTheme.colors.onPrimary} />
+            <Text style={styles.ocrCtaText}>Scan name &amp; date from label</Text>
+          </Pressable>
+        ) : null}
+
+        <View style={styles.nameScanRow}>
+          <Pressable
+            style={styles.scanDateBtn}
+            onPress={() => navigation.navigate("ProductBarcodeScanner", { mode: "name" })}
+            accessibilityRole="button"
+            accessibilityLabel="Scan the product name from the label"
+          >
+            <Ionicons name="camera-outline" size={14} color={appTheme.colors.primary} />
+            <Text style={styles.scanDateText}>Scan name</Text>
+          </Pressable>
+        </View>
         <FloatingLabelInput label="Product name" value={productName} onChangeText={setProductName} autoCapitalize="words" />
 
         <Text style={styles.fieldLabel}>Category</Text>
@@ -295,4 +340,11 @@ const styles = StyleSheet.create({
   labelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 2 },
   scanDateBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 2, paddingHorizontal: 4 },
   scanDateText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
+  nameScanRow: { flexDirection: "row", justifyContent: "flex-end", marginTop: 2 },
+  ocrCta: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: appTheme.spacing.xs,
+    backgroundColor: appTheme.colors.primary, borderRadius: appTheme.radius.sm,
+    paddingVertical: 11, paddingHorizontal: appTheme.spacing.sm,
+  },
+  ocrCtaText: { color: appTheme.colors.onPrimary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
 });

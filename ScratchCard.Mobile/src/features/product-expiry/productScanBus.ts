@@ -1,8 +1,9 @@
 // Tiny pub/sub so the dedicated product scanner can hand a scan back to whatever screen launched it
 // (React Navigation discourages passing callbacks through route params). Carries the raw decoded
 // string plus the symbology type so the consumer can GS1-parse 2D codes (Data Matrix / QR).
-// A barcode scan carries { raw, type }; a date-OCR scan carries { expiry: "yyyy-MM-dd" }.
-export type ProductScan = { raw?: string; type?: string; expiry?: string };
+// A barcode scan carries { raw, type }; a date-OCR scan carries { expiry: "yyyy-MM-dd" };
+// a name-OCR scan (label read when a barcode lookup misses) carries { name } and optionally { expiry }.
+export type ProductScan = { raw?: string; type?: string; expiry?: string; name?: string };
 
 type Listener = (scan: ProductScan) => void;
 
