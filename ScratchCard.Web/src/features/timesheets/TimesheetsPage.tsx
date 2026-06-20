@@ -366,11 +366,18 @@ export default function TimesheetsPage() {
             <div className="text-xs uppercase tracking-wide text-slate-400">Approved wage</div>
             <div className="mt-1 text-xl font-semibold text-emerald-600">{gbp(wage.approved)}</div>
           </div>
-          <div className={clsx("card p-4", wage.pending > 0 && "ring-1 ring-amber-200")}>
-            <div className="text-xs uppercase tracking-wide text-slate-400">Pending approval</div>
+          <Link
+            to="/approvals"
+            className={clsx("card card-hover block p-4", wage.pending > 0 && "ring-1 ring-amber-200")}
+            title="Go to time approvals"
+          >
+            <div className="flex items-center justify-between text-xs uppercase tracking-wide text-slate-400">
+              Pending approval
+              <ChevronRight className="h-4 w-4" />
+            </div>
             <div className="mt-1 text-xl font-semibold text-amber-600">{gbp(wage.pending)}</div>
             {wage.pendingHours > 0 ? <div className="text-xs text-slate-400">{hm(wage.pendingHours)} awaiting approval</div> : null}
-          </div>
+          </Link>
           <div className="card p-4">
             <div className="text-xs uppercase tracking-wide text-slate-400">Total if all approved</div>
             <div className="mt-1 text-xl font-semibold text-slate-800">{gbp(wage.total)}</div>
