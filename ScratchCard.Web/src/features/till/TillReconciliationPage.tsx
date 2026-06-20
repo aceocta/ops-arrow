@@ -1,14 +1,14 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import {
-  tillReconApi, tillSettlementApi, tillAccountingApi,
+  tillReconApi, tillSettlementApi,
   type VarianceStatus, type ReconStatus,
   type ProviderSettlement, type SettlementProvider, type SettlementStatus,
 } from "../../lib/tillReconciliation";
 import { apiErrorMessage } from "../../lib/api";
 import { toast } from "../../components/feedback";
-import { PoundSterling, AlertTriangle, CheckCircle2, Receipt, Users, Building2, Landmark, Calculator, Download, X, RotateCcw, Trash2 } from "lucide-react";
+import { PoundSterling, AlertTriangle, CheckCircle2, Receipt, Landmark, Download, X, RotateCcw, Trash2 } from "lucide-react";
 import clsx from "clsx";
 
 const gbp = (n: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n || 0);
@@ -29,21 +29,10 @@ export default function TillReconciliationPage() {
   const has = (f: string) => features.includes(f);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [date, setDate] = useState(fmtDate(new Date()));
-  const [range, setRange] = useState(() => {
-    const to = new Date();
-    const from = new Date();
-    from.setDate(from.getDate() - 29);
-    return { from: fmtDate(from), to: fmtDate(to) };
-  });
 
   const rollupQ = useQuery({
     queryKey: ["till-rollup", shopId, date],
     queryFn: () => tillReconApi.rollup(shopId, date),
-    enabled: !!shopId,
-  });
-  const analyticsQ = useQuery({
-    queryKey: ["till-analytics", shopId, range.from, range.to],
-    queryFn: () => tillReconApi.analytics(shopId, range.from, range.to),
     enabled: !!shopId,
   });
   const r = rollupQ.data;
@@ -112,56 +101,8 @@ export default function TillReconciliationPage() {
         </>
       ) : null}
 
-      {/* Post Office (separate balance) — Growth+ */}
-      {has("store_sales.post_office") ? <PostOfficeCard shopId={shopId} date={date} /> : null}
-
       {/* Provider settlements — Pro */}
-      {has("store_sales.settlement") ? <SettlementsCard shopId={shopId} from={range.from} to={range.to} /> : null}
-
-      {/* Accounting & VAT — Growth+ */}
-      {has("store_sales.accounting_export") ? <AccountingCard shopId={shopId} from={range.from} to={range.to} /> : null}
-
-      {/* Per-staff analytics */}
-      <div className="card overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-3">
-          <span className="flex items-center gap-2 text-sm font-semibold text-slate-700"><Users className="h-4 w-4 text-slate-400" /> Variance by staff</span>
-          <div className="flex items-center gap-2">
-            <input type="date" className="input w-auto" value={range.from} onChange={(e) => setRange((x) => ({ ...x, from: e.target.value }))} />
-            <input type="date" className="input w-auto" value={range.to} onChange={(e) => setRange((x) => ({ ...x, to: e.target.value }))} />
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
-              <th className="px-5 py-2 font-medium">Staff</th>
-              <th className="px-5 py-2 font-medium">Days</th>
-              <th className="px-5 py-2 font-medium">Total variance</th>
-              <th className="px-5 py-2 font-medium">Shorts</th>
-              <th className="px-5 py-2 font-medium">Alerts</th>
-              <th className="px-5 py-2 font-medium">No-sales</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {(analyticsQ.data?.staff ?? []).map((s) => (
-              <tr key={s.userId ?? s.name} className="hover:bg-slate-50">
-                <td className="px-5 py-3 font-medium text-slate-800">{s.name}</td>
-                <td className="px-5 py-3 text-slate-700">{s.count}</td>
-                <td className={clsx("px-5 py-3 font-semibold", s.totalVariance < 0 ? "text-red-600" : "text-emerald-600")}>
-                  {s.totalVariance >= 0 ? "+" : "−"}{gbp(Math.abs(s.totalVariance))}
-                </td>
-                <td className="px-5 py-3 text-slate-700">{s.shortCount}</td>
-                <td className="px-5 py-3">{s.alertCount > 0 ? <span className="badge bg-red-100 text-red-700">{s.alertCount}</span> : <span className="text-slate-400">0</span>}</td>
-                <td className="px-5 py-3 text-slate-700">{s.noSaleCount}</td>
-              </tr>
-            ))}
-            {!analyticsQ.isLoading && (analyticsQ.data?.staff.length ?? 0) === 0 ? (
-              <tr><td colSpan={6} className="px-5 py-6 text-center text-slate-400">No data in this range.</td></tr>
-            ) : null}
-          </tbody>
-        </table>
-        </div>
-      </div>
+      {has("store_sales.settlement") ? <SettlementsCard shopId={shopId} /> : null}
 
       {detailId ? <ReconciliationDetail id={detailId} onClose={() => setDetailId(null)} /> : null}
     </div>
@@ -320,50 +261,6 @@ function AttachmentThumb({ id, onView, onRemove, removing }: { id: string; onVie
   );
 }
 
-function PostOfficeCard({ shopId, date }: { shopId: string; date: string }) {
-  const qc = useQueryClient();
-  const q = useQuery({ queryKey: ["po", shopId, date], queryFn: () => tillSettlementApi.getPostOffice(shopId, date), enabled: !!shopId });
-  const po = q.data;
-  const [f, setF] = useState({ openingBalance: "", cashIn: "", cashOut: "", countedBalance: "", notes: "" });
-  useEffect(() => {
-    if (po) setF({
-      openingBalance: String(po.openingBalance || ""), cashIn: String(po.cashIn || ""), cashOut: String(po.cashOut || ""),
-      countedBalance: po.countedBalance != null ? String(po.countedBalance) : "", notes: po.notes ?? "",
-    });
-  }, [po?.id, po?.status]);
-  const n = (s: string) => Number(s) || 0;
-
-  const saveM = useMutation({
-    mutationFn: () => tillSettlementApi.savePostOffice({
-      id: po!.id, openingBalance: n(f.openingBalance), cashIn: n(f.cashIn), cashOut: n(f.cashOut),
-      countedBalance: f.countedBalance.trim() ? n(f.countedBalance) : undefined, notes: f.notes || undefined,
-    }),
-    onSuccess: (r) => { qc.setQueryData(["po", shopId, date], r); toast("Post Office saved.", "success"); },
-    onError: (e) => toast(apiErrorMessage(e), "error"),
-  });
-
-  if (!po) return null;
-  const variance = (n(f.countedBalance) || 0) - (n(f.openingBalance) + n(f.cashIn) - n(f.cashOut));
-  return (
-    <div className="card p-5">
-      <div className="mb-3 flex items-center gap-2"><Building2 className="h-4 w-4 text-slate-400" /><span className="text-sm font-semibold text-slate-700">Post Office balance · {date}</span></div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Field label="Opening" value={f.openingBalance} onChange={(v) => setF((s) => ({ ...s, openingBalance: v }))} />
-        <Field label="Cash in" value={f.cashIn} onChange={(v) => setF((s) => ({ ...s, cashIn: v }))} />
-        <Field label="Cash out" value={f.cashOut} onChange={(v) => setF((s) => ({ ...s, cashOut: v }))} />
-        <Field label="Counted" value={f.countedBalance} onChange={(v) => setF((s) => ({ ...s, countedBalance: v }))} />
-      </div>
-      <div className="mt-3 flex items-center justify-between">
-        <span className="text-sm text-slate-500">Variance</span>
-        <span className={clsx("text-lg font-bold", Math.abs(variance) <= 5 ? "text-emerald-600" : Math.abs(variance) <= 10 ? "text-amber-600" : "text-red-600")}>
-          {variance >= 0 ? "+" : "−"}{gbp(Math.abs(variance))}
-        </span>
-      </div>
-      <button className="btn-primary mt-3" onClick={() => saveM.mutate()} disabled={saveM.isPending}>{saveM.isPending ? "Saving…" : "Save Post Office"}</button>
-    </div>
-  );
-}
-
 const PROVIDERS: SettlementProvider[] = ["PayPoint", "Payzone", "Lottery", "Parcels"];
 const settlementBadge: Record<SettlementStatus, string> = {
   Open: "bg-slate-100 text-slate-500",
@@ -372,8 +269,15 @@ const settlementBadge: Record<SettlementStatus, string> = {
   Settled: "bg-sky-100 text-sky-700",
 };
 
-function SettlementsCard({ shopId, from, to }: { shopId: string; from: string; to: string }) {
+function SettlementsCard({ shopId }: { shopId: string }) {
   const qc = useQueryClient();
+  const [range, setRange] = useState(() => {
+    const to = new Date();
+    const from = new Date();
+    from.setDate(from.getDate() - 29);
+    return { from: fmtDate(from), to: fmtDate(to) };
+  });
+  const { from, to } = range;
   const key = ["settlements", shopId, from, to];
   const q = useQuery({ queryKey: key, queryFn: () => tillSettlementApi.listSettlements(shopId, from, to), enabled: !!shopId });
   const [provider, setProvider] = useState<SettlementProvider>("PayPoint");
@@ -393,7 +297,9 @@ function SettlementsCard({ shopId, from, to }: { shopId: string; from: string; t
     <div className="card overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-3">
         <span className="flex items-center gap-2 text-sm font-semibold text-slate-700"><Landmark className="h-4 w-4 text-slate-400" /> Provider settlements · {from} → {to}</span>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <input type="date" className="input w-auto" value={from} onChange={(e) => setRange((x) => ({ ...x, from: e.target.value }))} />
+          <input type="date" className="input w-auto" value={to} onChange={(e) => setRange((x) => ({ ...x, to: e.target.value }))} />
           <select className="input w-auto" value={provider} onChange={(e) => setProvider(e.target.value as SettlementProvider)}>
             {PROVIDERS.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
@@ -440,62 +346,6 @@ function SettlementRow({ s, onDd }: { s: ProviderSettlement; onDd: (amount: numb
   );
 }
 
-function AccountingCard({ shopId, from, to }: { shopId: string; from: string; to: string }) {
-  const q = useQuery({ queryKey: ["accounting", shopId, from, to], queryFn: () => tillAccountingApi.summary(shopId, from, to), enabled: !!shopId });
-  const s = q.data;
-  const dl = useMutation({
-    mutationFn: () => tillAccountingApi.downloadCsv(shopId, from, to),
-    onError: (e) => toast(apiErrorMessage(e), "error"),
-  });
-  return (
-    <div className="card overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-3">
-        <span className="flex items-center gap-2 text-sm font-semibold text-slate-700"><Calculator className="h-4 w-4 text-slate-400" /> Accounting &amp; VAT · {from} → {to}</span>
-        <button className="btn-ghost" onClick={() => dl.mutate()} disabled={dl.isPending || !s}>
-          <Download className="h-4 w-4" /> {dl.isPending ? "Exporting…" : "Export CSV"}
-        </button>
-      </div>
-      {s ? (
-        <div className="space-y-4 p-5">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6 text-sm">
-            <Stat k="Turnover (ex-agency)" v={gbp(s.turnoverExAgency)} />
-            <Stat k="Tenders" v={gbp(s.tendersTotal)} />
-            <Stat k="Commission income" v={gbp(s.commissionIncome)} tone="emerald" />
-            <Stat k="Agency liabilities" v={gbp(s.agencyLiabilities)} tone="amber" />
-            <Stat k="Expenses" v={gbp(s.expenses)} />
-            <Stat k="Cash over/short" v={`${s.cashOverShort >= 0 ? "+" : "−"}${gbp(Math.abs(s.cashOverShort))}`} tone={Math.abs(s.cashOverShort) <= 5 ? "emerald" : "red"} />
-          </div>
-          {s.vatByRate.length > 0 ? (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
-                  <th className="py-1 font-medium">VAT bucket</th><th className="py-1 font-medium">Net</th><th className="py-1 font-medium">VAT</th><th className="py-1 font-medium">Gross</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {s.vatByRate.map((v) => (
-                  <tr key={v.bucket}>
-                    <td className="py-2 text-slate-700">{v.bucket}</td>
-                    <td className="py-2 text-slate-700">{gbp(v.net)}</td>
-                    <td className="py-2 font-medium text-slate-800">{gbp(v.vat)}</td>
-                    <td className="py-2 text-slate-700">{gbp(v.gross)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : <p className="text-sm text-slate-400">No taxable sales lines in this range.</p>}
-          {s.otherTurnover ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              ⚠ {gbp(s.otherTurnover)} sits in <strong>"Other"</strong> — counted as turnover but with no VAT rate applied. Map these lines to a real department for accurate VAT.
-            </div>
-          ) : null}
-          <p className="text-xs text-slate-400">Agency throughput (PayPoint, Lottery, Post Office) is excluded from turnover and shown as a liability — only commission is income.</p>
-        </div>
-      ) : <div className="p-5 text-sm text-slate-500">Loading…</div>}
-    </div>
-  );
-}
-
 function Stat({ k, v, tone }: { k: string; v: string; tone?: "emerald" | "amber" | "red" }) {
   const c = tone === "emerald" ? "text-emerald-600" : tone === "amber" ? "text-amber-600" : tone === "red" ? "text-red-600" : "text-slate-900";
   return (
@@ -511,15 +361,6 @@ function Row({ k, v, muted }: { k: string; v: string; muted?: boolean }) {
     <div className="flex items-center justify-between py-1">
       <span className={muted ? "text-slate-400" : "text-slate-600"}>{k}</span>
       <span className={clsx("font-medium", muted ? "text-slate-500" : "text-slate-800")}>{v}</span>
-    </div>
-  );
-}
-
-function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  return (
-    <div>
-      <label className="label">{label}</label>
-      <input className="input" placeholder="£" value={value} onChange={(e) => onChange(e.target.value)} />
     </div>
   );
 }
