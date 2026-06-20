@@ -1210,7 +1210,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  denseMetrics: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 11, lineHeight: 14, paddingLeft: 66 },
+  // Align the metrics line under the closing input: label (78) + divider + OPEN (46) + the three 6px gaps.
+  denseMetrics: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 11, lineHeight: 14, paddingLeft: 142 },
   denseError: { color: appTheme.colors.danger, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11, lineHeight: 14, paddingLeft: 66 },
   cardTitle: {
     fontSize: 18,
