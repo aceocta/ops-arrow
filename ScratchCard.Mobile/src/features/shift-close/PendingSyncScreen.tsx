@@ -1,5 +1,5 @@
 import React from "react";
-import { FlatList, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -30,19 +30,18 @@ export function PendingSyncScreen() {
 
       <PrimaryButton label="Retry sync" onPress={onRetrySync} />
 
-      <FlatList
-        data={queueQuery.data ?? []}
-        contentContainerStyle={styles.listContent}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <View style={[ui.card, styles.card]}>
+      {/* Rendered inline (not a FlatList) so it scrolls with ScreenContainer's ScrollView — a nested
+          vertical VirtualizedList warns and breaks windowing. The offline queue is small. */}
+      <View style={styles.listContent}>
+        {(queueQuery.data ?? []).map((item) => (
+          <View key={item.id} style={[ui.card, styles.card]}>
             <Text style={styles.bold}>Shift: {item.shiftId}</Text>
             <Text style={styles.meta}>Status: {item.syncStatus}</Text>
             <Text style={styles.meta}>Created: {item.createdOn}</Text>
             {item.error ? <Text style={styles.error}>Error: {item.error}</Text> : null}
           </View>
-        )}
-      />
+        ))}
+      </View>
     </ScreenContainer>
   );
 }

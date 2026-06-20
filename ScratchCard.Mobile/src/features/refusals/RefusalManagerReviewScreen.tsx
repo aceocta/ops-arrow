@@ -1,5 +1,5 @@
 ﻿import React, { useMemo, useRef, useState } from "react";
-import { Alert, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Image, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LandscapeSignatureModal } from "../../components/LandscapeSignatureModal";
 import { listRefusalEntriesByRange, reviewRefusalEntries } from "../../api/refusalRegisterApi";
@@ -221,20 +221,15 @@ export function RefusalManagerReviewScreen() {
           />
         ) : null}
         {entries.length > 0 ? (
-          <FlatList
-            style={styles.listScroll}
-            contentContainerStyle={styles.listContent}
-            data={entries}
-            keyExtractor={(entry) => entry.id}
-            extraData={selectedEntryIds}
-            initialNumToRender={10}
-            windowSize={7}
-            removeClippedSubviews
-            renderItem={({ item: entry }) => {
+          // Rendered inline (not a FlatList) because this card sits inside ScreenContainer's
+          // ScrollView — nesting a vertical VirtualizedList there breaks windowing and logs a
+          // warning. The list is date-range filtered, so a plain map scrolls fine with the page.
+          <View style={styles.listContent}>
+            {entries.map((entry) => {
               const isSelected = selectedEntryIds.includes(entry.id);
               return (
                 // Flashes briefly when reviewedOn flips from null → set (review just landed).
-                <RowFlash flashKey={entry.reviewedOn ?? null}>
+                <RowFlash key={entry.id} flashKey={entry.reviewedOn ?? null}>
                   <Pressable
                     style={[styles.entryCard, isSelected ? styles.entryCardSelected : null]}
                     onPress={() => toggleEntrySelection(entry.id)}
@@ -257,8 +252,8 @@ export function RefusalManagerReviewScreen() {
                   </Pressable>
                 </RowFlash>
               );
-            }}
-          />
+            })}
+          </View>
         ) : null}
       </View>
 

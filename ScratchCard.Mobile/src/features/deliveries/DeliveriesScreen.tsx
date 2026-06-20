@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from "react";
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -46,25 +46,14 @@ export function DeliveriesScreen() {
     void deliveriesQuery.refetch();
   }, [deliveriesQuery]);
 
-  const renderItem = useCallback(
-    ({ item }: { item: DeliveryItem }) => (
-      <View style={styles.item}>
-        <Text style={styles.itemTitle}>{item.deliveryReference}</Text>
-        <Text style={styles.meta}>Supplier: {item.supplierName}</Text>
-        <Text style={styles.meta}>Date: {new Date(item.deliveryDate).toLocaleDateString()}</Text>
-        <Text style={styles.meta}>Packs: {item.packs.length}</Text>
-        {item.notes ? <Text style={styles.meta}>Notes: {item.notes}</Text> : null}
-      </View>
-    ),
-    []
-  );
-
-  const keyExtractor = useCallback((item: DeliveryItem) => item.id, []);
-
   const isInitialLoading = deliveriesQuery.isLoading && deliveriesQuery.deliveries.length === 0;
 
   return (
-    <ScreenContainer>
+    <ScreenContainer
+      refreshControl={
+        <RefreshControl refreshing={deliveriesQuery.isRefetching} onRefresh={handleRefresh} />
+      }
+    >
       <View style={ui.card}>
         <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
         <Text style={styles.meta}>Recent deliveries are listed below.</Text>
@@ -100,16 +89,20 @@ export function DeliveriesScreen() {
             onAction={() => navigation.navigate("ReceiveDelivery")}
           />
         ) : (
-          <FlatList
-            data={deliveriesQuery.deliveries}
-            keyExtractor={keyExtractor}
-            renderItem={renderItem}
-            scrollEnabled={false}
-            ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
-            refreshControl={
-              <RefreshControl refreshing={deliveriesQuery.isRefetching} onRefresh={handleRefresh} />
-            }
-          />
+          // Rendered inline (not a FlatList) so it scrolls with ScreenContainer's ScrollView —
+          // a nested vertical VirtualizedList warns and breaks windowing. Pull-to-refresh is on
+          // the screen container; the header keeps a manual refresh button too.
+          <View style={styles.deliveryList}>
+            {deliveriesQuery.deliveries.map((item) => (
+              <View key={item.id} style={styles.item}>
+                <Text style={styles.itemTitle}>{item.deliveryReference}</Text>
+                <Text style={styles.meta}>Supplier: {item.supplierName}</Text>
+                <Text style={styles.meta}>Date: {new Date(item.deliveryDate).toLocaleDateString()}</Text>
+                <Text style={styles.meta}>Packs: {item.packs.length}</Text>
+                {item.notes ? <Text style={styles.meta}>Notes: {item.notes}</Text> : null}
+              </View>
+            ))}
+          </View>
         )}
       </View>
     </ScreenContainer>
@@ -135,6 +128,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     lineHeight: 18,
     fontFamily: appTheme.fonts.bodyMedium,
+  },
+  deliveryList: {
+    gap: 8,
   },
   item: {
     borderRadius: appTheme.radius.sm,
