@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, DevSettings, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, DevSettings, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -22,6 +22,7 @@ import { PhoneNumberInput } from "../../components/PhoneNumberInput";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SegmentedControl } from "../../components/SegmentedControl";
+import { useAppLock } from "../../security/AppLockContext";
 import { toastError, toastSuccess } from "../../components/toast";
 import { SkeletonList } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -1943,6 +1944,55 @@ function SettingsNavRow({
   );
 }
 
+// Toggle row for biometric/passcode App Lock. Disabled (with guidance) when the device has no
+// usable biometric or passcode. Turning it on prompts once to confirm the device can authenticate.
+function AppLockSettingRow() {
+  const { enabled, available, biometricLabel, enableLock, disableLock } = useAppLock();
+  const [busy, setBusy] = useState(false);
+
+  async function onToggle(next: boolean) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (next) {
+        const ok = await enableLock();
+        if (!ok) {
+          Alert.alert(
+            "Couldn't turn on App Lock",
+            "We couldn't verify your biometrics or device passcode. Set up Face ID / fingerprint or a passcode on this device, then try again."
+          );
+        }
+      } else {
+        await disableLock();
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <View style={[styles.settingsNavRow, !available ? styles.settingsNavRowDisabled : null]}>
+      <View style={styles.settingsNavIconWrap}>
+        <Ionicons name="lock-closed-outline" size={17} color={appTheme.colors.primary} />
+      </View>
+      <View style={styles.settingsNavTextWrap}>
+        <Text style={styles.settingsNavTitle}>App Lock</Text>
+        <Text style={styles.settingsNavDescription}>
+          {available
+            ? `Require ${biometricLabel} or your device passcode to open the app.`
+            : "Set up Face ID / fingerprint or a device passcode to use App Lock."}
+        </Text>
+      </View>
+      <Switch
+        value={enabled}
+        onValueChange={(v) => void onToggle(v)}
+        disabled={!available || busy}
+        trackColor={{ true: appTheme.colors.primary }}
+      />
+    </View>
+  );
+}
+
 export function SettingsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const { profile, activeShop, signOut, refreshProfile } = useAuth();
@@ -2265,6 +2315,7 @@ export function SettingsScreen() {
             description="Choose how you receive alerts on this device."
             onPress={() => navigation.navigate("NotificationPreferences")}
           />
+          <AppLockSettingRow />
         </View>
         <Text style={styles.themeLabel}>Theme</Text>
         <View style={styles.themeModeRow}>
@@ -2596,6 +2647,9 @@ const styles = StyleSheet.create({
   },
   settingsNavRowPressed: {
     opacity: 0.9,
+  },
+  settingsNavRowDisabled: {
+    opacity: 0.6,
   },
   settingsNavRowDanger: {
     backgroundColor: appTheme.colors.surfaceDangerSoft,

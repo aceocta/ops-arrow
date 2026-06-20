@@ -66,10 +66,14 @@ export function ScreenContainer({
   const baseBottomPadding = appTheme.spacing.xl + appTheme.spacing.md;
 
   const scrollFocusedInputIntoView = useCallback(() => {
-    const focusedInput =
-      TextInput.State.currentlyFocusedInput?.() ??
-      // Fallback for older RN runtime signatures.
-      (TextInput.State.currentlyFocusedField?.() as unknown as number | null);
+    // Use currentlyFocusedInput when it exists; only fall back to the deprecated currentlyFocusedField
+    // on older RN. (A `??` on the *result* would call the deprecated method whenever nothing is
+    // focused — it returns null — which spams a deprecation warning every keyboard show.)
+    const inputState = TextInput.State as any;
+    const focusedInput: any =
+      typeof inputState.currentlyFocusedInput === "function"
+        ? inputState.currentlyFocusedInput()
+        : inputState.currentlyFocusedField?.();
 
     if (!focusedInput || !scrollViewRef.current) {
       return;

@@ -60,6 +60,12 @@
       "@react-native-firebase/messaging",
       "expo-secure-store",
       [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Use Face ID to unlock Ops Arrow and keep your shop data private on this device."
+        }
+      ],
+      [
         "expo-camera",
         {
           "cameraPermission": "Ops Arrow uses the camera to scan barcodes and capture photos of delivery notes, till reports, compliance evidence and visitor sign-ins.",

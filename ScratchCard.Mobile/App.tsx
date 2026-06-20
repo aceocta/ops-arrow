@@ -108,6 +108,8 @@ function AppShell() {
     const themeModule = require("./src/ui/theme") as typeof import("./src/ui/theme");
     const appAlertModule = require("./src/components/AppAlert") as typeof import("./src/components/AppAlert");
     const rootNavigatorModule = require("./src/navigation/RootNavigator") as typeof import("./src/navigation/RootNavigator");
+    const appLockModule = require("./src/security/AppLockContext") as typeof import("./src/security/AppLockContext");
+    const appLockOverlayModule = require("./src/security/AppLockOverlay") as typeof import("./src/security/AppLockOverlay");
 
     return {
       appTheme: themeModule.appTheme,
@@ -115,6 +117,8 @@ function AppShell() {
       AppAlertHost: appAlertModule.AppAlertHost,
       installAppAlertPatch: appAlertModule.installAppAlertPatch,
       RootNavigator: rootNavigatorModule.RootNavigator,
+      AppLockProvider: appLockModule.AppLockProvider,
+      AppLockOverlay: appLockOverlayModule.AppLockOverlay,
     };
   }, [isThemeReady]);
 
@@ -163,10 +167,13 @@ function AppShell() {
         <ErrorBoundary>
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
-              <NavigationContainer ref={navigationRef} theme={navigationTheme} linking={linking}>
-                <runtimeModules.RootNavigator />
-                <runtimeModules.AppAlertHost />
-              </NavigationContainer>
+              <runtimeModules.AppLockProvider>
+                <NavigationContainer ref={navigationRef} theme={navigationTheme} linking={linking}>
+                  <runtimeModules.RootNavigator />
+                  <runtimeModules.AppAlertHost />
+                  <runtimeModules.AppLockOverlay />
+                </NavigationContainer>
+              </runtimeModules.AppLockProvider>
             </AuthProvider>
           </QueryClientProvider>
         </ErrorBoundary>
