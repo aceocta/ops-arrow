@@ -3,6 +3,7 @@ import { Animated, Keyboard, Platform, RefreshControlProps, ScrollView, StyleShe
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { appTheme } from "../ui/theme";
 import { useIsTablet } from "../utils/useIsTablet";
+import { KeyboardDismissView } from "./KeyboardDismissView";
 
 // On tablet, content is capped at this width and centred. Phones (width < 768) are
 // untouched — the existing edge-to-edge layout is preserved exactly.
@@ -142,17 +143,21 @@ export function ScreenContainer({
             </Animated.View>
           </ScrollView>
         ) : (
-          <Animated.View
-            style={[
-              styles.bodyNoScroll,
-              { paddingBottom: keyboardInset + footerReserve, opacity: entrance, transform: [{ translateY }] },
-              isTablet
-                ? { maxWidth: TABLET_CONTENT_MAX_WIDTH, alignSelf: "center" as const, width: "100%" as const }
-                : null,
-            ]}
-          >
-            {children}
-          </Animated.View>
+          // No ScrollView here, so add an explicit tap-to-dismiss — otherwise a numeric/multiline
+          // keyboard (no return key) opened on a non-scrolling screen can't be closed.
+          <KeyboardDismissView style={styles.flex1}>
+            <Animated.View
+              style={[
+                styles.bodyNoScroll,
+                { paddingBottom: keyboardInset + footerReserve, opacity: entrance, transform: [{ translateY }] },
+                isTablet
+                  ? { maxWidth: TABLET_CONTENT_MAX_WIDTH, alignSelf: "center" as const, width: "100%" as const }
+                  : null,
+              ]}
+            >
+              {children}
+            </Animated.View>
+          </KeyboardDismissView>
         )}
         {footer ? (
           <View
@@ -174,6 +179,7 @@ export function ScreenContainer({
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: appTheme.colors.background },
+  flex1: { flex: 1 },
   content: {
     flexGrow: 1,
     paddingHorizontal: appTheme.spacing.md,

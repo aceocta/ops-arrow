@@ -59,6 +59,7 @@ import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
 import { LoadingState } from "../../components/LoadingState";
 import { SkeletonList } from "../../components/Skeleton";
 import { PrimaryButton } from "../../components/PrimaryButton";
+import { dismissKeyboardOnTap } from "../../components/KeyboardDismissView";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
 import { EmptyState } from "../../components/EmptyState";
@@ -613,7 +614,7 @@ export function MyShiftsScreen() {
 
       {/* Manual time entry */}
       <Modal visible={manualShift !== null} transparent animationType="fade" onRequestClose={() => setManualShift(null)}>
-        <View style={styles.sheetBackdrop}>
+        <View style={styles.sheetBackdrop} onStartShouldSetResponder={dismissKeyboardOnTap}>
           <View style={styles.sheetCard}>
             <View style={styles.sheetHeader}>
               <View style={styles.sheetIcon}>
@@ -925,7 +926,7 @@ export function MyTimesheetScreen() {
       {/* Raise an issue against a timesheet review period */}
       <Modal visible={disputeTarget !== null} transparent animationType="fade" onRequestClose={() => setDisputeTarget(null)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <View style={styles.sheetBackdrop}>
+        <View style={styles.sheetBackdrop} onStartShouldSetResponder={dismissKeyboardOnTap}>
           <View style={styles.sheetCard}>
             <View style={styles.sheetHeader}>
               <View style={styles.sheetIcon}>
@@ -2349,7 +2350,7 @@ export function RotaManageScreen() {
           assignment reason, or take them off the shift. */}
       <Modal visible={selectedAssignee !== null} transparent animationType="fade" onRequestClose={() => setSelectedAssignee(null)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <View style={styles.sheetBackdrop}>
+        <View style={styles.sheetBackdrop} onStartShouldSetResponder={dismissKeyboardOnTap}>
           <View style={styles.sheetCard}>
             <View style={styles.sheetHeader}>
               <View style={[styles.userAvatar, styles.userAvatarOn]}>
@@ -2493,7 +2494,7 @@ export function RotaManageScreen() {
       {/* Add an external (roster-only) person — name required, phone & email optional. */}
       <Modal visible={addExternalOpen} transparent animationType="fade" onRequestClose={() => setAddExternalOpen(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <View style={styles.sheetBackdrop}>
+        <View style={styles.sheetBackdrop} onStartShouldSetResponder={dismissKeyboardOnTap}>
           <View style={styles.sheetCard}>
             <Text style={styles.modalTitleSm}>Add external person</Text>
             <Text style={styles.muted}>Not an Ops Arrow user — for rostering &amp; recording hours.</Text>
@@ -2542,7 +2543,7 @@ export function RotaManageScreen() {
 
       {/* Record hours for an assignee — external (roster-only) people or internal staff */}
       <Modal visible={recordTarget !== null} transparent animationType="fade" onRequestClose={() => setRecordTarget(null)}>
-        <View style={styles.sheetBackdrop}>
+        <View style={styles.sheetBackdrop} onStartShouldSetResponder={dismissKeyboardOnTap}>
           <View style={styles.sheetCard}>
             <Text style={styles.modalTitleSm}>Record hours</Text>
             <Text style={styles.muted} numberOfLines={1}>
@@ -2578,7 +2579,7 @@ export function RotaManageScreen() {
 
       {/* Quick assign (by-staff view) — put a person on one of the day's template slots. */}
       <Modal visible={quickAssign !== null} transparent animationType="fade" onRequestClose={() => setQuickAssign(null)}>
-        <View style={styles.sheetBackdrop}>
+        <View style={styles.sheetBackdrop} onStartShouldSetResponder={dismissKeyboardOnTap}>
           <View style={[styles.sheetCard, { maxHeight: "80%" }]}>
             <View style={styles.sheetHeader}>
               <View style={styles.sheetIcon}>
@@ -3329,7 +3330,7 @@ export function RotaTimesheetScreen() {
 
       {/* Staff sessions drill-down */}
       <Modal visible={selectedStaff !== null} transparent animationType="slide" onRequestClose={closeStaffModal}>
-        <View style={styles.sheetBackdrop}>
+        <View style={styles.sheetBackdrop} onStartShouldSetResponder={dismissKeyboardOnTap}>
           <View style={[styles.sheetCard, { maxHeight: "80%" }]}>
             <View style={styles.sheetHeader}>
               <View style={styles.sheetIcon}>
@@ -3545,7 +3546,7 @@ export function RotaTimesheetScreen() {
       {/* Resolve a disputed timesheet review */}
       <Modal visible={resolveTarget !== null} transparent animationType="fade" onRequestClose={() => setResolveTarget(null)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <View style={styles.sheetBackdrop}>
+        <View style={styles.sheetBackdrop} onStartShouldSetResponder={dismissKeyboardOnTap}>
           <View style={styles.sheetCard}>
             <View style={styles.sheetHeader}>
               <View style={styles.sheetIcon}>
@@ -3596,7 +3597,7 @@ export function RotaTimesheetScreen() {
 
       {/* Approved timesheet history — past periods grouped by period, newest first */}
       <Modal visible={historyOpen} transparent animationType="slide" onRequestClose={() => setHistoryOpen(false)}>
-        <View style={styles.sheetBackdrop}>
+        <View style={styles.sheetBackdrop} onStartShouldSetResponder={dismissKeyboardOnTap}>
           <View style={[styles.sheetCard, { maxHeight: "80%" }]}>
             <View style={styles.sheetHeader}>
               <View style={styles.sheetIcon}>
@@ -3861,7 +3862,7 @@ export function RotaApprovalsScreen() {
 
       {/* Adjust times before approving */}
       <Modal visible={editing !== null} transparent animationType="fade" onRequestClose={() => setEditing(null)}>
-        <View style={styles.sheetBackdrop}>
+        <View style={styles.sheetBackdrop} onStartShouldSetResponder={dismissKeyboardOnTap}>
           <View style={styles.sheetCard}>
             <View style={styles.sheetHeader}>
               <View style={styles.sheetIcon}>
@@ -3997,7 +3998,7 @@ export function RotaStaffMembersScreen() {
 
       <Modal visible={editing !== null} transparent animationType="fade" onRequestClose={() => setEditing(null)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <View style={styles.sheetBackdrop}>
+        <View style={styles.sheetBackdrop} onStartShouldSetResponder={dismissKeyboardOnTap}>
           <View style={styles.sheetCard}>
             <Text style={styles.modalTitleSm}>{editing && editing !== "new" ? "Edit external person" : "Add external person"}</Text>
 

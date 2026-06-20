@@ -10,6 +10,7 @@ import {
 } from "../../api/productExpiryApi";
 import { useAuth } from "../../auth/AuthContext";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
+import { dismissKeyboardOnTap } from "../../components/KeyboardDismissView";
 import { LoadingState } from "../../components/LoadingState";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -139,7 +140,7 @@ export function ProductExpiryDetailScreen() {
       ) : null}
 
       <Modal visible={pending !== null} transparent animationType="fade" onRequestClose={() => setPending(null)}>
-        <View style={styles.modalBackdrop}>
+        <View style={styles.modalBackdrop} onStartShouldSetResponder={dismissKeyboardOnTap}>
           <ModalBackdropBlur />
           <View style={styles.modalCard}>
             <Text style={ui.sectionTitle}>{ACTIONS.find((a) => a.type === pending?.type)?.label}</Text>

@@ -33,6 +33,7 @@ import { getDayShiftSalesTotals, listShifts, openShift, reopenShift, startSchedu
 import { getTillDaySummary } from "../../api/tillReportsApi";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { dismissKeyboardOnTap } from "../../components/KeyboardDismissView";
 import { BusinessDayStaffCard } from "../rota/BusinessDayStaffCard";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { deriveShopOperationalSetup } from "../settings/shopConfiguration";
@@ -2282,7 +2283,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           onRequestClose={() => setIsOpenShiftModalVisible(false)}
         >
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-          <View style={styles.modalBackdrop}>
+          <View style={styles.modalBackdrop} onStartShouldSetResponder={dismissKeyboardOnTap}>
             <ModalBackdropBlur />
             <View style={[styles.modalCard, styles.shiftStartModalCard]}>
               <Text style={styles.sectionTitle}>Open New Shift</Text>
@@ -2392,7 +2393,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           onRequestClose={() => setIsReopenDayModalVisible(false)}
         >
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-          <View style={styles.modalBackdrop}>
+          <View style={styles.modalBackdrop} onStartShouldSetResponder={dismissKeyboardOnTap}>
             <ModalBackdropBlur />
             <View style={styles.modalCard}>
               <Text style={styles.sectionTitle}>Reopen Day</Text>

@@ -9,6 +9,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { EmptyState } from "../../components/EmptyState";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { PrimaryButton } from "../../components/PrimaryButton";
+import { dismissKeyboardOnTap } from "../../components/KeyboardDismissView";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError, toastSuccess } from "../../components/toast";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -172,7 +173,7 @@ export function TemperatureUnitsScreen() {
         onRequestClose={() => setIsCreateModalVisible(false)}
       >
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <View style={styles.modalBackdrop}>
+        <View style={styles.modalBackdrop} onStartShouldSetResponder={dismissKeyboardOnTap}>
           <ModalBackdropBlur />
           <View style={styles.modalCard}>
             <Text style={styles.sectionTitle}>Add New Unit</Text>

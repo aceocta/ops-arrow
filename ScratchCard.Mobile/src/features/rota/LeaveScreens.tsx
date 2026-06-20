@@ -22,6 +22,7 @@ import { DateRangeQuickPicks } from "../../components/DateRangeQuickPicks";
 import { EmptyState } from "../../components/EmptyState";
 import { LoadingState } from "../../components/LoadingState";
 import { PrimaryButton } from "../../components/PrimaryButton";
+import { dismissKeyboardOnTap } from "../../components/KeyboardDismissView";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SectionHeader } from "../../components/SectionHeader";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -572,7 +573,7 @@ export function LeaveManagementScreen() {
       {/* Approve — confirm/adjust hours per day, paid flag (Sick/Other) and an optional note */}
       <Modal visible={approveTarget !== null} transparent animationType="fade" onRequestClose={() => setApproveTarget(null)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <View style={styles.sheetBackdrop}>
+        <View style={styles.sheetBackdrop} onStartShouldSetResponder={dismissKeyboardOnTap}>
           <View style={styles.sheetCard}>
             <View style={styles.sheetHeader}>
               <View style={styles.sheetIcon}>
@@ -648,7 +649,7 @@ export function LeaveManagementScreen() {
       {/* Reject — note required so the staff member knows why */}
       <Modal visible={rejectTarget !== null} transparent animationType="fade" onRequestClose={() => setRejectTarget(null)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <View style={styles.sheetBackdrop}>
+        <View style={styles.sheetBackdrop} onStartShouldSetResponder={dismissKeyboardOnTap}>
           <View style={styles.sheetCard}>
             <View style={styles.sheetHeader}>
               <View style={styles.sheetIcon}>
@@ -690,7 +691,7 @@ export function LeaveManagementScreen() {
       {/* Add / edit an entitlement */}
       <Modal visible={entDraft !== null} transparent animationType="slide" onRequestClose={() => setEntDraft(null)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <View style={styles.sheetBackdrop}>
+        <View style={styles.sheetBackdrop} onStartShouldSetResponder={dismissKeyboardOnTap}>
           <View style={[styles.sheetCard, { maxHeight: "88%" }]}>
             <View style={styles.sheetHeader}>
               <View style={styles.sheetIcon}>
@@ -1053,7 +1054,7 @@ export function MyLeaveScreen() {
 
       {/* Leave details — read-only sheet with the request's facts and its approval history */}
       <Modal visible={detail !== null} transparent animationType="fade" onRequestClose={() => setDetail(null)}>
-        <View style={styles.sheetBackdrop}>
+        <View style={styles.sheetBackdrop} onStartShouldSetResponder={dismissKeyboardOnTap}>
           <View style={[styles.sheetCard, { maxHeight: "88%" }]}>
             <View style={styles.sheetHeader}>
               <View style={styles.sheetIcon}>
@@ -1148,7 +1149,7 @@ export function MyLeaveScreen() {
       {/* Request leave */}
       <Modal visible={leaveOpen} transparent animationType="fade" onRequestClose={() => setLeaveOpen(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <View style={styles.sheetBackdrop}>
+        <View style={styles.sheetBackdrop} onStartShouldSetResponder={dismissKeyboardOnTap}>
           <View style={styles.sheetCard}>
             <View style={styles.sheetHeader}>
               <View style={styles.sheetIcon}>
