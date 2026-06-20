@@ -417,8 +417,15 @@ function DailyScheduleMatrix({
           ))}
         </View>
 
-        {/* Slot columns stretch to share the remaining width equally. */}
-        <View style={styles.matrixSlotArea}>
+        {/* Slot columns have a fixed width and scroll horizontally, so each reading stays fully
+            visible when a unit has many scheduled checks (instead of squeezing every column to fit). */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator
+          style={styles.matrixSlotArea}
+          contentContainerStyle={styles.matrixSlotScrollContent}
+        >
+          <View>
             <View style={styles.matrixHeaderLine}>
               {columns.map((col, i) => (
                 <View key={`${col.label}|${col.expectedTime}|${i}`} style={styles.matrixSlotHeaderCell}>
@@ -487,7 +494,8 @@ function DailyScheduleMatrix({
                 })}
               </View>
             ))}
-        </View>
+          </View>
+        </ScrollView>
       </View>
     </View>
   );
@@ -2035,6 +2043,10 @@ const styles = StyleSheet.create({
   matrixSlotArea: {
     flex: 1,
   },
+  // Lets the fixed-width slot columns overflow to the right and scroll, rather than compress.
+  matrixSlotScrollContent: {
+    flexGrow: 1,
+  },
   matrixUnitCol: {
     width: 104,
     borderRightWidth: StyleSheet.hairlineWidth,
@@ -2073,7 +2085,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
   },
   matrixSlotHeaderCell: {
-    flex: 1,
+    width: 80,
     height: 45,
     paddingHorizontal: 4,
     backgroundColor: appTheme.colors.surfaceMuted,
@@ -2102,7 +2114,7 @@ const styles = StyleSheet.create({
     height: 60,
   },
   matrixCell: {
-    flex: 1,
+    width: 80,
     height: 64,
     paddingHorizontal: 4,
     alignItems: "center",
