@@ -1,7 +1,7 @@
 # Privacy Policy — Ops Arrow
 
-**Last updated:** 2 June 2026
-**Effective date:** 1 June 2026
+**Last updated:** 22 June 2026
+**Effective date:** 22 June 2026
 
 ## 1. Who we are
 
@@ -32,6 +32,11 @@ Ops Arrow is a multi-tenant operations platform for shops, forecourts and small 
 - **Compliance checklists:** daily, weekly and monthly compliance checks with optional photo evidence and manager sign-off.
 - **Refusal register:** "No ID, No Sale" refusal records with optional signatures and manager review.
 - **Visitor sign-in log:** digital visitor/contractor sign-in with signatures, optional photos and (at forecourts) permit-to-work / passport references.
+- **Staff scheduling (rota):** building shift rotas and assigning staff (registered users or roster-only staff members) to shifts, with optional assignment reasons and notes.
+- **Time & attendance (timesheets):** clock-in/clock-out attendance records, manual entries pending manager approval, and per-pay-period timesheet review and sign-off.
+- **Leave management:** staff leave/holiday requests (including sick, unpaid and other leave), annual leave entitlements, and manager approval.
+- **Staff records & pay:** a register of staff (including roster-only staff who do not have a login) and effective-dated hourly pay rates, used to calculate hours and labour cost.
+- **Approvals:** manager approval workflows for safe drops, manual attendance entries, leave requests and timesheets.
 - **Reports & notifications:** shift-close and day-end reports and reminders, delivered by push notification, email and (optionally) WhatsApp.
 - **Subscriptions:** paid plans and per-shop feature access managed through Stripe.
 
@@ -73,7 +78,14 @@ These records are entered by your staff during normal use:
 - **Compliance checks (daily/weekly/monthly):** result, notes, action required, close-out notes, attachments, who recorded and reviewed each entry.
 - **Cash management:** prize payouts and safe-drop ("canister") records, including the staff member who recorded or approved each, and approval notes.
 - **Temperature readings:** date, time, temperature, out-of-range flag, staff initials, action taken.
+- **Rota / shift schedule:** scheduled shifts (date, times, shift name, position), the staff member assigned to each shift, and optional assignment reasons and notes.
+- **Time & attendance:** clock-in / clock-out times, whether an entry was clocked automatically or entered manually, manager approval status and approver, per-pay-period timesheet status (confirmed / disputed / approved), and any staff or manager notes.
+- **Leave records:** leave type (**holiday, sick, unpaid, other**), start/end dates, hours, paid/unpaid status, annual-leave entitlement, the staff member's note and the manager's decision, decision-maker and timestamp.
+- **Staff register and pay:** for each staff member — including **roster-only staff who do not have a login** — name and optional phone number and email; and effective-dated hourly pay rates used to calculate hours worked and labour cost.
+- **Approvals:** for safe drops, manual attendance entries, leave and timesheets — who recorded the item, who approved or rejected it, when, and any approval/rejection notes.
 - **Notifications you send** via the Service (push, email, WhatsApp).
+
+Where these workforce records concern a person's identity, contact details, hours, pay or leave, they are **personal data**. For **roster-only staff members** (people you add to a rota who do not hold a user account) and for the workforce records your managers create about your staff, **your business is the data controller** and **Aceocta Limited acts as a data processor** on your behalf under our Data Processing Agreement, in the same way as for visitor and refusal data (see clause 1).
 
 ### 3.4 Third-party personal data your business records
 
@@ -101,7 +113,7 @@ We do **not** collect: GPS or precise location, contacts, calendar, microphone, 
 
 ### 3.7 Sensitive data
 
-We do **not** intentionally collect special-category data (race, religion, health, biometrics, sexual orientation, political opinions, trade-union membership). Free-text fields (shift notes, refusal observations, compliance action descriptions, temperature comments, visitor purpose, delivery notes) may incidentally contain personal data if your staff enter it. Please train staff not to enter special-category data into free-text fields.
+We do **not** intentionally collect special-category data (race, religion, health, biometrics, sexual orientation, political opinions, trade-union membership) about account holders, with one exception you control: the **leave module records a "sick" leave type**, which is information about a person's health and may be **special-category data** under the UK/EU GDPR. Where your managers record sick leave (or any other health information) about your staff, **your business is the controller** for that data and is responsible for having an Article 9 condition for processing it. Free-text fields (shift notes, refusal observations, compliance action descriptions, temperature comments, visitor purpose, delivery notes, leave and approval notes) may also incidentally contain personal or special-category data if your staff enter it. Please train staff not to enter special-category data into free-text fields.
 
 ### 3.8 Children's data
 
@@ -117,6 +129,7 @@ The Service is not directed at children under 16. We do not knowingly collect pe
 | Authenticate sign-in (including federated Apple/Google sign-in) | Email, password hash, OAuth identifiers, device data | **Contract** |
 | Secure the Service, prevent fraud, audit administrative actions | IP address, audit log entries | **Legitimate interests** (Art. 6(1)(f)) |
 | Provide operational features (shifts, deliveries, till, compliance, visitor logs, etc.) | Operational data you enter | **Contract** (with the business customer as joint subject) |
+| Provide workforce features (rota, attendance/timesheets, leave, staff records and pay, approvals) | Staff scheduling, attendance, leave, pay-rate and approval data | **Contract** with the business customer; the business customer relies on its own basis (e.g. employment **contract**, **legal obligation**, or **legitimate interests**) as controller of its staff data |
 | Process subscription payments | Subscription / payment data | **Contract**; **Legal obligation** (Art. 6(1)(c)) for tax records |
 | Send transactional emails (sign-up verification, password reset, invitations, receipts) | Email address, verification codes | **Contract** |
 | Send push notifications about shifts, day-end and reports | FCM/APNs token, operational data | **Contract** |
@@ -199,6 +212,7 @@ You can request a copy of the safeguards in place by writing to support@aceocta.
 | Audit log (including IP address) | **12 months** |
 | Sign-in / authentication logs | **90 days** |
 | Business operational data (shifts, reports, attachments, compliance records, visitor logs) | While your subscription is active, plus **90 days** grace period after cancellation |
+| Workforce data (rota, attendance/timesheets, leave records, staff register and pay rates, approvals) | While your subscription is active, plus **90 days** grace period after cancellation; your business, as controller, is responsible for any longer payroll/employment retention it is required to keep |
 | Subscription / payment records | **7 years** from the end of the relevant tax year (UK HMRC requirement) |
 | Marketing email subscribers | Until you unsubscribe, plus a permanent suppression record so we do not contact you again |
 | Crash and diagnostic logs | **30 days** |
@@ -299,11 +313,12 @@ We do **not** request: location, contacts, microphone, calendar, SMS, call-log, 
 
 ---
 
-## 13. Visitor-log and refusal-register notice (for our business customers)
+## 13. Controller responsibilities for visitor, refusal and workforce data (for our business customers)
 
-If you use the Ops Arrow visitor-log or refusal-register features, **you** are the data controller for the personal data of the third parties whose details are recorded (visitors, refused customers, contractors). You must:
+If you use the Ops Arrow visitor-log or refusal-register features, **you** are the data controller for the personal data of the third parties whose details are recorded (visitors, refused customers, contractors). The same controller responsibilities apply to the **workforce data** you record about your own staff — rotas, attendance/timesheets, leave (including sick leave), staff contact details, pay rates and approvals, and to **roster-only staff members** who do not hold an account. You must:
 
 - Display a clear notice at the point of capture explaining who you are, what data you are collecting, why, how long you will keep it, and how the person can exercise their rights.
+- For workforce data, give your staff an appropriate **employee privacy notice** and have an Article 6 (and, for sick leave or other health data, Article 9) basis for processing it.
 - Collect data lawfully (consent, legitimate interests, or other Art. 6 basis).
 - Not collect more than is necessary — for example, do not record vehicle registration unless your site rules require it.
 - Respond to subject-access and erasure requests from those third parties; we will assist as a processor where required by our Data Processing Agreement.

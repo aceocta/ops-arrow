@@ -1,7 +1,7 @@
 # Terms of Service — Ops Arrow
 
-**Last updated:** 2 June 2026
-**Effective date:** 1 June 2026
+**Last updated:** 22 June 2026
+**Effective date:** 22 June 2026
 
 > **Important:** These Terms describe the licensing, billing and acceptable-use terms for the Ops Arrow application. They are not legal advice; we recommend you have them reviewed by a qualified solicitor before relying on them.
 
@@ -24,7 +24,7 @@ If you accept these Terms on behalf of a company or other organisation, you conf
 
 - **"Account"** — the user record we create when you register for Ops Arrow.
 - **"Business Customer"** — the company, partnership, sole trader or other organisation that subscribes to the Service.
-- **"Customer Data"** — data that you or your users enter into the Service, including shifts, reports, attachments, visitor logs and other operational records.
+- **"Customer Data"** — data that you or your users enter into the Service, including shifts, reports, attachments, visitor logs, rotas, attendance and timesheet records, staff leave records, staff records and pay rates, and other operational records.
 - **"Subscription"** — a paid plan purchased through Stripe Checkout or the web portal.
 - **"User"** — any individual permitted by a Business Customer to access the Service under that customer's account.
 
@@ -56,7 +56,7 @@ Where a Business Customer invites individual Users, the Business Customer is res
 - Ensuring each User has the right to use the Service on the Business Customer's behalf.
 - Configuring User roles and shop-level access correctly.
 - Removing access for Users who leave the organisation.
-- The lawful processing of any third-party personal data its Users record in the Service (visitor logs, refusal registers, etc.) — see clause 12.
+- The lawful processing of any personal data its Users record in the Service about third parties or about its own staff (visitor logs, refusal registers, rotas, timesheets, leave records including sick leave, staff records and pay rates, etc.) — see clause 12.
 
 ---
 
@@ -197,10 +197,10 @@ Unless your plan expressly includes a Service Level Agreement, we offer no servi
 
 How we handle personal data is described in our **Privacy Policy** at [https://opsarrow.com/privacy](https://opsarrow.com/privacy).
 
-Where you act as a **data controller** in respect of personal data you upload to the Service — for example, visitor sign-ins, refusal-register entries, employee records — and we act as your **data processor**, our DPA applies. You are responsible for:
+Where you act as a **data controller** in respect of personal data you upload to the Service — for example, visitor sign-ins, refusal-register entries, and workforce data about your staff (rotas, attendance/timesheets, leave records including sick leave, staff contact details and pay rates, including for roster-only staff who do not hold an account) — and we act as your **data processor**, our DPA applies. You are responsible for:
 
-- Displaying any required privacy notices to the data subjects (visitors, employees, refused customers, etc.).
-- Having a lawful basis under the UK GDPR / EU GDPR for collecting the data.
+- Displaying any required privacy notices to the data subjects (visitors, employees, refused customers, etc.), including an appropriate employee privacy notice for your staff.
+- Having a lawful basis under the UK GDPR / EU GDPR for collecting the data, including an Article 9 condition for any health-related data such as sick leave.
 - Honouring data-subject rights requests received from those individuals; we will assist as required by the DPA.
 
 ---
