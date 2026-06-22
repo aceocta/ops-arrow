@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import { apiErrorMessage } from "../../lib/api";
@@ -6,8 +6,8 @@ import { refusalsApi, type RefusalEntry } from "../../lib/refusals";
 import { fmtDate, shortTime } from "../../lib/rota";
 import { downloadCsv } from "../../lib/csv";
 import ExportButton from "../../components/ExportButton";
-import { toast } from "../../components/feedback";
-import { X, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { confirmDialog, toast } from "../../components/feedback";
+import { X, ShieldCheck, CheckCircle2, Ban, Clock } from "lucide-react";
 import clsx from "clsx";
 
 function dayLabel(d: string) {
@@ -40,7 +40,81 @@ export default function RefusalsPage() {
     return needsReview ? all.filter((r) => !r.reviewedOn) : all;
   }, [q.data, needsReview]);
 
+  const total = (q.data ?? []).length;
   const pending = (q.data ?? []).filter((r) => !r.reviewedOn).length;
+  const reviewed = total - pending;
+
+  const setQuick = (days: number) => {
+    const to = new Date();
+    const from = new Date();
+    from.setDate(from.getDate() - (days - 1));
+    setRange({ from: fmtDate(from), to: fmtDate(to) });
+  };
+  const isQuick = (days: number) => {
+    const to = new Date();
+    const from = new Date();
+    from.setDate(from.getDate() - (days - 1));
+    return range.to === fmtDate(to) && range.from === fmtDate(from);
+  };
+
+  // Bulk-select state (managers can mark several pending refusals reviewed at once).
+  const qc = useQueryClient();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkRunning, setBulkRunning] = useState(false);
+  const pendingIds = rows.filter((r) => !r.reviewedOn).map((r) => r.id);
+  const selectedCount = selectedIds.size;
+  const allSelected = pendingIds.length > 0 && pendingIds.every((id) => selectedIds.has(id));
+  const setMany = (ids: string[], on: boolean) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => (on ? next.add(id) : next.delete(id)));
+      return next;
+    });
+  const toggleOne = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  // Keep selection limited to entries still pending in the current data.
+  useEffect(() => {
+    const ids = new Set((q.data ?? []).filter((r) => !r.reviewedOn).map((r) => r.id));
+    setSelectedIds((prev) => {
+      const next = new Set([...prev].filter((id) => ids.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [q.data]);
+
+  const reviewSelected = async () => {
+    const ids = rows.filter((r) => !r.reviewedOn && selectedIds.has(r.id)).map((r) => r.id);
+    if (!ids.length) return;
+    if (
+      !(await confirmDialog({
+        title: "Mark reviewed?",
+        message: `Mark ${ids.length} refusal${ids.length === 1 ? "" : "s"} as reviewed?`,
+        confirmLabel: "Mark reviewed",
+        tone: "primary",
+      }))
+    )
+      return;
+    setBulkRunning(true);
+    let ok = 0;
+    let firstError: unknown = null;
+    for (const id of ids) {
+      try {
+        await refusalsApi.review(id, undefined);
+        ok += 1;
+      } catch (e) {
+        if (firstError == null) firstError = e;
+      }
+    }
+    setBulkRunning(false);
+    if (ok > 0) toast(`Reviewed ${ok} refusal${ok === 1 ? "" : "s"}.`, "success");
+    if (firstError != null) toast(apiErrorMessage(firstError), "error");
+    setSelectedIds(new Set());
+    qc.invalidateQueries({ queryKey: ["refusals", shopId] });
+  };
 
   const exportCsv = () =>
     downloadCsv(
@@ -54,58 +128,139 @@ export default function RefusalsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Title + actions */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Refusals</h1>
-          <p className="text-sm text-slate-500">No-ID-no-sale register · {range.from} → {range.to}{pending ? ` · ${pending} to review` : ""}</p>
+          <h1 className="page-title">Refusals</h1>
+          <p className="page-subtitle">No-ID-no-sale register · {range.from} → {range.to}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-            <input type="checkbox" className="h-4 w-4 accent-brand-600" checked={needsReview} onChange={(e) => setNeedsReview(e.target.checked)} />
-            Needs review
-          </label>
-          <input type="date" className="input w-auto" value={range.from} onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))} />
-          <input type="date" className="input w-auto" value={range.to} onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))} />
-          <ExportButton onClick={exportCsv} disabled={q.isLoading || rows.length === 0} />
-        </div>
+        <ExportButton onClick={exportCsv} disabled={q.isLoading || rows.length === 0} />
       </div>
 
+      {/* Filters */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="segment">
+            {[
+              { label: "7 days", days: 7 },
+              { label: "30 days", days: 30 },
+            ].map((qk) => (
+              <button key={qk.days} data-active={isQuick(qk.days)} onClick={() => setQuick(qk.days)}>
+                {qk.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <input type="date" className="input w-auto" value={range.from} max={range.to} onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))} />
+            <span className="text-slate-400">→</span>
+            <input type="date" className="input w-auto" value={range.to} min={range.from} onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))} />
+          </div>
+        </div>
+        <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+          <input type="checkbox" className="h-4 w-4 accent-brand-600" checked={needsReview} onChange={(e) => setNeedsReview(e.target.checked)} />
+          Needs review only
+        </label>
+      </div>
+
+      {/* Summary */}
+      {!q.isLoading ? (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="card flex items-center gap-3 p-4">
+            <div className="icon-tile bg-gradient-to-br from-slate-500 to-slate-700"><Ban className="h-5 w-5" /></div>
+            <div>
+              <div className="text-xs uppercase tracking-wide text-slate-400">Total refusals</div>
+              <div className="text-xl font-semibold text-slate-900">{total}</div>
+            </div>
+          </div>
+          <div className="card flex items-center gap-3 p-4">
+            <div className="icon-tile bg-gradient-to-br from-amber-400 to-amber-600"><Clock className="h-5 w-5" /></div>
+            <div>
+              <div className="text-xs uppercase tracking-wide text-slate-400">Pending review</div>
+              <div className="text-xl font-semibold text-slate-900">{pending}</div>
+            </div>
+          </div>
+          <div className="card flex items-center gap-3 p-4">
+            <div className="icon-tile bg-gradient-to-br from-emerald-400 to-emerald-600"><ShieldCheck className="h-5 w-5" /></div>
+            <div>
+              <div className="text-xs uppercase tracking-wide text-slate-400">Reviewed</div>
+              <div className="text-xl font-semibold text-slate-900">{reviewed}</div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {q.isLoading ? <div className="card p-6 text-sm text-slate-500">Loading…</div> : null}
+
+      {canReview && selectedCount > 0 ? (
+        <div className="card flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+          <span className="text-sm text-slate-600">
+            <span className="font-semibold text-slate-900">{selectedCount}</span> selected
+          </span>
+          <div className="flex items-center gap-2">
+            <button className="btn-ghost" onClick={() => setSelectedIds(new Set())}>Clear</button>
+            <button className="btn-primary bg-emerald-600 hover:bg-emerald-700" disabled={bulkRunning} onClick={reviewSelected}>
+              <ShieldCheck className="h-4 w-4" /> {bulkRunning ? "Reviewing…" : `Mark ${selectedCount} reviewed`}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
-              <th className="px-5 py-2 font-medium">Date / time</th>
-              <th className="px-5 py-2 font-medium">Product</th>
-              <th className="px-5 py-2 font-medium">Person</th>
-              <th className="px-5 py-2 font-medium">By</th>
-              <th className="px-5 py-2 font-medium">Review</th>
+            <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-400">
+              {canReview ? (
+                <th className="w-10 px-5 py-2.5">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 cursor-pointer"
+                    checked={allSelected}
+                    ref={(el) => { if (el) el.indeterminate = selectedCount > 0 && !allSelected; }}
+                    onChange={() => setMany(pendingIds, !allSelected)}
+                  />
+                </th>
+              ) : null}
+              <th className="px-5 py-2.5 font-medium">#</th>
+              <th className="px-5 py-2.5 font-medium">Date / time</th>
+              <th className="px-5 py-2.5 font-medium">Product</th>
+              <th className="px-5 py-2.5 font-medium">Person</th>
+              <th className="px-5 py-2.5 font-medium">Recorded by</th>
+              <th className="px-5 py-2.5 font-medium">Review</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {rows.map((r) => (
-              <tr key={r.id} className="cursor-pointer hover:bg-slate-50" onClick={() => setSelected(r)}>
+              <tr key={r.id} className={clsx("cursor-pointer hover:bg-slate-50", selectedIds.has(r.id) && "bg-brand-50/40")} onClick={() => setSelected(r)}>
+                {canReview ? (
+                  <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
+                    {!r.reviewedOn ? (
+                      <input type="checkbox" className="h-4 w-4 cursor-pointer" checked={selectedIds.has(r.id)} onChange={() => toggleOne(r.id)} />
+                    ) : null}
+                  </td>
+                ) : null}
+                <td className="px-5 py-3 font-medium tabular-nums text-slate-400">#{r.sequenceNo}</td>
                 <td className="whitespace-nowrap px-5 py-3">
                   <div className="font-medium text-slate-800">{dayLabel(r.refusalDate)}</div>
                   <div className="text-xs text-slate-400">{shortTime(r.refusalTime)}</div>
                 </td>
                 <td className="px-5 py-3 text-slate-700">{r.product}</td>
-                <td className="max-w-xs truncate px-5 py-3 text-slate-600">{r.personDescription}</td>
-                <td className="px-5 py-3 text-slate-600">{r.staffMemberInitials || r.recordedByName || "—"}</td>
+                <td className="max-w-[18rem] truncate px-5 py-3 text-slate-600">{r.personDescription}</td>
+                <td className="whitespace-nowrap px-5 py-3 text-slate-600">{r.staffMemberInitials || r.recordedByName || "—"}</td>
                 <td className="px-5 py-3">
                   {r.reviewedOn ? (
                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
                       <ShieldCheck className="h-3 w-3" /> {r.reviewedByName ?? "Reviewed"}
                     </span>
                   ) : (
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">Pending</span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                      <Clock className="h-3 w-3" /> Pending
+                    </span>
                   )}
                 </td>
               </tr>
             ))}
             {!q.isLoading && rows.length === 0 ? (
-              <tr><td colSpan={5} className="px-5 py-6 text-center text-slate-400">No refusals in this range.</td></tr>
+              <tr><td colSpan={canReview ? 7 : 6} className="px-5 py-10 text-center text-slate-400">No refusals in this range.</td></tr>
             ) : null}
           </tbody>
         </table>
@@ -156,7 +311,18 @@ function RefusalDetail({
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4">
       <div className="card max-h-[90vh] w-full max-w-lg overflow-y-auto p-5">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">Refusal #{entry.sequenceNo}</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-slate-900">Refusal #{entry.sequenceNo}</h2>
+            {entry.reviewedOn ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                <ShieldCheck className="h-3 w-3" /> Reviewed
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                <Clock className="h-3 w-3" /> Pending review
+              </span>
+            )}
+          </div>
           <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
         </div>
 

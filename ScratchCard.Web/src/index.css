@@ -79,10 +79,49 @@
     background-position: right 0.7rem center;
     background-size: 1.05rem;
   }
-  /* The popup option list is OS-rendered; we can at least theme its colours. */
+  /* Customisable <select> (Chromium 135+): opt the field AND its popup into base-select so the
+     menu itself becomes styleable. Browsers without support ignore `appearance: base-select` and
+     fall back to the native menu (which still picks up the option background/colour below). */
+  select.input,
+  select.input::picker(select) {
+    appearance: base-select;
+  }
+  select.input::picker-icon {
+    display: none; /* keep the single chevron from the background-image above */
+  }
+  select.input::picker(select) {
+    margin-top: 0.4rem;
+    max-height: 18rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.85rem;
+    background-color: #ffffff;
+    padding: 0.35rem;
+    box-shadow:
+      0 1px 2px rgba(16, 24, 40, 0.04),
+      0 18px 40px -16px rgba(16, 24, 40, 0.28);
+  }
   select.input option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 0.6rem;
+    padding: 0.5rem 0.7rem;
+    font-size: 0.875rem;
     background-color: #ffffff;
     color: #0f172a;
+    transition: background-color 0.12s ease;
+  }
+  select.input option:hover,
+  select.input option:focus {
+    background-color: #f1f5f9;
+  }
+  select.input option:checked {
+    background-color: #eef2ff;
+    color: #4338ca;
+    font-weight: 600;
+  }
+  select.input option:disabled {
+    color: #94a3b8;
   }
 
   /* Page heading helpers */
@@ -142,6 +181,21 @@ html.dark body {
 .dark select.input option {
   background-color: #121829;
   color: #e2e8f0;
+}
+.dark select.input option:checked {
+  background-color: rgba(99, 102, 241, 0.22);
+  color: #c7d2fe;
+}
+.dark select.input::picker(select) {
+  background-color: #121829;
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 18px 40px -16px rgba(0, 0, 0, 0.7);
+}
+.dark select.input option:hover,
+.dark select.input option:focus {
+  background-color: rgba(255, 255, 255, 0.06);
 }
 .dark .btn-ghost {
   background-color: #121829;

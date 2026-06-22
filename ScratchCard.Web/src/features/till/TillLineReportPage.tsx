@@ -1,10 +1,15 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, Filter } from "lucide-react";
+import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from "recharts";
 import clsx from "clsx";
 import { useAuth } from "../../auth/AuthContext";
+import { useIsDark } from "../../lib/theme";
 import { tillReconApi, type FieldBreakdownRow } from "../../lib/tillReconciliation";
 import { tillGroupsApi } from "../../lib/tillGroups";
+
+// A soft, distinct palette so each field's bar is easy to tell apart.
+const BAR_COLORS = ["#6366f1", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#3b82f6"];
 
 const gbp = (n: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n || 0);
 const fmtDate = (d: Date) => d.toISOString().slice(0, 10);
@@ -60,6 +65,66 @@ export default function TillLineReportPage() {
 
   const rows = breakdownQ.data?.rows ?? [];
   const totalEntries = rows.reduce((s, r) => s + r.lineCount, 0);
+
+  // Top fields by total for the chart (descending, capped so labels stay readable).
+  const chartData = useMemo(
+    () =>
+      [...rows]
+        .filter((r) => r.total > 0)
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 12)
+        .map((r) => ({ name: r.fieldName, total: r.total })),
+    [rows],
+  );
+
+  const dark = useIsDark();
+  const chart = dark
+    ? {
+        grid: "#1e293b",
+        axis: "#64748b",
+        cursor: "rgba(255,255,255,0.05)",
+        tooltip: { background: "#121829", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, color: "#e2e8f0", boxShadow: "0 10px 30px -12px rgba(0,0,0,0.6)" },
+        tooltipLabel: { color: "#e2e8f0" },
+      }
+    : {
+        grid: "#eef2f7",
+        axis: "#94a3b8",
+        cursor: "#f1f5f9",
+        tooltip: { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, color: "#0f172a", boxShadow: "0 10px 30px -12px rgba(16,24,40,0.18)" },
+        tooltipLabel: { color: "#0f172a" },
+      };
+
+  // Daily totals across the currently-filtered fields (one fetch per field, bucketed by date).
+  const byDateQ = useQuery({
+    queryKey: ["till-field-by-date", shopId, from, to, rows.map((r) => r.fieldCode).join(",")],
+    enabled: !!shopId && rows.length > 0,
+    queryFn: async () => {
+      const perField = await Promise.all(rows.map((r) => tillReconApi.fieldBreakdownEntries(shopId, from, to, r.fieldCode)));
+      const map: Record<string, number> = {};
+      for (const entries of perField)
+        for (const e of entries) {
+          const d = e.businessDate.slice(0, 10);
+          map[d] = (map[d] ?? 0) + e.amount;
+        }
+      return map;
+    },
+  });
+
+  // Fill every day in the range (missing days = 0) so the line reads continuously.
+  const byDateData = useMemo(() => {
+    const map = byDateQ.data ?? {};
+    const out: { label: string; total: number }[] = [];
+    const cur = new Date(`${from}T12:00:00`);
+    const end = new Date(`${to}T12:00:00`);
+    let guard = 0;
+    while (cur <= end && guard < 400) {
+      const iso = fmtDate(cur);
+      out.push({ label: new Date(`${iso}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" }), total: map[iso] ?? 0 });
+      cur.setDate(cur.getDate() + 1);
+      guard += 1;
+    }
+    return out;
+  }, [byDateQ.data, from, to]);
 
   const toggleField = (code: string) =>
     setSelected((prev) => (prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]));
@@ -133,6 +198,58 @@ export default function TillLineReportPage() {
             <div className="mt-1 text-3xl font-semibold text-slate-900">{gbp(breakdownQ.data.grandTotal)}</div>
           </div>
           <div className="text-sm text-slate-500">{totalEntries} {totalEntries === 1 ? "entry" : "entries"} · {rows.length} field{rows.length === 1 ? "" : "s"}</div>
+        </div>
+      ) : null}
+
+      {/* Chart: total by date */}
+      {breakdownQ.data && byDateData.length > 1 ? (
+        <div className="card p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-slate-800">Total by date</h2>
+            <span className="text-xs text-slate-400">{dayLabel(from)} → {dayLabel(to)}</span>
+          </div>
+          {byDateQ.isLoading ? (
+            <div className="flex h-[240px] items-center justify-center text-sm text-slate-400">Loading daily totals…</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <AreaChart data={byDateData} margin={{ top: 4, right: 12, left: -8, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="lineReportArea" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#6366f1" stopOpacity={0.28} />
+                    <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chart.grid} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: chart.axis }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={24} />
+                <YAxis tickFormatter={(v) => gbp(v as number)} tick={{ fontSize: 11, fill: chart.axis }} axisLine={false} tickLine={false} width={56} />
+                <Tooltip formatter={(v: number) => gbp(v)} cursor={{ stroke: chart.axis, strokeDasharray: "3 3" }} contentStyle={chart.tooltip} labelStyle={chart.tooltipLabel} itemStyle={chart.tooltipLabel} />
+                <Area type="monotone" dataKey="total" name="Total" stroke="#6366f1" strokeWidth={2.5} fill="url(#lineReportArea)" dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      ) : null}
+
+      {/* Chart: total by field */}
+      {breakdownQ.data && chartData.length > 0 ? (
+        <div className="card p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-slate-800">Total by field</h2>
+            <span className="text-xs text-slate-400">Top {chartData.length} · {dayLabel(from)} → {dayLabel(to)}</span>
+          </div>
+          <ResponsiveContainer width="100%" height={Math.max(180, chartData.length * 34)}>
+            <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 16, left: 8, bottom: 0 }} barCategoryGap="22%">
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={chart.grid} />
+              <XAxis type="number" tickFormatter={(v) => gbp(v as number)} tick={{ fontSize: 11, fill: chart.axis }} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 12, fill: chart.axis }} axisLine={false} tickLine={false} />
+              <Tooltip formatter={(v: number) => gbp(v)} cursor={{ fill: chart.cursor }} contentStyle={chart.tooltip} labelStyle={chart.tooltipLabel} itemStyle={chart.tooltipLabel} />
+              <Bar dataKey="total" name="Total" radius={[0, 6, 6, 0]}>
+                {chartData.map((_, i) => (
+                  <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       ) : null}
 

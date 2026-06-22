@@ -5,7 +5,7 @@ import { leaveApi, type LeaveRequest, type LeaveEntitlement, type LeaveType } fr
 import { rotaApi, fmtDate, type AssignableUser } from "../../lib/rota";
 import { apiErrorMessage } from "../../lib/api";
 import { confirmDialog, toast } from "../../components/feedback";
-import { X, Check, Plus, Pencil, CalendarOff, CheckCircle2 } from "lucide-react";
+import { X, Check, Plus, Pencil, CalendarOff, CheckCircle2, Clock, Users, CalendarDays } from "lucide-react";
 import clsx from "clsx";
 
 const LEAVE_TYPES: LeaveType[] = ["Holiday", "Sick", "Unpaid", "Other"];
@@ -104,40 +104,87 @@ export default function LeavePage() {
     return [...m.entries()];
   }, [approved]);
 
+  const peopleOff = useMemo(() => new Set(approved.map((r) => r.userName)).size, [approved]);
+  const approvedDays = approved.reduce((s, r) => s + r.totalDays, 0);
+  const approvedHours = approved.reduce((s, r) => s + r.totalHours, 0);
+  const monthActive = (offset: number) => {
+    const now = new Date();
+    return range.from === fmtDate(new Date(now.getFullYear(), now.getMonth() + offset, 1));
+  };
+
   if (!enabled) {
     return <div className="card p-6 text-sm text-slate-400">Leave management is not available.</div>;
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Title + primary action */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Leave</h1>
-          <p className="text-sm text-slate-500">Holiday & absence · {range.from} → {range.to}</p>
+          <h1 className="page-title">Leave</h1>
+          <p className="page-subtitle">Holiday & absence · {range.from} → {range.to}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-lg border border-slate-200 bg-white p-1">
-            {[
-              { label: "This month", offset: 0 },
-              { label: "Next month", offset: 1 },
-            ].map((q) => (
-              <button key={q.label} onClick={() => setMonth(q.offset)} className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
-                {q.label}
-              </button>
-            ))}
-          </div>
-          <input type="date" className="input w-auto" value={range.from} onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))} />
-          <input type="date" className="input w-auto" value={range.to} onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))} />
-          <button className="btn-primary" onClick={() => setRecordOpen(true)}><Plus className="h-4 w-4" /> Record leave</button>
+        <button className="btn-primary" onClick={() => setRecordOpen(true)}><Plus className="h-4 w-4" /> Record leave</button>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="segment">
+          {[
+            { label: "This month", offset: 0 },
+            { label: "Next month", offset: 1 },
+          ].map((q) => (
+            <button key={q.label} data-active={monthActive(q.offset)} onClick={() => setMonth(q.offset)}>
+              {q.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <input type="date" className="input w-auto" value={range.from} max={range.to} onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))} />
+          <span className="text-slate-400">→</span>
+          <input type="date" className="input w-auto" value={range.to} min={range.from} onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))} />
         </div>
       </div>
+
+      {/* Summary */}
+      {!requestsQ.isLoading ? (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="card flex items-center gap-3 p-4">
+            <div className="icon-tile bg-gradient-to-br from-amber-400 to-amber-600"><Clock className="h-5 w-5" /></div>
+            <div>
+              <div className="text-xs uppercase tracking-wide text-slate-400">Pending</div>
+              <div className="text-xl font-semibold text-slate-900">{pending.length}</div>
+              <div className="text-xs text-slate-400">awaiting decision</div>
+            </div>
+          </div>
+          <div className="card flex items-center gap-3 p-4">
+            <div className="icon-tile bg-gradient-to-br from-sky-400 to-sky-600"><Users className="h-5 w-5" /></div>
+            <div>
+              <div className="text-xs uppercase tracking-wide text-slate-400">People off</div>
+              <div className="text-xl font-semibold text-slate-900">{peopleOff}</div>
+              <div className="text-xs text-slate-400">approved in range</div>
+            </div>
+          </div>
+          <div className="card flex items-center gap-3 p-4">
+            <div className="icon-tile bg-gradient-to-br from-brand-500 to-brand-600"><CalendarDays className="h-5 w-5" /></div>
+            <div>
+              <div className="text-xs uppercase tracking-wide text-slate-400">Booked</div>
+              <div className="text-xl font-semibold text-slate-900">{approvedDays} day{approvedDays === 1 ? "" : "s"}</div>
+              <div className="text-xs text-slate-400">{h(approvedHours)} total</div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {requestsQ.isLoading ? <div className="card p-6 text-sm text-slate-500">Loading…</div> : null}
 
       {/* Pending requests */}
       {!requestsQ.isLoading ? (
         <section className="space-y-3">
-          <h2 className="text-base font-semibold text-slate-900">Pending requests</h2>
+          <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+            Pending requests
+            {pending.length > 0 ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">{pending.length}</span> : null}
+          </h2>
           {pending.length === 0 ? (
             <div className="card flex items-center gap-2 px-5 py-4 text-sm text-slate-500">
               <CheckCircle2 className="h-5 w-5 text-emerald-500" /> No leave requests awaiting a decision in this range.
@@ -173,7 +220,10 @@ export default function LeavePage() {
       {/* Who's off — approved leave grouped by start date */}
       {!requestsQ.isLoading ? (
         <section className="space-y-3">
-          <h2 className="text-base font-semibold text-slate-900">Who's off</h2>
+          <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+            Who's off
+            {approved.length > 0 ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{approved.length}</span> : null}
+          </h2>
           {offGroups.length === 0 ? (
             <div className="card flex items-center gap-2 px-5 py-4 text-sm text-slate-400">
               <CalendarOff className="h-5 w-5 text-slate-300" /> No approved leave in this range.

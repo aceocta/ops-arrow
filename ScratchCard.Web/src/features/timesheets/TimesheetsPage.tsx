@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import { Link } from "react-router-dom";
@@ -65,7 +65,7 @@ export default function TimesheetsPage() {
   const gbp = (n: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n || 0);
   const [view, setView] = useState<"staff" | "shift" | "week">("week");
   const [metric, setMetric] = useState<"hours" | "both">("hours");
-  const [staffFilter, setStaffFilter] = useState("");
+  const [staffFilter, setStaffFilter] = useState<string[]>([]);
   const [recordOpen, setRecordOpen] = useState(false);
   const [range, setRange] = useState(() => {
     const to = new Date();
@@ -111,15 +111,19 @@ export default function TimesheetsPage() {
     return days;
   }, [range.from, range.to]);
 
-  // Filter the staff-based views (By staff + Weekly) to a single person when chosen.
+  // Filter the staff-based views (By staff + Weekly) to the chosen people (empty = all).
   const staffRows = useMemo(() => {
     const all = staffQ.data ?? [];
-    return staffFilter ? all.filter((r) => staffKeyOf(r) === staffFilter) : all;
+    return staffFilter.length ? all.filter((r) => staffFilter.includes(staffKeyOf(r))) : all;
   }, [staffQ.data, staffFilter]);
-  // Drop the filter if the chosen staff isn't in the current range's data.
+  // Drop any selected staff that aren't in the current range's data.
   useEffect(() => {
-    if (staffFilter && !(staffQ.data ?? []).some((r) => staffKeyOf(r) === staffFilter)) setStaffFilter("");
-  }, [staffQ.data, staffFilter]);
+    const keys = new Set((staffQ.data ?? []).map(staffKeyOf));
+    setStaffFilter((prev) => {
+      const next = prev.filter((k) => keys.has(k));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [staffQ.data]);
 
   const weekStaff = staffRows;
   const weekGridQ = useQuery({
@@ -263,22 +267,11 @@ export default function TimesheetsPage() {
 
         <div className="flex flex-wrap items-center gap-2">
           {view !== "shift" ? (
-            <select
-              className="input w-auto"
-              value={staffFilter}
-              onChange={(e) => setStaffFilter(e.target.value)}
-              title="Filter by staff"
-            >
-              <option value="">All staff</option>
-              {(staffQ.data ?? []).map((r) => {
-                const k = staffKeyOf(r);
-                return (
-                  <option key={k} value={k}>
-                    {r.userName}{r.isExternal ? " (external)" : ""}
-                  </option>
-                );
-              })}
-            </select>
+            <StaffMultiSelect
+              options={(staffQ.data ?? []).map((r) => ({ key: staffKeyOf(r), label: `${r.userName}${r.isExternal ? " (external)" : ""}` }))}
+              selected={staffFilter}
+              onChange={setStaffFilter}
+            />
           ) : null}
 
           {view === "week" && showCost ? (
@@ -508,6 +501,109 @@ export default function TimesheetsPage() {
       ) : null}
 
       {recordOpen ? <RecordHoursModal shopId={shopId} onClose={() => setRecordOpen(false)} /> : null}
+    </div>
+  );
+}
+
+// Multi-select autocomplete for filtering the timesheet by one or more staff members.
+function StaffMultiSelect({
+  options,
+  selected,
+  onChange,
+  placeholder = "All staff",
+}: {
+  options: { key: string; label: string }[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [active, setActive] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  const labelOf = (k: string) => options.find((o) => o.key === k)?.label ?? k;
+  const selectedSet = new Set(selected);
+  const filtered = options.filter(
+    (o) => !selectedSet.has(o.key) && o.label.toLowerCase().includes(query.trim().toLowerCase()),
+  );
+
+  const add = (key: string) => {
+    onChange([...selected, key]);
+    setQuery("");
+    setActive(0);
+    inputRef.current?.focus();
+  };
+  const remove = (key: string) => onChange(selected.filter((k) => k !== key));
+
+  return (
+    <div ref={ref} className="relative w-full sm:w-72">
+      <div
+        className="input flex cursor-text flex-wrap items-center gap-1.5 !py-1.5 focus-within:border-brand-500 focus-within:ring-4 focus-within:ring-brand-500/10"
+        onClick={() => { setOpen(true); inputRef.current?.focus(); }}
+      >
+        {selected.map((k) => (
+          <span key={k} className="inline-flex items-center gap-1 rounded-md bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">
+            {labelOf(k)}
+            <button type="button" className="text-brand-500 hover:text-brand-700" onClick={(e) => { e.stopPropagation(); remove(k); }}>
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
+        <input
+          ref={inputRef}
+          className="min-w-[6rem] flex-1 border-0 bg-transparent p-0 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:ring-0"
+          placeholder={selected.length ? "Add staff…" : placeholder}
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setOpen(true); setActive(0); }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown") { e.preventDefault(); setOpen(true); setActive((a) => Math.min(a + 1, filtered.length - 1)); }
+            else if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
+            else if (e.key === "Enter") { e.preventDefault(); if (open && filtered[active]) add(filtered[active].key); }
+            else if (e.key === "Escape") { setOpen(false); }
+            else if (e.key === "Backspace" && query === "" && selected.length) { remove(selected[selected.length - 1]); }
+          }}
+        />
+      </div>
+
+      {open ? (
+        <div className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+          {selected.length ? (
+            <button
+              type="button"
+              className="mb-1 block w-full rounded-lg px-3 py-1.5 text-left text-xs font-medium text-slate-500 hover:bg-slate-50"
+              onClick={() => { onChange([]); inputRef.current?.focus(); }}
+            >
+              Clear all ({selected.length})
+            </button>
+          ) : null}
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2 text-sm text-slate-400">{query ? "No matches" : "All staff selected"}</div>
+          ) : (
+            filtered.map((o, i) => (
+              <button
+                key={o.key}
+                type="button"
+                onMouseEnter={() => setActive(i)}
+                onClick={() => add(o.key)}
+                className={clsx("block w-full rounded-lg px-3 py-2 text-left text-sm", i === active ? "bg-brand-50 text-brand-700" : "text-slate-700 hover:bg-slate-50")}
+              >
+                {o.label}
+              </button>
+            ))
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
