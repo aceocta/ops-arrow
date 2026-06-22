@@ -1,6 +1,6 @@
 # Terms of Service — Ops Arrow
 
-**Last updated:** 22 June 2026
+**Version:** 1.0 (first published version)
 **Effective date:** 22 June 2026
 
 > **Important:** These Terms describe the licensing, billing and acceptable-use terms for the Ops Arrow application. They are not legal advice; we recommend you have them reviewed by a qualified solicitor before relying on them.
@@ -72,17 +72,23 @@ The Service is provided as a software-as-a-service (SaaS) platform. We may updat
 
 ### 6.1 Subscription plans
 
-The Service is offered on subscription plans set out on our pricing page. Plan features, pricing and any usage limits are shown at the point of checkout.
+The Service is offered on subscription plans set out on our pricing page. Plan features and any usage limits (for example, a maximum number of users or report exports) are shown at the point of checkout.
 
-### 6.2 Payment processor
+Subscriptions are charged **per shop / site**: each shop you run under your company has its own plan and billing cycle. Where your company runs more than one shop, all of its shop subscriptions are billed together under a single Stripe customer record, and any multi-shop discount is applied automatically.
 
-All Subscription payments are processed by **Stripe**. We use Stripe for both the web app and the mobile app — on mobile, when you choose a plan we open Stripe Checkout in your device's in-app browser sheet. We do **not** use Apple In-App Purchase or Google Play Billing.
+### 6.2 Payment processor and where you can subscribe
 
-By subscribing, you authorise us (acting through Stripe) to charge your chosen payment method for the Subscription fees, applicable taxes and any usage-based charges.
+All Subscription payments are processed by **Stripe**. We do **not** use Apple In-App Purchase or Google Play Billing.
+
+**Subscriptions are purchased and managed on the web only.** When you choose a plan in the web app you are taken to Stripe Checkout to pay, and you manage your subscription (update your card, view invoices, cancel) through the Stripe billing portal. The **mobile app does not sell subscriptions**: it shows your current plan, trial status and the features included, and can email the account owner a link to the web billing portal, but you cannot buy, upgrade, downgrade or cancel a plan inside the mobile app.
+
+By subscribing, you authorise us (acting through Stripe) to charge your chosen payment method for the Subscription fees and applicable taxes for each shop on your account.
 
 ### 6.3 Free trials
 
-If we offer a free trial, you may use the paid features for the trial period without charge. Unless you cancel before the end of the trial, your Subscription will start automatically and the first billing cycle will be charged to your payment method.
+Each new shop starts on a **free trial** for a set period (typically 14 days, shown when the shop is created). No payment card is required to start a trial and we take no payment during it. We will remind you by email as the trial nears its end (around 7, 3 and 1 days before).
+
+The trial does **not** convert to a paid plan automatically. When the trial ends, the shop's access is paused until the account owner chooses a plan and pays through the web app. You are only ever charged once you actively select and pay for a plan.
 
 ### 6.4 Auto-renewal
 
@@ -105,6 +111,10 @@ Prices are exclusive of VAT and other applicable taxes unless stated otherwise. 
 ### 6.8 Failed payments
 
 If a Subscription payment fails, we may retry the charge and/or suspend the Service until payment is made. If the failure is not resolved within **14 days**, we may terminate the Subscription.
+
+### 6.9 Pausing a subscription
+
+You may be able to **pause** a shop's subscription instead of cancelling it. While paused, you are not charged and the shop becomes **read-only** — you can view existing data but not record new activity. You can resume at any time. If a subscription remains paused for **365 days**, we may automatically cancel it; we will send a reminder before we do so.
 
 ---
 

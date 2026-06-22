@@ -1,6 +1,6 @@
 # Privacy Policy — Ops Arrow
 
-**Last updated:** 22 June 2026
+**Version:** 1.0 (first published version)
 **Effective date:** 22 June 2026
 
 ## 1. Who we are
@@ -98,9 +98,9 @@ If you operate features that capture data about people **other than** your staff
 
 ### 3.5 Subscription and payment data
 
-Ops Arrow is provided to business customers under paid subscription plans. Subscriptions are purchased and managed through our website using Stripe. Users of the mobile application may access features made available under their organisation’s existing subscription.
+Ops Arrow is provided to business customers under paid subscription plans, charged **per shop** and billed under a single Stripe customer record per company (each shop also gets a free trial). Subscriptions are purchased and managed through our website using Stripe; the mobile app is view-only for billing. Users of the mobile application may access features made available under their organisation’s existing subscription.
 
-We do not collect or store full payment-card details. Stripe processes payments on our behalf and provides us with limited billing information, such as customer ID, subscription ID, payment status, invoice information, card brand, last four digits and expiry date..
+We do not collect or store full payment-card details. Stripe processes payments on our behalf and provides us with limited billing information. We store identifiers and billing state — such as the Stripe customer and subscription IDs, plan/price ID, subscription status, trial and billing-period dates — together with invoice records, payment transactions (amount, currency, status) and a billing-event audit log. Stripe also makes limited card metadata available to us, such as card brand, last four digits and expiry date; we never see or store the full card number.
 
 ### 3.6 Technical data collected automatically
 
@@ -163,7 +163,7 @@ We share personal data only with the categories of recipient below, and only as 
 | **Microsoft Azure** (Microsoft Ireland Operations Ltd) — Azure SQL Database, Azure Blob Storage | Application hosting; storage of all account, business and operational data; storage of all uploaded attachments (delivery photos, till report photos, signatures, compliance attachments) | **UK South** (production and UAT) |
 | **Microsoft Azure AI — Document Intelligence** | OCR of till report photographs | EU / Microsoft region |
 | **OpenAI** | AI-assisted parsing of delivery notes you upload (gpt-4.1-mini). OpenAI does not use API content to train its models. | US — safeguarded transfer |
-| **Stripe Payments Europe Ltd** | All subscription billing and card processing (web and mobile). On mobile, Stripe Checkout opens in the device's in-app browser sheet. | EU / US |
+| **Stripe Payments Europe Ltd** | All subscription billing and card processing. Subscriptions are purchased and managed on the web via Stripe Checkout and the Stripe billing portal; the mobile app does not process payments. | EU / US |
 | **Apple Inc.** / **Google LLC** | Push notification delivery (APNs / FCM) and operating-system services. We do **not** use Apple In-App Purchase or Google Play Billing. | US |
 | **Google Firebase** (Cloud Messaging) | Push notification token issuance and delivery (relayed via Apple APNs on iOS devices) | US |
 | **Meta Platforms Ireland Ltd** (WhatsApp Business Cloud API) | Optional WhatsApp message delivery | EU / US |
@@ -309,7 +309,7 @@ We do **not** request: location, contacts, microphone, calendar, SMS, call-log, 
 - **Push:** delivered via Google Firebase Cloud Messaging (FCM), which relays to Apple Push Notification service (APNs) on iOS. You can disable push at any time in your device settings; you can also remove a specific device's token by signing out on that device.
 - **Email:** transactional and marketing email is sent via Hostinger SMTP. Marketing emails include an unsubscribe link.
 - **WhatsApp:** if a business administrator has enabled the WhatsApp notifications feature and you have provided a phone number, shift-close and day-end report summaries may be sent to that number via the Meta WhatsApp Business Cloud API. Standard WhatsApp terms apply. You may opt out by removing your phone number in profile settings or by replying STOP to the WhatsApp message.
-- **Billing:** subscription payments are processed by **Stripe** for both the web app and the mobile app. On mobile, when you choose a plan we open Stripe Checkout in your device's in-app browser sheet — we do not use Apple In-App Purchase or Google Play Billing.
+- **Billing:** subscription payments are processed by **Stripe**, and subscriptions are bought and managed **on the web only** (the mobile app is view-only for billing). We do not use Apple In-App Purchase or Google Play Billing.
 
 ---
 
@@ -334,7 +334,7 @@ The Service may contain links to third-party websites (for example, Stripe's pay
 
 ## 15. Changes to this Privacy Policy
 
-We may update this Privacy Policy from time to time. The "Last updated" date at the top shows when it was last revised. If we make material changes we will notify you by email or in-app notice at least 14 days before the change takes effect. Continued use of the Service after the effective date constitutes acceptance of the revised policy.
+This is the first published version (1.0) of our Privacy Policy. We may update it from time to time; the **version** and **effective date** at the top show the current revision. If we make material changes we will notify you by email or in-app notice at least 14 days before the change takes effect. Continued use of the Service after the effective date constitutes acceptance of the revised policy.
 
 ---
 
