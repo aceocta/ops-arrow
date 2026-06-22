@@ -193,6 +193,11 @@ export default function SettingsPage() {
           </div>
         ))}
       </div>
+
+      <p className="px-1 text-xs text-slate-400">
+        All product names, logos, and trademarks are the property of their respective owners and are used here only
+        to identify the services you reconcile. Their use does not imply any affiliation or endorsement.
+      </p>
     </div>
   );
 }

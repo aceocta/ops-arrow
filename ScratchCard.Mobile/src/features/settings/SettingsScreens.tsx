@@ -2399,6 +2399,10 @@ export function SettingsScreen() {
       </View>
 
       <Text style={styles.versionFooter}>Version {appVersion}</Text>
+      <Text style={styles.trademarkFooter}>
+        All product names, logos, and trademarks are the property of their respective owners and are used only to
+        identify the services you reconcile. Their use does not imply any affiliation or endorsement.
+      </Text>
 
       {/* Delete account — typed-DELETE confirmation sheet (App Store / Play Store compliance) */}
       <Modal visible={deleteAccountOpen} transparent animationType="fade" onRequestClose={closeDeleteAccount}>
@@ -2729,6 +2733,15 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     marginTop: 2,
+  },
+  trademarkFooter: {
+    textAlign: "center",
+    color: appTheme.colors.textSubtle,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 8,
+    paddingHorizontal: appTheme.spacing.md,
   },
   // Delete-account confirmation sheet (matches the shared sheet styling in RotaScreens/LeaveScreens)
   deleteSheetBackdrop: { flex: 1, backgroundColor: appTheme.colors.overlayStrong, justifyContent: "center", padding: appTheme.spacing.md },
