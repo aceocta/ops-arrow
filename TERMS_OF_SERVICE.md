@@ -14,7 +14,7 @@ These Terms of Service (the "**Terms**") are a binding agreement between:
 - **Aceocta Limited**, a company registered in England and Wales, company number 16687119, whose registered office is at 15 Pelham Road South, Gravesend DA11 8QN, UK ("**Aceocta**", "**we**", "**us**", "**our**"); and
 - **you**, the individual or business entity accessing the Ops Arrow mobile application, web application, related APIs, or any documentation, support, or other services we make available (together, the "**Service**").
 
-By creating an account, downloading the app, signing in, or otherwise using the Service, you confirm that you have read, understood and agree to be bound by these Terms and by our **Privacy Policy** (available at [https://opsarrow.com/privacy](https://opsarrow.com/privacy)). If you do not agree, do not use the Service.
+By creating an account, downloading the app, signing in, or otherwise using the Service, you confirm that you have read, understood and agree to be bound by these Terms and by our **Privacy Policy** (available at [https://opsarrow.co.uk/privacy](https://opsarrow.co.uk/privacy)). If you do not agree, do not use the Service.
 
 If you accept these Terms on behalf of a company or other organisation, you confirm that you have authority to bind that organisation, and references to "you" in these Terms include both you personally and that organisation.
 
@@ -157,7 +157,7 @@ You are responsible for:
 
 ### 8.4 Personal data and data processing
 
-Where your Customer Data includes personal data, our **Data Processing Agreement** (the "DPA"), incorporated by reference into these Terms, governs our processing of that data on your behalf. The DPA is available at [https://opsarrow.com/dpa](https://opsarrow.com/dpa) or on request from support@aceocta.com.
+Where your Customer Data includes personal data, our **Data Processing Agreement** (the "DPA"), incorporated by reference into these Terms, governs our processing of that data on your behalf. The DPA is available on request from support@aceocta.com.
 
 ---
 
@@ -205,7 +205,7 @@ Unless your plan expressly includes a Service Level Agreement, we offer no servi
 
 ## 12. Personal data and privacy
 
-How we handle personal data is described in our **Privacy Policy** at [https://opsarrow.com/privacy](https://opsarrow.com/privacy).
+How we handle personal data is described in our **Privacy Policy** at [https://opsarrow.co.uk/privacy](https://opsarrow.co.uk/privacy).
 
 Where you act as a **data controller** in respect of personal data you upload to the Service — for example, visitor sign-ins, refusal-register entries, and workforce data about your staff (rotas, attendance/timesheets, leave records including sick leave, staff contact details and pay rates, including for roster-only staff who do not hold an account) — and we act as your **data processor**, our DPA applies. You are responsible for:
 

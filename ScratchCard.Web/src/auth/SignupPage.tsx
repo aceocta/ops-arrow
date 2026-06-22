@@ -198,6 +198,28 @@ export default function SignupPage() {
 
           {error ? <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
 
+          <p className="text-center text-xs text-slate-500">
+            By creating an account, you agree to our{" "}
+            <a
+              href="https://opsarrow.co.uk/terms"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-brand-600 underline hover:text-brand-700"
+            >
+              Terms of Service
+            </a>{" "}
+            and{" "}
+            <a
+              href="https://opsarrow.co.uk/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-brand-600 underline hover:text-brand-700"
+            >
+              Privacy Policy
+            </a>
+            .
+          </p>
+
           {!verificationEmail ? (
             <button type="submit" className="btn-primary w-full" disabled={busy}>
               {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}

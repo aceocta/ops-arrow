@@ -1,5 +1,5 @@
 import React, { useRef } from "react";
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Controller, useForm } from "react-hook-form";
 import { requestSignupVerificationCode } from "../api/authApi";
@@ -24,6 +24,8 @@ type SignupForm = {
 };
 
 const VERIFICATION_CODE_LENGTH = 6;
+const TERMS_URL = "https://opsarrow.co.uk/terms";
+const PRIVACY_URL = "https://opsarrow.co.uk/privacy";
 
 export function CompanySignupScreen() {
   const { signUpWithPassword, isLoading } = useAuth();
@@ -316,6 +318,18 @@ export function CompanySignupScreen() {
           )}
         />
 
+        <Text style={styles.consent}>
+          By creating an account, you agree to our{" "}
+          <Text style={styles.consentLink} onPress={() => void Linking.openURL(TERMS_URL)}>
+            Terms of Service
+          </Text>{" "}
+          and{" "}
+          <Text style={styles.consentLink} onPress={() => void Linking.openURL(PRIVACY_URL)}>
+            Privacy Policy
+          </Text>
+          .
+        </Text>
+
         {!verificationRequested ? (
           <PrimaryButton
             label={isRequestingCode ? "Sending verification code…" : "Send verification code"}
@@ -442,5 +456,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     fontFamily: appTheme.fonts.bodyMedium,
+  },
+  consent: {
+    color: appTheme.colors.textSubtle,
+    fontSize: 12,
+    lineHeight: 17,
+    fontFamily: appTheme.fonts.body,
+    textAlign: "center",
+    marginTop: appTheme.spacing.xs,
+  },
+  consentLink: {
+    color: appTheme.colors.primary,
+    fontFamily: appTheme.fonts.bodyMedium,
+    textDecorationLine: "underline",
   },
 });
