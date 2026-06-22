@@ -845,46 +845,53 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             return (
               <View key={pack.id} style={styles.serialConfirmRow}>
                 <View style={styles.serialPackLabelWrap}>
-                  <Text style={styles.serialPackTitle} numberOfLines={1}>Display: {pack.displayNumber != null ? `#${pack.displayNumber}` : "-"}</Text>
-                  <Text style={styles.serialPackTitle} numberOfLines={1}>Pack: {pack.packNumber}</Text>
+                  <Text style={styles.serialPackNum} numberOfLines={1}>
+                    {pack.displayNumber != null ? `#${pack.displayNumber}` : pack.packNumber}
+                  </Text>
+                  {pack.displayNumber != null ? (
+                    <Text style={styles.serialPackSub} numberOfLines={1}>{pack.packNumber}</Text>
+                  ) : null}
                 </View>
-                <View style={styles.serialConfirmInputRow}>
-                  <TextInput
-                    style={[styles.input, styles.serialConfirmInput]}
-                    value={enteredOpeningSerial}
-                    placeholder="Starting serial"
-                    placeholderTextColor={appTheme.colors.textSubtle}
-                    keyboardType="number-pad"
-                    onChangeText={(value) => {
-                      setOpeningSerialNumberByPackId((previous) => ({
-                        ...previous,
-                        [pack.id]: value,
-                      }));
-                      setConfirmedOpeningSerialByPackId((previous) => ({
-                        ...previous,
-                        [pack.id]: false,
-                      }));
-                    }}
-                  />
-                  <Pressable
-                    style={[
-                      styles.serialConfirmButton,
-                      isConfirmed ? styles.serialConfirmButtonSelected : null,
-                      !hasSerialValue ? styles.serialConfirmButtonDisabled : null,
-                    ]}
-                    disabled={!hasSerialValue}
-                    onPress={() =>
-                      setConfirmedOpeningSerialByPackId((previous) => ({
-                        ...previous,
-                        [pack.id]: !isConfirmed,
-                      }))
-                    }
-                  >
-                    <Text style={[styles.serialConfirmButtonText, isConfirmed ? styles.serialConfirmButtonTextSelected : null]}>
-                      {isConfirmed ? "Confirmed" : "Confirm"}
-                    </Text>
-                  </Pressable>
-                </View>
+
+                <View style={styles.vDivider} />
+
+                <TextInput
+                  style={[styles.input, styles.serialConfirmInput]}
+                  value={enteredOpeningSerial}
+                  placeholder="Open serial"
+                  placeholderTextColor={appTheme.colors.textSubtle}
+                  keyboardType="number-pad"
+                  onChangeText={(value) => {
+                    setOpeningSerialNumberByPackId((previous) => ({
+                      ...previous,
+                      [pack.id]: value,
+                    }));
+                    setConfirmedOpeningSerialByPackId((previous) => ({
+                      ...previous,
+                      [pack.id]: false,
+                    }));
+                  }}
+                />
+
+                <Pressable
+                  style={[
+                    styles.serialConfirmButton,
+                    styles.serialConfirmChip,
+                    isConfirmed ? styles.serialConfirmButtonSelected : null,
+                    !hasSerialValue ? styles.serialConfirmButtonDisabled : null,
+                  ]}
+                  disabled={!hasSerialValue}
+                  onPress={() =>
+                    setConfirmedOpeningSerialByPackId((previous) => ({
+                      ...previous,
+                      [pack.id]: !isConfirmed,
+                    }))
+                  }
+                >
+                  <Text style={[styles.serialConfirmButtonText, isConfirmed ? styles.serialConfirmButtonTextSelected : null]}>
+                    {isConfirmed ? "Confirmed" : "Confirm"}
+                  </Text>
+                </Pressable>
               </View>
             );
           })}
@@ -3105,9 +3112,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   serialConfirmListContent: {
-    gap: appTheme.spacing.xs,
-    paddingTop: appTheme.spacing.xs,
-    paddingBottom: appTheme.spacing.xs,
+    gap: 4,
+    paddingTop: 4,
+    paddingBottom: 4,
   },
   serialProgressPill: {
     borderWidth: 0,
@@ -3133,12 +3140,12 @@ const styles = StyleSheet.create({
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surface,
     paddingHorizontal: appTheme.spacing.sm,
-    paddingVertical: appTheme.spacing.xs,
-    gap: appTheme.spacing.sm,
+    paddingVertical: 2,
+    gap: appTheme.spacing.xs,
   },
   serialPackLabelWrap: {
     gap: 1,
-    width: 92,
+    width: 104,
     flexShrink: 0,
   },
   serialPackTitle: {
@@ -3146,6 +3153,24 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 12,
     lineHeight: 15,
+  },
+  serialPackNum: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 15,
+    lineHeight: 19,
+  },
+  serialPackSub: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 15,
+  },
+  // Thin vertical rule between the display/pack label and the serial input (matches closing screen).
+  vDivider: {
+    width: StyleSheet.hairlineWidth,
+    alignSelf: "stretch",
+    backgroundColor: appTheme.colors.border,
   },
   serialConfirmActionRow: {
     flexDirection: "row",
@@ -3158,10 +3183,15 @@ const styles = StyleSheet.create({
     gap: appTheme.spacing.xs,
   },
   serialConfirmInput: {
-    flex: 1,
+    width: 110,
+    flexShrink: 1,
     minWidth: 0,
-    height: 38,
-    paddingVertical: 6,
+    height: 30,
+    paddingVertical: 3,
+    textAlign: "center",
+  },
+  serialConfirmChip: {
+    marginLeft: "auto",
   },
   serialConfirmAllInner: {
     flexDirection: "row",
