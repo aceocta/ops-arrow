@@ -8,6 +8,7 @@ import {
   listTemperatureSchedules,
   listTemperatureUnits,
   recordTemperatureReading,
+  runTemperaturePredictiveCheck,
 } from "../../api/temperatureLogsApi";
 import { useAuth } from "../../auth/AuthContext";
 import { useTemperatureDisplaySettings } from "./useTemperatureDisplaySettings";
@@ -626,6 +627,28 @@ export function TemperatureLogScreen() {
   // Next. undefined = no explicit pick pending (use the time-window default); null = Random;
   // a string = that slot's schedule id.
   const pendingScheduleIdRef = useRef<string | null | undefined>(undefined);
+  // On-demand "check trends now" — surfaces units drifting toward a breach (and pushes alerts).
+  const predictiveCheckMutation = useMutation({
+    mutationFn: async () => {
+      if (!shopId) throw new Error("No shop selected.");
+      return runTemperaturePredictiveCheck(shopId);
+    },
+    onSuccess: (result) => {
+      if (result.predictions.length === 0) {
+        toastSuccess(
+          result.unitsEvaluated > 0
+            ? "All units stable — nothing trending toward a breach."
+            : "Not enough recent readings to analyse trends yet.",
+        );
+        return;
+      }
+      const lead = result.predictions[0];
+      const extra = result.predictions.length - 1;
+      toastError(extra > 0 ? `${lead.message} (+${extra} more unit${extra === 1 ? "" : "s"})` : lead.message);
+    },
+    onError: (error) => toastError(getApiErrorMessage(error, "Couldn't check temperature trends.")),
+  });
+
   const recordMutation = useMutation({
     mutationFn: async (_postAction: RecordPostAction) => {
       if (!shopId) throw new Error("No shop selected.");
@@ -1095,6 +1118,19 @@ export function TemperatureLogScreen() {
               accessibilityLabel="Next day"
             >
               <Ionicons name="chevron-forward" size={18} color={appTheme.colors.text} />
+            </Pressable>
+            <Pressable
+              style={styles.dateNavButton}
+              onPress={() => predictiveCheckMutation.mutate()}
+              disabled={predictiveCheckMutation.isPending || !shopId}
+              accessibilityRole="button"
+              accessibilityLabel="Check temperature trends"
+            >
+              <Ionicons
+                name="pulse-outline"
+                size={18}
+                color={predictiveCheckMutation.isPending ? appTheme.colors.textSubtle : appTheme.colors.primary}
+              />
             </Pressable>
             {/* {!isToday ? (
               <Pressable

@@ -27,5 +27,6 @@ public enum NotificationType
     TimesheetAllConfirmed = 23,
     TimesheetApproved = 24,
     LeaveRequested = 25,
-    LeaveDecided = 26
+    LeaveDecided = 26,
+    TemperaturePredictiveAlert = 27
 }

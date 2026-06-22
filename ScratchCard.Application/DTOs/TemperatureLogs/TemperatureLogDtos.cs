@@ -206,3 +206,18 @@ public class TemperatureDailyLogDto
     public TemperatureDailySignoffDto? Signoff { get; set; }
     public IReadOnlyCollection<TemperatureUnitDailyLogDto> Units { get; set; } = [];
 }
+
+// One unit that is trending toward (but has not yet crossed) its safe range.
+public record TemperaturePredictionDto(
+    Guid UnitId,
+    string UnitName,
+    string Direction,            // "Rising" | "Falling"
+    decimal CurrentCelsius,
+    decimal RatePerHourCelsius,
+    decimal LimitCelsius,
+    int MinutesToBreach,
+    string Message);
+
+public record TemperaturePredictiveCheckResult(
+    int UnitsEvaluated,
+    IReadOnlyList<TemperaturePredictionDto> Predictions);

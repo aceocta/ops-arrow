@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import { temperatureApi, type TempCellState, type TempGridCell } from "../../lib/temperature";
 import { fmtDate, shortTime, addDays } from "../../lib/rota";
 import { downloadCsv } from "../../lib/csv";
+import { apiErrorMessage } from "../../lib/api";
+import { toast } from "../../components/feedback";
 import ExportButton from "../../components/ExportButton";
-import { X } from "lucide-react";
+import { X, Activity } from "lucide-react";
 import clsx from "clsx";
 
 const GLYPH: Record<TempCellState, string> = { OnTime: "✓", Early: "«", Late: "⚠", Missed: "✗", Upcoming: "–" };
@@ -45,6 +47,26 @@ export default function TemperaturePage() {
     enabled: !!shopId,
   });
   const grid = q.data;
+
+  // On-demand "check trends now" — surfaces units drifting toward a breach (and pushes alerts).
+  const predictiveCheck = useMutation({
+    mutationFn: () => temperatureApi.predictiveCheck(shopId),
+    onSuccess: (result) => {
+      if (result.predictions.length === 0) {
+        toast(
+          result.unitsEvaluated > 0
+            ? "All units stable — nothing trending toward a breach."
+            : "Not enough recent readings to analyse trends yet.",
+          "success",
+        );
+        return;
+      }
+      const lead = result.predictions[0];
+      const extra = result.predictions.length - 1;
+      toast(extra > 0 ? `${lead.message} (+${extra} more)` : lead.message, "error");
+    },
+    onError: (e) => toast(apiErrorMessage(e), "error"),
+  });
 
   const dates = useMemo(() => {
     if (!grid) return [];
@@ -108,6 +130,9 @@ export default function TemperaturePage() {
           </div>
           <input type="date" className="input w-auto" value={range.from} onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))} />
           <input type="date" className="input w-auto" value={range.to} onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))} />
+          <button className="btn-ghost" disabled={predictiveCheck.isPending} onClick={() => predictiveCheck.mutate()} title="Analyse recent readings and alert on units trending toward a breach">
+            <Activity className="h-4 w-4" /> {predictiveCheck.isPending ? "Checking…" : "Check trends"}
+          </button>
           <ExportButton onClick={exportCsv} disabled={!grid} />
         </div>
       </div>

@@ -130,6 +130,47 @@ export async function reorderTemperatureUnits(
   await apiClient.put("/temperature-logs/units/reorder", { shopId, items });
 }
 
+export type TemperaturePrediction = {
+  unitId: string;
+  unitName: string;
+  direction: "Rising" | "Falling";
+  currentCelsius: number;
+  ratePerHourCelsius: number;
+  limitCelsius: number;
+  minutesToBreach: number;
+  message: string;
+};
+
+export type TemperaturePredictiveCheckResult = {
+  unitsEvaluated: number;
+  predictions: TemperaturePrediction[];
+};
+
+// On-demand "check trends now" — evaluates recent readings and (if entitled) pushes alerts for any
+// unit projected to breach soon, returning the predictions for immediate display.
+export async function runTemperaturePredictiveCheck(shopId: string): Promise<TemperaturePredictiveCheckResult> {
+  const response = await apiClient.post<ApiResponse<any>>(
+    "/temperature-logs/predictive-check",
+    null,
+    { params: { shopId } },
+  );
+  const data = (response.data.data ?? {}) as Record<string, unknown>;
+  const rawPredictions = Array.isArray(data.predictions) ? (data.predictions as any[]) : [];
+  return {
+    unitsEvaluated: Number(data.unitsEvaluated ?? 0),
+    predictions: rawPredictions.map((p) => ({
+      unitId: String(p.unitId),
+      unitName: String(p.unitName ?? ""),
+      direction: p.direction === "Falling" ? "Falling" : "Rising",
+      currentCelsius: Number(p.currentCelsius ?? 0),
+      ratePerHourCelsius: Number(p.ratePerHourCelsius ?? 0),
+      limitCelsius: Number(p.limitCelsius ?? 0),
+      minutesToBreach: Number(p.minutesToBreach ?? 0),
+      message: String(p.message ?? ""),
+    })),
+  };
+}
+
 export async function getTemperatureDailyLog(shopId: string, date: string) {
   const response = await apiClient.get<ApiResponse<TemperatureDailyLog>>("/temperature-logs/daily", {
     params: { shopId, date },

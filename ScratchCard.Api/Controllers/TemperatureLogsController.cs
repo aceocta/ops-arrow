@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using ScratchCard.Api.Authorization;
 using ScratchCard.Application.Common.Exceptions;
+using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.TemperatureLogs;
 using ScratchCard.Application.Services;
@@ -18,11 +19,29 @@ public class TemperatureLogsController : BaseApiController
 
     private readonly ITemperatureLogService _temperatureLogService;
     private readonly IFeatureGateService _featureGateService;
+    private readonly ITemperaturePredictionService _predictionService;
 
-    public TemperatureLogsController(ITemperatureLogService temperatureLogService, IFeatureGateService featureGateService)
+    public TemperatureLogsController(
+        ITemperatureLogService temperatureLogService,
+        IFeatureGateService featureGateService,
+        ITemperaturePredictionService predictionService)
     {
         _temperatureLogService = temperatureLogService;
         _featureGateService = featureGateService;
+        _predictionService = predictionService;
+    }
+
+    /// <summary>
+    /// On-demand "check trends now": analyses each active unit's recent readings, sends a push for
+    /// any unit projected to breach soon, and returns the predictions so the app can show them.
+    /// </summary>
+    [HttpPost("predictive-check")]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant)]
+    public async Task<IActionResult> PredictiveCheck([FromQuery] Guid shopId, CancellationToken cancellationToken)
+    {
+        var result = await _predictionService.EvaluateAsync(shopId, cancellationToken);
+        await _predictionService.DispatchAsync(shopId, result.Predictions, cancellationToken);
+        return Success(result);
     }
 
     [HttpGet("units")]

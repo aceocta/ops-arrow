@@ -44,6 +44,21 @@ export type TemperatureReading = {
   isLateForSchedule: boolean;
 };
 
+export type TemperaturePrediction = {
+  unitId: string;
+  unitName: string;
+  direction: "Rising" | "Falling";
+  currentCelsius: number;
+  ratePerHourCelsius: number;
+  limitCelsius: number;
+  minutesToBreach: number;
+  message: string;
+};
+export type TemperaturePredictiveCheckResult = {
+  unitsEvaluated: number;
+  predictions: TemperaturePrediction[];
+};
+
 export const temperatureApi = {
   grid: async (shopId: string, from: string, to: string) =>
     unwrap<TemperatureScheduleGrid>(
@@ -52,5 +67,10 @@ export const temperatureApi = {
   readings: async (shopId: string, from: string, to: string, unitId?: string) =>
     unwrap<TemperatureReading[]>(
       (await api.get("/temperature-logs/readings", { params: { shopId, from, to, unitId } })).data,
+    ),
+  // On-demand "check trends now": analyses recent readings and pushes alerts for units projected to breach.
+  predictiveCheck: async (shopId: string) =>
+    unwrap<TemperaturePredictiveCheckResult>(
+      (await api.post("/temperature-logs/predictive-check", null, { params: { shopId } })).data,
     ),
 };
