@@ -38,6 +38,7 @@ import { ChecklistConfigurationScreen, ChecklistHistoryScreen, ShopChecklistScre
 import { ComplianceActionsScreen, ComplianceChecksConfigScreen, ComplianceChecksScreen } from "../features/compliance/ComplianceCheckScreens";
 import {
   ScratchCardGamesScreen,
+  GameApprovalsScreen,
   ScratchCardGameCreateScreen,
   ScratchCardGameEditScreen,
   ScratchCardPacksScreen,
@@ -531,6 +532,7 @@ function MainStackScreens() {
       <Stack.Screen name="CompanyManagement" component={CompanyManagementScreen} options={{ title: "Company Management" }} />
       <Stack.Screen name="ShopManagement" component={ShopManagementScreen} options={{ title: "Shop Management" }} />
       <Stack.Screen name="ScratchCardGames" component={ScratchCardGamesScreen} options={{ title: "Card Games" }} />
+      <Stack.Screen name="GameApprovals" component={GameApprovalsScreen} options={{ title: "Game Approvals" }} />
       <Stack.Screen
         name="ScratchCardGameCreate"
         component={ScratchCardGameCreateScreen}

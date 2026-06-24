@@ -56,6 +56,7 @@ export type MainStackParamList = {
   ScratchCardGames: undefined;
   ScratchCardGameCreate: undefined;
   ScratchCardGameEdit: { gameId: string };
+  GameApprovals: undefined;
   Deliveries: undefined;
   ReceiveDelivery: undefined;
   TemperatureLogs: { date?: string } | undefined;

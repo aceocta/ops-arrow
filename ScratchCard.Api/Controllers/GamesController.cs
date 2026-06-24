@@ -22,8 +22,43 @@ public class GamesController : BaseApiController
     [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
     public async Task<IActionResult> Create([FromBody] CreateGameRequest request, CancellationToken cancellationToken)
     {
+        // Returns either the created (pending) game or a "DuplicateExists" result for the app to prompt on.
         var result = await _gameService.CreateAsync(request, cancellationToken);
         return Success(result);
+    }
+
+    // Duplicate-prompt action: link an existing master game to this shop or all the company's shops.
+    [HttpPost("assign-existing")]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
+    public async Task<IActionResult> AssignExisting([FromBody] AssignExistingGameRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _gameService.AssignExistingAsync(request, cancellationToken);
+        return Success(result);
+    }
+
+    // --- Platform owner approval queue (PlatformAdmin only) ---
+    [HttpGet("pending")]
+    [Authorize(Roles = RoleNames.PlatformAdmin)]
+    public async Task<IActionResult> ListPending(CancellationToken cancellationToken)
+    {
+        var result = await _gameService.ListPendingAsync(cancellationToken);
+        return Success(result);
+    }
+
+    [HttpPost("{id:guid}/approve")]
+    [Authorize(Roles = RoleNames.PlatformAdmin)]
+    public async Task<IActionResult> Approve(Guid id, CancellationToken cancellationToken)
+    {
+        await _gameService.ApproveAsync(id, cancellationToken);
+        return Success(new { Approved = true });
+    }
+
+    [HttpPost("{id:guid}/reject")]
+    [Authorize(Roles = RoleNames.PlatformAdmin)]
+    public async Task<IActionResult> Reject(Guid id, [FromBody] RejectGameRequest request, CancellationToken cancellationToken)
+    {
+        await _gameService.RejectAsync(id, request.Reason, cancellationToken);
+        return Success(new { Rejected = true });
     }
 
     [HttpPut("{id:guid}")]

@@ -312,10 +312,16 @@ public interface IShopConfigurationService
 
 public interface IGameService
 {
-    Task<GameDto> CreateAsync(CreateGameRequest request, CancellationToken cancellationToken = default);
+    Task<CreateGameResult> CreateAsync(CreateGameRequest request, CancellationToken cancellationToken = default);
     Task<GameDto> UpdateAsync(Guid id, UpdateGameRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<GameDto>> ListAsync(Guid shopId, CancellationToken cancellationToken = default);
     Task DeactivateAsync(Guid id, CancellationToken cancellationToken = default);
+    // Duplicate-prompt flow: link an already-existing master game to the chosen shop / company shops.
+    Task<GameDto> AssignExistingAsync(AssignExistingGameRequest request, CancellationToken cancellationToken = default);
+    // PlatformAdmin approval queue.
+    Task<IReadOnlyCollection<PendingGameDto>> ListPendingAsync(CancellationToken cancellationToken = default);
+    Task ApproveAsync(Guid masterGameId, CancellationToken cancellationToken = default);
+    Task RejectAsync(Guid masterGameId, string? reason, CancellationToken cancellationToken = default);
 }
 
 public interface IDeliveryService

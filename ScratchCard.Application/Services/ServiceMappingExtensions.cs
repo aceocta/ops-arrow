@@ -127,6 +127,8 @@ internal static class ServiceMappingExtensions
     public static GameDto ToDto(this ShopScratchCardGame game) => new()
     {
         Id = game.Id,
+        MasterGameId = game.MasterGameId,
+        ApprovalStatus = game.MasterGame.ApprovalStatus,
         ShopId = game.ShopId,
         GameName = game.MasterGame.GameName,
         GameCode = game.MasterGame.GameCode,

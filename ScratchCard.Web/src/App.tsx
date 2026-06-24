@@ -31,6 +31,8 @@ const TillsPage = lazy(() => import("./features/till/TillsPage"));
 const TillCataloguePage = lazy(() => import("./features/till/TillCataloguePage"));
 const TillGroupsPage = lazy(() => import("./features/till/TillGroupsPage"));
 const TillLineReportPage = lazy(() => import("./features/till/TillLineReportPage"));
+const GamesPage = lazy(() => import("./features/games/GamesPage"));
+const GameApprovalsPage = lazy(() => import("./features/games/GameApprovalsPage"));
 const SignupPage = lazy(() => import("./auth/SignupPage"));
 const CompanySetupPage = lazy(() => import("./features/setup/CompanySetupPage"));
 
@@ -113,6 +115,8 @@ export default function App() {
         <Route path="/compliance" element={<Suspense fallback={<Fallback />}><CompliancePage /></Suspense>} />
         <Route path="/refusals" element={<Suspense fallback={<Fallback />}><RefusalsPage /></Suspense>} />
         <Route path="/visitors" element={<Suspense fallback={<Fallback />}><VisitorsPage /></Suspense>} />
+        <Route path="/games" element={<Suspense fallback={<Fallback />}><GamesPage /></Suspense>} />
+        <Route path="/games/approvals" element={<Suspense fallback={<Fallback />}><GameApprovalsPage /></Suspense>} />
         <Route path="/shops" element={<Suspense fallback={<Fallback />}><ShopsPage /></Suspense>} />
         <Route path="/billing" element={<Suspense fallback={<Fallback />}><BillingPage /></Suspense>} />
         {/* Stripe redirect targets (SuccessUrl / CancelUrl / PortalReturnUrl in the API's Stripe options). */}

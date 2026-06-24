@@ -16,7 +16,7 @@ import { EmptyState } from "../../components/EmptyState";
 import { SellingOrder } from "../../types/enums";
 import { Game } from "../../types/models";
 import { MainStackParamList } from "../../types/navigation";
-import { createGame, listGames, updateGame } from "../../api/gamesApi";
+import { approveGame, assignExistingGame, createGame, listGames, listPendingGames, rejectGame, updateGame, type GameAssignScope, type PendingGame } from "../../api/gamesApi";
 import { getConfigurations } from "../../api/configurationsApi";
 import { activatePack, completePack, createManualPack, getPack, listPacks, markIssuePack, pausePack, returnPack, updatePackDetails } from "../../api/packsApi";
 import { formatGbp } from "../../utils/currency";
@@ -296,6 +296,9 @@ export function ScratchCardGamesScreen() {
         <Text style={styles.heroNote}>Manage master game assignments and defaults for this shop.</Text>
       </View> */}
       <PrimaryButton label="Create game" onPress={() => navigation.navigate("ScratchCardGameCreate")} disabled={!shopId} />
+      {isPlatformAdmin ? (
+        <PrimaryButton label="Review pending games" tone="neutral" onPress={() => navigation.navigate("GameApprovals")} />
+      ) : null}
 
       <View style={ui.card}>
         <Text style={styles.sectionTitle}>Assigned Games</Text>
@@ -330,6 +333,84 @@ export function ScratchCardGamesScreen() {
   );
 }
 
+// PlatformAdmin approval queue — approve a pending game (makes it global / opt-in for all shops)
+// or reject it with a reason.
+export function GameApprovalsScreen() {
+  const queryClient = useQueryClient();
+  const pendingQuery = useQuery({
+    queryKey: ["games-pending"],
+    queryFn: () => listPendingGames(),
+  });
+
+  const refresh = () => void queryClient.invalidateQueries({ queryKey: ["games-pending"] });
+
+  const approveMutation = useMutation({
+    mutationFn: (masterGameId: string) => approveGame(masterGameId),
+    onSuccess: () => { toastSuccess("Game approved — now available to all shops."); refresh(); },
+    onError: (error: any) => toastError(error?.response?.data?.message ?? "Unable to approve game."),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: (params: { masterGameId: string; reason?: string }) => rejectGame(params.masterGameId, params.reason),
+    onSuccess: () => { toastSuccess("Game rejected."); refresh(); },
+    onError: (error: any) => toastError(error?.response?.data?.message ?? "Unable to reject game."),
+  });
+
+  const busy = approveMutation.isPending || rejectMutation.isPending;
+  const confirmReject = (game: PendingGame) => {
+    Alert.alert(
+      "Reject game?",
+      `Reject "${game.gameName}" (${game.gameCode})?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Reject", style: "destructive", onPress: () => rejectMutation.mutate({ masterGameId: game.masterGameId }) },
+      ],
+    );
+  };
+
+  const pending = pendingQuery.data ?? [];
+  return (
+    <ScreenContainer>
+      {pendingQuery.isLoading ? <LoadingState message="Loading pending games…" inline /> : null}
+      {!pendingQuery.isLoading && pending.length === 0 ? (
+        <EmptyState title="All caught up" message="No games are waiting for approval." />
+      ) : null}
+      {pending.map((game) => (
+        <View key={game.masterGameId} style={ui.card}>
+          <View style={styles.rowBetween}>
+            <Text style={styles.itemTitle}>{game.gameName} ({game.gameCode})</Text>
+            <StatusBadge label="Pending" tone="warning" />
+          </View>
+          <View style={styles.metricRow}>
+            <View style={styles.metricChip}><Text style={styles.metricText}>{formatGbp(Number(game.ticketPrice))}</Text></View>
+            <View style={styles.metricChip}><Text style={styles.metricText}>{game.ticketsPerPack} Tickets</Text></View>
+            <View style={styles.metricChip}><Text style={styles.metricText}>{game.assignedShopCount} shop{game.assignedShopCount === 1 ? "" : "s"}</Text></View>
+          </View>
+          <Text style={styles.meta}>
+            From {game.originShopName ?? "—"}{game.originCompanyName ? ` · ${game.originCompanyName}` : ""}
+          </Text>
+          <View style={styles.row}>
+            <Pressable
+              style={[styles.smallButton, styles.smallButtonDanger, busy && { opacity: 0.5 }]}
+              disabled={busy}
+              onPress={() => confirmReject(game)}
+            >
+              <Text style={styles.smallButtonText}>Reject</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.smallButton, busy && { opacity: 0.5 }]}
+              disabled={busy}
+              onPress={() => approveMutation.mutate(game.masterGameId)}
+            >
+              <Text style={styles.smallButtonText}>Approve</Text>
+            </Pressable>
+          </View>
+        </View>
+      ))}
+    </ScreenContainer>
+  );
+}
+
 type GameCreateProps = NativeStackScreenProps<MainStackParamList, "ScratchCardGameCreate">;
 
 export function ScratchCardGameCreateScreen({ navigation }: GameCreateProps) {
@@ -338,6 +419,48 @@ export function ScratchCardGameCreateScreen({ navigation }: GameCreateProps) {
   const shopId = activeShopId;
   const isPlatformAdmin = (profile?.roles ?? []).some((role) => role === "PlatformAdmin");
   const [state, setState] = useState<GameEditorState>(defaultGameEditorState);
+  const [assignScope, setAssignScope] = useState<GameAssignScope>("Shop");
+
+  const finishSuccess = (message: string) => {
+    void queryClient.invalidateQueries({ queryKey: ["games", shopId] });
+    toastSuccess(message);
+    navigation.goBack();
+  };
+
+  // Link an already-existing master game to this shop or the whole company (the duplicate prompt).
+  const assignExistingMutation = useMutation({
+    mutationFn: async (params: { masterGameId: string; scope: GameAssignScope }) => {
+      if (!shopId) throw new Error("No shop selected.");
+      return assignExistingGame({
+        masterGameId: params.masterGameId,
+        shopId,
+        scope: params.scope,
+        defaultStartSerialNumber: state.startSerial,
+        defaultEndSerialNumber: state.endSerial,
+        defaultSellingOrder: state.sellingOrder,
+        isActive: state.isActive,
+      });
+    },
+    onSuccess: (_game, vars) =>
+      finishSuccess(vars.scope === "Company" ? "Game assigned to all company shops." : "Game assigned to this shop."),
+    onError: (error: any) => toastError(error?.response?.data?.message ?? error?.message ?? "Unable to assign game."),
+  });
+
+  const promptAssignExisting = (masterGameId: string, gameName: string, gameCode: string, pending: boolean, alreadyAssigned: boolean) => {
+    if (alreadyAssigned) {
+      toastError(`"${gameName}" (${gameCode}) is already assigned to this shop.`);
+      return;
+    }
+    Alert.alert(
+      "Game already exists",
+      `"${gameName}" (${gameCode}) is already in Ops Arrow${pending ? " and is awaiting platform approval" : ""}. Assign the existing game instead?`,
+      [
+        { text: "This shop", onPress: () => assignExistingMutation.mutate({ masterGameId, scope: "Shop" }) },
+        { text: "All company shops", onPress: () => assignExistingMutation.mutate({ masterGameId, scope: "Company" }) },
+        { text: "Cancel", style: "cancel" },
+      ],
+    );
+  };
 
   const createGameMutation = useMutation({
     mutationFn: async () => {
@@ -352,30 +475,43 @@ export function ScratchCardGameCreateScreen({ navigation }: GameCreateProps) {
         throw new Error("Game code must be 2 to 20 letters/numbers.");
       }
 
-      return createGame(toGamePayload(state, shopId));
+      return createGame({ ...toGamePayload(state, shopId), assignScope });
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["games", shopId] });
-      toastSuccess("Scratch card game created.");
-      navigation.goBack();
+    onSuccess: (result) => {
+      if (result.outcome === "DuplicateExists" && result.duplicate) {
+        const d = result.duplicate;
+        promptAssignExisting(d.masterGameId, d.gameName, d.gameCode, d.approvalStatus === "Pending", d.alreadyAssignedToShop);
+        return;
+      }
+      finishSuccess("Game created — pending platform approval.");
     },
     onError: (error: any) => {
       toastError(error?.response?.data?.message ?? error?.message ?? "Unable to create game.");
     },
   });
 
+  const busy = createGameMutation.isPending || assignExistingMutation.isPending;
+
   return (
     <ScreenContainer>
-      {/* <View style={styles.heroCard}>
-        <Text style={styles.heroSubtitle}>Shop: {activeShop?.shopName ?? "-"}</Text>
-        <Text style={styles.heroNote}>Create a master game and assign shop defaults.</Text>
-      </View> */}
       <View style={ui.card}>
         <GameEditorFields state={state} onChange={setState} showStatus={isPlatformAdmin} />
+
+        <Text style={styles.fieldLabel}>Assign to</Text>
+        <SegmentedControl
+          value={assignScope}
+          onChange={(v) => setAssignScope(v as GameAssignScope)}
+          options={[
+            { value: "Shop", label: "This shop" },
+            { value: "Company", label: "All company shops" },
+          ]}
+        />
+        <Text style={styles.meta}>New games are submitted for platform approval before they become available to every shop.</Text>
+
         <PrimaryButton
-          label={createGameMutation.isPending ? "Saving…" : "Create game"}
+          label={busy ? "Saving…" : "Create game"}
           onPress={() => createGameMutation.mutate()}
-          disabled={createGameMutation.isPending || !shopId}
+          disabled={busy || !shopId}
         />
       </View>
     </ScreenContainer>
@@ -1935,6 +2071,10 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderWidth: 1,
     borderColor: appTheme.colors.primaryPressed,
+  },
+  smallButtonDanger: {
+    backgroundColor: appTheme.colors.danger,
+    borderColor: appTheme.colors.dangerPressed,
   },
   smallButtonText: {
     color: appTheme.colors.onPrimary,

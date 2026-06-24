@@ -31,6 +31,7 @@ import {
   X,
   Layers,
   BarChart3,
+  Ticket,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -69,6 +70,12 @@ const NAV: NavGroup[] = [
       { to: "/compliance", label: "Compliance", icon: ClipboardCheck, feature: "ComplianceChecklist" },
       { to: "/refusals", label: "Refusals", icon: ShieldX, feature: "RefusalNoIdNoSale" },
       { to: "/visitors", label: "Visitors", icon: DoorOpen, feature: "VisitorsLog" },
+    ],
+  },
+  {
+    group: "Scratch Cards",
+    items: [
+      { to: "/games", label: "Games", icon: Ticket, feature: "ScratchCardManagement" },
     ],
   },
   {
