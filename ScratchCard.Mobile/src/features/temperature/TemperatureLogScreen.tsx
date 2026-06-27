@@ -14,6 +14,8 @@ import { useAuth } from "../../auth/AuthContext";
 import { useTemperatureDisplaySettings } from "./useTemperatureDisplaySettings";
 import { DateTimeField, formatDateValue, formatTimeValue, parseDateTimeValue } from "../../components/DateTimeField";
 import { EmptyState } from "../../components/EmptyState";
+import { FeatureSetupPrompt } from "../../components/FeatureSetupPrompt";
+import { useFeatureSetupGuard } from "../../components/useFeatureSetupGuard";
 import { LoadingState } from "../../components/LoadingState";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { toastError, toastSuccess } from "../../components/toast";
@@ -575,6 +577,20 @@ export function TemperatureLogScreen() {
     staleTime: 10 * 60 * 1000,
   });
 
+  // Temperature Log is unusable until the shop has at least one unit AND one check time (defaults
+  // are no longer auto-seeded). Intercept with an in-place setup prompt when either is missing.
+  // Only CompanyOwner/Manager can add both (scheduled checks are manager-only) — others see a
+  // passive "ask your manager" message.
+  const canConfigureTemperature = (profile?.roles ?? []).some((r) => r === "CompanyOwner" || r === "Manager");
+  const setupGuard = useFeatureSetupGuard({
+    enabled: Boolean(shopId),
+    isLoading: unitsQuery.isLoading || schedulesQuery.isLoading,
+    steps: [
+      { key: "units", label: "Add fridges & freezers", route: "TemperatureUnits", done: (unitsQuery.data?.length ?? 0) > 0 },
+      { key: "schedules", label: "Set check times", route: "TemperatureSchedules", done: (schedulesQuery.data?.length ?? 0) > 0 },
+    ],
+  });
+
   const { showTiming, showReadingTime, showRange } = useTemperatureDisplaySettings();
 
   // Current minute-of-day, only when the selected day is today — drives Pending vs Missed for
@@ -1067,6 +1083,22 @@ export function TemperatureLogScreen() {
     return (
       <ScreenContainer>
         <TemperatureLogLoadingState />
+      </ScreenContainer>
+    );
+  }
+
+  if (setupGuard.status === "incomplete") {
+    return (
+      <ScreenContainer>
+        <FeatureSetupPrompt
+          icon="thermometer-outline"
+          title="Finish setting up Temperature Log"
+          message="Before you can record temperatures, this shop needs at least one fridge or freezer and one check time."
+          missing={setupGuard.missing}
+          canConfigure={canConfigureTemperature}
+          passiveMessage="Ask your manager to add your fridges, freezers and check times. You'll be able to log temperatures once that's done."
+          onGo={(route) => navigation.navigate(route as never)}
+        />
       </ScreenContainer>
     );
   }

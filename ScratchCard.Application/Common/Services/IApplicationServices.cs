@@ -138,6 +138,7 @@ public interface IShopService
     Task<IReadOnlyCollection<ShopDto>> ListAsync(Guid? companyId, CancellationToken cancellationToken = default);
     Task<ShopFeatureTogglesDto> GetFeatureTogglesAsync(Guid shopId, CancellationToken cancellationToken = default);
     Task<ShopFeatureTogglesDto> UpdateFeatureTogglesAsync(Guid shopId, UpdateShopFeatureTogglesRequest request, CancellationToken cancellationToken = default);
+    Task<ShopFeatureTogglesDto> GetFeatureModulesForPlanAsync(Guid? planId, CancellationToken cancellationToken = default);
 }
 
 public interface ICompanyService

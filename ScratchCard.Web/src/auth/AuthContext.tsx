@@ -24,6 +24,8 @@ type AuthState = {
   setActiveShopId: (shopId: string) => void;
   /** Re-fetch /auth/me — used after onboarding steps (company creation) change the profile. */
   refreshProfile: () => Promise<void>;
+  /** Re-fetch the active shop's entitlements — used after editing per-shop feature toggles. */
+  refreshEntitlements: () => Promise<void>;
   hasFeature: (key: string) => boolean;
 };
 
@@ -119,6 +121,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await loadProfile();
   };
 
+  const refreshEntitlements = async () => {
+    await loadEntitlements(activeShopId);
+  };
+
   const logout = () => {
     const rt = tokens.refresh();
     if (rt) api.post("/auth/logout", { refreshToken: rt }).catch(() => {});
@@ -147,6 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       setActiveShopId,
       refreshProfile,
+      refreshEntitlements,
       hasFeature: (key: string) => features.includes(key),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps

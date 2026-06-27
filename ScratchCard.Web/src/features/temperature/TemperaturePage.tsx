@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import { temperatureApi, type TempCellState, type TempGridCell } from "../../lib/temperature";
@@ -7,7 +8,7 @@ import { downloadCsv } from "../../lib/csv";
 import { apiErrorMessage } from "../../lib/api";
 import { toast } from "../../components/feedback";
 import ExportButton from "../../components/ExportButton";
-import { X, Activity } from "lucide-react";
+import { X, Activity, Settings2, Thermometer } from "lucide-react";
 import clsx from "clsx";
 
 const GLYPH: Record<TempCellState, string> = { OnTime: "✓", Early: "«", Late: "⚠", Missed: "✗", Upcoming: "–" };
@@ -47,6 +48,13 @@ export default function TemperaturePage() {
     enabled: !!shopId,
   });
   const grid = q.data;
+
+  // Temperature is unusable until the shop has at least one unit AND one check time (defaults are no
+  // longer auto-seeded). When either is missing, prompt the owner to finish setup instead of the grid.
+  const unitsQ = useQuery({ queryKey: ["temperature-units", shopId], queryFn: () => temperatureApi.units(shopId), enabled: !!shopId });
+  const schedulesQ = useQuery({ queryKey: ["temperature-schedules", shopId], queryFn: () => temperatureApi.schedules(shopId), enabled: !!shopId });
+  const setupIncomplete =
+    !unitsQ.isLoading && !schedulesQ.isLoading && ((unitsQ.data?.length ?? 0) === 0 || (schedulesQ.data?.length ?? 0) === 0);
 
   // On-demand "check trends now" — surfaces units drifting toward a breach (and pushes alerts).
   const predictiveCheck = useMutation({
@@ -133,11 +141,25 @@ export default function TemperaturePage() {
           <button className="btn-ghost" disabled={predictiveCheck.isPending} onClick={() => predictiveCheck.mutate()} title="Analyse recent readings and alert on units trending toward a breach">
             <Activity className="h-4 w-4" /> {predictiveCheck.isPending ? "Checking…" : "Check trends"}
           </button>
+          <Link to="/temperature/config" className="btn-ghost"><Settings2 className="h-4 w-4" /> Set up</Link>
           <ExportButton onClick={exportCsv} disabled={!grid} />
         </div>
       </div>
 
-      {grid ? (
+      {setupIncomplete ? (
+        <div className="card flex flex-col items-center gap-3 p-8 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600"><Thermometer className="h-6 w-6" /></div>
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Finish setting up Temperature</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Add at least one fridge or freezer and one check time before staff can record temperatures.
+            </p>
+          </div>
+          <Link to="/temperature/config" className="btn-primary"><Settings2 className="h-4 w-4" /> Set up units &amp; checks</Link>
+        </div>
+      ) : null}
+
+      {grid && !setupIncomplete ? (
         <div className="flex flex-wrap gap-3 text-sm font-medium">
           <span className="text-emerald-600">✓ {grid.onTimeCount} on time</span>
           <span className="text-amber-600">« {grid.earlyCount} early</span>
@@ -148,7 +170,7 @@ export default function TemperaturePage() {
 
       {q.isLoading ? <div className="card p-6 text-sm text-slate-500">Loading…</div> : null}
 
-      {grid ? (
+      {grid && !setupIncomplete ? (
         <div className="card overflow-x-auto">
           <table className="min-w-full border-collapse text-center text-xs">
             <thead>

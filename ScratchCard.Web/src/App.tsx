@@ -19,10 +19,12 @@ const ApprovalsPage = lazy(() => import("./features/approvals/ApprovalsPage"));
 const LeavePage = lazy(() => import("./features/leave/LeavePage"));
 const StaffPage = lazy(() => import("./features/staff/StaffPage"));
 const TemperaturePage = lazy(() => import("./features/temperature/TemperaturePage"));
+const TemperatureConfigPage = lazy(() => import("./features/temperature/TemperatureConfigPage"));
 const CompliancePage = lazy(() => import("./features/compliance/CompliancePage"));
 const RefusalsPage = lazy(() => import("./features/refusals/RefusalsPage"));
 const VisitorsPage = lazy(() => import("./features/visitors/VisitorsPage"));
 const SettingsPage = lazy(() => import("./features/settings/SettingsPage"));
+const FeatureTogglesPage = lazy(() => import("./features/settings/FeatureTogglesPage"));
 const ShopsPage = lazy(() => import("./features/shops/ShopsPage"));
 const BillingPage = lazy(() => import("./features/billing/BillingPage"));
 const BillingCallbackPage = lazy(() => import("./features/billing/BillingCallbackPage"));
@@ -112,6 +114,7 @@ export default function App() {
         <Route path="/leave" element={<Suspense fallback={<Fallback />}><LeavePage /></Suspense>} />
         <Route path="/staff" element={<Suspense fallback={<Fallback />}><StaffPage /></Suspense>} />
         <Route path="/temperature" element={<Suspense fallback={<Fallback />}><TemperaturePage /></Suspense>} />
+        <Route path="/temperature/config" element={<Suspense fallback={<Fallback />}><TemperatureConfigPage /></Suspense>} />
         <Route path="/compliance" element={<Suspense fallback={<Fallback />}><CompliancePage /></Suspense>} />
         <Route path="/refusals" element={<Suspense fallback={<Fallback />}><RefusalsPage /></Suspense>} />
         <Route path="/visitors" element={<Suspense fallback={<Fallback />}><VisitorsPage /></Suspense>} />
@@ -129,6 +132,7 @@ export default function App() {
         <Route path="/till/groups" element={<Suspense fallback={<Fallback />}><TillGroupsPage /></Suspense>} />
         <Route path="/till/report" element={<Suspense fallback={<Fallback />}><TillLineReportPage /></Suspense>} />
         <Route path="/settings" element={<Suspense fallback={<Fallback />}><SettingsPage /></Suspense>} />
+        <Route path="/settings/features" element={<Suspense fallback={<Fallback />}><FeatureTogglesPage /></Suspense>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

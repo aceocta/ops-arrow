@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { appTheme } from "../ui/theme";
 import { ui } from "../ui/primitives";
 import { getShiftTemplates, getAssignableUsers } from "../api/rotaApi";
-import { listTemperatureSchedules } from "../api/temperatureLogsApi";
+import { listTemperatureSchedules, listTemperatureUnits } from "../api/temperatureLogsApi";
 import { listTills } from "../api/tillsApi";
 
 type Step = { key: string; label: string; done: boolean; route: string; icon: keyof typeof Ionicons.glyphMap };
@@ -22,6 +22,7 @@ export function GetStartedCard({ shopId, features, onGo }: { shopId: string; fea
   const qc = useQueryClient();
 
   const shiftsQ = useQuery({ queryKey: ["gs-shifts", shopId], queryFn: () => getShiftTemplates(shopId), enabled: !!shopId && has("StaffRota") });
+  const tempUnitsQ = useQuery({ queryKey: ["gs-temp-units", shopId], queryFn: () => listTemperatureUnits(shopId), enabled: !!shopId && has("TemperatureLog") });
   const tempQ = useQuery({ queryKey: ["gs-temp", shopId], queryFn: () => listTemperatureSchedules(shopId), enabled: !!shopId && has("TemperatureLog") });
   const tillsQ = useQuery({ queryKey: ["gs-tills", shopId], queryFn: () => listTills(shopId), enabled: !!shopId && has("StoreSales") });
   const staffQ = useQuery({ queryKey: ["gs-staff", shopId], queryFn: () => getAssignableUsers(shopId), enabled: !!shopId && has("StaffRota") });
@@ -31,18 +32,21 @@ export function GetStartedCard({ shopId, features, onGo }: { shopId: string; fea
   useFocusEffect(
     React.useCallback(() => {
       if (!shopId) return;
-      ["gs-shifts", "gs-temp", "gs-tills", "gs-staff"].forEach((k) => qc.invalidateQueries({ queryKey: [k, shopId] }));
+      ["gs-shifts", "gs-temp", "gs-temp-units", "gs-tills", "gs-staff"].forEach((k) => qc.invalidateQueries({ queryKey: [k, shopId] }));
     }, [qc, shopId])
   );
 
   const steps: Step[] = [
     has("StaffRota") && { key: "shifts", label: "Set up shifts", done: (shiftsQ.data?.length ?? 0) > 0, route: "RotaManage", icon: "calendar-number-outline" },
-    has("TemperatureLog") && { key: "temp", label: "Add temperature checks", done: (tempQ.data?.length ?? 0) > 0, route: "TemperatureSchedules", icon: "thermometer-outline" },
+    // Temperature Log needs both units and check times before it's usable — surface them as two
+    // ordered steps (add units first; check times target the units).
+    has("TemperatureLog") && { key: "temp-units", label: "Add fridges & freezers", done: (tempUnitsQ.data?.length ?? 0) > 0, route: "TemperatureUnits", icon: "thermometer-outline" },
+    has("TemperatureLog") && { key: "temp-schedules", label: "Set check times", done: (tempQ.data?.length ?? 0) > 0, route: "TemperatureSchedules", icon: "time-outline" },
     has("StoreSales") && { key: "tills", label: "Add a till", done: (tillsQ.data?.length ?? 0) > 0, route: "TillsConfig", icon: "calculator-outline" },
     has("StaffRota") && { key: "staff", label: "Add your staff", done: (staffQ.data?.length ?? 0) > 1, route: "RotaStaffMembers", icon: "people-outline" },
   ].filter(Boolean) as Step[];
 
-  const loading = [shiftsQ, tempQ, tillsQ, staffQ].some((q) => q.isLoading);
+  const loading = [shiftsQ, tempUnitsQ, tempQ, tillsQ, staffQ].some((q) => q.isLoading);
   const total = steps.length;
   const done = steps.filter((s) => s.done).length;
 

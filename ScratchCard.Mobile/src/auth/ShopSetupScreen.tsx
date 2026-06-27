@@ -8,6 +8,7 @@ import { ScreenContainer } from "../components/ScreenContainer";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { SubscriptionPlanPicker } from "../features/subscription/SubscriptionPlanPicker";
 import { ShiftTemperatureSetup, ShopSetupExtras } from "../components/ShiftTemperatureSetup";
+import { ShopFeatureSelectionStep } from "../components/ShopFeatureSelectionStep";
 import { ui } from "../ui/primitives";
 import { appTheme } from "../ui/theme";
 import { SellingOrder } from "../types/enums";
@@ -36,6 +37,8 @@ export function ShopSetupScreen() {
   const [planError, setPlanError] = useState<string | null>(null);
   const [planOpen, setPlanOpen] = useState(true);
   const [extras, setExtras] = useState<ShopSetupExtras>({ shiftTemplates: [], temperatureCheckTimes: [] });
+  // Modules the owner switched OFF in the feature-selection step (the inverse of what's enabled).
+  const [disabledFeatureKeys, setDisabledFeatureKeys] = useState<string[]>([]);
 
   const addressLine1Ref = useRef<TextInput>(null);
   const addressLine2Ref = useRef<TextInput>(null);
@@ -86,6 +89,7 @@ export function ShopSetupScreen() {
         subscriptionPlanId: subscriptionPlanId!,
         shiftTemplates: extras.shiftTemplates,
         temperatureCheckTimes: extras.temperatureCheckTimes,
+        disabledFeatureKeys,
       });
       // setProgressMessage("Finalizing setup...");
       await refreshProfile(createdShop.id, true);
@@ -262,6 +266,13 @@ export function ShopSetupScreen() {
             </View>
           ) : null}
         </View>
+
+        <ShopFeatureSelectionStep
+          planId={subscriptionPlanId}
+          disabledKeys={disabledFeatureKeys}
+          onChange={setDisabledFeatureKeys}
+          disabled={busy}
+        />
 
         <ShiftTemperatureSetup onChange={setExtras} />
 

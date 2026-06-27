@@ -4,6 +4,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { apiErrorMessage } from "../../lib/api";
 import { shopsApi, type Shop, type SaveShopPayload } from "../../lib/shops";
 import { subscriptionApi, type SubscriptionPlan } from "../../lib/subscription";
+import { ShopFeatureSelect } from "./ShopFeatureModules";
 import { toast } from "../../components/feedback";
 import { Plus, X, Store, Pencil } from "lucide-react";
 import clsx from "clsx";
@@ -120,6 +121,8 @@ function ShopModal({
   const [weekStartDay, setWeekStartDay] = useState<number>(shop?.weekStartDay ?? 1);
   const [planId, setPlanId] = useState("");
   const [currentPlanId, setCurrentPlanId] = useState<string | null>(null);
+  // Modules the owner switched OFF in the feature selector (inverse of what's enabled). Create-only.
+  const [disabledFeatureKeys, setDisabledFeatureKeys] = useState<string[]>([]);
 
   // For an existing shop, load its current plan so the dropdown reflects reality.
   const summaryQ = useQuery({
@@ -154,7 +157,7 @@ function ShopModal({
         }
         return;
       }
-      await shopsApi.create({ ...payload, subscriptionPlanId: planId || undefined });
+      await shopsApi.create({ ...payload, subscriptionPlanId: planId || undefined, disabledFeatureKeys });
     },
     onSuccess: onSaved,
     onError: (e) => toast(apiErrorMessage(e), "error"),
@@ -214,6 +217,14 @@ function ShopModal({
               <p className="mt-1 text-xs text-amber-600">Changing the package may start a billing checkout.</p>
             ) : null}
           </div>
+          {!shop ? (
+            <ShopFeatureSelect
+              planId={planId || null}
+              disabledKeys={disabledFeatureKeys}
+              onChange={setDisabledFeatureKeys}
+              disabled={saveM.isPending}
+            />
+          ) : null}
           {shop ? (
             <label className="flex items-center gap-2 pt-1 text-sm text-slate-600">
               <input type="checkbox" className="h-4 w-4 accent-brand-600" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />

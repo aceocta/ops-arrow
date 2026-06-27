@@ -32,6 +32,7 @@ import {
   Layers,
   BarChart3,
   Ticket,
+  SlidersHorizontal,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -92,6 +93,7 @@ const NAV: NavGroup[] = [
     group: "Setup",
     items: [
       { to: "/shops", label: "Shops", icon: Store },
+      { to: "/settings/features", label: "Feature Toggles", icon: SlidersHorizontal, anyRole: ["CompanyOwner", "Manager", "PlatformAdmin"] },
       // No feature gate — billing is universal. Owners/managers only (mobile users are sent here for all billing).
       { to: "/billing", label: "Billing", icon: CreditCard, anyRole: ["CompanyOwner", "Manager", "PlatformAdmin"] },
       { to: "/settings", label: "Settings", icon: Settings },

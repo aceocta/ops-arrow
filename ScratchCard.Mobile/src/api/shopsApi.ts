@@ -19,6 +19,9 @@ export type CreateShopPayload = {
   weekStartDay?: number;
   shiftTemplates?: { name: string; startTime: string; endTime: string }[];
   temperatureCheckTimes?: { label: string; time: string; toleranceMinutes?: number }[];
+  /** Modules to start DISABLED for the new shop — the inverse of the owner's feature selection.
+   *  Omit to fall back to the platform default-disabled set. */
+  disabledFeatureKeys?: string[];
 };
 
 export type UpdateShopPayload = CreateShopPayload & {
@@ -70,5 +73,18 @@ export async function updateShopFeatureToggles(shopId: string, disabledFeatureKe
     `/shops/${shopId}/feature-toggles`,
     { disabledFeatureKeys }
   );
+  return response.data.data;
+}
+
+/**
+ * Toggleable feature modules for a prospective subscription plan, used by the shop-creation
+ * feature-selection step before a shop exists. `isAvailableInPlan` is false for modules the plan
+ * doesn't include (lock them); `isDisabledByShop` carries the default OFF state for a new shop.
+ * Pass no planId to treat every module as available.
+ */
+export async function getShopFeatureModulesForPlan(planId?: string) {
+  const response = await apiClient.get<ApiResponse<ShopFeatureToggles>>("/shops/feature-modules", {
+    params: planId ? { planId } : undefined,
+  });
   return response.data.data;
 }

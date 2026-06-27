@@ -50,6 +50,21 @@ public class ShopsController : BaseApiController
     }
 
     /// <summary>
+    /// Returns the toggleable feature modules for a prospective subscription plan, used by the
+    /// shop-creation feature-selection step (before a shop exists). Modules not in the plan are
+    /// flagged via <c>isAvailableInPlan=false</c> so the client can lock them; <c>isDisabledByShop</c>
+    /// carries the default OFF state a brand-new shop would start with. Pass no <c>planId</c> to
+    /// treat every module as available.
+    /// </summary>
+    [HttpGet("feature-modules")]
+    [Authorize(Roles = RoleNames.OwnerAndPlatform)]
+    public async Task<IActionResult> GetFeatureModulesForPlan([FromQuery] Guid? planId, CancellationToken cancellationToken)
+    {
+        var result = await _shopService.GetFeatureModulesForPlanAsync(planId, cancellationToken);
+        return Success(result);
+    }
+
+    /// <summary>
     /// Returns the per-shop feature-module toggles. Each module is independent; disabling one
     /// does not block another. Whatever the shop's plan does not include is also reported.
     /// </summary>

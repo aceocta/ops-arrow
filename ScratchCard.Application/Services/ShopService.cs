@@ -130,8 +130,11 @@ public class ShopService : IShopService
             IsActive = true,
             IsDeleted = false,
             WeekStartDay = NormalizeWeekStartDay(request.WeekStartDay) ?? 1,
-            // Safe Drop + Store Sales start disabled; the owner enables them in Feature Toggles.
-            DisabledFeatureKeys = FeatureKeys.DefaultDisabledModuleKeys.ToList(),
+            // The owner's feature selection at create time (sanitised to known module keys). When the
+            // client doesn't send a selection, fall back to the platform default-disabled set.
+            DisabledFeatureKeys = request.DisabledFeatureKeys is not null
+                ? SanitizeDisabledModuleKeys(request.DisabledFeatureKeys)
+                : FeatureKeys.DefaultDisabledModuleKeys.ToList(),
             CreatedOn = DateTimeOffset.UtcNow,
             CreatedBy = _currentUserService.UserId
         };
@@ -263,13 +266,7 @@ public class ShopService : IShopService
 
         await EnsureShopAccessAsync(shop, cancellationToken);
 
-        // Only accept the canonical 5 module keys; anything else is silently dropped so a
-        // misconfigured client cannot poison the DB with arbitrary strings.
-        var allowed = FeatureKeys.ToggleableModules.Select(m => m.Key).ToHashSet(StringComparer.Ordinal);
-        var sanitized = (request.DisabledFeatureKeys ?? [])
-            .Where(k => !string.IsNullOrWhiteSpace(k) && allowed.Contains(k))
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
+        var sanitized = SanitizeDisabledModuleKeys(request.DisabledFeatureKeys);
 
         shop.DisabledFeatureKeys = sanitized;
         shop.ModifiedOn = DateTimeOffset.UtcNow;
@@ -283,24 +280,42 @@ public class ShopService : IShopService
         return BuildFeatureTogglesDto(shop, await ResolveAvailableModuleKeysAsync(shop, cancellationToken));
     }
 
+    // Keep only the canonical toggleable module keys; anything else is dropped so a misconfigured or
+    // malicious client cannot persist arbitrary strings into a shop's disabled-feature list. Shared
+    // by shop create (feature selection) and the post-create Feature Toggles editor.
+    private static List<string> SanitizeDisabledModuleKeys(IEnumerable<string>? keys)
+    {
+        var allowed = FeatureKeys.ToggleableModules.Select(m => m.Key).ToHashSet(StringComparer.Ordinal);
+        return (keys ?? [])
+            .Where(k => !string.IsNullOrWhiteSpace(k) && allowed.Contains(k))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+    }
+
     private async Task<HashSet<string>> ResolveAvailableModuleKeysAsync(Shop shop, CancellationToken cancellationToken)
     {
-        // A module is "available" if any of the plan's enabled features falls under it. Trial
-        // shops with no plan yet — treat all modules as available so the owner can pre-toggle.
         var subscription = await _shopSubscriptionRepository.Query()
             .AsNoTracking()
             .Where(x => x.ShopId == shop.Id)
             .OrderByDescending(x => x.CreatedOn)
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (subscription?.SubscriptionPlanId is null)
+        return await ResolveAvailableModuleKeysForPlanAsync(subscription?.SubscriptionPlanId, cancellationToken);
+    }
+
+    // Which toggleable modules a given plan makes available. A module is "available" if the plan
+    // enables the module key itself or any of its granular child features. A null plan (a brand-new
+    // trial shop, or the create-time selector before a plan exists) → all modules available.
+    private async Task<HashSet<string>> ResolveAvailableModuleKeysForPlanAsync(Guid? planId, CancellationToken cancellationToken)
+    {
+        if (planId is null)
         {
             return FeatureKeys.ToggleableModules.Select(m => m.Key).ToHashSet(StringComparer.Ordinal);
         }
 
         var planFeatureKeys = await _subscriptionPlanRepository.Query()
             .AsNoTracking()
-            .Where(p => p.Id == subscription.SubscriptionPlanId.Value)
+            .Where(p => p.Id == planId.Value)
             .SelectMany(p => p.PlanFeatures.Where(pf => pf.IsEnabled && pf.Feature.IsActive)
                                            .Select(pf => pf.Feature.Key))
             .ToListAsync(cancellationToken);
@@ -317,6 +332,25 @@ public class ShopService : IShopService
             }
         }
         return result;
+    }
+
+    public async Task<ShopFeatureTogglesDto> GetFeatureModulesForPlanAsync(Guid? planId, CancellationToken cancellationToken = default)
+    {
+        var available = await ResolveAvailableModuleKeysForPlanAsync(planId, cancellationToken);
+        var defaultDisabled = FeatureKeys.DefaultDisabledModuleKeys.ToHashSet(StringComparer.Ordinal);
+
+        var modules = FeatureKeys.ToggleableModules.Select(m => new ShopFeatureModuleDto
+        {
+            Key = m.Key,
+            Name = m.Name,
+            Description = m.Description,
+            IsAvailableInPlan = available.Contains(m.Key),
+            // No shop exists yet — report the default OFF state so the create-time selector can seed
+            // its initial toggles to match what a new shop would get by default.
+            IsDisabledByShop = defaultDisabled.Contains(m.Key),
+        }).ToArray();
+
+        return new ShopFeatureTogglesDto { ShopId = Guid.Empty, Modules = modules };
     }
 
     private static ShopFeatureTogglesDto BuildFeatureTogglesDto(Shop shop, HashSet<string> availableModuleKeys)
@@ -429,41 +463,32 @@ public class ShopService : IShopService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
-    // Seed the temperature check times entered during shop setup. If none were supplied (e.g. an
-    // older client), fall back to a sensible 10:00 / 17:00 pair so the module isn't empty.
+    // Persist only the temperature check times the owner explicitly entered during shop setup. When
+    // none are supplied we seed nothing — no default checks are inserted. Owners configure their own
+    // checks (and units) manually from the Temperature screens.
     private async Task SeedTemperatureSchedulesAsync(Guid shopId, List<CreateShopTemperatureTime>? times, CancellationToken cancellationToken)
     {
+        if (times is not { Count: > 0 }) return;
+
         var now = DateTimeOffset.UtcNow;
         var createdBy = _currentUserService.UserId;
 
-        List<CfgTemperatureSchedule> schedules;
-        if (times is { Count: > 0 })
+        var schedules = new List<CfgTemperatureSchedule>();
+        foreach (var t in times)
         {
-            schedules = new List<CfgTemperatureSchedule>();
-            foreach (var t in times)
+            if (!TimeOnly.TryParse(t.Time, CultureInfo.InvariantCulture, out var when)) continue;
+            schedules.Add(new CfgTemperatureSchedule
             {
-                if (!TimeOnly.TryParse(t.Time, CultureInfo.InvariantCulture, out var when)) continue;
-                schedules.Add(new CfgTemperatureSchedule
-                {
-                    ShopId = shopId,
-                    ExpectedTime = when,
-                    ToleranceMinutes = t.ToleranceMinutes is > 0 ? t.ToleranceMinutes.Value : 30,
-                    Label = string.IsNullOrWhiteSpace(t.Label) ? when.ToString("HH:mm") + " check" : t.Label.Trim(),
-                    IsActive = true,
-                    CreatedOn = now,
-                    CreatedBy = createdBy,
-                });
-            }
-            if (schedules.Count == 0) return;
+                ShopId = shopId,
+                ExpectedTime = when,
+                ToleranceMinutes = t.ToleranceMinutes is > 0 ? t.ToleranceMinutes.Value : 30,
+                Label = string.IsNullOrWhiteSpace(t.Label) ? when.ToString("HH:mm") + " check" : t.Label.Trim(),
+                IsActive = true,
+                CreatedOn = now,
+                CreatedBy = createdBy,
+            });
         }
-        else
-        {
-            schedules = new List<CfgTemperatureSchedule>
-            {
-                new() { ShopId = shopId, ExpectedTime = new TimeOnly(10, 0), ToleranceMinutes = 30, Label = "Morning check", IsActive = true, CreatedOn = now, CreatedBy = createdBy },
-                new() { ShopId = shopId, ExpectedTime = new TimeOnly(17, 0), ToleranceMinutes = 30, Label = "Evening check", IsActive = true, CreatedOn = now, CreatedBy = createdBy },
-            };
-        }
+        if (schedules.Count == 0) return;
 
         await _temperatureScheduleRepository.AddRangeAsync(schedules, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);

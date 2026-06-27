@@ -24,6 +24,12 @@ public class CreateShopRequest
     public List<CreateShopShiftTemplate>? ShiftTemplates { get; set; }
     /// <summary>Temperature check times to seed for the new shop (set during shop setup).</summary>
     public List<CreateShopTemperatureTime>? TemperatureCheckTimes { get; set; }
+
+    /// <summary>Modules to start DISABLED for the new shop — the inverse of the owner's feature
+    /// selection at creation time. Sanitised server-side to the known toggleable module keys.
+    /// When null/omitted (e.g. an older client), the shop falls back to the platform
+    /// default-disabled set.</summary>
+    public List<string>? DisabledFeatureKeys { get; set; }
 }
 
 public class CreateShopShiftTemplate

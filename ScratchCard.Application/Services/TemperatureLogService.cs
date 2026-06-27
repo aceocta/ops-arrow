@@ -55,8 +55,6 @@ public class TemperatureLogService : ITemperatureLogService
 
     public async Task<IReadOnlyCollection<TemperatureScheduleDto>> ListSchedulesAsync(Guid shopId, CancellationToken cancellationToken = default)
     {
-        await EnsureDefaultSchedulesAsync(shopId, cancellationToken);
-
         var rows = await _scheduleRepository.Query()
             .AsNoTracking()
             .Where(x => x.ShopId == shopId && !x.IsRandom)
@@ -227,8 +225,6 @@ public class TemperatureLogService : ITemperatureLogService
 
     public async Task<IReadOnlyCollection<TemperatureMonitoringUnitDto>> ListUnitsAsync(Guid shopId, CancellationToken cancellationToken = default)
     {
-        await EnsureDefaultUnitsAsync(shopId, cancellationToken);
-
         var units = await _unitRepository.Query()
             .AsNoTracking()
             .Where(x => x.ShopId == shopId && !x.IsDeleted)
@@ -539,9 +535,6 @@ public class TemperatureLogService : ITemperatureLogService
 
     public async Task<TemperatureDailyLogDto> GetDailyLogAsync(Guid shopId, DateOnly date, CancellationToken cancellationToken = default)
     {
-        await EnsureDefaultUnitsAsync(shopId, cancellationToken);
-        await EnsureDefaultSchedulesAsync(shopId, cancellationToken);
-
         var units = await _unitRepository.Query()
             .AsNoTracking()
             .Where(x => x.ShopId == shopId && x.IsActive && !x.IsDeleted)
@@ -806,105 +799,6 @@ public class TemperatureLogService : ITemperatureLogService
             unit.ModifiedBy = _currentUserService.UserId;
             _unitRepository.Update(unit);
         }
-    }
-
-    /// <summary>
-    /// Seeds a shop's starter schedules the first time temperature data is touched: the single
-    /// Random bucket plus an AM (10:00) and PM (17:00) scheduled check. Lazy and idempotent — like
-    /// <see cref="EnsureDefaultUnitsAsync"/>, it no-ops once the shop has any schedule, so a shop
-    /// that has edited its schedules is never re-seeded.
-    /// </summary>
-    private async Task EnsureDefaultSchedulesAsync(Guid shopId, CancellationToken cancellationToken)
-    {
-        var hasSchedules = await _scheduleRepository.Query()
-            .AsNoTracking()
-            .AnyAsync(x => x.ShopId == shopId, cancellationToken);
-        if (hasSchedules)
-        {
-            return;
-        }
-
-        var now = DateTimeOffset.UtcNow;
-        var createdBy = _currentUserService.UserId;
-        var defaults = new[]
-        {
-            new CfgTemperatureSchedule
-            {
-                ShopId = shopId,
-                Label = "Random",
-                ExpectedTime = new TimeOnly(0, 0),
-                ToleranceMinutes = 0,
-                IsRandom = true,
-                IsActive = true,
-                CreatedOn = now,
-                CreatedBy = createdBy
-            },
-            new CfgTemperatureSchedule
-            {
-                ShopId = shopId,
-                Label = "AM",
-                ExpectedTime = new TimeOnly(10, 0),
-                ToleranceMinutes = 30,
-                IsActive = true,
-                CreatedOn = now,
-                CreatedBy = createdBy
-            },
-            new CfgTemperatureSchedule
-            {
-                ShopId = shopId,
-                Label = "PM",
-                ExpectedTime = new TimeOnly(17, 0),
-                ToleranceMinutes = 30,
-                IsActive = true,
-                CreatedOn = now,
-                CreatedBy = createdBy
-            }
-        };
-
-        await _scheduleRepository.AddRangeAsync(defaults, cancellationToken);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-    }
-
-    private async Task EnsureDefaultUnitsAsync(Guid shopId, CancellationToken cancellationToken)
-    {
-        var hasUnits = await _unitRepository.Query()
-            .AsNoTracking()
-            .AnyAsync(x => x.ShopId == shopId && !x.IsDeleted, cancellationToken);
-        if (hasUnits)
-        {
-            return;
-        }
-
-        var now = DateTimeOffset.UtcNow;
-        var createdBy = _currentUserService.UserId;
-        var defaults = new[]
-        {
-            new TemperatureMonitoringUnit
-            {
-                ShopId = shopId,
-                UnitName = "Fridge",
-                EquipmentType = TemperatureEquipmentType.Fridge,
-                MinTemperatureCelsius = 0,
-                MaxTemperatureCelsius = 5,
-                IsActive = true,
-                CreatedOn = now,
-                CreatedBy = createdBy
-            },
-            new TemperatureMonitoringUnit
-            {
-                ShopId = shopId,
-                UnitName = "Freezer",
-                EquipmentType = TemperatureEquipmentType.Freezer,
-                MinTemperatureCelsius = -25,
-                MaxTemperatureCelsius = -15,
-                IsActive = true,
-                CreatedOn = now,
-                CreatedBy = createdBy
-            }
-        };
-
-        await _unitRepository.AddRangeAsync(defaults, cancellationToken);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
     private static string BuildInitials(string? preferredInitials, string fullName, string email)

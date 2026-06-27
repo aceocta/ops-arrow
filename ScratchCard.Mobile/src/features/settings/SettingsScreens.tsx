@@ -28,6 +28,7 @@ import { SkeletonList } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { SubscriptionPlanPicker } from "../subscription/SubscriptionPlanPicker";
 import { ShiftTemperatureSetup, ShopSetupExtras } from "../../components/ShiftTemperatureSetup";
+import { ShopFeatureSelectionStep } from "../../components/ShopFeatureSelectionStep";
 import { SellingOrder } from "../../types/enums";
 import { Company, ConfigurationItem, Shop } from "../../types/models";
 import { MainStackParamList } from "../../types/navigation";
@@ -1467,6 +1468,8 @@ export function ShopManagementScreen() {
   const [hasEditedPackSettings, setHasEditedPackSettings] = useState(false);
   const [subscriptionPlanId, setSubscriptionPlanId] = useState<string | null>(null);
   const [setupExtras, setSetupExtras] = useState<ShopSetupExtras>({ shiftTemplates: [], temperatureCheckTimes: [] });
+  // Modules the owner switched OFF in the feature-selection step (inverse of what's enabled).
+  const [disabledFeatureKeys, setDisabledFeatureKeys] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
 
   const companiesQuery = useQuery({
@@ -1553,7 +1556,7 @@ export function ShopManagementScreen() {
         throw new Error("Select a subscription plan before creating the shop.");
       }
 
-      return createShop({ ...basePayload, subscriptionPlanId, shiftTemplates: setupExtras.shiftTemplates, temperatureCheckTimes: setupExtras.temperatureCheckTimes });
+      return createShop({ ...basePayload, subscriptionPlanId, shiftTemplates: setupExtras.shiftTemplates, temperatureCheckTimes: setupExtras.temperatureCheckTimes, disabledFeatureKeys });
     },
     onSuccess: (data) => {
       const wasEditing = !!editingShopId;
@@ -1571,6 +1574,7 @@ export function ShopManagementScreen() {
       setWeekStartDay(DEFAULT_WEEK_START_DAY);
       setHasEditedPackSettings(false);
       setSubscriptionPlanId(null);
+      setDisabledFeatureKeys([]);
       if (wasEditing) {
         toastSuccess("Shop updated.");
       } else if (data) {
@@ -1796,6 +1800,12 @@ export function ShopManagementScreen() {
           <SubscriptionPlanPicker
             value={subscriptionPlanId}
             onChange={setSubscriptionPlanId}
+            disabled={saveShopMutation.isPending}
+          />
+          <ShopFeatureSelectionStep
+            planId={subscriptionPlanId}
+            disabledKeys={disabledFeatureKeys}
+            onChange={setDisabledFeatureKeys}
             disabled={saveShopMutation.isPending}
           />
         </View>
