@@ -29,6 +29,7 @@ import { StatusBadge } from "../../components/StatusBadge";
 import { SubscriptionPlanPicker } from "../subscription/SubscriptionPlanPicker";
 import { ShiftTemperatureSetup, ShopSetupExtras } from "../../components/ShiftTemperatureSetup";
 import { ShopFeatureSelectionStep } from "../../components/ShopFeatureSelectionStep";
+import { WebOnlyNotice } from "../../components/WebOnlyNotice";
 import { SellingOrder } from "../../types/enums";
 import { Company, ConfigurationItem, Shop } from "../../types/models";
 import { MainStackParamList } from "../../types/navigation";
@@ -1451,7 +1452,10 @@ export function ShopManagementScreen() {
   const { activeShop, profile, refreshProfile } = useAuth();
   const [createdShop, setCreatedShop] = useState<Shop | null>(null);
   const userRoles = profile?.roles ?? [];
-  const canCreateShop = userRoles.some((role) => role === "PlatformAdmin" || role === "CompanyOwner");
+  // Shops can only be created on the web platform. In-app creation is disabled; we keep the role
+  // check purely to decide whether to show the "add a shop on the web" hint to owners.
+  const canCreateShopOnWeb = userRoles.some((role) => role === "PlatformAdmin" || role === "CompanyOwner");
+  const canCreateShop = false;
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(activeShop?.companyId ?? "");
   const [editingShopId, setEditingShopId] = useState<string | null>(null);
   const [shopSearch, setShopSearch] = useState("");
@@ -1855,11 +1859,11 @@ export function ShopManagementScreen() {
       </View>
       </>) : null}
 
-      {!creating && !editingShopId && canCreateShop ? (
-        <Pressable style={[ui.card, styles.createShopCta]} onPress={() => setCreating(true)}>
-          <Ionicons name="add-circle-outline" size={20} color={appTheme.colors.primary} />
-          <Text style={styles.createShopCtaText}>Create shop</Text>
-        </Pressable>
+      {!creating && !editingShopId && canCreateShopOnWeb ? (
+        <WebOnlyNotice
+          title="Add a shop on the web"
+          message="New shops are created on the web platform. Sign in there to add one — it'll appear here automatically."
+        />
       ) : null}
 
       {!creating && !editingShopId ? (
@@ -2101,7 +2105,7 @@ export function SettingsScreen() {
     manageActions.push({
       key: "shop-management",
       title: "Shop Management",
-      description: isManager ? "Edit assigned shop details." : "Create or edit shops and maintain store details.",
+      description: isManager ? "Edit assigned shop details." : "Edit shop details and store settings (new shops are added on the web).",
       icon: "storefront-outline",
       onPress: () => navigation.navigate("ShopManagement"),
     });

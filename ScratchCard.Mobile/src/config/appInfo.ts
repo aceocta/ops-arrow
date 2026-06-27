@@ -14,3 +14,14 @@ export const appInfo = {
   name: appName,
   loginTitle: `${appName} Sign In`,
 };
+
+/**
+ * URL of the web platform (where shops are created / company billing is managed). Read from
+ * expoConfig.extra.webAppUrl; returns null when not configured so callers can fall back to a
+ * plain "use the web" message instead of rendering a dead link.
+ */
+export function resolveWebPlatformUrl(): string | null {
+  const extra = (Constants.expoConfig?.extra ?? {}) as Record<string, unknown>;
+  const raw = typeof extra.webAppUrl === "string" ? extra.webAppUrl.trim() : "";
+  return raw || null;
+}
