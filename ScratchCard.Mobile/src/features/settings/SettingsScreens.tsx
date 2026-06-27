@@ -1458,7 +1458,6 @@ export function ShopManagementScreen() {
   const canCreateShop = false;
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(activeShop?.companyId ?? "");
   const [editingShopId, setEditingShopId] = useState<string | null>(null);
-  const [shopSearch, setShopSearch] = useState("");
   const [editingIsActive, setEditingIsActive] = useState(true);
   const [shopName, setShopName] = useState("");
   const [addressLine1, setAddressLine1] = useState("");
@@ -1648,18 +1647,7 @@ export function ShopManagementScreen() {
     setEditingIsActive(nextIsActive);
   }
 
-  const filteredShops = useMemo(() => {
-    const all = shopsQuery.data ?? [];
-    const term = shopSearch.trim().toLowerCase();
-    if (!term) return all;
-    return all.filter((shop) => {
-      return (
-        shop.shopName.toLowerCase().includes(term) ||
-        shop.city.toLowerCase().includes(term) ||
-        shop.postCode.toLowerCase().includes(term)
-      );
-    });
-  }, [shopsQuery.data, shopSearch]);
+  const filteredShops = shopsQuery.data ?? [];
 
   return (
     <ScreenContainer>
@@ -1869,20 +1857,8 @@ export function ShopManagementScreen() {
       {!creating && !editingShopId ? (
       <View style={ui.card}>
         <Text style={styles.sectionTitle}>Company Shops</Text>
-        {(shopsQuery.data ?? []).length > 5 ? (
-          <TextInput
-            style={[styles.input, { marginTop: 8 }]}
-            value={shopSearch}
-            onChangeText={setShopSearch}
-            placeholder="Search shops by name, city, or postcode"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-        ) : null}
         {filteredShops.length === 0 ? (
-          <Text style={styles.meta}>
-            {shopSearch ? "No shops match your search." : "No shops in this company yet."}
-          </Text>
+          <Text style={styles.meta}>No shops in this company yet.</Text>
         ) : null}
         {filteredShops.map((shop) => (
           <View key={shop.id} style={styles.item}>
