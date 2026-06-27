@@ -1,6 +1,7 @@
 // Best-effort extraction of a printed expiry / best-before date from OCR'd label text. Handles the
-// common UK pack formats (DD/MM/YYYY, DD MON YY, MON YYYY, MM/YYYY) and prefers a date that follows
-// a "use by" / "best before" keyword. Returns an ISO yyyy-MM-dd string, or undefined if none found.
+// common UK pack formats (ISO yyyy-MM-dd, DD/MM/YYYY, DD MON YY, MON YYYY, MM/YYYY) and prefers a
+// date that follows a "use by" / "best before" keyword. Returns an ISO yyyy-MM-dd string, or
+// undefined if none found.
 //
 // When NO expiry keyword is present we fall back to scanning the whole label, but conservatively:
 // only full, unambiguous dates (a day AND a 4-digit year) are accepted, because a label is full of
@@ -51,8 +52,17 @@ function inExpiryWindow(iso: string): boolean {
 function tryParseSegment(seg: string, strict: boolean): string | undefined {
   const yr = strict ? "(\\d{4})" : "(\\d{4}|\\d{2})";
 
+  // 0) ISO yyyy-MM-dd (also yyyy/MM/dd, yyyy.MM.dd) — the year leads and is unambiguously 4 digits,
+  // so this is safe even in strict mode and must be tried BEFORE the day-first shapes (which can't
+  // anchor a leading 4-digit year and would otherwise drop the read).
+  let m = seg.match(/(\d{4})[.\/\-](\d{1,2})[.\/\-](\d{1,2})/);
+  if (m) {
+    const r = isoDate(Number(m[1]), Number(m[2]), Number(m[3]));
+    if (r) return r;
+  }
+
   // 1) DD/MM/YYYY (or /YY when a keyword anchored us) — separators . / -
-  let m = seg.match(new RegExp(`(\\d{1,2})[.\\/\\-](\\d{1,2})[.\\/\\-]${yr}`));
+  m = seg.match(new RegExp(`(\\d{1,2})[.\\/\\-](\\d{1,2})[.\\/\\-]${yr}`));
   if (m) {
     const r = isoDate(year4(m[3]), Number(m[2]), Number(m[1]));
     if (r) return r;

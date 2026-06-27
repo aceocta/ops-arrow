@@ -18,9 +18,14 @@ type ScannerRoute = RouteProp<MainStackParamList, "ProductBarcodeScanner">;
 
 // On-device ML Kit text recognition (same module the scratch-card scanner uses). Requires a dev/native
 // build — throws a helpful message under Expo Go.
+// True when on-device text OCR can't run (Expo Go / store client lacks the native ML Kit module).
+// Used both to message clearly and to hide the "Read" action up front so the user is never sent to
+// frame a label that can't be read.
+const OCR_UNAVAILABLE = Constants.appOwnership === "expo" || Constants.executionEnvironment === "storeClient";
+
 async function recognizeTextWithMlkit(imageUri: string): Promise<{ text: string }> {
-  if (Constants.appOwnership === "expo" || Constants.executionEnvironment === "storeClient") {
-    throw new Error("Date OCR needs a development build (not Expo Go).");
+  if (OCR_UNAVAILABLE) {
+    throw new Error("Label scanning needs the full app build, not Expo Go — type the name/date instead.");
   }
   const mod = (await import("@infinitered/react-native-mlkit-text-recognition")) as any;
   const recognizeTextFn =
@@ -36,6 +41,7 @@ export function ProductBarcodeScannerScreen() {
   const isDateMode = mode === "date";
   const isNameMode = mode === "name";
   const isOcrMode = isDateMode || isNameMode; // OCR modes disable live barcode scanning
+  const ocrUnavailable = isOcrMode && OCR_UNAVAILABLE; // can't run text OCR in this build
 
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView | null>(null);
@@ -50,6 +56,10 @@ export function ProductBarcodeScannerScreen() {
   const [candidates, setCandidates] = useState<string[]>([]);
   const [detectedDate, setDetectedDate] = useState<string | undefined>(undefined);
   const [picking, setPicking] = useState(false);
+  // A product name often wraps across two label lines ("Cadbury Dairy Milk" / "Fruit & Nut"), so the
+  // picker is multi-select: the user taps every line that belongs to the name and we join them, in
+  // tap order, into one product name. Empty until they tap a line.
+  const [selectedNames, setSelectedNames] = useState<string[]>([]);
 
   useEffect(() => () => { mountedRef.current = false; }, []);
 
@@ -57,6 +67,7 @@ export function ProductBarcodeScannerScreen() {
   // goBack would pop the screen underneath, and emitProductScan would write into a screen we left).
   const cancel = useCallback(() => {
     handledRef.current = true;
+    setPicking(false); // stop an in-flight OCR result repainting the picker as we leave
     navigation.goBack();
   }, [navigation]);
 
@@ -122,7 +133,9 @@ export function ProductBarcodeScannerScreen() {
         return;
       }
       const date = parseExpiryDate(text ?? "");
-      if (mountedRef.current) {
+      // Guard on handledRef too (not just mounted): if the user tapped Cancel during the ~1-3s OCR,
+      // the screen may still be mounted but is tearing down — don't flash the picker.
+      if (!handledRef.current && mountedRef.current) {
         setCandidates(names);
         setDetectedDate(date);
         setPicking(true);
@@ -134,20 +147,29 @@ export function ProductBarcodeScannerScreen() {
     }
   }, [busy, ready]);
 
-  const pickName = useCallback(
-    (name: string) => {
-      if (handledRef.current) return;
-      handledRef.current = true;
-      haptics.success();
-      emitProductScan({ name, expiry: detectedDate });
-      navigation.goBack();
-    },
-    [detectedDate, navigation],
-  );
+  // Toggle a candidate line in/out of the selection, preserving tap order (so the combined name
+  // reads in the order the user picked the lines).
+  const toggleName = useCallback((name: string) => {
+    setSelectedNames((cur) => (cur.includes(name) ? cur.filter((n) => n !== name) : [...cur, name]));
+  }, []);
+
+  const combinedName = selectedNames.join(" ").replace(/\s+/g, " ").trim();
+
+  const confirmName = useCallback(() => {
+    if (handledRef.current) return;
+    // Clamp so two long lines can't exceed the product-name column (server caps at 200).
+    const name = selectedNames.join(" ").replace(/\s+/g, " ").trim().slice(0, 120);
+    if (!name) return;
+    handledRef.current = true;
+    haptics.success();
+    emitProductScan({ name, expiry: detectedDate });
+    navigation.goBack();
+  }, [selectedNames, detectedDate, navigation]);
 
   const retake = useCallback(() => {
     setPicking(false);
     setCandidates([]);
+    setSelectedNames([]);
     setDetectedDate(undefined);
     setMessage(null);
   }, []);
@@ -176,13 +198,15 @@ export function ProductBarcodeScannerScreen() {
       />
       <View style={styles.overlay}>
         <Text style={styles.overlayText}>
-          {isDateMode
+          {ocrUnavailable
+            ? "Label scanning needs the full app build (not Expo Go). Tap “Type it instead” to enter it by hand."
+            : isDateMode
             ? "Fill the frame with the printed USE BY / BEST BEFORE date, then tap Read date."
             : isNameMode
               ? picking
                 ? detectedDate
-                  ? `Read expiry ${detectedDate}. Now tap the product name:`
-                  : "Tap the product name:"
+                  ? `Read expiry ${detectedDate}. Tap each line of the name — pick more than one if it wraps:`
+                  : "Tap each line of the name — pick more than one if it wraps:"
                 : "Fill the frame with the product name on the packaging, then tap Read label."
               : "Point the camera at the product barcode. Closes automatically once scanned."}
         </Text>
@@ -191,27 +215,41 @@ export function ProductBarcodeScannerScreen() {
         {isNameMode && picking ? (
           <>
             <ScrollView style={styles.candidates} contentContainerStyle={styles.candidatesContent} keyboardShouldPersistTaps="handled">
-              {candidates.map((c, i) => (
-                <Pressable
-                  key={`${c}-${i}`}
-                  style={({ pressed }) => [styles.candidate, pressed ? styles.candidatePressed : null]}
-                  onPress={() => pickName(c)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Use product name ${c}`}
-                >
-                  <Text style={styles.candidateText} numberOfLines={2}>{c}</Text>
-                </Pressable>
-              ))}
+              {candidates.map((c, i) => {
+                const order = selectedNames.indexOf(c);
+                const isSelected = order !== -1;
+                return (
+                  <Pressable
+                    key={`${c}-${i}`}
+                    style={({ pressed }) => [styles.candidate, isSelected ? styles.candidateSelected : null, pressed ? styles.candidatePressed : null]}
+                    onPress={() => toggleName(c)}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: isSelected }}
+                    accessibilityLabel={`${isSelected ? "Deselect" : "Select"} name line ${c}`}
+                  >
+                    <View style={[styles.checkBox, isSelected ? styles.checkBoxOn : null]}>
+                      {isSelected ? <Text style={styles.checkBoxText}>{order + 1}</Text> : null}
+                    </View>
+                    <Text style={styles.candidateText} numberOfLines={2}>{c}</Text>
+                  </Pressable>
+                );
+              })}
             </ScrollView>
+            {combinedName ? <Text style={styles.combinedPreview} numberOfLines={2}>Name: {combinedName}</Text> : null}
+            <Button
+              title={combinedName ? `Use name${selectedNames.length > 1 ? ` (${selectedNames.length} lines)` : ""}` : "Tap a line above"}
+              onPress={confirmName}
+              disabled={!combinedName}
+            />
             <Button title="Retake" onPress={retake} />
           </>
-        ) : isDateMode ? (
+        ) : ocrUnavailable ? null : isDateMode ? (
           <Button title={busy ? "Reading…" : "Read date"} onPress={() => void captureDate()} disabled={busy || !ready} />
         ) : isNameMode ? (
           <Button title={busy ? "Reading…" : "Read label"} onPress={() => void captureName()} disabled={busy || !ready} />
         ) : null}
 
-        <Button title={isNameMode && picking ? "Type it instead" : "Cancel"} onPress={cancel} />
+        <Button title={(isNameMode && picking) || ocrUnavailable ? "Type it instead" : "Cancel"} onPress={cancel} />
       </View>
     </View>
   );
@@ -227,7 +265,12 @@ const styles = StyleSheet.create({
   text: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body },
   candidates: { maxHeight: 220, alignSelf: "stretch" },
   candidatesContent: { gap: appTheme.spacing.xs },
-  candidate: { backgroundColor: "rgba(255,255,255,0.12)", borderRadius: appTheme.radius.sm, paddingHorizontal: appTheme.spacing.md, paddingVertical: appTheme.spacing.sm },
+  candidate: { flexDirection: "row", alignItems: "center", gap: appTheme.spacing.sm, backgroundColor: "rgba(255,255,255,0.12)", borderRadius: appTheme.radius.sm, paddingHorizontal: appTheme.spacing.md, paddingVertical: appTheme.spacing.sm },
+  candidateSelected: { backgroundColor: "rgba(96,165,250,0.32)", borderWidth: 1, borderColor: "#93c5fd" },
   candidatePressed: { backgroundColor: "rgba(255,255,255,0.28)" },
-  candidateText: { color: "#fff", fontFamily: appTheme.fonts.bodyMedium, fontSize: 15 },
+  candidateText: { flex: 1, color: "#fff", fontFamily: appTheme.fonts.bodyMedium, fontSize: 15 },
+  checkBox: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: "rgba(255,255,255,0.6)", alignItems: "center", justifyContent: "center" },
+  checkBoxOn: { backgroundColor: "#2563eb", borderColor: "#2563eb" },
+  checkBoxText: { color: "#fff", fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
+  combinedPreview: { color: "#fff", fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, textAlign: "center" },
 });

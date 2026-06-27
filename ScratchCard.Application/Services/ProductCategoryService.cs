@@ -75,6 +75,12 @@ public sealed class ProductCategoryService : IProductCategoryService
             throw new AppException("validation_failed", "Category name is required.", 400);
         }
 
+        // Reject a duplicate name BEFORE insert. This also covers a collision with a global built-in
+        // (ShopId == null) that the (ShopId, Name, IsDeleted) unique index does NOT catch — without
+        // this a shop could create its own "Dairy" alongside the built-in "Dairy". Now that staff can
+        // create categories inline from the Add Product screen, these collisions are routine.
+        await EnsureNameAvailableAsync(request.ShopId, name, null, cancellationToken);
+
         var now = DateTimeOffset.UtcNow;
         var category = new ProductCategory
         {
@@ -89,7 +95,16 @@ public sealed class ProductCategoryService : IProductCategoryService
                 .ToList(),
         };
         await _categories.AddAsync(category, cancellationToken);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            // Lost a race against a concurrent create of the same shop-scoped name (unique index) —
+            // surface the clean 409 instead of a raw 500.
+            throw new AppException("category_duplicate_name", "A category with that name already exists.", 409);
+        }
         return Map(category);
     }
 
@@ -112,6 +127,8 @@ public sealed class ProductCategoryService : IProductCategoryService
         {
             throw new AppException("validation_failed", "Category name is required.", 400);
         }
+
+        await EnsureNameAvailableAsync(request.ShopId, name, category.Id, cancellationToken);
 
         category.Name = name;
         category.SortOrder = request.SortOrder;
@@ -170,6 +187,22 @@ public sealed class ProductCategoryService : IProductCategoryService
         category.ModifiedOn = DateTimeOffset.UtcNow;
         _categories.Update(category);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>Throws a 409 if an active, non-deleted category with this name already exists for the
+    /// shop or among the global built-ins. <paramref name="excludeId"/> skips the row being updated.
+    /// SQL Server's default collation is case-insensitive, so "Dairy" and "dairy" collide.</summary>
+    private async Task EnsureNameAvailableAsync(Guid shopId, string name, Guid? excludeId, CancellationToken ct)
+    {
+        var clash = await _categories.Query().AsNoTracking()
+            .AnyAsync(c => !c.IsDeleted && c.IsActive
+                && (c.ShopId == null || c.ShopId == shopId)
+                && (excludeId == null || c.Id != excludeId)
+                && c.Name == name, ct);
+        if (clash)
+        {
+            throw new AppException("category_duplicate_name", "A category with that name already exists.", 409);
+        }
     }
 
     private static IReadOnlyList<int> NormalizeDays(IReadOnlyList<int>? days)

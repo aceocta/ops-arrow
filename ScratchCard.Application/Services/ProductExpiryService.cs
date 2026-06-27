@@ -77,11 +77,28 @@ public sealed class ProductExpiryService : IProductExpiryService
     {
         await EnsureAccessAsync(request.ShopId, cancellationToken);
 
-        var name = (request.ProductName ?? string.Empty).Trim();
+        // Collapse internal whitespace (a multi-line OCR name can arrive as "Cadbury Dairy\n Milk")
+        // and bound length to the column cap so an over-long combined name is a clean 400, not a
+        // 500/silent truncation.
+        var name = string.Join(' ', (request.ProductName ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
         if (name.Length == 0) throw new AppException("validation_failed", "Product name is required.", 400);
+        if (name.Length > 200) throw new AppException("validation_failed", "Product name is too long (max 200 characters).", 400);
         if (request.Quantity <= 0) throw new AppException("validation_failed", "Quantity must be greater than zero.", 400);
         if (request.UnitCost is < 0 || request.UnitPrice is < 0)
             throw new AppException("validation_failed", "Unit cost / price can't be negative.", 400);
+        if (!Enum.IsDefined(request.DateType))
+            throw new AppException("validation_failed", "Invalid date type.", 400);
+
+        // Sanity-bound the expiry date. A mis-typed or mis-OCR'd year (e.g. "07" -> 2007, or "2207")
+        // would otherwise persist and silently mis-grade status / pollute the waste report. The lower
+        // bound still allows logging recently-expired clearance stock.
+        var today = Today;
+        if (request.ExpiryDate < today.AddYears(-1) || request.ExpiryDate > today.AddYears(10))
+            throw new AppException("validation_failed", "Expiry date looks wrong — pick a date within the last year or the next 10 years.", 400);
+
+        var batchNumber = string.IsNullOrWhiteSpace(request.BatchNumber) ? null : request.BatchNumber.Trim();
+        if (batchNumber is { Length: > 100 })
+            throw new AppException("validation_failed", "Batch number is too long (max 100 characters).", 400);
 
         var category = await _categories.Query().AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == request.ProductCategoryId && !c.IsDeleted
@@ -99,7 +116,7 @@ public sealed class ProductExpiryService : IProductExpiryService
             RemainingQuantity = request.Quantity,
             ExpiryDate = request.ExpiryDate,
             DateType = request.DateType,
-            BatchNumber = string.IsNullOrWhiteSpace(request.BatchNumber) ? null : request.BatchNumber.Trim(),
+            BatchNumber = batchNumber,
             UnitCost = request.UnitCost,
             UnitPrice = request.UnitPrice,
             AddedByUserId = _currentUser.UserId ?? Guid.Empty,
@@ -218,6 +235,7 @@ public sealed class ProductExpiryService : IProductExpiryService
             ?? throw new AppException("product_not_found", "Product not found.", 404);
 
         await EnsureAccessAsync(batch.ShopId, cancellationToken);
+        if (!Enum.IsDefined(request.ActionType)) throw new AppException("validation_failed", "Invalid action type.", 400);
         if (request.Quantity <= 0) throw new AppException("validation_failed", "Action quantity must be greater than zero.", 400);
 
         // Food-safety hard stop: a past use-by item may ONLY be disposed or returned — never sold,

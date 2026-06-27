@@ -1,16 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
-import { addProduct, listProductCategories, lookupProductByBarcode, ProductDateType } from "../../api/productExpiryApi";
+import { addProduct, createProductCategory, listProductCategories, lookupProductByBarcode, ProductDateType } from "../../api/productExpiryApi";
 import { subscribeProductScan } from "./productScanBus";
 import { normalizeGtin, parseGs1IfApplicable } from "./gs1";
 import { useAuth } from "../../auth/AuthContext";
 import { DateTimeField, formatDateValue } from "../../components/DateTimeField";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { LoadingState } from "../../components/LoadingState";
+import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SegmentedControl } from "../../components/SegmentedControl";
@@ -20,6 +21,9 @@ import { getApiErrorMessage } from "../../utils/apiErrorMessage";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
+// Roles allowed to create a category (mirrors backend RoleNames.ManagementAndAbove).
+const MANAGE_ROLES = ["PlatformAdmin", "CompanyOwner", "Manager"];
+
 function sanitizeMoney(raw: string): string {
   let s = raw.replace(/,/g, ".").replace(/[^\d.]/g, "");
   const dot = s.indexOf(".");
@@ -27,10 +31,21 @@ function sanitizeMoney(raw: string): string {
   return s;
 }
 
+// Parse a free-typed "7, 3, 0" reminder-stage string into a clean, de-duped, descending day list.
+function parseReminderDays(raw: string): number[] {
+  return Array.from(new Set(raw.split(/[ ,]+/).map((s) => parseInt(s, 10)).filter((n) => Number.isFinite(n) && n >= 0)))
+    .sort((a, b) => b - a);
+}
+
 export function AddProductScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const queryClient = useQueryClient();
-  const { activeShopId } = useAuth();
+  const { activeShopId, activeShop, profile } = useAuth();
+  // Creating a category is management-only on the server (RoleNames.ManagementAndAbove), so only
+  // surface the inline "+ New" affordance to that audience — staff still pick from the existing list.
+  // Mirror the backend gate exactly so the button never leads to a 403 dead-end.
+  const canManageCategories =
+    MANAGE_ROLES.includes(activeShop?.role ?? "") || (profile?.roles?.some((r) => MANAGE_ROLES.includes(r)) ?? false);
 
   const [productName, setProductName] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -45,6 +60,10 @@ export function AddProductScreen() {
   // True after a barcode scan whose lookup found nothing locally or online — surfaces the OCR
   // "scan the label" option so the user can read the name (and expiry) straight off the packaging.
   const [lookupMissed, setLookupMissed] = useState(false);
+  // Inline "create category" without leaving the add form (managers/owners only).
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryDays, setNewCategoryDays] = useState("7, 3, 0");
   // expiryDate is seeded to today (never empty), so track manual edits explicitly: a barcode scan
   // must not clobber a date the user typed (or OCR'd via "Scan date").
   const expiryTouched = useRef(false);
@@ -102,6 +121,10 @@ export function AddProductScreen() {
         return;
       }
       const shopId = activeShopId;
+      const scannedPrefix = scannedBits.length ? `Scanned ${scannedBits.join(", ")}. ` : "";
+      // Show a "working" state immediately — the online lookup can take a few seconds, and silence
+      // reads as a hang on the shop floor.
+      setScanHint(`${scannedPrefix}Looking up product…`);
 
       void (async () => {
         try {
@@ -140,9 +163,10 @@ export function AddProductScreen() {
             setScanHint(`${prefix}Found “${match.productName}” online${todo.length ? ` — ${todo.join(" and ")}.` : "."}`);
           }
         } catch {
-          // Lookup is best-effort; the scanned barcode/expiry/batch are still captured. Surface it so
-          // a silent failure doesn't read as "scanning does nothing".
-          setScanHint((cur) => cur ?? "Saved the barcode — product lookup is unavailable right now.");
+          // Lookup is best-effort; the scanned barcode/expiry/batch are still captured. Surface it
+          // unconditionally (keeping the GS1 context) so a silent failure — even when a scan hint was
+          // already set — doesn't read as "scanning does nothing".
+          setScanHint(`${scannedPrefix}Saved the barcode — product lookup is unavailable. Enter the name.`);
         }
       })();
     });
@@ -156,6 +180,24 @@ export function AddProductScreen() {
   });
   const categories = useMemo(() => (categoriesQuery.data ?? []).filter((c) => c.isActive), [categoriesQuery.data]);
 
+  const createCategoryMutation = useMutation({
+    mutationFn: () =>
+      createProductCategory({
+        shopId: activeShopId as string,
+        name: newCategoryName.trim(),
+        reminderDays: parseReminderDays(newCategoryDays),
+      }),
+    onSuccess: (created) => {
+      toastSuccess("Category created.");
+      setCategoryModalOpen(false);
+      setNewCategoryName("");
+      setNewCategoryDays("7, 3, 0");
+      void queryClient.invalidateQueries({ queryKey: ["product-categories", activeShopId] });
+      setCategoryId(created.id); // auto-select the just-created category
+    },
+    onError: (error: unknown) => toastError(getApiErrorMessage(error, "Unable to create category.")),
+  });
+
   const qtyValue = Number(quantity);
   const hasQty = Number.isFinite(qtyValue) && qtyValue > 0;
   const canSave = productName.trim().length > 0 && Boolean(categoryId) && hasQty && expiryDate.length > 0;
@@ -164,6 +206,10 @@ export function AddProductScreen() {
     categoryId ? null : "category",
     hasQty ? null : "quantity",
   ].filter(Boolean) as string[];
+
+  // Soft warning, not a block: you may legitimately log already-expired stock as waste, but an
+  // accidental past date (typo / wrong year off OCR) is worth flagging before saving.
+  const expiryInPast = expiryDate.length > 0 && expiryDate < formatDateValue(new Date());
 
   const addMutation = useMutation({
     mutationFn: () =>
@@ -194,7 +240,9 @@ export function AddProductScreen() {
           {missing.length > 0 ? <Text style={styles.footerHint}>Add {missing.join(", ")} to save</Text> : null}
           <PrimaryButton
             label={addMutation.isPending ? "Saving…" : "Add product"}
-            onPress={() => addMutation.mutate()}
+            // Imperative guard, not just `disabled`: on RN two taps can fire before the button
+            // re-renders disabled, and POST /product-expiry isn't idempotent (would create 2 batches).
+            onPress={() => { if (canSave && !addMutation.isPending) addMutation.mutate(); }}
             disabled={!canSave || addMutation.isPending}
           />
         </View>
@@ -244,9 +292,28 @@ export function AddProductScreen() {
         </View>
         <FloatingLabelInput label="Product name" value={productName} onChangeText={setProductName} autoCapitalize="words" />
 
-        <Text style={styles.fieldLabel}>Category</Text>
+        <View style={styles.labelRow}>
+          <Text style={styles.fieldLabel}>Category</Text>
+          {canManageCategories ? (
+            <Pressable
+              style={styles.scanDateBtn}
+              onPress={() => setCategoryModalOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Create a new category"
+            >
+              <Ionicons name="add-circle-outline" size={14} color={appTheme.colors.primary} />
+              <Text style={styles.scanDateText}>New category</Text>
+            </Pressable>
+          ) : null}
+        </View>
         {categoriesQuery.isLoading ? (
           <LoadingState message="Loading categories…" inline />
+        ) : categories.length === 0 ? (
+          <Text style={styles.note}>
+            {canManageCategories
+              ? "No categories yet — tap “New category” to add your first one."
+              : "No categories set up yet. Ask a manager to add one."}
+          </Text>
         ) : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
             {categories.map((c) => {
@@ -263,6 +330,17 @@ export function AddProductScreen() {
                 </Pressable>
               );
             })}
+            {canManageCategories ? (
+              <Pressable
+                style={[styles.chip, styles.chipNew]}
+                onPress={() => setCategoryModalOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Create a new category"
+              >
+                <Ionicons name="add" size={14} color={appTheme.colors.primary} />
+                <Text style={styles.chipText}>New</Text>
+              </Pressable>
+            ) : null}
           </ScrollView>
         )}
 
@@ -289,6 +367,9 @@ export function AddProductScreen() {
           </Pressable>
         </View>
         <DateTimeField mode="date" value={expiryDate} onChange={(v) => { expiryTouched.current = true; setExpiryDate(v); }} />
+        {expiryInPast ? (
+          <Text style={styles.warn}>This date is in the past — the item will be added as already expired. Double‑check the date if that wasn’t intended.</Text>
+        ) : null}
 
         <View style={styles.row}>
           <View style={styles.cell}>
@@ -309,6 +390,29 @@ export function AddProductScreen() {
         </View>
         <Text style={styles.note}>Cost/price are optional — used for the waste &amp; saved‑value report.</Text>
       </View>
+
+      <Modal visible={categoryModalOpen} transparent animationType="fade" onRequestClose={() => setCategoryModalOpen(false)}>
+        <View style={styles.modalBackdrop}>
+          <ModalBackdropBlur />
+          <View style={styles.modalCard}>
+            <Text style={ui.sectionTitle}>New category</Text>
+            <FloatingLabelInput label="Category name" value={newCategoryName} onChangeText={setNewCategoryName} autoCapitalize="words" />
+            <FloatingLabelInput
+              label="Reminder days (e.g. 7, 3, 0)"
+              value={newCategoryDays}
+              onChangeText={setNewCategoryDays}
+              keyboardType="numbers-and-punctuation"
+            />
+            <Text style={styles.note}>Days before expiry to flag the item — biggest = Expiring Soon, smallest = Urgent.</Text>
+            <PrimaryButton
+              label={createCategoryMutation.isPending ? "Saving…" : "Create category"}
+              onPress={() => createCategoryMutation.mutate()}
+              disabled={createCategoryMutation.isPending || newCategoryName.trim().length === 0}
+            />
+            <PrimaryButton label="Cancel" tone="neutral" onPress={() => setCategoryModalOpen(false)} disabled={createCategoryMutation.isPending} />
+          </View>
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -322,11 +426,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 7,
   },
   chipSelected: { backgroundColor: appTheme.colors.primary },
+  chipNew: { flexDirection: "row", alignItems: "center", gap: 4, borderStyle: "dashed" },
   chipText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   chipTextSelected: { color: appTheme.colors.onPrimary },
   row: { flexDirection: "row", gap: appTheme.spacing.sm },
   cell: { flex: 1 },
   note: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.body, fontSize: 12, lineHeight: 16 },
+  warn: { color: appTheme.colors.danger, fontFamily: appTheme.fonts.body, fontSize: 12, lineHeight: 16 },
+  modalBackdrop: { flex: 1, justifyContent: "center", padding: appTheme.spacing.md, backgroundColor: appTheme.colors.overlay },
+  modalCard: { backgroundColor: appTheme.colors.background, borderRadius: appTheme.radius.lg, padding: appTheme.spacing.md, gap: appTheme.spacing.sm },
   footer: { gap: appTheme.spacing.xs },
   footerHint: { color: appTheme.colors.textMuted, fontSize: 12, lineHeight: 16, fontFamily: appTheme.fonts.body },
   scanRow: {
