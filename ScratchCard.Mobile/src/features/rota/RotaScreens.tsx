@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { KeyboardAvoidingView, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -676,12 +676,8 @@ export function MyShiftsScreen() {
 export function MyTimesheetScreen() {
   const { activeShopId } = useAuth();
   const shopId = activeShopId;
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const queryClient = useQueryClient();
-  // Timesheet review the staff member is raising an issue against (opens the note modal).
-  const [disputeTarget, setDisputeTarget] = useState<RotaTimesheetReview | null>(null);
-  const [disputeNote, setDisputeNote] = useState("");
-  // Review whose per-session breakdown is expanded (one at a time, pending or past).
-  const [expandedReviewId, setExpandedReviewId] = useState<string | null>(null);
 
   const myReviewsQuery = useQuery({
     queryKey: ["rota-my-reviews", shopId],
@@ -698,13 +694,7 @@ export function MyTimesheetScreen() {
     () => (myReviewsQuery.data ?? []).filter((r) => r.status === "Confirmed"),
     [myReviewsQuery.data],
   );
-  // Per-session breakdown of the expanded review (fetched only while expanded).
-  const reviewSessionsQuery = useQuery({
-    queryKey: ["rota-review-sessions", expandedReviewId],
-    queryFn: () => getTimesheetReviewSessions(expandedReviewId as string),
-    enabled: Boolean(expandedReviewId),
-  });
-  // My approved timesheet history — shown inline on the page.
+  // My approved timesheet history.
   const pastReviewsQuery = useQuery({
     queryKey: ["rota-my-review-history", shopId],
     queryFn: () => getMyTimesheetReviewHistory(shopId as string),
@@ -716,67 +706,28 @@ export function MyTimesheetScreen() {
     void queryClient.invalidateQueries({ queryKey: ["rota-my-review-history", shopId] });
   };
 
-  const confirmReviewMutation = useMutation({
-    mutationFn: (id: string) => confirmTimesheetReview(id),
-    onSuccess: () => {
-      toastSuccess("Hours confirmed.");
-      void queryClient.invalidateQueries({ queryKey: ["rota-my-reviews", shopId] });
-    },
-    onError: (error: unknown) => toastError(getApiErrorMessage(error, "Couldn't confirm your hours.")),
-  });
-  const disputeMutation = useMutation({
-    mutationFn: () => disputeTimesheetReview(disputeTarget!.id, disputeNote.trim()),
-    onSuccess: () => {
-      setDisputeTarget(null);
-      setDisputeNote("");
-      toastSuccess("Issue sent to your manager.");
-      void queryClient.invalidateQueries({ queryKey: ["rota-my-reviews", shopId] });
-    },
-    onError: (error: unknown) => toastError(getApiErrorMessage(error, "Couldn't send the issue.")),
-  });
-
-  const startConfirmReview = async (r: RotaTimesheetReview) => {
-    const ok = await confirmDestructive({
-      title: "Confirm your hours?",
-      message: `You're confirming ${r.totalHours.toFixed(1)}h for ${formatDayLabel(r.periodFrom)} – ${formatDayLabel(r.periodTo)} is correct.`,
-      confirmLabel: "Confirm",
-    });
-    if (ok) confirmReviewMutation.mutate(r.id);
-  };
-
-  const openDispute = (r: RotaTimesheetReview) => {
-    setDisputeNote("");
-    setDisputeTarget(r);
-  };
-
   const refreshing = myReviewsQuery.isRefetching;
 
-  // Per-session breakdown for one review — shared by the pending card and the past list.
-  const renderBreakdown = (review: RotaTimesheetReview) =>
-    reviewSessionsQuery.isLoading ? (
-      <LoadingState inline />
-    ) : (reviewSessionsQuery.data?.length ?? 0) === 0 ? (
-      <Text style={styles.muted}>No sessions in this period.</Text>
-    ) : (
-      <View>
-        {(reviewSessionsQuery.data ?? []).map((s) => (
-          <View key={s.id} style={styles.sessionRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.sessionDate}>{dayLabel(s.date)} · {s.shiftName ?? "Shift"}</Text>
-              <Text style={styles.muted} numberOfLines={1}>
-                {s.reason ? <Text style={styles.reasonText}>{`${s.reason} · `}</Text> : ""}{clockTime(s.checkInAt)} → {s.checkOutAt ? clockTime(s.checkOutAt) : "—"}
-                {s.entryMethod === "Manual" && !s.isApproved ? "  · manual · pending" : ""}
-              </Text>
-            </View>
-            <Text style={styles.sessionHours}>{s.checkOutAt ? workedLabel(s.checkInAt, s.checkOutAt) : "open"}</Text>
-          </View>
-        ))}
-        <View style={styles.sessionRow}>
-          <Text style={[styles.sessionDate, { flex: 1 }]}>Total</Text>
-          <Text style={styles.sessionHours}>{breakdownTotal(reviewSessionsQuery.data ?? [], review.totalHours)}</Text>
+  // Minimal tappable row — the full session breakdown + confirm/dispute actions live on the detail screen.
+  const renderRow = (r: RotaTimesheetReview) => {
+    const badge = reviewRowBadge(r);
+    return (
+      <Pressable
+        key={r.id}
+        style={({ pressed }) => [styles.reviewRow, styles.reviewRowTap, pressed ? styles.reviewPeriodBtnPressed : null]}
+        onPress={() => navigation.navigate("MyTimesheetDetail", { review: r })}
+        accessibilityRole="button"
+        accessibilityLabel={`View timesheet for ${formatDayLabel(r.periodFrom)} to ${formatDayLabel(r.periodTo)}`}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={styles.reviewPeriod} numberOfLines={1}>{formatDayLabel(r.periodFrom)} – {formatDayLabel(r.periodTo)}</Text>
+          <Text style={styles.mutedSmall}>{r.totalHours.toFixed(1)}h{r.openSessions ? ` · ${r.openSessions} open` : ""}</Text>
         </View>
-      </View>
+        <StatusBadge label={badge.label} tone={badge.tone} />
+        <Ionicons name="chevron-forward" size={16} color={appTheme.colors.textSubtle} />
+      </Pressable>
     );
+  };
 
   return (
     <ScreenContainer
@@ -797,134 +748,158 @@ export function MyTimesheetScreen() {
               <Ionicons name="receipt-outline" size={16} color={appTheme.colors.primary} />
               <Text style={styles.sectionTitle}>Timesheet review</Text>
             </View>
-            {actionableReviews.map((review) => {
-              const disputed = review.status === "Disputed";
-              const confirmingThis = confirmReviewMutation.isPending && confirmReviewMutation.variables === review.id;
-              const expanded = expandedReviewId === review.id;
-              return (
-                <View key={review.id} style={[styles.reviewRow, expanded ? styles.reviewRowExpanded : null]}>
-                  <View style={styles.reviewRowTop}>
-                    <Pressable
-                      style={({ pressed }) => [styles.reviewPeriodBtn, pressed ? styles.reviewPeriodBtnPressed : null]}
-                      onPress={() => setExpandedReviewId(expanded ? null : review.id)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${expanded ? "Hide" : "View"} the session breakdown for ${formatDayLabel(review.periodFrom)} to ${formatDayLabel(review.periodTo)}`}
-                    >
-                      <Text style={styles.reviewPeriod}>
-                        {formatDayLabel(review.periodFrom)} – {formatDayLabel(review.periodTo)} · {review.totalHours.toFixed(1)}h
-                      </Text>
-                    </Pressable>
-                    <StatusBadge label={disputed ? "Issue raised" : "Awaiting your review"} tone={disputed ? "warning" : "neutral"} />
-                  </View>
-                  {disputed && review.staffNote ? <Text style={styles.noteQuote}>“{review.staffNote}”</Text> : null}
-                  {disputed && review.managerNote ? <Text style={styles.mutedSmall}>Manager: {review.managerNote}</Text> : null}
-                  <Pressable
-                    style={({ pressed }) => [styles.actGhost, styles.reviewGhostBtn, pressed ? styles.actGhostPressed : null]}
-                    onPress={() => setExpandedReviewId(expanded ? null : review.id)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${expanded ? "Hide" : "View"} the session breakdown for ${formatDayLabel(review.periodFrom)} to ${formatDayLabel(review.periodTo)}`}
-                  >
-                    <Ionicons name="list-outline" size={16} color={appTheme.colors.primary} />
-                    <Text style={styles.actGhostText}>{expanded ? "Hide breakdown" : "View breakdown"}</Text>
-                  </Pressable>
-                  {expanded ? renderBreakdown(review) : null}
-                  <View style={styles.reviewActionRow}>
-                    <Pressable
-                      style={({ pressed }) => [styles.actGhost, styles.reviewGhostBtn, styles.reviewActionFill, pressed ? styles.actGhostPressed : null]}
-                      onPress={() => void startConfirmReview(review)}
-                      disabled={confirmReviewMutation.isPending}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Confirm your hours for ${formatDayLabel(review.periodFrom)} to ${formatDayLabel(review.periodTo)}`}
-                    >
-                      <Ionicons name="checkmark-circle-outline" size={16} color={appTheme.colors.primary} />
-                      <Text style={styles.actGhostText}>{confirmingThis ? "Confirming…" : "Confirm hours"}</Text>
-                    </Pressable>
-                    {!disputed ? (
-                      <Pressable
-                        style={({ pressed }) => [styles.actGhost, styles.reviewGhostBtn, styles.reviewActionFill, pressed ? styles.actGhostPressed : null]}
-                        onPress={() => openDispute(review)}
-                        disabled={confirmReviewMutation.isPending}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Raise an issue with your hours for ${formatDayLabel(review.periodFrom)} to ${formatDayLabel(review.periodTo)}`}
-                      >
-                        <Ionicons name="alert-circle-outline" size={16} color={appTheme.colors.primary} />
-                        <Text style={styles.actGhostText}>Raise an issue</Text>
-                      </Pressable>
-                    ) : null}
-                  </View>
-                  {disputed ? (
-                    <Text style={styles.mutedSmall}>Waiting for your manager. Confirming your hours withdraws the issue.</Text>
-                  ) : null}
-                </View>
-              );
-            })}
+            {actionableReviews.map(renderRow)}
           </View>
         ) : null}
 
-        {/* Confirmed by the staff member, now sitting with the manager for approval */}
         {awaitingManager.length > 0 ? (
           <View style={[ui.card, styles.reviewCard]}>
             <View style={styles.reviewCardHeader}>
               <Ionicons name="hourglass-outline" size={16} color={appTheme.colors.primary} />
               <Text style={styles.sectionTitle}>Waiting for manager approval</Text>
             </View>
-            {awaitingManager.map((r) => {
-              const expanded = expandedReviewId === r.id;
-              return (
-                <View key={r.id} style={[styles.reviewRow, expanded ? styles.reviewRowExpanded : null]}>
-                  <Pressable
-                    style={({ pressed }) => [styles.reviewRowTop, pressed ? styles.reviewPeriodBtnPressed : null]}
-                    onPress={() => setExpandedReviewId(expanded ? null : r.id)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${expanded ? "Hide" : "View"} the session breakdown for ${formatDayLabel(r.periodFrom)} to ${formatDayLabel(r.periodTo)}`}
-                  >
-                    <Text style={[styles.reviewPeriod, { flex: 1 }]} numberOfLines={1}>
-                      {formatDayLabel(r.periodFrom)} – {formatDayLabel(r.periodTo)} · {r.totalHours.toFixed(1)}h
-                    </Text>
-                    <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={16} color={appTheme.colors.textSubtle} />
-                  </Pressable>
-                  <TimesheetReviewFlow status={r.status} confirmedOn={r.confirmedOn} />
-                  {expanded ? renderBreakdown(r) : null}
-                </View>
-              );
-            })}
+            {awaitingManager.map(renderRow)}
           </View>
         ) : null}
 
-        {/* Past (approved) timesheets — inline list, each expandable to its session breakdown.
-            Hidden entirely when there's nothing approved yet. */}
         {(pastReviewsQuery.data?.length ?? 0) > 0 ? (
-        <View style={[ui.card, styles.reviewCard]}>
-          <View style={styles.reviewCardHeader}>
-            <Ionicons name="checkmark-done-outline" size={16} color={appTheme.colors.primary} />
-            <Text style={styles.sectionTitle}>Past timesheets</Text>
+          <View style={[ui.card, styles.reviewCard]}>
+            <View style={styles.reviewCardHeader}>
+              <Ionicons name="checkmark-done-outline" size={16} color={appTheme.colors.primary} />
+              <Text style={styles.sectionTitle}>Past timesheets</Text>
+            </View>
+            {(pastReviewsQuery.data ?? []).map(renderRow)}
           </View>
-          {(pastReviewsQuery.data ?? []).map((r) => {
-            const expanded = expandedReviewId === r.id;
-            return (
-              <View key={r.id} style={[styles.reviewRow, expanded ? styles.reviewRowExpanded : null]}>
-                <Pressable
-                  style={({ pressed }) => [styles.reviewRowTop, pressed ? styles.reviewPeriodBtnPressed : null]}
-                  onPress={() => setExpandedReviewId(expanded ? null : r.id)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${expanded ? "Hide" : "View"} the session breakdown for ${formatDayLabel(r.periodFrom)} to ${formatDayLabel(r.periodTo)}`}
-                >
-                  <Text style={[styles.reviewPeriod, { flex: 1 }]} numberOfLines={1}>
-                    {formatDayLabel(r.periodFrom)} – {formatDayLabel(r.periodTo)}
-                  </Text>
-                  <Text style={styles.sessionHours}>{r.totalHours.toFixed(1)}h</Text>
-                  <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={16} color={appTheme.colors.textSubtle} />
-                </Pressable>
-                {expanded ? renderBreakdown(r) : null}
-              </View>
-            );
-          })}
-        </View>
         ) : null}
       </View>
+    </ScreenContainer>
+  );
+}
 
-      {/* Raise an issue against a timesheet review period */}
-      <Modal visible={disputeTarget !== null} transparent animationType="fade" onRequestClose={() => setDisputeTarget(null)}>
+// Status pill for a timesheet row in the list (minimal — full detail lives on its own screen).
+function reviewRowBadge(r: RotaTimesheetReview): { label: string; tone: "neutral" | "warning" | "success" } {
+  if (r.status === "Disputed") return { label: "Issue raised", tone: "warning" };
+  if (r.status === "PendingStaff") return { label: "Awaiting you", tone: "neutral" };
+  if (r.status === "Confirmed") return { label: "With manager", tone: "neutral" };
+  return { label: "Approved", tone: "success" };
+}
+
+// Detail page for a single timesheet period: the full session breakdown, plus confirm / raise-an-issue
+// actions when the period is still awaiting the staff member.
+export function MyTimesheetDetailScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const route = useRoute<RouteProp<MainStackParamList, "MyTimesheetDetail">>();
+  const { activeShopId } = useAuth();
+  const shopId = activeShopId;
+  const queryClient = useQueryClient();
+  const review = route.params.review;
+  const disputed = review.status === "Disputed";
+  const isActionable = review.status === "PendingStaff" || disputed;
+
+  const [disputeOpen, setDisputeOpen] = useState(false);
+  const [disputeNote, setDisputeNote] = useState("");
+
+  const sessionsQuery = useQuery({
+    queryKey: ["rota-review-sessions", review.id],
+    queryFn: () => getTimesheetReviewSessions(review.id),
+    enabled: Boolean(review.id),
+  });
+  const sessions = sessionsQuery.data ?? [];
+
+  const invalidateLists = () => {
+    void queryClient.invalidateQueries({ queryKey: ["rota-my-reviews", shopId] });
+    void queryClient.invalidateQueries({ queryKey: ["rota-my-review-history", shopId] });
+  };
+
+  const confirmMutation = useMutation({
+    mutationFn: () => confirmTimesheetReview(review.id),
+    onSuccess: () => { toastSuccess("Hours confirmed."); invalidateLists(); navigation.goBack(); },
+    onError: (error: unknown) => toastError(getApiErrorMessage(error, "Couldn't confirm your hours.")),
+  });
+  const disputeMutation = useMutation({
+    mutationFn: () => disputeTimesheetReview(review.id, disputeNote.trim()),
+    onSuccess: () => { setDisputeOpen(false); toastSuccess("Issue sent to your manager."); invalidateLists(); navigation.goBack(); },
+    onError: (error: unknown) => toastError(getApiErrorMessage(error, "Couldn't send the issue.")),
+  });
+
+  const startConfirm = async () => {
+    const ok = await confirmDestructive({
+      title: "Confirm your hours?",
+      message: `You're confirming ${review.totalHours.toFixed(1)}h for ${formatDayLabel(review.periodFrom)} – ${formatDayLabel(review.periodTo)} is correct.`,
+      confirmLabel: "Confirm",
+    });
+    if (ok) confirmMutation.mutate();
+  };
+
+  return (
+    <ScreenContainer
+      footer={
+        isActionable ? (
+          <View style={{ gap: appTheme.spacing.xs }}>
+            <PrimaryButton
+              label={confirmMutation.isPending ? "Confirming…" : "Confirm hours"}
+              onPress={() => void startConfirm()}
+              disabled={confirmMutation.isPending}
+            />
+            {!disputed ? (
+              <PrimaryButton
+                label="Raise an issue"
+                tone="neutral"
+                onPress={() => { setDisputeNote(""); setDisputeOpen(true); }}
+                disabled={confirmMutation.isPending}
+              />
+            ) : null}
+          </View>
+        ) : undefined
+      }
+    >
+      <View style={[ui.card, styles.reviewCard]}>
+        <Text style={styles.sectionTitle}>{formatDayLabel(review.periodFrom)} – {formatDayLabel(review.periodTo)}</Text>
+        <Text style={styles.muted}>{review.totalHours.toFixed(1)}h total{review.openSessions ? ` · ${review.openSessions} open session(s)` : ""}</Text>
+        {isActionable ? (
+          <StatusBadge label={disputed ? "Issue raised" : "Awaiting your review"} tone={disputed ? "warning" : "neutral"} />
+        ) : review.status === "Confirmed" ? (
+          <TimesheetReviewFlow status={review.status} confirmedOn={review.confirmedOn} />
+        ) : (
+          <StatusBadge label="Approved" tone="success" />
+        )}
+        {disputed && review.staffNote ? <Text style={styles.noteQuote}>“{review.staffNote}”</Text> : null}
+        {disputed && review.managerNote ? <Text style={styles.mutedSmall}>Manager: {review.managerNote}</Text> : null}
+        {disputed ? <Text style={styles.mutedSmall}>Waiting for your manager. Confirming your hours withdraws the issue.</Text> : null}
+      </View>
+
+      <View style={[ui.card, styles.reviewCard]}>
+        <View style={styles.reviewCardHeader}>
+          <Ionicons name="list-outline" size={16} color={appTheme.colors.primary} />
+          <Text style={styles.sectionTitle}>Session breakdown</Text>
+        </View>
+        {sessionsQuery.isLoading ? (
+          <LoadingState inline />
+        ) : sessions.length === 0 ? (
+          <Text style={styles.muted}>No sessions in this period.</Text>
+        ) : (
+          <View>
+            {sessions.map((s) => (
+              <View key={s.id} style={styles.sessionRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sessionDate}>{dayLabel(s.date)} · {s.shiftName ?? "Shift"}</Text>
+                  <Text style={styles.muted} numberOfLines={1}>
+                    {s.reason ? <Text style={styles.reasonText}>{`${s.reason} · `}</Text> : ""}{clockTime(s.checkInAt)} → {s.checkOutAt ? clockTime(s.checkOutAt) : "—"}
+                    {s.entryMethod === "Manual" && !s.isApproved ? "  · manual · pending" : ""}
+                  </Text>
+                </View>
+                <Text style={styles.sessionHours}>{s.checkOutAt ? workedLabel(s.checkInAt, s.checkOutAt) : "open"}</Text>
+              </View>
+            ))}
+            <View style={styles.sessionRow}>
+              <Text style={[styles.sessionDate, { flex: 1 }]}>Total</Text>
+              <Text style={styles.sessionHours}>{breakdownTotal(sessions, review.totalHours)}</Text>
+            </View>
+          </View>
+        )}
+      </View>
+
+      <Modal visible={disputeOpen} transparent animationType="fade" onRequestClose={() => setDisputeOpen(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={styles.sheetBackdrop} onStartShouldSetResponder={dismissKeyboardOnTap}>
           <View style={styles.sheetCard}>
@@ -935,9 +910,7 @@ export function MyTimesheetScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.modalTitleSm}>Raise an issue</Text>
                 <Text style={styles.muted} numberOfLines={1}>
-                  {disputeTarget
-                    ? `${formatDayLabel(disputeTarget.periodFrom)} – ${formatDayLabel(disputeTarget.periodTo)} · ${disputeTarget.totalHours.toFixed(1)}h`
-                    : ""}
+                  {`${formatDayLabel(review.periodFrom)} – ${formatDayLabel(review.periodTo)} · ${review.totalHours.toFixed(1)}h`}
                 </Text>
               </View>
             </View>
@@ -959,12 +932,11 @@ export function MyTimesheetScreen() {
               onPress={() => disputeMutation.mutate()}
               disabled={disputeMutation.isPending || disputeNote.trim().length === 0}
             />
-            <PrimaryButton label="Cancel" tone="neutral" onPress={() => setDisputeTarget(null)} disabled={disputeMutation.isPending} />
+            <PrimaryButton label="Cancel" tone="neutral" onPress={() => setDisputeOpen(false)} disabled={disputeMutation.isPending} />
           </View>
         </View>
         </KeyboardAvoidingView>
       </Modal>
-
     </ScreenContainer>
   );
 }
@@ -4612,6 +4584,8 @@ const styles = StyleSheet.create({
   reviewCard: { gap: appTheme.spacing.sm },
   reviewCardHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
   reviewRow: { gap: 8, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.borderSoft },
+  // Minimal tappable list row (period + hours + status badge + chevron) — opens the detail screen.
+  reviewRowTap: { flexDirection: "row", alignItems: "center", gap: appTheme.spacing.sm, paddingBottom: 4 },
   // The expanded timesheet stands out from its neighbours (soft brand tint instead of a divider).
   reviewRowExpanded: { backgroundColor: appTheme.colors.surfaceBrandSoft, borderRadius: appTheme.radius.sm, paddingHorizontal: 10, paddingBottom: 10, borderTopWidth: 0, marginTop: 2 },
   reviewRowTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 },

@@ -1,3 +1,5 @@
+import type { RotaTimesheetReview } from "../api/rotaApi";
+
 export type RootStackParamList = {
   Login: undefined;
   ForgotPassword: undefined;
@@ -32,6 +34,7 @@ export type MainStackParamList = {
   MyShifts: undefined;
   MyLeave: undefined;
   MyTimesheet: undefined;
+  MyTimesheetDetail: { review: RotaTimesheetReview };
   RotaManage: undefined;
   RotaTimesheet: undefined;
   RotaApprovals: undefined;
