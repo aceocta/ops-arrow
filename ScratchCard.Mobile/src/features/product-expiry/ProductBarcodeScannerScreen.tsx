@@ -4,6 +4,7 @@ import { BarcodeType, CameraView, useCameraPermissions } from "expo-camera";
 import Constants from "expo-constants";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { haptics } from "../../utils/haptics";
 import { MainStackParamList } from "../../types/navigation";
 import { appTheme } from "../../ui/theme";
@@ -43,6 +44,7 @@ export function ProductBarcodeScannerScreen() {
   const isOcrMode = isDateMode || isNameMode; // OCR modes disable live barcode scanning
   const ocrUnavailable = isOcrMode && OCR_UNAVAILABLE; // can't run text OCR in this build
 
+  const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView | null>(null);
   const handledRef = useRef(false);
@@ -196,7 +198,7 @@ export function ProductBarcodeScannerScreen() {
         onCameraReady={() => setReady(true)}
         onMountError={(e) => setMessage(e.message || "Camera failed to start.")}
       />
-      <View style={styles.overlay}>
+      <View style={[styles.overlay, { paddingBottom: appTheme.spacing.md + insets.bottom }]}>
         <Text style={styles.overlayText}>
           {ocrUnavailable
             ? "Label scanning needs the full app build (not Expo Go). Tap “Type it instead” to enter it by hand."

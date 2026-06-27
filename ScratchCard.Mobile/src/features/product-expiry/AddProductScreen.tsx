@@ -49,7 +49,7 @@ export function AddProductScreen() {
 
   const [productName, setProductName] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [dateType, setDateType] = useState<ProductDateType>("UseBy");
+  const [dateType, setDateType] = useState<ProductDateType>("BestBefore");
   const [quantity, setQuantity] = useState("1");
   const [expiryDate, setExpiryDate] = useState(formatDateValue(new Date()));
   const [batchNumber, setBatchNumber] = useState("");
