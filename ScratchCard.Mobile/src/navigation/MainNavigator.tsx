@@ -13,6 +13,7 @@ import { DashboardScreen } from "../features/dashboard/DashboardScreen";
 import { BestEntryScreen } from "../features/entry/BestEntryScreen";
 import { OwnerOverviewScreen } from "../features/dashboard/OwnerOverviewScreen";
 import { MyShiftsScreen, MyShiftDetailScreen, MyTimesheetScreen, MyTimesheetDetailScreen, RotaManageScreen, RotaTimesheetScreen, RotaApprovalsScreen, RotaStaffMembersScreen } from "../features/rota/RotaScreens";
+import { MyWorkScreen } from "../features/rota/MyWorkScreen";
 import { LeaveManagementScreen, MyLeaveScreen, RecordLeaveScreen } from "../features/rota/LeaveScreens";
 import { ShiftSwapsScreen } from "../features/rota/ShiftSwapsScreen";
 import { UserInvitationsScreen } from "../features/invitations/UserInvitationsScreen";
@@ -197,9 +198,8 @@ const complianceItems: MenuItem[] = [
 
 // --- Shifts (staff rota & attendance) ---
 const shiftItems: MenuItem[] = [
-  { label: "My Shifts", screen: "MyShifts", icon: "time-outline", requiredFeature: "StaffRota" },
-  { label: "My Leave", screen: "MyLeave", icon: "airplane-outline", requiredFeature: "LeaveManagement" },
-  { label: "My Timesheet", screen: "MyTimesheet", icon: "document-text-outline", requiredFeature: "StaffRota" },
+  // Single staff hub → My Shifts / My Timesheet / My Leave (each tile feature-gated inside the screen).
+  { label: "My Work", screen: "MyWork", icon: "briefcase-outline", requiredFeature: "StaffRota" },
   { label: "Shift Swaps", screen: "ShiftSwaps", icon: "swap-horizontal-outline", requiredFeature: "staff_rota.shift_swap" },
   { label: "Shift Rota", screen: "RotaManage", icon: "calendar-number-outline", allowedRoles: ["CompanyOwner", "Manager"], requiredFeature: "StaffRota" },
   { label: "External Staff", screen: "RotaStaffMembers", icon: "people-circle-outline", allowedRoles: ["CompanyOwner", "Manager"], requiredFeature: "StaffRota" },
@@ -503,6 +503,7 @@ function MainStackScreens() {
     >
       <Stack.Screen name="BestEntry" component={BestEntryScreen} options={{ headerTitle: () => <HomeHeaderTitle /> }} />
       <Stack.Screen name="OwnerDashboard" component={OwnerOverviewScreen} options={{ title: "Dashboard" }} />
+      <Stack.Screen name="MyWork" component={MyWorkScreen} options={{ title: "My Work" }} />
       <Stack.Screen name="MyShifts" component={MyShiftsScreen} options={{ title: "My Shifts" }} />
       <Stack.Screen name="MyShiftDetail" component={MyShiftDetailScreen} options={{ title: "Shift" }} />
       <Stack.Screen name="MyLeave" component={MyLeaveScreen} options={{ title: "My Leave" }} />
@@ -808,7 +809,7 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
   const shiftBadges = useMemo(
     () => ({
       RotaApprovals: pendingApprovalsQuery.data?.length ?? 0,
-      MyTimesheet: myPendingReviewCount,
+      MyWork: myPendingReviewCount,
     }),
     [pendingApprovalsQuery.data, myPendingReviewCount],
   );

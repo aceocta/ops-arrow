@@ -32,6 +32,7 @@ export type RootStackParamList = {
 export type MainStackParamList = {
   BestEntry: undefined;
   OwnerDashboard: undefined;
+  MyWork: undefined;
   MyShifts: undefined;
   MyShiftDetail: { shift: RotaShift };
   MyLeave: undefined;
