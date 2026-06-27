@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -279,7 +279,8 @@ export function AddProductScreen() {
           </Pressable>
         ) : null}
 
-        <View style={styles.nameScanRow}>
+        <View style={styles.labelRow}>
+          <Text style={styles.fieldLabel}>Product name</Text>
           <Pressable
             style={styles.scanDateBtn}
             onPress={() => navigation.navigate("ProductBarcodeScanner", { mode: "name" })}
@@ -290,7 +291,15 @@ export function AddProductScreen() {
             <Text style={styles.scanDateText}>Scan name</Text>
           </Pressable>
         </View>
-        <FloatingLabelInput label="Product name" value={productName} onChangeText={setProductName} autoCapitalize="words" />
+        <TextInput
+          style={styles.nameInput}
+          value={productName}
+          onChangeText={setProductName}
+          autoCapitalize="words"
+          placeholder="Type or scan the name"
+          placeholderTextColor={appTheme.colors.textSubtle}
+          accessibilityLabel="Product name"
+        />
 
         <View style={styles.labelRow}>
           <Text style={styles.fieldLabel}>Category</Text>
@@ -448,7 +457,17 @@ const styles = StyleSheet.create({
   labelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 2 },
   scanDateBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 2, paddingHorizontal: 4 },
   scanDateText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
-  nameScanRow: { flexDirection: "row", justifyContent: "flex-end", marginTop: 2 },
+  nameInput: {
+    backgroundColor: appTheme.colors.surfaceMuted,
+    borderRadius: appTheme.radius.sm,
+    borderWidth: 1.5,
+    borderColor: "transparent",
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: 12,
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 15,
+  },
   ocrCta: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: appTheme.spacing.xs,
     backgroundColor: appTheme.colors.primary, borderRadius: appTheme.radius.sm,
