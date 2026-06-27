@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import React, { useMemo, useState } from "react";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQuery } from "@tanstack/react-query";
@@ -45,6 +45,8 @@ export function ProductExpiryListScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const { activeShopId } = useAuth();
   const [filter, setFilter] = useState<Filter>("all");
+  const [search, setSearch] = useState("");
+  const [categoryId, setCategoryId] = useState<string | null>(null);
 
   const query = useQuery({
     queryKey: ["product-expiry", activeShopId, filter],
@@ -54,6 +56,27 @@ export function ProductExpiryListScreen() {
 
   const items = query.data ?? [];
 
+  // Categories present in the current (status-filtered) items — the chip filter only offers bands
+  // that actually have stock, so there are no dead-end taps.
+  const categories = useMemo(() => {
+    const map = new Map<string, string>();
+    items.forEach((it) => { if (!map.has(it.productCategoryId)) map.set(it.productCategoryId, it.categoryName); });
+    return Array.from(map, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [items]);
+
+  const term = search.trim().toLowerCase();
+  const filteredItems = items.filter(
+    (it) =>
+      (categoryId === null || it.productCategoryId === categoryId) &&
+      (term === "" || it.productName.toLowerCase().includes(term)),
+  );
+
+  // Switching status band changes which categories exist, so clear the (now possibly stale) category.
+  const onStatusChange = (next: Filter) => {
+    setFilter(next);
+    setCategoryId(null);
+  };
+
   return (
     <ScreenContainer
       refreshControl={
@@ -61,7 +84,55 @@ export function ProductExpiryListScreen() {
       }
       footer={<PrimaryButton label="Add product" onPress={() => navigation.navigate("AddProduct")} />}
     >
-      <SegmentedControl options={FILTERS} value={filter} onChange={setFilter} />
+      <View style={styles.filters}>
+        <SegmentedControl options={FILTERS} value={filter} onChange={onStatusChange} />
+
+        <View style={styles.searchRow}>
+          <Ionicons name="search" size={16} color={appTheme.colors.textSubtle} />
+          <TextInput
+            style={styles.searchInput}
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search product name"
+            placeholderTextColor={appTheme.colors.textSubtle}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+          />
+          {search ? (
+            <Pressable onPress={() => setSearch("")} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear search">
+              <Ionicons name="close-circle" size={16} color={appTheme.colors.textSubtle} />
+            </Pressable>
+          ) : null}
+        </View>
+
+        {categories.length > 1 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+            <Pressable
+              style={[styles.chip, categoryId === null ? styles.chipSelected : null]}
+              onPress={() => setCategoryId(null)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: categoryId === null }}
+            >
+              <Text style={[styles.chipText, categoryId === null ? styles.chipTextSelected : null]}>All</Text>
+            </Pressable>
+            {categories.map((c) => {
+              const selected = categoryId === c.id;
+              return (
+                <Pressable
+                  key={c.id}
+                  style={[styles.chip, selected ? styles.chipSelected : null]}
+                  onPress={() => setCategoryId(selected ? null : c.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                >
+                  <Text style={[styles.chipText, selected ? styles.chipTextSelected : null]} numberOfLines={1}>{c.name}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        ) : null}
+      </View>
 
       {query.isLoading ? (
         <View style={ui.card}><LoadingState message="Loading products…" inline /></View>
@@ -71,9 +142,15 @@ export function ProductExpiryListScreen() {
           title={filter === "all" ? "No products tracked yet" : "Nothing in this band"}
           message={filter === "all" ? "Add a product with its expiry date to start tracking." : "Switch filter or add a product."}
         />
+      ) : filteredItems.length === 0 ? (
+        <EmptyState
+          icon="search-outline"
+          title="No matches"
+          message="No products match your search or category. Clear the filters to see all."
+        />
       ) : (
         <View style={styles.list}>
-          {items.map((item) => (
+          {filteredItems.map((item) => (
             <ProductRow key={item.id} item={item} onPress={() => navigation.navigate("ProductExpiryDetail", { id: item.id })} />
           ))}
         </View>
@@ -101,6 +178,21 @@ function ProductRow({ item, onPress }: { item: ProductBatch; onPress: () => void
 }
 
 const styles = StyleSheet.create({
+  filters: { gap: appTheme.spacing.sm },
+  searchRow: {
+    flexDirection: "row", alignItems: "center", gap: appTheme.spacing.xs,
+    borderWidth: 1, borderColor: appTheme.colors.border, borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceMuted, paddingHorizontal: appTheme.spacing.sm, paddingVertical: 8,
+  },
+  searchInput: { flex: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 14, padding: 0, margin: 0 },
+  chips: { gap: appTheme.spacing.xs, paddingVertical: 2 },
+  chip: {
+    borderWidth: 1, borderColor: appTheme.colors.primary, borderRadius: appTheme.radius.pill,
+    paddingHorizontal: 12, paddingVertical: 6,
+  },
+  chipSelected: { backgroundColor: appTheme.colors.primary },
+  chipText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
+  chipTextSelected: { color: appTheme.colors.onPrimary },
   list: { gap: appTheme.spacing.xs },
   row: { flexDirection: "row", alignItems: "center", gap: appTheme.spacing.sm },
   rowMain: { flex: 1, gap: 2 },
