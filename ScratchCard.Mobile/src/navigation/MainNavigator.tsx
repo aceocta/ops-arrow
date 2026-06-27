@@ -12,7 +12,7 @@ import { NetworkStatusBanner } from "../components/NetworkStatusBanner";
 import { DashboardScreen } from "../features/dashboard/DashboardScreen";
 import { BestEntryScreen } from "../features/entry/BestEntryScreen";
 import { OwnerOverviewScreen } from "../features/dashboard/OwnerOverviewScreen";
-import { MyShiftsScreen, MyTimesheetScreen, MyTimesheetDetailScreen, RotaManageScreen, RotaTimesheetScreen, RotaApprovalsScreen, RotaStaffMembersScreen } from "../features/rota/RotaScreens";
+import { MyShiftsScreen, MyShiftDetailScreen, MyTimesheetScreen, MyTimesheetDetailScreen, RotaManageScreen, RotaTimesheetScreen, RotaApprovalsScreen, RotaStaffMembersScreen } from "../features/rota/RotaScreens";
 import { LeaveManagementScreen, MyLeaveScreen, RecordLeaveScreen } from "../features/rota/LeaveScreens";
 import { ShiftSwapsScreen } from "../features/rota/ShiftSwapsScreen";
 import { UserInvitationsScreen } from "../features/invitations/UserInvitationsScreen";
@@ -504,6 +504,7 @@ function MainStackScreens() {
       <Stack.Screen name="BestEntry" component={BestEntryScreen} options={{ headerTitle: () => <HomeHeaderTitle /> }} />
       <Stack.Screen name="OwnerDashboard" component={OwnerOverviewScreen} options={{ title: "Dashboard" }} />
       <Stack.Screen name="MyShifts" component={MyShiftsScreen} options={{ title: "My Shifts" }} />
+      <Stack.Screen name="MyShiftDetail" component={MyShiftDetailScreen} options={{ title: "Shift" }} />
       <Stack.Screen name="MyLeave" component={MyLeaveScreen} options={{ title: "My Leave" }} />
       <Stack.Screen name="MyTimesheet" component={MyTimesheetScreen} options={{ title: "My Timesheet" }} />
       <Stack.Screen name="MyTimesheetDetail" component={MyTimesheetDetailScreen} options={{ title: "Timesheet" }} />

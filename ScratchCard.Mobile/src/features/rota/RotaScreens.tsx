@@ -331,14 +331,12 @@ function leaveHourSegments(row: TimesheetRow): Array<{ label: string; muted: boo
 // My Shifts + check in/out (staff)
 // ---------------------------------------------------------------------------
 export function MyShiftsScreen() {
-  const { activeShopId, profile } = useAuth();
+  const { activeShopId } = useAuth();
   const shopId = activeShopId;
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const queryClient = useQueryClient();
   const [range, setRange] = useState(() => next7());
   const { from, to } = range;
-  const [manualShift, setManualShift] = useState<RotaShift | null>(null);
-  const [manualIn, setManualIn] = useState("09:00");
-  const [manualOut, setManualOut] = useState("17:00");
 
   const attendanceQuery = useQuery({
     queryKey: ["rota-attendance", shopId],
@@ -368,28 +366,6 @@ export function MyShiftsScreen() {
     onSuccess: refresh,
     onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't check out."),
   });
-  const manualMutation = useMutation({
-    mutationFn: () => {
-      const { checkInAt, checkOutAt } = sessionIsos(manualShift!.shiftDate, manualIn, manualOut);
-      return saveManualAttendance({
-        shopId: shopId as string,
-        rotaShiftId: manualShift!.id,
-        checkInAt,
-        checkOutAt: manualOut ? checkOutAt : undefined,
-      });
-    },
-    onSuccess: () => { setManualShift(null); refresh(); },
-    onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't save times."),
-  });
-
-  const openManual = (shift: RotaShift) => {
-    const att = shift.myAttendance;
-    // Default to the actual times if already recorded, otherwise the shift's scheduled start/end.
-    setManualIn(att?.checkInAt ? toHHmm(att.checkInAt) : shortTime(shift.startTime));
-    setManualOut(att?.checkOutAt ? toHHmm(att.checkOutAt) : shortTime(shift.endTime));
-    setManualShift(shift);
-  };
-
   const busy = checkInMutation.isPending || checkOutMutation.isPending;
 
   // Group my shifts by date so each day has a header.
@@ -404,142 +380,71 @@ export function MyShiftsScreen() {
   }, [shiftsQuery.data]);
 
   const renderShiftCard = (shift: RotaShift) => {
-          const att = shift.myAttendance;
-          // My own assignment on this shift — carries the reason when it isn't a regular shift.
-          const myAssignment = profile?.userId ? shift.assignees.find((a) => a.userId === profile.userId) : undefined;
-          const open = Boolean(att && !att.checkOutAt);
-          const completed = Boolean(att && att.checkOutAt);
-          const onAnotherShift = isCheckedInSomewhere && current?.rotaShiftId !== shift.id;
-          const vIn = att ? variance(att.checkInAt, shift.shiftDate, shift.startTime, "in") : null;
-          const vOut = att?.checkOutAt ? variance(att.checkOutAt, shift.endDate, shift.endTime, "out") : null;
+    const att = shift.myAttendance;
+    const open = Boolean(att && !att.checkOutAt);
+    const completed = Boolean(att && att.checkOutAt);
+    const onAnotherShift = isCheckedInSomewhere && current?.rotaShiftId !== shift.id;
+    const sessions = shift.mySessions && shift.mySessions.length > 0 ? shift.mySessions : att ? [att] : [];
+    const multiSession = sessions.length > 1;
 
-          // All sessions logged against this shift, oldest first. Falls back to the single latest
-          // session for older payloads that don't carry the full list.
-          const sessions = shift.mySessions && shift.mySessions.length > 0 ? shift.mySessions : att ? [att] : [];
-          const multiSession = sessions.length > 1;
-          const anyManualPending = sessions.some((s) => s.entryMethod === "Manual" && !s.isApproved);
+    const statusLabel = open ? "On shift" : completed ? "Completed" : "Upcoming";
+    const statusTone: "success" | "neutral" = open ? "success" : "neutral";
+    const dotColor = open ? appTheme.colors.success : completed ? appTheme.colors.textSubtle : appTheme.colors.primary;
 
-          const statusLabel = open ? "On shift" : completed ? "Completed" : "Upcoming";
-          const statusTone: "success" | "neutral" = open ? "success" : "neutral";
+    // One-line attendance summary; the per-session breakdown + variance live on the detail screen.
+    const attLine = multiSession
+      ? `${sessions.length} sessions · ${totalWorkedLabel(sessions)}`
+      : open
+        ? `Checked in ${clockTime(att!.checkInAt)}`
+        : completed
+          ? `${clockTime(att!.checkInAt)} → ${clockTime(att!.checkOutAt)} · ${workedLabel(att!.checkInAt, att!.checkOutAt!)}`
+          : null;
 
-          const dotColor = open ? appTheme.colors.success : completed ? appTheme.colors.textSubtle : appTheme.colors.primary;
+    return (
+      <Pressable
+        key={shift.id}
+        style={({ pressed }) => [ui.card, styles.myShiftCard, open ? styles.myShiftCardActive : null, pressed ? styles.myShiftCardPressed : null]}
+        onPress={() => navigation.navigate("MyShiftDetail", { shift })}
+        accessibilityRole="button"
+        accessibilityLabel={`${shift.shiftName || "Shift"} — ${statusLabel}. Tap for details.`}
+      >
+        <View style={styles.myShiftHeader}>
+          <View style={styles.myShiftTitleWrap}>
+            <View style={[styles.statusDot, { backgroundColor: dotColor }]} />
+            <Text style={styles.myShiftName} numberOfLines={1}>{shift.shiftName || "Shift"}</Text>
+          </View>
+          <StatusBadge label={statusLabel} tone={statusTone} />
+          <Ionicons name="chevron-forward" size={16} color={appTheme.colors.textSubtle} />
+        </View>
 
-          return (
-            <View key={shift.id} style={[ui.card, styles.myShiftCard, open ? styles.myShiftCardActive : null]}>
-              {/* Header: status dot + shift name + status chip */}
-              <View style={styles.myShiftHeader}>
-                <View style={styles.myShiftTitleWrap}>
-                  <View style={[styles.statusDot, { backgroundColor: dotColor }]} />
-                  <Text style={styles.myShiftName} numberOfLines={1}>{shift.shiftName || "Shift"}</Text>
-                </View>
-                <StatusBadge label={statusLabel} tone={statusTone} />
-              </View>
+        <View style={styles.myShiftMetaRow}>
+          <Ionicons name="time-outline" size={13} color={appTheme.colors.textMuted} />
+          <Text style={styles.infoChipText} numberOfLines={1}>
+            {timeRange(shift.startTime, shift.endTime)}{overnightSuffix(shift.shiftDate, shift.endDate)}
+            {attLine ? `  ·  ${attLine}` : ""}
+          </Text>
+        </View>
 
-              {/* Schedule chips */}
-              <View style={styles.chipLine}>
-                <View style={styles.infoChip}>
-                  <Ionicons name="time-outline" size={13} color={appTheme.colors.textMuted} />
-                  <Text style={styles.infoChipText}>{timeRange(shift.startTime, shift.endTime)}{overnightSuffix(shift.shiftDate, shift.endDate)}</Text>
-                </View>
-                {shift.position ? (
-                  <View style={styles.infoChip}>
-                    <Ionicons name="briefcase-outline" size={13} color={appTheme.colors.textMuted} />
-                    <Text style={styles.infoChipText}>{shift.position}</Text>
-                  </View>
-                ) : null}
-                {myAssignment?.reason ? (
-                  <View style={[styles.infoChip, styles.infoChipReason]}>
-                    <Ionicons name="pricetag-outline" size={13} color={appTheme.colors.textInfoStrong} />
-                    <Text style={[styles.infoChipText, styles.infoChipReasonText]}>{myAssignment.reason}</Text>
-                  </View>
-                ) : null}
-              </View>
-
-              {/* Attendance summary */}
-              {multiSession ? (
-                // Several sessions on one shift (e.g. clocked out and back in for a break) — list each
-                // plus the combined total so nothing looks lost.
-                <View style={styles.attBlock}>
-                  {sessions.map((s) => {
-                    const sOpen = !s.checkOutAt;
-                    return (
-                      <View key={s.id} style={styles.attMainRow}>
-                        <Ionicons
-                          name={sOpen ? "ellipse" : "checkmark-circle"}
-                          size={14}
-                          color={sOpen ? appTheme.colors.success : appTheme.colors.textMuted}
-                        />
-                        <Text style={styles.attMain}>
-                          {sOpen
-                            ? `Checked in ${clockTime(s.checkInAt)}`
-                            : `${clockTime(s.checkInAt)} → ${clockTime(s.checkOutAt)}`}
-                        </Text>
-                        {!sOpen ? <Text style={styles.attWorked}>{workedLabel(s.checkInAt, s.checkOutAt!)}</Text> : null}
-                      </View>
-                    );
-                  })}
-                  <View style={styles.attTotalRow}>
-                    <Text style={styles.attTotalLabel}>{sessions.length} sessions</Text>
-                    <Text style={styles.attWorked}>Total {totalWorkedLabel(sessions)}</Text>
-                  </View>
-                  {anyManualPending ? (
-                    <Text style={[styles.attNote, styles.attNotePending]}>Some sessions are pending approval</Text>
-                  ) : null}
-                </View>
-              ) : att ? (
-                <View style={styles.attBlock}>
-                  <View style={styles.attMainRow}>
-                    <Ionicons
-                      name={open ? "ellipse" : "checkmark-circle"}
-                      size={14}
-                      color={open ? appTheme.colors.success : appTheme.colors.textMuted}
-                    />
-                    <Text style={styles.attMain}>
-                      {open
-                        ? `Checked in ${clockTime(att.checkInAt)}`
-                        : `${clockTime(att.checkInAt)} → ${clockTime(att.checkOutAt)}`}
-                    </Text>
-                    {!open ? <Text style={styles.attWorked}>{workedLabel(att.checkInAt, att.checkOutAt!)}</Text> : null}
-                  </View>
-                  {(vIn && vIn.tone !== "on") || (vOut && vOut.tone !== "on") ? (
-                    <Text style={styles.attVariance}>
-                      {vIn && vIn.tone !== "on" ? <Text style={vTextStyle(vIn.tone)}>in {vIn.text}</Text> : null}
-                      {vIn && vIn.tone !== "on" && vOut && vOut.tone !== "on" ? "  ·  " : ""}
-                      {vOut && vOut.tone !== "on" ? <Text style={vTextStyle(vOut.tone)}>{vOut.text}</Text> : null}
-                    </Text>
-                  ) : null}
-                  {att.entryMethod === "Manual" ? (
-                    <Text style={[styles.attNote, att.isApproved ? null : styles.attNotePending]}>
-                      {att.isApproved ? "Manually entered" : "Manually entered · pending approval"}
-                    </Text>
-                  ) : null}
-                </View>
-              ) : null}
-
-              {/* Actions */}
-              <View style={styles.actionsRow}>
-                {open ? (
-                  <Pressable style={({ pressed }) => [styles.actBtn, styles.actBtnOut, pressed && styles.actBtnPressed]} onPress={() => checkOutMutation.mutate()} disabled={busy}>
-                    <Ionicons name="log-out-outline" size={16} color={appTheme.colors.onPrimary} />
-                    <Text style={styles.actBtnText}>{checkOutMutation.isPending ? "Checking out…" : "Check out"}</Text>
-                  </Pressable>
-                ) : (
-                  <Pressable
-                    style={({ pressed }) => [styles.actBtn, onAnotherShift ? styles.actBtnDisabled : null, pressed && !onAnotherShift ? styles.actBtnPressed : null]}
-                    onPress={() => checkInMutation.mutate(shift.id)}
-                    disabled={busy || onAnotherShift}
-                  >
-                    <Ionicons name="log-in-outline" size={16} color={appTheme.colors.onPrimary} />
-                    <Text style={styles.actBtnText}>{checkInMutation.isPending ? "Checking in…" : completed ? "Check in again" : "Check in"}</Text>
-                  </Pressable>
-                )}
-                <Pressable style={({ pressed }) => [styles.actGhost, pressed && styles.actGhostPressed]} onPress={() => openManual(shift)}>
-                  <Ionicons name="create-outline" size={16} color={appTheme.colors.primary} />
-                  <Text style={styles.actGhostText}>{att ? "Edit" : "Enter times"}</Text>
-                </Pressable>
-              </View>
-              {onAnotherShift ? <Text style={styles.mutedSmall}>Check out of your current shift first.</Text> : null}
-            </View>
+        {/* Primary daily action stays on the row; edit/manual + full breakdown live on the detail screen. */}
+        <View style={styles.actionsRow}>
+          {open ? (
+            <Pressable style={({ pressed }) => [styles.actBtn, styles.actBtnOut, pressed && styles.actBtnPressed]} onPress={() => checkOutMutation.mutate()} disabled={busy}>
+              <Ionicons name="log-out-outline" size={16} color={appTheme.colors.onPrimary} />
+              <Text style={styles.actBtnText}>{checkOutMutation.isPending ? "Checking out…" : "Check out"}</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              style={({ pressed }) => [styles.actBtn, onAnotherShift ? styles.actBtnDisabled : null, pressed && !onAnotherShift ? styles.actBtnPressed : null]}
+              onPress={() => checkInMutation.mutate(shift.id)}
+              disabled={busy || onAnotherShift}
+            >
+              <Ionicons name="log-in-outline" size={16} color={appTheme.colors.onPrimary} />
+              <Text style={styles.actBtnText}>{checkInMutation.isPending ? "Checking in…" : completed ? "Check in again" : "Check in"}</Text>
+            </Pressable>
+          )}
+        </View>
+        {onAnotherShift ? <Text style={styles.mutedSmall}>Check out of your current shift first.</Text> : null}
+      </Pressable>
     );
   };
 
@@ -611,9 +516,138 @@ export function MyShiftsScreen() {
           </View>
         ))}
       </View>
+    </ScreenContainer>
+  );
+}
 
-      {/* Manual time entry */}
-      <Modal visible={manualShift !== null} transparent animationType="fade" onRequestClose={() => setManualShift(null)}>
+// Detail page for a single shift: schedule, the full per-session attendance breakdown (with timing
+// variance), and the manual "enter/edit your hours" flow. Check in/out is the quick action on the list.
+export function MyShiftDetailScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const route = useRoute<RouteProp<MainStackParamList, "MyShiftDetail">>();
+  const { activeShopId, profile } = useAuth();
+  const shopId = activeShopId;
+  const queryClient = useQueryClient();
+  const shift = route.params.shift;
+
+  const [manualIn, setManualIn] = useState(() => (shift.myAttendance?.checkInAt ? toHHmm(shift.myAttendance.checkInAt) : shortTime(shift.startTime)));
+  const [manualOut, setManualOut] = useState(() => (shift.myAttendance?.checkOutAt ? toHHmm(shift.myAttendance.checkOutAt) : shortTime(shift.endTime)));
+  const [manualOpen, setManualOpen] = useState(false);
+
+  const att = shift.myAttendance;
+  const open = Boolean(att && !att.checkOutAt);
+  const completed = Boolean(att && att.checkOutAt);
+  const myAssignment = profile?.userId ? shift.assignees.find((a) => a.userId === profile.userId) : undefined;
+  const vIn = att ? variance(att.checkInAt, shift.shiftDate, shift.startTime, "in") : null;
+  const vOut = att?.checkOutAt ? variance(att.checkOutAt, shift.endDate, shift.endTime, "out") : null;
+  const sessions = shift.mySessions && shift.mySessions.length > 0 ? shift.mySessions : att ? [att] : [];
+  const multiSession = sessions.length > 1;
+  const anyManualPending = sessions.some((s) => s.entryMethod === "Manual" && !s.isApproved);
+
+  const statusLabel = open ? "On shift" : completed ? "Completed" : "Upcoming";
+  const statusTone: "success" | "neutral" = open ? "success" : "neutral";
+
+  const manualMutation = useMutation({
+    mutationFn: () => {
+      const { checkInAt, checkOutAt } = sessionIsos(shift.shiftDate, manualIn, manualOut);
+      return saveManualAttendance({ shopId: shopId as string, rotaShiftId: shift.id, checkInAt, checkOutAt: manualOut ? checkOutAt : undefined });
+    },
+    onSuccess: () => {
+      setManualOpen(false);
+      void queryClient.invalidateQueries({ queryKey: ["rota-my-shifts", shopId] });
+      void queryClient.invalidateQueries({ queryKey: ["rota-attendance", shopId] });
+      navigation.goBack();
+    },
+    onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't save times."),
+  });
+
+  return (
+    <ScreenContainer
+      footer={
+        <PrimaryButton
+          label={att ? "Edit your hours" : "Enter your hours"}
+          icon="create-outline"
+          onPress={() => setManualOpen(true)}
+        />
+      }
+    >
+      <View style={[ui.card, styles.myShiftCard]}>
+        <View style={styles.myShiftHeader}>
+          <Text style={styles.myShiftName} numberOfLines={1}>{shift.shiftName || "Shift"}</Text>
+          <StatusBadge label={statusLabel} tone={statusTone} />
+        </View>
+        <Text style={styles.mutedSmall}>{dayLabel(shift.shiftDate)}</Text>
+
+        <View style={styles.chipLine}>
+          <View style={styles.infoChip}>
+            <Ionicons name="time-outline" size={13} color={appTheme.colors.textMuted} />
+            <Text style={styles.infoChipText}>{timeRange(shift.startTime, shift.endTime)}{overnightSuffix(shift.shiftDate, shift.endDate)}</Text>
+          </View>
+          {shift.position ? (
+            <View style={styles.infoChip}>
+              <Ionicons name="briefcase-outline" size={13} color={appTheme.colors.textMuted} />
+              <Text style={styles.infoChipText}>{shift.position}</Text>
+            </View>
+          ) : null}
+          {myAssignment?.reason ? (
+            <View style={[styles.infoChip, styles.infoChipReason]}>
+              <Ionicons name="pricetag-outline" size={13} color={appTheme.colors.textInfoStrong} />
+              <Text style={[styles.infoChipText, styles.infoChipReasonText]}>{myAssignment.reason}</Text>
+            </View>
+          ) : null}
+        </View>
+      </View>
+
+      <View style={[ui.card, styles.myShiftCard]}>
+        <Text style={styles.sectionTitle}>Attendance</Text>
+        {multiSession ? (
+          <View style={styles.attBlock}>
+            {sessions.map((s) => {
+              const sOpen = !s.checkOutAt;
+              return (
+                <View key={s.id} style={styles.attMainRow}>
+                  <Ionicons name={sOpen ? "ellipse" : "checkmark-circle"} size={14} color={sOpen ? appTheme.colors.success : appTheme.colors.textMuted} />
+                  <Text style={styles.attMain}>
+                    {sOpen ? `Checked in ${clockTime(s.checkInAt)}` : `${clockTime(s.checkInAt)} → ${clockTime(s.checkOutAt)}`}
+                  </Text>
+                  {!sOpen ? <Text style={styles.attWorked}>{workedLabel(s.checkInAt, s.checkOutAt!)}</Text> : null}
+                </View>
+              );
+            })}
+            <View style={styles.attTotalRow}>
+              <Text style={styles.attTotalLabel}>{sessions.length} sessions</Text>
+              <Text style={styles.attWorked}>Total {totalWorkedLabel(sessions)}</Text>
+            </View>
+            {anyManualPending ? <Text style={[styles.attNote, styles.attNotePending]}>Some sessions are pending approval</Text> : null}
+          </View>
+        ) : att ? (
+          <View style={styles.attBlock}>
+            <View style={styles.attMainRow}>
+              <Ionicons name={open ? "ellipse" : "checkmark-circle"} size={14} color={open ? appTheme.colors.success : appTheme.colors.textMuted} />
+              <Text style={styles.attMain}>
+                {open ? `Checked in ${clockTime(att.checkInAt)}` : `${clockTime(att.checkInAt)} → ${clockTime(att.checkOutAt)}`}
+              </Text>
+              {!open ? <Text style={styles.attWorked}>{workedLabel(att.checkInAt, att.checkOutAt!)}</Text> : null}
+            </View>
+            {(vIn && vIn.tone !== "on") || (vOut && vOut.tone !== "on") ? (
+              <Text style={styles.attVariance}>
+                {vIn && vIn.tone !== "on" ? <Text style={vTextStyle(vIn.tone)}>in {vIn.text}</Text> : null}
+                {vIn && vIn.tone !== "on" && vOut && vOut.tone !== "on" ? "  ·  " : ""}
+                {vOut && vOut.tone !== "on" ? <Text style={vTextStyle(vOut.tone)}>{vOut.text}</Text> : null}
+              </Text>
+            ) : null}
+            {att.entryMethod === "Manual" ? (
+              <Text style={[styles.attNote, att.isApproved ? null : styles.attNotePending]}>
+                {att.isApproved ? "Manually entered" : "Manually entered · pending approval"}
+              </Text>
+            ) : null}
+          </View>
+        ) : (
+          <Text style={styles.muted}>No attendance recorded yet. Check in from My Shifts, or enter your hours below.</Text>
+        )}
+      </View>
+
+      <Modal visible={manualOpen} transparent animationType="fade" onRequestClose={() => setManualOpen(false)}>
         <View style={styles.sheetBackdrop} onStartShouldSetResponder={dismissKeyboardOnTap}>
           <View style={styles.sheetCard}>
             <View style={styles.sheetHeader}>
@@ -621,16 +655,12 @@ export function MyShiftsScreen() {
                 <Ionicons name="time-outline" size={22} color={appTheme.colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.modalTitleSm}>{manualShift?.myAttendance ? "Edit your hours" : "Log your hours"}</Text>
-                <Text style={styles.muted} numberOfLines={1}>
-                  {manualShift?.shiftName || "Shift"} · {dayLabel(manualShift?.shiftDate ?? "")}
-                </Text>
+                <Text style={styles.modalTitleSm}>{att ? "Edit your hours" : "Log your hours"}</Text>
+                <Text style={styles.muted} numberOfLines={1}>{shift.shiftName || "Shift"} · {dayLabel(shift.shiftDate)}</Text>
               </View>
             </View>
 
-            {manualShift ? (
-              <Text style={styles.mutedSmall}>Scheduled {timeRange(manualShift.startTime, manualShift.endTime)}</Text>
-            ) : null}
+            <Text style={styles.mutedSmall}>Scheduled {timeRange(shift.startTime, shift.endTime)}</Text>
 
             <View style={styles.row}>
               <View style={{ flex: 1 }}>
@@ -643,12 +673,12 @@ export function MyShiftsScreen() {
               </View>
             </View>
 
-            {manualShift && manualOut && manualOut !== manualIn ? (
+            {manualOut && manualOut !== manualIn ? (
               <Text style={styles.previewText}>
-                Total worked: {workedLabel(sessionIsos(manualShift.shiftDate, manualIn, manualOut).checkInAt, sessionIsos(manualShift.shiftDate, manualIn, manualOut).checkOutAt)}
+                Total worked: {workedLabel(sessionIsos(shift.shiftDate, manualIn, manualOut).checkInAt, sessionIsos(shift.shiftDate, manualIn, manualOut).checkOutAt)}
                 {isOvernight(manualIn, manualOut) ? "  · ends next day" : ""}
               </Text>
-            ) : manualShift && manualOut === manualIn ? (
+            ) : manualOut === manualIn ? (
               <Text style={[styles.mutedSmall, { color: appTheme.colors.danger }]}>Check-in and check-out can’t be the same.</Text>
             ) : null}
 
@@ -660,9 +690,9 @@ export function MyShiftsScreen() {
             <PrimaryButton
               label={manualMutation.isPending ? "Saving…" : "Save hours"}
               onPress={() => manualMutation.mutate()}
-              disabled={manualMutation.isPending || !manualShift || manualOut === manualIn}
+              disabled={manualMutation.isPending || manualOut === manualIn}
             />
-            <PrimaryButton label="Cancel" tone="neutral" onPress={() => setManualShift(null)} disabled={manualMutation.isPending} />
+            <PrimaryButton label="Cancel" tone="neutral" onPress={() => setManualOpen(false)} disabled={manualMutation.isPending} />
           </View>
         </View>
       </Modal>
@@ -4260,6 +4290,8 @@ const styles = StyleSheet.create({
   dayHeader: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 19, marginTop: 4 },
   myShiftCard: { gap: 12 },
   myShiftCardActive: { borderColor: appTheme.colors.success, borderWidth: 1 },
+  myShiftCardPressed: { opacity: 0.7 },
+  myShiftMetaRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   myShiftHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
   myShiftTitleWrap: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
