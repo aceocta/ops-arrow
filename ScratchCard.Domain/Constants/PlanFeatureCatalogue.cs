@@ -22,6 +22,7 @@ public static class PlanFeatureCatalogue
         FeatureKeys.StaffRota, FeatureKeys.StaffRotaBasic,
         FeatureKeys.NotificationsEmail,
         FeatureKeys.StoreSales, FeatureKeys.StoreSalesBasic, FeatureKeys.StoreSalesCounters,
+        FeatureKeys.CoinPodManagement, FeatureKeys.CoinPodBasic,
     };
 
     public static readonly IReadOnlyList<string> Growth = ((IEnumerable<string>)Starter).Concat(new[]
@@ -40,6 +41,7 @@ public static class PlanFeatureCatalogue
         FeatureKeys.StaffRotaManualApproval, FeatureKeys.StaffRotaShiftReminders, FeatureKeys.StaffRotaTimesheetExport,
         FeatureKeys.StaffRotaLabourCost, FeatureKeys.StaffRotaShiftSwap,
         FeatureKeys.LeaveManagement,
+        FeatureKeys.CoinPodAlerts,
     }).ToArray();
 
     public static readonly IReadOnlyList<string> Pro = ((IEnumerable<string>)Growth).Concat(new[]
@@ -57,6 +59,7 @@ public static class PlanFeatureCatalogue
         FeatureKeys.SupportPriority,
         FeatureKeys.StoreSalesAi,
         FeatureKeys.StoreSalesSettlement,
+        FeatureKeys.CoinPodReports,
     }).ToArray();
 
     public static IReadOnlyList<string>? ForTier(string? tier) => tier?.Trim().ToLowerInvariant() switch

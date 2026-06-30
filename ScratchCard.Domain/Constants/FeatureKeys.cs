@@ -15,6 +15,7 @@ public static class FeatureKeys
     public const string StaffRota = "StaffRota";
     public const string LeaveManagement = "LeaveManagement";
     public const string ProductExpiryManagement = "ProductExpiryManagement";
+    public const string CoinPodManagement = "CoinPodManagement";
 
     // --- Scratch Card Management ---
     public const string ScratchCardBasic = "scratch_card.basic";
@@ -83,6 +84,11 @@ public static class FeatureKeys
     public const string ProductExpiryReminders = "product_expiry.reminders";
     public const string ProductExpiryReports = "product_expiry.reports";
 
+    // --- Coin Pod (coin bag management) ---
+    public const string CoinPodBasic = "coin_pod.basic";
+    public const string CoinPodAlerts = "coin_pod.alerts";
+    public const string CoinPodReports = "coin_pod.reports";
+
     // --- Notifications ---
     public const string NotificationsEmail = "notifications.email";
     public const string NotificationsPush = "notifications.push";
@@ -123,6 +129,7 @@ public static class FeatureKeys
         new FeatureCatalogEntry(StaffRota, "Staff Rota", "Modules", "Top-level staff rota, attendance & timesheets module.", 8),
         new FeatureCatalogEntry(LeaveManagement, "Leave Management", "Modules", "Top-level staff leave / holiday management module.", 9),
         new FeatureCatalogEntry(ProductExpiryManagement, "Product Expiry Management", "Modules", "Top-level product expiry / waste-reduction module.", 10),
+        new FeatureCatalogEntry(CoinPodManagement, "Coin Pod", "Modules", "Top-level coin bag stock management module.", 11),
 
         // Scratch Card.
         new FeatureCatalogEntry(ScratchCardBasic, "Basic Scratch Card", "Scratch Card", null, 10),
@@ -189,6 +196,11 @@ public static class FeatureKeys
         new FeatureCatalogEntry(ProductExpiryReminders, "Expiry reminders", "Product Expiry", "Push / email / WhatsApp expiry alerts & daily worklist digest.", 102),
         new FeatureCatalogEntry(ProductExpiryReports, "Waste & loss reports", "Product Expiry", "Binned-vs-saved scoreboard and estimated loss reports.", 103),
 
+        // Coin Pod.
+        new FeatureCatalogEntry(CoinPodBasic, "Basic Coin Pod", "Coin Pod", "Coin bag config, stock, notes↔coins swaps, adjustments & history.", 110),
+        new FeatureCatalogEntry(CoinPodAlerts, "Low-stock alerts", "Coin Pod", "Push / in-app alerts when a coin bag hits its stock limit.", 111),
+        new FeatureCatalogEntry(CoinPodReports, "Coin reports", "Coin Pod", "Coin movement, stock summary and alert history reports.", 112),
+
         // Notifications.
         new FeatureCatalogEntry(NotificationsEmail, "Email notifications", "Notifications", null, 60),
         new FeatureCatalogEntry(NotificationsPush, "Push notifications", "Notifications", null, 61),
@@ -221,6 +233,7 @@ public static class FeatureKeys
         new FeatureCatalogEntry(StaffRota,              "Staff Rota",   "Modules", "Staff rota, check-in/out, attendance approvals, timesheets.", 8),
         new FeatureCatalogEntry(LeaveManagement,        "Leave Management", "Modules", "Holiday / sick / unpaid leave requests, approvals, entitlements.", 9),
         new FeatureCatalogEntry(ProductExpiryManagement, "Product Expiry", "Modules", "Reduce waste: track expiry, act before items are binned.", 10),
+        new FeatureCatalogEntry(CoinPodManagement,       "Coin Pod",     "Modules", "Track coin bag stock, swap notes↔coins, low-stock alerts.", 11),
     };
 
     // Modules that start OFF for a newly created shop — the owner opts in via Feature Toggles when
@@ -277,6 +290,10 @@ public static class FeatureKeys
             [ProductExpiryManagement] = new[]
             {
                 ProductExpiryBasic, ProductExpiryAttachments, ProductExpiryReminders, ProductExpiryReports,
+            },
+            [CoinPodManagement] = new[]
+            {
+                CoinPodBasic, CoinPodAlerts, CoinPodReports,
             },
         };
 

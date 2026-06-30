@@ -107,6 +107,14 @@ export type MainStackParamList = {
   ProductExpiryDetail: { id: string };
   ProductCategories: undefined;
   ProductExpiryScoreboard: undefined;
+  CoinPodDashboard: undefined;
+  CoinBagConfig: undefined;
+  CoinNotesToCoins: undefined;
+  CoinCoinsToNotes: undefined;
+  CoinAdjustment: undefined;
+  CoinAlerts: undefined;
+  CoinHistory: undefined;
+  CoinReports: undefined;
   AuditLog: undefined;
   NotificationLog: undefined;
   Settings: undefined;

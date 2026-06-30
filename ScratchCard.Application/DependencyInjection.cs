@@ -31,6 +31,7 @@ public static class DependencyInjection
         services.AddScoped<ITillGroupDefinitionService, TillGroupDefinitionService>();
         services.AddScoped<IProductCategoryService, ProductCategoryService>();
         services.AddScoped<IProductExpiryService, ProductExpiryService>();
+        services.AddScoped<ICoinPodService, CoinPodService>();
         services.AddScoped<ITillShopFieldService, TillShopFieldService>();
         services.AddScoped<ITillReportDefaultsService, TillReportDefaultsService>();
         services.AddScoped<IStaffPayRateService, StaffPayRateService>();

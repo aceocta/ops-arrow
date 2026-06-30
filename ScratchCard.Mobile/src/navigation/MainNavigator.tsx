@@ -68,6 +68,13 @@ import { ProductExpiryDetailScreen } from "../features/product-expiry/ProductExp
 import { ProductCategoriesScreen } from "../features/product-expiry/ProductCategoriesScreen";
 import { ProductExpiryScoreboardScreen } from "../features/product-expiry/ProductExpiryScoreboardScreen";
 import { ProductBarcodeScannerScreen } from "../features/product-expiry/ProductBarcodeScannerScreen";
+import { CoinPodDashboardScreen } from "../features/coin-pod/CoinPodDashboardScreen";
+import { CoinBagConfigScreen } from "../features/coin-pod/CoinBagConfigScreen";
+import { CoinNotesToCoinsScreen, CoinCoinsToNotesScreen } from "../features/coin-pod/CoinSwapScreen";
+import { CoinAdjustmentScreen } from "../features/coin-pod/CoinAdjustmentScreen";
+import { CoinAlertsScreen } from "../features/coin-pod/CoinAlertsScreen";
+import { CoinHistoryScreen } from "../features/coin-pod/CoinHistoryScreen";
+import { CoinReportsScreen } from "../features/coin-pod/CoinReportsScreen";
 import { UserManagementScreen, ShopConfigurationScreen, AppConfigurationScreen, CompanyManagementScreen, ShopManagementScreen, SettingsScreen } from "../features/settings/SettingsScreens";
 import { NotificationPreferencesScreen } from "../features/settings/NotificationPreferencesScreen";
 import { ShopFeatureTogglesScreen } from "../features/settings/ShopFeatureTogglesScreen";
@@ -111,7 +118,7 @@ type MenuItem = {
   requiredFeature?: string;
 };
 
-type DrawerSectionKey = "scratchCard" | "temperature" | "refusals" | "visitors" | "compliance" | "shifts" | "till" | "productExpiry" | "shop" | "admin";
+type DrawerSectionKey = "scratchCard" | "temperature" | "refusals" | "visitors" | "compliance" | "shifts" | "till" | "productExpiry" | "coinPod" | "shop" | "admin";
 
 const Drawer = createDrawerNavigator<MainDrawerParamList>();
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -367,6 +374,18 @@ const productExpiryItems: MenuItem[] = [
   { label: "Waste Scoreboard", screen: "ProductExpiryScoreboard", icon: "stats-chart-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"], requiredFeature: "product_expiry.reports" },
 ];
 
+// --- Coin Pod ---
+const coinPodItems: MenuItem[] = [
+  { label: "Coin Pod", screen: "CoinPodDashboard", icon: "cash-outline", requiredFeature: "coin_pod.basic" },
+  { label: "Notes → Coins", screen: "CoinNotesToCoins", icon: "swap-horizontal-outline", requiredFeature: "coin_pod.basic" },
+  { label: "Coins → Notes", screen: "CoinCoinsToNotes", icon: "swap-horizontal-outline", requiredFeature: "coin_pod.basic" },
+  { label: "Manual Adjustment", screen: "CoinAdjustment", icon: "create-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"], requiredFeature: "coin_pod.basic" },
+  { label: "Bag Configuration", screen: "CoinBagConfig", icon: "settings-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"], requiredFeature: "coin_pod.basic" },
+  { label: "Alert Centre", screen: "CoinAlerts", icon: "alert-circle-outline", requiredFeature: "coin_pod.basic" },
+  { label: "Transaction History", screen: "CoinHistory", icon: "time-outline", requiredFeature: "coin_pod.basic" },
+  { label: "Reports", screen: "CoinReports", icon: "bar-chart-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"], requiredFeature: "coin_pod.reports" },
+];
+
 // Which drawer section owns each menu screen — used to auto-expand the section
 // containing the screen the user is currently on when the drawer opens.
 const SECTION_ITEMS: Record<DrawerSectionKey, MenuItem[]> = {
@@ -378,6 +397,7 @@ const SECTION_ITEMS: Record<DrawerSectionKey, MenuItem[]> = {
   shifts: shiftItems,
   till: tillItems,
   productExpiry: productExpiryItems,
+  coinPod: coinPodItems,
   shop: shopItems,
   admin: adminItems,
 };
@@ -610,6 +630,14 @@ function MainStackScreens() {
       <Stack.Screen name="ProductExpiryDetail" component={ProductExpiryDetailScreen} options={{ title: "Product" }} />
       <Stack.Screen name="ProductCategories" component={ProductCategoriesScreen} options={{ title: "Product Categories" }} />
       <Stack.Screen name="ProductExpiryScoreboard" component={ProductExpiryScoreboardScreen} options={{ title: "Waste Scoreboard" }} />
+      <Stack.Screen name="CoinPodDashboard" component={CoinPodDashboardScreen} options={{ title: "Coin Pod" }} />
+      <Stack.Screen name="CoinBagConfig" component={CoinBagConfigScreen} options={{ title: "Coin Bag Configuration" }} />
+      <Stack.Screen name="CoinNotesToCoins" component={CoinNotesToCoinsScreen} options={{ title: "Notes to Coins" }} />
+      <Stack.Screen name="CoinCoinsToNotes" component={CoinCoinsToNotesScreen} options={{ title: "Coins to Notes" }} />
+      <Stack.Screen name="CoinAdjustment" component={CoinAdjustmentScreen} options={{ title: "Manual Adjustment" }} />
+      <Stack.Screen name="CoinAlerts" component={CoinAlertsScreen} options={{ title: "Alert Centre" }} />
+      <Stack.Screen name="CoinHistory" component={CoinHistoryScreen} options={{ title: "Transaction History" }} />
+      <Stack.Screen name="CoinReports" component={CoinReportsScreen} options={{ title: "Coin Reports" }} />
       <Stack.Screen name="AuditLog" component={AuditLogScreen} options={{ title: "Audit Log" }} />
       <Stack.Screen name="NotificationLog" component={NotificationLogScreen} options={{ title: "Notification Log" }} />
       <Stack.Screen name="StoreSales" component={CaptureTillReportScreen} options={{ title: "Store Sales" }} />
@@ -834,6 +862,7 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
     shifts: false,
     till: false,
     productExpiry: false,
+    coinPod: false,
     shop: false,
     admin: false,
   });
@@ -1184,6 +1213,22 @@ function DrawerMenuContent(props: DrawerContentComponentProps) {
           features={features}
           onPress={goTo}
           expanded={expandedSections.productExpiry}
+          onToggle={toggleSection}
+          activeScreen={activeScreen}
+        />
+
+        <DrawerSection
+          sectionKey="coinPod"
+          title="Coin Pod"
+          icon="cash-outline"
+          accentColor={appTheme.colors.primary}
+          accentSoftBackground={appTheme.colors.surfaceBrandSoft}
+          items={coinPodItems}
+          isCompanyOwner={isCompanyOwner}
+          userRoles={userRoles}
+          features={features}
+          onPress={goTo}
+          expanded={expandedSections.coinPod}
           onToggle={toggleSection}
           activeScreen={activeScreen}
         />

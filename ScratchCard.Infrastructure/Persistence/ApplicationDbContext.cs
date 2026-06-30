@@ -116,6 +116,12 @@ public class ApplicationDbContext : DbContext
     public DbSet<ProductExpiryReminderRule> ProductExpiryReminderRules => Set<ProductExpiryReminderRule>();
     public DbSet<ProductBatch> ProductBatches => Set<ProductBatch>();
     public DbSet<ProductExpiryAction> ProductExpiryActions => Set<ProductExpiryAction>();
+    public DbSet<CoinDenomination> CoinDenominations => Set<CoinDenomination>();
+    public DbSet<ShopCoinBagConfig> ShopCoinBagConfigs => Set<ShopCoinBagConfig>();
+    public DbSet<ShopCoinBagStock> ShopCoinBagStocks => Set<ShopCoinBagStock>();
+    public DbSet<CoinBagTransaction> CoinBagTransactions => Set<CoinBagTransaction>();
+    public DbSet<CoinBagAlert> CoinBagAlerts => Set<CoinBagAlert>();
+    public DbSet<CoinBagAlertRecipient> CoinBagAlertRecipients => Set<CoinBagAlertRecipient>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -160,6 +166,62 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<ProductExpiryAction>(entity =>
         {
             entity.HasIndex(x => x.ProductBatchId);
+        });
+
+        // --- Coin Pod (coin bag management) ---
+        modelBuilder.Entity<CoinDenomination>(entity =>
+        {
+            entity.Property(x => x.Name).HasMaxLength(60).IsRequired();
+            entity.Property(x => x.Code).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.DisplayLabel).HasMaxLength(10).IsRequired();
+            entity.Property(x => x.CoinValue).HasPrecision(18, 2);
+            entity.HasIndex(x => x.Code).IsUnique();
+        });
+
+        modelBuilder.Entity<ShopCoinBagConfig>(entity =>
+        {
+            entity.Property(x => x.BagValue).HasPrecision(18, 2);
+            entity.HasIndex(x => new { x.ShopId, x.CoinDenominationId, x.IsDeleted }).IsUnique();
+            entity.HasOne(x => x.CoinDenomination).WithMany().HasForeignKey(x => x.CoinDenominationId);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId);
+        });
+
+        modelBuilder.Entity<ShopCoinBagStock>(entity =>
+        {
+            entity.Property(x => x.CurrentTotalValue).HasPrecision(18, 2);
+            entity.HasIndex(x => new { x.ShopId, x.CoinDenominationId, x.IsDeleted }).IsUnique();
+            entity.HasOne(x => x.CoinDenomination).WithMany().HasForeignKey(x => x.CoinDenominationId);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId);
+        });
+
+        modelBuilder.Entity<CoinBagTransaction>(entity =>
+        {
+            entity.Property(x => x.TransactionNumber).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.BagValue).HasPrecision(18, 2);
+            entity.Property(x => x.TotalCoinValue).HasPrecision(18, 2);
+            entity.Property(x => x.NoteAmount).HasPrecision(18, 2);
+            entity.Property(x => x.DifferenceAmount).HasPrecision(18, 2);
+            entity.Property(x => x.Comment).HasMaxLength(1000);
+            entity.Property(x => x.CancellationReason).HasMaxLength(1000);
+            entity.HasIndex(x => new { x.ShopId, x.PerformedOn });
+            entity.HasIndex(x => x.TransactionNumber);
+            entity.HasOne(x => x.CoinDenomination).WithMany().HasForeignKey(x => x.CoinDenominationId);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId);
+        });
+
+        modelBuilder.Entity<CoinBagAlert>(entity =>
+        {
+            entity.Property(x => x.Message).HasMaxLength(500);
+            entity.HasIndex(x => new { x.ShopId, x.CoinDenominationId, x.Status });
+            entity.HasOne(x => x.CoinDenomination).WithMany().HasForeignKey(x => x.CoinDenominationId);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId);
+        });
+
+        modelBuilder.Entity<CoinBagAlertRecipient>(entity =>
+        {
+            entity.Property(x => x.RoleName).HasMaxLength(50);
+            entity.HasIndex(x => new { x.ShopId, x.CoinDenominationId });
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId);
         });
 
         modelBuilder.Entity<User>(entity =>

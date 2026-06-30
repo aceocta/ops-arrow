@@ -37,6 +37,37 @@ public static class SeedDataInitializer
         await SeedTillFieldDefinitionsAsync(dbContext, cancellationToken);
         await SeedTillGroupDefinitionsAsync(dbContext, cancellationToken);
         await SeedProductCategoriesAsync(dbContext, cancellationToken);
+        await SeedCoinDenominationsAsync(dbContext, cancellationToken);
+    }
+
+    /// <summary>Seeds the eight supported UK coin denominations (1p … £2) as global read-only
+    /// reference data on first run. Idempotent by denomination code.</summary>
+    private static async Task SeedCoinDenominationsAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var existing = await dbContext.CoinDenominations.AsNoTracking()
+            .Select(c => c.Code)
+            .ToListAsync(cancellationToken);
+        var have = new HashSet<string>(existing, StringComparer.OrdinalIgnoreCase);
+
+        var now = DateTimeOffset.UtcNow;
+        var toAdd = CoinDenominationCatalogue.Defaults
+            .Where(c => !have.Contains(c.Code))
+            .Select(c => new CoinDenomination
+            {
+                Name = c.Name,
+                Code = c.Code,
+                DisplayLabel = c.DisplayLabel,
+                CoinValue = c.CoinValue,
+                SortOrder = c.SortOrder,
+                IsActive = true,
+                CreatedOn = now,
+            })
+            .ToList();
+        if (toAdd.Count > 0)
+        {
+            await dbContext.CoinDenominations.AddRangeAsync(toAdd, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
     }
 
     /// <summary>Seeds the built-in product categories (Dairy, Bakery, …) with their default expiry
