@@ -1647,35 +1647,33 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                         </Text>
                       </View>
                     </View>
+                  </Pressable>
+                  {/* Action sits inline on the right (no separate row); closed shifts show the chevron. */}
+                  {canCloseShift ? (
+                    <PrimaryButton
+                      label="Close shift"
+                      tone="success"
+                      size="sm"
+                      icon="checkmark-circle-outline"
+                      onPress={() => navigation.navigate("ShiftDetails", { shiftId: shift.id, shopId: shift.shopId })}
+                      disabled={!canManageShifts}
+                    />
+                  ) : canStartScheduledShift ? (
+                    <PrimaryButton
+                      label={startScheduledShiftMutation.isPending ? "Starting…" : "Start shift"}
+                      size="sm"
+                      icon="play-circle-outline"
+                      onPress={() => openStartScheduledShiftConfirmation(shift.id, shift.shiftName)}
+                      disabled={!canManageShifts || startScheduledShiftMutation.isPending}
+                    />
+                  ) : (
                     <Ionicons
                       name="chevron-forward"
                       size={20}
                       color={appTheme.colors.textSubtle}
                       style={styles.shiftChevron}
                     />
-                  </Pressable>
-                  {canCloseShift ? (
-                    <View style={styles.shiftActionRow}>
-                      <PrimaryButton
-                        label="Close shift"
-                        tone="success"
-                        size="sm"
-                        icon="checkmark-circle-outline"
-                        onPress={() => navigation.navigate("ShiftDetails", { shiftId: shift.id, shopId: shift.shopId })}
-                        disabled={!canManageShifts}
-                      />
-                    </View>
-                  ) : canStartScheduledShift ? (
-                    <View style={styles.shiftActionRow}>
-                      <PrimaryButton
-                        label={startScheduledShiftMutation.isPending ? "Starting…" : "Start shift"}
-                        size="sm"
-                        icon="play-circle-outline"
-                        onPress={() => openStartScheduledShiftConfirmation(shift.id, shift.shiftName)}
-                        disabled={!canManageShifts || startScheduledShiftMutation.isPending}
-                      />
-                    </View>
-                  ) : null}
+                  )}
                 </View>
               </View>
             );
@@ -2988,22 +2986,23 @@ const styles = StyleSheet.create({
   },
   shiftCardContent: {
     flex: 1,
-    paddingHorizontal: appTheme.spacing.sm,
-    paddingVertical: appTheme.spacing.sm,
-    gap: appTheme.spacing.xs,
-  },
-  shiftDetailsTapArea: {
     flexDirection: "row",
     alignItems: "center",
-    gap: appTheme.spacing.xs,
-    minHeight: 56,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.xs,
+    gap: appTheme.spacing.sm,
+  },
+  shiftDetailsTapArea: {
+    flex: 1,
+    justifyContent: "center",
+    minHeight: 44,
   },
   shiftDetailsTapAreaPressed: {
     opacity: 0.7,
   },
   shiftBody: {
-    flex: 1,
-    gap: 4,
+    alignSelf: "stretch",
+    gap: 2,
   },
   shiftNameBlock: {
     flex: 1,

@@ -1,12 +1,14 @@
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using Google.Apis.Auth.OAuth2;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ScratchCard.Application.Common.Interfaces;
 using ScratchCard.Application.Common.Models;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace ScratchCard.Infrastructure.Services;
 
@@ -24,15 +26,17 @@ public class FirebasePushSender : IPushSender
     private readonly ILogger<FirebasePushSender> _logger;
     private readonly SemaphoreSlim _credentialLock = new(1, 1);
     private GoogleCredential? _credential;
-
+    private readonly IConfiguration _configuration;
     public FirebasePushSender(
         HttpClient httpClient,
         IOptions<FirebasePushOptions> options,
-        ILogger<FirebasePushSender> logger)
+        ILogger<FirebasePushSender> logger,
+        IConfiguration configuration)
     {
         _httpClient = httpClient;
         _options = options.Value;
         _logger = logger;
+        _configuration = configuration;
     }
 
     public async Task SendAsync(NotificationMessage message, CancellationToken cancellationToken = default)
@@ -125,6 +129,44 @@ public class FirebasePushSender : IPushSender
         return token;
     }
 
+    //private async Task<GoogleCredential> ResolveCredentialAsync(CancellationToken cancellationToken)
+    //{
+    //    if (_credential is not null)
+    //    {
+    //        return _credential;
+    //    }
+
+    //    await _credentialLock.WaitAsync(cancellationToken);
+    //    try
+    //    {
+    //        if (_credential is not null)
+    //        {
+    //            return _credential;
+    //        }
+
+    //        GoogleCredential credential;
+    //        if (!string.IsNullOrWhiteSpace(_options.ServiceAccountJson))
+    //        {
+    //            credential = GoogleCredential.FromJson(_options.ServiceAccountJson);
+    //        }
+    //        else if (!string.IsNullOrWhiteSpace(_options.ServiceAccountFilePath))
+    //        {
+    //            credential = GoogleCredential.FromFile(_options.ServiceAccountFilePath);
+    //        }
+    //        else
+    //        {
+    //            credential = await GoogleCredential.GetApplicationDefaultAsync(cancellationToken);
+    //        }
+
+    //        _credential = credential.CreateScoped(FirebaseMessagingScope);
+    //        return _credential;
+    //    }
+    //    finally
+    //    {
+    //        _credentialLock.Release();
+    //    }
+    //}
+
     private async Task<GoogleCredential> ResolveCredentialAsync(CancellationToken cancellationToken)
     {
         if (_credential is not null)
@@ -141,13 +183,27 @@ public class FirebasePushSender : IPushSender
             }
 
             GoogleCredential credential;
-            if (!string.IsNullOrWhiteSpace(_options.ServiceAccountJson))
+            var base64 = _configuration["FirebasePush:CredentialsBase64"] ?? _configuration["Firebase:CredentialsBase64"];
+
+            if (!string.IsNullOrWhiteSpace(base64))
+            {
+                var json = Encoding.UTF8.GetString(Convert.FromBase64String(base64));
+                credential = GoogleCredential.FromJson(json);
+            }
+            else if (!string.IsNullOrWhiteSpace(_options.ServiceAccountJson))
             {
                 credential = GoogleCredential.FromJson(_options.ServiceAccountJson);
             }
             else if (!string.IsNullOrWhiteSpace(_options.ServiceAccountFilePath))
             {
-                credential = GoogleCredential.FromFile(_options.ServiceAccountFilePath);
+                var credentialPath = _options.ServiceAccountFilePath;
+
+                if (!Path.IsPathRooted(credentialPath))
+                {
+                    credentialPath = Path.Combine(AppContext.BaseDirectory, credentialPath);
+                }
+
+                credential = GoogleCredential.FromFile(credentialPath);
             }
             else
             {
@@ -162,7 +218,6 @@ public class FirebasePushSender : IPushSender
             _credentialLock.Release();
         }
     }
-
     private sealed class FirebaseSendRequest
     {
         [JsonPropertyName("message")]

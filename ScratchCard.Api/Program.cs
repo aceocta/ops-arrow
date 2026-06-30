@@ -209,8 +209,27 @@ if (app.Environment.IsDevelopment())
 }
 
 // Liveness probe — no DB, no auth. Use this to tell "app is up" from "DB is down".
-app.MapGet("/api/health", () => Results.Ok(new { status = "ok", utc = DateTimeOffset.UtcNow }));
-
+//app.MapGet("/api/health", () => Results.Ok(new { status = "ok", utc = DateTimeOffset.UtcNow }));
+app.MapWhen(
+    context => context.Request.Path.StartsWithSegments("/api/health"),
+    healthApp =>
+    {
+        healthApp.Run(async context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status200OK;
+            await context.Response.WriteAsync("Healthy");
+        });
+    });
+app.MapWhen(
+    context => context.Request.Path.StartsWithSegments("/health"),
+    healthApp =>
+    {
+        healthApp.Run(async context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status200OK;
+            await context.Response.WriteAsync("Healthy");
+        });
+    });
 app.UseCors("AllowFrontend");
 
 app.UseAuthentication();
