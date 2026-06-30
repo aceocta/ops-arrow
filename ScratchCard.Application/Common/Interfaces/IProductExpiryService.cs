@@ -25,6 +25,9 @@ public interface IProductExpiryService
     Task<IReadOnlyCollection<ProductBatchDto>> ListAsync(Guid shopId, ProductExpiryStatus? status, CancellationToken cancellationToken = default);
     Task<ProductBatchDto> GetAsync(Guid id, CancellationToken cancellationToken = default);
     Task<ProductBatchDto> RecordActionAsync(RecordProductActionRequest request, CancellationToken cancellationToken = default);
+    /// <summary>Flat action history feed over a date range (by action PerformedOn), newest first. Includes
+    /// actions on fully-cleared batches (remaining = 0), unlike <see cref="ListAsync"/>.</summary>
+    Task<IReadOnlyCollection<ProductActionHistoryDto>> GetActionHistoryAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
     /// <summary>Binned-vs-saved KPI over a date range (by action PerformedOn), plus per-disposition breakdown.</summary>
     Task<ProductExpiryScoreboardDto> GetScoreboardAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
 }

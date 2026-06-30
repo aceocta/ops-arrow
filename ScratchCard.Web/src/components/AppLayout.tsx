@@ -33,6 +33,8 @@ import {
   BarChart3,
   Ticket,
   SlidersHorizontal,
+  AlertTriangle,
+  History,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -71,6 +73,13 @@ const NAV: NavGroup[] = [
       { to: "/compliance", label: "Compliance", icon: ClipboardCheck, feature: "ComplianceChecklist" },
       { to: "/refusals", label: "Refusals", icon: ShieldX, feature: "RefusalNoIdNoSale" },
       { to: "/visitors", label: "Visitors", icon: DoorOpen, feature: "VisitorsLog" },
+    ],
+  },
+  {
+    group: "Product Expiry",
+    items: [
+      { to: "/product-expiry", label: "Expiry Alerts", icon: AlertTriangle, feature: "ProductExpiryManagement" },
+      { to: "/product-expiry/history", label: "Product History", icon: History, feature: "ProductExpiryManagement" },
     ],
   },
   {
@@ -228,7 +237,7 @@ export default function AppLayout() {
               <NavLink
                 key={i.to}
                 to={i.to}
-                end={i.to === "/" || i.to === "/till"}
+                end={i.to === "/" || i.to === "/till" || i.to === "/product-expiry"}
                 onClick={() => setSidebarOpen(false)}
                 className={({ isActive }) =>
                   clsx(

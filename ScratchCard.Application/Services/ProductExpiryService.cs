@@ -274,6 +274,71 @@ public sealed class ProductExpiryService : IProductExpiryService
         return await GetAsync(batch.Id, cancellationToken);
     }
 
+    public async Task<IReadOnlyCollection<ProductActionHistoryDto>> GetActionHistoryAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
+    {
+        // Same access as List (operational + product_expiry.basic): the history is "the list, without the
+        // remaining>0 filter, flattened to actions" — nothing more sensitive than a batch's own action log.
+        await EnsureAccessAsync(shopId, cancellationToken);
+        if (to < from) throw new AppException("validation_failed", "To date must be on or after from date.", 400);
+
+        var start = new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+        var end = new DateTimeOffset(to.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+
+        var catNames = await _categories.Query().AsNoTracking()
+            .Where(c => !c.IsDeleted && (c.ShopId == null || c.ShopId == shopId))
+            .ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken);
+
+        // Join actions to their batch (ignores RemainingQuantity, so fully-cleared batches are included).
+        var rows = await (from a in _actions.Query().AsNoTracking()
+                          join b in _batches.Query().AsNoTracking() on a.ProductBatchId equals b.Id
+                          where b.ShopId == shopId && !b.IsDeleted && a.PerformedOn >= start && a.PerformedOn < end
+                          orderby a.PerformedOn descending
+                          select new
+                          {
+                              a.Id,
+                              a.ProductBatchId,
+                              a.ActionType,
+                              a.Quantity,
+                              a.Comment,
+                              a.PerformedByUserId,
+                              a.PerformedOn,
+                              b.ProductName,
+                              b.ProductCategoryId,
+                              b.Barcode,
+                              b.ExpiryDate,
+                              b.DateType,
+                              b.UnitCost,
+                              b.UnitPrice,
+                          }).ToListAsync(cancellationToken);
+
+        return rows.Select(r =>
+        {
+            var isSave = ProductExpiryMath.IsSaveAction(r.ActionType);
+            var value = isSave
+                ? ProductExpiryMath.SavedValue(r.Quantity, r.UnitPrice)
+                : ProductExpiryMath.EstimatedLoss(r.Quantity, r.UnitCost);
+            return new ProductActionHistoryDto
+            {
+                Id = r.Id,
+                ProductBatchId = r.ProductBatchId,
+                ProductName = r.ProductName,
+                ProductCategoryId = r.ProductCategoryId,
+                CategoryName = catNames.GetValueOrDefault(r.ProductCategoryId, ""),
+                Barcode = r.Barcode,
+                ActionType = r.ActionType.ToString(),
+                Quantity = r.Quantity,
+                Comment = r.Comment,
+                IsSave = isSave,
+                ReducesStock = ProductExpiryMath.ReducesStock(r.ActionType),
+                Value = value,
+                ExpiryDate = r.ExpiryDate,
+                DateType = r.DateType,
+                PerformedByUserId = r.PerformedByUserId,
+                PerformedOn = r.PerformedOn,
+            };
+        }).ToList();
+    }
+
     public async Task<ProductExpiryScoreboardDto> GetScoreboardAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
     {
         await _shopMembership.EnsureCurrentUserShopRoleAsync(shopId, ManageRoles, cancellationToken);

@@ -114,6 +114,33 @@ public class RecordProductActionRequest
     public string? Comment { get; set; }
 }
 
+/// <summary>One recorded action in the flat history feed. Unlike the product list (active stock only),
+/// this includes actions on batches that have since been fully cleared (remaining = 0) — so a 100%
+/// binned/sold batch still shows. Newest first.</summary>
+public class ProductActionHistoryDto
+{
+    public Guid Id { get; set; }
+    public Guid ProductBatchId { get; set; }
+    public string ProductName { get; set; } = string.Empty;
+    public Guid ProductCategoryId { get; set; }
+    public string CategoryName { get; set; } = string.Empty;
+    public string? Barcode { get; set; }
+    /// <summary><see cref="ProductExpiryActionType"/> name (e.g. "Discount", "Dispose", "MarkSold").</summary>
+    public string ActionType { get; set; } = string.Empty;
+    public int Quantity { get; set; }
+    public string? Comment { get; set; }
+    /// <summary>True for every action except Dispose (kept the item out of the bin).</summary>
+    public bool IsSave { get; set; }
+    /// <summary>True when the action removed units from the shelf (sold/donated/returned/disposed).</summary>
+    public bool ReducesStock { get; set; }
+    /// <summary>Estimated saved value (unit price) for saves, or estimated loss (unit cost) for disposals; 0 when unpriced.</summary>
+    public decimal Value { get; set; }
+    public DateOnly ExpiryDate { get; set; }
+    public ProductDateType DateType { get; set; }
+    public Guid PerformedByUserId { get; set; }
+    public DateTimeOffset PerformedOn { get; set; }
+}
+
 // ---------------------------------------------------------------------------
 // Binned-vs-saved scoreboard (the KPI)
 // ---------------------------------------------------------------------------

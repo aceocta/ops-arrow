@@ -41,6 +41,10 @@ public class ProductExpiryController : BaseApiController
     public async Task<IActionResult> RecordAction([FromBody] RecordProductActionRequest request, CancellationToken cancellationToken)
         => Success(await _service.RecordActionAsync(request, cancellationToken));
 
+    [HttpGet("history")]
+    public async Task<IActionResult> History([FromQuery] Guid shopId, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken cancellationToken)
+        => Success(await _service.GetActionHistoryAsync(shopId, from, to, cancellationToken));
+
     [HttpGet("scoreboard")]
     [Authorize(Roles = RoleNames.ManagementAndAbove)]
     public async Task<IActionResult> Scoreboard([FromQuery] Guid shopId, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken cancellationToken)
