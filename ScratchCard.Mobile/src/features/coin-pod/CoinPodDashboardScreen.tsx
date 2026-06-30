@@ -151,13 +151,13 @@ function CoinRow({ row, onPress }: { row: CoinBagStockRow; onPress?: () => void 
 }
 
 const styles = StyleSheet.create({
-  summary: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  summary: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: appTheme.spacing.sm },
   summaryLabel: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12 },
   summaryValue: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 24, marginTop: 2 },
   alertPill: { flexDirection: "row", alignItems: "center", gap: 6 },
   alertText: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   alertTextActive: { color: appTheme.colors.danger },
-  actions: { flexDirection: "row", flexWrap: "wrap", gap: appTheme.spacing.sm, marginTop: appTheme.spacing.sm },
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: appTheme.spacing.sm },
   action: {
     flexGrow: 1, flexBasis: "45%", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
     borderWidth: 1, borderColor: appTheme.colors.primary, borderRadius: appTheme.radius.sm,
