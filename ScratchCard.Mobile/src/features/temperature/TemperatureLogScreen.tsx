@@ -1819,8 +1819,8 @@ const styles = StyleSheet.create({
   },
   // Container for the Daily Readings section: header + one card per unit.
   readingsSection: {
-    gap: appTheme.spacing.md,
-    marginTop:appTheme.spacing.lg
+    gap: appTheme.spacing.sm,
+    marginTop: appTheme.spacing.sm,
   },
   heroCard: {
     backgroundColor: appTheme.colors.primary,
@@ -2090,7 +2090,7 @@ const styles = StyleSheet.create({
   },
   matrixCard: {
     gap: appTheme.spacing.sm,
-    marginTop: appTheme.spacing.lg,
+    marginTop: appTheme.spacing.sm,
     backgroundColor: appTheme.colors.surface,
     borderRadius: appTheme.radius.md,
     borderWidth: 1,
@@ -2124,29 +2124,29 @@ const styles = StyleSheet.create({
     width: 104,
     paddingLeft: 14,
     paddingRight: 8,
-    paddingVertical:14,
+    paddingVertical: 8,
     justifyContent: "center",
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: appTheme.colors.borderSoft,
   },
   matrixCornerCell: {
-    height: 45,
+    height: 42,
     backgroundColor: appTheme.colors.surfaceMuted,
   },
   matrixUnitBodyCell: {
-    height: 60,
+    height: 54,
   },
   matrixUnitText: {
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 14,
+    lineHeight: 18,
   },
   matrixUnitType: {
     color: appTheme.colors.textMuted,
     fontFamily: appTheme.fonts.body,
-    fontSize: 10,
-    lineHeight: 13,
+    fontSize: 11,
+    lineHeight: 14,
     marginTop: 1,
   },
   matrixHeaderLine: {
@@ -2154,7 +2154,7 @@ const styles = StyleSheet.create({
   },
   matrixSlotHeaderCell: {
     width: 80,
-    height: 45,
+    height: 42,
     paddingHorizontal: 4,
     backgroundColor: appTheme.colors.surfaceMuted,
     alignItems: "center",
@@ -2168,8 +2168,8 @@ const styles = StyleSheet.create({
   matrixHeaderText: {
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 12,
-    lineHeight: 15,
+    fontSize: 13,
+    lineHeight: 16,
   },
   matrixHeaderSubText: {
     color: appTheme.colors.textMuted,
@@ -2179,11 +2179,11 @@ const styles = StyleSheet.create({
   },
   matrixBodyRow: {
     flexDirection: "row",
-    height: 60,
+    height: 54,
   },
   matrixCell: {
     width: 80,
-    height: 64,
+    height: 54,
     paddingHorizontal: 4,
     alignItems: "center",
     justifyContent: "center",
@@ -2199,27 +2199,27 @@ const styles = StyleSheet.create({
   matrixCellNa: {
     color: appTheme.colors.textSubtle,
     fontFamily: appTheme.fonts.body,
-    fontSize: 13,
-    lineHeight: 16,
+    fontSize: 14,
+    lineHeight: 17,
   },
   matrixCellTemp: {
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 13,
-    lineHeight: 16,
+    fontSize: 15,
+    lineHeight: 18,
   },
   matrixCellTempNeutral: {
     color: appTheme.colors.text,
   },
   matrixCellState: {
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 12,
-    lineHeight: 15,
+    fontSize: 14,
+    lineHeight: 17,
   },
   matrixCellMeta: {
     color: appTheme.colors.textMuted,
     fontFamily: appTheme.fonts.body,
-    fontSize: 10,
-    lineHeight: 12,
+    fontSize: 11,
+    lineHeight: 13,
   },
   matrixCellMetaRow: {
     flexDirection: "row",
