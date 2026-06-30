@@ -24,7 +24,7 @@ import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
 type OperationOption = {
-  key: "scratchCard" | "scratchCardGames" | "temperature" | "refusals" | "checklist" | "compliance" | "visitors" | "shifts" | "till" | "productExpiry";
+  key: "scratchCard" | "scratchCardGames" | "temperature" | "refusals" | "checklist" | "compliance" | "visitors" | "shifts" | "till" | "productExpiry" | "coinPod";
   title: string;
   route: keyof MainStackParamList;
   icon: keyof typeof Ionicons.glyphMap;
@@ -129,6 +129,15 @@ const operationOptions: OperationOption[] = [
     iconColor: appTheme.colors.warning,
     iconBg: appTheme.colors.surfaceWarningSoft,
     requiredFeature: "product_expiry.basic",
+  },
+  {
+    key: "coinPod",
+    title: "Coin Pod",
+    route: "CoinPodDashboard",
+    icon: "cash-outline",
+    iconColor: appTheme.colors.primary,
+    iconBg: appTheme.colors.surfaceBrandMuted,
+    requiredFeature: "coin_pod.basic",
   }
 ];
 

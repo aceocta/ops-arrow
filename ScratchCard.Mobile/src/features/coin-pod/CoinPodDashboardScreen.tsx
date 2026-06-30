@@ -29,12 +29,12 @@ function statusTone(status: CoinBagStatus): "neutral" | "warning" | "danger" | "
   }
 }
 
-function statusLabel(status: CoinBagStatus) {
+function statusShort(status: CoinBagStatus) {
   switch (status) {
-    case "OutOfStock": return "Out of stock";
-    case "LowStock": return "Low stock";
-    case "Disabled": return "Disabled";
-    default: return "Normal";
+    case "OutOfStock": return "Out";
+    case "LowStock": return "Low";
+    case "Disabled": return "Off";
+    default: return "OK";
   }
 }
 
@@ -59,6 +59,11 @@ export function CoinPodDashboardScreen() {
   });
 
   const data = query.data;
+  const activeItems = data?.items.filter((r) => r.isActive) ?? [];
+  const totalDefault = activeItems.reduce((s, r) => s + r.openingBagQuantity, 0);
+  const totalCurrent = activeItems.reduce((s, r) => s + r.currentBagQuantity, 0);
+  const totalDefaultValue = activeItems.reduce((s, r) => s + r.openingBagQuantity * r.bagValue, 0);
+  const totalCurrentValue = data?.totalCoinValue ?? 0;
 
   return (
     <ScreenContainer
@@ -73,25 +78,40 @@ export function CoinPodDashboardScreen() {
       ) : (
         <>
           <View style={[ui.card, styles.summary]}>
-            <View>
-              <Text style={styles.summaryLabel}>Total coin bag value</Text>
-              <Text style={styles.summaryValue}>{money(data.totalCoinValue)}</Text>
+            <View style={styles.summaryTop}>
+              <View>
+                <Text style={styles.summaryLabel}>Total coin bag value</Text>
+                <Text style={styles.summaryValue}>{money(data.totalCoinValue)}</Text>
+              </View>
+              <Pressable
+                style={styles.alertPill}
+                onPress={() => navigation.navigate("CoinAlerts")}
+                accessibilityRole="button"
+                accessibilityLabel="View coin alerts"
+              >
+                <Ionicons
+                  name={data.activeAlertCount > 0 ? "alert-circle" : "alert-circle-outline"}
+                  size={18}
+                  color={data.activeAlertCount > 0 ? appTheme.colors.danger : appTheme.colors.textSubtle}
+                />
+                <Text style={[styles.alertText, data.activeAlertCount > 0 ? styles.alertTextActive : null]}>
+                  {data.activeAlertCount > 0 ? `${data.activeAlertCount} active` : "No alerts"}
+                </Text>
+              </Pressable>
             </View>
-            <Pressable
-              style={styles.alertPill}
-              onPress={() => navigation.navigate("CoinAlerts")}
-              accessibilityRole="button"
-              accessibilityLabel="View coin alerts"
-            >
-              <Ionicons
-                name={data.activeAlertCount > 0 ? "alert-circle" : "alert-circle-outline"}
-                size={18}
-                color={data.activeAlertCount > 0 ? appTheme.colors.danger : appTheme.colors.textSubtle}
-              />
-              <Text style={[styles.alertText, data.activeAlertCount > 0 ? styles.alertTextActive : null]}>
-                {data.activeAlertCount > 0 ? `${data.activeAlertCount} active` : "No alerts"}
-              </Text>
-            </Pressable>
+            <View style={styles.summaryStats}>
+              <View style={styles.stat}>
+                <Text style={styles.statLabel}>Default</Text>
+                <Text style={styles.statValue}>{totalDefault} bags</Text>
+                <Text style={styles.statSub}>{money(totalDefaultValue)}</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.stat}>
+                <Text style={styles.statLabel}>Current</Text>
+                <Text style={styles.statValue}>{totalCurrent} bags</Text>
+                <Text style={styles.statSub}>{money(totalCurrentValue)}</Text>
+              </View>
+            </View>
           </View>
 
           <View style={styles.actions}>
@@ -112,14 +132,28 @@ export function CoinPodDashboardScreen() {
           {data.items.length === 0 ? (
             <EmptyState icon="cash-outline" title="No coin denominations" message="Coin bag configuration will appear here." />
           ) : (
-            <View style={styles.list}>
+            <View style={[ui.card, styles.tableCard]}>
+              <View style={[styles.tr, styles.headRow]}>
+                <Text style={[styles.th, styles.colCoin]}>Coin</Text>
+                <Text style={[styles.th, styles.colNum]}>Default</Text>
+                <Text style={[styles.th, styles.colNum]}>Current</Text>
+                <Text style={[styles.th, styles.colNum]}>Value</Text>
+                <View style={styles.colStatus}><Text style={[styles.th, styles.thRight]}>Status</Text></View>
+              </View>
               {data.items.map((row) => (
-                <CoinRow
+                <CoinTableRow
                   key={row.coinDenominationId}
                   row={row}
                   onPress={canManage ? () => navigation.navigate("CoinBagConfig") : undefined}
                 />
               ))}
+              <View style={[styles.tr, styles.totalRow]}>
+                <Text style={[styles.tdCoin, styles.colCoin]}>Total</Text>
+                <Text style={[styles.td, styles.tdMuted, styles.colNum]}>{totalDefault}</Text>
+                <Text style={[styles.td, styles.tdStrong, styles.colNum]}>{totalCurrent}</Text>
+                <Text style={[styles.td, styles.tdStrong, styles.colNum]}>{money(data.totalCoinValue)}</Text>
+                <View style={styles.colStatus} />
+              </View>
             </View>
           )}
         </>
@@ -128,32 +162,40 @@ export function CoinPodDashboardScreen() {
   );
 }
 
-function CoinRow({ row, onPress }: { row: CoinBagStockRow; onPress?: () => void }) {
+function CoinTableRow({ row, onPress }: { row: CoinBagStockRow; onPress?: () => void }) {
   return (
     <Pressable
-      style={[ui.listItem, styles.row, !row.isActive ? styles.rowMuted : null]}
+      style={[styles.tr, styles.rowCell, !row.isActive ? styles.rowMuted : null]}
       onPress={onPress}
       disabled={!onPress}
       accessibilityRole={onPress ? "button" : undefined}
-      accessibilityLabel={`${row.displayLabel} coin bags, ${statusLabel(row.status)}`}
+      accessibilityLabel={`${row.displayLabel} coin bags, ${row.currentBagQuantity} bags, ${statusShort(row.status)}`}
     >
-      <View style={styles.coinBadge}>
-        <Text style={styles.coinBadgeText}>{row.displayLabel}</Text>
+      <Text style={[styles.tdCoin, styles.colCoin]}>{row.displayLabel}</Text>
+      <Text style={[styles.td, styles.tdMuted, styles.colNum]}>{row.openingBagQuantity}</Text>
+      <Text style={[styles.td, styles.tdStrong, styles.colNum]}>{row.currentBagQuantity}</Text>
+      <Text style={[styles.td, styles.colNum]}>{money(row.currentTotalValue)}</Text>
+      <View style={[styles.colStatus, styles.statusCell]}>
+        <StatusBadge label={statusShort(row.status)} tone={statusTone(row.status)} />
       </View>
-      <View style={styles.rowMain}>
-        <Text style={styles.rowTitle} numberOfLines={1}>{row.currentBagQuantity} bag{row.currentBagQuantity === 1 ? "" : "s"} · {money(row.currentTotalValue)}</Text>
-        <Text style={styles.rowMeta} numberOfLines={1}>Bag {money(row.bagValue)} · alert ≤ {row.stockAlertLimit}</Text>
-      </View>
-      <StatusBadge label={statusLabel(row.status)} tone={statusTone(row.status)} />
-      {onPress ? <Ionicons name="chevron-forward" size={16} color={appTheme.colors.textSubtle} /> : null}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  summary: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: appTheme.spacing.sm },
+  summary: { paddingVertical: appTheme.spacing.sm, gap: appTheme.spacing.sm },
+  summaryTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   summaryLabel: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12 },
   summaryValue: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 24, marginTop: 2 },
+  summaryStats: {
+    flexDirection: "row", alignItems: "center",
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.border, paddingTop: appTheme.spacing.sm,
+  },
+  stat: { flex: 1 },
+  statLabel: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 11 },
+  statValue: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 18, marginTop: 1 },
+  statSub: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, marginTop: 1 },
+  statDivider: { width: StyleSheet.hairlineWidth, alignSelf: "stretch", backgroundColor: appTheme.colors.border, marginHorizontal: appTheme.spacing.md },
   alertPill: { flexDirection: "row", alignItems: "center", gap: 6 },
   alertText: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   alertTextActive: { color: appTheme.colors.danger },
@@ -164,15 +206,22 @@ const styles = StyleSheet.create({
     paddingVertical: 12, backgroundColor: appTheme.colors.surfaceBrandSoft,
   },
   actionText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
-  list: { gap: appTheme.spacing.xs, marginTop: appTheme.spacing.sm },
-  row: { flexDirection: "row", alignItems: "center", gap: appTheme.spacing.sm },
+
+  // Table
+  tableCard: { paddingVertical: appTheme.spacing.sm, gap: 0 },
+  tr: { flexDirection: "row", alignItems: "center", paddingVertical: 10, gap: appTheme.spacing.xs },
+  headRow: { paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: appTheme.colors.border },
+  rowCell: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: appTheme.colors.border },
+  totalRow: { borderTopWidth: 1.5, borderTopColor: appTheme.colors.border, marginTop: 2, paddingTop: 12 },
   rowMuted: { opacity: 0.55 },
-  coinBadge: {
-    width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center",
-    backgroundColor: appTheme.colors.surfaceBrandSoft, borderWidth: 1, borderColor: appTheme.colors.primary,
-  },
-  coinBadgeText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.heading, fontSize: 13 },
-  rowMain: { flex: 1, gap: 2 },
-  rowTitle: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 15, lineHeight: 19 },
-  rowMeta: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, lineHeight: 16 },
+  th: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11, textTransform: "uppercase" },
+  thRight: { textAlign: "right" },
+  td: { color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 15, textAlign: "right" },
+  tdMuted: { color: appTheme.colors.textMuted },
+  tdStrong: { fontFamily: appTheme.fonts.bodyMedium },
+  tdCoin: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 16 },
+  colCoin: { flex: 1.1 },
+  colNum: { flex: 1, textAlign: "right" },
+  colStatus: { flex: 1.2, alignItems: "flex-end" },
+  statusCell: { flexDirection: "row", justifyContent: "flex-end" },
 });

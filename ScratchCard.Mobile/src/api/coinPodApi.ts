@@ -12,6 +12,7 @@ export type CoinBagStockRow = {
   name: string;
   sortOrder: number;
   bagValue: number;
+  openingBagQuantity: number;
   currentBagQuantity: number;
   currentTotalValue: number;
   stockAlertLimit: number;

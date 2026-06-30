@@ -216,6 +216,7 @@ public sealed class CoinPodService : ICoinPodService
                 Name = denom.Name,
                 SortOrder = denom.SortOrder,
                 BagValue = config.BagValue,
+                OpeningBagQuantity = config.OpeningBagQuantity,
                 CurrentBagQuantity = qty,
                 CurrentTotalValue = stock?.CurrentTotalValue ?? 0,
                 StockAlertLimit = config.StockAlertLimit,

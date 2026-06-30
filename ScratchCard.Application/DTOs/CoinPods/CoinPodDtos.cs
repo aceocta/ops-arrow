@@ -23,6 +23,8 @@ public class CoinBagStockRowDto
     public string Name { get; set; } = string.Empty;
     public int SortOrder { get; set; }
     public decimal BagValue { get; set; }
+    /// <summary>The configured default (opening) bag quantity for this denomination.</summary>
+    public int OpeningBagQuantity { get; set; }
     public int CurrentBagQuantity { get; set; }
     public decimal CurrentTotalValue { get; set; }
     public int StockAlertLimit { get; set; }
