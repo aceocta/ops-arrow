@@ -201,11 +201,6 @@ export function AddProductScreen() {
   const qtyValue = Number(quantity);
   const hasQty = Number.isFinite(qtyValue) && qtyValue > 0;
   const canSave = productName.trim().length > 0 && Boolean(categoryId) && hasQty && expiryDate.length > 0;
-  const missing = [
-    productName.trim() ? null : "name",
-    categoryId ? null : "category",
-    hasQty ? null : "quantity",
-  ].filter(Boolean) as string[];
 
   // Soft warning, not a block: you may legitimately log already-expired stock as waste, but an
   // accidental past date (typo / wrong year off OCR) is worth flagging before saving.
@@ -237,9 +232,24 @@ export function AddProductScreen() {
     <ScreenContainer
       footer={
         <View style={styles.footer}>
-          {missing.length > 0 ? <Text style={styles.footerHint}>Add {missing.join(", ")} to save</Text> : null}
+          <Pressable
+            style={styles.scanRow}
+            onPress={() => navigation.navigate("ProductBarcodeScanner")}
+            accessibilityRole="button"
+            accessibilityLabel="Scan product barcode"
+          >
+            <Ionicons name="barcode-outline" size={18} color={appTheme.colors.primary} />
+            <Text style={styles.scanText} numberOfLines={1}>{barcode ? `Barcode: ${barcode}` : "Scan barcode (optional)"}</Text>
+            {barcode ? (
+              <Pressable onPress={() => { setBarcode(""); setScanHint(null); setLookupMissed(false); }} hitSlop={8} accessibilityLabel="Clear barcode">
+                <Ionicons name="close-circle" size={18} color={appTheme.colors.textSubtle} />
+              </Pressable>
+            ) : (
+              <Ionicons name="chevron-forward" size={16} color={appTheme.colors.textSubtle} />
+            )}
+          </Pressable>
           <PrimaryButton
-            label={addMutation.isPending ? "Saving…" : "Add product"}
+            label={addMutation.isPending ? "Saving…" : "Save product"}
             // Imperative guard, not just `disabled`: on RN two taps can fire before the button
             // re-renders disabled, and POST /product-expiry isn't idempotent (would create 2 batches).
             onPress={() => { if (canSave && !addMutation.isPending) addMutation.mutate(); }}
@@ -249,22 +259,6 @@ export function AddProductScreen() {
       }
     >
       <View style={[ui.card, styles.card]}>
-        <Pressable
-          style={styles.scanRow}
-          onPress={() => navigation.navigate("ProductBarcodeScanner")}
-          accessibilityRole="button"
-          accessibilityLabel="Scan product barcode"
-        >
-          <Ionicons name="barcode-outline" size={20} color={appTheme.colors.primary} />
-          <Text style={styles.scanText}>{barcode ? `Barcode: ${barcode}` : "Scan barcode (optional)"}</Text>
-          {barcode ? (
-            <Pressable onPress={() => { setBarcode(""); setScanHint(null); setLookupMissed(false); }} hitSlop={8} accessibilityLabel="Clear barcode">
-              <Ionicons name="close-circle" size={18} color={appTheme.colors.textSubtle} />
-            </Pressable>
-          ) : (
-            <Ionicons name="chevron-forward" size={16} color={appTheme.colors.textSubtle} />
-          )}
-        </Pressable>
         {scanHint ? <Text style={styles.scanHint}>{scanHint}</Text> : null}
 
         {lookupMissed && !productName.trim() ? (
@@ -301,44 +295,25 @@ export function AddProductScreen() {
           accessibilityLabel="Product name"
         />
 
-        <View style={styles.labelRow}>
-          <Text style={styles.fieldLabel}>Category</Text>
-          {canManageCategories ? (
+        <Text style={styles.fieldLabel}>Category</Text>
+        {categoriesQuery.isLoading ? (
+          <LoadingState message="Loading categories…" inline />
+        ) : categories.length === 0 ? (
+          canManageCategories ? (
             <Pressable
-              style={styles.scanDateBtn}
+              style={[styles.chip, styles.chipNew]}
               onPress={() => setCategoryModalOpen(true)}
               accessibilityRole="button"
               accessibilityLabel="Create a new category"
             >
-              <Ionicons name="add-circle-outline" size={14} color={appTheme.colors.primary} />
-              <Text style={styles.scanDateText}>New category</Text>
+              <Ionicons name="add" size={14} color={appTheme.colors.primary} />
+              <Text style={styles.chipText}>New category</Text>
             </Pressable>
-          ) : null}
-        </View>
-        {categoriesQuery.isLoading ? (
-          <LoadingState message="Loading categories…" inline />
-        ) : categories.length === 0 ? (
-          <Text style={styles.note}>
-            {canManageCategories
-              ? "No categories yet — tap “New category” to add your first one."
-              : "No categories set up yet. Ask a manager to add one."}
-          </Text>
+          ) : (
+            <Text style={styles.note}>No categories set up yet. Ask a manager to add one.</Text>
+          )
         ) : (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-            {categories.map((c) => {
-              const selected = c.id === categoryId;
-              return (
-                <Pressable
-                  key={c.id}
-                  style={[styles.chip, selected ? styles.chipSelected : null]}
-                  onPress={() => setCategoryId(c.id)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                >
-                  <Text style={[styles.chipText, selected ? styles.chipTextSelected : null]}>{c.name}</Text>
-                </Pressable>
-              );
-            })}
+          <View style={styles.categoryRow}>
             {canManageCategories ? (
               <Pressable
                 style={[styles.chip, styles.chipNew]}
@@ -350,7 +325,23 @@ export function AddProductScreen() {
                 <Text style={styles.chipText}>New</Text>
               </Pressable>
             ) : null}
-          </ScrollView>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll} contentContainerStyle={styles.chips}>
+              {categories.map((c) => {
+                const selected = c.id === categoryId;
+                return (
+                  <Pressable
+                    key={c.id}
+                    style={[styles.chip, selected ? styles.chipSelected : null]}
+                    onPress={() => setCategoryId(c.id)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                  >
+                    <Text style={[styles.chipText, selected ? styles.chipTextSelected : null]}>{c.name}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
         )}
 
         <Text style={styles.fieldLabel}>Date type</Text>
@@ -388,7 +379,10 @@ export function AddProductScreen() {
             <FloatingLabelInput label="Batch # (optional)" value={batchNumber} onChangeText={setBatchNumber} />
           </View>
         </View>
+      </View>
 
+      <View style={[ui.card, styles.card]}>
+        <Text style={styles.eyebrow}>Pricing (optional)</Text>
         <View style={styles.row}>
           <View style={styles.cell}>
             <FloatingLabelInput label="Unit cost (optional)" prefix="£" value={unitCost} onChangeText={(v) => setUnitCost(sanitizeMoney(v))} keyboardType="decimal-pad" />
@@ -428,8 +422,13 @@ export function AddProductScreen() {
 
 const styles = StyleSheet.create({
   card: { gap: appTheme.spacing.sm },
+  divider: { height: StyleSheet.hairlineWidth, backgroundColor: appTheme.colors.borderSoft, marginVertical: 2 },
+  eyebrow: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, letterSpacing: 0.4, textTransform: "uppercase" },
   fieldLabel: { color: appTheme.colors.text, fontSize: 13, lineHeight: 16, fontFamily: appTheme.fonts.bodyMedium, marginTop: 2 },
   chips: { gap: appTheme.spacing.xs, paddingVertical: 2 },
+  // Row that pins the "+ New" chip on the left; the category chips scroll horizontally beside it.
+  categoryRow: { flexDirection: "row", alignItems: "center", gap: appTheme.spacing.xs },
+  categoryScroll: { flex: 1 },
   chip: {
     borderWidth: 1, borderColor: appTheme.colors.primary, borderRadius: appTheme.radius.pill,
     paddingHorizontal: 12, paddingVertical: 7,
@@ -455,7 +454,7 @@ const styles = StyleSheet.create({
   scanText: { flex: 1, color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
   scanHint: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.body, fontSize: 12, lineHeight: 16 },
   labelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 2 },
-  scanDateBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 2, paddingHorizontal: 4 },
+  scanDateBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4, paddingHorizontal: 10, borderRadius: appTheme.radius.pill, backgroundColor: appTheme.colors.surfaceInfoSoft },
   scanDateText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
   nameInput: {
     backgroundColor: appTheme.colors.surfaceMuted,
