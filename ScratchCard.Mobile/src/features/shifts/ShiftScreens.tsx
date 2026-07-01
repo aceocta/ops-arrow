@@ -723,7 +723,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   title: { fontSize: 24, lineHeight: 28, fontFamily: appTheme.fonts.heading, color: appTheme.colors.text },
-  sectionTitle: { fontSize: 17, lineHeight: 22, fontFamily: appTheme.fonts.bodyMedium, color: appTheme.colors.text },
+  sectionTitle: { fontSize: 18, lineHeight: 23, fontFamily: appTheme.fonts.bodyMedium, color: appTheme.colors.text },
   fieldLabel: {
     color: appTheme.colors.text,
     fontSize: 13,
@@ -781,8 +781,8 @@ const styles = StyleSheet.create({
   choiceChipText: {
     color: appTheme.colors.primary,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 12,
-    lineHeight: 14,
+    fontSize: 13,
+    lineHeight: 16,
   },
   choiceChipTextSelected: {
     color: appTheme.colors.textOnDark,
@@ -812,7 +812,7 @@ const styles = StyleSheet.create({
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surfaceMuted,
     padding: 10,
-    gap: 4,
+    gap: 8,
   },
   itemTitle: {
     color: appTheme.colors.text,
@@ -861,7 +861,7 @@ const styles = StyleSheet.create({
     borderRadius: appTheme.radius.sm,
     backgroundColor: appTheme.colors.surface,
     paddingHorizontal: appTheme.spacing.sm,
-    paddingVertical: appTheme.spacing.xs,
+    paddingVertical: appTheme.spacing.sm,
     gap: appTheme.spacing.xs,
   },
   serialPackLabelWrap: {
@@ -878,14 +878,14 @@ const styles = StyleSheet.create({
   serialPackNum: {
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 14,
-    lineHeight: 17,
+    fontSize: 16,
+    lineHeight: 19,
   },
   serialPackSub: {
     color: appTheme.colors.textMuted,
     fontFamily: appTheme.fonts.body,
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 12,
+    lineHeight: 15,
   },
   // Thin vertical rule between the display/pack label and the serial input (matches closing screen).
   vDivider: {
@@ -905,9 +905,11 @@ const styles = StyleSheet.create({
   serialConfirmInput: {
     flex: 1,
     minWidth: 0,
-    height: 34,
+    height: 40,
     paddingVertical: 4,
     textAlign: "center",
+    fontSize: 17,
+    fontFamily: appTheme.fonts.bodyMedium,
   },
   serialConfirmChip: {
     marginLeft: "auto",
