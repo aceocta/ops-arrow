@@ -589,7 +589,22 @@ function MainStackScreens() {
       <Stack.Screen name="RefusalEntryDetails" component={RefusalEntryDetailsScreen} options={{ title: "Refusal Details" }} />
       <Stack.Screen name="RefusalEntryEdit" component={RefusalEntryEditScreen} options={{ title: "Edit Refusal" }} />
       <Stack.Screen name="VisitorLog" component={VisitorLogScreen} options={{ title: "Visitors Log" }} />
-      <Stack.Screen name="VisitorLogEntryEdit" component={VisitorLogEntryEditScreen} options={{ title: "Visitor" }} />
+      <Stack.Screen
+        name="VisitorLogEntryEdit"
+        component={VisitorLogEntryEditScreen}
+        options={({ navigation, route }) => ({
+          title: "Visitor",
+          headerRight: () => (
+            <HeaderRightControls
+              routeName={route.name}
+              hideShortcuts
+              onMenu={() => navigation.getParent()?.dispatch(DrawerActions.toggleDrawer())}
+              onHome={() => navigation.navigate("BestEntry")}
+              onSettings={() => navigation.navigate("Settings")}
+            />
+          ),
+        })}
+      />
       <Stack.Screen name="VisitorLogReport" component={VisitorLogReportScreen} options={{ title: "Visitor Report" }} />
       <Stack.Screen name="ScratchCardPacks" component={ScratchCardPacksScreen} options={{ title: "Card Packs" }} />
       <Stack.Screen
