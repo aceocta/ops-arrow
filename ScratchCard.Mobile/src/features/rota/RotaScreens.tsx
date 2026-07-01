@@ -1650,18 +1650,10 @@ export function RotaManageScreen() {
     ) ?? null;
   }, [templatesQuery.data, rotaQuery.data, draft.shiftDate, draft.shiftTemplateId]);
 
-  return (
-    <ScreenContainer
-      refreshControl={
-        <RefreshControl
-          refreshing={rotaQuery.isRefetching}
-          onRefresh={() => void rotaQuery.refetch()}
-          tintColor={appTheme.colors.primary}
-          colors={[appTheme.colors.primary]}
-        />
-      }
-    >
-      {/* Week navigator */}
+  // Pinned header — week navigator + day/staff toggle + search stay at the top (sticky) while the
+  // week's shifts scroll beneath them.
+  const weekNavHeader = (
+    <View style={styles.stickyHeader}>
       <View style={[ui.card, styles.weekNav]}>
         <View style={styles.weekNavRow}>
           <Pressable
@@ -1720,14 +1712,6 @@ export function RotaManageScreen() {
         ) : null}
       </View>
 
-      <PrimaryButton
-        label={generateMutation.isPending ? "Generating…" : "Auto-generate this week"}
-        icon="sparkles-outline"
-        onPress={() => void confirmGenerate()}
-        disabled={!shopId || generateMutation.isPending}
-      />
-
-      {/* View toggle for the week below — by day (default) or by staff. */}
       <View style={styles.segment}>
         {(["day", "staff"] as const).map((v) => {
           const active = rotaView === v;
@@ -1746,7 +1730,6 @@ export function RotaManageScreen() {
         })}
       </View>
 
-      {/* Free-text filter for the week below — names and assignment reasons. */}
       <View style={[styles.searchBox, styles.rotaSearchBox]}>
         <Ionicons name="search-outline" size={16} color={appTheme.colors.textMuted} />
         <TextInput
@@ -1768,6 +1751,31 @@ export function RotaManageScreen() {
           </Pressable>
         ) : null}
       </View>
+    </View>
+  );
+
+  return (
+    <ScreenContainer
+      header={weekNavHeader}
+      refreshControl={
+        <RefreshControl
+          refreshing={rotaQuery.isRefetching}
+          onRefresh={() => void rotaQuery.refetch()}
+          tintColor={appTheme.colors.primary}
+          colors={[appTheme.colors.primary]}
+        />
+      }
+    >
+      {/* Auto-generate is a bootstrap for an empty week — once the rota has shifts it's hidden so it
+          can't wipe/duplicate an existing rota; the manager edits shifts directly instead. */}
+      {!rotaQuery.isLoading && weekShiftCount === 0 ? (
+        <PrimaryButton
+          label={generateMutation.isPending ? "Generating…" : "Auto-generate this week"}
+          icon="sparkles-outline"
+          onPress={() => void confirmGenerate()}
+          disabled={!shopId || generateMutation.isPending}
+        />
+      ) : null}
 
       {rotaQuery.isLoading ? <SkeletonList count={5} /> : null}
 
@@ -4090,15 +4098,16 @@ const styles = StyleSheet.create({
   shiftCard: { flexDirection: "row", alignItems: "center", gap: 10 },
   shiftDateBadge: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceBrandSoft },
   shiftDateText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
-  shiftTime: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 15 },
+  shiftTime: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 16 },
 
   // Weekly rota grid
-  weekNav: { gap: 10, paddingVertical: 12 },
+  stickyHeader: { gap: 8 },
+  weekNav: { gap: 6, paddingVertical: 8 },
   weekNavRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   weekNavBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceBrandSoft },
   weekNavBtnPressed: { opacity: 0.6 },
-  weekNavLabel: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 16 },
-  weekNavHint: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, marginTop: 1 },
+  weekNavLabel: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 18 },
+  weekNavHint: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 13, marginTop: 1 },
   weekStatsRow: { flexDirection: "row", justifyContent: "center", flexWrap: "wrap", gap: 6 },
   weekStatChip: {
     flexDirection: "row",
@@ -4111,7 +4120,7 @@ const styles = StyleSheet.create({
   },
   weekStatChipWarning: { backgroundColor: appTheme.colors.surfaceWarningSoft },
   weekStatChipSuccess: { backgroundColor: appTheme.colors.surfaceSuccessSoft },
-  weekStatText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
+  weekStatText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   weekStatTextWarning: { color: appTheme.colors.textWarningStrong },
   weekStatTextSuccess: { color: appTheme.colors.textSuccessStrong },
   externalInput: {
@@ -4151,16 +4160,16 @@ const styles = StyleSheet.create({
   dayCardToday: { borderWidth: 1, borderColor: appTheme.colors.primary },
   dayCardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   dayCardHeadLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
-  dayName: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 15 },
+  dayName: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 16 },
   dayNameToday: { color: appTheme.colors.primary },
-  dayDate: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, marginTop: 1 },
+  dayDate: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 13, marginTop: 1 },
   todayPill: {
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: appTheme.radius.pill,
     backgroundColor: appTheme.colors.surfaceBrandSoft,
   },
-  todayPillText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11 },
+  todayPillText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
   dayAddBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center", borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceBrandSoft },
   dayAddBtnPressed: { opacity: 0.6 },
   dayEmptyAdd: {
@@ -4175,7 +4184,7 @@ const styles = StyleSheet.create({
     borderColor: appTheme.colors.border,
   },
   dayEmptyAddPressed: { backgroundColor: appTheme.colors.surfaceMuted },
-  dayEmptyAddText: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
+  dayEmptyAddText: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
   // Shifts stack as separate bordered sections inside the day card.
   rotaTable: { gap: 8 },
   // Stacked shift section: name + time + actions on top, assignees underneath.
@@ -4220,9 +4229,9 @@ const styles = StyleSheet.create({
   },
   assignPillUnstaffed: { backgroundColor: appTheme.colors.surfaceWarningSoft },
   assignPillPressed: { opacity: 0.7 },
-  assignPillText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 16 },
+  assignPillText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, lineHeight: 17 },
   assignPillTextUnstaffed: { color: appTheme.colors.textWarningStrong },
-  rotaStaffText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 13, lineHeight: 20, paddingVertical: 2 },
+  rotaStaffText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 14, lineHeight: 21, paddingVertical: 2 },
   // Assignee name + optional reason tag on the week grid.
   rotaStaffLine: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4 },
   reasonTag: {
@@ -4242,7 +4251,7 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.surfaceInfoSoft,
     maxWidth: "100%",
   },
-  leaveChipText: { color: appTheme.colors.textInfoStrong, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11, lineHeight: 15 },
+  leaveChipText: { color: appTheme.colors.textInfoStrong, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 16 },
   // "On leave" hint next to a person in the shift editor — warn, don't block.
   userNameRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
   onLeaveTag: {
@@ -4423,7 +4432,7 @@ const styles = StyleSheet.create({
   pendingSummaryText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 19 },
   segmentBtn: { flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: appTheme.radius.sm },
   segmentBtnActive: { backgroundColor: appTheme.colors.surface, borderWidth: 1, borderColor: appTheme.colors.border },
-  segmentText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
+  segmentText: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
   segmentTextActive: { color: appTheme.colors.text },
   tRowPressed: { opacity: 0.6 },
   tdLink: { color: appTheme.colors.primary },
@@ -4548,7 +4557,7 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.surfaceMuted,
     marginTop: 4,
   },
-  searchInput: { flex: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 14, padding: 0 },
+  searchInput: { flex: 1, color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 15, padding: 0 },
   // The week search sits between gap-spaced screen children — drop searchBox's editor margin.
   rotaSearchBox: { marginTop: 0 },
   searchClearPressed: { opacity: 0.5 },

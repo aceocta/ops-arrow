@@ -494,6 +494,24 @@ function HomeHeaderTitle() {
   );
 }
 
+// Focused data-entry / task screens that hide the home + settings + menu header shortcuts, for a
+// clean, distraction-free header while the user completes a record. (The help "?" still shows if the
+// screen has registered help.) Add a route name here to give it the minimal header.
+const HIDE_SHORTCUT_ROUTES = new Set<keyof MainStackParamList>([
+  // Product Expiry
+  "AddProduct",
+  // Visitors
+  "VisitorLogEntryEdit",
+  // Scratch card · shifts · day
+  "OpenShift", "CloseShift", "EnterClosingNumbers", "PrizePayout", "SafeDrop", "CloseDay",
+  "ManualPackCreate", "ActivatePack", "ReceiveDelivery",
+  // Coin Pod entry
+  "CoinStockCount", "CoinNotesToCoins", "CoinCoinsToNotes", "CoinAdjustment", "CoinBagConfig",
+  // Refusals · Temperature · Leave · Store Sales · Games
+  "RefusalEntryEdit", "TemperatureUnitEdit", "LeaveRecord", "StoreSales",
+  "ScratchCardGameCreate", "ScratchCardGameEdit",
+]);
+
 function MainStackScreens() {
   return (
     <Stack.Navigator
@@ -520,6 +538,7 @@ function MainStackScreens() {
         headerRight: () => (
           <HeaderRightControls
             routeName={route.name}
+            hideShortcuts={HIDE_SHORTCUT_ROUTES.has(route.name as keyof MainStackParamList)}
             onMenu={() => navigation.getParent()?.dispatch(DrawerActions.toggleDrawer())}
             onHome={() => navigation.navigate("BestEntry")}
             onSettings={() => navigation.navigate("Settings")}
@@ -589,22 +608,7 @@ function MainStackScreens() {
       <Stack.Screen name="RefusalEntryDetails" component={RefusalEntryDetailsScreen} options={{ title: "Refusal Details" }} />
       <Stack.Screen name="RefusalEntryEdit" component={RefusalEntryEditScreen} options={{ title: "Edit Refusal" }} />
       <Stack.Screen name="VisitorLog" component={VisitorLogScreen} options={{ title: "Visitors Log" }} />
-      <Stack.Screen
-        name="VisitorLogEntryEdit"
-        component={VisitorLogEntryEditScreen}
-        options={({ navigation, route }) => ({
-          title: "Visitor",
-          headerRight: () => (
-            <HeaderRightControls
-              routeName={route.name}
-              hideShortcuts
-              onMenu={() => navigation.getParent()?.dispatch(DrawerActions.toggleDrawer())}
-              onHome={() => navigation.navigate("BestEntry")}
-              onSettings={() => navigation.navigate("Settings")}
-            />
-          ),
-        })}
-      />
+      <Stack.Screen name="VisitorLogEntryEdit" component={VisitorLogEntryEditScreen} options={{ title: "Visitor" }} />
       <Stack.Screen name="VisitorLogReport" component={VisitorLogReportScreen} options={{ title: "Visitor Report" }} />
       <Stack.Screen name="ScratchCardPacks" component={ScratchCardPacksScreen} options={{ title: "Card Packs" }} />
       <Stack.Screen
@@ -622,22 +626,7 @@ function MainStackScreens() {
       <Stack.Screen name="OpenShift" component={OpenShiftScreen} options={{ title: "Shift Operations" }} />
       <Stack.Screen name="CloseShift" component={CloseShiftScreen} options={{ title: "Close Shift" }} />
       <Stack.Screen name="ShiftDetails" component={ShiftDetailsScreen} options={{ title: "Shift Details" }} />
-      <Stack.Screen
-        name="EnterClosingNumbers"
-        component={EnterClosingNumbersScreen}
-        options={({ navigation, route }) => ({
-          title: "Closing Numbers",
-          headerRight: () => (
-            <HeaderRightControls
-              routeName={route.name}
-              hideShortcuts
-              onMenu={() => navigation.getParent()?.dispatch(DrawerActions.toggleDrawer())}
-              onHome={() => navigation.navigate("BestEntry")}
-              onSettings={() => navigation.navigate("Settings")}
-            />
-          ),
-        })}
-      />
+      <Stack.Screen name="EnterClosingNumbers" component={EnterClosingNumbersScreen} options={{ title: "Closing Numbers" }} />
       <Stack.Screen
         name="PrizePayout"
         component={PrizePayoutScreen}
