@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Alert, AlertButton, AlertOptions, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Alert, AlertButton, AlertOptions, Animated, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ModalBackdropBlur } from "./ModalBackdropBlur";
 import { appTheme } from "../ui/theme";
@@ -188,10 +188,9 @@ export function showAppAlert(title: string, message?: string, buttons?: AlertBut
   const normalizedButtons = normalizeButtons(buttons);
 
   // iOS can't reliably present our in-app dialog (a root-level <Modal>) on top of a screen-level
-  // <Modal> that's already open — the dialog renders behind it and the UI gets stuck waiting for a
-  // tap that can't land. The native alert lives in its own window and always stacks above any RN
-  // Modal, so route interactive dialogs (anything with buttons — confirmations, choices) there on
-  // iOS. Toasts (no buttons, auto-dismiss) and all of Android keep the styled in-app host.
+  // <Modal> that's already open, so route interactive dialogs (anything with buttons — confirmations,
+  // choices) to the native alert on iOS. Toasts (no buttons, auto-dismiss) render as an in-app
+  // native-style banner (see ToastBanner) that slides in from the top and auto-hides.
   const mustUseNative = hasExplicitButtons && Platform.OS === "ios";
 
   if (presenter && !mustUseNative) {
@@ -217,6 +216,85 @@ export function installAppAlertPatch() {
   Alert.alert = ((title: string, message?: string, buttons?: AlertButton[], options?: AlertOptions) => {
     showAppAlert(title, message, buttons, options);
   }) as typeof Alert.alert;
+}
+
+// Native-style notification banner: slides down from the top, holds for the tone's auto-close
+// duration, then slides back up. Tap to dismiss early. Owns its own lifecycle (enter → hold → exit)
+// and calls onDismiss when it has fully left, so the queue only advances after the exit animation.
+function ToastBanner({
+  item,
+  tone,
+  onDismiss,
+}: {
+  item: QueueItem;
+  tone: AlertTone;
+  onDismiss: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      onDismiss();
+    };
+    Animated.spring(anim, {
+      toValue: 1,
+      useNativeDriver: true,
+      damping: 18,
+      stiffness: 190,
+      mass: 0.9,
+    }).start();
+    const hold = item.autoCloseMs > 0 ? item.autoCloseMs : 2600;
+    const timer = setTimeout(() => {
+      Animated.timing(anim, { toValue: 0, duration: 200, useNativeDriver: true }).start(finish);
+    }, hold);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.id]);
+
+  const dismissNow = () => {
+    Animated.timing(anim, { toValue: 0, duration: 160, useNativeDriver: true }).start(() => onDismiss());
+  };
+
+  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [-120, 0] });
+  const topOffset = Math.max(insets.top, 12) + 6;
+
+  return (
+    <Modal
+      visible
+      transparent
+      animationType="none"
+      presentationStyle="overFullScreen"
+      statusBarTranslucent
+      onRequestClose={dismissNow}
+    >
+      <View pointerEvents="box-none" style={[styles.bannerOverlay, { paddingTop: topOffset }]}>
+        <Animated.View
+          pointerEvents="box-none"
+          style={{ width: "100%", alignItems: "center", opacity: anim, transform: [{ translateY }] }}
+        >
+          <Pressable style={styles.bannerCard} onPress={dismissNow} accessibilityRole="button">
+            <View
+              style={[
+                styles.toastToneDot,
+                tone === "success" && styles.toneSuccess,
+                tone === "warning" && styles.toneWarning,
+                tone === "danger" && styles.toneDanger,
+                tone === "info" && styles.toneInfo,
+              ]}
+            />
+            <View style={styles.toastTextWrap}>
+              <Text style={styles.bannerTitle}>{item.title || "Notice"}</Text>
+              {item.message ? <Text style={styles.bannerMessage}>{item.message}</Text> : null}
+            </View>
+          </Pressable>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
 }
 
 export function AppAlertHost() {
@@ -250,20 +328,6 @@ export function AppAlertHost() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!current || current.autoCloseMs <= 0) {
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      closeCurrent();
-    }, current.autoCloseMs);
-
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [current]);
-
   function closeCurrent() {
     const options = current?.options;
     setQueue((prev) => prev.slice(1));
@@ -279,35 +343,8 @@ export function AppAlertHost() {
 
   return (
     <>
-      {showToast ? (
-        <Modal
-          visible
-          transparent
-          animationType="none"
-          presentationStyle="overFullScreen"
-          statusBarTranslucent
-          onRequestClose={() => {
-            closeCurrent();
-          }}
-        >
-          <View pointerEvents="box-none" style={[styles.toastOverlay, { paddingBottom: toastBottomOffset }]}>
-            <Pressable style={styles.toastCard} onPress={closeCurrent}>
-              <View
-                style={[
-                  styles.toastToneDot,
-                  tone === "success" && styles.toneSuccess,
-                  tone === "warning" && styles.toneWarning,
-                  tone === "danger" && styles.toneDanger,
-                  tone === "info" && styles.toneInfo,
-                ]}
-              />
-              <View style={styles.toastTextWrap}>
-                <Text style={styles.toastTitle}>{current?.title || "Notice"}</Text>
-                {current?.message ? <Text style={styles.toastMessage}>{current.message}</Text> : null}
-              </View>
-            </Pressable>
-          </View>
-        </Modal>
+      {showToast && current ? (
+        <ToastBanner key={current.id} item={current} tone={tone} onDismiss={closeCurrent} />
       ) : null}
 
       <Modal
@@ -414,6 +451,44 @@ const styles = StyleSheet.create({
   toastTextWrap: {
     flex: 1,
     gap: 2,
+  },
+  bannerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 9999,
+    elevation: 9999,
+    justifyContent: "flex-start",
+    alignItems: "center",
+    paddingHorizontal: 12,
+  },
+  bannerCard: {
+    width: "100%",
+    maxWidth: 460,
+    borderRadius: appTheme.radius.lg,
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderStrong,
+    backgroundColor: appTheme.colors.surface,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    shadowColor: appTheme.colors.previewBackdrop,
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  bannerTitle: {
+    color: appTheme.colors.text,
+    fontSize: 15,
+    lineHeight: 19,
+    fontFamily: appTheme.fonts.bodyMedium,
+  },
+  bannerMessage: {
+    color: appTheme.colors.textMuted,
+    fontSize: 13,
+    lineHeight: 17,
+    fontFamily: appTheme.fonts.body,
   },
   toastTitle: {
     color: appTheme.colors.text,
