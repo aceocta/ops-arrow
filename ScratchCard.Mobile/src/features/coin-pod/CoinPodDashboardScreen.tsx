@@ -135,9 +135,9 @@ export function CoinPodDashboardScreen() {
             <View style={[ui.card, styles.tableCard]}>
               <View style={[styles.tr, styles.headRow]}>
                 <Text style={[styles.th, styles.colCoin]}>Coin</Text>
-                <Text style={[styles.th, styles.colNum]}>Default</Text>
-                <Text style={[styles.th, styles.colNum]}>Current</Text>
-                <Text style={[styles.th, styles.colNum]}>Value</Text>
+                <Text style={[styles.th, styles.colSmall]}>Default</Text>
+                <Text style={[styles.th, styles.colSmall]}>Current</Text>
+                <Text style={[styles.th, styles.colValue]}>Value</Text>
                 <View style={styles.colStatus}><Text style={[styles.th, styles.thRight]}>Status</Text></View>
               </View>
               {data.items.map((row) => (
@@ -149,9 +149,9 @@ export function CoinPodDashboardScreen() {
               ))}
               <View style={[styles.tr, styles.totalRow]}>
                 <Text style={[styles.tdCoin, styles.colCoin]}>Total</Text>
-                <Text style={[styles.td, styles.tdMuted, styles.colNum]}>{totalDefault}</Text>
-                <Text style={[styles.td, styles.tdStrong, styles.colNum]}>{totalCurrent}</Text>
-                <Text style={[styles.td, styles.tdStrong, styles.colNum]}>{money(data.totalCoinValue)}</Text>
+                <Text style={[styles.td, styles.tdMuted, styles.colSmall]}>{totalDefault}</Text>
+                <Text style={[styles.td, styles.tdStrong, styles.colSmall]}>{totalCurrent}</Text>
+                <Text style={[styles.td, styles.tdStrong, styles.colValue]}>{money(data.totalCoinValue)}</Text>
                 <View style={styles.colStatus} />
               </View>
             </View>
@@ -172,9 +172,9 @@ function CoinTableRow({ row, onPress }: { row: CoinBagStockRow; onPress?: () => 
       accessibilityLabel={`${row.displayLabel} coin bags, ${row.currentBagQuantity} bags, ${statusShort(row.status)}`}
     >
       <Text style={[styles.tdCoin, styles.colCoin]}>{row.displayLabel}</Text>
-      <Text style={[styles.td, styles.tdMuted, styles.colNum]}>{row.openingBagQuantity}</Text>
-      <Text style={[styles.td, styles.tdStrong, styles.colNum]}>{row.currentBagQuantity}</Text>
-      <Text style={[styles.td, styles.colNum]}>{money(row.currentTotalValue)}</Text>
+      <Text style={[styles.td, styles.tdMuted, styles.colSmall]}>{row.openingBagQuantity}</Text>
+      <Text style={[styles.td, styles.tdStrong, styles.colSmall]}>{row.currentBagQuantity}</Text>
+      <Text style={[styles.td, styles.colValue]}>{money(row.currentTotalValue)}</Text>
       <View style={[styles.colStatus, styles.statusCell]}>
         <StatusBadge label={statusShort(row.status)} tone={statusTone(row.status)} />
       </View>
@@ -222,6 +222,8 @@ const styles = StyleSheet.create({
   tdCoin: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 16 },
   colCoin: { flex: 1.1 },
   colNum: { flex: 1, textAlign: "right" },
+  colSmall: { flex: 0.8, textAlign: "right" },
+  colValue: { flex: 1.6, textAlign: "right" },
   colStatus: { flex: 1.2, alignItems: "flex-end" },
   statusCell: { flexDirection: "row", justifyContent: "flex-end" },
 });
