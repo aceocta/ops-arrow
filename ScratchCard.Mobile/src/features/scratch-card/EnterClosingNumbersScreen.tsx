@@ -1197,7 +1197,7 @@ const styles = StyleSheet.create({
   packRowReady: { borderColor: appTheme.colors.borderSuccessSoft },
   packRowError: { borderColor: appTheme.colors.danger },
   packRowMain: { flexDirection: "row", alignItems: "center", gap: 6 },
-  packLabelCol: { width: 78 },
+  packLabelCol: { width: 104 },
   packLabelNum: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 16, lineHeight: 19 },
   packLabelSub: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, lineHeight: 15 },
   // Thin vertical rule between the display/pack label and the OPEN column.
@@ -1224,8 +1224,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   // Align the metrics line under the closing input: label (78) + divider + OPEN (46) + the three 6px gaps.
-  denseMetrics: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, lineHeight: 15, paddingLeft: 142 },
-  denseError: { color: appTheme.colors.danger, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 15, paddingLeft: 66 },
+  denseMetrics: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, lineHeight: 15, paddingLeft: 168 },
+  denseError: { color: appTheme.colors.danger, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 15, paddingLeft: 92 },
   cardTitle: {
     fontSize: 18,
     lineHeight: 23,
