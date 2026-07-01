@@ -72,11 +72,12 @@ export function ShopsListPage() {
               <th>Plan</th>
               <th>Subscription</th>
               <th>Status</th>
+              <th>Configure</th>
             </tr>
           </thead>
           <tbody>
             {query.isLoading ? (
-              <tr><td colSpan={6} className="empty-cell">Loading…</td></tr>
+              <tr><td colSpan={7} className="empty-cell">Loading…</td></tr>
             ) : data && data.items.length > 0 ? (
               data.items.map((s) => (
                 <tr
@@ -94,10 +95,18 @@ export function ShopsListPage() {
                       <span className="dot" />{s.isActive ? "Active" : "Inactive"}
                     </span>
                   </td>
+                  <td data-label="Configure">
+                    <button
+                      className="btn btn-sm"
+                      onClick={(e) => { e.stopPropagation(); navigate(`/shops/${s.id}/shifts`, { state: { shopName: s.shopName, companyId: s.companyId, companyName: s.companyName } }); }}
+                    >
+                      Shifts
+                    </button>
+                  </td>
                 </tr>
               ))
             ) : (
-              <tr><td colSpan={6} className="empty-cell">No shops found.</td></tr>
+              <tr><td colSpan={7} className="empty-cell">No shops found.</td></tr>
             )}
           </tbody>
         </table>

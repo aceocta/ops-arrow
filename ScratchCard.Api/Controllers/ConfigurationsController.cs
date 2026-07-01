@@ -19,11 +19,12 @@ public class ConfigurationsController : BaseApiController
 
     /// <summary>
     /// Reads remain available to all operational roles (cashiers need flags like
-    /// EnableMobileCameraBarcodeScanning), but the service additionally enforces that the
-    /// caller is a member of the requested shop.
+    /// EnableMobileCameraBarcodeScanning) plus PlatformAdmin (the admin panel edits per-shop
+    /// config), but the service additionally enforces that the caller is a member of the
+    /// requested shop (PlatformAdmin bypasses that membership check).
     /// </summary>
     [HttpGet]
-    [Authorize(Roles = RoleNames.OperationalRoles)]
+    [Authorize(Roles = RoleNames.AllAuthenticated)]
     public async Task<IActionResult> Get([FromQuery] Guid? shopId, CancellationToken cancellationToken)
     {
         var result = await _configurationService.GetAsync(shopId, cancellationToken);

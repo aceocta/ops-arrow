@@ -5,6 +5,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { CustomersListPage } from "./pages/CustomersListPage";
 import { CustomerDetailPage } from "./pages/CustomerDetailPage";
 import { ShopsListPage } from "./pages/ShopsListPage";
+import { ShopShiftConfigPage } from "./pages/ShopShiftConfigPage";
 import { PlansPage } from "./pages/PlansPage";
 
 export function App() {
@@ -37,6 +38,16 @@ export function App() {
           <RequireAuth>
             <Layout>
               <ShopsListPage />
+            </Layout>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/shops/:shopId/shifts"
+        element={
+          <RequireAuth>
+            <Layout>
+              <ShopShiftConfigPage />
             </Layout>
           </RequireAuth>
         }

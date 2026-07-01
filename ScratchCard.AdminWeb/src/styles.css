@@ -239,6 +239,26 @@ select {
 .btn-sm { padding: 6px 11px; font-size: 13px; }
 .row-actions { display: flex; gap: 8px; }
 
+/* ---------- Shift configuration templates ---------- */
+.tpl-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+.tpl-title { font-size: 14px; font-weight: 700; color: var(--text); }
+.tpl-foot { padding: 12px 18px; font-size: 13px; }
+.shift-table td { vertical-align: middle; }
+.shift-table input:not([type="checkbox"]) {
+  padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  font-size: 14px; color: var(--text); background: var(--surface); font-weight: 500;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.shift-table input:not([type="checkbox"]):focus { border-color: var(--accent); box-shadow: var(--ring); outline: none; }
+.shift-table td[data-label="Shift name"] { min-width: 200px; }
+.shift-table td[data-label="Shift name"] input { width: 100%; }
+.shift-table .active-cell input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
+
+/* Copy-to-shops selector */
+.copy-shop-list { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; }
+.copy-shop-row { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; color: var(--text); }
+.copy-shop-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
+
 .muted { color: var(--text-muted); }
 .empty-cell { padding: 28px 18px !important; text-align: center; color: var(--text-subtle); }
 
