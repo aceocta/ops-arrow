@@ -781,8 +781,8 @@ const styles = StyleSheet.create({
   choiceChipText: {
     color: appTheme.colors.primary,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 13,
-    lineHeight: 16,
+    fontSize: 14,
+    lineHeight: 17,
   },
   choiceChipTextSelected: {
     color: appTheme.colors.textOnDark,
@@ -878,14 +878,14 @@ const styles = StyleSheet.create({
   serialPackNum: {
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 16,
-    lineHeight: 19,
+    fontSize: 18,
+    lineHeight: 21,
   },
   serialPackSub: {
     color: appTheme.colors.textMuted,
     fontFamily: appTheme.fonts.body,
-    fontSize: 12,
-    lineHeight: 15,
+    fontSize: 13,
+    lineHeight: 16,
   },
   // Thin vertical rule between the display/pack label and the serial input (matches closing screen).
   vDivider: {
@@ -905,10 +905,10 @@ const styles = StyleSheet.create({
   serialConfirmInput: {
     flex: 1,
     minWidth: 0,
-    height: 40,
+    height: 44,
     paddingVertical: 4,
     textAlign: "center",
-    fontSize: 17,
+    fontSize: 19,
     fontFamily: appTheme.fonts.bodyMedium,
   },
   serialConfirmChip: {
