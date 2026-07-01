@@ -254,7 +254,13 @@ export function ProductExpiryListScreen() {
           message="No products match your filters (search, category, or expiry window). Clear them to see all."
         />
       ) : (
-        <View style={styles.list}>
+        <View style={[ui.card, styles.tableCard]}>
+          <View style={[styles.tr, styles.headRow]}>
+            <Text style={[styles.th, styles.colProduct]}>Product</Text>
+            <Text style={[styles.th, styles.colQty]}>Qty</Text>
+            <Text style={[styles.th, styles.colExpiry, styles.thCenter]}>Expiry</Text>
+            <Text style={[styles.th, styles.colStatus, styles.thCenter]}>Status</Text>
+          </View>
           {filteredItems.map((item) => (
             <ProductRow key={item.id} item={item} onPress={() => navigation.navigate("ProductExpiryDetail", { id: item.id })} />
           ))}
@@ -266,18 +272,19 @@ export function ProductExpiryListScreen() {
 
 function ProductRow({ item, onPress }: { item: ProductBatch; onPress: () => void }) {
   return (
-    <Pressable style={[ui.listItem, styles.row]} onPress={onPress} accessibilityRole="button" accessibilityLabel={`${item.productName}, ${statusLabel(item.status)}`}>
-      <View style={styles.rowMain}>
-        <Text style={styles.rowTitle} numberOfLines={1}>{item.productName}</Text>
-        <Text style={styles.rowMeta} numberOfLines={1}>
-          {item.categoryName} · {item.remainingQuantity} left · {item.expiryDate}
-        </Text>
+    <Pressable style={[styles.tr, styles.rowCell]} onPress={onPress} accessibilityRole="button" accessibilityLabel={`${item.productName}, ${statusLabel(item.status)}`}>
+      <View style={styles.colProduct}>
+        <Text style={styles.tdProduct} numberOfLines={1}>{item.productName}</Text>
+        <Text style={styles.tdSub} numberOfLines={1}>{item.categoryName}</Text>
       </View>
-      <View style={styles.rowRight}>
+      <Text style={[styles.td, styles.colQty]}>{item.remainingQuantity}</Text>
+      <View style={styles.colExpiry}>
+        <Text style={styles.tdExpiry} numberOfLines={1}>{item.expiryDate}</Text>
+        <Text style={[styles.tdDays, item.daysToExpiry <= 0 ? styles.daysBad : null]} numberOfLines={1}>{daysLabel(item.daysToExpiry)}</Text>
+      </View>
+      <View style={[styles.colStatus, styles.statusCell]}>
         <StatusBadge label={statusLabel(item.status)} tone={statusTone(item.status)} />
-        <Text style={[styles.days, item.daysToExpiry <= 0 ? styles.daysBad : null]}>{daysLabel(item.daysToExpiry)}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={16} color={appTheme.colors.textSubtle} />
     </Pressable>
   );
 }
@@ -308,12 +315,23 @@ const styles = StyleSheet.create({
   customDateRow: { flexDirection: "row", gap: appTheme.spacing.sm },
   cell: { flex: 1 },
   fieldLabel: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 16, marginBottom: 2 },
-  list: { gap: appTheme.spacing.xs },
-  row: { flexDirection: "row", alignItems: "center", gap: appTheme.spacing.sm },
-  rowMain: { flex: 1, gap: 2 },
-  rowTitle: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 15, lineHeight: 19 },
-  rowMeta: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, lineHeight: 16 },
-  rowRight: { alignItems: "flex-end", gap: 4 },
-  days: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12 },
+  // Table layout for the stock list.
+  tableCard: { paddingVertical: appTheme.spacing.sm, gap: 0 },
+  tr: { flexDirection: "row", alignItems: "center", paddingVertical: 10, gap: appTheme.spacing.xs },
+  headRow: { paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: appTheme.colors.border },
+  rowCell: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: appTheme.colors.borderSoft },
+  th: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11, textTransform: "uppercase" },
+  thRight: { textAlign: "right" },
+  thCenter: { textAlign: "center" },
+  td: { color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 15, textAlign: "right" },
+  tdProduct: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 16, lineHeight: 20 },
+  tdSub: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 13, lineHeight: 16 },
+  tdExpiry: { color: appTheme.colors.text, fontFamily: appTheme.fonts.body, fontSize: 14, textAlign: "right" },
+  tdDays: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, textAlign: "right", marginTop: 1 },
   daysBad: { color: appTheme.colors.danger },
+  colProduct: { flex: 1.7 },
+  colQty: { flex: 0.6, textAlign: "right" },
+  colExpiry: { flex: 1.2, alignItems: "flex-end" },
+  colStatus: { flex: 1.1, alignItems: "flex-end" },
+  statusCell: { flexDirection: "row", justifyContent: "flex-end" },
 });
