@@ -21,6 +21,9 @@ export function useScrollToFocusedInput(): () => void {
 type ScreenContainerProps = PropsWithChildren<{
   centerContent?: boolean;
   footer?: React.ReactNode;
+  /** Pinned chrome rendered above the scroll area — stays fixed while the body scrolls beneath it
+   *  (mirrors `footer`). Used for the day-management date header. */
+  header?: React.ReactNode;
   keyboardScrollOffset?: number;
   refreshControl?: React.ReactElement<RefreshControlProps>;
   scrollable?: boolean;
@@ -33,6 +36,7 @@ export function ScreenContainer({
   children,
   centerContent = false,
   footer,
+  header,
   keyboardScrollOffset = 100,
   refreshControl,
   scrollable = true,
@@ -124,6 +128,17 @@ export function ScreenContainer({
   return (
     <ScrollToFocusedContext.Provider value={triggerScrollToFocused}>
       <SafeAreaView style={styles.safeArea} edges={["left", "right", "bottom"]}>
+        {header ? (
+          <View
+            style={[
+              styles.headerShell,
+              // Match the centred content column on tablet so the pinned header lines up with the body.
+              isTablet ? { maxWidth: TABLET_CONTENT_MAX_WIDTH, alignSelf: "center" as const, width: "100%" } : null,
+            ]}
+          >
+            {header}
+          </View>
+        ) : null}
         {scrollable ? (
           <ScrollView
             ref={scrollViewRef}
@@ -209,5 +224,10 @@ const styles = StyleSheet.create({
     left: appTheme.spacing.md,
     right: appTheme.spacing.md,
     bottom: appTheme.spacing.sm,
+  },
+  headerShell: {
+    paddingHorizontal: appTheme.spacing.md,
+    paddingTop: appTheme.spacing.xs,
+    paddingBottom: appTheme.spacing.xs,
   },
 });

@@ -30,6 +30,7 @@ public class CoinBagStockRowDto
     public int StockAlertLimit { get; set; }
     public bool IsAlertEnabled { get; set; }
     public bool IsActive { get; set; }
+    public bool IsNote { get; set; }
     /// <summary>Derived: "Normal", "LowStock", "OutOfStock" or "Disabled".</summary>
     public string Status { get; set; } = string.Empty;
     public DateTimeOffset? LastUpdatedOn { get; set; }
@@ -59,7 +60,23 @@ public class CoinBagConfigDto
     /// <summary><see cref="Domain.Enums.CoinBagAlertRecipientType"/> name.</summary>
     public string AlertRecipientType { get; set; } = string.Empty;
     public bool IsActive { get; set; }
+    public bool IsNote { get; set; }
     public int CurrentBagQuantity { get; set; }
+}
+
+/// <summary>Value-based stocktake: for each denomination the user enters the total cash value held;
+/// the service converts it to a pack count (value ÷ pack value) and SETS current stock to that.</summary>
+public class RecordCoinStockRequest
+{
+    public Guid ShopId { get; set; }
+    public IReadOnlyCollection<CoinStockCountEntry> Entries { get; set; } = [];
+}
+
+public class CoinStockCountEntry
+{
+    public Guid CoinDenominationId { get; set; }
+    /// <summary>Total cash value currently held for this denomination (£).</summary>
+    public decimal Value { get; set; }
 }
 
 public class UpdateCoinBagConfigRequest

@@ -1407,6 +1407,62 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
     </View>
   ) : null;
 
+  // Pinned date header — stays fixed at the top of the day-management screen while the shifts,
+  // summary and other sections scroll beneath it, so the current business day is always visible.
+  const dayDateHeader = (
+    <View style={[ui.card, styles.dayHeaderCard]}>
+      {/* Compact one-line header: prev/next day chevrons around a tappable date, status on the right. */}
+      <View style={styles.dayHeaderRow}>
+        <View style={styles.dayNavGroup}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={previousBusinessDay ? `Go to previous day ${previousBusinessDay.businessDate}` : "No previous day available"}
+            style={[styles.dayNavBtn, !previousBusinessDay ? styles.dateActionButtonDisabled : null]}
+            disabled={!previousBusinessDay}
+            onPress={() => {
+              if (!previousBusinessDay) {
+                return;
+              }
+              navigation.replace("DayEndClose", { businessDayId: previousBusinessDay.id });
+            }}
+          >
+            <Ionicons name="chevron-back" size={18} color={previousBusinessDay ? appTheme.colors.text : appTheme.colors.textSubtle} />
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Change business date"
+            style={styles.dayDatePressable}
+            onPress={() => {
+              setTargetBusinessDate(day?.businessDate ?? formatDateValue(new Date()));
+              setIsDayPickerModalVisible(true);
+            }}
+          >
+            <Text style={styles.summaryDate} numberOfLines={1}>{formatDayLabel(day?.businessDate)}</Text>
+            <Ionicons name="calendar-outline" size={13} color={appTheme.colors.textMuted} />
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={nextBusinessDay ? `Go to next day ${nextBusinessDay.businessDate}` : "No next day available"}
+            style={[styles.dayNavBtn, !nextBusinessDay ? styles.dateActionButtonDisabled : null]}
+            disabled={!nextBusinessDay}
+            onPress={() => {
+              if (!nextBusinessDay) {
+                return;
+              }
+              navigation.replace("DayEndClose", { businessDayId: nextBusinessDay.id });
+            }}
+          >
+            <Ionicons name="chevron-forward" size={18} color={nextBusinessDay ? appTheme.colors.text : appTheme.colors.textSubtle} />
+          </Pressable>
+        </View>
+
+        <StatusBadge label={status ?? "-"} tone={getStatusTone(status)} />
+      </View>
+    </View>
+  );
+
   if (isDayManagementInitialLoading) {
     return (
       <ScreenContainer>
@@ -1417,6 +1473,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
 
   return (
     <ScreenContainer
+      header={dayDateHeader}
       footer={dayActionsFooter}
       refreshControl={
         <RefreshControl
@@ -1435,58 +1492,6 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
             </Text>
           </View>
         ) : null}
-
-        <View style={[ui.card, styles.dayHeaderCard]}>
-          {/* Compact one-line header: prev/next day chevrons around a tappable date, status on the right. */}
-          <View style={styles.dayHeaderRow}>
-            <View style={styles.dayNavGroup}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={previousBusinessDay ? `Go to previous day ${previousBusinessDay.businessDate}` : "No previous day available"}
-                style={[styles.dayNavBtn, !previousBusinessDay ? styles.dateActionButtonDisabled : null]}
-                disabled={!previousBusinessDay}
-                onPress={() => {
-                  if (!previousBusinessDay) {
-                    return;
-                  }
-                  navigation.replace("DayEndClose", { businessDayId: previousBusinessDay.id });
-                }}
-              >
-                <Ionicons name="chevron-back" size={18} color={previousBusinessDay ? appTheme.colors.text : appTheme.colors.textSubtle} />
-              </Pressable>
-
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Change business date"
-                style={styles.dayDatePressable}
-                onPress={() => {
-                  setTargetBusinessDate(day?.businessDate ?? formatDateValue(new Date()));
-                  setIsDayPickerModalVisible(true);
-                }}
-              >
-                <Text style={styles.summaryDate} numberOfLines={1}>{formatDayLabel(day?.businessDate)}</Text>
-                <Ionicons name="calendar-outline" size={13} color={appTheme.colors.textMuted} />
-              </Pressable>
-
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={nextBusinessDay ? `Go to next day ${nextBusinessDay.businessDate}` : "No next day available"}
-                style={[styles.dayNavBtn, !nextBusinessDay ? styles.dateActionButtonDisabled : null]}
-                disabled={!nextBusinessDay}
-                onPress={() => {
-                  if (!nextBusinessDay) {
-                    return;
-                  }
-                  navigation.replace("DayEndClose", { businessDayId: nextBusinessDay.id });
-                }}
-              >
-                <Ionicons name="chevron-forward" size={18} color={nextBusinessDay ? appTheme.colors.text : appTheme.colors.textSubtle} />
-              </Pressable>
-            </View>
-
-            <StatusBadge label={status ?? "-"} tone={getStatusTone(status)} />
-          </View>
-        </View>
 
         <View style={[ui.card, styles.sectionCard]}>
           <SectionHeader

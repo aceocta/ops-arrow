@@ -222,6 +222,7 @@ public sealed class CoinPodService : ICoinPodService
                 StockAlertLimit = config.StockAlertLimit,
                 IsAlertEnabled = config.IsAlertEnabled,
                 IsActive = config.IsActive,
+                IsNote = denom.IsNote,
                 Status = DeriveStatus(config, qty),
                 LastUpdatedOn = stock?.LastUpdatedOn,
                 LastUpdatedByUserId = stock?.LastUpdatedByUserId,
@@ -352,6 +353,41 @@ public sealed class CoinPodService : ICoinPodService
         var direction = increase ? CoinBagTransactionDirection.In : CoinBagTransactionDirection.Out;
         return await ApplyMovementAsync(request.ShopId, request.CoinDenominationId, signedDelta, type, direction,
             noteAmount: null, request.Comment, requireCommentOnMismatch: false, ct);
+    }
+
+    public async Task<CoinPodDashboardDto> RecordStockByValueAsync(RecordCoinStockRequest request, CancellationToken cancellationToken = default)
+    {
+        await EnsureAccessAsync(request.ShopId, cancellationToken);
+        await EnsureShopSetupAsync(request.ShopId, cancellationToken);
+
+        foreach (var entry in request.Entries)
+        {
+            if (entry.Value < 0)
+                throw new AppException("validation_failed", "Value cannot be negative.", 400);
+
+            var config = await _configs.Query().AsNoTracking()
+                .FirstOrDefaultAsync(c => c.ShopId == request.ShopId && c.CoinDenominationId == entry.CoinDenominationId && !c.IsDeleted, cancellationToken);
+            if (config is null || !config.IsActive || config.BagValue <= 0) continue;
+
+            var currentQty = await _stocks.Query().AsNoTracking()
+                .Where(s => s.ShopId == request.ShopId && s.CoinDenominationId == entry.CoinDenominationId && !s.IsDeleted)
+                .Select(s => (int?)s.CurrentBagQuantity)
+                .FirstOrDefaultAsync(cancellationToken) ?? 0;
+
+            // value ÷ pack value → pack count (rounded to whole packs), then set stock to it.
+            var packCount = (int)Math.Round(entry.Value / config.BagValue, MidpointRounding.AwayFromZero);
+            if (packCount < 0) packCount = 0;
+            var delta = packCount - currentQty;
+            if (delta == 0) continue;
+
+            await ApplyMovementAsync(
+                request.ShopId, entry.CoinDenominationId, delta, CoinBagTransactionType.StockCount,
+                delta > 0 ? CoinBagTransactionDirection.In : CoinBagTransactionDirection.Out,
+                noteAmount: null, comment: $"Value count: £{entry.Value:0.00} → {packCount} pack(s)",
+                requireCommentOnMismatch: false, cancellationToken);
+        }
+
+        return await GetDashboardAsync(request.ShopId, cancellationToken);
     }
 
     /// <summary>The single stock-changing pipeline: validate, write the transaction, recalculate stock,
@@ -811,6 +847,7 @@ public sealed class CoinPodService : ICoinPodService
         IsAlertEnabled = c.IsAlertEnabled,
         AlertRecipientType = c.AlertRecipientType.ToString(),
         IsActive = c.IsActive,
+        IsNote = denom.IsNote,
         CurrentBagQuantity = currentQty,
     };
 

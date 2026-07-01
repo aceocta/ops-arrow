@@ -15,7 +15,8 @@ public sealed record CoinDenominationSeed(
     int DefaultOpeningBagQuantity,
     int DefaultMinBagQuantity,
     int DefaultMaxBagQuantity,
-    int DefaultStockAlertLimit);
+    int DefaultStockAlertLimit,
+    bool IsNote = false);
 
 /// <summary>
 /// The eight supported UK coin denominations seeded as global read-only reference data on first run,
@@ -35,5 +36,12 @@ public static class CoinDenominationCatalogue
         new CoinDenominationSeed("GBP_50P", "Fifty Pence", "50p", 0.50m, 6,    10m,  5,    1,   10,  1),
         new CoinDenominationSeed("GBP_1",   "One Pound",   "£1",  1.00m, 7,    20m,  10,   2,   20,  2),
         new CoinDenominationSeed("GBP_2",   "Two Pounds",  "£2",  2.00m, 8,    20m,  5,    1,   10,  1),
+        // Notes. Default "pack value" = the note's face value (one pack = one note), so a value entry
+        // converts straight to a note count. A shop that banks notes in bundles can raise the pack value.
+        //                     Code       Name              Label  Face   Sort  Pack£ Open  Min  Max   Alert  IsNote
+        new CoinDenominationSeed("GBP_N5",  "Five Pound Note",   "£5",  5.00m,  9,   5m,   20,   5,   100,  5,  true),
+        new CoinDenominationSeed("GBP_N10", "Ten Pound Note",    "£10", 10.00m, 10,  10m,  20,   5,   100,  5,  true),
+        new CoinDenominationSeed("GBP_N20", "Twenty Pound Note", "£20", 20.00m, 11,  20m,  10,   2,   60,   3,  true),
+        new CoinDenominationSeed("GBP_N50", "Fifty Pound Note",  "£50", 50.00m, 12,  50m,  5,    1,   40,   2,  true),
     };
 }

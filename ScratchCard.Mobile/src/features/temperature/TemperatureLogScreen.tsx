@@ -1103,8 +1103,135 @@ export function TemperatureLogScreen() {
     );
   }
 
+  // Pinned date + schedule header — the date navigator and the quick-add scheduled-check chips stay
+  // fixed at the top while the scheduled-checks grid and unit list scroll beneath them, so switching
+  // day or logging a check is always one tap away.
+  const dateAndScheduleHeader = (
+    <View style={[ui.card, styles.quickEntryCard]}>
+      <View style={styles.dateNavRow}>
+        <Pressable
+          style={styles.dateNavButton}
+          onPress={() => moveSelectedDate(-1)}
+          accessibilityRole="button"
+          accessibilityLabel="Previous day"
+        >
+          <Ionicons name="chevron-back" size={18} color={appTheme.colors.text} />
+        </Pressable>
+        <DateTimeField
+          style={{ flex: 1 }}
+          mode="datetime"
+          value={selectedDateTimeValue}
+          onChange={(value) => {
+            const parsed = parseDateTimeValue(value);
+            if (!parsed) {
+              return;
+            }
+
+            setSelectedDate(formatDateValue(parsed));
+            setReadingTime(formatTimeValue(parsed));
+          }}
+        />
+        <Pressable
+          style={styles.dateNavButton}
+          onPress={() => moveSelectedDate(1)}
+          accessibilityRole="button"
+          accessibilityLabel="Next day"
+        >
+          <Ionicons name="chevron-forward" size={18} color={appTheme.colors.text} />
+        </Pressable>
+        <Pressable
+          style={styles.dateNavButton}
+          onPress={() => predictiveCheckMutation.mutate()}
+          disabled={predictiveCheckMutation.isPending || !shopId}
+          accessibilityRole="button"
+          accessibilityLabel="Check temperature trends"
+        >
+          <Ionicons
+            name="pulse-outline"
+            size={18}
+            color={predictiveCheckMutation.isPending ? appTheme.colors.textSubtle : appTheme.colors.primary}
+          />
+        </Pressable>
+        {/* {!isToday ? (
+          <Pressable
+            style={styles.todayButton}
+            onPress={() => {
+              setSelectedDate(today);
+              setReadingTime(formatTimeValue(new Date()));
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Jump to today"
+          >
+            <Text style={styles.todayButtonText}>Today</Text>
+          </Pressable>
+        ) : null} */}
+      </View>
+
+      <View style={styles.summaryRow}>
+        {/* <View style={styles.summaryCard}>
+          <Text style={styles.summaryCardLabel} numberOfLines={1}>Done</Text>
+          <Text
+            numberOfLines={1}
+            style={[
+              styles.summaryCardValue,
+              summary.total > 0 && summary.recorded === summary.total ? styles.summaryValueSuccess : null,
+            ]}
+          >
+            {summary.recorded}/{summary.total}
+          </Text>
+        </View> */}
+      </View>
+
+      {/* <Text style={styles.quickAddLabel}>Add reading to check</Text> */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.quickAddRow}
+        keyboardShouldPersistTaps="handled"
+      >
+        {(schedulesQuery.data ?? [])
+          .slice()
+          .sort((a, b) => a.expectedTime.localeCompare(b.expectedTime))
+          .map((schedule) => (
+            <Pressable
+              key={schedule.id}
+              onPress={() => openQuickEntry(schedule.id)}
+              style={[styles.quickAddChip, styles.quickAddChipColumn]}
+              accessibilityRole="button"
+              accessibilityLabel={`Add ${schedule.label} reading`}
+            >
+              <View style={styles.quickAddChipTop}>
+                <Ionicons name="add" size={14} color={appTheme.colors.primary} />
+                <Text style={styles.quickAddChipText}>{schedule.label}</Text>
+              </View>
+              <Text style={styles.quickAddChipTime}>{schedule.expectedTime.slice(0, 5)}</Text>
+            </Pressable>
+          ))}
+        <Pressable
+          onPress={() => openQuickEntry(null)}
+          style={styles.quickAddChip}
+          accessibilityRole="button"
+          accessibilityLabel="Add random reading"
+        >
+          <Ionicons name="add" size={14} color={appTheme.colors.primary} />
+          <Text style={styles.quickAddChipText}>Random</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => navigation.navigate("TemperatureSchedules")}
+          style={[styles.quickAddChip, styles.quickAddManageChip]}
+          accessibilityRole="button"
+          accessibilityLabel="Add or edit scheduled checks"
+        >
+          <Ionicons name="settings-outline" size={14} color={appTheme.colors.textMuted} />
+          <Text style={styles.quickAddManageText}>Edit</Text>
+        </Pressable>
+      </ScrollView>
+    </View>
+  );
+
   return (
     <ScreenContainer
+      header={dateAndScheduleHeader}
       refreshControl={
         <RefreshControl
           refreshing={isRefreshing}
@@ -1119,126 +1246,6 @@ export function TemperatureLogScreen() {
           <Text style={styles.heroNote}>Digitize daily checks with quick entry, alerts, and supervisor signoff.</Text>
         </View> */}
 
-        <View style={[ui.card, styles.quickEntryCard]}>
-          <View style={styles.dateNavRow}>
-            <Pressable
-              style={styles.dateNavButton}
-              onPress={() => moveSelectedDate(-1)}
-              accessibilityRole="button"
-              accessibilityLabel="Previous day"
-            >
-              <Ionicons name="chevron-back" size={18} color={appTheme.colors.text} />
-            </Pressable>
-            <DateTimeField
-              style={{ flex: 1 }}
-              mode="datetime"
-              value={selectedDateTimeValue}
-              onChange={(value) => {
-                const parsed = parseDateTimeValue(value);
-                if (!parsed) {
-                  return;
-                }
-
-                setSelectedDate(formatDateValue(parsed));
-                setReadingTime(formatTimeValue(parsed));
-              }}
-            />
-            <Pressable
-              style={styles.dateNavButton}
-              onPress={() => moveSelectedDate(1)}
-              accessibilityRole="button"
-              accessibilityLabel="Next day"
-            >
-              <Ionicons name="chevron-forward" size={18} color={appTheme.colors.text} />
-            </Pressable>
-            <Pressable
-              style={styles.dateNavButton}
-              onPress={() => predictiveCheckMutation.mutate()}
-              disabled={predictiveCheckMutation.isPending || !shopId}
-              accessibilityRole="button"
-              accessibilityLabel="Check temperature trends"
-            >
-              <Ionicons
-                name="pulse-outline"
-                size={18}
-                color={predictiveCheckMutation.isPending ? appTheme.colors.textSubtle : appTheme.colors.primary}
-              />
-            </Pressable>
-            {/* {!isToday ? (
-              <Pressable
-                style={styles.todayButton}
-                onPress={() => {
-                  setSelectedDate(today);
-                  setReadingTime(formatTimeValue(new Date()));
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Jump to today"
-              >
-                <Text style={styles.todayButtonText}>Today</Text>
-              </Pressable>
-            ) : null} */}
-          </View>
-
-          <View style={styles.summaryRow}>
-            {/* <View style={styles.summaryCard}>
-              <Text style={styles.summaryCardLabel} numberOfLines={1}>Done</Text>
-              <Text
-                numberOfLines={1}
-                style={[
-                  styles.summaryCardValue,
-                  summary.total > 0 && summary.recorded === summary.total ? styles.summaryValueSuccess : null,
-                ]}
-              >
-                {summary.recorded}/{summary.total}
-              </Text>
-            </View> */}
-          </View>
-
-          {/* <Text style={styles.quickAddLabel}>Add reading to check</Text> */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.quickAddRow}
-            keyboardShouldPersistTaps="handled"
-          >
-            {(schedulesQuery.data ?? [])
-              .slice()
-              .sort((a, b) => a.expectedTime.localeCompare(b.expectedTime))
-              .map((schedule) => (
-                <Pressable
-                  key={schedule.id}
-                  onPress={() => openQuickEntry(schedule.id)}
-                  style={[styles.quickAddChip, styles.quickAddChipColumn]}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Add ${schedule.label} reading`}
-                >
-                  <View style={styles.quickAddChipTop}>
-                    <Ionicons name="add" size={14} color={appTheme.colors.primary} />
-                    <Text style={styles.quickAddChipText}>{schedule.label}</Text>
-                  </View>
-                  <Text style={styles.quickAddChipTime}>{schedule.expectedTime.slice(0, 5)}</Text>
-                </Pressable>
-              ))}
-            <Pressable
-              onPress={() => openQuickEntry(null)}
-              style={styles.quickAddChip}
-              accessibilityRole="button"
-              accessibilityLabel="Add random reading"
-            >
-              <Ionicons name="add" size={14} color={appTheme.colors.primary} />
-              <Text style={styles.quickAddChipText}>Random</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => navigation.navigate("TemperatureSchedules")}
-              style={[styles.quickAddChip, styles.quickAddManageChip]}
-              accessibilityRole="button"
-              accessibilityLabel="Add or edit scheduled checks"
-            >
-              <Ionicons name="settings-outline" size={14} color={appTheme.colors.textMuted} />
-              <Text style={styles.quickAddManageText}>Edit</Text>
-            </Pressable>
-          </ScrollView>
-        </View>
         {/* Monitoring Units list — hidden on the main screen per request. Code kept intact;
             flip this `false` to `true` (or a real flag) to bring it back. */}
         {false ? (

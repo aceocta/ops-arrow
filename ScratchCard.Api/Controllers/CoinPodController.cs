@@ -58,6 +58,10 @@ public class CoinPodController : BaseApiController
     public async Task<IActionResult> BankRemoval([FromBody] CoinBankMovementRequest request, CancellationToken cancellationToken)
         => Success(await _service.BankRemovalAsync(request, cancellationToken));
 
+    [HttpPost("stock-count")]
+    public async Task<IActionResult> RecordStockByValue([FromBody] RecordCoinStockRequest request, CancellationToken cancellationToken)
+        => Success(await _service.RecordStockByValueAsync(request, cancellationToken));
+
     [HttpGet("transactions")]
     public async Task<IActionResult> Transactions([FromQuery] Guid shopId, [FromQuery] DateOnly from, [FromQuery] DateOnly to, [FromQuery] Guid? coinDenominationId, CancellationToken cancellationToken)
         => Success(await _service.GetTransactionsAsync(shopId, from, to, coinDenominationId, cancellationToken));

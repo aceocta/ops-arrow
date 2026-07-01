@@ -41,10 +41,7 @@ function statusShort(status: CoinBagStatus) {
 type Action = { label: string; icon: keyof typeof Ionicons.glyphMap; screen: keyof MainStackParamList; manage?: boolean };
 
 const ACTIONS: Action[] = [
-  { label: "Notes → Coins", icon: "swap-horizontal-outline", screen: "CoinNotesToCoins" },
-  { label: "Coins → Notes", icon: "swap-horizontal-outline", screen: "CoinCoinsToNotes" },
-  { label: "Adjust", icon: "create-outline", screen: "CoinAdjustment", manage: true },
-  { label: "History", icon: "time-outline", screen: "CoinHistory" },
+  { label: "Record Stock", icon: "clipboard-outline", screen: "CoinStockCount" },
 ];
 
 export function CoinPodDashboardScreen() {
@@ -78,38 +75,17 @@ export function CoinPodDashboardScreen() {
       ) : (
         <>
           <View style={[ui.card, styles.summary]}>
-            <View style={styles.summaryTop}>
-              <View>
-                <Text style={styles.summaryLabel}>Total coin bag value</Text>
-                <Text style={styles.summaryValue}>{money(data.totalCoinValue)}</Text>
-              </View>
-              <Pressable
-                style={styles.alertPill}
-                onPress={() => navigation.navigate("CoinAlerts")}
-                accessibilityRole="button"
-                accessibilityLabel="View coin alerts"
-              >
-                <Ionicons
-                  name={data.activeAlertCount > 0 ? "alert-circle" : "alert-circle-outline"}
-                  size={18}
-                  color={data.activeAlertCount > 0 ? appTheme.colors.danger : appTheme.colors.textSubtle}
-                />
-                <Text style={[styles.alertText, data.activeAlertCount > 0 ? styles.alertTextActive : null]}>
-                  {data.activeAlertCount > 0 ? `${data.activeAlertCount} active` : "No alerts"}
-                </Text>
-              </Pressable>
-            </View>
             <View style={styles.summaryStats}>
               <View style={styles.stat}>
                 <Text style={styles.statLabel}>Default</Text>
-                <Text style={styles.statValue}>{totalDefault} bags</Text>
-                <Text style={styles.statSub}>{money(totalDefaultValue)}</Text>
+                <Text style={styles.statBig}>{money(totalDefaultValue)}</Text>
+                <Text style={styles.statSub}>{totalDefault} bag{totalDefault === 1 ? "" : "s"}</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.stat}>
                 <Text style={styles.statLabel}>Current</Text>
-                <Text style={styles.statValue}>{totalCurrent} bags</Text>
-                <Text style={styles.statSub}>{money(totalCurrentValue)}</Text>
+                <Text style={styles.statBig}>{money(totalCurrentValue)}</Text>
+                <Text style={styles.statSub}>{totalCurrent} bag{totalCurrent === 1 ? "" : "s"}</Text>
               </View>
             </View>
           </View>
@@ -136,7 +112,7 @@ export function CoinPodDashboardScreen() {
               <View style={[styles.tr, styles.headRow]}>
                 <Text style={[styles.th, styles.colCoin]}>Coin</Text>
                 <Text style={[styles.th, styles.colSmall]}>Default</Text>
-                <Text style={[styles.th, styles.colSmall]}>Current</Text>
+                <Text style={[styles.th, styles.colCurrent]}>Current</Text>
                 <Text style={[styles.th, styles.colValue]}>Value</Text>
                 <View style={styles.colStatus}><Text style={[styles.th, styles.thRight]}>Status</Text></View>
               </View>
@@ -150,7 +126,7 @@ export function CoinPodDashboardScreen() {
               <View style={[styles.tr, styles.totalRow]}>
                 <Text style={[styles.tdCoin, styles.colCoin]}>Total</Text>
                 <Text style={[styles.td, styles.tdMuted, styles.colSmall]}>{totalDefault}</Text>
-                <Text style={[styles.td, styles.tdStrong, styles.colSmall]}>{totalCurrent}</Text>
+                <Text style={[styles.td, styles.tdStrong, styles.colCurrent]}>{totalCurrent}</Text>
                 <Text style={[styles.td, styles.tdStrong, styles.colValue]}>{money(data.totalCoinValue)}</Text>
                 <View style={styles.colStatus} />
               </View>
@@ -173,7 +149,7 @@ function CoinTableRow({ row, onPress }: { row: CoinBagStockRow; onPress?: () => 
     >
       <Text style={[styles.tdCoin, styles.colCoin]}>{row.displayLabel}</Text>
       <Text style={[styles.td, styles.tdMuted, styles.colSmall]}>{row.openingBagQuantity}</Text>
-      <Text style={[styles.td, styles.tdStrong, styles.colSmall]}>{row.currentBagQuantity}</Text>
+      <Text style={[styles.td, styles.tdStrong, styles.colCurrent]}>{row.currentBagQuantity}</Text>
       <Text style={[styles.td, styles.colValue]}>{money(row.currentTotalValue)}</Text>
       <View style={[styles.colStatus, styles.statusCell]}>
         <StatusBadge label={statusShort(row.status)} tone={statusTone(row.status)} />
@@ -183,33 +159,24 @@ function CoinTableRow({ row, onPress }: { row: CoinBagStockRow; onPress?: () => 
 }
 
 const styles = StyleSheet.create({
-  summary: { paddingVertical: appTheme.spacing.sm, gap: appTheme.spacing.sm },
-  summaryTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  summaryLabel: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12 },
-  summaryValue: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 24, marginTop: 2 },
-  summaryStats: {
-    flexDirection: "row", alignItems: "center",
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: appTheme.colors.border, paddingTop: appTheme.spacing.sm,
-  },
+  summary: { paddingVertical: appTheme.spacing.xs, gap: 0 },
+  summaryStats: { flexDirection: "row", alignItems: "center" },
   stat: { flex: 1 },
-  statLabel: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 11 },
-  statValue: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 18, marginTop: 1 },
-  statSub: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, marginTop: 1 },
+  statLabel: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 },
+  statBig: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 19, marginTop: 1 },
+  statSub: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, marginTop: 1 },
   statDivider: { width: StyleSheet.hairlineWidth, alignSelf: "stretch", backgroundColor: appTheme.colors.border, marginHorizontal: appTheme.spacing.md },
-  alertPill: { flexDirection: "row", alignItems: "center", gap: 6 },
-  alertText: { color: appTheme.colors.textSubtle, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
-  alertTextActive: { color: appTheme.colors.danger },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: appTheme.spacing.sm },
   action: {
     flexGrow: 1, flexBasis: "45%", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
     borderWidth: 1, borderColor: appTheme.colors.primary, borderRadius: appTheme.radius.sm,
-    paddingVertical: 12, backgroundColor: appTheme.colors.surfaceBrandSoft,
+    paddingVertical: 10, backgroundColor: appTheme.colors.surfaceBrandSoft,
   },
   actionText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
 
   // Table
-  tableCard: { paddingVertical: appTheme.spacing.sm, gap: 0 },
-  tr: { flexDirection: "row", alignItems: "center", paddingVertical: 10, gap: appTheme.spacing.xs },
+  tableCard: { paddingVertical: appTheme.spacing.xs, gap: 0 },
+  tr: { flexDirection: "row", alignItems: "center", paddingVertical: 7, gap: appTheme.spacing.xs },
   headRow: { paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: appTheme.colors.border },
   rowCell: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: appTheme.colors.border },
   totalRow: { borderTopWidth: 1.5, borderTopColor: appTheme.colors.border, marginTop: 2, paddingTop: 12 },
@@ -220,9 +187,10 @@ const styles = StyleSheet.create({
   tdMuted: { color: appTheme.colors.textMuted },
   tdStrong: { fontFamily: appTheme.fonts.bodyMedium },
   tdCoin: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 16 },
-  colCoin: { flex: 1.1 },
+  colCoin: { flex: 0.9 },
   colNum: { flex: 1, textAlign: "right" },
-  colSmall: { flex: 0.8, textAlign: "right" },
+  colSmall: { flex: 1.1, textAlign: "right" },
+  colCurrent: { flex: 1.05, textAlign: "right" },
   colValue: { flex: 1.6, textAlign: "right" },
   colStatus: { flex: 1.2, alignItems: "flex-end" },
   statusCell: { flexDirection: "row", justifyContent: "flex-end" },

@@ -115,6 +115,7 @@ export type MainStackParamList = {
   CoinAlerts: undefined;
   CoinHistory: undefined;
   CoinReports: undefined;
+  CoinStockCount: undefined;
   AuditLog: undefined;
   NotificationLog: undefined;
   Settings: undefined;

@@ -27,6 +27,7 @@ const TYPE_LABELS: Record<string, string> = {
   BankRefill: "Bank refill",
   BankDeposit: "Coin removal",
   Reversal: "Reversal",
+  StockCount: "Value count",
 };
 
 function money(value: number) {

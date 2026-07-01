@@ -60,6 +60,7 @@ public static class SeedDataInitializer
                 CoinValue = c.CoinValue,
                 SortOrder = c.SortOrder,
                 IsActive = true,
+                IsNote = c.IsNote,
                 CreatedOn = now,
             })
             .ToList();

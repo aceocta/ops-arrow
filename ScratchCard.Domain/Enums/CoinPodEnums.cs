@@ -10,6 +10,8 @@ public enum CoinBagTransactionType
     BankRefill = 5,
     BankDeposit = 6,
     Reversal = 7,
+    /// <summary>A value-based stock count that sets current stock to the counted quantity.</summary>
+    StockCount = 8,
 }
 
 /// <summary>Whether a transaction added coin bags to (In) or removed them from (Out) the shop.</summary>

@@ -18,6 +18,7 @@ export type CoinBagStockRow = {
   stockAlertLimit: number;
   isAlertEnabled: boolean;
   isActive: boolean;
+  isNote: boolean;
   status: CoinBagStatus;
   lastUpdatedOn?: string | null;
   lastUpdatedByUserId?: string | null;
@@ -47,8 +48,11 @@ export type CoinBagConfig = {
   isAlertEnabled: boolean;
   alertRecipientType: string;
   isActive: boolean;
+  isNote: boolean;
   currentBagQuantity: number;
 };
+
+export type CoinStockCountEntry = { coinDenominationId: string; value: number };
 
 export type CoinBagTransaction = {
   id: string;
@@ -221,5 +225,10 @@ export async function getCoinPodReport(shopId: string, from: string, to: string)
   const response = await apiClient.get<ApiResponse<CoinPodReport>>("/coin-pod/report", {
     params: { shopId, from, to },
   });
+  return response.data.data;
+}
+
+export async function recordCoinStock(shopId: string, entries: CoinStockCountEntry[]): Promise<CoinPodDashboard> {
+  const response = await apiClient.post<ApiResponse<CoinPodDashboard>>("/coin-pod/stock-count", { shopId, entries });
   return response.data.data;
 }

@@ -753,43 +753,47 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
     </View>
   );
 
+  // Pinned header — the shift name, business date and "Scan any" action stay fixed at the top
+  // while the pack list scrolls beneath them, so the scan-all shortcut is always reachable.
+  const shiftHeaderSection = (
+    <View style={[ui.card, styles.summaryCard]}>
+      {/* Single-line title: shift name + date, with the "Scan any" pill inline on the right. */}
+      <View style={styles.summaryHeaderRow}>
+        <Text style={styles.summaryTitle} numberOfLines={1}>
+          {shiftQuery.data?.shiftName ?? "-"}
+        </Text>
+        <Text style={styles.summaryDate} numberOfLines={1}>
+          {businessDayQuery.data?.businessDate ?? "-"}
+        </Text>
+        {isCameraScanningEnabled ? (
+          <Pressable
+            style={[styles.compactScanBtn, isSubmitting ? styles.actionButtonDisabled : null]}
+            accessibilityRole="button"
+            accessibilityLabel="Scan any pack"
+            disabled={isSubmitting}
+            onPress={() =>
+              openBarcodeScanner({
+                mode: "auto",
+                // Fall back to every pack once nothing is pending, so the button still scans.
+                pendingPacks: pendingPackHints.length > 0 ? pendingPackHints : allPackHints,
+              })
+            }
+          >
+            <Ionicons name="scan-outline" size={15} color={appTheme.colors.text} />
+            <Text style={styles.compactScanBtnText}>Scan any</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      {!isCameraScanningEnabled ? (
+        <Text style={styles.meta}>Camera scanning is disabled — use the serial box.</Text>
+      ) : null}
+    </View>
+  );
+
   return (
-    <ScreenContainer footer={finalizeFooter} keyboardScrollOffset={160}>
+    <ScreenContainer header={shiftHeaderSection} footer={finalizeFooter} keyboardScrollOffset={160}>
       <View style={styles.content}>
-        <View style={[ui.card, styles.summaryCard]}>
-          {/* Single-line title: shift name + date, with the "Scan any" pill inline on the right. */}
-          <View style={styles.summaryHeaderRow}>
-            <Text style={styles.summaryTitle} numberOfLines={1}>
-              {shiftQuery.data?.shiftName ?? "-"}
-            </Text>
-            <Text style={styles.summaryDate} numberOfLines={1}>
-              {businessDayQuery.data?.businessDate ?? "-"}
-            </Text>
-            {isCameraScanningEnabled ? (
-              <Pressable
-                style={[styles.compactScanBtn, isSubmitting ? styles.actionButtonDisabled : null]}
-                accessibilityRole="button"
-                accessibilityLabel="Scan any pack"
-                disabled={isSubmitting}
-                onPress={() =>
-                  openBarcodeScanner({
-                    mode: "auto",
-                    // Fall back to every pack once nothing is pending, so the button still scans.
-                    pendingPacks: pendingPackHints.length > 0 ? pendingPackHints : allPackHints,
-                  })
-                }
-              >
-                <Ionicons name="scan-outline" size={15} color={appTheme.colors.text} />
-                <Text style={styles.compactScanBtnText}>Scan any</Text>
-              </Pressable>
-            ) : null}
-          </View>
-
-          {!isCameraScanningEnabled ? (
-            <Text style={styles.meta}>Camera scanning is disabled — use the serial box.</Text>
-          ) : null}
-        </View>
-
         {/* <View style={[ui.card, styles.quickScanCard]}> */}
           {/* <Text style={styles.cardTitle}>Quick Scan</Text>
           <Text style={styles.meta}>Scan continuously and auto-apply closing serials by pack.</Text> */}

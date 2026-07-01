@@ -124,14 +124,10 @@ export function ProductExpiryListScreen() {
     setCustomTo(today);
   };
 
-  return (
-    <ScreenContainer
-      refreshControl={
-        <RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={appTheme.colors.primary} />
-      }
-      footer={<PrimaryButton label="Add product" onPress={() => navigation.navigate("AddProduct")} />}
-    >
-      <View style={styles.filters}>
+  // Pinned filters header — the status tabs, search box and collapsible filters stay fixed at the
+  // top while the product table scrolls beneath them, so refining the list is always one tap away.
+  const filtersHeaderSection = (
+    <View style={styles.filters}>
         <SegmentedControl options={FILTERS} value={filter} onChange={onStatusChange} />
 
         <View style={styles.searchRow}>
@@ -237,8 +233,37 @@ export function ProductExpiryListScreen() {
             ) : null}
           </>
         ) : null}
-      </View>
+    </View>
+  );
 
+  // The stock table's column headers stay pinned beneath the filters — but only while the table
+  // itself is on screen (not during loading/empty/no-match states) — so the columns stay labelled
+  // as the rows scroll. Rendered in the same card treatment as the body table so columns line up.
+  const showStockTable = !query.isLoading && items.length > 0 && filteredItems.length > 0;
+  const stickyHeader = (
+    <>
+      {filtersHeaderSection}
+      {showStockTable ? (
+        <View style={[ui.card, styles.tableCard, styles.stickyHeadCard]}>
+          <View style={styles.tr}>
+            <Text style={[styles.th, styles.colProduct]}>Product</Text>
+            <Text style={[styles.th, styles.colQty]}>Qty</Text>
+            <Text style={[styles.th, styles.colExpiry, styles.thCenter]}>Expiry</Text>
+            <Text style={[styles.th, styles.colStatus, styles.thCenter]}>Status</Text>
+          </View>
+        </View>
+      ) : null}
+    </>
+  );
+
+  return (
+    <ScreenContainer
+      header={stickyHeader}
+      refreshControl={
+        <RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={appTheme.colors.primary} />
+      }
+      footer={<PrimaryButton label="Add product" onPress={() => navigation.navigate("AddProduct")} />}
+    >
       {query.isLoading ? (
         <View style={ui.card}><LoadingState message="Loading products…" inline /></View>
       ) : items.length === 0 ? (
@@ -255,12 +280,6 @@ export function ProductExpiryListScreen() {
         />
       ) : (
         <View style={[ui.card, styles.tableCard]}>
-          <View style={[styles.tr, styles.headRow]}>
-            <Text style={[styles.th, styles.colProduct]}>Product</Text>
-            <Text style={[styles.th, styles.colQty]}>Qty</Text>
-            <Text style={[styles.th, styles.colExpiry, styles.thCenter]}>Expiry</Text>
-            <Text style={[styles.th, styles.colStatus, styles.thCenter]}>Status</Text>
-          </View>
           {filteredItems.map((item) => (
             <ProductRow key={item.id} item={item} onPress={() => navigation.navigate("ProductExpiryDetail", { id: item.id })} />
           ))}
@@ -317,6 +336,9 @@ const styles = StyleSheet.create({
   fieldLabel: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 16, marginBottom: 2 },
   // Table layout for the stock list.
   tableCard: { paddingVertical: appTheme.spacing.sm, gap: 0 },
+  // Pinned column-header bar: a compact card that shares tableCard's horizontal insets + column
+  // widths so its labels line up with the scrolling rows below. Small top gap separates it from filters.
+  stickyHeadCard: { paddingVertical: 2, marginTop: appTheme.spacing.xs },
   tr: { flexDirection: "row", alignItems: "center", paddingVertical: 10, gap: appTheme.spacing.xs },
   headRow: { paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: appTheme.colors.border },
   rowCell: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: appTheme.colors.borderSoft },

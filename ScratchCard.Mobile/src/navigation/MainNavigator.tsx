@@ -75,6 +75,7 @@ import { CoinAdjustmentScreen } from "../features/coin-pod/CoinAdjustmentScreen"
 import { CoinAlertsScreen } from "../features/coin-pod/CoinAlertsScreen";
 import { CoinHistoryScreen } from "../features/coin-pod/CoinHistoryScreen";
 import { CoinReportsScreen } from "../features/coin-pod/CoinReportsScreen";
+import { CoinStockCountScreen } from "../features/coin-pod/CoinStockCountScreen";
 import { UserManagementScreen, ShopConfigurationScreen, AppConfigurationScreen, CompanyManagementScreen, ShopManagementScreen, SettingsScreen } from "../features/settings/SettingsScreens";
 import { NotificationPreferencesScreen } from "../features/settings/NotificationPreferencesScreen";
 import { ShopFeatureTogglesScreen } from "../features/settings/ShopFeatureTogglesScreen";
@@ -377,6 +378,7 @@ const productExpiryItems: MenuItem[] = [
 // --- Coin Pod ---
 const coinPodItems: MenuItem[] = [
   { label: "Coin Pod", screen: "CoinPodDashboard", icon: "cash-outline", requiredFeature: "coin_pod.basic" },
+  { label: "Record Stock", screen: "CoinStockCount", icon: "clipboard-outline", requiredFeature: "coin_pod.basic" },
   { label: "Notes → Coins", screen: "CoinNotesToCoins", icon: "swap-horizontal-outline", requiredFeature: "coin_pod.basic" },
   { label: "Coins → Notes", screen: "CoinCoinsToNotes", icon: "swap-horizontal-outline", requiredFeature: "coin_pod.basic" },
   { label: "Manual Adjustment", screen: "CoinAdjustment", icon: "create-outline", allowedRoles: ["PlatformAdmin", "CompanyOwner", "Manager"], requiredFeature: "coin_pod.basic" },
@@ -430,11 +432,15 @@ function HeaderRightControls({
   onMenu,
   onHome,
   onSettings,
+  hideShortcuts,
 }: {
   routeName: string;
   onMenu: () => void;
   onHome: () => void;
   onSettings: () => void;
+  // When true, hide the home/settings shortcuts and the menu (hamburger) button — used by focused
+  // data-entry screens (e.g. Enter Closing Numbers) that want a clean header. Help still shows.
+  hideShortcuts?: boolean;
 }) {
   const { openHelp, hasHelp } = useHelp();
   return (
@@ -442,7 +448,7 @@ function HeaderRightControls({
       {/* Home/Settings replace the old bottom dock. They and the help button share the
           same borderless style so the cluster stays light next to the circled menu
           button. Each shortcut hides on its own screen, where it would be redundant. */}
-      {routeName !== "BestEntry" ? (
+      {!hideShortcuts && routeName !== "BestEntry" ? (
         <Pressable
           style={({ pressed }) => [styles.headerPlainBtn, pressed ? styles.headerBtnPressed : null]}
           onPress={onHome}
@@ -452,7 +458,7 @@ function HeaderRightControls({
           <Ionicons name="home-outline" size={21} color={appTheme.colors.primary} />
         </Pressable>
       ) : null}
-      {routeName !== "Settings" ? (
+      {!hideShortcuts && routeName !== "Settings" ? (
         <Pressable
           style={({ pressed }) => [styles.headerPlainBtn, pressed ? styles.headerBtnPressed : null]}
           onPress={onSettings}
@@ -472,7 +478,7 @@ function HeaderRightControls({
           <Ionicons name="help-circle-outline" size={22} color={appTheme.colors.primary} />
         </Pressable>
       ) : null}
-      <HamburgerButton onPress={onMenu} />
+      {hideShortcuts ? null : <HamburgerButton onPress={onMenu} />}
     </View>
   );
 }
@@ -604,7 +610,18 @@ function MainStackScreens() {
       <Stack.Screen
         name="EnterClosingNumbers"
         component={EnterClosingNumbersScreen}
-        options={{ title: "Closing Numbers" }}
+        options={({ navigation, route }) => ({
+          title: "Closing Numbers",
+          headerRight: () => (
+            <HeaderRightControls
+              routeName={route.name}
+              hideShortcuts
+              onMenu={() => navigation.getParent()?.dispatch(DrawerActions.toggleDrawer())}
+              onHome={() => navigation.navigate("BestEntry")}
+              onSettings={() => navigation.navigate("Settings")}
+            />
+          ),
+        })}
       />
       <Stack.Screen
         name="PrizePayout"
@@ -638,6 +655,7 @@ function MainStackScreens() {
       <Stack.Screen name="CoinAlerts" component={CoinAlertsScreen} options={{ title: "Alert Centre" }} />
       <Stack.Screen name="CoinHistory" component={CoinHistoryScreen} options={{ title: "Transaction History" }} />
       <Stack.Screen name="CoinReports" component={CoinReportsScreen} options={{ title: "Coin Reports" }} />
+      <Stack.Screen name="CoinStockCount" component={CoinStockCountScreen} options={{ title: "Record Stock" }} />
       <Stack.Screen name="AuditLog" component={AuditLogScreen} options={{ title: "Audit Log" }} />
       <Stack.Screen name="NotificationLog" component={NotificationLogScreen} options={{ title: "Notification Log" }} />
       <Stack.Screen name="StoreSales" component={CaptureTillReportScreen} options={{ title: "Store Sales" }} />

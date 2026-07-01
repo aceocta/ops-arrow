@@ -20,4 +20,6 @@ public class CoinDenomination : AuditableEntity
     /// <summary>Globally active/inactive (a denomination removed from circulation can be disabled).</summary>
     public bool IsActive { get; set; } = true;
     public int SortOrder { get; set; }
+    /// <summary>True for bank notes (£5…£50), false for coins (1p…£2). Drives coins-vs-notes grouping.</summary>
+    public bool IsNote { get; set; }
 }

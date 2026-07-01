@@ -35,6 +35,10 @@ public interface ICoinPodService
     /// <summary>Coin removal / bank deposit — bags removed for banking (decreases stock).</summary>
     Task<CoinBagTransactionDto> BankRemovalAsync(CoinBankMovementRequest request, CancellationToken cancellationToken = default);
 
+    /// <summary>Value-based stocktake: convert each entered cash value to a pack count (value ÷ pack
+    /// value) and SET current stock to it. Returns the refreshed dashboard.</summary>
+    Task<CoinPodDashboardDto> RecordStockByValueAsync(RecordCoinStockRequest request, CancellationToken cancellationToken = default);
+
     /// <summary>Transaction history over a date range, newest first; optional denomination filter.</summary>
     Task<IReadOnlyCollection<CoinBagTransactionDto>> GetTransactionsAsync(Guid shopId, DateOnly from, DateOnly to, Guid? coinDenominationId, CancellationToken cancellationToken = default);
 
