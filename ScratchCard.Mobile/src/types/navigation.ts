@@ -102,7 +102,8 @@ export type MainStackParamList = {
   ManualClosingReview: undefined;
   StockReport: undefined;
   ProductExpiryList: undefined;
-  AddProduct: undefined;
+  // editId set → the screen loads that batch and edits it instead of adding a new one.
+  AddProduct: { editId?: string } | undefined;
   ProductBarcodeScanner: { mode?: "barcode" | "date" | "name" } | undefined;
   ProductExpiryDetail: { id: string };
   ProductCategories: undefined;

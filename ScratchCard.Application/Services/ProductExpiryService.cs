@@ -77,28 +77,9 @@ public sealed class ProductExpiryService : IProductExpiryService
     {
         await EnsureAccessAsync(request.ShopId, cancellationToken);
 
-        // Collapse internal whitespace (a multi-line OCR name can arrive as "Cadbury Dairy\n Milk")
-        // and bound length to the column cap so an over-long combined name is a clean 400, not a
-        // 500/silent truncation.
-        var name = string.Join(' ', (request.ProductName ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-        if (name.Length == 0) throw new AppException("validation_failed", "Product name is required.", 400);
-        if (name.Length > 200) throw new AppException("validation_failed", "Product name is too long (max 200 characters).", 400);
-        if (request.Quantity <= 0) throw new AppException("validation_failed", "Quantity must be greater than zero.", 400);
-        if (request.UnitCost is < 0 || request.UnitPrice is < 0)
-            throw new AppException("validation_failed", "Unit cost / price can't be negative.", 400);
-        if (!Enum.IsDefined(request.DateType))
-            throw new AppException("validation_failed", "Invalid date type.", 400);
-
-        // Sanity-bound the expiry date. A mis-typed or mis-OCR'd year (e.g. "07" -> 2007, or "2207")
-        // would otherwise persist and silently mis-grade status / pollute the waste report. The lower
-        // bound still allows logging recently-expired clearance stock.
-        var today = Today;
-        if (request.ExpiryDate < today.AddYears(-1) || request.ExpiryDate > today.AddYears(10))
-            throw new AppException("validation_failed", "Expiry date looks wrong — pick a date within the last year or the next 10 years.", 400);
-
-        var batchNumber = string.IsNullOrWhiteSpace(request.BatchNumber) ? null : request.BatchNumber.Trim();
-        if (batchNumber is { Length: > 100 })
-            throw new AppException("validation_failed", "Batch number is too long (max 100 characters).", 400);
+        var (name, batchNumber) = ValidateAndNormalize(
+            request.ProductName, request.Quantity, request.UnitCost, request.UnitPrice,
+            request.DateType, request.ExpiryDate, request.BatchNumber);
 
         var category = await _categories.Query().AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == request.ProductCategoryId && !c.IsDeleted
@@ -128,6 +109,48 @@ public sealed class ProductExpiryService : IProductExpiryService
 
         var rules = category.ReminderRules?.Select(r => r.DaysBeforeExpiry).ToList() ?? await RuleDaysForCategoryAsync(category.Id, cancellationToken);
         return Map(batch, category.Name, rules);
+    }
+
+    public async Task<ProductBatchDto> UpdateAsync(UpdateProductRequest request, CancellationToken cancellationToken = default)
+    {
+        var batch = await _batches.Query()
+            .Include(b => b.Actions)
+            .FirstOrDefaultAsync(b => b.Id == request.Id && !b.IsDeleted, cancellationToken)
+            ?? throw new AppException("product_not_found", "Product not found.", 404);
+
+        await EnsureAccessAsync(batch.ShopId, cancellationToken);
+
+        var (name, batchNumber) = ValidateAndNormalize(
+            request.ProductName, request.Quantity, request.UnitCost, request.UnitPrice,
+            request.DateType, request.ExpiryDate, request.BatchNumber);
+
+        var category = await _categories.Query().AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == request.ProductCategoryId && !c.IsDeleted
+                && (c.ShopId == null || c.ShopId == batch.ShopId), cancellationToken)
+            ?? throw new AppException("category_not_found", "Pick a valid product category.", 400);
+
+        // Quantity is the batch total; RemainingQuantity is what's left after recorded actions. Editing
+        // the total can't drop it below the units already actioned (sold/disposed/etc.), so re-derive
+        // remaining from the same actioned count rather than blindly overwriting it.
+        var actioned = batch.Quantity - batch.RemainingQuantity;
+        if (request.Quantity < actioned)
+            throw new AppException("validation_failed", $"Quantity can't be below the {actioned} unit(s) already actioned.", 400);
+
+        batch.ProductCategoryId = category.Id;
+        batch.ProductName = name;
+        batch.Barcode = NormalizeBarcode(request.Barcode);
+        batch.Quantity = request.Quantity;
+        batch.RemainingQuantity = request.Quantity - actioned;
+        batch.ExpiryDate = request.ExpiryDate;
+        batch.DateType = request.DateType;
+        batch.BatchNumber = batchNumber;
+        batch.UnitCost = request.UnitCost;
+        batch.UnitPrice = request.UnitPrice;
+        batch.ModifiedOn = DateTimeOffset.UtcNow;
+        _batches.Update(batch);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return await GetAsync(batch.Id, cancellationToken);
     }
 
     public async Task<ProductBarcodeLookupDto> LookupByBarcodeAsync(Guid shopId, string barcode, CancellationToken cancellationToken = default)
@@ -392,6 +415,37 @@ public sealed class ProductExpiryService : IProductExpiryService
             .Where(c => c.Id == categoryId)
             .SelectMany(c => c.ReminderRules.Select(r => r.DaysBeforeExpiry))
             .ToListAsync(ct);
+
+    /// <summary>Shared field validation + normalisation for add and edit, so both paths accept exactly the
+    /// same input. Collapses internal whitespace in the name (a multi-line OCR name can arrive as "Cadbury
+    /// Dairy\n Milk") and bounds lengths to the column caps so over-long input is a clean 400, not a
+    /// 500/silent truncation. Sanity-bounds the expiry year — a mis-typed or mis-OCR'd year (e.g. "07" ->
+    /// 2007, or "2207") would otherwise persist and silently mis-grade status / pollute the waste report;
+    /// the lower bound still allows logging recently-expired clearance stock. Returns the cleaned name +
+    /// trimmed batch number.</summary>
+    private static (string Name, string? BatchNumber) ValidateAndNormalize(
+        string? productName, int quantity, decimal? unitCost, decimal? unitPrice,
+        ProductDateType dateType, DateOnly expiryDate, string? rawBatchNumber)
+    {
+        var name = string.Join(' ', (productName ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        if (name.Length == 0) throw new AppException("validation_failed", "Product name is required.", 400);
+        if (name.Length > 200) throw new AppException("validation_failed", "Product name is too long (max 200 characters).", 400);
+        if (quantity <= 0) throw new AppException("validation_failed", "Quantity must be greater than zero.", 400);
+        if (unitCost is < 0 || unitPrice is < 0)
+            throw new AppException("validation_failed", "Unit cost / price can't be negative.", 400);
+        if (!Enum.IsDefined(dateType))
+            throw new AppException("validation_failed", "Invalid date type.", 400);
+
+        var today = Today;
+        if (expiryDate < today.AddYears(-1) || expiryDate > today.AddYears(10))
+            throw new AppException("validation_failed", "Expiry date looks wrong — pick a date within the last year or the next 10 years.", 400);
+
+        var batchNumber = string.IsNullOrWhiteSpace(rawBatchNumber) ? null : rawBatchNumber.Trim();
+        if (batchNumber is { Length: > 100 })
+            throw new AppException("validation_failed", "Batch number is too long (max 100 characters).", 400);
+
+        return (name, batchNumber);
+    }
 
     private static ProductBatchDto Map(ProductBatch b, string categoryName, IReadOnlyList<int> ruleDays, DateOnly? today = null)
     {

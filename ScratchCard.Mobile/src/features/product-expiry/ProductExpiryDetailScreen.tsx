@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
-import { RouteProp, useRoute } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -37,8 +38,26 @@ const ACTIONS: { type: ProductExpiryActionType; label: string; icon: keyof typeo
 export function ProductExpiryDetailScreen() {
   const route = useRoute<DetailRoute>();
   const { id } = route.params;
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const queryClient = useQueryClient();
   const { activeShopId } = useAuth();
+
+  // Header pencil → reuse the Add Product screen in edit mode for this batch (fix a typo, expiry,
+  // price, category, or quantity). Available immediately; the target screen loads the batch itself.
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable
+          onPress={() => navigation.navigate("AddProduct", { editId: id })}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Edit product"
+        >
+          <Ionicons name="create-outline" size={22} color={appTheme.colors.primary} />
+        </Pressable>
+      ),
+    });
+  }, [navigation, id]);
 
   const [pending, setPending] = useState<{ type: ProductExpiryActionType; reduces: boolean } | null>(null);
   const [qty, setQty] = useState("1");

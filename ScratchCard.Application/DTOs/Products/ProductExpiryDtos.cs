@@ -92,6 +92,23 @@ public class AddProductRequest
     public decimal? UnitPrice { get; set; }
 }
 
+/// <summary>Edit an existing batch's details (correct a typo, fix the expiry, re-price, re-categorise).
+/// ShopId isn't editable — it's taken from the batch. <see cref="Quantity"/> is the batch total; it
+/// can't be lowered below the units already actioned (sold/disposed/etc.).</summary>
+public class UpdateProductRequest
+{
+    public Guid Id { get; set; }
+    public Guid ProductCategoryId { get; set; }
+    public string ProductName { get; set; } = string.Empty;
+    public string? Barcode { get; set; }
+    public int Quantity { get; set; }
+    public DateOnly ExpiryDate { get; set; }
+    public ProductDateType DateType { get; set; } = ProductDateType.UseBy;
+    public string? BatchNumber { get; set; }
+    public decimal? UnitCost { get; set; }
+    public decimal? UnitPrice { get; set; }
+}
+
 // ---------------------------------------------------------------------------
 // Actions
 // ---------------------------------------------------------------------------

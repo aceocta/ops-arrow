@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
-import { addProduct, createProductCategory, listProductCategories, lookupProductByBarcode, ProductDateType } from "../../api/productExpiryApi";
+import { addProduct, createProductCategory, getProduct, listProductCategories, lookupProductByBarcode, ProductDateType, updateProduct } from "../../api/productExpiryApi";
 import { subscribeProductScan } from "./productScanBus";
 import { normalizeGtin, parseGs1IfApplicable } from "./gs1";
 import { useAuth } from "../../auth/AuthContext";
@@ -40,8 +40,13 @@ function parseReminderDays(raw: string): number[] {
 
 export function AddProductScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const route = useRoute<RouteProp<MainStackParamList, "AddProduct">>();
   const queryClient = useQueryClient();
   const { activeShopId, activeShop, profile } = useAuth();
+  // When launched with an editId, this same screen edits that batch instead of adding a new one:
+  // it loads the batch, prefills the form, retitles itself, and PUTs on save.
+  const editId = route.params?.editId;
+  const isEditing = Boolean(editId);
   // Creating a category is management-only on the server (RoleNames.ManagementAndAbove), so only
   // surface the inline "+ New" affordance to that audience — staff still pick from the existing list.
   // Mirror the backend gate exactly so the button never leads to a 403 dead-end.
@@ -187,6 +192,38 @@ export function AddProductScreen() {
   });
   const categories = useMemo(() => (categoriesQuery.data ?? []).filter((c) => c.isActive), [categoriesQuery.data]);
 
+  // Edit mode: load the batch being edited and prefill the form once its data arrives.
+  const editQuery = useQuery({
+    queryKey: ["product-expiry-item", editId],
+    queryFn: () => getProduct(editId as string),
+    enabled: isEditing,
+  });
+  const editingBatch = editQuery.data;
+  // Units already actioned (sold/disposed/etc.) = total − remaining. Editing can't drop the total
+  // below this; the server enforces the same floor.
+  const actionedUnits = isEditing && editingBatch ? editingBatch.quantity - editingBatch.remainingQuantity : 0;
+
+  const hasPrefilledRef = useRef(false);
+  useEffect(() => {
+    if (!isEditing || hasPrefilledRef.current || !editingBatch) return;
+    hasPrefilledRef.current = true;
+    setProductName(editingBatch.productName);
+    setCategoryId(editingBatch.productCategoryId);
+    setDateType(editingBatch.dateType);
+    setQuantity(String(editingBatch.quantity));
+    setExpiryDate(editingBatch.expiryDate);
+    expiryTouched.current = true; // don't let a stray scan overwrite the loaded expiry
+    setBatchNumber(editingBatch.batchNumber ?? "");
+    setUnitCost(editingBatch.unitCost != null ? String(editingBatch.unitCost) : "");
+    setUnitPrice(editingBatch.unitPrice != null ? String(editingBatch.unitPrice) : "");
+    setBarcode(editingBatch.barcode ?? "");
+  }, [isEditing, editingBatch]);
+
+  // Retitle the header for edit; leave the navigator's default "Add Product" for the add case.
+  useEffect(() => {
+    if (isEditing) navigation.setOptions({ title: "Edit Product" });
+  }, [isEditing, navigation]);
+
   const createCategoryMutation = useMutation({
     mutationFn: () =>
       createProductCategory({
@@ -214,7 +251,11 @@ export function AddProductScreen() {
   const fieldErrors = {
     productName: productName.trim().length === 0 ? "Enter the product name." : null,
     category: !categoryId ? "Choose a category." : null,
-    quantity: !hasQty ? "Enter a quantity of 1 or more." : null,
+    quantity: !hasQty
+      ? "Enter a quantity of 1 or more."
+      : isEditing && qtyValue < actionedUnits
+        ? `Can't be below ${actionedUnits} already actioned.`
+        : null,
   };
   const validation = useFieldValidation(fieldErrors);
   const nameError = validation.showError("productName");
@@ -247,10 +288,37 @@ export function AddProductScreen() {
     onError: (error: unknown) => toastError(getApiErrorMessage(error, "Unable to add product.")),
   });
 
+  const updateMutation = useMutation({
+    mutationFn: () =>
+      updateProduct({
+        id: editId as string,
+        productCategoryId: categoryId as string,
+        productName: productName.trim(),
+        barcode: barcode.trim() || undefined,
+        quantity: Math.floor(qtyValue),
+        expiryDate,
+        dateType,
+        batchNumber: batchNumber.trim() || undefined,
+        unitCost: unitCost.trim() ? Number(unitCost) : undefined,
+        unitPrice: unitPrice.trim() ? Number(unitPrice) : undefined,
+      }),
+    onSuccess: () => {
+      toastSuccess("Product updated.");
+      void queryClient.invalidateQueries({ queryKey: ["product-expiry", activeShopId] });
+      void queryClient.invalidateQueries({ queryKey: ["product-expiry-item", editId] });
+      void queryClient.invalidateQueries({ queryKey: ["product-expiry-scoreboard", activeShopId] });
+      navigation.goBack();
+    },
+    onError: (error: unknown) => toastError(getApiErrorMessage(error, "Unable to update product.")),
+  });
+
+  // One handle for whichever operation this screen is performing.
+  const activeMutation = isEditing ? updateMutation : addMutation;
+
   const handleSubmit = () => {
-    // Imperative guard: on RN two taps can fire before the button re-renders, and POST
-    // /product-expiry isn't idempotent (would create two batches).
-    if (addMutation.isPending) return;
+    // Imperative guard: on RN two taps can fire before the button re-renders, and the add POST
+    // isn't idempotent (would create two batches).
+    if (activeMutation.isPending) return;
     if (!validation.attemptSubmit()) {
       // attemptSubmit revealed every error; pull the first invalid *focusable* field forward.
       // Category is a chip selector with nothing to focus — its inline error is now visible.
@@ -258,8 +326,18 @@ export function AddProductScreen() {
       else if (fieldErrors.quantity) quantityInputRef.current?.focus();
       return;
     }
-    addMutation.mutate();
+    activeMutation.mutate();
   };
+
+  // While the batch being edited is still loading, show a placeholder rather than a flash of the
+  // empty "add" form (which would then jump as prefill lands).
+  if (isEditing && editQuery.isLoading && !editingBatch) {
+    return (
+      <ScreenContainer>
+        <View style={ui.card}><LoadingState message="Loading product…" inline /></View>
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer
@@ -282,12 +360,12 @@ export function AddProductScreen() {
             )}
           </Pressable>
           <PrimaryButton
-            label={addMutation.isPending ? "Saving…" : "Save product"}
+            label={activeMutation.isPending ? "Saving…" : isEditing ? "Save changes" : "Save product"}
             // Deliberately enabled while the form is incomplete: pressing it reveals *what's* missing
             // via the inline field errors. A disabled button with no explanation is its own mobile
-            // anti-pattern. handleSubmit runs the checks and only fires the POST once everything valid.
+            // anti-pattern. handleSubmit runs the checks and only fires the request once everything valid.
             onPress={handleSubmit}
-            disabled={addMutation.isPending}
+            disabled={activeMutation.isPending}
           />
         </View>
       }

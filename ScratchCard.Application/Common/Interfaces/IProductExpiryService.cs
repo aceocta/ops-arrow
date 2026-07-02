@@ -19,6 +19,9 @@ public interface IProductCategoryService
 public interface IProductExpiryService
 {
     Task<ProductBatchDto> AddAsync(AddProductRequest request, CancellationToken cancellationToken = default);
+    /// <summary>Edit an existing batch's details. Re-derives RemainingQuantity from the new total minus the
+    /// units already actioned; rejects a total below what's already been actioned.</summary>
+    Task<ProductBatchDto> UpdateAsync(UpdateProductRequest request, CancellationToken cancellationToken = default);
     /// <summary>Prefill suggestion for a scanned barcode from the most recent matching batch at this shop.</summary>
     Task<ProductBarcodeLookupDto> LookupByBarcodeAsync(Guid shopId, string barcode, CancellationToken cancellationToken = default);
     /// <summary>Active (remaining > 0, non-deleted) batches for a shop, with derived status; optional status filter.</summary>

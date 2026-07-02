@@ -119,6 +119,25 @@ export async function addProduct(input: {
   return res.data.data;
 }
 
+// Edit an existing batch. Shop is fixed (server reads it from the batch); the id goes in the path.
+// Quantity is the batch total — the server rejects lowering it below units already actioned.
+export async function updateProduct(input: {
+  id: string;
+  productCategoryId: string;
+  productName: string;
+  barcode?: string;
+  quantity: number;
+  expiryDate: string;
+  dateType: ProductDateType;
+  batchNumber?: string;
+  unitCost?: number;
+  unitPrice?: number;
+}): Promise<ProductBatch> {
+  const { id, ...body } = input;
+  const res = await apiClient.put<ApiResponse<ProductBatch>>(`/product-expiry/${id}`, body);
+  return res.data.data;
+}
+
 export type ProductBarcodeLookup = {
   found: boolean;
   source: "local" | "online" | "none";

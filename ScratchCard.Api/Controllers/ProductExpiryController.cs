@@ -25,6 +25,13 @@ public class ProductExpiryController : BaseApiController
     public async Task<IActionResult> Add([FromBody] AddProductRequest request, CancellationToken cancellationToken)
         => Success(await _service.AddAsync(request, cancellationToken));
 
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateProductRequest request, CancellationToken cancellationToken)
+    {
+        request.Id = id; // route is the source of truth for which batch is edited
+        return Success(await _service.UpdateAsync(request, cancellationToken));
+    }
+
     [HttpGet]
     public async Task<IActionResult> List([FromQuery] Guid shopId, [FromQuery] ProductExpiryStatus? status, CancellationToken cancellationToken)
         => Success(await _service.ListAsync(shopId, status, cancellationToken));
