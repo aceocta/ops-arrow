@@ -214,7 +214,7 @@ export function CoinStockCountScreen() {
     <ScreenContainer
       footer={
         <PrimaryButton
-          label={mutation.isPending ? "Saving…" : `Record stock (${totalChanges})`}
+          label={mutation.isPending ? "Saving…" : totalChanges === 0 ? "No changes to record" : `Record stock (${totalChanges})`}
           onPress={() => { if (totalChanges > 0 && !mutation.isPending) mutation.mutate(); }}
           disabled={totalChanges === 0 || mutation.isPending}
         />
@@ -224,6 +224,7 @@ export function CoinStockCountScreen() {
         <View style={ui.card}><LoadingState message="Loading denominations…" inline /></View>
       ) : (
         <View style={styles.list}>
+          <Text style={styles.listHint}>Tap a box to change it · leave a box empty to keep the current amount.</Text>
           {renderLooseCard()}
           {items.map(renderRow)}
         </View>
@@ -235,6 +236,7 @@ export function CoinStockCountScreen() {
 const styles = StyleSheet.create({
   helpBtn: { paddingHorizontal: 6, paddingVertical: 2 },
   list: { gap: 6 },
+  listHint: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, lineHeight: 16, marginBottom: 2 },
   itemCard: {
     paddingVertical: appTheme.spacing.xs, paddingHorizontal: appTheme.spacing.sm, gap: 4,
   },

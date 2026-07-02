@@ -63,6 +63,11 @@ export const FloatingLabelInput = forwardRef<TextInput, Props>(function Floating
 
   const labelTop = anim.interpolate({ inputRange: [0, 1], outputRange: [18, 6] });
   const labelFontSize = anim.interpolate({ inputRange: [0, 1], outputRange: [14, 11] });
+  // When a prefix (e.g. "£") is shown, nudge the resting placeholder label right so it sits after the
+  // prefix ("£ Amount") instead of on top of it; the floated label returns to the left edge.
+  const labelLeft = prefix
+    ? anim.interpolate({ inputRange: [0, 1], outputRange: [appTheme.spacing.sm + 18, appTheme.spacing.sm] })
+    : appTheme.spacing.sm;
   const labelColor = error
     ? appTheme.colors.danger
     : isFocused
@@ -82,14 +87,14 @@ export const FloatingLabelInput = forwardRef<TextInput, Props>(function Floating
         <Animated.Text
           style={[
             styles.label,
-            { top: labelTop, fontSize: labelFontSize, color: labelColor },
+            { top: labelTop, left: labelLeft, fontSize: labelFontSize, color: labelColor },
           ]}
           pointerEvents="none"
         >
           {label}
         </Animated.Text>
         <View style={styles.row}>
-          {prefix && floated ? <Text style={styles.prefix}>{prefix}</Text> : null}
+          {prefix ? <Text style={styles.prefix}>{prefix}</Text> : null}
           <TextInput
             ref={inputRef}
             {...rest}

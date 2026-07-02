@@ -10,7 +10,7 @@ type Props = {
 export function StatusBadge({ label, tone = "neutral" }: Props) {
   return (
     <View style={[styles.badge, styles[tone]]}>
-      <Text style={styles.text}>{label}</Text>
+      <Text style={[styles.text, styles[`${tone}Text`]]}>{label}</Text>
     </View>
   );
 }
@@ -31,6 +31,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 13,
     fontFamily: appTheme.fonts.bodyMedium,
-    color: appTheme.colors.text,
   },
+  // Tone-matched text so status reads at a glance and isn't conveyed by background colour alone
+  // (accessibility + daylight glanceability on the shop floor).
+  neutralText: { color: appTheme.colors.textMuted },
+  warningText: { color: appTheme.colors.warning },
+  dangerText: { color: appTheme.colors.danger },
+  successText: { color: appTheme.colors.success },
 });
