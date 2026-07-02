@@ -236,25 +236,8 @@ export function ProductExpiryListScreen() {
     </View>
   );
 
-  // The stock table's column headers stay pinned beneath the filters — but only while the table
-  // itself is on screen (not during loading/empty/no-match states) — so the columns stay labelled
-  // as the rows scroll. Rendered in the same card treatment as the body table so columns line up.
-  const showStockTable = !query.isLoading && items.length > 0 && filteredItems.length > 0;
-  const stickyHeader = (
-    <>
-      {filtersHeaderSection}
-      {showStockTable ? (
-        <View style={[ui.card, styles.tableCard, styles.stickyHeadCard]}>
-          <View style={styles.tr}>
-            <Text style={[styles.th, styles.colProduct]}>Product</Text>
-            <Text style={[styles.th, styles.colQty]}>Qty</Text>
-            <Text style={[styles.th, styles.colExpiry, styles.thCenter]}>Expiry</Text>
-            <Text style={[styles.th, styles.colStatus, styles.thCenter]}>Status</Text>
-          </View>
-        </View>
-      ) : null}
-    </>
-  );
+  // Filters (status band, search, refine) stay pinned at the top while the product cards scroll.
+  const stickyHeader = filtersHeaderSection;
 
   return (
     <ScreenContainer
@@ -279,9 +262,9 @@ export function ProductExpiryListScreen() {
           message="No products match your filters (search, category, or expiry window). Clear them to see all."
         />
       ) : (
-        <View style={[ui.card, styles.tableCard]}>
+        <View style={styles.list}>
           {filteredItems.map((item) => (
-            <ProductRow key={item.id} item={item} onPress={() => navigation.navigate("ProductExpiryDetail", { id: item.id })} />
+            <ProductCard key={item.id} item={item} onPress={() => navigation.navigate("ProductExpiryDetail", { id: item.id })} />
           ))}
         </View>
       )}
@@ -289,20 +272,25 @@ export function ProductExpiryListScreen() {
   );
 }
 
-function ProductRow({ item, onPress }: { item: ProductBatch; onPress: () => void }) {
+function ProductCard({ item, onPress }: { item: ProductBatch; onPress: () => void }) {
   return (
-    <Pressable style={[styles.tr, styles.rowCell]} onPress={onPress} accessibilityRole="button" accessibilityLabel={`${item.productName}, ${statusLabel(item.status)}`}>
-      <View style={styles.colProduct}>
-        <Text style={styles.tdProduct} numberOfLines={1}>{item.productName}</Text>
-        <Text style={styles.tdSub} numberOfLines={1}>{item.categoryName}</Text>
+    <Pressable
+      style={[ui.card, styles.itemCard]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${item.productName}, ${statusLabel(item.status)}`}
+    >
+      <View style={styles.cardMain}>
+        <Text style={styles.cardTitle} numberOfLines={1}>{item.productName}</Text>
+        <Text style={styles.cardMeta} numberOfLines={1}>{item.categoryName} · {item.remainingQuantity} left</Text>
+        <Text style={styles.cardExpiry} numberOfLines={1}>
+          Expires {item.expiryDate}
+          <Text style={[styles.cardDays, item.daysToExpiry <= 0 ? styles.daysBad : null]}>{"  ·  "}{daysLabel(item.daysToExpiry)}</Text>
+        </Text>
       </View>
-      <Text style={[styles.td, styles.colQty]}>{item.remainingQuantity}</Text>
-      <View style={styles.colExpiry}>
-        <Text style={styles.tdExpiry} numberOfLines={1}>{item.expiryDate}</Text>
-        <Text style={[styles.tdDays, item.daysToExpiry <= 0 ? styles.daysBad : null]} numberOfLines={1}>{daysLabel(item.daysToExpiry)}</Text>
-      </View>
-      <View style={[styles.colStatus, styles.statusCell]}>
+      <View style={styles.cardRight}>
         <StatusBadge label={statusLabel(item.status)} tone={statusTone(item.status)} />
+        <Ionicons name="chevron-forward" size={16} color={appTheme.colors.textSubtle} />
       </View>
     </Pressable>
   );
@@ -334,7 +322,19 @@ const styles = StyleSheet.create({
   customDateRow: { flexDirection: "row", gap: appTheme.spacing.sm },
   cell: { flex: 1 },
   fieldLabel: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 12, lineHeight: 16, marginBottom: 2 },
-  // Table layout for the stock list.
+  // Card layout for the stock list.
+  list: { gap: appTheme.spacing.xs },
+  itemCard: {
+    flexDirection: "row", alignItems: "center", gap: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.sm, paddingHorizontal: appTheme.spacing.md,
+  },
+  cardMain: { flex: 1, gap: 2 },
+  cardTitle: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 16, lineHeight: 20 },
+  cardMeta: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 13, lineHeight: 17 },
+  cardExpiry: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 13, lineHeight: 17 },
+  cardDays: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium },
+  cardRight: { flexDirection: "row", alignItems: "center", gap: 6 },
+  // Table layout (legacy, unused after card switch).
   tableCard: { paddingVertical: appTheme.spacing.sm, gap: 0 },
   // Pinned column-header bar: a compact card that shares tableCard's horizontal insets + column
   // widths so its labels line up with the scrolling rows below. Small top gap separates it from filters.

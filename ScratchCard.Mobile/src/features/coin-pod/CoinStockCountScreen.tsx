@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useMemo, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -16,8 +16,9 @@ import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
 const INSTRUCTION =
-  "Enter the total cash value you're holding for each denomination. It's converted to a pack count " +
-  "(value ÷ pack value) and sets the current stock. Leave a row blank to keep it unchanged.";
+  "Each box shows the denomination's current total value. Tap a box to clear it and type the new total " +
+  "you're holding — it's converted to a pack count (value ÷ pack value) and sets the stock. Leave a box " +
+  "empty and it keeps the current amount.";
 
 function sanitizeMoney(raw: string): string {
   let s = raw.replace(/,/g, ".").replace(/[^\d.]/g, "");
@@ -36,11 +37,22 @@ function packsFor(value: string, bagValue: number): number | null {
   return Math.max(0, Math.round(v / bagValue));
 }
 
+// The denomination's current total value on record (= current packs × pack value).
+function existingValueOf(row: CoinBagStockRow): number {
+  return row.currentBagQuantity * row.bagValue;
+}
+
+function fmtValue(n: number): string {
+  return n > 0 ? n.toFixed(2) : "";
+}
+
 export function CoinStockCountScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const queryClient = useQueryClient();
   const { activeShopId } = useAuth();
   const [values, setValues] = useState<Record<string, string>>({});
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const hasInit = useRef(false);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -72,10 +84,28 @@ export function CoinStockCountScreen() {
 
   const items = useMemo(() => (query.data?.items ?? []).filter((i) => i.isActive), [query.data]);
 
+  // Prefill every box with the current total value so the manager sees what's on record. Tapping a
+  // box clears it (onFocus) to type a new count; leaving it empty restores this on blur.
+  useEffect(() => {
+    if (!query.data || hasInit.current) return;
+    const init: Record<string, string> = {};
+    for (const row of items) init[row.coinDenominationId] = fmtValue(existingValueOf(row));
+    setValues(init);
+    hasInit.current = true;
+  }, [query.data, items]);
+
+  // Only rows whose entered value maps to a different pack count than what's on record are sent.
   const entries = items
-    .filter((i) => (values[i.coinDenominationId] ?? "").trim() !== "")
-    .map((i) => ({ coinDenominationId: i.coinDenominationId, value: Number(values[i.coinDenominationId]) }))
-    .filter((e) => Number.isFinite(e.value) && e.value >= 0);
+    .map((row) => {
+      const raw = (values[row.coinDenominationId] ?? "").trim();
+      if (raw === "") return null;
+      const v = Number(raw);
+      if (!Number.isFinite(v) || v < 0) return null;
+      const newPacks = row.bagValue > 0 ? Math.round(v / row.bagValue) : 0;
+      if (newPacks === row.currentBagQuantity) return null;
+      return { coinDenominationId: row.coinDenominationId, value: v };
+    })
+    .filter((e): e is { coinDenominationId: string; value: number } => e !== null);
 
   const mutation = useMutation({
     mutationFn: () => recordCoinStock(activeShopId as string, entries),
@@ -92,32 +122,46 @@ export function CoinStockCountScreen() {
   const setValue = (id: string, raw: string) => setValues((prev) => ({ ...prev, [id]: sanitizeMoney(raw) }));
 
   const renderRow = (row: CoinBagStockRow) => {
-    const value = values[row.coinDenominationId] ?? "";
+    const id = row.coinDenominationId;
+    const existing = existingValueOf(row);
+    const value = values[id] ?? "";
+    const focused = focusedId === id;
     const packs = packsFor(value, row.bagValue);
+    const showArrow = packs != null && packs !== row.currentBagQuantity;
     return (
-      <View key={row.coinDenominationId} style={[ui.card, styles.itemCard]}>
-        <View style={styles.badgeWrap}>
-          <View style={[styles.badgeBase, row.isNote ? styles.noteBadge : styles.coinBadge]}>
-            <Text style={styles.badgeText}>{row.displayLabel}</Text>
+      <View key={id} style={[ui.card, styles.itemCard]}>
+        <View style={styles.topRow}>
+          <View style={styles.badgeWrap}>
+            <View style={[styles.badgeBase, row.isNote ? styles.noteBadge : styles.coinBadge]}>
+              <Text style={styles.badgeText}>{row.displayLabel}</Text>
+            </View>
+          </View>
+          <View style={styles.rowMain}>
+            <Text style={styles.rowLine} numberOfLines={1}>
+              {money(row.bagValue)}/pack · now {row.currentBagQuantity}{showArrow ? ` → ${packs}` : ""}
+            </Text>
+          </View>
+          <View style={styles.moneyInput}>
+            <Text style={styles.moneyPrefix}>£</Text>
+            <TextInput
+              style={styles.moneyField}
+              value={value}
+              onChangeText={(v) => setValue(id, v)}
+              onFocus={() => { setFocusedId(id); setValues((prev) => ({ ...prev, [id]: "" })); }}
+              onBlur={() => {
+                setFocusedId((cur) => (cur === id ? null : cur));
+                setValues((prev) => ((prev[id] ?? "").trim() === "" ? { ...prev, [id]: fmtValue(existing) } : prev));
+              }}
+              keyboardType="decimal-pad"
+              placeholder="0"
+              placeholderTextColor={appTheme.colors.textSubtle}
+              accessibilityLabel={`Value held for ${row.displayLabel}`}
+            />
           </View>
         </View>
-        <View style={styles.rowMain}>
-          <Text style={styles.rowLine} numberOfLines={1}>
-            {money(row.bagValue)}/pack · now {row.currentBagQuantity}{packs != null ? ` → ${packs}` : ""}
-          </Text>
-        </View>
-        <View style={styles.moneyInput}>
-          <Text style={styles.moneyPrefix}>£</Text>
-          <TextInput
-            style={styles.moneyField}
-            value={value}
-            onChangeText={(v) => setValue(row.coinDenominationId, v)}
-            keyboardType="decimal-pad"
-            placeholder="0"
-            placeholderTextColor={appTheme.colors.textSubtle}
-            accessibilityLabel={`Value held for ${row.displayLabel}`}
-          />
-        </View>
+        {focused ? (
+          <Text style={styles.hint}>Current: {money(existing)} · {row.currentBagQuantity} pack{row.currentBagQuantity === 1 ? "" : "s"}</Text>
+        ) : null}
       </View>
     );
   };
@@ -145,9 +189,10 @@ const styles = StyleSheet.create({
   helpBtn: { paddingHorizontal: 6, paddingVertical: 2 },
   list: { gap: 6 },
   itemCard: {
-    flexDirection: "row", alignItems: "center", gap: appTheme.spacing.sm,
-    paddingVertical: appTheme.spacing.xs, paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: appTheme.spacing.xs, paddingHorizontal: appTheme.spacing.sm, gap: 4,
   },
+  topRow: { flexDirection: "row", alignItems: "center", gap: appTheme.spacing.sm },
+  hint: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11, textAlign: "right" },
   badgeWrap: { width: 46, alignItems: "center" },
   badgeBase: {
     alignItems: "center", justifyContent: "center",
