@@ -57,6 +57,7 @@ import {
 } from "../../utils/attachments";
 import { confirmDestructive } from "../../utils/confirm";
 import { haptics } from "../../utils/haptics";
+import { humanizeStatus } from "../../utils/statusLabels";
 import { cleanupLocalImage, shareFileAndCleanup, writeShareableFile } from "../../utils/shareFile";
 
 type Props = NativeStackScreenProps<MainStackParamList, "DayEndClose">;
@@ -1458,7 +1459,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
           </Pressable>
         </View>
 
-        <StatusBadge label={status ?? "-"} tone={getStatusTone(status)} />
+        <StatusBadge label={humanizeStatus(status)} tone={getStatusTone(status)} />
       </View>
     </View>
   );
@@ -1635,7 +1636,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                         <View style={styles.shiftNameBlock}>
                           {isOpenShift ? <View style={styles.shiftLiveDot} /> : null}
                           <Text style={styles.shiftName} numberOfLines={1}>{shift.shiftName}</Text>
-                          <StatusBadge label={shift.status} tone={getShiftTone(shift.status)} />
+                          <StatusBadge label={humanizeStatus(shift.status)} tone={getShiftTone(shift.status)} />
                         </View>
                         {compactSales ? (
                           <Text style={styles.shiftSalesAmount}>{compactSales}</Text>
@@ -2260,7 +2261,7 @@ export function DayEndCloseScreen({ route, navigation }: Props) {
                             {isCurrentDay ? <Text style={styles.dayPickerItemMeta}>Currently managed</Text> : null}
                           </View>
                           <View style={styles.dayPickerItemBadgeWrap}>
-                            <StatusBadge label={item.status} tone={getStatusTone(item.status)} />
+                            <StatusBadge label={humanizeStatus(item.status)} tone={getStatusTone(item.status)} />
                           </View>
                         </Pressable>
                       );

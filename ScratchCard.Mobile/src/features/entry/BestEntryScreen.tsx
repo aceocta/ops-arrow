@@ -259,7 +259,7 @@ export function BestEntryScreen() {
       <View style={styles.topBar}>
         <View style={styles.topBarText}>
           <Text style={styles.greeting}>{greeting},</Text>
-          <Text style={styles.name} numberOfLines={1}>{firstName} 👋</Text>
+          <Text style={styles.name} numberOfLines={1}>{firstName}</Text>
         </View>
         <Pressable
           style={styles.shopPill}

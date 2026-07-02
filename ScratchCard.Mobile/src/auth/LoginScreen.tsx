@@ -95,7 +95,7 @@ export function LoginScreen() {
         </View>
       </View>
       <View style={[ui.card, styles.contentBlock]}>
-        <Text style={styles.title}>Sign In</Text>
+        <Text style={styles.title}>Sign in</Text>
         <FloatingLabelInput
           label="Email address"
           value={email}

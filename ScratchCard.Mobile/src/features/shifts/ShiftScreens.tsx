@@ -16,6 +16,7 @@ import { PrimaryButton } from "../../components/PrimaryButton";
 import { deriveShopOperationalSetup } from "../settings/shopConfiguration";
 import { formatGbp } from "../../utils/currency";
 import { formatDayLabel } from "../../utils/dateLabels";
+import { humanizeStatus } from "../../utils/statusLabels";
 import { PackStatus, ShiftStatus } from "../../types/enums";
 import { ShiftCloseCandidate } from "../../types/models";
 import { MainStackParamList } from "../../types/navigation";
@@ -286,7 +287,7 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
                   style={[styles.dayRow, selected ? styles.dayRowSelected : null]}
                 >
                   <Text style={styles.dayTitle}>{formatDayLabel(day.businessDate)}</Text>
-                  <Text style={styles.meta}>Status: {day.status}</Text>
+                  <Text style={styles.meta}>Status: {humanizeStatus(day.status)}</Text>
                 </Pressable>
               );
             })}
@@ -394,7 +395,7 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
             {scheduledShifts.map((shift) => (
               <View key={shift.id} style={styles.item}>
                 <Text style={styles.itemTitle}>{shift.shiftName}</Text>
-                <Text style={styles.meta}>Status: {shift.status}</Text>
+                <Text style={styles.meta}>Status: {humanizeStatus(shift.status)}</Text>
                 <Text style={styles.meta}>Planned Start: {new Date(shift.startTime).toLocaleString()}</Text>
                 {shift.endTime ? <Text style={styles.meta}>Planned End: {new Date(shift.endTime).toLocaleString()}</Text> : null}
                 <View style={styles.row}>
@@ -496,7 +497,7 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
                     style={[styles.dayRow, selected ? styles.dayRowSelected : null]}
                   >
                     <Text style={styles.dayTitle}>{formatDayLabel(day.businessDate)}</Text>
-                    <Text style={styles.meta}>Status: {day.status}</Text>
+                    <Text style={styles.meta}>Status: {humanizeStatus(day.status)}</Text>
                   </Pressable>
                 );
               })}
@@ -527,8 +528,8 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
                     onPress={() => navigation.navigate("ShiftDetails", { shiftId: shift.id, shopId: shift.shopId })}
                   >
                     <Text style={styles.itemTitle}>{shift.shiftName}</Text>
-                    <Text style={styles.meta}>Status: {shift.status}</Text>
-                    <Text style={styles.meta}>Sync: {shift.syncStatus ?? "-"}</Text>
+                    <Text style={styles.meta}>Status: {humanizeStatus(shift.status)}</Text>
+                    <Text style={styles.meta}>Sync: {humanizeStatus(shift.syncStatus)}</Text>
                     <Text style={styles.meta}>Start: {new Date(shift.startTime).toLocaleString()}</Text>
                     {shift.endTime ? <Text style={styles.meta}>End: {new Date(shift.endTime).toLocaleString()}</Text> : null}
                     <Text style={styles.detailsHint}>Tap to view shift details</Text>
@@ -571,7 +572,7 @@ export function OpenShiftScreen({ navigation }: OpenShiftProps) {
                     onPress={() => navigation.navigate("ShiftDetails", { shiftId: shift.id, shopId: shift.shopId })}
                   >
                     <Text style={styles.itemTitle}>{shift.shiftName}</Text>
-                    <Text style={styles.meta}>Status: {shift.status}</Text>
+                    <Text style={styles.meta}>Status: {humanizeStatus(shift.status)}</Text>
                     <Text style={styles.meta}>Start: {new Date(shift.startTime).toLocaleString()}</Text>
                     {shift.endTime ? <Text style={styles.meta}>End: {new Date(shift.endTime).toLocaleString()}</Text> : null}
                     <Text style={styles.detailsHint}>Tap to view shift details</Text>
@@ -651,8 +652,8 @@ export function CloseShiftScreen({ navigation }: CloseShiftProps) {
               >
                 <Text style={styles.itemTitle}>{shift.shiftName}</Text>
                 <Text style={styles.meta}>Business Day: {formatDayLabel(shift.businessDate)} ({shift.businessDayStatus})</Text>
-                <Text style={styles.meta}>Status: {shift.status}</Text>
-                <Text style={styles.meta}>Sync: {shift.syncStatus ?? "-"}</Text>
+                <Text style={styles.meta}>Status: {humanizeStatus(shift.status)}</Text>
+                <Text style={styles.meta}>Sync: {humanizeStatus(shift.syncStatus)}</Text>
                 <Text style={styles.meta}>Start: {new Date(shift.startTime).toLocaleString()}</Text>
                 {shift.endTime ? <Text style={styles.meta}>End: {new Date(shift.endTime).toLocaleString()}</Text> : null}
                 <Text style={styles.detailsHint}>Tap to view shift details</Text>
@@ -707,7 +708,7 @@ export function ShiftReconciliationScreen({ route }: ReconciliationProps) {
       <View style={styles.screenContent}>
         <View style={ui.card}>
           <Text style={styles.meta}>Shift: {shiftQuery.data?.shiftName ?? shiftId}</Text>
-          <Text style={styles.meta}>Status: {shiftQuery.data?.status ?? "-"}</Text>
+          <Text style={styles.meta}>Status: {humanizeStatus(shiftQuery.data?.status)}</Text>
           <Text style={styles.meta}>Expected Cash: {formatGbp(expectedCash)}</Text>
           <Text style={styles.hint}>
             Reconciliation is calculated here for review. Final server reconciliation is captured during shift close submission.

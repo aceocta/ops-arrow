@@ -138,7 +138,7 @@ export function CompanySignupScreen() {
     // State-consistency guard (not a field rule): the code was requested for a *different* email, so
     // it wouldn't match. Keep as an Alert — it's about the flow state, not a single input's value.
     if (!verificationRequested || !verificationTargetEmail || verificationTargetEmail !== normalizedEmail) {
-      Alert.alert("Verification Required", "Request a verification code for this email first.");
+      Alert.alert("Verification required", "Request a verification code for this email first.");
       return;
     }
 
@@ -168,8 +168,8 @@ export function CompanySignupScreen() {
     <ScreenContainer>
       <View style={ui.card}>
         <View style={styles.header}>
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Step 1 of 3: enter details and verify your email before company setup.</Text>
+          <Text style={styles.title}>Create account</Text>
+          <Text style={styles.subtitle}>Step 1 of 3 — your details. We'll email you a code to verify your address.</Text>
         </View>
 
         <Controller

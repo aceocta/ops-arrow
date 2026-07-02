@@ -11,6 +11,7 @@ import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError } from "../../components/toast";
 import { MainStackParamList } from "../../types/navigation";
 import { formatDayLabel } from "../../utils/dateLabels";
+import { humanizeStatus } from "../../utils/statusLabels";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -85,7 +86,7 @@ export function DashboardScreen() {
         {selectedShopId ? (
           dayListQuery.isError ? (
             <>
-              <Text style={styles.sectionTitle}>Unable To Load Day Details</Text>
+              <Text style={styles.sectionTitle}>Unable to load day details</Text>
               <Text style={styles.meta}>{dayListErrorMessage}</Text>
               <PrimaryButton
                 tone="neutral"
@@ -98,23 +99,23 @@ export function DashboardScreen() {
             <>
               <View style={styles.loadingRow}>
                 <ActivityIndicator size="small" color={appTheme.colors.primary} />
-                <Text style={styles.sectionTitle}>Loading Day Management…</Text>
+                <Text style={styles.sectionTitle}>Loading day management…</Text>
               </View>
               <Text style={styles.meta}>Checking the current opened business day.</Text>
             </>
           ) : preferredDay ? (
             <>
-              <Text style={styles.sectionTitle}>Opening Day Management…</Text>
+              <Text style={styles.sectionTitle}>Opening today's business day…</Text>
               <Text style={styles.meta}>Date: {formatDayLabel(preferredDay.businessDate)}</Text>
-              <Text style={styles.meta}>Status: {preferredDay.status}</Text>
+              <Text style={styles.meta}>Status: {humanizeStatus(preferredDay.status)}</Text>
             </>
           ) : (
             <>
-              <Text style={styles.sectionTitle}>Open Business Day</Text>
-              <Text style={styles.meta}>No existing business day found. Open one to continue.</Text>
+              <Text style={styles.sectionTitle}>Open business day</Text>
+              <Text style={styles.meta}>No business day is open yet. Open one to start trading.</Text>
               <DateTimeField mode="date" value={businessDate} onChange={setBusinessDate} />
               <PrimaryButton
-                label={openDayMutation.isPending ? "Opening…" : "Open day"}
+                label={openDayMutation.isPending ? "Opening…" : "Open business day"}
                 onPress={() => openDayMutation.mutate()}
                 disabled={openDayMutation.isPending}
               />
@@ -122,7 +123,7 @@ export function DashboardScreen() {
           )
         ) : (
           <>
-            <Text style={styles.sectionTitle}>No Shop Selected</Text>
+            <Text style={styles.sectionTitle}>No shop selected</Text>
             <Text style={styles.meta}>Select an active shop to continue.</Text>
           </>
         )}

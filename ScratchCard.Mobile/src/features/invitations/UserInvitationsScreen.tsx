@@ -19,6 +19,8 @@ import { useEntitlements } from "../subscription/useEntitlements";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 import { getRoleDisplayName } from "../../utils/roleLabels";
+import { humanizeStatus } from "../../utils/statusLabels";
+import { formatDateTimeLabel } from "../../utils/dateLabels";
 
 type InvitationItem = {
   id: string;
@@ -203,7 +205,7 @@ export function UserInvitationsScreen() {
       </View>
 
       <View style={[ui.card, styles.card]}>
-        <Text style={styles.sectionTitle}>Existing Invitations</Text>
+        <Text style={styles.sectionTitle}>Sent invitations</Text>
         {!canSendInvitations ? <Text style={styles.empty}>You do not have access to invitation management.</Text> : null}
         {invitations.length === 0 ? (
           <EmptyState
@@ -216,9 +218,9 @@ export function UserInvitationsScreen() {
           <View key={item.id} style={[ui.listItem, styles.listItem]}>
             <Text style={styles.email}>{item.email}</Text>
             <Text style={styles.meta}>
-              Role: {getRoleDisplayName(item.roleName)} | Status: {item.status}
+              Role: {getRoleDisplayName(item.roleName)} · Status: {humanizeStatus(item.status)}
             </Text>
-            <Text style={styles.meta}>Expires: {new Date(item.expiresOn).toLocaleString()}</Text>
+            <Text style={styles.meta}>Expires: {formatDateTimeLabel(item.expiresOn)}</Text>
             {item.status === "Pending" && canCancelInvitations ? (
               <Pressable
                 style={styles.cancelButton}

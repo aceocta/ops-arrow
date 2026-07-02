@@ -274,14 +274,14 @@ function getConfigurationScopeMeta(scope: ConfigurationScope): ConfigurationScop
   if (scope === "shop") {
     return {
       title: "Shop Configuration",
-      subtitle: "Update shop-level setup for general behavior, pack controls, and shift templates.",
+      subtitle: "Update shop-level setup for general behaviour, pack controls, and shift templates.",
       groups: SHOP_CONFIGURATION_GROUPS,
     };
   }
 
   return {
     title: "App Configuration",
-    subtitle: "Update app behavior for sales, day close, payouts, barcode, offline sync, and notifications.",
+    subtitle: "Update app behaviour for sales, day close, payouts, barcode, offline sync, and notifications.",
     groups: APP_CONFIGURATION_GROUPS,
   };
 }
@@ -290,7 +290,7 @@ function getConfigurationGroupSummary(groupName: string): ConfigurationGroupSumm
   if (groupName === "General Settings") {
     return {
       title: "General",
-      description: "Currency, timezone, and core behavior defaults.",
+      description: "Currency, timezone, and core behaviour defaults.",
       icon: "settings-outline",
     };
   }
@@ -298,7 +298,7 @@ function getConfigurationGroupSummary(groupName: string): ConfigurationGroupSumm
   if (groupName === "Pack Settings") {
     return {
       title: "Pack",
-      description: "Pack selling order and ticket display behavior.",
+      description: "Pack selling order and ticket display behaviour.",
       icon: "albums-outline",
     };
   }
@@ -354,7 +354,7 @@ function getConfigurationGroupSummary(groupName: string): ConfigurationGroupSumm
   if (groupName === "Offline Settings") {
     return {
       title: "Offline",
-      description: "Offline behavior and auto-sync controls.",
+      description: "Offline behaviour and auto-sync controls.",
       icon: "cloud-offline-outline",
     };
   }
@@ -2118,7 +2118,7 @@ export function SettingsScreen() {
     configurationActions.push({
       key: "app-configuration",
       title: "App Configuration",
-      description: "Control app runtime behavior and advanced rules.",
+      description: "Control app runtime behaviour and advanced rules.",
       icon: "construct-outline",
       onPress: () => navigation.navigate("AppConfiguration"),
     });
@@ -2333,7 +2333,7 @@ export function SettingsScreen() {
 
       {manageActions.length > 0 ? (
         <View style={ui.card}>
-          <Text style={styles.sectionTitle}>Team & Organization</Text>
+          <Text style={styles.sectionTitle}>Team & Organisation</Text>
           <Text style={styles.settingsSectionMeta}>Invite people, manage roles, shops, and company records.</Text>
           <View style={styles.settingsSectionRows}>
             {manageActions.map((action) => (
@@ -2353,7 +2353,7 @@ export function SettingsScreen() {
       {configurationActions.length > 0 ? (
         <View style={ui.card}>
           <Text style={styles.sectionTitle}>Configuration</Text>
-          <Text style={styles.settingsSectionMeta}>Shop setup, feature toggles, app behavior, and your plan.</Text>
+          <Text style={styles.settingsSectionMeta}>Shop setup, feature toggles, app behaviour, and your plan.</Text>
           <View style={styles.settingsSectionRows}>
             {configurationActions.map((action) => (
               <SettingsNavRow

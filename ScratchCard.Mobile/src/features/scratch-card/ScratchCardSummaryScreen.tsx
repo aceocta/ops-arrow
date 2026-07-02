@@ -15,6 +15,7 @@ import type { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 import { formatGbp } from "../../utils/currency";
+import { humanizeStatus } from "../../utils/statusLabels";
 
 type ScratchCardSummaryRoute = RouteProp<MainStackParamList, "ScratchCardSummary">;
 
@@ -182,7 +183,7 @@ export function ScratchCardSummaryScreen() {
           <View key={group.shiftId} style={[ui.card, styles.card]}>
             <SectionHeader
               title={group.shiftName}
-              subtitle={group.status}
+              subtitle={humanizeStatus(group.status)}
               icon="layers-outline"
               right={
                 group.missingTickets > 0 ? (

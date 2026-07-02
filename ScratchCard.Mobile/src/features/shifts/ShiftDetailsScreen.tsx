@@ -28,6 +28,7 @@ import { getApiErrorMessage } from "../../utils/apiErrorMessage";
 import { confirmDestructive } from "../../utils/confirm";
 import { formatGbp } from "../../utils/currency";
 import { haptics } from "../../utils/haptics";
+import { humanizeStatus } from "../../utils/statusLabels";
 import { track } from "../../utils/analytics";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -634,12 +635,12 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
               {/* <Text style={styles.headerEyebrow}>Shift Details</Text> */}
               <Text style={styles.shiftName}>{shift?.shiftName ?? "Shift"}</Text>
             </View>
-            <StatusBadge label={shift?.status ?? "-"} tone={getShiftTone(shift?.status)} />
+            <StatusBadge label={humanizeStatus(shift?.status)} tone={getShiftTone(shift?.status)} />
           </View>
           {/* <View style={styles.badgeRow}>
             <Text style={styles.businessDate}>{businessDay?.businessDate ?? "-"}</Text>
             {businessDay?.status ? (
-              <StatusBadge label={`Day ${businessDay.status}`} tone={getBusinessDayTone(businessDay.status)} />
+              <StatusBadge label={`Day ${humanizeStatus(businessDay.status)}`} tone={getBusinessDayTone(businessDay.status)} />
             ) : null}
           </View> */}
           <View style={styles.infoGrid}>

@@ -33,7 +33,7 @@ export function ResetPasswordScreen({ route, navigation }: Props) {
   async function onResetPassword() {
     let hasError = false;
     if (!token.trim()) {
-      setTokenError("Reset token is required.");
+      setTokenError("Enter the reset code from your email.");
       hasError = true;
     }
     if (!newPassword || newPassword.length < 8) {
@@ -68,10 +68,10 @@ export function ResetPasswordScreen({ route, navigation }: Props) {
   return (
     <ScreenContainer centerContent>
       <View style={[ui.card, styles.card]}>
-        <Text style={styles.title}>Reset Password</Text>
-        <Text style={styles.subtitle}>Use the token from your email to set a new password.</Text>
+        <Text style={styles.title}>Reset your password</Text>
+        <Text style={styles.subtitle}>Enter the code from your email, then choose a new password.</Text>
         <FloatingLabelInput
-          label="Reset token"
+          label="Reset code"
           value={token}
           onChangeText={(t) => {
             setToken(t);

@@ -17,6 +17,7 @@ import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 import { formatDayLabel } from "../../utils/dateLabels";
 import { haptics } from "../../utils/haptics";
+import { humanizeStatus } from "../../utils/statusLabels";
 
 function getStatusTone(status?: string): "neutral" | "warning" | "danger" | "success" {
   if (!status) return "neutral";
@@ -103,7 +104,7 @@ export function BusinessDayScreen() {
         <View style={styles.headerRow}>
           <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
           {activeDay ? (
-            <StatusBadge label={`Day ${activeDay.status}`} tone={getStatusTone(activeDay.status)} />
+            <StatusBadge label={humanizeStatus(activeDay.status)} tone={getStatusTone(activeDay.status)} />
           ) : (
             <StatusBadge label="No open day" tone="neutral" />
           )}
@@ -171,7 +172,7 @@ export function BusinessDayScreen() {
                 >
                   <View style={styles.dayRowHeader}>
                     <Text style={styles.dayTitle}>{formatDayLabel(day.businessDate)}</Text>
-                    <StatusBadge label={day.status} tone={getStatusTone(day.status)} />
+                    <StatusBadge label={humanizeStatus(day.status)} tone={getStatusTone(day.status)} />
                   </View>
                   {missing > 0 ? (
                     <View style={styles.dayRowMetaRow}>

@@ -11,6 +11,7 @@ import { listOfflineQueue } from "../../offline/queueRepository";
 import { syncPendingShiftCloseQueue } from "../../offline/syncService";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
+import { humanizeStatus } from "../../utils/statusLabels";
 
 function formatQueuedTime(value?: string) {
   if (!value) return "—";
@@ -85,7 +86,7 @@ export function PendingSyncScreen() {
         {items.map((item) => (
           <View key={item.id} style={[ui.card, styles.card]}>
             <Text style={styles.bold}>Reference: {item.shiftId}</Text>
-            <Text style={styles.meta}>Status: {item.syncStatus}</Text>
+            <Text style={styles.meta}>Status: {humanizeStatus(item.syncStatus)}</Text>
             <Text style={styles.meta}>Queued: {formatQueuedTime(item.createdOn)}</Text>
             {item.error ? <Text style={styles.error}>Error: {item.error}</Text> : null}
           </View>

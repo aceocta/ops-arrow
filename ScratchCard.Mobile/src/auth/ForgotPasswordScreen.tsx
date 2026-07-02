@@ -26,7 +26,7 @@ export function ForgotPasswordScreen() {
     setIsBusy(true);
     try {
       await requestPasswordReset({ email: email.trim() });
-      toastSuccess("If the account exists, we sent password reset instructions and a token.");
+      toastSuccess("If an account exists for that address, we've emailed you a reset code.");
       navigation.navigate("ResetPassword");
     } catch (error: any) {
       Alert.alert("Request failed", error?.response?.data?.message ?? "Unable to request password reset.");
@@ -38,8 +38,8 @@ export function ForgotPasswordScreen() {
   return (
     <ScreenContainer centerContent>
       <View style={[ui.card, styles.card]}>
-        <Text style={styles.title}>Forgot Password</Text>
-        <Text style={styles.subtitle}>Enter your account email to receive a reset link and token.</Text>
+        <Text style={styles.title}>Reset your password</Text>
+        <Text style={styles.subtitle}>Enter your account email and we'll send you a reset code.</Text>
         <FloatingLabelInput
           label="Email address"
           value={email}
@@ -64,7 +64,7 @@ export function ForgotPasswordScreen() {
           disabled={isBusy}
         />
         <PrimaryButton
-          label="I already have a token"
+          label="I already have a code"
           onPress={() => navigation.navigate("ResetPassword")}
           tone="neutral"
           disabled={isBusy}

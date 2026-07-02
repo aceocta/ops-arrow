@@ -97,7 +97,7 @@ export function InvitationAcceptanceScreen({ route, navigation }: Props) {
 
   async function onAccept() {
     if (validation.status !== "valid") {
-      setTokenError("Enter a valid invitation token first.");
+      setTokenError("Enter a valid invitation code first.");
       return;
     }
 
@@ -140,16 +140,16 @@ export function InvitationAcceptanceScreen({ route, navigation }: Props) {
   const acceptLabel = isBusy
     ? "Accepting…"
     : isExistingAccount
-      ? "Accept & join shop"
+      ? "Accept and join shop"
       : "Accept invitation";
 
   return (
     <ScreenContainer>
       <View style={ui.card}>
-        <Text style={styles.title}>Accept Invitation</Text>
+        <Text style={styles.title}>Accept invitation</Text>
 
         <FloatingLabelInput
-          label="Invitation token"
+          label="Invitation code"
           value={token}
           onChangeText={(t) => { setToken(t); if (tokenError) setTokenError(null); }}
           editable={!isBusy}

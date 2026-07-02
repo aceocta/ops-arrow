@@ -9,6 +9,7 @@ import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { toastError, toastSuccess } from "../../components/toast";
 import { confirmDestructive } from "../../utils/confirm";
+import { humanizeStatus } from "../../utils/statusLabels";
 
 // Copy for confirming a pack status change. Return/Complete are terminal for sellable stock, so none
 // of these should fire on a single unconfirmed tap.
@@ -750,7 +751,7 @@ export function ScratchCardPacksScreen({ navigation }: PackListProps) {
                 <Text style={styles.packListTitle}>Pack {pack.packNumber}</Text>
                 <Text style={styles.packListSubtitle}>{pack.gameName}</Text>
               </View>
-              <StatusBadge label={pack.status} tone={packStatusTone(pack.status)} />
+              <StatusBadge label={humanizeStatus(pack.status)} tone={packStatusTone(pack.status)} />
             </View>
             <View style={styles.metricRow}>
               {pack.displayNumber != null ? (
@@ -1497,7 +1498,7 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
       <View style={styles.heroCard}>
         <Text style={styles.heroSubtitle}>Pack: {pack?.packNumber ?? "-"}</Text>
         <Text style={styles.heroSubtitle}>Game: {pack?.gameName ?? "-"}</Text>
-        <StatusBadge label={pack?.status ?? "-"} tone={packStatusTone(pack?.status)} />
+        <StatusBadge label={humanizeStatus(pack?.status)} tone={packStatusTone(pack?.status)} />
       </View>
 
       <View style={ui.card}>

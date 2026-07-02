@@ -9,6 +9,7 @@ import { ScreenContainer } from "../../components/ScreenContainer";
 import { Skeleton } from "../../components/Skeleton";
 import { toastError, toastSuccess } from "../../components/toast";
 import { getApiErrorMessage } from "../../utils/apiErrorMessage";
+import { humanizeStatus } from "../../utils/statusLabels";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -16,7 +17,7 @@ function formatDate(value?: string | null) {
   if (!value) return "-";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleString();
+  return parsed.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
 export function SubscriptionSummaryScreen() {
@@ -54,11 +55,11 @@ export function SubscriptionSummaryScreen() {
         {summary ? (
           <>
             <Text style={styles.meta}>Plan: {summary.planName || "-"}</Text>
-            <Text style={styles.meta}>Status: {summary.status}</Text>
-            <Text style={styles.meta}>Billing Cycle: {summary.billingCycle}</Text>
-            <Text style={styles.meta}>Current Period Ends: {formatDate(summary.currentPeriodEndsOn)}</Text>
-            <Text style={styles.meta}>Trial Ends: {formatDate(summary.trialEndsOn)}</Text>
-            <Text style={styles.meta}>Trial Days Remaining: {summary.trialDaysRemaining ?? "-"}</Text>
+            <Text style={styles.meta}>Status: {humanizeStatus(summary.status)}</Text>
+            <Text style={styles.meta}>Billing cycle: {summary.billingCycle}</Text>
+            <Text style={styles.meta}>Renews on: {formatDate(summary.currentPeriodEndsOn)}</Text>
+            <Text style={styles.meta}>Trial ends: {formatDate(summary.trialEndsOn)}</Text>
+            <Text style={styles.meta}>Trial days remaining: {summary.trialDaysRemaining ?? "-"}</Text>
 
             <View style={styles.limitsRow}>
               <View style={styles.limitChip}>
