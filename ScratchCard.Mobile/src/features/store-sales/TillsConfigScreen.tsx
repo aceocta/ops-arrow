@@ -1,6 +1,6 @@
 import React from "react";
 import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { IconButton } from "../../components/IconButton";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import { applyTillReportDefaults, createTill, deleteTill, listTills, updateTill } from "../../api/tillsApi";
@@ -185,19 +185,13 @@ export function TillsConfigScreen() {
               <Text style={styles.tillMeta}>{till.isActive ? "Active" : "Inactive"} · Float £{(till.defaultFloat ?? 0).toFixed(2)}</Text>
             </View>
             <View style={styles.tillActions}>
-              <Pressable style={styles.iconBtn} onPress={() => setEditingTill(till)}>
-                <Ionicons name="create-outline" size={18} color={appTheme.colors.text} />
-              </Pressable>
-              <Pressable style={styles.iconBtn} onPress={() => void toggleActive(till)}>
-                <Ionicons
-                  name={till.isActive ? "pause-circle-outline" : "play-circle-outline"}
-                  size={18}
-                  color={appTheme.colors.text}
-                />
-              </Pressable>
-              <Pressable style={styles.iconBtn} onPress={() => confirmDelete(till)}>
-                <Ionicons name="trash-outline" size={17} color={appTheme.colors.danger} />
-              </Pressable>
+              <IconButton icon="create-outline" accessibilityLabel={`Edit ${till.name}`} onPress={() => setEditingTill(till)} />
+              <IconButton
+                icon={till.isActive ? "pause-circle-outline" : "play-circle-outline"}
+                accessibilityLabel={till.isActive ? `Deactivate ${till.name}` : `Activate ${till.name}`}
+                onPress={() => void toggleActive(till)}
+              />
+              <IconButton icon="trash-outline" tone="danger" accessibilityLabel={`Delete ${till.name}`} onPress={() => confirmDelete(till)} />
             </View>
           </View>
         ))}
@@ -237,7 +231,7 @@ function EditTillModal({ till, onClose, onSaved }: { till: Till; onClose: () => 
         <View style={styles.modalSheet}>
           <View style={styles.modalHeader}>
             <Text style={ui.sectionTitle}>Edit till</Text>
-            <Pressable onPress={onClose} hitSlop={8}><Ionicons name="close" size={22} color={appTheme.colors.text} /></Pressable>
+            <IconButton icon="close" accessibilityLabel="Close" onPress={onClose} size={22} />
           </View>
           <TextInput style={[styles.input, styles.blockInput]} value={name} onChangeText={setName} placeholder="Name" placeholderTextColor={appTheme.colors.textSubtle} />
           <View style={{ height: 8 }} />
@@ -290,17 +284,7 @@ const styles = StyleSheet.create({
   tillMain: { flex: 1, gap: 2 },
   tillName: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 18 },
   tillMeta: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, lineHeight: 15 },
-  tillActions: { flexDirection: "row", gap: 6 },
-  iconBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: appTheme.radius.sm,
-    borderWidth: 1,
-    borderColor: appTheme.colors.border,
-    backgroundColor: appTheme.colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  tillActions: { flexDirection: "row", gap: 2, alignItems: "center" },
   modalBackdrop: { flex: 1, backgroundColor: appTheme.colors.overlay, justifyContent: "flex-end" },
   modalSheet: { backgroundColor: appTheme.colors.background, borderTopLeftRadius: appTheme.radius.lg, borderTopRightRadius: appTheme.radius.lg, padding: appTheme.spacing.md },
   modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: appTheme.spacing.sm },

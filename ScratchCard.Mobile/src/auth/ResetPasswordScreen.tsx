@@ -3,6 +3,7 @@ import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { resetPassword } from "../api/authApi";
 import { FloatingLabelInput } from "../components/FloatingLabelInput";
+import { PasswordInput } from "../components/PasswordInput";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { ScreenContainer } from "../components/ScreenContainer";
 import { toastSuccess } from "../components/toast";
@@ -85,16 +86,17 @@ export function ResetPasswordScreen({ route, navigation }: Props) {
           onSubmitEditing={() => newPasswordRef.current?.focus()}
           error={tokenError}
         />
-        <FloatingLabelInput
+        <PasswordInput
           ref={newPasswordRef}
-          label="New password (min 8 characters)"
+          label="New password (min. 8 characters)"
           value={newPassword}
           onChangeText={(t) => {
             setNewPassword(t);
             if (newPasswordError) setNewPasswordError(null);
             if (confirmPasswordError) setConfirmPasswordError(null);
           }}
-          secureTextEntry
+          textContentType="newPassword"
+          autoComplete="new-password"
           editable={!isBusy}
           underlineColorAndroid="transparent"
           returnKeyType="next"
@@ -102,7 +104,7 @@ export function ResetPasswordScreen({ route, navigation }: Props) {
           onSubmitEditing={() => confirmPasswordRef.current?.focus()}
           error={newPasswordError}
         />
-        <FloatingLabelInput
+        <PasswordInput
           ref={confirmPasswordRef}
           label="Confirm new password"
           value={confirmPassword}
@@ -110,7 +112,8 @@ export function ResetPasswordScreen({ route, navigation }: Props) {
             setConfirmPassword(t);
             if (confirmPasswordError) setConfirmPasswordError(null);
           }}
-          secureTextEntry
+          textContentType="newPassword"
+          autoComplete="new-password"
           editable={!isBusy}
           underlineColorAndroid="transparent"
           returnKeyType="go"
@@ -150,11 +153,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     fontFamily: appTheme.fonts.body,
-  },
-  label: {
-    color: appTheme.colors.text,
-    fontSize: 12,
-    lineHeight: 16,
-    fontFamily: appTheme.fonts.bodyMedium,
   },
 });

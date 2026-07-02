@@ -315,6 +315,17 @@ export function CloseDayScreen({ route, navigation }: Props) {
         confirmLabel: "Close anyway",
       });
       if (!ok) return;
+    } else {
+      // Closing a day locks its figures and is not a routine undo — always confirm with a recap,
+      // even when the cash balances, so it can't be committed on a single accidental tap.
+      const shiftLabel = `${closedShiftCount} shift${closedShiftCount === 1 ? "" : "s"}`;
+      const ok = await confirmDestructive({
+        title: "Close this business day?",
+        message: `${formatDayLabel(day?.businessDate)} — ${shiftLabel}, ${formatCurrency(totalSales)} in sales. This locks the day's figures.`,
+        cancelLabel: "Not yet",
+        confirmLabel: "Close day",
+      });
+      if (!ok) return;
     }
     closeMutation.mutate();
   };

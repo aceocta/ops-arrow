@@ -3,14 +3,14 @@ import { RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CoinBagAlert, CoinBagAlertStatus, dismissCoinAlert, getCoinAlerts } from "../../api/coinPodApi";
 import { useAuth } from "../../auth/AuthContext";
-import { EmptyState } from "../../components/EmptyState";
-import { LoadingState } from "../../components/LoadingState";
 import { PrimaryButton } from "../../components/PrimaryButton";
+import { QueryStateGate } from "../../components/QueryStateGate";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { StatusBadge } from "../../components/StatusBadge";
 import { toastError, toastSuccess } from "../../components/toast";
 import { getApiErrorMessage } from "../../utils/apiErrorMessage";
+import { formatDateTimeLabel } from "../../utils/dateLabels";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -30,8 +30,10 @@ function statusTone(status: CoinBagAlertStatus): "neutral" | "warning" | "danger
   return "neutral";
 }
 
+// Renders the UTC timestamp in the device's local time (previously it sliced the raw ISO string,
+// showing UTC — an hour out during BST on an alert screen).
 function formatDateTime(iso: string) {
-  return iso ? iso.slice(0, 16).replace("T", " ") : "";
+  return formatDateTimeLabel(iso);
 }
 
 export function CoinAlertsScreen() {
@@ -66,17 +68,24 @@ export function CoinAlertsScreen() {
         <SegmentedControl options={FILTERS} value={filter} onChange={setFilter} />
       </View>
 
-      {query.isLoading ? (
-        <View style={ui.card}><LoadingState message="Loading alerts…" inline /></View>
-      ) : alerts.length === 0 ? (
-        <EmptyState icon="checkmark-circle-outline" title="No alerts" message={filter === "Active" ? "No active coin stock alerts. " : "Nothing to show for this filter."} />
-      ) : (
+      <QueryStateGate
+        isLoading={query.isLoading}
+        isError={query.isError && alerts.length === 0}
+        onRetry={() => void query.refetch()}
+        loadingMessage="Loading alerts…"
+        errorTitle="Couldn't load alerts"
+        errorMessage="Check your connection and try again."
+        isEmpty={alerts.length === 0}
+        emptyIcon="checkmark-circle-outline"
+        emptyTitle="No alerts"
+        emptyMessage={filter === "Active" ? "No active coin stock alerts." : "No alerts match this filter."}
+      >
         <View style={styles.list}>
           {alerts.map((a) => (
             <AlertCard key={a.id} alert={a} canManage={canManage} onDismiss={() => dismissMutation.mutate(a.id)} dismissing={dismissMutation.isPending} />
           ))}
         </View>
-      )}
+      </QueryStateGate>
     </ScreenContainer>
   );
 }

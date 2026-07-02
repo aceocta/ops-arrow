@@ -1,7 +1,8 @@
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { appTheme } from "../ui/theme";
+import { PrimaryButton } from "./PrimaryButton";
 
 type EmptyStateProps = {
   icon?: keyof typeof Ionicons.glyphMap;
@@ -20,9 +21,9 @@ export function EmptyState({ icon = "information-circle-outline", title, message
       <Text style={styles.title}>{title}</Text>
       {message ? <Text style={styles.message}>{message}</Text> : null}
       {actionLabel && onAction ? (
-        <Pressable style={styles.action} onPress={onAction} accessibilityRole="button" accessibilityLabel={actionLabel}>
-          <Text style={styles.actionText}>{actionLabel}</Text>
-        </Pressable>
+        <View style={styles.action}>
+          <PrimaryButton label={actionLabel} onPress={onAction} />
+        </View>
       ) : null}
     </View>
   );
@@ -57,13 +58,5 @@ const styles = StyleSheet.create({
   },
   action: {
     marginTop: appTheme.spacing.sm,
-    backgroundColor: appTheme.colors.primary,
-    borderRadius: appTheme.radius.pill,
-    paddingHorizontal: 22,
-    paddingVertical: 11,
-  },
-  actionText: {
-    ...appTheme.typography.bodyEmphasis,
-    color: appTheme.colors.onPrimary,
   },
 });

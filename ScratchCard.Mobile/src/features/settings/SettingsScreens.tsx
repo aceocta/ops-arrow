@@ -2993,10 +2993,12 @@ const styles = StyleSheet.create({
     color: appTheme.colors.textOnDark,
   },
   input: {
-    borderWidth: 0,
-    borderColor: appTheme.colors.border,
+    // Filled + bordered so the field is visible: it sits on `surface` cards, and the previous
+    // borderless `surface` background made the tappable area invisible in both themes.
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderSoft,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surface,
+    backgroundColor: appTheme.colors.surfaceMuted,
     color: appTheme.colors.text,
     paddingHorizontal: appTheme.spacing.sm,
     paddingVertical: appTheme.spacing.sm,

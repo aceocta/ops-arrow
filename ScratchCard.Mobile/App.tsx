@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { DarkTheme, DefaultTheme, NavigationContainer, type LinkingOptions } from "@react-navigation/native";
 import * as Linking from "expo-linking";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+// Side-effect import: caps global font-scaling so large accessibility text doesn't break layouts.
+import "./src/ui/textScaling";
 import { AuthProvider } from "./src/auth/AuthContext";
 import { registerSessionCleanup } from "./src/auth/sessionCleanup";
 import { ErrorBoundary } from "./src/components/ErrorBoundary";

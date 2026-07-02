@@ -1,6 +1,7 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View, ViewStyle } from "react-native";
 import { appTheme } from "../ui/theme";
+import { haptics } from "../utils/haptics";
 
 export type SegmentedOption<T extends string> = {
   value: T;
@@ -34,6 +35,7 @@ export function SegmentedControl<T extends string>({ options, value, onChange, s
             style={[styles.btn, selected ? styles.btnActive : null, opt.dimmed ? styles.btnDimmed : null]}
             onPress={() => {
               if (opt.disabled) return;
+              if (!selected) haptics.selection();
               onChange(opt.value);
             }}
             accessibilityRole="button"
@@ -61,6 +63,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 8,
+    minHeight: 44,
     borderRadius: appTheme.radius.sm,
   },
   btnActive: {

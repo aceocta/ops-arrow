@@ -8,6 +8,16 @@ import { useAuth } from "../../auth/AuthContext";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { toastError, toastSuccess } from "../../components/toast";
+import { confirmDestructive } from "../../utils/confirm";
+
+// Copy for confirming a pack status change. Return/Complete are terminal for sellable stock, so none
+// of these should fire on a single unconfirmed tap.
+const PACK_ACTION_CONFIRM: Record<"pause" | "return" | "issue" | "complete", { title: string; message: string; confirmLabel: string }> = {
+  pause: { title: "Pause this pack?", message: "Staff won't be able to sell from it until it's resumed.", confirmLabel: "Pause" },
+  return: { title: "Return this pack?", message: "This marks the pack as returned and stops it being sold. This can't be undone.", confirmLabel: "Return pack" },
+  issue: { title: "Mark a pack issue?", message: "This flags a problem with the pack and stops it being sold.", confirmLabel: "Mark issue" },
+  complete: { title: "Complete this pack?", message: "This marks the pack as fully sold and finalises it. This can't be undone.", confirmLabel: "Complete" },
+};
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -1404,6 +1414,12 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
     },
   });
 
+  const runPackAction = async (action: "pause" | "return" | "issue" | "complete") => {
+    const c = PACK_ACTION_CONFIRM[action];
+    const ok = await confirmDestructive({ title: c.title, message: c.message, confirmLabel: c.confirmLabel, cancelLabel: "Cancel" });
+    if (ok) actionMutation.mutate(action);
+  };
+
   const canActivate = pack?.status === "InStock" || pack?.status === "Paused";
   const canEditDetails = canActivate;
 
@@ -1543,15 +1559,15 @@ export function PackDetailsScreen({ route }: PackDetailsProps) {
 
             <View style={styles.rowWrap}>
               {allowPackPause ? (
-                <Pressable style={styles.smallButton} onPress={() => actionMutation.mutate("pause")}><Text style={styles.smallButtonText}>Pause</Text></Pressable>
+                <Pressable style={styles.smallButton} onPress={() => void runPackAction("pause")}><Text style={styles.smallButtonText}>Pause</Text></Pressable>
               ) : null}
               {allowPackReturn ? (
-                <Pressable style={styles.smallButton} onPress={() => actionMutation.mutate("return")}><Text style={styles.smallButtonText}>Return</Text></Pressable>
+                <Pressable style={styles.smallButton} onPress={() => void runPackAction("return")}><Text style={styles.smallButtonText}>Return</Text></Pressable>
               ) : null}
               {allowIssueMarking ? (
-                <Pressable style={styles.smallButton} onPress={() => actionMutation.mutate("issue")}><Text style={styles.smallButtonText}>Mark issue</Text></Pressable>
+                <Pressable style={styles.smallButton} onPress={() => void runPackAction("issue")}><Text style={styles.smallButtonText}>Mark issue</Text></Pressable>
               ) : null}
-              <Pressable style={styles.smallButton} onPress={() => actionMutation.mutate("complete")}><Text style={styles.smallButtonText}>Complete</Text></Pressable>
+              <Pressable style={styles.smallButton} onPress={() => void runPackAction("complete")}><Text style={styles.smallButtonText}>Complete</Text></Pressable>
             </View>
             {!allowPackPause || !allowPackReturn || !allowIssueMarking ? (
               <Text style={styles.meta}>Some status actions are hidden based on Shop Configuration.</Text>

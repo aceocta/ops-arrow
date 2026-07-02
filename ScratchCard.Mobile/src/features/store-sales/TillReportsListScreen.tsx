@@ -5,8 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../auth/AuthContext";
 import { listTillReports } from "../../api/tillReportsApi";
-import { EmptyState } from "../../components/EmptyState";
-import { LoadingState } from "../../components/LoadingState";
+import { QueryStateGate } from "../../components/QueryStateGate";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { MainStackParamList } from "../../types/navigation";
 import { TillReportStatus, TillReportType } from "../../types/enums";
@@ -33,47 +32,51 @@ export function TillReportsListScreen({ navigation }: Props) {
   return (
     <ScreenContainer
       refreshControl={
-        <RefreshControl refreshing={reportsQuery.isFetching} onRefresh={() => void reportsQuery.refetch()} />
+        <RefreshControl refreshing={reportsQuery.isRefetching} onRefresh={() => void reportsQuery.refetch()} />
       }
     >
-      {reportsQuery.isLoading ? <LoadingState /> : null}
-
-      {!reportsQuery.isLoading && items.length === 0 ? (
-        <View style={ui.card}>
-          <EmptyState
-            icon="receipt-outline"
-            title="No till reports yet"
-            message="Capture one from the Store Sales screen."
-            actionLabel="Capture Till Report"
-            onAction={() => navigation.navigate("StoreSales")}
-          />
-        </View>
-      ) : null}
-
-      {items.map((item) => (
-        <Pressable
-          key={item.id}
-          style={ui.card}
-          onPress={() => navigation.navigate("TillReportReview", { reportId: item.id })}
-        >
-          <View style={styles.headerRow}>
-            <View>
-              <Text style={styles.date}>{formatDayLabel(item.businessDate)}</Text>
-              <Text style={ui.caption}>{item.reportType === TillReportType.Shift ? "Shift report" : "Day-end report"}</Text>
+      {/* A failed load previously fell through to the "No till reports yet" empty state — misleading on
+          an audit-trail screen. Gate the error branch on having no cached rows. */}
+      <QueryStateGate
+        isLoading={reportsQuery.isLoading}
+        isError={reportsQuery.isError && items.length === 0}
+        onRetry={() => void reportsQuery.refetch()}
+        errorTitle="Couldn't load till reports"
+        errorMessage="Check your connection and try again."
+        isEmpty={items.length === 0}
+        emptyIcon="receipt-outline"
+        emptyTitle="No till reports yet"
+        emptyMessage="Photograph your first till report to get started."
+        emptyActionLabel="Capture till report"
+        onEmptyAction={() => navigation.navigate("StoreSales")}
+      >
+        {items.map((item) => (
+          <Pressable
+            key={item.id}
+            style={ui.card}
+            accessibilityRole="button"
+            accessibilityLabel={`${formatDayLabel(item.businessDate)}, ${item.reportType === TillReportType.Shift ? "shift report" : "day-end report"}, net ${formatGbp(item.net)}`}
+            onPress={() => navigation.navigate("TillReportReview", { reportId: item.id })}
+          >
+            <View style={styles.headerRow}>
+              <View>
+                <Text style={styles.date}>{formatDayLabel(item.businessDate)}</Text>
+                <Text style={ui.caption}>{item.reportType === TillReportType.Shift ? "Shift report" : "Day-end report"}</Text>
+              </View>
+              <StatusPill status={item.status} unclassified={item.unclassifiedCount} />
             </View>
-            <StatusPill status={item.status} unclassified={item.unclassifiedCount} />
-          </View>
-          <View style={styles.totalsRow}>
-            <Text style={[styles.total, styles.income]}>{formatGbp(item.totalIncome)} in</Text>
-            <Text style={[styles.total, styles.expense]}>{formatGbp(item.totalExpense)} out</Text>
-            <Text style={styles.total}>{formatGbp(item.net)} net</Text>
-          </View>
-          <View style={styles.footerRow}>
-            <Text style={ui.caption}>{item.lineCount} line(s)</Text>
-            <Ionicons name="chevron-forward" size={15} color={appTheme.colors.textMuted} />
-          </View>
-        </Pressable>
-      ))}
+            <View style={styles.totalsRow}>
+              <Text style={[styles.total, styles.income]}>{formatGbp(item.totalIncome)} in</Text>
+              <Text style={[styles.total, styles.expense]}>{formatGbp(item.totalExpense)} out</Text>
+              <Text style={styles.total}>{formatGbp(item.net)} net</Text>
+            </View>
+            <View style={styles.footerRow}>
+              <Text style={ui.caption}>{item.lineCount} line{item.lineCount === 1 ? "" : "s"}</Text>
+              <Ionicons name="chevron-forward" size={15} color={appTheme.colors.textMuted} />
+            </View>
+          </Pressable>
+        ))}
+      </QueryStateGate>
     </ScreenContainer>
   );
 }

@@ -1,9 +1,9 @@
 import React, { useRef } from "react";
 import { Alert, Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { requestSignupVerificationCode } from "../api/authApi";
 import { FloatingLabelInput } from "../components/FloatingLabelInput";
+import { PasswordInput } from "../components/PasswordInput";
 import { PhoneNumberInput } from "../components/PhoneNumberInput";
 import { ScreenContainer } from "../components/ScreenContainer";
 import { PrimaryButton } from "../components/PrimaryButton";
@@ -31,8 +31,6 @@ const PRIVACY_URL = "https://opsarrow.co.uk/privacy";
 
 export function CompanySignupScreen() {
   const { signUpWithPassword, isLoading } = useAuth();
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isRequestingCode, setIsRequestingCode] = useState(false);
   const [isCompletingSignup, setIsCompletingSignup] = useState(false);
   const [verificationRequested, setVerificationRequested] = useState(false);
@@ -187,6 +185,8 @@ export function CompanySignupScreen() {
               underlineColorAndroid="transparent"
               editable={!busy}
               autoCapitalize="words"
+              textContentType="givenName"
+              autoComplete="given-name"
               returnKeyType="next"
               submitBehavior="submit"
               onSubmitEditing={() => lastNameRef.current?.focus()}
@@ -208,6 +208,8 @@ export function CompanySignupScreen() {
               underlineColorAndroid="transparent"
               editable={!busy}
               autoCapitalize="words"
+              textContentType="familyName"
+              autoComplete="family-name"
               returnKeyType="next"
               submitBehavior="submit"
               onSubmitEditing={() => emailRef.current?.focus()}
@@ -239,6 +241,8 @@ export function CompanySignupScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              textContentType="emailAddress"
+              autoComplete="email"
               underlineColorAndroid="transparent"
               editable={!busy}
               returnKeyType="next"
@@ -265,41 +269,25 @@ export function CompanySignupScreen() {
         />
         <Text style={styles.hint}>Optional. Add a phone to receive WhatsApp alerts for shift and day-end closures.</Text>
 
-        <Text style={styles.hint}>Password: minimum 8 characters</Text>
         <Controller
           control={control}
           name="password"
           render={({ field: { value, onChange } }) => (
-            <View style={styles.passwordRow}>
-              <View style={styles.passwordInputContainer}>
-                <FloatingLabelInput
-                  ref={passwordRef}
-                  label="Password"
-                  value={value}
-                  onChangeText={onChange}
-                  onBlur={() => v.touch("password")}
-                  error={v.showError("password")}
-                  secureTextEntry={!showPassword}
-                  underlineColorAndroid="transparent"
-                  editable={!busy}
-                  returnKeyType="next"
-                  submitBehavior="submit"
-                  onSubmitEditing={() => confirmPasswordRef.current?.focus()}
-                />
-                <Pressable
-                  style={styles.passwordIconButton}
-                  onPress={() => setShowPassword((current) => !current)}
-                  disabled={busy}
-                  hitSlop={8}
-                >
-                  <Ionicons
-                    name={showPassword ? "eye-off-outline" : "eye-outline"}
-                    size={20}
-                    color={appTheme.colors.textMuted}
-                  />
-                </Pressable>
-              </View>
-            </View>
+            <PasswordInput
+              ref={passwordRef}
+              label="Password (min. 8 characters)"
+              value={value}
+              onChangeText={onChange}
+              onBlur={() => v.touch("password")}
+              error={v.showError("password")}
+              textContentType="newPassword"
+              autoComplete="new-password"
+              underlineColorAndroid="transparent"
+              editable={!busy}
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => confirmPasswordRef.current?.focus()}
+            />
           )}
         />
 
@@ -307,34 +295,19 @@ export function CompanySignupScreen() {
           control={control}
           name="confirmPassword"
           render={({ field: { value, onChange } }) => (
-            <View style={styles.passwordRow}>
-              <View style={styles.passwordInputContainer}>
-                <FloatingLabelInput
-                  ref={confirmPasswordRef}
-                  label="Confirm password"
-                  value={value}
-                  onChangeText={onChange}
-                  onBlur={() => v.touch("confirmPassword")}
-                  error={v.showError("confirmPassword")}
-                  secureTextEntry={!showConfirmPassword}
-                  underlineColorAndroid="transparent"
-                  editable={!busy}
-                  returnKeyType="done"
-                />
-                <Pressable
-                  style={styles.passwordIconButton}
-                  onPress={() => setShowConfirmPassword((current) => !current)}
-                  disabled={busy}
-                  hitSlop={8}
-                >
-                  <Ionicons
-                    name={showConfirmPassword ? "eye-off-outline" : "eye-outline"}
-                    size={20}
-                    color={appTheme.colors.textMuted}
-                  />
-                </Pressable>
-              </View>
-            </View>
+            <PasswordInput
+              ref={confirmPasswordRef}
+              label="Confirm password"
+              value={value}
+              onChangeText={onChange}
+              onBlur={() => v.touch("confirmPassword")}
+              error={v.showError("confirmPassword")}
+              textContentType="newPassword"
+              autoComplete="new-password"
+              underlineColorAndroid="transparent"
+              editable={!busy}
+              returnKeyType="done"
+            />
           )}
         />
 
@@ -364,13 +337,15 @@ export function CompanySignupScreen() {
               name="verificationCode"
               render={({ field: { value, onChange } }) => (
                 <FloatingLabelInput
-                  label="6-digit verification code"
+                  label="6-digit code"
                   value={value}
                   onChangeText={(nextValue) => onChange(nextValue.replace(/\D+/g, ""))}
                   onBlur={() => v.touch("verificationCode")}
                   error={v.showError("verificationCode")}
                   keyboardType="number-pad"
                   maxLength={VERIFICATION_CODE_LENGTH}
+                  textContentType="oneTimeCode"
+                  autoComplete="one-time-code"
                   underlineColorAndroid="transparent"
                   editable={!busy}
                 />
@@ -422,52 +397,11 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontFamily: appTheme.fonts.body,
   },
-  fieldLabel: {
-    color: appTheme.colors.text,
-    fontSize: 13,
-    lineHeight: 18,
-    fontFamily: appTheme.fonts.bodyMedium,
-    marginTop: 2,
-  },
   hint: {
-    color: appTheme.colors.textSubtle,
-    fontSize: 11,
-    lineHeight: 14,
+    color: appTheme.colors.textMuted,
+    fontSize: 12,
+    lineHeight: 16,
     fontFamily: appTheme.fonts.body,
-    marginTop: -2,
-  },
-  input: {
-    borderWidth: 0,
-    borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surfaceMuted,
-    paddingHorizontal: appTheme.spacing.sm,
-    paddingVertical: 11,
-    color: appTheme.colors.text,
-    fontSize: 14,
-    fontFamily: appTheme.fonts.body,
-  },
-  passwordRow: {
-    width: "100%",
-  },
-  passwordInputContainer: {
-    position: "relative",
-  },
-  passwordInput: {
-    width: "100%",
-    paddingHorizontal: appTheme.spacing.sm,
-    paddingVertical: 11,
-    paddingRight: 44,
-    color: appTheme.colors.text,
-    fontSize: 14,
-    fontFamily: appTheme.fonts.body,
-  },
-  passwordIconButton: {
-    position: "absolute",
-    right: 10,
-    top: 0,
-    bottom: 0,
-    justifyContent: "center",
-    alignItems: "center",
   },
   secondaryActions: {
     gap: appTheme.spacing.xs,

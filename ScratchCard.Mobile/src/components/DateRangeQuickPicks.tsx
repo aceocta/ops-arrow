@@ -62,12 +62,14 @@ const styles = StyleSheet.create({
   chip: {
     flex: 1,
     alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 8,
+    minHeight: 44,
     borderRadius: 999,
   },
   chipActive: {
     backgroundColor: appTheme.colors.surface,
-    shadowColor: "#0f172a",
+    shadowColor: appTheme.colors.shadow,
     shadowOpacity: 0.1,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },

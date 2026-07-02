@@ -1,6 +1,6 @@
 import React from "react";
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
+import { IconButton } from "../../components/IconButton";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import {
@@ -154,16 +154,12 @@ export function PaymentTypesConfigScreen() {
               </Text>
             </View>
             <View style={styles.rowActions}>
-              <Pressable style={styles.iconBtn} onPress={() => void toggleActive(type)}>
-                <Ionicons
-                  name={type.isActive ? "pause-circle-outline" : "play-circle-outline"}
-                  size={18}
-                  color={appTheme.colors.text}
-                />
-              </Pressable>
-              <Pressable style={styles.iconBtn} onPress={() => confirmDelete(type)}>
-                <Ionicons name="trash-outline" size={17} color={appTheme.colors.danger} />
-              </Pressable>
+              <IconButton
+                icon={type.isActive ? "pause-circle-outline" : "play-circle-outline"}
+                accessibilityLabel={type.isActive ? `Deactivate ${type.name}` : `Activate ${type.name}`}
+                onPress={() => void toggleActive(type)}
+              />
+              <IconButton icon="trash-outline" tone="danger" accessibilityLabel={`Delete ${type.name}`} onPress={() => confirmDelete(type)} />
             </View>
           </View>
         ))}
@@ -200,15 +196,5 @@ const styles = StyleSheet.create({
   rowMain: { flex: 1, gap: 2 },
   rowName: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 18 },
   rowMeta: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, lineHeight: 15 },
-  rowActions: { flexDirection: "row", gap: 6 },
-  iconBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: appTheme.radius.sm,
-    borderWidth: 1,
-    borderColor: appTheme.colors.border,
-    backgroundColor: appTheme.colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  rowActions: { flexDirection: "row", gap: 2, alignItems: "center" },
 });

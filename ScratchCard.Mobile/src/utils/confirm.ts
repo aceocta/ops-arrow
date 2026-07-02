@@ -36,3 +36,28 @@ export function confirmDestructive(options: DestructiveConfirmOptions): Promise<
     );
   });
 }
+
+/**
+ * Confirm for a consequential-but-positive action (approvals, commits) — same promise contract as
+ * `confirmDestructive`, but the confirm button uses the default (non-destructive) styling so an
+ * "Approve" action doesn't render as an alarming red button.
+ */
+export function confirmAction(options: DestructiveConfirmOptions): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    let settled = false;
+    const settle = (value: boolean) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    showAppAlert(
+      options.title,
+      options.message,
+      [
+        { text: options.cancelLabel ?? "Cancel", style: "cancel", onPress: () => settle(false) },
+        { text: options.confirmLabel ?? "Confirm", onPress: () => settle(true) },
+      ],
+      { cancelable: true, onDismiss: () => settle(false) },
+    );
+  });
+}

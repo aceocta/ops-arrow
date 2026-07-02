@@ -6,8 +6,8 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQuery } from "@tanstack/react-query";
 import { listDeliveries } from "../../api/deliveriesApi";
 import { useAuth } from "../../auth/AuthContext";
-import { EmptyState } from "../../components/EmptyState";
 import { PrimaryButton } from "../../components/PrimaryButton";
+import { QueryStateGate } from "../../components/QueryStateGate";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SectionHeader } from "../../components/SectionHeader";
 import { SkeletonList } from "../../components/Skeleton";
@@ -56,7 +56,6 @@ export function DeliveriesScreen() {
     >
       <View style={ui.card}>
         <Text style={styles.meta}>Shop: {activeShop?.shopName ?? "-"}</Text>
-        <Text style={styles.meta}>Recent deliveries are listed below.</Text>
 
         <PrimaryButton label="Receive delivery" onPress={() => navigation.navigate("ReceiveDelivery")} />
       </View>
@@ -80,29 +79,37 @@ export function DeliveriesScreen() {
 
         {isInitialLoading ? (
           <SkeletonList count={4} rowHeight={68} />
-        ) : deliveriesQuery.deliveries.length === 0 ? (
-          <EmptyState
-            icon="cube-outline"
-            title="No deliveries yet"
-            message="Receive your first delivery to start tracking packs and reconciliation."
-            actionLabel="Receive Delivery"
-            onAction={() => navigation.navigate("ReceiveDelivery")}
-          />
         ) : (
-          // Rendered inline (not a FlatList) so it scrolls with ScreenContainer's ScrollView —
-          // a nested vertical VirtualizedList warns and breaks windowing. Pull-to-refresh is on
-          // the screen container; the header keeps a manual refresh button too.
-          <View style={styles.deliveryList}>
-            {deliveriesQuery.deliveries.map((item) => (
-              <View key={item.id} style={styles.item}>
-                <Text style={styles.itemTitle}>{item.deliveryReference}</Text>
-                <Text style={styles.meta}>Supplier: {item.supplierName}</Text>
-                <Text style={styles.meta}>Date: {new Date(item.deliveryDate).toLocaleDateString()}</Text>
-                <Text style={styles.meta}>Packs: {item.packs.length}</Text>
-                {item.notes ? <Text style={styles.meta}>Notes: {item.notes}</Text> : null}
-              </View>
-            ))}
-          </View>
+          // A failed load previously fell through to the "No deliveries yet" empty state. Gate the
+          // error branch on having no cached rows so a failed background refetch still shows data.
+          <QueryStateGate
+            isLoading={false}
+            isError={deliveriesQuery.isError && deliveriesQuery.deliveries.length === 0}
+            onRetry={handleRefresh}
+            errorTitle="Couldn't load deliveries"
+            errorMessage="Check your connection and try again."
+            isEmpty={deliveriesQuery.deliveries.length === 0}
+            emptyIcon="cube-outline"
+            emptyTitle="No deliveries yet"
+            emptyMessage="Receive your first delivery to start tracking packs and reconciliation."
+            emptyActionLabel="Receive delivery"
+            onEmptyAction={() => navigation.navigate("ReceiveDelivery")}
+          >
+            {/* Rendered inline (not a FlatList) so it scrolls with ScreenContainer's ScrollView —
+                a nested vertical VirtualizedList warns and breaks windowing. Pull-to-refresh is on
+                the screen container; the header keeps a manual refresh button too. */}
+            <View style={styles.deliveryList}>
+              {deliveriesQuery.deliveries.map((item) => (
+                <View key={item.id} style={styles.item}>
+                  <Text style={styles.itemTitle}>{item.deliveryReference}</Text>
+                  <Text style={styles.meta}>Supplier: {item.supplierName}</Text>
+                  <Text style={styles.meta}>Date: {new Date(item.deliveryDate).toLocaleDateString()}</Text>
+                  <Text style={styles.meta}>Packs: {item.packs.length}</Text>
+                  {item.notes ? <Text style={styles.meta}>Notes: {item.notes}</Text> : null}
+                </View>
+              ))}
+            </View>
+          </QueryStateGate>
         )}
       </View>
     </ScreenContainer>

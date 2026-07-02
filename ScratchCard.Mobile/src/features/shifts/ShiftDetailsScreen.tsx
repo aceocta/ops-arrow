@@ -498,6 +498,17 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
         confirmLabel: "Close shift",
       });
       if (!proceed) return;
+    } else {
+      // Closing locks the shift's closing numbers — confirm with a recap so it can't finalise on a
+      // single accidental tap (previously only the zero-sales path asked).
+      const packLabel = `${closingProgress.active} pack${closingProgress.active === 1 ? "" : "s"}`;
+      const proceed = await confirmDestructive({
+        title: `Close ${shift?.shiftName ?? "this shift"}?`,
+        message: `${packLabel}, ${formatCurrency(closingProgress.sales)} in sales. This locks the shift's closing numbers.`,
+        cancelLabel: "Not yet",
+        confirmLabel: "Close shift",
+      });
+      if (!proceed) return;
     }
 
     setIsFinalizing(true);
@@ -924,7 +935,9 @@ export function ShiftDetailsScreen({ route, navigation }: Props) {
                         onPress={() => setPendingCloseAttachments((prev) => prev.filter((a) => a.id !== attachment.id))}
                         disabled={isFinalizing}
                       >
-                        <Text style={styles.actionButtonText}>Remove</Text>
+                        {/* Was `actionButtonText` (onPrimary) on a `surface` button — invisible in both
+                            themes. Use the on-surface label colour like the other attachment buttons. */}
+                        <Text style={styles.attachmentActionButtonText}>Remove</Text>
                       </Pressable>
                     </View>
                   );

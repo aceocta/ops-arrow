@@ -18,12 +18,14 @@ type Props = Omit<TextInputProps, "placeholder"> & {
   error?: string | null;
   /** Optional currency or unit prefix shown inside the input (e.g. "£"). */
   prefix?: string;
+  /** Optional control rendered at the right edge inside the field (e.g. a password show/hide toggle). */
+  rightAdornment?: React.ReactNode;
   /** Extra style for the field container — e.g. to square corners when joined to another control. */
   containerStyle?: StyleProp<ViewStyle>;
 };
 
 export const FloatingLabelInput = forwardRef<TextInput, Props>(function FloatingLabelInput(
-  { label, error, prefix, value, onFocus, onBlur, containerStyle, ...rest },
+  { label, error, prefix, value, onFocus, onBlur, containerStyle, rightAdornment, ...rest },
   ref,
 ) {
   const innerRef = useRef<TextInput>(null);
@@ -104,6 +106,7 @@ export const FloatingLabelInput = forwardRef<TextInput, Props>(function Floating
             placeholderTextColor={appTheme.colors.textSubtle}
             style={styles.input}
           />
+          {rightAdornment ? <View style={styles.adornment}>{rightAdornment}</View> : null}
         </View>
       </View>
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -151,6 +154,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     padding: 0,
     margin: 0,
+  },
+  adornment: {
+    alignItems: "center",
+    justifyContent: "center",
   },
   errorText: {
     color: appTheme.colors.danger,

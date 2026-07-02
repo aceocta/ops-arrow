@@ -15,6 +15,7 @@ import { toastError, toastSuccess } from "../../components/toast";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { MainStackParamList } from "../../types/navigation";
 import { getApiErrorMessage } from "../../utils/apiErrorMessage";
+import { confirmAction } from "../../utils/confirm";
 import { formatGbp } from "../../utils/currency";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -218,7 +219,19 @@ export function PrizePayoutScreen({ route }: Props) {
             <Text style={styles.meta}>Ticket: {payout.ticketNumber ?? "-"}</Text>
             <Text style={styles.meta}>Paid On: {new Date(payout.paidOn).toLocaleString()}</Text>
             {payout.approvalStatus !== "Approved" ? (
-              <Pressable style={styles.approveButton} onPress={() => approveMutation.mutate(payout.id)}>
+              <Pressable
+                style={styles.approveButton}
+                accessibilityRole="button"
+                accessibilityLabel={`Approve ${formatGbp(Number(payout.prizeAmount))} payout`}
+                onPress={async () => {
+                  const ok = await confirmAction({
+                    title: "Approve this payout?",
+                    message: `Approve the ${formatGbp(Number(payout.prizeAmount))} prize payout${payout.ticketNumber ? ` for ticket ${payout.ticketNumber}` : ""}?`,
+                    confirmLabel: "Approve",
+                  });
+                  if (ok) approveMutation.mutate(payout.id);
+                }}
+              >
                 <Text style={styles.approveText}>Approve</Text>
               </Pressable>
             ) : null}

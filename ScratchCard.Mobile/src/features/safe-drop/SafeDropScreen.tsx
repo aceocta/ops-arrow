@@ -21,6 +21,7 @@ import { StatusBadge } from "../../components/StatusBadge";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 import { getApiErrorMessage } from "../../utils/apiErrorMessage";
+import { confirmAction } from "../../utils/confirm";
 import { formatGbp } from "../../utils/currency";
 import { haptics } from "../../utils/haptics";
 import type { MainStackParamList } from "../../types/navigation";
@@ -323,7 +324,14 @@ export function SafeDropScreen() {
                         ]}
                         accessibilityRole="button"
                         accessibilityLabel={`Approve safe drop ${drop.canisterNumber} for ${formatCurrencyGBP(Number(drop.amount ?? 0))}`}
-                        onPress={() => approveMutation.mutate(drop.id)}
+                        onPress={async () => {
+                          const ok = await confirmAction({
+                            title: "Approve this safe drop?",
+                            message: `Approve the ${formatCurrencyGBP(Number(drop.amount ?? 0))} drop for canister ${drop.canisterNumber}?`,
+                            confirmLabel: "Approve",
+                          });
+                          if (ok) approveMutation.mutate(drop.id);
+                        }}
                         disabled={approveMutation.isPending}
                       >
                         <Ionicons name="checkmark-circle-outline" size={16} color={appTheme.colors.primary} />

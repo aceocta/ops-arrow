@@ -14,6 +14,7 @@ import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
 import { toastError, toastSuccess } from "../../components/toast";
 import { getApiErrorMessage } from "../../utils/apiErrorMessage";
+import { formatDateTimeLabel } from "../../utils/dateLabels";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -141,7 +142,7 @@ function TransactionRow({ t, onReverse }: { t: CoinBagTransaction; onReverse?: (
       <View style={styles.rowMain}>
         <Text style={styles.rowTitle} numberOfLines={1}>{TYPE_LABELS[t.transactionType] ?? t.transactionType}</Text>
         <Text style={styles.rowMeta} numberOfLines={1}>
-          {t.performedOn.slice(0, 16).replace("T", " ")} · {t.transactionNumber}
+          {formatDateTimeLabel(t.performedOn)} · {t.transactionNumber}
         </Text>
         {t.comment ? <Text style={styles.rowComment} numberOfLines={2}>{t.comment}</Text> : null}
       </View>

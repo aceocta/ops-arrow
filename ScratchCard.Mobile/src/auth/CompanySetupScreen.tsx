@@ -60,6 +60,8 @@ export function CompanySetupScreen() {
           underlineColorAndroid="transparent"
           editable={!busy}
           autoCapitalize="words"
+          textContentType="organizationName"
+          autoComplete="organization"
           returnKeyType="next"
           submitBehavior="submit"
           onSubmitEditing={() => registrationNumberRef.current?.focus()}

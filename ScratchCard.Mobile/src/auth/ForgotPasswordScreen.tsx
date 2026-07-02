@@ -50,6 +50,8 @@ export function ForgotPasswordScreen() {
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
+          textContentType="emailAddress"
+          autoComplete="email"
           editable={!isBusy}
           underlineColorAndroid="transparent"
           returnKeyType="go"

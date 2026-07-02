@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
+import { PasswordInput } from "../../components/PasswordInput";
 import { PhoneNumberInput } from "../../components/PhoneNumberInput";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError, toastSuccess } from "../../components/toast";
@@ -192,6 +193,8 @@ export function InvitationAcceptanceScreen({ route, navigation }: Props) {
               onChangeText={(t) => { setFirstName(t); if (firstNameError) setFirstNameError(null); }}
               editable={!isBusy}
               autoCapitalize="words"
+              textContentType="givenName"
+              autoComplete="given-name"
               returnKeyType="next"
               submitBehavior="submit"
               onSubmitEditing={() => lastNameRef.current?.focus()}
@@ -204,33 +207,37 @@ export function InvitationAcceptanceScreen({ route, navigation }: Props) {
               onChangeText={(t) => { setLastName(t); if (lastNameError) setLastNameError(null); }}
               editable={!isBusy}
               autoCapitalize="words"
+              textContentType="familyName"
+              autoComplete="family-name"
               returnKeyType="next"
               submitBehavior="submit"
               onSubmitEditing={() => passwordRef.current?.focus()}
               error={lastNameError}
             />
-            <FloatingLabelInput
+            <PasswordInput
               ref={passwordRef}
-              label="Password (min 8 characters)"
+              label="Password (min. 8 characters)"
               value={password}
               onChangeText={(t) => {
                 setPassword(t);
                 if (passwordError) setPasswordError(null);
                 if (confirmPasswordError) setConfirmPasswordError(null);
               }}
-              secureTextEntry
+              textContentType="newPassword"
+              autoComplete="new-password"
               editable={!isBusy}
               returnKeyType="next"
               submitBehavior="submit"
               onSubmitEditing={() => confirmPasswordRef.current?.focus()}
               error={passwordError}
             />
-            <FloatingLabelInput
+            <PasswordInput
               ref={confirmPasswordRef}
               label="Confirm password"
               value={confirmPassword}
               onChangeText={(t) => { setConfirmPassword(t); if (confirmPasswordError) setConfirmPasswordError(null); }}
-              secureTextEntry
+              textContentType="newPassword"
+              autoComplete="new-password"
               editable={!isBusy}
               returnKeyType="next"
               submitBehavior="submit"

@@ -8,6 +8,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { listInvitations, sendInvitation, cancelInvitation } from "../../api/invitationsApi";
 import { getRoleOptions } from "../../api/lookupsApi";
 import { listUsers } from "../../api/usersApi";
+import { Chip } from "../../components/Chip";
 import { EmptyState } from "../../components/EmptyState";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError, toastSuccess } from "../../components/toast";
@@ -77,10 +78,6 @@ export function UserInvitationsScreen() {
   const inviteRoleOptions = useMemo(() => {
     return (rolesQuery.data ?? []).filter((role) => role.name.replace(/\s+/g, "").toLowerCase() !== "platformadmin");
   }, [rolesQuery.data]);
-
-  const selectedRoleName = useMemo(() => {
-    return inviteRoleOptions.find((x) => x.id === selectedRoleId)?.name ?? "";
-  }, [inviteRoleOptions, selectedRoleId]);
 
   // Client-side rules, recomputed every render so a touched field's error clears the instant its
   // value becomes valid. Email is required AND must be a plausible address; role must be picked.
@@ -174,23 +171,18 @@ export function UserInvitationsScreen() {
 
         <Text style={styles.fieldLabel}>Role</Text>
         <View style={styles.roleWrap}>
-          {inviteRoleOptions.map((role) => {
-            const selected = selectedRoleId === role.id;
-            return (
-              <Pressable
-                key={role.id}
-                style={[styles.roleChip, selected && styles.roleChipSelected]}
-                onPress={() => canSendInvitations && setSelectedRoleId(role.id)}
-              >
-                <Text style={[styles.roleChipText, selected && styles.roleChipTextSelected]}>{getRoleDisplayName(role.name)}</Text>
-              </Pressable>
-            );
-          })}
+          {inviteRoleOptions.map((role) => (
+            <Chip
+              key={role.id}
+              label={getRoleDisplayName(role.name)}
+              selected={selectedRoleId === role.id}
+              disabled={!canSendInvitations}
+              onPress={() => setSelectedRoleId(role.id)}
+            />
+          ))}
         </View>
         {/* Chip selector has no blur event, so its error reveals on submit only. */}
         <FieldError error={v.showError("role")} />
-
-        {selectedRoleName ? <Text style={styles.caption}>Selected role: {getRoleDisplayName(selectedRoleName)}</Text> : null}
 
         <PrimaryButton
           label={
@@ -286,26 +278,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: appTheme.spacing.xs,
-  },
-  roleChip: {
-    borderWidth: 1,
-    borderColor: appTheme.colors.primary,
-    borderRadius: appTheme.radius.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: appTheme.colors.surface,
-  },
-  roleChipSelected: {
-    backgroundColor: appTheme.colors.primary,
-  },
-  roleChipText: {
-    color: appTheme.colors.primary,
-    fontFamily: appTheme.fonts.bodyMedium,
-    fontSize: 12,
-    lineHeight: 14,
-  },
-  roleChipTextSelected: {
-    color: appTheme.colors.onPrimary,
   },
   caption: {
     color: appTheme.colors.textMuted,

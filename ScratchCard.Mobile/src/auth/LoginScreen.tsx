@@ -8,6 +8,7 @@ import { useMemo } from "react";
 import { ScreenContainer } from "../components/ScreenContainer";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { FloatingLabelInput } from "../components/FloatingLabelInput";
+import { PasswordInput } from "../components/PasswordInput";
 import type { RootStackParamList } from "../types/navigation";
 import { ui } from "../ui/primitives";
 import { appTheme } from "../ui/theme";
@@ -19,7 +20,6 @@ export function LoginScreen() {
   const { signInWithPassword, signInWithDevBypass, isLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -106,6 +106,8 @@ export function LoginScreen() {
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
+          textContentType="emailAddress"
+          autoComplete="email"
           underlineColorAndroid="transparent"
           editable={!busy}
           returnKeyType="next"
@@ -113,37 +115,22 @@ export function LoginScreen() {
           onSubmitEditing={() => passwordRef.current?.focus()}
           error={emailError}
         />
-        <View style={styles.passwordRow}>
-          <View style={styles.passwordInputContainer}>
-            <FloatingLabelInput
-              ref={passwordRef}
-              label="Password"
-              value={password}
-              onChangeText={(t) => {
-                setPassword(t);
-                if (passwordError) setPasswordError(null);
-              }}
-              secureTextEntry={!showPassword}
-              underlineColorAndroid="transparent"
-              editable={!busy}
-              returnKeyType="go"
-              onSubmitEditing={() => void onSignIn()}
-              error={passwordError}
-            />
-            <Pressable
-              style={styles.passwordIconButton}
-              onPress={() => setShowPassword((current) => !current)}
-              disabled={busy}
-              hitSlop={8}
-            >
-              <Ionicons
-                name={showPassword ? "eye-off-outline" : "eye-outline"}
-                size={20}
-                color={appTheme.colors.textMuted}
-              />
-            </Pressable>
-          </View>
-        </View>
+        <PasswordInput
+          ref={passwordRef}
+          label="Password"
+          value={password}
+          onChangeText={(t) => {
+            setPassword(t);
+            if (passwordError) setPasswordError(null);
+          }}
+          textContentType="password"
+          autoComplete="current-password"
+          underlineColorAndroid="transparent"
+          editable={!busy}
+          returnKeyType="go"
+          onSubmitEditing={() => void onSignIn()}
+          error={passwordError}
+        />
         <PrimaryButton
           label={busy ? "Signing in…" : "Sign in"}
           onPress={() => void onSignIn()}
@@ -242,43 +229,6 @@ const styles = StyleSheet.create({
     color: appTheme.colors.text,
     fontFamily: appTheme.fonts.heading,
   },
-  subtitle: {
-    color: appTheme.colors.textMuted,
-    fontSize: 13,
-    lineHeight: 18,
-    fontFamily: appTheme.fonts.body,
-    marginBottom: 2,
-  },
-  fieldLabel: {
-    color: appTheme.colors.text,
-    fontSize: 13,
-    lineHeight: 18,
-    fontFamily: appTheme.fonts.bodyMedium,
-    marginTop: 2,
-  },
-  passwordRow: {
-    width: "100%",
-  },
-  passwordInputContainer: {
-    position: "relative",
-  },
-  passwordInput: {
-    width: "100%",
-    color: appTheme.colors.text,
-    paddingHorizontal: appTheme.spacing.sm,
-    paddingVertical: 11,
-    paddingRight: 44,
-    fontSize: 14,
-    fontFamily: appTheme.fonts.body,
-  },
-  passwordIconButton: {
-    position: "absolute",
-    right: 10,
-    top: 0,
-    bottom: 0,
-    justifyContent: "center",
-    alignItems: "center",
-  },
   inlineLink: {
     alignSelf: "flex-end",
     paddingVertical: 2,
@@ -312,11 +262,5 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
     fontSize: 12,
     lineHeight: 15,
-  },
-  devHint: {
-    color: appTheme.colors.warning,
-    lineHeight: 18,
-    fontSize: 12,
-    fontFamily: appTheme.fonts.body,
   },
 });

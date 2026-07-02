@@ -275,7 +275,7 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
   // serial as the input's initial real value (rather than placeholder) while still keeping
   // the row badge as "Pending" until the user explicitly acknowledges/changes it.
   const [touchedPackIds, setTouchedPackIds] = useState<Set<string>>(new Set());
-  const [scanStatus, setScanStatus] = useState<string | null>(null);
+  const [scanStatus, setScanStatus] = useState<{ text: string; tone: "success" | "error" } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [gameNameTooltipPackId, setGameNameTooltipPackId] = useState<string | null>(null);
   const packsRef = useRef<ScratchCardPack[]>([]);
@@ -303,7 +303,7 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
     }
     if (params.mode === "auto" && (params.pendingPacks?.length ?? 0) === 0) {
       // No candidates at all (shift has no active packs) — nothing the scanner could match.
-      setScanStatus("No active packs to scan.");
+      setScanStatus({ text: "No active packs to scan.", tone: "error" });
       return;
     }
 
@@ -466,7 +466,7 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
         }
 
         if (matchingPacks.length > 1) {
-          setScanStatus(`Multiple active packs matched scanned code: ${payload.parsedPackNumber}. Scan from pack row to target one pack.`);
+          setScanStatus({ text: `Multiple active packs matched scanned code: ${payload.parsedPackNumber}. Scan from pack row to target one pack.`, tone: "error" });
           return null;
         }
 
@@ -479,7 +479,7 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
         if (payload.packId && fallbackSerial) {
           const targetPackId = payload.packId;
           // A scan always overwrites the current value — no need to clear the textbox first.
-          setScanStatus(`Captured ${fallbackSerial}. Pack is loading, verify and finalise.`);
+          setScanStatus({ text: `Captured ${fallbackSerial}. Pack still loading — check the serial before saving.`, tone: "success" });
           setEntries((previous) => ({
             ...previous,
             [targetPackId]: {
@@ -493,7 +493,7 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
           return;
         }
 
-        setScanStatus(`No active pack matched scanned code: ${payload.rawBarcode}`);
+        setScanStatus({ text: `No active pack matched scanned code: ${payload.rawBarcode}`, tone: "error" });
         return;
       }
 
@@ -502,7 +502,7 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
         const fallbackSerial = normalizeScannedSerial(payload.parsedSerial || payload.rawBarcode);
         const normalizedParsedSerial = normalizeScannedSerial(payload.parsedSerial);
         if (fallbackSerial && isValidSerialForPack(matchedPack, fallbackSerial)) {
-          setScanStatus(`Captured ${fallbackSerial} for pack ${matchedPack.packNumber}. Please verify before finalising.`);
+          setScanStatus({ text: `Captured ${fallbackSerial} for pack ${matchedPack.packNumber}. Please verify before finalising.`, tone: "success" });
           setEntries((previous) => ({
             ...previous,
             [matchedPack.id]: {
@@ -516,19 +516,21 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
           return;
         }
 
-        setScanStatus(
-          `Scanned value could not be validated for pack ${matchedPack.packNumber}. Please rescan or enter manually.`
-        );
+        setScanStatus({
+          text: `Scanned value could not be validated for pack ${matchedPack.packNumber}. Please rescan or enter manually.`,
+          tone: "error",
+        });
         return;
       }
       const normalizedParsedSerial = normalizeScannedSerial(payload.parsedSerial);
       const wasAdjusted = normalizedParsedSerial.length > 0 && resolvedSerial !== normalizedParsedSerial;
 
-      setScanStatus(
-        payload.parsedPackNumber
+      setScanStatus({
+        text: payload.parsedPackNumber
           ? `Applied ${resolvedSerial} to pack ${matchedPack.packNumber}${wasAdjusted ? ` (from ${normalizedParsedSerial})` : ""}${payload.barcodeType ? ` [${payload.barcodeType}]` : ""}.`
-          : `Applied serial ${resolvedSerial}${wasAdjusted ? ` (from ${normalizedParsedSerial})` : ""}${payload.barcodeType ? ` [${payload.barcodeType}]` : ""}.`
-      );
+          : `Applied serial ${resolvedSerial}${wasAdjusted ? ` (from ${normalizedParsedSerial})` : ""}${payload.barcodeType ? ` [${payload.barcodeType}]` : ""}.`,
+        tone: "success",
+      });
 
       setEntries((previous) => ({
         ...previous,
@@ -794,13 +796,25 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
   return (
     <ScreenContainer header={shiftHeaderSection} footer={finalizeFooter} keyboardScrollOffset={160}>
       <View style={styles.content}>
-        {/* <View style={[ui.card, styles.quickScanCard]}> */}
-          {/* <Text style={styles.cardTitle}>Quick Scan</Text>
-          <Text style={styles.meta}>Scan continuously and auto-apply closing serials by pack.</Text> */}
-      
-          {/* <Text style={styles.meta}>{readinessMessage}</Text> */}
-          {/* {scanStatus ? <Text style={styles.scanStatus}>{scanStatus}</Text> : null} */}
-        {/* </View> */}
+        {/* Scan feedback strip — without this a failed scan ("No active pack matched…") gave the user
+            no on-screen response. Tone + icon distinguish success from failure (not colour alone). */}
+        {scanStatus ? (
+          <View
+            style={[styles.scanStatusStrip, scanStatus.tone === "error" ? styles.scanStatusStripError : styles.scanStatusStripSuccess]}
+            accessibilityLiveRegion="polite"
+            accessibilityRole="alert"
+          >
+            <Ionicons
+              name={scanStatus.tone === "error" ? "alert-circle" : "checkmark-circle"}
+              size={16}
+              color={scanStatus.tone === "error" ? appTheme.colors.danger : appTheme.colors.success}
+            />
+            <Text style={styles.scanStatusText}>{scanStatus.text}</Text>
+            <Pressable onPress={() => setScanStatus(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Dismiss scan message">
+              <Ionicons name="close" size={16} color={appTheme.colors.textMuted} />
+            </Pressable>
+          </View>
+        ) : null}
 
         {computedRows.length === 0 ? (
           <View style={[ui.card, styles.compactCard]}>
@@ -848,6 +862,19 @@ export function EnterClosingNumbersScreen({ route, navigation }: Props) {
             >
               {/* Dense single-line row: compact label · closing-serial input · Sold · Scan. */}
               <View style={styles.packRowMain}>
+                {/* State indicator — previously the row state was a border-colour change only, which is
+                    both low-salience and invisible to screen readers. Icon shape + label carry it too. */}
+                <View
+                  accessible
+                  accessibilityLabel={row.hasError ? "Pack has an error" : isReadyRow ? "Pack ready" : "Pack pending"}
+                  style={styles.rowStateIcon}
+                >
+                  <Ionicons
+                    name={row.hasError ? "alert-circle" : isReadyRow ? "checkmark-circle" : "ellipse-outline"}
+                    size={15}
+                    color={row.hasError ? appTheme.colors.danger : isReadyRow ? appTheme.colors.success : appTheme.colors.warning}
+                  />
+                </View>
                 <Pressable
                   style={styles.packLabelCol}
                   onPress={() => showGameNameTooltip(row.pack.id)}
@@ -1484,16 +1511,34 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontSize: 13,
   },
-  scanStatus: {
-    color: appTheme.colors.info,
-    fontFamily: appTheme.fonts.bodyMedium,
-    lineHeight: 18,
-    fontSize: 13,
-    borderWidth: 0,
+  scanStatusStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     borderRadius: appTheme.radius.sm,
-    backgroundColor: appTheme.colors.surfaceInfoMuted,
+    borderWidth: 1,
     paddingHorizontal: appTheme.spacing.sm,
     paddingVertical: appTheme.spacing.xs,
+  },
+  scanStatusStripSuccess: {
+    backgroundColor: appTheme.colors.surfaceSuccessSoft,
+    borderColor: appTheme.colors.borderSuccessSoft,
+  },
+  scanStatusStripError: {
+    backgroundColor: appTheme.colors.surfaceDangerSoft,
+    borderColor: appTheme.colors.borderDangerSoft,
+  },
+  scanStatusText: {
+    flex: 1,
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  rowStateIcon: {
+    marginRight: 4,
+    alignItems: "center",
+    justifyContent: "center",
   },
   actionGroup: {
     gap: appTheme.spacing.xs,
