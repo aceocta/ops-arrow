@@ -147,6 +147,10 @@ public interface ICompanyService
     Task<CompanyDto> UpdateAsync(Guid id, UpdateCompanyRequest request, CancellationToken cancellationToken = default);
     Task<CompanyDto> GetAsync(Guid id, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<CompanyDto>> ListMineAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Emails the requesting owner their company details plus the web-platform link to set up
+    /// and manage their shop. Rate-limited to one email per user+company per 10 minutes.</summary>
+    Task SendSetupInfoEmailAsync(Guid companyId, CancellationToken cancellationToken = default);
 }
 
 public interface ICompanySignupService

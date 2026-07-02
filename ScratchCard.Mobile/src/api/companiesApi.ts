@@ -32,3 +32,8 @@ export async function updateCompany(companyId: string, payload: UpdateCompanyPay
   const response = await apiClient.put<ApiResponse<Company>>(`/companies/${companyId}`, payload);
   return response.data.data;
 }
+
+// Emails the signed-in owner their company details + the web-platform link to set up/manage their shop.
+export async function emailCompanySetupInfo(companyId: string) {
+  await apiClient.post<ApiResponse<boolean>>(`/companies/${companyId}/email-setup-info`);
+}
