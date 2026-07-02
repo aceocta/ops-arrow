@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,6 +16,7 @@ import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
+import { useFieldValidation } from "../../components/useFieldValidation";
 import { toastError, toastSuccess } from "../../components/toast";
 import { confirmDestructive } from "../../utils/confirm";
 import { getApiErrorMessage } from "../../utils/apiErrorMessage";
@@ -98,6 +99,30 @@ export function ProductCategoriesScreen() {
   const editorOpen = isNew || editing !== null;
   const categories = query.data ?? [];
 
+  // Client-side rules for the shared new/edit editor, recomputed every render so a touched field's
+  // error clears the instant its value becomes valid. reminderDays is optional (empty = no reminders,
+  // which the flow accepts), so it only errors when non-empty text parses to zero valid numbers.
+  const errors = {
+    name: name.trim().length === 0 ? "Enter a category name." : null,
+    reminderDays:
+      daysText.trim().length > 0 && parseDays(daysText).length === 0
+        ? "Enter at least one reminder day (e.g. 7, 3, 0)."
+        : null,
+  };
+  const v = useFieldValidation(errors);
+  // Clear revealed errors each time the editor modal opens so a prior failed submit doesn't flag the
+  // freshly-reset form.
+  useEffect(() => {
+    if (editorOpen) v.reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editorOpen]);
+
+  const handleSave = () => {
+    if (saveMutation.isPending) return;
+    if (!v.attemptSubmit()) return;
+    saveMutation.mutate();
+  };
+
   return (
     <ScreenContainer footer={<PrimaryButton label="New category" onPress={openNew} />}>
       {query.isLoading ? (
@@ -144,13 +169,29 @@ export function ProductCategoriesScreen() {
           <ModalBackdropBlur />
           <View style={styles.modalCard}>
             <Text style={ui.sectionTitle}>{isNew ? "New category" : "Edit category"}</Text>
-            <FloatingLabelInput label="Category name" value={name} onChangeText={setName} autoCapitalize="words" />
-            <FloatingLabelInput label="Reminder days (e.g. 7, 3, 0)" value={daysText} onChangeText={setDaysText} keyboardType="numbers-and-punctuation" />
+            <FloatingLabelInput
+              label="Category name"
+              value={name}
+              onChangeText={setName}
+              onBlur={() => v.touch("name")}
+              error={v.showError("name")}
+              autoCapitalize="words"
+            />
+            <FloatingLabelInput
+              label="Reminder days (e.g. 7, 3, 0)"
+              value={daysText}
+              onChangeText={setDaysText}
+              onBlur={() => v.touch("reminderDays")}
+              error={v.showError("reminderDays")}
+              keyboardType="numbers-and-punctuation"
+            />
             <Text style={styles.note}>Days before expiry to flag the item — biggest = Expiring Soon, smallest = Urgent.</Text>
             <PrimaryButton
               label={saveMutation.isPending ? "Saving…" : "Save"}
-              onPress={() => saveMutation.mutate()}
-              disabled={saveMutation.isPending || name.trim().length === 0}
+              // Deliberately enabled while incomplete: pressing it reveals what's missing via the
+              // inline field errors (handleSave runs attemptSubmit and only fires once valid).
+              onPress={handleSave}
+              disabled={saveMutation.isPending}
             />
             <PrimaryButton label="Cancel" tone="neutral" onPress={closeEditor} disabled={saveMutation.isPending} />
           </View>

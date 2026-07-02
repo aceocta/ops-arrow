@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Modal, Pressable, RefreshControl, StyleSheet, Switch, Text, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,6 +10,7 @@ import { LoadingState } from "../../components/LoadingState";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { useFieldValidation } from "../../components/useFieldValidation";
 import { toastError, toastSuccess } from "../../components/toast";
 import { getApiErrorMessage } from "../../utils/apiErrorMessage";
 import { ui } from "../../ui/primitives";
@@ -99,7 +100,41 @@ export function CoinBagConfigScreen() {
     setDraft(toDraft(c));
   };
 
-  const draftValid = draft ? (Number(draft.bagValue) || 0) > 0 : false;
+  // Client-side rules, recomputed every render so a touched field's error clears the instant its
+  // value becomes valid. Only real rules: bag value must be a positive number; the quantity fields
+  // are non-negative integers; max must be at least min (cross-field). The toggles/recipients have
+  // no rules. Fall back to an empty draft when the modal is closed so the hook always sees the keys.
+  const d = draft;
+  const bagValueNum = d ? Number(d.bagValue) : NaN;
+  const minNum = d ? Number(d.minBagQuantity) : NaN;
+  const maxNum = d ? Number(d.maxBagQuantity) : NaN;
+  const fieldErrors = {
+    bagValue: !(Number.isFinite(bagValueNum) && bagValueNum > 0) ? "Enter a value above 0." : null,
+    openingBagQuantity: d && d.openingBagQuantity.trim().length === 0 ? "Enter 0 or more." : null,
+    minBagQuantity: d && d.minBagQuantity.trim().length === 0 ? "Enter 0 or more." : null,
+    maxBagQuantity:
+      d && d.maxBagQuantity.trim().length === 0
+        ? "Enter 0 or more."
+        : Number.isFinite(minNum) && Number.isFinite(maxNum) && maxNum < minNum
+          ? "Max must be at least min."
+          : null,
+    stockAlertLimit: d && d.stockAlertLimit.trim().length === 0 ? "Enter 0 or more." : null,
+  };
+  const v = useFieldValidation(fieldErrors);
+  // Clear revealed errors each time the edit modal opens so a prior failed submit doesn't flag the
+  // freshly-loaded form.
+  useEffect(() => {
+    if (editing !== null) v.reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing]);
+
+  const handleSave = () => {
+    // Imperative guard: on RN two taps can fire before the button re-renders.
+    if (mutation.isPending) return;
+    // attemptSubmit reveals every field's error; only fire the PUT once everything is valid.
+    if (!v.attemptSubmit()) return;
+    mutation.mutate();
+  };
 
   return (
     <ScreenContainer
@@ -134,14 +169,14 @@ export function CoinBagConfigScreen() {
             {draft ? (
               <>
                 <View style={styles.row2}>
-                  <View style={styles.cell}><FloatingLabelInput label="Bag value" prefix="£" value={draft.bagValue} onChangeText={(v) => setDraft({ ...draft, bagValue: sanitizeMoney(v) })} keyboardType="decimal-pad" /></View>
-                  <View style={styles.cell}><FloatingLabelInput label="Stock alert limit" value={draft.stockAlertLimit} onChangeText={(v) => setDraft({ ...draft, stockAlertLimit: v.replace(/[^0-9]/g, "") })} keyboardType="number-pad" /></View>
+                  <View style={styles.cell}><FloatingLabelInput label="Bag value" prefix="£" value={draft.bagValue} onChangeText={(t) => setDraft({ ...draft, bagValue: sanitizeMoney(t) })} onBlur={() => v.touch("bagValue")} error={v.showError("bagValue")} keyboardType="decimal-pad" /></View>
+                  <View style={styles.cell}><FloatingLabelInput label="Stock alert limit" value={draft.stockAlertLimit} onChangeText={(t) => setDraft({ ...draft, stockAlertLimit: t.replace(/[^0-9]/g, "") })} onBlur={() => v.touch("stockAlertLimit")} error={v.showError("stockAlertLimit")} keyboardType="number-pad" /></View>
                 </View>
                 <View style={styles.row2}>
-                  <View style={styles.cell}><FloatingLabelInput label="Opening bags" value={draft.openingBagQuantity} onChangeText={(v) => setDraft({ ...draft, openingBagQuantity: v.replace(/[^0-9]/g, "") })} keyboardType="number-pad" /></View>
-                  <View style={styles.cell}><FloatingLabelInput label="Min bags" value={draft.minBagQuantity} onChangeText={(v) => setDraft({ ...draft, minBagQuantity: v.replace(/[^0-9]/g, "") })} keyboardType="number-pad" /></View>
+                  <View style={styles.cell}><FloatingLabelInput label="Opening bags" value={draft.openingBagQuantity} onChangeText={(t) => setDraft({ ...draft, openingBagQuantity: t.replace(/[^0-9]/g, "") })} onBlur={() => v.touch("openingBagQuantity")} error={v.showError("openingBagQuantity")} keyboardType="number-pad" /></View>
+                  <View style={styles.cell}><FloatingLabelInput label="Min bags" value={draft.minBagQuantity} onChangeText={(t) => setDraft({ ...draft, minBagQuantity: t.replace(/[^0-9]/g, "") })} onBlur={() => v.touch("minBagQuantity")} error={v.showError("minBagQuantity")} keyboardType="number-pad" /></View>
                 </View>
-                <FloatingLabelInput label="Max bags" value={draft.maxBagQuantity} onChangeText={(v) => setDraft({ ...draft, maxBagQuantity: v.replace(/[^0-9]/g, "") })} keyboardType="number-pad" />
+                <FloatingLabelInput label="Max bags" value={draft.maxBagQuantity} onChangeText={(t) => setDraft({ ...draft, maxBagQuantity: t.replace(/[^0-9]/g, "") })} onBlur={() => v.touch("maxBagQuantity")} error={v.showError("maxBagQuantity")} keyboardType="number-pad" />
 
                 <View style={styles.toggleRow}>
                   <Text style={styles.toggleLabel}>Low-stock alerts</Text>
@@ -165,7 +200,7 @@ export function CoinBagConfigScreen() {
                   <Switch value={draft.isActive} onValueChange={(v) => setDraft({ ...draft, isActive: v })} />
                 </View>
 
-                <PrimaryButton label={mutation.isPending ? "Saving…" : "Save"} onPress={() => mutation.mutate()} disabled={mutation.isPending || !draftValid} />
+                <PrimaryButton label={mutation.isPending ? "Saving…" : "Save"} onPress={handleSave} disabled={mutation.isPending} />
                 <PrimaryButton label="Cancel" tone="neutral" onPress={() => setEditing(null)} disabled={mutation.isPending} />
               </>
             ) : null}

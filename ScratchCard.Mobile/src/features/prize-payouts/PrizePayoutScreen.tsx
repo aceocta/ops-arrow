@@ -10,6 +10,7 @@ import { approvePrizePayout, createPrizePayout, listPrizePayouts } from "../../a
 import { getShift } from "../../api/shiftsApi";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SegmentedControl } from "../../components/SegmentedControl";
+import { useFieldValidation } from "../../components/useFieldValidation";
 import { toastError, toastSuccess } from "../../components/toast";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { MainStackParamList } from "../../types/navigation";
@@ -94,10 +95,34 @@ export function PrizePayoutScreen({ route }: Props) {
   });
 
   const amountValue = Number(prizeAmount);
-  const hasAmount = Number.isFinite(amountValue) && amountValue > 0;
   const contextReady = Boolean(shopId) && Boolean(shiftQuery.data?.businessDayId);
-  const canSave = hasAmount && contextReady && !createMutation.isPending;
-  const missing = [!hasAmount ? "prize amount" : null, !contextReady ? "shift context" : null].filter(Boolean) as string[];
+
+  // Client-side rules, recomputed every render so a touched field's error clears the instant its
+  // value becomes valid. Pack is optional and paymentMethod defaults to "Cash", so neither is gated.
+  const fieldErrors = {
+    prizeAmount:
+      prizeAmount.trim().length === 0
+        ? "Enter the prize amount."
+        : !(Number.isFinite(amountValue) && amountValue > 0)
+        ? "Amount must be greater than 0."
+        : null,
+  };
+  const v = useFieldValidation(fieldErrors);
+  const prizeAmountError = v.showError("prizeAmount");
+
+  const missing = !contextReady ? (["shift context"] as string[]) : [];
+
+  const handleSubmit = () => {
+    // Imperative guard: two taps can fire before the button re-renders, and creating a payout
+    // isn't idempotent.
+    if (createMutation.isPending) return;
+    // Reveals every field's error; pull the invalid amount field forward if it fails.
+    if (!v.attemptSubmit()) {
+      prizeAmountRef.current?.focus();
+      return;
+    }
+    createMutation.mutate();
+  };
 
   return (
     <ScreenContainer
@@ -111,8 +136,10 @@ export function PrizePayoutScreen({ route }: Props) {
           ) : null}
           <PrimaryButton
             label={createMutation.isPending ? "Saving…" : "Create payout"}
-            onPress={() => createMutation.mutate()}
-            disabled={!canSave}
+            // Enabled while incomplete so pressing reveals *what's* missing via the inline field
+            // error; handleSubmit runs the checks and only fires the POST once the amount is valid.
+            onPress={handleSubmit}
+            disabled={createMutation.isPending}
           />
         </View>
       }
@@ -160,6 +187,8 @@ export function PrizePayoutScreen({ route }: Props) {
           prefix="£"
           value={prizeAmount}
           onChangeText={setPrizeAmount}
+          onBlur={() => v.touch("prizeAmount")}
+          error={prizeAmountError}
           keyboardType="decimal-pad"
           accessibilityLabel="Prize amount in pounds"
           returnKeyType="next"

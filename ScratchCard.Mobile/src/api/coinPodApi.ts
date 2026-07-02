@@ -27,6 +27,8 @@ export type CoinBagStockRow = {
 export type CoinPodDashboard = {
   shopId: string;
   totalCoinValue: number;
+  /** The shop's single loose (un-bagged) coin cash pot — any value, all denominations. Included in totalCoinValue. */
+  looseCashAmount: number;
   activeAlertCount: number;
   items: CoinBagStockRow[];
 };
@@ -141,6 +143,8 @@ export type CoinPodReport = {
   from: string;
   to: string;
   totalCoinValue: number;
+  /** The shop's single loose (un-bagged) coin cash pot — included in totalCoinValue. */
+  looseCashAmount: number;
   stockSummary: CoinBagStockRow[];
   movementSummary: CoinMovementSummaryRow[];
   exceptions: CoinBagTransaction[];
@@ -228,7 +232,16 @@ export async function getCoinPodReport(shopId: string, from: string, to: string)
   return response.data.data;
 }
 
-export async function recordCoinStock(shopId: string, entries: CoinStockCountEntry[]): Promise<CoinPodDashboard> {
-  const response = await apiClient.post<ApiResponse<CoinPodDashboard>>("/coin-pod/stock-count", { shopId, entries });
+// looseCashAmount (optional) sets the shop's single loose-cash pot; omit to leave it unchanged.
+export async function recordCoinStock(
+  shopId: string,
+  entries: CoinStockCountEntry[],
+  looseCashAmount?: number,
+): Promise<CoinPodDashboard> {
+  const response = await apiClient.post<ApiResponse<CoinPodDashboard>>("/coin-pod/stock-count", {
+    shopId,
+    entries,
+    looseCashAmount,
+  });
   return response.data.data;
 }

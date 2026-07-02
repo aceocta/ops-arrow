@@ -1,4 +1,4 @@
-﻿import React, { useRef, useState } from "react";
+﻿import React, { useEffect, useRef, useState } from "react";
 import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigation } from "@react-navigation/native";
@@ -11,6 +11,7 @@ import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { dismissKeyboardOnTap } from "../../components/KeyboardDismissView";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { useFieldValidation } from "../../components/useFieldValidation";
 import { toastError, toastSuccess } from "../../components/toast";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
@@ -122,6 +123,28 @@ export function TemperatureUnitsScreen() {
     },
   });
 
+  // Client-side rules, recomputed every render so a touched field's error clears the instant its
+  // value becomes valid. Location & order number are optional (no rule). The min<max cross-field
+  // check reports on the max field so the message sits beside the value the user must raise.
+  const minValue = Number(newMinTemp);
+  const maxValue = Number(newMaxTemp);
+  const fieldErrors = {
+    unitName: newUnitName.trim().length === 0 ? "Enter a unit name." : null,
+    minTemperatureCelsius: !Number.isFinite(minValue) ? "Enter a number." : null,
+    maxTemperatureCelsius: !Number.isFinite(maxValue)
+      ? "Enter a number."
+      : Number.isFinite(minValue) && minValue >= maxValue
+        ? "Max must be greater than min."
+        : null,
+  };
+  const validation = useFieldValidation(fieldErrors);
+  // Clear revealed errors each time the create modal opens so a prior failed submit doesn't flag the
+  // freshly-reset form.
+  useEffect(() => {
+    if (isCreateModalVisible) validation.reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCreateModalVisible]);
+
   return (
     <ScreenContainer>
 
@@ -181,6 +204,8 @@ export function TemperatureUnitsScreen() {
               label="Unit name (e.g. Front Fridge)"
               value={newUnitName}
               onChangeText={setNewUnitName}
+              error={validation.showError("unitName")}
+              onBlur={() => validation.touch("unitName")}
               autoCapitalize="words"
               returnKeyType="next"
               submitBehavior="submit"
@@ -208,6 +233,8 @@ export function TemperatureUnitsScreen() {
                   label="Min °C"
                   value={newMinTemp}
                   onChangeText={(value) => setNewMinTemp(sanitizeSignedDecimal(value))}
+                  error={validation.showError("minTemperatureCelsius")}
+                  onBlur={() => validation.touch("minTemperatureCelsius")}
                   keyboardType="numbers-and-punctuation"
                   returnKeyType="next"
                   submitBehavior="submit"
@@ -220,6 +247,8 @@ export function TemperatureUnitsScreen() {
                   label="Max °C"
                   value={newMaxTemp}
                   onChangeText={(value) => setNewMaxTemp(sanitizeSignedDecimal(value))}
+                  error={validation.showError("maxTemperatureCelsius")}
+                  onBlur={() => validation.touch("maxTemperatureCelsius")}
                   keyboardType="numbers-and-punctuation"
                   returnKeyType="next"
                   submitBehavior="submit"
@@ -246,7 +275,13 @@ export function TemperatureUnitsScreen() {
             <View style={styles.modalActions}>
               <PrimaryButton
                 label={createUnitMutation.isPending ? "Creating…" : "Create unit"}
-                onPress={() => createUnitMutation.mutate(false)}
+                // Enabled while incomplete so pressing reveals the inline field errors; the guard
+                // below runs the checks and only fires the POST once everything is valid.
+                onPress={() => {
+                  if (createUnitMutation.isPending) return;
+                  if (!validation.attemptSubmit()) return;
+                  createUnitMutation.mutate(false);
+                }}
                 disabled={createUnitMutation.isPending || !shopId}
                 size="sm"
               />

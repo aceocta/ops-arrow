@@ -10,12 +10,14 @@ import {
   listTemperatureUnits,
   updateTemperatureSchedule,
 } from "../../api/temperatureLogsApi";
+import { FieldError } from "../../components/FieldError";
 import { LoadingState } from "../../components/LoadingState";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastSuccess } from "../../components/toast";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { DateTimeField } from "../../components/DateTimeField";
 import { EmptyState } from "../../components/EmptyState";
+import { useFieldValidation } from "../../components/useFieldValidation";
 import { TemperatureSchedule } from "../../types/models";
 import { getApiErrorMessage } from "../../utils/apiErrorMessage";
 import { confirmDestructive } from "../../utils/confirm";
@@ -67,6 +69,8 @@ export function TemperatureSchedulesScreen() {
     setTime("10:00");
     setTolerance(30);
     setSelectedUnitIds([]);
+    // Form stays mounted after save/cancel; clear revealed errors so the emptied fields don't flag.
+    v.reset();
   }
 
   function beginEdit(schedule: TemperatureSchedule) {
@@ -161,7 +165,22 @@ export function TemperatureSchedulesScreen() {
   const schedules = schedulesQuery.data ?? [];
   const units = unitsQuery.data ?? [];
   const busy = createMutation.isPending || updateMutation.isPending;
-  const canSubmit = label.trim().length > 0 && time.length === 5 && !busy && Boolean(shopId);
+
+  // Client-side rules, recomputed every render so a touched field's error clears the instant its
+  // value becomes valid. Tolerance/units always carry a valid default, so they aren't gated here.
+  const fieldErrors = {
+    label: label.trim().length === 0 ? "Enter a label." : null,
+    time: time.length === 5 ? null : "Set a valid time.",
+  };
+  const v = useFieldValidation(fieldErrors);
+
+  function handleSubmit() {
+    // Imperative guard: on RN two taps can fire before the button re-renders.
+    if (busy) return;
+    if (!v.attemptSubmit()) return;
+    if (editingId) updateMutation.mutate();
+    else createMutation.mutate();
+  }
 
   return (
     <ScreenContainer>
@@ -173,15 +192,17 @@ export function TemperatureSchedulesScreen() {
         </Text>
 
         <TextInput
-          style={styles.input}
+          style={[styles.input, v.showError("label") ? styles.inputError : null]}
           value={label}
           onChangeText={setLabel}
+          onBlur={() => v.touch("label")}
           placeholder="Label (e.g. Morning, Evening, Closing)"
           placeholderTextColor={appTheme.colors.textSubtle}
           editable={!busy}
           autoCapitalize="words"
           returnKeyType="done"
         />
+        <FieldError error={v.showError("label")} />
 
         <View style={styles.timeRow}>
           <Text style={styles.timeLabel}>Time</Text>
@@ -189,6 +210,7 @@ export function TemperatureSchedulesScreen() {
             <DateTimeField mode="time" value={time} onChange={setTime} />
           </View>
         </View>
+        <FieldError error={v.showError("time")} />
 
         <View>
           <Text style={styles.fieldLabel}>Tolerance</Text>
@@ -255,8 +277,10 @@ export function TemperatureSchedulesScreen() {
                 ? "Adding…"
                 : "Add schedule"
           }
-          onPress={() => (editingId ? updateMutation.mutate() : createMutation.mutate())}
-          disabled={!canSubmit}
+          // Deliberately enabled while the form is incomplete: pressing it reveals what's missing via
+          // the inline field errors. handleSubmit runs the checks and only fires once everything's valid.
+          onPress={handleSubmit}
+          disabled={busy}
         />
         {editingId ? (
           <Pressable style={styles.cancelBtn} onPress={cancelEdit} disabled={busy}>
@@ -336,6 +360,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 9,
   },
+  // Danger border for the raw label input on error; matches FieldError's inline message treatment.
+  inputError: { borderColor: appTheme.colors.danger },
   timeRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   timeFieldWrap: { flex: 1 },
   timeLabel: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, lineHeight: 17, width: 50 },

@@ -12,6 +12,8 @@ import { EmptyState } from "../../components/EmptyState";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError, toastSuccess } from "../../components/toast";
 import { PrimaryButton } from "../../components/PrimaryButton";
+import { useFieldValidation } from "../../components/useFieldValidation";
+import { FieldError } from "../../components/FieldError";
 import { useEntitlements } from "../subscription/useEntitlements";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -80,6 +82,18 @@ export function UserInvitationsScreen() {
     return inviteRoleOptions.find((x) => x.id === selectedRoleId)?.name ?? "";
   }, [inviteRoleOptions, selectedRoleId]);
 
+  // Client-side rules, recomputed every render so a touched field's error clears the instant its
+  // value becomes valid. Email is required AND must be a plausible address; role must be picked.
+  const fieldErrors = {
+    email: !email.trim()
+      ? "Enter an email address."
+      : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+        ? "Enter a valid email address."
+        : null,
+    role: !selectedRoleId ? "Choose a role." : null,
+  };
+  const v = useFieldValidation(fieldErrors);
+
   const sendInvitationMutation = useMutation({
     mutationFn: async () => {
       if (!shopId) {
@@ -106,6 +120,8 @@ export function UserInvitationsScreen() {
     },
     onSuccess: () => {
       setEmail("");
+      // Form stays mounted after sending; clear revealed errors so the emptied email doesn't flag.
+      v.reset();
       toastSuccess("Invitation sent.");
       void queryClient.invalidateQueries({ queryKey: ["invitations", shopId] });
     },
@@ -149,6 +165,8 @@ export function UserInvitationsScreen() {
           autoCapitalize="none"
           keyboardType="email-address"
           onChangeText={setEmail}
+          onBlur={() => v.touch("email")}
+          error={v.showError("email")}
           editable={canSendInvitations}
           autoCorrect={false}
           returnKeyType="done"
@@ -169,6 +187,8 @@ export function UserInvitationsScreen() {
             );
           })}
         </View>
+        {/* Chip selector has no blur event, so its error reveals on submit only. */}
+        <FieldError error={v.showError("role")} />
 
         {selectedRoleName ? <Text style={styles.caption}>Selected role: {getRoleDisplayName(selectedRoleName)}</Text> : null}
 
@@ -180,7 +200,12 @@ export function UserInvitationsScreen() {
                 ? "Seat limit reached"
                 : "Send invitation"
           }
-          onPress={() => sendInvitationMutation.mutate()}
+          onPress={() => {
+            if (sendInvitationMutation.isPending) return;
+            // Pressing reveals what's missing via inline field errors before firing the POST.
+            if (!v.attemptSubmit()) return;
+            sendInvitationMutation.mutate();
+          }}
           disabled={sendInvitationMutation.isPending || !shopId || !canSendInvitations || seatsExhausted}
         />
       </View>

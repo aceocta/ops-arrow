@@ -5,11 +5,13 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { adjustCoinStock, getCoinPodDashboard } from "../../api/coinPodApi";
 import { useAuth } from "../../auth/AuthContext";
+import { FieldError } from "../../components/FieldError";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { LoadingState } from "../../components/LoadingState";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SegmentedControl } from "../../components/SegmentedControl";
+import { useFieldValidation } from "../../components/useFieldValidation";
 import { toastError, toastSuccess } from "../../components/toast";
 import { MainStackParamList } from "../../types/navigation";
 import { getApiErrorMessage } from "../../utils/apiErrorMessage";
@@ -46,7 +48,20 @@ export function CoinAdjustmentScreen() {
   const qty = Number(bagQty);
   const hasQty = Number.isFinite(qty) && qty > 0;
   const exceedsStock = direction === "decrease" && selected ? qty > selected.currentBagQuantity : false;
-  const canSave = Boolean(selected) && hasQty && reason.trim().length > 0 && !exceedsStock;
+
+  // Client-side rules, recomputed every render so a touched field's error clears the instant its
+  // value becomes valid. Bag quantity must be a positive integer, and when decreasing it can't
+  // exceed what's in stock (cross-field — reuses exceedsStock for the same "only N in stock"
+  // message shown in the footer). Reason is a chip selection, so its error reveals on submit only.
+  const fieldErrors = {
+    bagQty: !hasQty
+      ? "Enter 1 or more."
+      : exceedsStock
+        ? `Only ${selected?.currentBagQuantity ?? 0} bag(s) in stock.`
+        : null,
+    reason: reason.trim().length === 0 ? "Choose a reason." : null,
+  };
+  const v = useFieldValidation(fieldErrors);
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -68,6 +83,15 @@ export function CoinAdjustmentScreen() {
     onError: (error: unknown) => toastError(getApiErrorMessage(error, "Unable to record the adjustment.")),
   });
 
+  const handleSubmit = () => {
+    // Imperative guard: on RN two taps can fire before the button re-renders, and the adjustment
+    // POST isn't idempotent (would record it twice).
+    if (mutation.isPending) return;
+    // attemptSubmit reveals every field's error (incl. the reason chips); only fire once valid.
+    if (!v.attemptSubmit()) return;
+    mutation.mutate();
+  };
+
   return (
     <ScreenContainer
       footer={
@@ -75,8 +99,10 @@ export function CoinAdjustmentScreen() {
           {exceedsStock ? <Text style={styles.warn}>Only {selected?.currentBagQuantity ?? 0} bag(s) in stock to remove.</Text> : null}
           <PrimaryButton
             label={mutation.isPending ? "Saving…" : "Record adjustment"}
-            onPress={() => { if (canSave && !mutation.isPending) mutation.mutate(); }}
-            disabled={!canSave || mutation.isPending}
+            // Deliberately enabled while incomplete: pressing reveals what's missing via the inline
+            // field errors. handleSubmit runs the checks and only fires the POST once valid.
+            onPress={handleSubmit}
+            disabled={mutation.isPending}
           />
         </View>
       }
@@ -120,7 +146,9 @@ export function CoinAdjustmentScreen() {
           <FloatingLabelInput
             label="Number of bags"
             value={bagQty}
-            onChangeText={(v) => setBagQty(v.replace(/[^0-9]/g, ""))}
+            onChangeText={(t) => setBagQty(t.replace(/[^0-9]/g, ""))}
+            onBlur={() => v.touch("bagQty")}
+            error={v.showError("bagQty")}
             keyboardType="number-pad"
           />
 
@@ -141,6 +169,7 @@ export function CoinAdjustmentScreen() {
               );
             })}
           </ScrollView>
+          <FieldError error={v.showError("reason")} />
 
           <FloatingLabelInput label="Comment (optional)" value={comment} onChangeText={setComment} />
         </View>

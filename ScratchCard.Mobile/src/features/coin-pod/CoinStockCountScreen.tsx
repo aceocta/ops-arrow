@@ -16,9 +16,10 @@ import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
 const INSTRUCTION =
-  "Each box shows the denomination's current total value. Tap a box to clear it and type the new total " +
-  "you're holding — it's converted to a pack count (value ÷ pack value) and sets the stock. Leave a box " +
-  "empty and it keeps the current amount.";
+  "Each denomination box shows its current total value. Tap a box to clear it and type the new total you're " +
+  "holding — it's converted to a pack count (value ÷ pack value) and sets the stock. Loose money is one box " +
+  "for all your spare coins together (any denomination) — type any amount, no packs. Leave a box empty and it " +
+  "keeps the current amount. Everything counts towards the shop's coin total.";
 
 function sanitizeMoney(raw: string): string {
   let s = raw.replace(/,/g, ".").replace(/[^\d.]/g, "");
@@ -50,8 +51,11 @@ export function CoinStockCountScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const queryClient = useQueryClient();
   const { activeShopId } = useAuth();
+  // One box per denomination (bagged value → packs), plus a single loose-money box for the whole shop.
   const [values, setValues] = useState<Record<string, string>>({});
+  const [looseInput, setLooseInput] = useState<string>("");
   const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [looseFocused, setLooseFocused] = useState(false);
   const hasInit = useRef(false);
 
   useLayoutEffect(() => {
@@ -84,13 +88,14 @@ export function CoinStockCountScreen() {
 
   const items = useMemo(() => (query.data?.items ?? []).filter((i) => i.isActive), [query.data]);
 
-  // Prefill every box with the current total value so the manager sees what's on record. Tapping a
-  // box clears it (onFocus) to type a new count; leaving it empty restores this on blur.
+  // Prefill every box with the current amount on record. Tapping a box clears it (onFocus) to type a new
+  // count; leaving it empty restores this on blur.
   useEffect(() => {
     if (!query.data || hasInit.current) return;
     const init: Record<string, string> = {};
     for (const row of items) init[row.coinDenominationId] = fmtValue(existingValueOf(row));
     setValues(init);
+    setLooseInput(fmtValue(query.data.looseCashAmount));
     hasInit.current = true;
   }, [query.data, items]);
 
@@ -107,10 +112,17 @@ export function CoinStockCountScreen() {
     })
     .filter((e): e is { coinDenominationId: string; value: number } => e !== null);
 
+  // The single loose-money pot is sent only when its entered amount differs from what's on record.
+  const currentLoose = query.data?.looseCashAmount ?? 0;
+  const looseNum = looseInput.trim() === "" ? null : Number(looseInput);
+  const looseChanged = looseNum !== null && Number.isFinite(looseNum) && looseNum >= 0 && looseNum !== currentLoose;
+  const totalChanges = entries.length + (looseChanged ? 1 : 0);
+
   const mutation = useMutation({
-    mutationFn: () => recordCoinStock(activeShopId as string, entries),
+    mutationFn: () =>
+      recordCoinStock(activeShopId as string, entries, looseChanged ? (looseNum as number) : undefined),
     onSuccess: () => {
-      toastSuccess(`Stock updated for ${entries.length} denomination${entries.length === 1 ? "" : "s"}.`);
+      toastSuccess(`Stock updated (${totalChanges} change${totalChanges === 1 ? "" : "s"}).`);
       void queryClient.invalidateQueries({ queryKey: ["coin-pod-dashboard", activeShopId] });
       void queryClient.invalidateQueries({ queryKey: ["coin-pod-transactions", activeShopId] });
       void queryClient.invalidateQueries({ queryKey: ["coin-pod-alerts", activeShopId] });
@@ -166,20 +178,55 @@ export function CoinStockCountScreen() {
     );
   };
 
+  const renderLooseCard = () => (
+    <View style={[ui.card, styles.looseCard]}>
+      <View style={styles.topRow}>
+        <View style={styles.looseIcon}>
+          <Ionicons name="cash-outline" size={22} color={appTheme.colors.primary} />
+        </View>
+        <View style={styles.rowMain}>
+          <Text style={styles.looseTitle}>Loose money</Text>
+          <Text style={styles.looseSub}>All spare coins together — any denomination</Text>
+        </View>
+        <View style={styles.moneyInput}>
+          <Text style={styles.moneyPrefix}>£</Text>
+          <TextInput
+            style={styles.moneyField}
+            value={looseInput}
+            onChangeText={(v) => setLooseInput(sanitizeMoney(v))}
+            onFocus={() => { setLooseFocused(true); setLooseInput(""); }}
+            onBlur={() => {
+              setLooseFocused(false);
+              setLooseInput((prev) => (prev.trim() === "" ? fmtValue(currentLoose) : prev));
+            }}
+            keyboardType="decimal-pad"
+            placeholder="0"
+            placeholderTextColor={appTheme.colors.textSubtle}
+            accessibilityLabel="Total loose money"
+          />
+        </View>
+      </View>
+      {looseFocused ? <Text style={styles.hint}>Current: {money(currentLoose)}</Text> : null}
+    </View>
+  );
+
   return (
     <ScreenContainer
       footer={
         <PrimaryButton
-          label={mutation.isPending ? "Saving…" : `Record stock (${entries.length})`}
-          onPress={() => { if (entries.length > 0 && !mutation.isPending) mutation.mutate(); }}
-          disabled={entries.length === 0 || mutation.isPending}
+          label={mutation.isPending ? "Saving…" : `Record stock (${totalChanges})`}
+          onPress={() => { if (totalChanges > 0 && !mutation.isPending) mutation.mutate(); }}
+          disabled={totalChanges === 0 || mutation.isPending}
         />
       }
     >
       {query.isLoading ? (
         <View style={ui.card}><LoadingState message="Loading denominations…" inline /></View>
       ) : (
-        <View style={styles.list}>{items.map(renderRow)}</View>
+        <View style={styles.list}>
+          {renderLooseCard()}
+          {items.map(renderRow)}
+        </View>
       )}
     </ScreenContainer>
   );
@@ -191,6 +238,13 @@ const styles = StyleSheet.create({
   itemCard: {
     paddingVertical: appTheme.spacing.xs, paddingHorizontal: appTheme.spacing.sm, gap: 4,
   },
+  looseCard: {
+    paddingVertical: appTheme.spacing.xs, paddingHorizontal: appTheme.spacing.sm, gap: 4,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+  },
+  looseIcon: { width: 46, alignItems: "center" },
+  looseTitle: { color: appTheme.colors.text, fontFamily: appTheme.fonts.heading, fontSize: 14 },
+  looseSub: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 11, marginTop: 1 },
   topRow: { flexDirection: "row", alignItems: "center", gap: appTheme.spacing.sm },
   hint: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.bodyMedium, fontSize: 11, textAlign: "right" },
   badgeWrap: { width: 46, alignItems: "center" },
@@ -209,7 +263,7 @@ const styles = StyleSheet.create({
   rowMain: { flex: 1 },
   rowLine: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, lineHeight: 17 },
   moneyInput: {
-    flexDirection: "row", alignItems: "center", width: 100, height: 36,
+    flexDirection: "row", alignItems: "center", width: 104, height: 36,
     borderRadius: appTheme.radius.sm, backgroundColor: appTheme.colors.surfaceMuted, paddingHorizontal: 8, gap: 2,
   },
   moneyPrefix: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 14 },

@@ -24,6 +24,7 @@ public sealed class CoinPodService : ICoinPodService
     private readonly IRepository<CoinDenomination> _denominations;
     private readonly IRepository<ShopCoinBagConfig> _configs;
     private readonly IRepository<ShopCoinBagStock> _stocks;
+    private readonly IRepository<ShopCoinLooseCash> _looseCash;
     private readonly IRepository<CoinBagTransaction> _transactions;
     private readonly IRepository<CoinBagAlert> _alerts;
     private readonly IRepository<ShopUser> _shopUsers;
@@ -40,6 +41,7 @@ public sealed class CoinPodService : ICoinPodService
         IRepository<CoinDenomination> denominations,
         IRepository<ShopCoinBagConfig> configs,
         IRepository<ShopCoinBagStock> stocks,
+        IRepository<ShopCoinLooseCash> looseCash,
         IRepository<CoinBagTransaction> transactions,
         IRepository<CoinBagAlert> alerts,
         IRepository<ShopUser> shopUsers,
@@ -55,6 +57,7 @@ public sealed class CoinPodService : ICoinPodService
         _denominations = denominations;
         _configs = configs;
         _stocks = stocks;
+        _looseCash = looseCash;
         _transactions = transactions;
         _alerts = alerts;
         _shopUsers = shopUsers;
@@ -181,13 +184,15 @@ public sealed class CoinPodService : ICoinPodService
         await EnsureShopSetupAsync(shopId, cancellationToken);
 
         var rows = await BuildStockRowsAsync(shopId, cancellationToken);
+        var looseCash = await GetLooseCashAmountAsync(shopId, cancellationToken);
         var activeAlerts = await _alerts.Query().AsNoTracking()
             .CountAsync(a => a.ShopId == shopId && a.Status == CoinBagAlertStatus.Active, cancellationToken);
 
         return new CoinPodDashboardDto
         {
             ShopId = shopId,
-            TotalCoinValue = rows.Where(r => r.IsActive).Sum(r => r.CurrentTotalValue),
+            TotalCoinValue = rows.Where(r => r.IsActive).Sum(r => r.CurrentTotalValue) + looseCash,
+            LooseCashAmount = looseCash,
             ActiveAlertCount = activeAlerts,
             Items = rows,
         };
@@ -360,6 +365,9 @@ public sealed class CoinPodService : ICoinPodService
         await EnsureAccessAsync(request.ShopId, cancellationToken);
         await EnsureShopSetupAsync(request.ShopId, cancellationToken);
 
+        if (request.LooseCashAmount < 0)
+            throw new AppException("validation_failed", "Loose cash amount cannot be negative.", 400);
+
         foreach (var entry in request.Entries)
         {
             if (entry.Value < 0)
@@ -387,7 +395,61 @@ public sealed class CoinPodService : ICoinPodService
                 requireCommentOnMismatch: false, cancellationToken);
         }
 
+        // The shop's single loose-cash pot (all denominations, no pack conversion) — set if supplied.
+        if (request.LooseCashAmount is { } loose)
+            await SetLooseCashAsync(request.ShopId, loose, cancellationToken);
+
         return await GetDashboardAsync(request.ShopId, cancellationToken);
+    }
+
+    /// <summary>The shop's current loose (un-bagged) coin cash, or 0 if none has been recorded yet.</summary>
+    private async Task<decimal> GetLooseCashAmountAsync(Guid shopId, CancellationToken ct)
+        => await _looseCash.Query().AsNoTracking()
+            .Where(x => x.ShopId == shopId)
+            .Select(x => (decimal?)x.Amount)
+            .FirstOrDefaultAsync(ct) ?? 0m;
+
+    /// <summary>Set the shop's single loose-cash pot directly. No pack conversion, no min/max and no
+    /// alert — it's a free running amount that simply adds into the shop's coin total. Lazily creates the
+    /// per-shop row on first use. No transaction is written; the change is audit-logged.</summary>
+    private async Task SetLooseCashAsync(Guid shopId, decimal amount, CancellationToken ct)
+    {
+        var value = Math.Max(0m, amount);
+        var now = DateTimeOffset.UtcNow;
+        var userId = _currentUser.UserId ?? Guid.Empty;
+
+        var row = await _looseCash.Query().FirstOrDefaultAsync(x => x.ShopId == shopId, ct);
+        if (row is null)
+        {
+            row = new ShopCoinLooseCash
+            {
+                ShopId = shopId,
+                Amount = value,
+                LastUpdatedOn = now,
+                LastUpdatedByUserId = userId,
+                CreatedOn = now,
+                CreatedBy = userId,
+            };
+            await _looseCash.AddAsync(row, ct);
+            await _unitOfWork.SaveChangesAsync(ct);
+            await _auditService.LogAsync(nameof(ShopCoinLooseCash), row.Id, "CoinLooseCashSet", shopId,
+                oldValue: "0.00", newValue: value.ToString("0.00"), cancellationToken: ct);
+            return;
+        }
+
+        if (row.Amount == value) return;
+
+        var previous = row.Amount;
+        row.Amount = value;
+        row.LastUpdatedOn = now;
+        row.LastUpdatedByUserId = userId;
+        row.ModifiedOn = now;
+        row.ModifiedBy = userId;
+        _looseCash.Update(row);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        await _auditService.LogAsync(nameof(ShopCoinLooseCash), row.Id, "CoinLooseCashSet", shopId,
+            oldValue: previous.ToString("0.00"), newValue: value.ToString("0.00"), cancellationToken: ct);
     }
 
     /// <summary>The single stock-changing pipeline: validate, write the transaction, recalculate stock,
@@ -737,6 +799,7 @@ public sealed class CoinPodService : ICoinPodService
         var end = new DateTimeOffset(to.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
 
         var stockRows = await BuildStockRowsAsync(shopId, cancellationToken);
+        var looseCash = await GetLooseCashAmountAsync(shopId, cancellationToken);
         var denoms = await _denominations.Query().AsNoTracking().ToDictionaryAsync(d => d.Id, cancellationToken);
 
         var transactions = await _transactions.Query().AsNoTracking()
@@ -772,7 +835,8 @@ public sealed class CoinPodService : ICoinPodService
             ShopId = shopId,
             From = from,
             To = to,
-            TotalCoinValue = stockRows.Where(r => r.IsActive).Sum(r => r.CurrentTotalValue),
+            TotalCoinValue = stockRows.Where(r => r.IsActive).Sum(r => r.CurrentTotalValue) + looseCash,
+            LooseCashAmount = looseCash,
             StockSummary = stockRows,
             MovementSummary = movementSummary,
             Exceptions = exceptions,

@@ -123,6 +123,13 @@ export function CoinPodDashboardScreen() {
                   onPress={canManage ? () => navigation.navigate("CoinBagConfig") : undefined}
                 />
               ))}
+              <View style={[styles.tr, styles.rowCell]}>
+                <Text style={[styles.tdCoin, styles.colCoin]}>Loose</Text>
+                <Text style={[styles.td, styles.tdMuted, styles.colSmall]}>—</Text>
+                <Text style={[styles.td, styles.tdMuted, styles.colCurrent]}>—</Text>
+                <Text style={[styles.td, styles.colValue]}>{money(data.looseCashAmount)}</Text>
+                <View style={styles.colStatus} />
+              </View>
               <View style={[styles.tr, styles.totalRow]}>
                 <Text style={[styles.tdCoin, styles.colCoin]}>Total</Text>
                 <Text style={[styles.td, styles.tdMuted, styles.colSmall]}>{totalDefault}</Text>
@@ -139,18 +146,21 @@ export function CoinPodDashboardScreen() {
 }
 
 function CoinTableRow({ row, onPress }: { row: CoinBagStockRow; onPress?: () => void }) {
+  // Disabled denominations are excluded from the (active-only) Total, so blank their numbers with "—"
+  // — otherwise the visible per-row Values wouldn't sum to the Total shown below.
+  const off = !row.isActive;
   return (
     <Pressable
-      style={[styles.tr, styles.rowCell, !row.isActive ? styles.rowMuted : null]}
+      style={[styles.tr, styles.rowCell, off ? styles.rowMuted : null]}
       onPress={onPress}
       disabled={!onPress}
       accessibilityRole={onPress ? "button" : undefined}
-      accessibilityLabel={`${row.displayLabel} coin bags, ${row.currentBagQuantity} bags, ${statusShort(row.status)}`}
+      accessibilityLabel={`${row.displayLabel} coin bags, ${off ? "disabled" : `${row.currentBagQuantity} bags`}, ${statusShort(row.status)}`}
     >
       <Text style={[styles.tdCoin, styles.colCoin]}>{row.displayLabel}</Text>
-      <Text style={[styles.td, styles.tdMuted, styles.colSmall]}>{row.openingBagQuantity}</Text>
-      <Text style={[styles.td, styles.tdStrong, styles.colCurrent]}>{row.currentBagQuantity}</Text>
-      <Text style={[styles.td, styles.colValue]}>{money(row.currentTotalValue)}</Text>
+      <Text style={[styles.td, styles.tdMuted, styles.colSmall]}>{off ? "—" : row.openingBagQuantity}</Text>
+      <Text style={[styles.td, styles.tdStrong, styles.colCurrent]}>{off ? "—" : row.currentBagQuantity}</Text>
+      <Text style={[styles.td, styles.colValue]}>{off ? "—" : money(row.currentTotalValue)}</Text>
       <View style={[styles.colStatus, styles.statusCell]}>
         <StatusBadge label={statusShort(row.status)} tone={statusTone(row.status)} />
       </View>

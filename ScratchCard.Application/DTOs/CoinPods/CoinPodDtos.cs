@@ -8,8 +8,10 @@ namespace ScratchCard.Application.DTOs.CoinPods;
 public class CoinPodDashboardDto
 {
     public Guid ShopId { get; set; }
-    /// <summary>Sum of <see cref="CoinBagStockRowDto.CurrentTotalValue"/> across active denominations.</summary>
+    /// <summary>Sum of <see cref="CoinBagStockRowDto.CurrentTotalValue"/> across active denominations, plus <see cref="LooseCashAmount"/>.</summary>
     public decimal TotalCoinValue { get; set; }
+    /// <summary>The shop's single pot of loose (un-bagged) coin cash — any value, all denominations. Included in <see cref="TotalCoinValue"/>.</summary>
+    public decimal LooseCashAmount { get; set; }
     public int ActiveAlertCount { get; set; }
     public IReadOnlyList<CoinBagStockRowDto> Items { get; set; } = [];
 }
@@ -64,12 +66,16 @@ public class CoinBagConfigDto
     public int CurrentBagQuantity { get; set; }
 }
 
-/// <summary>Value-based stocktake: for each denomination the user enters the total cash value held;
-/// the service converts it to a pack count (value ÷ pack value) and SETS current stock to that.</summary>
+/// <summary>Value-based stocktake: for each denomination the user enters the total cash value held; the
+/// service converts it to a pack count (value ÷ pack value) and SETS current stock to that. The shop's
+/// single loose-cash pot (<see cref="LooseCashAmount"/>, all denominations, no pack conversion) can be set
+/// in the same call; null leaves it unchanged.</summary>
 public class RecordCoinStockRequest
 {
     public Guid ShopId { get; set; }
     public IReadOnlyCollection<CoinStockCountEntry> Entries { get; set; } = [];
+    /// <summary>Total loose (un-bagged) coin cash for the shop (£), stored as-is; null leaves it unchanged.</summary>
+    public decimal? LooseCashAmount { get; set; }
 }
 
 public class CoinStockCountEntry
@@ -187,8 +193,10 @@ public class CoinPodReportDto
     public Guid ShopId { get; set; }
     public DateOnly From { get; set; }
     public DateOnly To { get; set; }
-    /// <summary>Current total coin bag value across active denominations (snapshot, not range-bound).</summary>
+    /// <summary>Current total coin value: active denominations' bag value plus <see cref="LooseCashAmount"/> (snapshot, not range-bound).</summary>
     public decimal TotalCoinValue { get; set; }
+    /// <summary>The shop's single loose (un-bagged) coin cash pot, included in <see cref="TotalCoinValue"/> (snapshot).</summary>
+    public decimal LooseCashAmount { get; set; }
     /// <summary>Current stock per denomination (snapshot).</summary>
     public IReadOnlyList<CoinBagStockRowDto> StockSummary { get; set; } = [];
     /// <summary>Movement totals grouped by transaction type over the date range.</summary>

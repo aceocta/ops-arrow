@@ -91,6 +91,12 @@ export function CoinReportsScreen() {
                 <StatusBadge label={s.status === "OutOfStock" ? "Out" : s.status === "LowStock" ? "Low" : s.status === "Disabled" ? "Off" : "OK"} tone={statusTone(s.status)} />
               </View>
             ))}
+            <View style={styles.tableRow}>
+              <Text style={styles.tdLabel}>Loose money</Text>
+              <Text style={styles.td}>—</Text>
+              <Text style={styles.td}>{money(report.looseCashAmount)}</Text>
+              <StatusBadge label="Cash" tone="neutral" />
+            </View>
           </View>
 
           <Text style={ui.sectionTitle}>Movements ({report.from} → {report.to})</Text>

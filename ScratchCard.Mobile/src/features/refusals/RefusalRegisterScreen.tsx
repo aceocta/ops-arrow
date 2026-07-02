@@ -18,6 +18,8 @@ import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError, toastSuccess } from "../../components/toast";
 import { SkeletonList } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
+import { useFieldValidation } from "../../components/useFieldValidation";
+import { FieldError } from "../../components/FieldError";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -353,6 +355,12 @@ export function RefusalRegisterScreen() {
     },
   });
 
+  const handleSubmit = () => {
+    if (recordMutation.isPending) return;
+    if (!validation.attemptSubmit()) return; // reveals every inline error
+    recordMutation.mutate();
+  };
+
   const openSignatureModal = () => {
     setIsSignatureModalVisible(true);
   };
@@ -365,16 +373,26 @@ export function RefusalRegisterScreen() {
   };
   const refusalDateTimeValue = `${selectedDate} ${refusalTime}`;
 
-  // Required-field state drives the Save button + the "what's needed" footer hint.
+  // Required-field state drives the "what's needed" footer hint (kept for context) — the Save
+  // button is deliberately enabled while incomplete; the inline field errors reveal what's missing.
   const hasProduct = product.trim().length > 0;
   const hasDescription = personDescription.trim().length > 0;
   const hasSignature = signatureDataUrl.trim().length > 0;
-  const canSave = Boolean(shopId) && hasProduct && hasDescription && hasSignature && !recordMutation.isPending;
   const missing = [
     !hasProduct ? "product" : null,
     !hasDescription ? "description" : null,
     !hasSignature ? "signature" : null,
   ].filter(Boolean) as string[];
+
+  // Client-side rules, recomputed every render so a touched field's error clears the instant its
+  // value becomes valid. Time is seeded to now and optional here, so it isn't gated. Signature has
+  // no blur event, so its error reveals on submit only.
+  const fieldErrors = {
+    product: hasProduct ? null : "Enter the refused product.",
+    personDescription: hasDescription ? null : "Enter a person description.",
+    signature: hasSignature ? null : "Signature required.",
+  };
+  const validation = useFieldValidation(fieldErrors);
 
   // Reason quick-picks toggle into Observations (no dedicated field yet), " · "-separated.
   const reasonActive = (reason: string) =>
@@ -496,8 +514,9 @@ export function RefusalRegisterScreen() {
             <View style={{ flex: 1 }}>
               <PrimaryButton
                 label={recordMutation.isPending ? "Saving…" : "Save refusal entry"}
-                onPress={() => recordMutation.mutate()}
-                disabled={!canSave}
+                // Enabled while incomplete: pressing it reveals what's missing via inline errors.
+                onPress={handleSubmit}
+                disabled={recordMutation.isPending}
               />
             </View>
           </View>
@@ -573,6 +592,8 @@ export function RefusalRegisterScreen() {
           label="Refused product *"
           value={product}
           onChangeText={setProduct}
+          onBlur={() => validation.touch("product")}
+          error={validation.showError("product")}
           returnKeyType="next"
           submitBehavior="submit"
           onSubmitEditing={() => personDescriptionRef.current?.focus()}
@@ -592,14 +613,16 @@ export function RefusalRegisterScreen() {
         <Text style={[styles.fieldLabel, styles.required]}>Person description *</Text>
         <TextInput
           ref={personDescriptionRef}
-          style={[styles.input, styles.textArea]}
+          style={[styles.input, styles.textArea, validation.showError("personDescription") ? styles.inputError : null]}
           value={personDescription}
           onChangeText={setPersonDescription}
+          onBlur={() => validation.touch("personDescription")}
           placeholder="Example: Male, around 14 years old, blonde, blue jacket"
           placeholderTextColor={appTheme.colors.textSubtle}
           multiline
           textAlignVertical="top"
         />
+        <FieldError error={validation.showError("personDescription")} />
 
         <Text style={styles.fieldLabel}>Reason (tap to add)</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
@@ -661,6 +684,7 @@ export function RefusalRegisterScreen() {
             <Text style={styles.signaturePlaceholder}>✍  Tap here to sign</Text>
           )}
         </Pressable>
+        <FieldError error={validation.showError("signature")} />
       </View>
 
       <View style={ui.card}>
@@ -1018,6 +1042,8 @@ const styles = StyleSheet.create({
   entryEditText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 },
   required: {},
+  // The base `input` has borderWidth:0, so give the error state a visible width too.
+  inputError: { borderWidth: 1, borderColor: appTheme.colors.danger },
   signatureMissing: { borderWidth: 1, borderStyle: "dashed", borderColor: appTheme.colors.borderStrong },
   footerWrap: { gap: 8 },
   footerHintRow: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "center" },

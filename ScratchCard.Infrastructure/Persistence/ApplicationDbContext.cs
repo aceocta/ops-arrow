@@ -119,6 +119,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<CoinDenomination> CoinDenominations => Set<CoinDenomination>();
     public DbSet<ShopCoinBagConfig> ShopCoinBagConfigs => Set<ShopCoinBagConfig>();
     public DbSet<ShopCoinBagStock> ShopCoinBagStocks => Set<ShopCoinBagStock>();
+    public DbSet<ShopCoinLooseCash> ShopCoinLooseCashes => Set<ShopCoinLooseCash>();
     public DbSet<CoinBagTransaction> CoinBagTransactions => Set<CoinBagTransaction>();
     public DbSet<CoinBagAlert> CoinBagAlerts => Set<CoinBagAlert>();
     public DbSet<CoinBagAlertRecipient> CoinBagAlertRecipients => Set<CoinBagAlertRecipient>();
@@ -191,6 +192,13 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.CurrentTotalValue).HasPrecision(18, 2);
             entity.HasIndex(x => new { x.ShopId, x.CoinDenominationId, x.IsDeleted }).IsUnique();
             entity.HasOne(x => x.CoinDenomination).WithMany().HasForeignKey(x => x.CoinDenominationId);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId);
+        });
+
+        modelBuilder.Entity<ShopCoinLooseCash>(entity =>
+        {
+            entity.Property(x => x.Amount).HasPrecision(18, 2);
+            entity.HasIndex(x => x.ShopId).IsUnique();
             entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId);
         });
 

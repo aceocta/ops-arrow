@@ -14,6 +14,8 @@ import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError, toastSuccess } from "../../components/toast";
 import { StatusBadge } from "../../components/StatusBadge";
+import { useFieldValidation } from "../../components/useFieldValidation";
+import { FieldError } from "../../components/FieldError";
 import { MainStackParamList } from "../../types/navigation";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
@@ -129,16 +131,31 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
   const entry = entryQuery.data;
   const signaturePreviewUri = signatureDataUrl || signatureQuery.data;
 
-  // Required to save (signature is optional on edit — the existing one is kept).
+  // Required to save (signature is optional on edit — the existing one is kept). The Save button is
+  // deliberately enabled while incomplete; the inline field errors reveal what's missing.
   const hasProduct = product.trim().length > 0;
   const hasDescription = personDescription.trim().length > 0;
   const hasTime = refusalTime.trim().length > 0;
-  const canSave = hasProduct && hasDescription && hasTime && !updateMutation.isPending;
   const missing = [
     !hasProduct ? "product" : null,
     !hasDescription ? "description" : null,
     !hasTime ? "time" : null,
   ].filter(Boolean) as string[];
+
+  // Client-side rules, recomputed every render so a touched field's error clears the instant its
+  // value becomes valid. Time is a picker with no blur event, so its error reveals on submit only.
+  const fieldErrors = {
+    product: hasProduct ? null : "Enter the refused product.",
+    personDescription: hasDescription ? null : "Enter a person description.",
+    refusalTime: hasTime ? null : "Enter a time.",
+  };
+  const validation = useFieldValidation(fieldErrors);
+
+  const handleSubmit = () => {
+    if (updateMutation.isPending) return;
+    if (!validation.attemptSubmit()) return; // reveals every inline error
+    updateMutation.mutate();
+  };
 
   const reasonActive = (reason: string) =>
     observations.split("·").map((s) => s.trim().toLowerCase()).includes(reason.toLowerCase());
@@ -176,8 +193,9 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
               <View style={{ flex: 1 }}>
                 <PrimaryButton
                   label={updateMutation.isPending ? "Saving…" : "Save changes"}
-                  onPress={() => updateMutation.mutate()}
-                  disabled={!canSave}
+                  // Enabled while incomplete: pressing it reveals what's missing via inline errors.
+                  onPress={handleSubmit}
+                  disabled={updateMutation.isPending}
                 />
               </View>
             </View>
@@ -215,11 +233,14 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
 
             <Text style={styles.fieldLabel}>Time *</Text>
             <DateTimeField mode="time" value={refusalTime} onChange={setRefusalTime} />
+            <FieldError error={validation.showError("refusalTime")} />
 
             <FloatingLabelInput
               label="Refused product *"
               value={product}
               onChangeText={setProduct}
+              onBlur={() => validation.touch("product")}
+              error={validation.showError("product")}
               returnKeyType="next"
               submitBehavior="submit"
               onSubmitEditing={() => personDescriptionRef.current?.focus()}
@@ -239,14 +260,16 @@ export function RefusalEntryEditScreen({ route, navigation }: Props) {
             <Text style={styles.fieldLabel}>Person description *</Text>
             <TextInput
               ref={personDescriptionRef}
-              style={[styles.input, styles.textArea]}
+              style={[styles.input, styles.textArea, validation.showError("personDescription") ? styles.inputError : null]}
               value={personDescription}
               onChangeText={setPersonDescription}
+              onBlur={() => validation.touch("personDescription")}
               placeholder="Example: Male, around 14 years old, blonde, blue jacket"
               placeholderTextColor={appTheme.colors.textSubtle}
               multiline
               textAlignVertical="top"
             />
+            <FieldError error={validation.showError("personDescription")} />
 
             <Text style={styles.fieldLabel}>Reason (tap to add)</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
@@ -450,6 +473,7 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 72,
   },
+  inputError: { borderColor: appTheme.colors.danger },
   chipRow: {
     gap: appTheme.spacing.xs,
   },

@@ -1,12 +1,13 @@
 import React, { useRef } from "react";
 import { Alert, Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { requestSignupVerificationCode } from "../api/authApi";
 import { FloatingLabelInput } from "../components/FloatingLabelInput";
 import { PhoneNumberInput } from "../components/PhoneNumberInput";
 import { ScreenContainer } from "../components/ScreenContainer";
 import { PrimaryButton } from "../components/PrimaryButton";
+import { useFieldValidation } from "../components/useFieldValidation";
 import { toastSuccess } from "../components/toast";
 import { ui } from "../ui/primitives";
 import { appTheme } from "../ui/theme";
@@ -24,6 +25,7 @@ type SignupForm = {
 };
 
 const VERIFICATION_CODE_LENGTH = 6;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const TERMS_URL = "https://opsarrow.co.uk/terms";
 const PRIVACY_URL = "https://opsarrow.co.uk/privacy";
 
@@ -54,6 +56,48 @@ export function CompanySignupScreen() {
     },
   });
 
+  // Live form values so the client-side rules below recompute every render — that's what lets a
+  // touched field's error clear the instant its value becomes valid (the shared hook owns only the
+  // reveal *timing*, not the rules).
+  const values = useWatch({ control });
+  const firstName = values.firstName ?? "";
+  const lastName = values.lastName ?? "";
+  const email = values.email ?? "";
+  const password = values.password ?? "";
+  const confirmPassword = values.confirmPassword ?? "";
+  const verificationCode = values.verificationCode ?? "";
+
+  // Single errors map covering both steps. Details rules are always active; verificationCode only
+  // becomes an active rule once the code step is shown (verificationRequested) — so attemptSubmit on
+  // step 1 ("Send code") blocks on the details but never on the not-yet-shown code field, while the
+  // code step blocks on both details and the code (mirroring the old two-pass validation).
+  const trimmedEmail = email.trim();
+  const errors = {
+    firstName: firstName.trim().length === 0 ? "Enter your first name." : null,
+    lastName: lastName.trim().length === 0 ? "Enter your last name." : null,
+    email: !trimmedEmail
+      ? "Enter your email address."
+      : !EMAIL_PATTERN.test(trimmedEmail)
+        ? "Enter a valid email address."
+        : null,
+    password: !password
+      ? "Enter a password."
+      : password.length < 8
+        ? "Use at least 8 characters."
+        : null,
+    confirmPassword: !confirmPassword
+      ? "Confirm your password."
+      : confirmPassword !== password
+        ? "Passwords don't match."
+        : null,
+    verificationCode: !verificationRequested
+      ? null
+      : /^\d{6}$/.test(verificationCode.trim())
+        ? null
+        : "Enter the 6-digit code.",
+  };
+  const v = useFieldValidation(errors);
+
   function resetVerificationState() {
     setVerificationRequested(false);
     setVerificationTargetEmail(null);
@@ -61,50 +105,23 @@ export function CompanySignupScreen() {
     setValue("verificationCode", "");
   }
 
-  function validateSignupFields(values: SignupForm) {
-    const email = values.email.trim();
-    const firstName = values.firstName.trim();
-    const lastName = values.lastName.trim();
-
-    if (!email) {
-      Alert.alert("Validation Error", "Email address is required.");
-      return null;
-    }
-    if (!firstName || !lastName) {
-      Alert.alert("Validation Error", "First name and last name are required.");
-      return null;
-    }
-    if (!values.password || values.password.length < 8) {
-      Alert.alert("Validation Error", "Password must be at least 8 characters.");
-      return null;
-    }
-    if (values.password !== values.confirmPassword) {
-      Alert.alert("Validation Error", "Passwords do not match.");
-      return null;
-    }
-
-    return {
-      email: email.toLowerCase(),
-      firstName,
-      lastName,
-    };
-  }
-
-  const onRequestVerificationCode = handleSubmit(async (values) => {
-    const validated = validateSignupFields(values);
-    if (!validated) {
+  const onRequestVerificationCode = handleSubmit(async (formValues) => {
+    // Inline field-level validation replaces the old Alert.alert checks. On this step the code
+    // field's rule is inactive (verificationRequested is false), so it never blocks here.
+    if (!v.attemptSubmit()) {
       return;
     }
 
+    const normalizedEmail = formValues.email.trim().toLowerCase();
     setIsRequestingCode(true);
     try {
       const response = await requestSignupVerificationCode({
-        email: validated.email,
+        email: normalizedEmail,
       });
       setVerificationRequested(true);
-      setVerificationTargetEmail(validated.email);
+      setVerificationTargetEmail(normalizedEmail);
       setVerificationExpiresOn(response.expiresOn);
-      toastSuccess(`Verification code sent to ${validated.email}.`);
+      toastSuccess(`Verification code sent to ${normalizedEmail}.`);
     } catch (error: any) {
       Alert.alert("Unable to send code", error?.response?.data?.message ?? error?.message ?? "Please try again.");
     } finally {
@@ -112,37 +129,30 @@ export function CompanySignupScreen() {
     }
   });
 
-  const onCompleteSignup = handleSubmit(async (values) => {
-    const validated = validateSignupFields(values);
-    if (!validated) {
+  const onCompleteSignup = handleSubmit(async (formValues) => {
+    // Inline field-level validation replaces the old Alert.alert checks. On this step the code
+    // field's rule is active (verificationRequested is true), so attemptSubmit also gates the code.
+    if (!v.attemptSubmit()) {
       return;
     }
 
-    if (!verificationRequested || !verificationTargetEmail || verificationTargetEmail !== validated.email) {
+    const normalizedEmail = formValues.email.trim().toLowerCase();
+    // State-consistency guard (not a field rule): the code was requested for a *different* email, so
+    // it wouldn't match. Keep as an Alert — it's about the flow state, not a single input's value.
+    if (!verificationRequested || !verificationTargetEmail || verificationTargetEmail !== normalizedEmail) {
       Alert.alert("Verification Required", "Request a verification code for this email first.");
-      return;
-    }
-
-    const verificationCode = values.verificationCode.trim();
-    if (!verificationCode) {
-      Alert.alert("Validation Error", "Verification code is required.");
-      return;
-    }
-
-    if (verificationCode.length !== VERIFICATION_CODE_LENGTH || !/^\d+$/.test(verificationCode)) {
-      Alert.alert("Validation Error", "Enter a valid 6-digit verification code.");
       return;
     }
 
     setIsCompletingSignup(true);
     try {
       await signUpWithPassword({
-        email: validated.email,
-        firstName: validated.firstName,
-        lastName: validated.lastName,
-        password: values.password,
-        verificationCode,
-        ownerPhoneNumber: values.phoneNumber.trim() || undefined,
+        email: normalizedEmail,
+        firstName: formValues.firstName.trim(),
+        lastName: formValues.lastName.trim(),
+        password: formValues.password,
+        verificationCode: formValues.verificationCode.trim(),
+        ownerPhoneNumber: formValues.phoneNumber.trim() || undefined,
       });
     } catch (error: any) {
       Alert.alert("Sign up failed", error?.response?.data?.message ?? error?.message ?? "Unable to create account.");
@@ -172,6 +182,8 @@ export function CompanySignupScreen() {
               label="First name"
               value={value}
               onChangeText={onChange}
+              onBlur={() => v.touch("firstName")}
+              error={v.showError("firstName")}
               underlineColorAndroid="transparent"
               editable={!busy}
               autoCapitalize="words"
@@ -191,6 +203,8 @@ export function CompanySignupScreen() {
               label="Last name"
               value={value}
               onChangeText={onChange}
+              onBlur={() => v.touch("lastName")}
+              error={v.showError("lastName")}
               underlineColorAndroid="transparent"
               editable={!busy}
               autoCapitalize="words"
@@ -220,6 +234,8 @@ export function CompanySignupScreen() {
                   resetVerificationState();
                 }
               }}
+              onBlur={() => v.touch("email")}
+              error={v.showError("email")}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -261,6 +277,8 @@ export function CompanySignupScreen() {
                   label="Password"
                   value={value}
                   onChangeText={onChange}
+                  onBlur={() => v.touch("password")}
+                  error={v.showError("password")}
                   secureTextEntry={!showPassword}
                   underlineColorAndroid="transparent"
                   editable={!busy}
@@ -296,6 +314,8 @@ export function CompanySignupScreen() {
                   label="Confirm password"
                   value={value}
                   onChangeText={onChange}
+                  onBlur={() => v.touch("confirmPassword")}
+                  error={v.showError("confirmPassword")}
                   secureTextEntry={!showConfirmPassword}
                   underlineColorAndroid="transparent"
                   editable={!busy}
@@ -347,6 +367,8 @@ export function CompanySignupScreen() {
                   label="6-digit verification code"
                   value={value}
                   onChangeText={(nextValue) => onChange(nextValue.replace(/\D+/g, ""))}
+                  onBlur={() => v.touch("verificationCode")}
+                  error={v.showError("verificationCode")}
                   keyboardType="number-pad"
                   maxLength={VERIFICATION_CODE_LENGTH}
                   underlineColorAndroid="transparent"

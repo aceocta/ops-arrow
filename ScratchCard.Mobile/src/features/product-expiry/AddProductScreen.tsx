@@ -15,6 +15,7 @@ import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SegmentedControl } from "../../components/SegmentedControl";
+import { useFieldValidation } from "../../components/useFieldValidation";
 import { toastError, toastSuccess } from "../../components/toast";
 import { MainStackParamList } from "../../types/navigation";
 import { getApiErrorMessage } from "../../utils/apiErrorMessage";
@@ -67,6 +68,12 @@ export function AddProductScreen() {
   // expiryDate is seeded to today (never empty), so track manual edits explicitly: a barcode scan
   // must not clobber a date the user typed (or OCR'd via "Scan date").
   const expiryTouched = useRef(false);
+
+  // Field-level validation via the shared useFieldValidation hook (see fieldErrors below). Refs let
+  // handleSubmit pull the first invalid text field forward. Category has no blur event, so its error
+  // reveals on submit only (we never call touch on it).
+  const nameInputRef = useRef<TextInput>(null);
+  const quantityInputRef = useRef<TextInput>(null);
 
   // When the dedicated scanner emits a scan: GS1-parse 2D codes to auto-fill expiry + batch, key the
   // barcode off the GTIN, then prefill the rest from the most recent batch with that barcode
@@ -200,7 +207,19 @@ export function AddProductScreen() {
 
   const qtyValue = Number(quantity);
   const hasQty = Number.isFinite(qtyValue) && qtyValue > 0;
-  const canSave = productName.trim().length > 0 && Boolean(categoryId) && hasQty && expiryDate.length > 0;
+
+  // Client-side rules, recomputed every render so a touched field's error clears the instant its
+  // value becomes valid. Optional fields (batch, pricing) have no rules; expiry is always seeded to
+  // today and carries its own past-date soft warning, so it isn't gated here.
+  const fieldErrors = {
+    productName: productName.trim().length === 0 ? "Enter the product name." : null,
+    category: !categoryId ? "Choose a category." : null,
+    quantity: !hasQty ? "Enter a quantity of 1 or more." : null,
+  };
+  const validation = useFieldValidation(fieldErrors);
+  const nameError = validation.showError("productName");
+  const quantityError = validation.showError("quantity");
+  const categoryError = validation.showError("category");
 
   // Soft warning, not a block: you may legitimately log already-expired stock as waste, but an
   // accidental past date (typo / wrong year off OCR) is worth flagging before saving.
@@ -228,6 +247,20 @@ export function AddProductScreen() {
     onError: (error: unknown) => toastError(getApiErrorMessage(error, "Unable to add product.")),
   });
 
+  const handleSubmit = () => {
+    // Imperative guard: on RN two taps can fire before the button re-renders, and POST
+    // /product-expiry isn't idempotent (would create two batches).
+    if (addMutation.isPending) return;
+    if (!validation.attemptSubmit()) {
+      // attemptSubmit revealed every error; pull the first invalid *focusable* field forward.
+      // Category is a chip selector with nothing to focus — its inline error is now visible.
+      if (fieldErrors.productName) nameInputRef.current?.focus();
+      else if (fieldErrors.quantity) quantityInputRef.current?.focus();
+      return;
+    }
+    addMutation.mutate();
+  };
+
   return (
     <ScreenContainer
       footer={
@@ -250,10 +283,11 @@ export function AddProductScreen() {
           </Pressable>
           <PrimaryButton
             label={addMutation.isPending ? "Saving…" : "Save product"}
-            // Imperative guard, not just `disabled`: on RN two taps can fire before the button
-            // re-renders disabled, and POST /product-expiry isn't idempotent (would create 2 batches).
-            onPress={() => { if (canSave && !addMutation.isPending) addMutation.mutate(); }}
-            disabled={!canSave || addMutation.isPending}
+            // Deliberately enabled while the form is incomplete: pressing it reveals *what's* missing
+            // via the inline field errors. A disabled button with no explanation is its own mobile
+            // anti-pattern. handleSubmit runs the checks and only fires the POST once everything valid.
+            onPress={handleSubmit}
+            disabled={addMutation.isPending}
           />
         </View>
       }
@@ -286,14 +320,17 @@ export function AddProductScreen() {
           </Pressable>
         </View>
         <TextInput
-          style={styles.nameInput}
+          ref={nameInputRef}
+          style={[styles.nameInput, nameError ? styles.inputError : null]}
           value={productName}
           onChangeText={setProductName}
+          onBlur={() => validation.touch("productName")}
           autoCapitalize="words"
           placeholder="Type or scan the name"
           placeholderTextColor={appTheme.colors.textSubtle}
           accessibilityLabel="Product name"
         />
+        {nameError ? <Text style={styles.errorText}>{nameError}</Text> : null}
 
         <Text style={styles.fieldLabel}>Category</Text>
         {categoriesQuery.isLoading ? (
@@ -343,6 +380,7 @@ export function AddProductScreen() {
             </ScrollView>
           </View>
         )}
+        {categoryError ? <Text style={styles.errorText}>{categoryError}</Text> : null}
 
         <Text style={styles.fieldLabel}>Date type</Text>
         <SegmentedControl
@@ -373,7 +411,15 @@ export function AddProductScreen() {
 
         <View style={styles.row}>
           <View style={styles.cell}>
-            <FloatingLabelInput label="Quantity" value={quantity} onChangeText={(v) => setQuantity(v.replace(/[^0-9]/g, ""))} keyboardType="number-pad" />
+            <FloatingLabelInput
+              ref={quantityInputRef}
+              label="Quantity"
+              value={quantity}
+              onChangeText={(v) => setQuantity(v.replace(/[^0-9]/g, ""))}
+              onBlur={() => validation.touch("quantity")}
+              error={quantityError}
+              keyboardType="number-pad"
+            />
           </View>
           <View style={styles.cell}>
             <FloatingLabelInput label="Batch # (optional)" value={batchNumber} onChangeText={setBatchNumber} />
@@ -467,6 +513,10 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.body,
     fontSize: 15,
   },
+  // Danger border for the raw name input on error; matches FloatingLabelInput's error treatment.
+  inputError: { borderColor: appTheme.colors.danger },
+  // Mirrors FloatingLabelInput.errorText so inline messages read identically across field types.
+  errorText: { color: appTheme.colors.danger, fontFamily: appTheme.fonts.body, fontSize: 12, marginTop: 4, marginLeft: appTheme.spacing.sm },
   ocrCta: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: appTheme.spacing.xs,
     backgroundColor: appTheme.colors.primary, borderRadius: appTheme.radius.sm,

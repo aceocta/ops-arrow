@@ -7,6 +7,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { useFieldValidation } from "../../components/useFieldValidation";
 import { LoadingState } from "../../components/LoadingState";
 import { toastError, toastSuccess } from "../../components/toast";
 import { TemperatureEquipmentType } from "../../types/enums";
@@ -158,6 +159,22 @@ export function TemperatureUnitEditScreen({ route, navigation }: Props) {
     },
   });
 
+  // Client-side rules for the main unit fields (recomputed every render so a touched field clears
+  // the instant it becomes valid). Location & order number are optional. The min<max cross-field
+  // check reports on the max field. The order-resolver modal keeps its own separate checks.
+  const minValue = Number(minTemp);
+  const maxValue = Number(maxTemp);
+  const fieldErrors = {
+    unitName: unitName.trim().length === 0 ? "Enter a unit name." : null,
+    minTemperatureCelsius: !Number.isFinite(minValue) ? "Enter a number." : null,
+    maxTemperatureCelsius: !Number.isFinite(maxValue)
+      ? "Enter a number."
+      : Number.isFinite(minValue) && minValue >= maxValue
+        ? "Max must be greater than min."
+        : null,
+  };
+  const validation = useFieldValidation(fieldErrors);
+
   if (unitsQuery.isLoading) {
     return (
       <ScreenContainer>
@@ -179,7 +196,14 @@ export function TemperatureUnitEditScreen({ route, navigation }: Props) {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={ui.card}>
           <Text style={ui.sectionTitle}>Edit unit</Text>
-          <FloatingLabelInput label="Unit name" value={unitName} onChangeText={setUnitName} autoCapitalize="words" />
+          <FloatingLabelInput
+            label="Unit name"
+            value={unitName}
+            onChangeText={setUnitName}
+            error={validation.showError("unitName")}
+            onBlur={() => validation.touch("unitName")}
+            autoCapitalize="words"
+          />
 
           <Text style={styles.fieldLabel}>Equipment Type</Text>
           <View style={styles.choiceRow}>
@@ -200,6 +224,8 @@ export function TemperatureUnitEditScreen({ route, navigation }: Props) {
                 label="Min °C"
                 value={minTemp}
                 onChangeText={(value) => setMinTemp(sanitizeSignedDecimal(value))}
+                error={validation.showError("minTemperatureCelsius")}
+                onBlur={() => validation.touch("minTemperatureCelsius")}
                 keyboardType="numbers-and-punctuation"
               />
             </View>
@@ -208,6 +234,8 @@ export function TemperatureUnitEditScreen({ route, navigation }: Props) {
                 label="Max °C"
                 value={maxTemp}
                 onChangeText={(value) => setMaxTemp(sanitizeSignedDecimal(value))}
+                error={validation.showError("maxTemperatureCelsius")}
+                onBlur={() => validation.touch("maxTemperatureCelsius")}
                 keyboardType="numbers-and-punctuation"
               />
             </View>
@@ -228,7 +256,11 @@ export function TemperatureUnitEditScreen({ route, navigation }: Props) {
 
           <PrimaryButton
             label={saveMutation.isPending ? "Saving…" : "Save changes"}
-            onPress={() => saveMutation.mutate()}
+            onPress={() => {
+              if (saveMutation.isPending) return;
+              if (!validation.attemptSubmit()) return;
+              saveMutation.mutate();
+            }}
             disabled={saveMutation.isPending}
           />
           <PrimaryButton

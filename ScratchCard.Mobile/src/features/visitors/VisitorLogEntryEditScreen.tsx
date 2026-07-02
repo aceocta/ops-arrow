@@ -6,10 +6,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker";
 import { LandscapeSignatureModal } from "../../components/LandscapeSignatureModal";
 import { DateTimeField, formatDateValue, formatTimeValue } from "../../components/DateTimeField";
+import { FieldError } from "../../components/FieldError";
 import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { toastError, toastSuccess } from "../../components/toast";
+import { useFieldValidation } from "../../components/useFieldValidation";
 import {
   createVisitorEntry,
   getVisitorEntry,
@@ -168,6 +170,18 @@ export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
   const signaturePreview = signatureDataUrl || existingSignatureQuery.data;
   const isInspector = useMemo(() => visitType === "Inspector", [visitType]);
 
+  // Field-level validation via the shared useFieldValidation hook. Only the truly-required fields
+  // are gated (optional fields carry no rule). The signature rule mirrors the mutationFn's
+  // create-only guard (!isEdit): a fresh sign-in must be signed, but an edit can leave the existing
+  // signature untouched. timeIn is seeded to "now" so it's rarely empty, but we still guard it in
+  // case it's cleared.
+  const errors = {
+    visitorName: visitorName.trim().length === 0 ? "Enter the visitor's name." : null,
+    timeIn: timeIn.trim().length === 0 ? "Set the time in." : null,
+    signature: !isEdit && !signatureDataUrl.trim() ? "Capture the visitor's signature." : null,
+  };
+  const v = useFieldValidation(errors);
+
   // Title rendered by the navigator header instead of an in-screen card.
   useEffect(() => {
     navigation.setOptions({ title: isEdit ? "Edit visit" : "Sign in visitor" });
@@ -196,7 +210,14 @@ export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
             <PrimaryButton
               label={saveMutation.isPending ? "Saving…" : isEdit ? "Save changes" : "Sign in"}
               icon="checkmark-outline"
-              onPress={() => saveMutation.mutate()}
+              // Deliberately enabled while incomplete: pressing it reveals *what's* missing via the
+              // inline field errors rather than sitting greyed-out with no explanation. attemptSubmit
+              // reveals every error and only lets the save through once the required fields are valid.
+              onPress={() => {
+                if (saveMutation.isPending) return;
+                if (!v.attemptSubmit()) return;
+                saveMutation.mutate();
+              }}
               disabled={saveMutation.isPending}
             />
           </View>
@@ -206,11 +227,14 @@ export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
       <View style={ui.card}>
         <DateTimeField mode="date" value={visitDate} onChange={setVisitDate} maximumDate={new Date()} />
         <DateTimeField mode="time" value={timeIn} onChange={setTimeIn} />
+        <FieldError error={v.showError("timeIn")} />
 
         <FloatingLabelInput
           label="Visitor name *"
           value={visitorName}
           onChangeText={setVisitorName}
+          onBlur={() => v.touch("visitorName")}
+          error={v.showError("visitorName")}
           autoCapitalize="words"
           returnKeyType="next"
           submitBehavior="submit"
@@ -305,6 +329,7 @@ export function VisitorLogEntryEditScreen({ route, navigation }: Props) {
             <Text style={styles.signaturePadText}>Tap here to sign</Text>
           </Pressable>
         )}
+        <FieldError error={v.showError("signature")} />
 
         <FloatingLabelInput
           ref={notesRef}

@@ -14,6 +14,7 @@ import { FloatingLabelInput } from "../../components/FloatingLabelInput";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SectionHeader } from "../../components/SectionHeader";
+import { useFieldValidation } from "../../components/useFieldValidation";
 import { KpiGrid, KpiTile } from "../../components/KpiTile";
 import { Skeleton } from "../../components/Skeleton";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -60,20 +61,33 @@ export function SafeDropScreen() {
   const [canisterNumber, setCanisterNumber] = useState("");
   const [amount, setAmount] = useState("");
   const [droppedByName, setDroppedByName] = useState("");
-  const [amountError, setAmountError] = useState<string | undefined>(undefined);
   const amountRef = useRef<TextInput>(null);
   const droppedByNameRef = useRef<TextInput>(null);
 
+  // Field-level validation via the shared useFieldValidation hook: recompute the error map each
+  // render (so a touched field clears live once valid), and let the hook own the reveal timing
+  // (on blur, then live). droppedByName is optional — the mutation falls back to the user's own
+  // name — so it carries no rule. Amount mirrors the mutationFn check exactly: finite and > 0.
+  const parsedAmountValue = Number(amount.trim());
+  const fieldErrors = {
+    canisterNumber: canisterNumber.trim().length === 0 ? "Enter the canister number." : null,
+    amount:
+      !(amount.trim().length > 0 && Number.isFinite(parsedAmountValue) && parsedAmountValue > 0)
+        ? "Enter a number greater than zero."
+        : null,
+  };
+  const v = useFieldValidation(fieldErrors);
+
   const addMutation = useMutation({
     mutationFn: async () => {
+      // Backstop only — the submit handler blocks invalid input via useFieldValidation; these
+      // throws guard against any programmatic call path.
       const trimmedCanister = canisterNumber.trim();
       if (!trimmedCanister) throw new Error("Canister number is required.");
       const parsedAmount = Number(amount.trim());
       if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-        setAmountError("Enter a number greater than zero.");
         throw new Error("Amount must be a valid number greater than zero.");
       }
-      setAmountError(undefined);
       return addCanisterDrop(businessDayId, {
         canisterNumber: trimmedCanister,
         amount: parsedAmount,
@@ -113,11 +127,18 @@ export function SafeDropScreen() {
     };
   }, [drops]);
 
-  const hasCanister = canisterNumber.trim().length > 0;
-  const parsedAmount = Number(amount.trim());
-  const hasAmount = amount.trim().length > 0 && Number.isFinite(parsedAmount) && parsedAmount > 0;
-  const canSave = hasCanister && hasAmount && !addMutation.isPending;
-  const missing = [!hasCanister ? "canister number" : null, !hasAmount ? "amount" : null].filter(Boolean) as string[];
+  const handleSubmit = () => {
+    // Imperative guard: two taps can fire before the button re-renders, and the POST isn't
+    // idempotent (would record two drops).
+    if (addMutation.isPending) return;
+    // Reveal every field error. Canister is the first field (its inline error is now visible);
+    // if it's valid but amount isn't, pull the amount field forward.
+    if (!v.attemptSubmit()) {
+      if (!fieldErrors.canisterNumber && fieldErrors.amount) amountRef.current?.focus();
+      return;
+    }
+    addMutation.mutate();
+  };
 
   return (
     <ScreenContainer
@@ -130,16 +151,12 @@ export function SafeDropScreen() {
       }
       footer={
         <View style={styles.footerWrap}>
-          {missing.length > 0 ? (
-            <View style={styles.footerHintRow}>
-              <Ionicons name="information-circle-outline" size={14} color={appTheme.colors.textMuted} />
-              <Text style={styles.footerHint}>Add {missing.join(", ")} to save</Text>
-            </View>
-          ) : null}
           <PrimaryButton
             label={addMutation.isPending ? "Saving…" : "Add safe drop"}
-            onPress={() => addMutation.mutate()}
-            disabled={!canSave}
+            // Enabled while incomplete: pressing reveals what's missing via inline field errors.
+            // handleSubmit runs the checks and only fires the POST once everything's valid.
+            onPress={handleSubmit}
+            disabled={addMutation.isPending}
           />
         </View>
       }
@@ -166,6 +183,8 @@ export function SafeDropScreen() {
           label="Canister number"
           value={canisterNumber}
           onChangeText={setCanisterNumber}
+          onBlur={() => v.touch("canisterNumber")}
+          error={v.showError("canisterNumber")}
           editable={!addMutation.isPending}
           returnKeyType="next"
           submitBehavior="submit"
@@ -176,13 +195,11 @@ export function SafeDropScreen() {
           label="Amount"
           prefix="£"
           value={amount}
-          onChangeText={(v) => {
-            setAmount(v);
-            if (amountError) setAmountError(undefined);
-          }}
+          onChangeText={setAmount}
+          onBlur={() => v.touch("amount")}
+          error={v.showError("amount")}
           keyboardType="decimal-pad"
           editable={!addMutation.isPending}
-          error={amountError}
           returnKeyType="next"
           submitBehavior="submit"
           onSubmitEditing={() => droppedByNameRef.current?.focus()}
@@ -332,17 +349,6 @@ const styles = StyleSheet.create({
   },
   footerWrap: {
     gap: appTheme.spacing.xs,
-  },
-  footerHintRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  footerHint: {
-    color: appTheme.colors.textMuted,
-    fontSize: 12,
-    lineHeight: 16,
-    fontFamily: appTheme.fonts.body,
   },
   dropList: {
     gap: appTheme.spacing.xs,
