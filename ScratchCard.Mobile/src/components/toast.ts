@@ -1,6 +1,6 @@
-import { showAppAlert } from "./AppAlert";
+import { showAppAlert, type AlertTone } from "./AppAlert";
 
-type ToastTone = "success" | "info" | "warning" | "danger";
+type ToastTone = AlertTone;
 
 const TITLE_BY_TONE: Record<ToastTone, string> = {
   success: "Success",
@@ -10,7 +10,9 @@ const TITLE_BY_TONE: Record<ToastTone, string> = {
 };
 
 export function toast(message: string, tone: ToastTone = "info", title?: string) {
-  showAppAlert(title ?? TITLE_BY_TONE[tone], message);
+  // Pass the tone explicitly so the banner/dialog colour matches the caller's intent instead of being
+  // re-guessed from keywords (which previously rendered success toasts info-blue).
+  showAppAlert(title ?? TITLE_BY_TONE[tone], message, undefined, undefined, tone);
 }
 
 export const toastSuccess = (message: string, title?: string) => toast(message, "success", title);

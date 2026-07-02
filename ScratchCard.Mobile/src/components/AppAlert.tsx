@@ -4,15 +4,18 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ModalBackdropBlur } from "./ModalBackdropBlur";
 import { appTheme } from "../ui/theme";
 
+export type AlertTone = "info" | "success" | "warning" | "danger";
+
 type AlertRequest = {
   title: string;
   message?: string;
   buttons?: AlertButton[];
   options?: AlertOptions;
   hasExplicitButtons?: boolean;
+  /** Explicit tone from a caller (e.g. toast helpers). When set, it is used verbatim instead of
+   *  being guessed from keywords. */
+  tone?: AlertTone;
 };
-
-type AlertTone = "info" | "success" | "warning" | "danger";
 
 type QueueItem = AlertRequest & {
   id: number;
@@ -40,26 +43,6 @@ const SUCCESS_KEYWORDS = [
   "finalized",
   "sent",
   "sync complete",
-];
-
-const VALIDATION_KEYWORDS = [
-  "validation",
-  "required",
-  "missing",
-  "mismatch",
-  "not match",
-];
-
-const PERMISSION_KEYWORDS = [
-  "permission",
-  "not allowed",
-  "denied",
-];
-
-const CONFIRMATION_KEYWORDS = [
-  "confirm",
-  "confirmation",
-  "are you sure",
 ];
 
 const WARNING_KEYWORDS = [
@@ -97,53 +80,25 @@ function normalizeButtons(buttons?: AlertButton[]) {
   return [{ text: "OK" }];
 }
 
-function normalizeTitle(title: string | undefined, message: string | undefined, tone: AlertTone) {
+// Preserve any explicit, non-empty title verbatim — the caller knows best. Only synthesise a title
+// from the tone when the caller gave none. (Previously this rewrote intentional titles from keywords,
+// so "Delete till" / "This cannot be undone" became "Error" and "Are you sure…" became "Confirmation".)
+function resolveTitle(title: string | undefined, tone: AlertTone) {
   const rawTitle = (title ?? "").trim();
-  const normalizedTitle = rawTitle.toLowerCase();
-  const normalizedMessage = (message ?? "").trim().toLowerCase();
-  const combined = toSearchText([rawTitle, message]);
-
-  if (includesAny(combined, PERMISSION_KEYWORDS)) {
-    return "Permission Required";
-  }
-
-  if (includesAny(combined, VALIDATION_KEYWORDS)) {
-    return "Validation";
-  }
-
-  if (includesAny(combined, CONFIRMATION_KEYWORDS)) {
-    return "Confirmation";
-  }
-
-  if (tone === "danger") {
-    return "Error";
-  }
-
-  if (tone === "success") {
-    return "Success";
-  }
-
-  if (tone === "warning") {
-    return "Notice";
-  }
-
-  if (!rawTitle.length) {
-    return "Notice";
-  }
-
-  if (normalizedTitle === "failed" || normalizedTitle === "fail") {
-    return "Error";
-  }
-
-  if (normalizedTitle === "saved" || normalizedTitle === "created" || normalizedTitle === "updated") {
-    return "Success";
-  }
-
-  if (!normalizedMessage.length) {
+  if (rawTitle.length > 0) {
     return rawTitle;
   }
 
-  return rawTitle;
+  switch (tone) {
+    case "danger":
+      return "Error";
+    case "success":
+      return "Success";
+    case "warning":
+    case "info":
+    default:
+      return "Notice";
+  }
 }
 
 function resolveTone(title: string, message?: string): AlertTone {
@@ -181,9 +136,16 @@ function resolveAutoCloseMs(request: AlertRequest, tone: AlertTone): number {
   return 2800;
 }
 
-export function showAppAlert(title: string, message?: string, buttons?: AlertButton[], options?: AlertOptions) {
-  const tone = resolveTone(title, message);
-  const normalizedTitle = normalizeTitle(title, message, tone);
+export function showAppAlert(
+  title: string,
+  message?: string,
+  buttons?: AlertButton[],
+  options?: AlertOptions,
+  explicitTone?: AlertTone,
+) {
+  // Explicit tone (from the toast helpers) wins; legacy Alert.alert callers fall back to keyword guessing.
+  const tone = explicitTone ?? resolveTone(title, message);
+  const resolvedTitle = resolveTitle(title, tone);
   const hasExplicitButtons = Boolean(buttons && buttons.length > 0);
   const normalizedButtons = normalizeButtons(buttons);
 
@@ -195,16 +157,17 @@ export function showAppAlert(title: string, message?: string, buttons?: AlertBut
 
   if (presenter && !mustUseNative) {
     presenter({
-      title: normalizedTitle,
+      title: resolvedTitle,
       message,
       buttons,
       options,
       hasExplicitButtons,
+      tone,
     });
     return;
   }
 
-  nativeAlert(normalizedTitle, message, normalizedButtons, options);
+  nativeAlert(resolvedTitle, message, normalizedButtons, options);
 }
 
 export function installAppAlertPatch() {
@@ -301,7 +264,10 @@ export function AppAlertHost() {
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const insets = useSafeAreaInsets();
   const current = queue[0];
-  const tone = useMemo(() => resolveTone(current?.title ?? "", current?.message), [current?.title, current?.message]);
+  const tone = useMemo<AlertTone>(
+    () => current?.tone ?? resolveTone(current?.title ?? "", current?.message),
+    [current?.tone, current?.title, current?.message],
+  );
   const isAutoClose = Boolean(current?.autoCloseMs);
   const showToast = Boolean(current) && isAutoClose;
   const showDialog = Boolean(current) && !isAutoClose;
@@ -309,13 +275,12 @@ export function AppAlertHost() {
 
   useEffect(() => {
     presenter = (request) => {
-      const requestTone = resolveTone(request.title, request.message);
-      const normalizedTitle = normalizeTitle(request.title, request.message, requestTone);
+      const requestTone = request.tone ?? resolveTone(request.title, request.message);
       setQueue((prev) => [
         ...prev,
         {
           ...request,
-          title: normalizedTitle,
+          tone: requestTone,
           id: nextId++,
           buttons: normalizeButtons(request.buttons),
           autoCloseMs: resolveAutoCloseMs(request, requestTone),

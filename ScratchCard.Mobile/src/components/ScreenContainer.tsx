@@ -105,18 +105,23 @@ export function ScreenContainer({
     };
   }, [scrollFocusedInputIntoView]);
 
+  // iOS already lifts the scroll content via `automaticallyAdjustKeyboardInsets` below, so adding the
+  // manual keyboard inset here too would double the bottom padding (blank gap above the keyboard).
+  // Apply the manual inset on Android only; the non-scrolling branch keeps it for both platforms.
+  const scrollKeyboardInset = Platform.OS === "android" ? keyboardInset : 0;
+
   const contentStyle = useMemo(
     () => [
       styles.content,
       {
-        paddingBottom: baseBottomPadding + keyboardInset + footerReserve,
+        paddingBottom: baseBottomPadding + scrollKeyboardInset + footerReserve,
       },
       // Tablet-only: stop content stretching to the full ~1000px viewport width — cap and centre.
       isTablet
         ? { maxWidth: TABLET_CONTENT_MAX_WIDTH, alignSelf: "center" as const, width: "100%" as const }
         : null,
     ],
-    [baseBottomPadding, footerReserve, keyboardInset, isTablet]
+    [baseBottomPadding, footerReserve, scrollKeyboardInset, isTablet]
   );
 
   // Expose the scroll-into-view helper to any descendant input via Context. Inputs call it from

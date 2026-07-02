@@ -33,9 +33,10 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.bodyMedium,
   },
   // Tone-matched text so status reads at a glance and isn't conveyed by background colour alone
-  // (accessibility + daylight glanceability on the shop floor).
+  // (accessibility + daylight glanceability on the shop floor). Uses the "strong" text tokens so the
+  // 11px label meets WCAG AA against the soft badge backgrounds (the base warning/success tones fail).
   neutralText: { color: appTheme.colors.textMuted },
-  warningText: { color: appTheme.colors.warning },
-  dangerText: { color: appTheme.colors.danger },
-  successText: { color: appTheme.colors.success },
+  warningText: { color: appTheme.colors.textWarningStrong },
+  dangerText: { color: appTheme.colors.textDangerStrong },
+  successText: { color: appTheme.colors.textSuccessStrong },
 });

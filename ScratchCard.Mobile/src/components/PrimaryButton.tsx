@@ -1,5 +1,5 @@
 import React, { useCallback } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,6 +9,8 @@ type Props = {
   label: string;
   onPress: () => void;
   disabled?: boolean;
+  /** Shows a spinner, disables the button and announces a busy state to screen readers. */
+  loading?: boolean;
   tone?: "primary" | "neutral" | "danger" | "success";
   size?: "sm" | "md";
   /** Optional Ionicons name rendered before the label. */
@@ -21,8 +23,21 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const PRESS_SPRING = { damping: 14, stiffness: 280, mass: 0.6 } as const;
 
-export function PrimaryButton({ label, onPress, disabled, tone = "primary", size = "md", icon, haptic = true }: Props) {
+// Small size is under the 44pt target, so extend the tappable area without changing its footprint.
+const SMALL_HIT_SLOP = { top: 6, bottom: 6, left: 6, right: 6 } as const;
+
+export function PrimaryButton({
+  label,
+  onPress,
+  disabled,
+  loading = false,
+  tone = "primary",
+  size = "md",
+  icon,
+  haptic = true,
+}: Props) {
   const scale = useSharedValue(1);
+  const isDisabled = Boolean(disabled) || loading;
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -30,41 +45,57 @@ export function PrimaryButton({ label, onPress, disabled, tone = "primary", size
 
   const handlePressIn = useCallback(() => {
     scale.value = withSpring(0.96, PRESS_SPRING);
-    if (haptic && !disabled) {
+    if (haptic && !isDisabled) {
       void Haptics.selectionAsync().catch(() => undefined);
     }
-  }, [scale, haptic, disabled]);
+  }, [scale, haptic, isDisabled]);
 
   const handlePressOut = useCallback(() => {
     scale.value = withSpring(1, PRESS_SPRING);
   }, [scale]);
+
+  const contentColor =
+    isDisabled
+      ? appTheme.colors.textSubtle
+      : tone === "neutral"
+        ? appTheme.colors.text
+        : appTheme.colors.onPrimary;
 
   return (
     <AnimatedPressable
       onPress={onPress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
-      disabled={disabled}
+      disabled={isDisabled}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: isDisabled, busy: loading }}
+      hitSlop={size === "sm" ? SMALL_HIT_SLOP : undefined}
       style={[
         styles.button,
         tone === "neutral" && styles.buttonNeutral,
         tone === "danger" && styles.buttonDanger,
         tone === "success" && styles.buttonSuccess,
         size === "sm" && styles.buttonSmall,
-        disabled && styles.disabled,
+        isDisabled && styles.disabled,
         animatedStyle,
       ]}
     >
       <View style={styles.content}>
-        {icon ? (
-          <Ionicons
-            name={icon}
-            size={size === "sm" ? 14 : 16}
-            color={tone === "neutral" ? appTheme.colors.text : appTheme.colors.onPrimary}
-            style={styles.icon}
-          />
+        {loading ? (
+          <ActivityIndicator size="small" color={contentColor} />
+        ) : icon ? (
+          <Ionicons name={icon} size={size === "sm" ? 14 : 16} color={contentColor} style={styles.icon} />
         ) : null}
-        <Text style={[styles.text, tone === "neutral" && styles.textAlt, size === "sm" && styles.textSmall]}>{label}</Text>
+        <Text
+          style={[
+            styles.text,
+            tone === "neutral" && styles.textAlt,
+            size === "sm" && styles.textSmall,
+            isDisabled && styles.textDisabled,
+          ]}
+        >
+          {label}
+        </Text>
       </View>
     </AnimatedPressable>
   );
@@ -107,7 +138,7 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.colors.success,
     shadowColor: appTheme.colors.success,
   },
-  disabled: { backgroundColor: appTheme.colors.borderStrong, shadowOpacity: 0, elevation: 0 },
+  disabled: { backgroundColor: appTheme.colors.surfaceMuted, borderWidth: 1, borderColor: appTheme.colors.borderSoft, shadowOpacity: 0, elevation: 0 },
   content: {
     flexDirection: "row",
     alignItems: "center",
@@ -129,5 +160,9 @@ const styles = StyleSheet.create({
   textSmall: {
     fontSize: 13,
     lineHeight: 16,
+  },
+  // Readable label during "Saving…"/"Sending…" busy states (previously near-white on a near-white bg).
+  textDisabled: {
+    color: appTheme.colors.textSubtle,
   },
 });
