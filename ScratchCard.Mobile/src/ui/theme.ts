@@ -314,3 +314,57 @@ export const surfaceShadow = {
   shadowOffset: { width: 0, height: 8 },
   elevation: 3,
 };
+
+// --- Runtime-theming foundation (additive; see ui/ThemeContext) -----------------------------------
+// `appTheme`/`surfaceShadow` above are resolved once at module load (the long-standing behaviour, still
+// used by every un-migrated screen). `buildTheme` produces a full theme object for either scheme so
+// components migrated to `useTheme()` can re-render on a theme change without an app reload. Values
+// mirror `appTheme` exactly, so migrated and un-migrated screens render identically during migration.
+const themeSpacing = { xs: 8, sm: 12, md: 16, lg: 20, xl: 28 };
+const themeRadius = { sm: 12, md: 16, lg: 24, pill: 999 };
+const themeTypography = {
+  display: { fontFamily: fontFamilies.heading, fontSize: 28, lineHeight: 32, letterSpacing: -0.2 },
+  title: { fontFamily: fontFamilies.heading, fontSize: 20, lineHeight: 24, letterSpacing: -0.1 },
+  subtitle: { fontFamily: fontFamilies.bodyMedium, fontSize: 16, lineHeight: 22 },
+  body: { fontFamily: fontFamilies.body, fontSize: 14, lineHeight: 20 },
+  bodyEmphasis: { fontFamily: fontFamilies.bodyMedium, fontSize: 14, lineHeight: 20 },
+  caption: { fontFamily: fontFamilies.body, fontSize: 12, lineHeight: 16 },
+  overline: { fontFamily: fontFamilies.bodyMedium, fontSize: 11, lineHeight: 14, letterSpacing: 0.6 },
+};
+
+function buildElevation(colors: AppColors) {
+  return {
+    none: { shadowColor: "transparent", shadowOpacity: 0, shadowRadius: 0, shadowOffset: { width: 0, height: 0 }, elevation: 0 },
+    sm: { shadowColor: colors.shadow, shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+    md: { shadowColor: colors.shadow, shadowOpacity: 0.14, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
+    lg: { shadowColor: colors.shadow, shadowOpacity: 0.2, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 8 },
+  };
+}
+
+function buildSurfaceShadow(colors: AppColors, colorScheme: "light" | "dark") {
+  return {
+    shadowColor: colors.previewBackdrop,
+    shadowOpacity: colorScheme === "dark" ? 0.35 : 0.07,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
+  };
+}
+
+export function buildTheme(colors: AppColors, colorScheme: "light" | "dark") {
+  return {
+    colors,
+    colorScheme,
+    spacing: themeSpacing,
+    radius: themeRadius,
+    fonts: fontFamilies,
+    typography: themeTypography,
+    elevation: buildElevation(colors),
+    surfaceShadow: buildSurfaceShadow(colors, colorScheme),
+  };
+}
+
+export type AppTheme = ReturnType<typeof buildTheme>;
+
+export const lightTheme = buildTheme(lightColors, "light");
+export const darkTheme = buildTheme(darkColors, "dark");

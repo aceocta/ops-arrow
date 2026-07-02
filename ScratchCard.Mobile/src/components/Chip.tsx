@@ -1,7 +1,8 @@
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { appTheme } from "../ui/theme";
+import { useTheme } from "../ui/ThemeContext";
+import { makeStyles } from "../ui/makeStyles";
 
 type ChipProps = {
   label: string;
@@ -20,6 +21,8 @@ type ChipProps = {
  * selected/disabled state is exposed to assistive tech (not conveyed by colour alone).
  */
 export function Chip({ label, onPress, selected = false, disabled = false, icon, accessibilityLabel }: ChipProps) {
+  const theme = useTheme();
+  const styles = useStyles();
   return (
     <Pressable
       onPress={onPress}
@@ -40,7 +43,7 @@ export function Chip({ label, onPress, selected = false, disabled = false, icon,
           <Ionicons
             name={icon}
             size={15}
-            color={selected ? appTheme.colors.textBrandStrong : appTheme.colors.textMuted}
+            color={selected ? theme.colors.textBrandStrong : theme.colors.textMuted}
           />
         ) : null}
         <Text style={[styles.label, selected && styles.labelSelected]} numberOfLines={1}>
@@ -51,20 +54,20 @@ export function Chip({ label, onPress, selected = false, disabled = false, icon,
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   chip: {
     minHeight: 40,
     justifyContent: "center",
     paddingHorizontal: 14,
     paddingVertical: 9,
-    borderRadius: appTheme.radius.pill,
+    borderRadius: t.radius.pill,
     borderWidth: 1,
-    borderColor: appTheme.colors.borderSoft,
-    backgroundColor: appTheme.colors.surfaceMuted,
+    borderColor: t.colors.borderSoft,
+    backgroundColor: t.colors.surfaceMuted,
   },
   chipSelected: {
-    backgroundColor: appTheme.colors.surfaceBrandSoft,
-    borderColor: appTheme.colors.primary,
+    backgroundColor: t.colors.surfaceBrandSoft,
+    borderColor: t.colors.primary,
   },
   chipDisabled: {
     opacity: 0.5,
@@ -78,12 +81,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   label: {
-    fontFamily: appTheme.fonts.bodyMedium,
+    fontFamily: t.fonts.bodyMedium,
     fontSize: 13,
     lineHeight: 17,
-    color: appTheme.colors.textMuted,
+    color: t.colors.textMuted,
   },
   labelSelected: {
-    color: appTheme.colors.textBrandStrong,
+    color: t.colors.textBrandStrong,
   },
-});
+}));

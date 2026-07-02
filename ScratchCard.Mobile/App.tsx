@@ -108,6 +108,7 @@ function AppShell() {
     }
 
     const themeModule = require("./src/ui/theme") as typeof import("./src/ui/theme");
+    const themeContextModule = require("./src/ui/ThemeContext") as typeof import("./src/ui/ThemeContext");
     const appAlertModule = require("./src/components/AppAlert") as typeof import("./src/components/AppAlert");
     const rootNavigatorModule = require("./src/navigation/RootNavigator") as typeof import("./src/navigation/RootNavigator");
     const appLockModule = require("./src/security/AppLockContext") as typeof import("./src/security/AppLockContext");
@@ -116,6 +117,7 @@ function AppShell() {
     return {
       appTheme: themeModule.appTheme,
       resolvedColorScheme: themeModule.resolvedColorScheme,
+      ThemeProvider: themeContextModule.ThemeProvider,
       AppAlertHost: appAlertModule.AppAlertHost,
       installAppAlertPatch: appAlertModule.installAppAlertPatch,
       RootNavigator: rootNavigatorModule.RootNavigator,
@@ -170,11 +172,13 @@ function AppShell() {
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
               <runtimeModules.AppLockProvider>
-                <NavigationContainer ref={navigationRef} theme={navigationTheme} linking={linking}>
-                  <runtimeModules.RootNavigator />
-                  <runtimeModules.AppAlertHost />
-                  <runtimeModules.AppLockOverlay />
-                </NavigationContainer>
+                <runtimeModules.ThemeProvider>
+                  <NavigationContainer ref={navigationRef} theme={navigationTheme} linking={linking}>
+                    <runtimeModules.RootNavigator />
+                    <runtimeModules.AppAlertHost />
+                    <runtimeModules.AppLockOverlay />
+                  </NavigationContainer>
+                </runtimeModules.ThemeProvider>
               </runtimeModules.AppLockProvider>
             </AuthProvider>
           </QueryClientProvider>

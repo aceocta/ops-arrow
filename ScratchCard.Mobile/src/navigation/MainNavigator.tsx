@@ -99,6 +99,8 @@ import { appTheme } from "../ui/theme";
 import { appInfo } from "../config/appInfo";
 import { getRoleDisplayName } from "../utils/roleLabels";
 import { useIsTablet } from "../utils/useIsTablet";
+import { navigationRef } from "./navigationRef";
+import { BottomTabBar } from "./BottomTabBar";
 
 type MainDrawerParamList = {
   MainStack: NavigatorScreenParams<MainStackParamList> | undefined;
@@ -1353,26 +1355,62 @@ export function MainNavigator() {
   const isTablet = useIsTablet();
   const drawerWidth = isTablet ? 380 : 332;
 
+  // Track the deepest active route so the bottom bar can highlight the current tab and hide itself on
+  // focused data-entry screens. The nested stack route isn't in this component's own navigation state,
+  // so read it from the container ref and re-read on every navigation state change.
+  const [currentRouteName, setCurrentRouteName] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    const update = () => {
+      if (navigationRef.isReady()) setCurrentRouteName(navigationRef.getCurrentRoute()?.name);
+    };
+    update();
+    // MainNavigator mounts deep inside the container, so the ref is ready here; guard anyway.
+    const unsubscribe = navigationRef.isReady() ? navigationRef.addListener("state", update) : undefined;
+    return () => unsubscribe?.();
+  }, []);
+
+  const goToTabScreen = useCallback((screen: keyof MainStackParamList) => {
+    // Same loose-cast nested navigate the notification handler uses: RootStack -> MainTabs (drawer)
+    // -> MainStack (stack) -> target screen. The deep param types don't infer cleanly here.
+    (navigationRef.navigate as (name: string, params?: object) => void)("MainTabs", {
+      screen: "MainStack",
+      params: { screen },
+    });
+  }, []);
+
+  const openMore = useCallback(() => {
+    navigationRef.dispatch(DrawerActions.openDrawer());
+  }, []);
+
+  const barHidden = currentRouteName
+    ? HIDE_SHORTCUT_ROUTES.has(currentRouteName as keyof MainStackParamList)
+    : false;
+
   return (
     <BestEntryProvider>
       <HelpProvider>
       <View style={styles.navigatorShell}>
         <NetworkStatusBanner />
-        <Drawer.Navigator
-          screenOptions={{
-            headerShown: false,
-            drawerType: "slide",
-            overlayColor: appTheme.colors.overlaySoft,
-            drawerStyle: {
-              width: drawerWidth,
-              backgroundColor: appTheme.colors.surface,
-            },
-            swipeEdgeWidth: 48,
-          }}
-          drawerContent={(props) => <DrawerMenuContent {...props} />}
-        >
-          <Drawer.Screen name="MainStack" component={MainStackScreens} />
-        </Drawer.Navigator>
+        <View style={styles.navigatorBody}>
+          <Drawer.Navigator
+            screenOptions={{
+              headerShown: false,
+              drawerType: "slide",
+              overlayColor: appTheme.colors.overlaySoft,
+              drawerStyle: {
+                width: drawerWidth,
+                backgroundColor: appTheme.colors.surface,
+              },
+              swipeEdgeWidth: 48,
+            }}
+            drawerContent={(props) => <DrawerMenuContent {...props} />}
+          >
+            <Drawer.Screen name="MainStack" component={MainStackScreens} />
+          </Drawer.Navigator>
+        </View>
+        {!barHidden ? (
+          <BottomTabBar currentRouteName={currentRouteName} onSelectScreen={goToTabScreen} onOpenMore={openMore} />
+        ) : null}
       </View>
       </HelpProvider>
     </BestEntryProvider>
@@ -1381,6 +1419,10 @@ export function MainNavigator() {
 
 const styles = StyleSheet.create({
   navigatorShell: {
+    flex: 1,
+  },
+  // Holds the drawer/stack and takes all remaining height above the persistent bottom bar.
+  navigatorBody: {
     flex: 1,
   },
   headerRightRow: {
