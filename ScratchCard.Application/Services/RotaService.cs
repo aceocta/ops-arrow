@@ -1286,6 +1286,9 @@ public class RotaService : IRotaService
         var now = DateTimeOffset.UtcNow;
         var today = DateOnly.FromDateTime(now.UtcDateTime);
 
+        // Can't clock in over hours already recorded for this moment (e.g. a manual record covering now).
+        await EnsureNoAttendanceOverlapAsync(shopId, userId, null, now, null, null, cancellationToken);
+
         // Tie to the specified shift (per-shift check-in); else fall back to today's assigned shift.
         Guid? resolvedShiftId = rotaShiftId;
         Guid? shiftBusinessDayId = null;
@@ -1406,6 +1409,9 @@ public class RotaService : IRotaService
             await EnsureAttendanceNotLockedAsync(request.ShopId, attendance.CheckInAt, cancellationToken);
         }
 
+        // A person can't be in two places at once — reject hours that overlap any of their other records.
+        await EnsureNoAttendanceOverlapAsync(request.ShopId, userId, null, request.CheckInAt, request.CheckOutAt, attendance?.Id, cancellationToken);
+
         var now = DateTimeOffset.UtcNow;
         var businessDayId = request.RotaShiftId is Guid shiftId
             ? await _shiftRepository.Query().Where(x => x.Id == shiftId).Select(x => x.BusinessDayId).FirstOrDefaultAsync(cancellationToken)
@@ -1482,6 +1488,8 @@ public class RotaService : IRotaService
             await EnsureAttendanceNotLockedAsync(request.ShopId, attendance.CheckInAt, cancellationToken);
         }
 
+        await EnsureNoAttendanceOverlapAsync(request.ShopId, null, memberId, request.CheckInAt, request.CheckOutAt, attendance?.Id, cancellationToken);
+
         if (attendance is null)
         {
             attendance = new ShiftAttendance
@@ -1547,6 +1555,8 @@ public class RotaService : IRotaService
             await EnsureAttendanceNotLockedAsync(request.ShopId, attendance.CheckInAt, cancellationToken);
         }
 
+        await EnsureNoAttendanceOverlapAsync(request.ShopId, targetUserId, null, request.CheckInAt, request.CheckOutAt, attendance?.Id, cancellationToken);
+
         if (attendance is null)
         {
             attendance = new ShiftAttendance
@@ -1584,6 +1594,42 @@ public class RotaService : IRotaService
         await ResetSignedOffReviewsAsync(request.ShopId, targetUserId, affectedTimes, cancellationToken);
 
         return MapAttendance(attendance, $"{target.FirstName} {target.LastName}".Trim());
+    }
+
+    // Guards that a new/edited attendance range doesn't overlap any of the same person's other records —
+    // a person can't be in two places at once. Two ranges overlap when each starts before the other ends;
+    // an open (not-yet-checked-out) record is treated as running indefinitely. The record being updated is
+    // excluded via <paramref name="excludeAttendanceId"/>. Identify the person by exactly one of
+    // <paramref name="userId"/> (internal user) or <paramref name="rotaStaffMemberId"/> (roster-only member).
+    private async Task EnsureNoAttendanceOverlapAsync(
+        Guid shopId,
+        Guid? userId,
+        Guid? rotaStaffMemberId,
+        DateTimeOffset checkInAt,
+        DateTimeOffset? checkOutAt,
+        Guid? excludeAttendanceId,
+        CancellationToken cancellationToken)
+    {
+        var newEnd = checkOutAt ?? DateTimeOffset.MaxValue;
+        var query = _attendanceRepository.Query()
+            .Where(x => x.ShopId == shopId
+                && x.CheckInAt < newEnd
+                && (x.CheckOutAt == null || x.CheckOutAt > checkInAt));
+
+        query = userId is Guid uid
+            ? query.Where(x => x.UserId == uid)
+            : query.Where(x => x.RotaStaffMemberId == rotaStaffMemberId);
+
+        if (excludeAttendanceId is Guid excludeId)
+        {
+            query = query.Where(x => x.Id != excludeId);
+        }
+
+        if (await query.AnyAsync(cancellationToken))
+        {
+            throw new AppException("rota_attendance_overlap",
+                "These hours overlap an existing attendance record. Adjust the times.", 409);
+        }
     }
 
     // Push the shop's managers/owners that a staff member submitted manual times for approval.
@@ -2292,6 +2338,9 @@ public class RotaService : IRotaService
         // Neither edit a session inside the payroll lock nor move one into it.
         await EnsureAttendanceNotLockedAsync(attendance.ShopId, attendance.CheckInAt, cancellationToken);
         await EnsureAttendanceNotLockedAsync(attendance.ShopId, request.CheckInAt, cancellationToken);
+
+        // The edited times must not clash with any of this person's other attendance records.
+        await EnsureNoAttendanceOverlapAsync(attendance.ShopId, attendance.UserId, attendance.RotaStaffMemberId, request.CheckInAt, request.CheckOutAt, attendance.Id, cancellationToken);
 
         var previousCheckInAt = attendance.CheckInAt;
         var now = DateTimeOffset.UtcNow;

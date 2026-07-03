@@ -327,6 +327,163 @@ function leaveHourSegments(row: TimesheetRow): Array<{ label: string; muted: boo
   return segments;
 }
 
+// Record hours worked, even when not on the rota. Pick a date + from/to; if there's a scheduled shift
+// that day you can link the hours to it (and any existing record for it is shown and updated).
+function RecordHoursModal({
+  visible,
+  shopId,
+  onClose,
+  onSaved,
+}: {
+  visible: boolean;
+  shopId: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [date, setDate] = useState(() => formatDateValue(new Date()));
+  const [fromTime, setFromTime] = useState("09:00");
+  const [toTime, setToTime] = useState("17:00");
+  const [selectedShiftId, setSelectedShiftId] = useState<string | null>(null);
+
+  // Shifts scheduled for the chosen date, so the hours can be linked to one and any existing record shown.
+  const shiftsQuery = useQuery({
+    queryKey: ["rota-record-hours-shifts", shopId, date],
+    queryFn: () => getMyShifts(shopId, date, date),
+    enabled: visible && Boolean(shopId) && Boolean(date),
+  });
+  const shifts = shiftsQuery.data ?? [];
+  const selectedShift = useMemo(() => shifts.find((s) => s.id === selectedShiftId) ?? null, [shifts, selectedShiftId]);
+
+  // Picking a shift pre-fills the times from its existing record (if any), else from its planned hours.
+  useEffect(() => {
+    if (!selectedShift) return;
+    if (selectedShift.myAttendance?.checkInAt) {
+      setFromTime(toHHmm(selectedShift.myAttendance.checkInAt));
+      if (selectedShift.myAttendance.checkOutAt) setToTime(toHHmm(selectedShift.myAttendance.checkOutAt));
+    } else {
+      setFromTime(shortTime(selectedShift.startTime));
+      setToTime(shortTime(selectedShift.endTime));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedShiftId]);
+
+  const reset = () => {
+    setDate(formatDateValue(new Date()));
+    setFromTime("09:00");
+    setToTime("17:00");
+    setSelectedShiftId(null);
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: () => {
+      const { checkInAt, checkOutAt } = sessionIsos(date, fromTime, toTime);
+      return saveManualAttendance({
+        shopId,
+        rotaShiftId: selectedShiftId ?? undefined,
+        checkInAt,
+        checkOutAt,
+      });
+    },
+    onSuccess: () => {
+      toastSuccess("Hours recorded — awaiting manager approval.");
+      reset();
+      onSaved();
+      onClose();
+    },
+    onError: (error: any) => toastError(getApiErrorMessage(error, "Couldn't record hours.")),
+  });
+
+  const submit = () => {
+    if (saveMutation.isPending) return;
+    if (!fromTime || !toTime) {
+      toastError("Enter both a start and finish time.");
+      return;
+    }
+    if (fromTime === toTime) {
+      toastError("Finish time must differ from the start time.");
+      return;
+    }
+    saveMutation.mutate();
+  };
+
+  const worked =
+    fromTime && toTime && fromTime !== toTime
+      ? workedLabel(sessionIsos(date, fromTime, toTime).checkInAt, sessionIsos(date, fromTime, toTime).checkOutAt)
+      : null;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <View style={styles.recBackdrop}>
+          <ScrollView contentContainerStyle={styles.recScroll} keyboardShouldPersistTaps="handled">
+            <View style={styles.recCard}>
+              <Text style={styles.recTitle}>Record hours</Text>
+              <Text style={styles.muted}>Log hours you worked, even if you weren't on the rota. A manager approves it before it counts.</Text>
+
+              <Text style={styles.fieldLabel}>Date</Text>
+              <DateTimeField mode="date" value={date} onChange={(v) => { setDate(v); setSelectedShiftId(null); }} />
+
+              {shifts.length > 0 ? (
+                <>
+                  <Text style={styles.fieldLabel}>Shift on this day</Text>
+                  <View style={styles.recShiftWrap}>
+                    <Pressable
+                      onPress={() => setSelectedShiftId(null)}
+                      style={[styles.recShiftChip, selectedShiftId === null ? styles.recShiftChipActive : null]}
+                    >
+                      <Text style={[styles.recShiftChipText, selectedShiftId === null ? styles.recShiftChipTextActive : null]}>No shift (unscheduled)</Text>
+                    </Pressable>
+                    {shifts.map((s) => {
+                      const active = s.id === selectedShiftId;
+                      const hasRecord = Boolean(s.myAttendance?.checkInAt);
+                      return (
+                        <Pressable key={s.id} onPress={() => setSelectedShiftId(s.id)} style={[styles.recShiftChip, active ? styles.recShiftChipActive : null]}>
+                          <Text style={[styles.recShiftChipText, active ? styles.recShiftChipTextActive : null]}>
+                            {(s.shiftName || "Shift")} · {shortTime(s.startTime)}–{shortTime(s.endTime)}
+                          </Text>
+                          {hasRecord ? (
+                            <Text style={[styles.recShiftChipSub, active ? styles.recShiftChipTextActive : null]}>
+                              Recorded {clockTime(s.myAttendance!.checkInAt)}{s.myAttendance!.checkOutAt ? `–${clockTime(s.myAttendance!.checkOutAt)}` : ""}
+                            </Text>
+                          ) : null}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  {selectedShift?.myAttendance?.checkInAt ? (
+                    <Text style={styles.mutedSmall}>This shift already has a record — saving updates it.</Text>
+                  ) : null}
+                </>
+              ) : shiftsQuery.isLoading ? (
+                <Text style={styles.mutedSmall}>Checking your rota…</Text>
+              ) : null}
+
+              <View style={styles.recTimeRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.fieldLabel}>From</Text>
+                  <DateTimeField mode="time" value={fromTime} onChange={setFromTime} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.fieldLabel}>To</Text>
+                  <DateTimeField mode="time" value={toTime} onChange={setToTime} />
+                </View>
+              </View>
+              {worked ? (
+                <Text style={styles.mutedSmall}>Total: {worked}{isOvernight(fromTime, toTime) ? " · ends next day" : ""}</Text>
+              ) : null}
+
+              <View style={styles.recActions}>
+                <PrimaryButton label={saveMutation.isPending ? "Saving…" : "Record hours"} onPress={submit} disabled={saveMutation.isPending} size="sm" />
+                <PrimaryButton label="Cancel" tone="neutral" size="sm" onPress={() => { reset(); onClose(); }} disabled={saveMutation.isPending} />
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // My Shifts + check in/out (staff)
 // ---------------------------------------------------------------------------
@@ -337,6 +494,7 @@ export function MyShiftsScreen() {
   const queryClient = useQueryClient();
   const [range, setRange] = useState(() => next7());
   const { from, to } = range;
+  const [recordHoursOpen, setRecordHoursOpen] = useState(false);
 
   const attendanceQuery = useQuery({
     queryKey: ["rota-attendance", shopId],
@@ -357,7 +515,9 @@ export function MyShiftsScreen() {
   };
 
   const checkInMutation = useMutation({
-    mutationFn: (rotaShiftId: string) => checkInShift(shopId as string, rotaShiftId),
+    // rotaShiftId omitted = unscheduled check-in (not on the rota). The server links it to today's
+    // assigned shift if there is one, otherwise records it as an unscheduled attendance.
+    mutationFn: (rotaShiftId?: string) => checkInShift(shopId as string, rotaShiftId),
     onSuccess: refresh,
     onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't check in."),
   });
@@ -500,9 +660,37 @@ export function MyShiftsScreen() {
           </View>
         </View>
 
+        <Pressable
+          style={({ pressed }) => [styles.recordHoursBtn, pressed ? styles.recordHoursBtnPressed : null]}
+          onPress={() => setRecordHoursOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Record hours you worked"
+        >
+          <Ionicons name="create-outline" size={16} color={appTheme.colors.primary} />
+          <Text style={styles.recordHoursBtnText}>Record hours</Text>
+        </Pressable>
+
         {isCheckedInSomewhere ? (
           <Text style={styles.muted}>You're on shift since {clockTime(current?.checkInAt)}. Check out before starting another.</Text>
-        ) : null}
+        ) : (
+          // Not on the rota? You can still clock in anytime without a scheduled shift.
+          <View style={[ui.card, styles.unscheduledCard]}>
+            <View style={styles.unscheduledText}>
+              <Text style={styles.unscheduledTitle}>Not on the rota?</Text>
+              <Text style={styles.mutedSmall}>Clock in now without a scheduled shift.</Text>
+            </View>
+            <Pressable
+              style={({ pressed }) => [styles.actBtn, pressed && styles.actBtnPressed, busy && styles.actBtnDisabled]}
+              onPress={() => checkInMutation.mutate(undefined)}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel="Check in without a scheduled shift"
+            >
+              <Ionicons name="log-in-outline" size={16} color={appTheme.colors.onPrimary} />
+              <Text style={styles.actBtnText}>{checkInMutation.isPending ? "Checking in…" : "Check in"}</Text>
+            </Pressable>
+          </View>
+        )}
 
         {shiftsQuery.isLoading ? <SkeletonList count={4} /> : null}
         {!shiftsQuery.isLoading && grouped.length === 0 ? (
@@ -516,6 +704,13 @@ export function MyShiftsScreen() {
           </View>
         ))}
       </View>
+
+      <RecordHoursModal
+        visible={recordHoursOpen}
+        shopId={shopId as string}
+        onClose={() => setRecordHoursOpen(false)}
+        onSaved={refresh}
+      />
     </ScreenContainer>
   );
 }
@@ -4345,6 +4540,54 @@ const styles = StyleSheet.create({
   attNote: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12, marginLeft: 20 },
   attNotePending: { color: appTheme.colors.danger },
   mutedSmall: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12 },
+  unscheduledCard: { flexDirection: "row", alignItems: "center", gap: appTheme.spacing.sm },
+  unscheduledText: { flex: 1, gap: 2 },
+  unscheduledTitle: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 15, lineHeight: 20 },
+  recordHoursBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: appTheme.colors.primary,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    paddingVertical: 10,
+  },
+  recordHoursBtnPressed: { opacity: 0.7 },
+  recordHoursBtnText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
+  recBackdrop: {
+    flex: 1,
+    backgroundColor: appTheme.colors.overlay,
+    justifyContent: "center",
+    paddingHorizontal: appTheme.spacing.md,
+  },
+  recScroll: { flexGrow: 1, justifyContent: "center", paddingVertical: appTheme.spacing.lg },
+  recCard: {
+    backgroundColor: appTheme.colors.background,
+    borderRadius: appTheme.radius.lg,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    padding: appTheme.spacing.md,
+    gap: appTheme.spacing.sm,
+  },
+  recTitle: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 17, lineHeight: 22 },
+  recShiftWrap: { gap: appTheme.spacing.xs },
+  recShiftChip: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: 8,
+    gap: 2,
+  },
+  recShiftChipActive: { borderColor: appTheme.colors.primary, backgroundColor: appTheme.colors.surfaceBrandSoft },
+  recShiftChipText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
+  recShiftChipTextActive: { color: appTheme.colors.primary },
+  recShiftChipSub: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12 },
+  recTimeRow: { flexDirection: "row", gap: appTheme.spacing.sm },
+  recActions: { gap: appTheme.spacing.xs, marginTop: appTheme.spacing.xs },
   actionsRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   actBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 11, borderRadius: appTheme.radius.md, backgroundColor: appTheme.colors.primary },
   actBtnOut: { backgroundColor: appTheme.colors.danger },
