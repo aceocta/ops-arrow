@@ -1322,6 +1322,7 @@ public class RotaService : IRotaService
             BusinessDayId = businessDayId,
             RotaShiftId = resolvedShiftId,
             CheckInAt = now,
+            SubmittedCheckInAt = now,
             EntryMethod = AttendanceEntryMethod.Clocked,
             IsApproved = true,
             CreatedOn = now,
@@ -1346,6 +1347,7 @@ public class RotaService : IRotaService
 
         var now = DateTimeOffset.UtcNow;
         attendance.CheckOutAt = now;
+        attendance.SubmittedCheckOutAt ??= now;
         attendance.ModifiedOn = now;
         attendance.ModifiedBy = userId;
         _attendanceRepository.Update(attendance);
@@ -1439,6 +1441,10 @@ public class RotaService : IRotaService
 
         attendance.CheckInAt = request.CheckInAt;
         attendance.CheckOutAt = request.CheckOutAt;
+        // Preserve the entered times as the original submission (audit); a manager approval may later
+        // overwrite CheckInAt/CheckOutAt with adjusted payable times but leaves these untouched.
+        attendance.SubmittedCheckInAt = request.CheckInAt;
+        attendance.SubmittedCheckOutAt = request.CheckOutAt;
         attendance.Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
         attendance.EntryMethod = AttendanceEntryMethod.Manual;
         attendance.IsApproved = false; // manual self-entry awaits manager approval
@@ -1512,6 +1518,10 @@ public class RotaService : IRotaService
 
         attendance.CheckInAt = request.CheckInAt;
         attendance.CheckOutAt = request.CheckOutAt;
+        // Preserve the entered times as the original submission (audit); a manager approval may later
+        // overwrite CheckInAt/CheckOutAt with adjusted payable times but leaves these untouched.
+        attendance.SubmittedCheckInAt = request.CheckInAt;
+        attendance.SubmittedCheckOutAt = request.CheckOutAt;
         attendance.Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
         attendance.EntryMethod = AttendanceEntryMethod.Manual;
         attendance.IsApproved = true; // manager-recorded — authoritative
@@ -1579,6 +1589,10 @@ public class RotaService : IRotaService
 
         attendance.CheckInAt = request.CheckInAt;
         attendance.CheckOutAt = request.CheckOutAt;
+        // Preserve the entered times as the original submission (audit); a manager approval may later
+        // overwrite CheckInAt/CheckOutAt with adjusted payable times but leaves these untouched.
+        attendance.SubmittedCheckInAt = request.CheckInAt;
+        attendance.SubmittedCheckOutAt = request.CheckOutAt;
         attendance.Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
         attendance.EntryMethod = AttendanceEntryMethod.Manual;
         attendance.IsApproved = true; // manager-recorded — authoritative

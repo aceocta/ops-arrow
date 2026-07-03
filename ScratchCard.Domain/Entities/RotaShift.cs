@@ -69,6 +69,10 @@ public class ShiftAttendance : AuditableEntity
     public Guid? RotaShiftId { get; set; }
     public DateTimeOffset CheckInAt { get; set; }
     public DateTimeOffset? CheckOutAt { get; set; }
+    // The ORIGINAL employee-entered/clocked times, preserved for audit even after a manager approves
+    // adjusted payable times into CheckInAt/CheckOutAt (the Time Approval screen keeps both).
+    public DateTimeOffset? SubmittedCheckInAt { get; set; }
+    public DateTimeOffset? SubmittedCheckOutAt { get; set; }
     public AttendanceEntryMethod EntryMethod { get; set; } = AttendanceEntryMethod.Clocked;
     public bool IsApproved { get; set; } = true;
     public Guid? ApprovedByUserId { get; set; }

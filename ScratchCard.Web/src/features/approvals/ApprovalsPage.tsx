@@ -4,7 +4,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { apiErrorMessage } from "../../lib/api";
 import { rotaApi, sessionIsos, shortTime, type AttendanceApprovalRow } from "../../lib/rota";
 import { confirmDialog, toast } from "../../components/feedback";
-import { Check, CheckCheck, X, Pencil, CheckCircle2 } from "lucide-react";
+import { Check, CheckCheck, X, CheckCircle2 } from "lucide-react";
 import clsx from "clsx";
 
 function clock(iso?: string | null) {
@@ -18,6 +18,32 @@ function hm(inIso: string, outIso?: string | null) {
 function dateTime(iso: string) {
   return new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
+function toIso(dateStr: string, hhmm: string) {
+  return new Date(`${dateStr}T${hhmm}:00`).toISOString();
+}
+// 30-minute rounding: In-time rounds to the nearest :00/:30, ties (exact :15) round DOWN; Out-time
+// rounds to the nearest :00/:30, ties round UP. Operates on the displayed local time.
+function roundToHalfHour(iso: string, mode: "in" | "out"): string {
+  const d = new Date(iso);
+  const mins = d.getMinutes();
+  const lower = Math.floor(mins / 30) * 30;
+  const mid = lower + 15;
+  let rounded: number;
+  if (mins < mid) rounded = lower;
+  else if (mins > mid) rounded = lower + 30;
+  else rounded = mode === "in" ? lower : lower + 30;
+  const out = new Date(d);
+  out.setMinutes(rounded, 0, 0);
+  return out.toISOString();
+}
+function rangeLabel(inIso: string | null, outIso: string | null) {
+  return inIso ? `${clock(inIso)} → ${outIso ? clock(outIso) : "—"}` : "—";
+}
+function hoursLabel(inIso: string | null, outIso: string | null) {
+  return inIso ? hm(inIso, outIso) : "—";
+}
+
+type ApproveMode = "employee" | "scheduled" | "rounded" | "custom";
 
 export default function ApprovalsPage() {
   const { activeShopId } = useAuth();
@@ -262,17 +288,10 @@ export default function ApprovalsPage() {
                                 <X className="h-4 w-4" />
                               </button>
                               <button
-                                className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                                title="Adjust"
+                                className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                                title="Review & approve time"
                                 disabled={bulkRunning}
                                 onClick={() => setEditing(r)}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </button>
-                              <button
-                                className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-                                disabled={approveM.isPending || bulkRunning}
-                                onClick={() => approveM.mutate(r.id)}
                               >
                                 <Check className="h-4 w-4" /> Approve
                               </button>
@@ -312,10 +331,7 @@ export default function ApprovalsPage() {
                   <button className="btn border border-red-200 text-red-600 hover:bg-red-50" disabled={bulkRunning} onClick={async () => { if (await confirmDialog({ title: "Reject times?", message: `Reject ${r.userName}'s manually entered times?`, confirmLabel: "Reject" })) rejectM.mutate(r.id); }}>
                     <X className="h-4 w-4" /> Reject
                   </button>
-                  <button className="btn-ghost" disabled={bulkRunning} onClick={() => setEditing(r)}>
-                    <Pencil className="h-4 w-4" /> Adjust
-                  </button>
-                  <button className="btn-primary ml-auto bg-emerald-600 hover:bg-emerald-700" onClick={() => approveM.mutate(r.id)} disabled={approveM.isPending || bulkRunning}>
+                  <button className="btn-primary ml-auto bg-emerald-600 hover:bg-emerald-700" onClick={() => setEditing(r)} disabled={bulkRunning}>
                     <Check className="h-4 w-4" /> Approve
                   </button>
                 </div>
@@ -325,7 +341,7 @@ export default function ApprovalsPage() {
         </>
       ) : null}
 
-      {editing ? <AdjustModal row={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refresh(); }} /> : null}
+      {editing ? <TimeApprovalModal row={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refresh(); }} /> : null}
     </div>
   );
 }
@@ -339,43 +355,116 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
-function AdjustModal({ row, onClose, onSaved }: { row: AttendanceApprovalRow; onClose: () => void; onSaved: () => void }) {
-  const [inT, setInT] = useState(clock(row.checkInAt).replace(/[^\d:]/g, "") || "09:00");
-  const [outT, setOutT] = useState(row.checkOutAt ? clock(row.checkOutAt).replace(/[^\d:]/g, "") : shortTime(row.shiftEnd) || "17:00");
+// The Time Approval popup: review the employee-entered time and pick the final payable time from the
+// 4 options (or a custom adjustment). Nothing is forced to a fixed length — the options only suggest.
+function TimeApprovalModal({ row, onClose, onSaved }: { row: AttendanceApprovalRow; onClose: () => void; onSaved: () => void }) {
+  const employeeIn = row.checkInAt;
+  const employeeOut = row.checkOutAt ?? null;
+  const hasSchedule = !!(row.shiftStart && row.shiftDate);
+  const schedIn = hasSchedule ? toIso(row.shiftDate as string, shortTime(row.shiftStart)) : null;
+  const schedOut = hasSchedule && row.shiftEnd ? toIso((row.shiftEndDate ?? row.shiftDate) as string, shortTime(row.shiftEnd)) : null;
+  const roundedIn = roundToHalfHour(employeeIn, "in");
+  const roundedOut = employeeOut ? roundToHalfHour(employeeOut, "out") : null;
+
+  const [mode, setMode] = useState<ApproveMode>("employee");
+  const [customIn, setCustomIn] = useState(() => clock(employeeIn));
+  const [customOut, setCustomOut] = useState(() => (employeeOut ? clock(employeeOut) : shortTime(row.shiftEnd) || ""));
+
+  const customBase = row.shiftDate ?? row.checkInAt.slice(0, 10);
+  const customInIso = customIn ? toIso(customBase, customIn) : null;
+  const customOutIso = customIn && customOut && customOut !== customIn ? sessionIsos(customBase, customIn, customOut).checkOutAt : null;
+
+  const approved: { in: string; out: string | null } =
+    mode === "scheduled"
+      ? { in: schedIn ?? employeeIn, out: schedOut }
+      : mode === "rounded"
+        ? { in: roundedIn, out: roundedOut }
+        : mode === "custom"
+          ? { in: customInIso ?? employeeIn, out: customOutIso }
+          : { in: employeeIn, out: employeeOut };
+
+  const customInvalid = mode === "custom" && (!customIn || customOut === customIn);
 
   const saveM = useMutation({
     mutationFn: () => {
-      const dateStr = row.shiftDate ?? row.checkInAt.slice(0, 10);
-      const { checkInAt, checkOutAt } = sessionIsos(dateStr, inT, outT);
-      return rotaApi.adjust(row.id, { checkInAt, checkOutAt: outT ? checkOutAt : undefined });
+      // Option 1 approves the entered times as-is; the others save the chosen payable time (the server
+      // keeps the original in SubmittedCheckIn/OutAt for audit).
+      if (mode === "employee") return rotaApi.approve(row.id);
+      return rotaApi.adjust(row.id, { checkInAt: approved.in, checkOutAt: approved.out ?? undefined });
     },
     onSuccess: onSaved,
     onError: (e) => toast(apiErrorMessage(e), "error"),
   });
 
+  const options: { key: ApproveMode; label: string; available: boolean; range: string; hours: string }[] = [
+    { key: "employee", label: "Employee entered time", available: true, range: rangeLabel(employeeIn, employeeOut), hours: hoursLabel(employeeIn, employeeOut) },
+    { key: "scheduled", label: "Scheduled shift time", available: hasSchedule, range: hasSchedule ? rangeLabel(schedIn, schedOut) : "No scheduled shift", hours: hasSchedule ? hoursLabel(schedIn, schedOut) : "—" },
+    { key: "rounded", label: "Rounded time (30 min)", available: true, range: rangeLabel(roundedIn, roundedOut), hours: hoursLabel(roundedIn, roundedOut) },
+    { key: "custom", label: "Custom manager adjustment", available: true, range: customInIso ? rangeLabel(customInIso, customOutIso) : "Choose the times", hours: customInIso ? hoursLabel(customInIso, customOutIso) : "—" },
+  ];
+
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4">
       <div className="card max-h-[90vh] w-full max-w-md overflow-y-auto p-5">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">Adjust times</h2>
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Approve time</h2>
+            <p className="text-sm text-slate-500">{row.userName} · {row.shiftName ?? "Not rostered"}</p>
+          </div>
           <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
         </div>
-        <p className="mb-3 text-sm text-slate-500">{row.userName} · {row.shiftName}</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="label">Check in</label>
-            <input type="time" className="input" value={inT} onChange={(e) => setInT(e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Check out</label>
-            <input type="time" className="input" value={outT} onChange={(e) => setOutT(e.target.value)} />
-          </div>
+        <p className="mb-3 text-sm text-slate-500">Employee entered {rangeLabel(employeeIn, employeeOut)} · {hoursLabel(employeeIn, employeeOut)}</p>
+
+        <div className="space-y-2">
+          {options.map((opt) => {
+            const active = mode === opt.key;
+            return (
+              <button
+                key={opt.key}
+                type="button"
+                disabled={!opt.available || saveM.isPending}
+                onClick={() => opt.available && setMode(opt.key)}
+                className={clsx(
+                  "flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition",
+                  active ? "border-brand-500 bg-brand-50" : "border-slate-200 hover:bg-slate-50",
+                  !opt.available && "cursor-not-allowed opacity-50",
+                )}
+              >
+                <span className={clsx("flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2", active ? "border-brand-600" : "border-slate-300")}>
+                  {active ? <span className="h-2.5 w-2.5 rounded-full bg-brand-600" /> : null}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium text-slate-800">{opt.label}</span>
+                  <span className="block truncate text-sm text-slate-500">{opt.range}</span>
+                </span>
+                <span className={clsx("shrink-0 text-xl font-semibold tabular-nums", active ? "text-brand-700" : "text-slate-800")}>{opt.hours}</span>
+              </button>
+            );
+          })}
         </div>
-        <p className="mt-2 text-xs text-slate-400">Saving approves the entry with the adjusted times.</p>
+
+        {mode === "custom" ? (
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">In time</label>
+              <input type="time" className="input" value={customIn} onChange={(e) => setCustomIn(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Out time</label>
+              <input type="time" className="input" value={customOut} onChange={(e) => setCustomOut(e.target.value)} />
+            </div>
+          </div>
+        ) : null}
+
+        <div className="mt-4 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+          <span className="font-medium text-slate-800">Approved: {rangeLabel(approved.in, approved.out)} · {hoursLabel(approved.in, approved.out)}</span>
+        </div>
+
         <div className="mt-4 flex justify-end gap-2">
-          <button className="btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" disabled={!inT || outT === inT || saveM.isPending} onClick={() => saveM.mutate()}>
-            {saveM.isPending ? "Saving…" : "Save & approve"}
+          <button className="btn-ghost" onClick={onClose} disabled={saveM.isPending}>Cancel</button>
+          <button className="btn-primary bg-emerald-600 hover:bg-emerald-700" disabled={customInvalid || saveM.isPending} onClick={() => saveM.mutate()}>
+            <Check className="h-4 w-4" /> {saveM.isPending ? "Approving…" : "Approve"}
           </button>
         </div>
       </div>

@@ -3891,14 +3891,201 @@ export function RotaTimesheetScreen() {
 // ---------------------------------------------------------------------------
 // Manual time approvals (manager)
 // ---------------------------------------------------------------------------
+
+// 30-minute rounding rule. In-time rounds to the nearest :00/:30 and rounds DOWN on an exact :15 tie;
+// Out-time rounds to the nearest :00/:30 and rounds UP on the tie. Operates on the displayed local time.
+function roundToHalfHour(iso: string, mode: "in" | "out"): string {
+  const d = new Date(iso);
+  const mins = d.getMinutes();
+  const lower = Math.floor(mins / 30) * 30; // 0 or 30
+  const mid = lower + 15;
+  let rounded: number;
+  if (mins < mid) rounded = lower;
+  else if (mins > mid) rounded = lower + 30;
+  else rounded = mode === "in" ? lower : lower + 30; // exact midpoint
+  const out = new Date(d);
+  out.setMinutes(rounded, 0, 0); // 60 carries to the next hour
+  return out.toISOString();
+}
+
+type ApproveMode = "employee" | "scheduled" | "rounded" | "custom";
+
+// One pending manual entry with the 4 approval options. The manager reviews the employee-entered time
+// and picks the final payable time — the system only SUGGESTS (never forces to a fixed length).
+function PendingApprovalCard({ row, disabled, onDone }: { row: AttendanceApprovalRow; disabled: boolean; onDone: () => void }) {
+  const employeeIn = row.checkInAt;
+  const employeeOut = row.checkOutAt ?? null;
+  const hasSchedule = Boolean(row.shiftStart && row.shiftDate);
+  const schedIn = hasSchedule ? toIso(row.shiftDate as string, shortTime(row.shiftStart as string)) : null;
+  const schedOut = hasSchedule && row.shiftEnd ? toIso((row.shiftEndDate ?? row.shiftDate) as string, shortTime(row.shiftEnd)) : null;
+  const roundedIn = roundToHalfHour(employeeIn, "in");
+  const roundedOut = employeeOut ? roundToHalfHour(employeeOut, "out") : null;
+
+  const [mode, setMode] = useState<ApproveMode>("employee");
+  const [customIn, setCustomIn] = useState(() => toHHmm(employeeIn));
+  const [customOut, setCustomOut] = useState(() => (employeeOut ? toHHmm(employeeOut) : row.shiftEnd ? shortTime(row.shiftEnd) : ""));
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const approved = useMemo<{ inIso: string; outIso: string | null }>(() => {
+    switch (mode) {
+      case "scheduled":
+        return { inIso: schedIn ?? employeeIn, outIso: schedOut };
+      case "rounded":
+        return { inIso: roundedIn, outIso: roundedOut };
+      case "custom": {
+        const base = row.shiftDate ?? formatDateValue(new Date(employeeIn));
+        const iso = sessionIsos(base, customIn, customOut);
+        return { inIso: iso.checkInAt, outIso: customOut ? iso.checkOutAt : null };
+      }
+      default:
+        return { inIso: employeeIn, outIso: employeeOut };
+    }
+  }, [mode, customIn, customOut, schedIn, schedOut, roundedIn, roundedOut, employeeIn, employeeOut, row.shiftDate]);
+
+  const approveMutation = useMutation({
+    mutationFn: () => {
+      // Option 1 approves the employee's exact times as-is; the others save the chosen payable time
+      // into CheckInAt/CheckOutAt (the original stays in SubmittedCheckIn/OutAt on the server for audit).
+      if (mode === "employee") return approveAttendance(row.id);
+      return updateAttendance(row.id, { checkInAt: approved.inIso, checkOutAt: approved.outIso ?? undefined });
+    },
+    onSuccess: () => { toastSuccess("Time approved."); setPickerOpen(false); onDone(); },
+    onError: (e: any) => toastError(getApiErrorMessage(e, "Couldn't approve.")),
+  });
+  const rejectMutation = useMutation({
+    mutationFn: () => rejectAttendance(row.id),
+    onSuccess: onDone,
+    onError: (e: any) => toastError(getApiErrorMessage(e, "Couldn't reject.")),
+  });
+  const onReject = async () => {
+    const ok = await confirmDestructive({
+      title: "Reject entry",
+      message: `Discard ${row.userName}'s entered times for ${row.shiftName ?? "this shift"}? They can re-enter them.`,
+    });
+    if (ok) rejectMutation.mutate();
+  };
+
+  const busy = approveMutation.isPending || rejectMutation.isPending || disabled;
+  const hoursLabel = (inIso: string, outIso: string | null) => (outIso ? workedLabel(inIso, outIso) : "—");
+  const rangeLabel = (inIso: string | null, outIso: string | null) =>
+    inIso ? `${clockTime(inIso)} → ${outIso ? clockTime(outIso) : "—"}` : "—";
+  const customInvalid = mode === "custom" && (!customIn || customOut === customIn);
+
+  const customBase = row.shiftDate ?? formatDateValue(new Date(employeeIn));
+  const customInIso = customIn ? toIso(customBase, customIn) : null;
+  const customOutIso = customIn && customOut && customOut !== customIn ? sessionIsos(customBase, customIn, customOut).checkOutAt : null;
+
+  const options: { key: ApproveMode; label: string; available: boolean; range: string; hours: string }[] = [
+    { key: "employee", label: "Employee entered time", available: true, range: rangeLabel(employeeIn, employeeOut), hours: hoursLabel(employeeIn, employeeOut) },
+    { key: "scheduled", label: "Scheduled shift time", available: hasSchedule, range: hasSchedule ? rangeLabel(schedIn, schedOut) : "No scheduled shift", hours: hasSchedule ? hoursLabel(schedIn as string, schedOut) : "—" },
+    { key: "rounded", label: "Rounded time (30 min)", available: true, range: rangeLabel(roundedIn, roundedOut), hours: hoursLabel(roundedIn, roundedOut) },
+    { key: "custom", label: "Custom manager adjustment", available: true, range: customInIso ? rangeLabel(customInIso, customOutIso) : "Choose the times", hours: customInIso ? hoursLabel(customInIso, customOutIso) : "—" },
+  ];
+
+  return (
+    <View style={[ui.card, styles.approvalCard]}>
+      <View style={styles.approvalRow}>
+        <View style={[styles.userAvatar, styles.userAvatarOn]}><Text style={styles.userAvatarText}>{initials(row.userName)}</Text></View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.userName} numberOfLines={1}>{row.userName}</Text>
+          <Text style={styles.muted} numberOfLines={1}>{row.shiftName ? `${row.shiftName} · ` : ""}{row.shiftDate ? dayLabel(row.shiftDate) : "Not rostered"}</Text>
+        </View>
+        <Text style={styles.manualPill}>Manual</Text>
+      </View>
+
+      {/* Original employee entry (kept for audit) + scheduled reference */}
+      <View style={styles.detailGrid}>
+        <View style={styles.detailCol}><Text style={styles.detailLabel}>Employee entered</Text><Text style={styles.detailValue}>{rangeLabel(employeeIn, employeeOut)}</Text></View>
+        <View style={styles.detailCol}><Text style={styles.detailLabel}>Scheduled</Text><Text style={styles.detailValue}>{hasSchedule ? timeRange(row.shiftStart as string, row.shiftEnd) : "—"}</Text></View>
+        <View style={styles.detailCol}><Text style={styles.detailLabel}>Entered hours</Text><Text style={styles.detailValue}>{hoursLabel(employeeIn, employeeOut)}</Text></View>
+      </View>
+
+      {row.notes ? <Text style={styles.noteQuote} numberOfLines={3}>“{row.notes}”</Text> : null}
+      <Text style={styles.submittedLine}>Submitted {dateTimeLabel(row.submittedOn)}</Text>
+
+      <View style={styles.approvalActions}>
+        <Pressable style={styles.rejectBtn} onPress={onReject} disabled={busy}>
+          <Ionicons name="close" size={16} color={appTheme.colors.danger} />
+          <Text style={styles.rejectBtnText}>Reject</Text>
+        </Pressable>
+        <Pressable style={styles.approveBtnFlex} onPress={() => setPickerOpen(true)} disabled={busy}>
+          <Ionicons name="checkmark" size={16} color={appTheme.colors.onPrimary} />
+          <Text style={styles.actBtnText}>Approve</Text>
+        </Pressable>
+      </View>
+
+      {/* Time-adjustment popup: pick the payable time before approving. */}
+      <Modal visible={pickerOpen} transparent animationType="fade" onRequestClose={() => setPickerOpen(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+          <View style={styles.sheetBackdrop}>
+            <ScrollView contentContainerStyle={styles.recScroll} keyboardShouldPersistTaps="handled">
+              <View style={styles.sheetCard}>
+                <View style={styles.sheetHeader}>
+                  <View style={styles.sheetIcon}><Ionicons name="time-outline" size={22} color={appTheme.colors.primary} /></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.modalTitleSm}>Approve time</Text>
+                    <Text style={styles.muted} numberOfLines={1}>{row.userName} · {row.shiftName || "Shift"}</Text>
+                  </View>
+                </View>
+                <Text style={styles.mutedSmall}>Employee entered {rangeLabel(employeeIn, employeeOut)} · {hoursLabel(employeeIn, employeeOut)}</Text>
+
+                {options.map((opt) => {
+                  const active = mode === opt.key;
+                  return (
+                    <Pressable
+                      key={opt.key}
+                      onPress={() => opt.available && setMode(opt.key)}
+                      disabled={!opt.available || approveMutation.isPending}
+                      style={[styles.approvalOptionRow, active ? styles.approvalOptionRowActive : null, !opt.available ? styles.approvalOptionRowDisabled : null]}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: active, disabled: !opt.available }}
+                    >
+                      <View style={active ? styles.radioOn : styles.radioOff}>{active ? <View style={styles.radioDot} /> : null}</View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.approvalOptionLabel}>{opt.label}</Text>
+                        <Text style={styles.approvalOptionSub} numberOfLines={1}>{opt.range}</Text>
+                      </View>
+                      <Text style={[styles.approvalOptionHours, active ? styles.approvalOptionHoursActive : null]}>{opt.hours}</Text>
+                    </Pressable>
+                  );
+                })}
+
+                {mode === "custom" ? (
+                  <View style={styles.row}>
+                    <View style={{ flex: 1 }}><Text style={styles.fieldLabel}>In time</Text><DateTimeField mode="time" value={customIn} onChange={setCustomIn} /></View>
+                    <View style={{ flex: 1 }}><Text style={styles.fieldLabel}>Out time</Text><DateTimeField mode="time" value={customOut} onChange={setCustomOut} /></View>
+                  </View>
+                ) : null}
+
+                <View style={styles.approvedSummary}>
+                  <Ionicons name="checkmark-circle-outline" size={16} color={appTheme.colors.success} />
+                  <Text style={styles.approvedSummaryText}>
+                    Approved: {rangeLabel(approved.inIso, approved.outIso)}  ·  {hoursLabel(approved.inIso, approved.outIso)}
+                  </Text>
+                </View>
+
+                <View style={styles.approvalActions}>
+                  <Pressable style={styles.rejectBtn} onPress={() => setPickerOpen(false)} disabled={approveMutation.isPending}>
+                    <Text style={styles.rejectBtnText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable style={styles.approveBtnFlex} onPress={() => approveMutation.mutate()} disabled={approveMutation.isPending || customInvalid}>
+                    <Ionicons name="checkmark" size={16} color={appTheme.colors.onPrimary} />
+                    <Text style={styles.actBtnText}>{approveMutation.isPending ? "Approving…" : "Approve"}</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </View>
+  );
+}
+
 export function RotaApprovalsScreen() {
   const { activeShopId } = useAuth();
   const shopId = activeShopId;
   const queryClient = useQueryClient();
-  const [editing, setEditing] = useState<AttendanceApprovalRow | null>(null);
-  const [editIn, setEditIn] = useState("09:00");
-  const [editOut, setEditOut] = useState("17:00");
-
   const pendingQuery = useQuery({
     queryKey: ["rota-pending", shopId],
     queryFn: () => getPendingApprovals(shopId as string),
@@ -3908,43 +4095,6 @@ export function RotaApprovalsScreen() {
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ["rota-pending", shopId] });
     void queryClient.invalidateQueries({ queryKey: ["rota-timesheet", shopId] });
-  };
-
-  const approveMutation = useMutation({
-    mutationFn: (id: string) => approveAttendance(id),
-    onSuccess: refresh,
-    onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't approve."),
-  });
-  const rejectMutation = useMutation({
-    mutationFn: (id: string) => rejectAttendance(id),
-    onSuccess: refresh,
-    onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't reject."),
-  });
-  const adjustMutation = useMutation({
-    mutationFn: () => {
-      const dateStr = editing!.shiftDate ?? formatDateValue(new Date(editing!.checkInAt));
-      const { checkInAt, checkOutAt } = sessionIsos(dateStr, editIn, editOut);
-      return updateAttendance(editing!.id, {
-        checkInAt,
-        checkOutAt: editOut ? checkOutAt : undefined,
-      });
-    },
-    onSuccess: () => { setEditing(null); refresh(); },
-    onError: (error: any) => toastError(error?.response?.data?.message ?? "Couldn't save times."),
-  });
-
-  const openAdjust = (p: AttendanceApprovalRow) => {
-    setEditIn(toHHmm(p.checkInAt));
-    setEditOut(p.checkOutAt ? toHHmm(p.checkOutAt) : p.shiftEnd ? shortTime(p.shiftEnd) : "");
-    setEditing(p);
-  };
-
-  const confirmReject = async (p: AttendanceApprovalRow) => {
-    const ok = await confirmDestructive({
-      title: "Reject entry",
-      message: `Discard ${p.userName}'s manually entered times for ${p.shiftName ?? "this shift"}? They can re-enter them.`,
-    });
-    if (ok) rejectMutation.mutate(p.id);
   };
 
   const pending = pendingQuery.data ?? [];
@@ -3988,7 +4138,7 @@ export function RotaApprovalsScreen() {
     refresh();
   };
 
-  const anyBusy = approvingAll || approveMutation.isPending || rejectMutation.isPending;
+  const anyBusy = approvingAll;
 
   return (
     <ScreenContainer
@@ -4030,128 +4180,10 @@ export function RotaApprovalsScreen() {
           </View>
         ) : null}
 
-        {pending.map((p) => {
-          const vIn = p.shiftStart && p.shiftDate ? variance(p.checkInAt, p.shiftDate, p.shiftStart, "in") : null;
-          const vOut = p.shiftEnd && p.checkOutAt && (p.shiftEndDate ?? p.shiftDate)
-            ? variance(p.checkOutAt, (p.shiftEndDate ?? p.shiftDate) as string, p.shiftEnd, "out")
-            : null;
-          return (
-            <View key={p.id} style={[ui.card, styles.approvalCard]}>
-              {/* Who + when */}
-              <View style={styles.approvalRow}>
-                <View style={[styles.userAvatar, styles.userAvatarOn]}>
-                  <Text style={styles.userAvatarText}>{initials(p.userName)}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.userName} numberOfLines={1}>{p.userName}</Text>
-                  <Text style={styles.muted} numberOfLines={1}>
-                    {p.shiftName ? `${p.shiftName} · ` : ""}{p.shiftDate ? dayLabel(p.shiftDate) : "Not rostered"}
-                  </Text>
-                </View>
-                <Text style={styles.manualPill}>Manual</Text>
-              </View>
-
-              {/* Scheduled vs entered */}
-              <View style={styles.detailGrid}>
-                <View style={styles.detailCol}>
-                  <Text style={styles.detailLabel}>Scheduled</Text>
-                  <Text style={styles.detailValue}>
-                    {p.shiftStart ? timeRange(p.shiftStart, p.shiftEnd) : "—"}
-                  </Text>
-                </View>
-                <View style={styles.detailCol}>
-                  <Text style={styles.detailLabel}>Entered</Text>
-                  <Text style={styles.detailValue}>
-                    {clockTime(p.checkInAt)} → {p.checkOutAt ? clockTime(p.checkOutAt) : "—"}
-                  </Text>
-                </View>
-                <View style={styles.detailCol}>
-                  <Text style={styles.detailLabel}>Worked</Text>
-                  <Text style={styles.detailValue}>{p.checkOutAt ? workedLabel(p.checkInAt, p.checkOutAt) : "—"}</Text>
-                </View>
-              </View>
-
-              {/* Variance vs schedule */}
-              {(vIn && vIn.tone !== "on") || (vOut && vOut.tone !== "on") ? (
-                <Text style={styles.varianceLine}>
-                  {vIn && vIn.tone !== "on" ? <Text style={vTextStyle(vIn.tone)}>in {vIn.text}</Text> : null}
-                  {vIn && vIn.tone !== "on" && vOut && vOut.tone !== "on" ? "   " : ""}
-                  {vOut && vOut.tone !== "on" ? <Text style={vTextStyle(vOut.tone)}>{vOut.text}</Text> : null}
-                </Text>
-              ) : p.checkOutAt ? (
-                <Text style={[styles.varianceLine, vTextStyle("good")]}>On schedule</Text>
-              ) : (
-                <Text style={[styles.varianceLine, vTextStyle("bad")]}>No check-out entered</Text>
-              )}
-
-              {p.notes ? <Text style={styles.noteQuote} numberOfLines={3}>“{p.notes}”</Text> : null}
-              <Text style={styles.submittedLine}>Submitted {dateTimeLabel(p.submittedOn)}</Text>
-
-              <View style={styles.approvalActions}>
-                <Pressable style={styles.rejectBtn} onPress={() => confirmReject(p)} disabled={anyBusy}>
-                  <Ionicons name="close" size={16} color={appTheme.colors.danger} />
-                  <Text style={styles.rejectBtnText}>Reject</Text>
-                </Pressable>
-                <Pressable style={styles.adjustBtn} onPress={() => openAdjust(p)} disabled={anyBusy}>
-                  <Ionicons name="create-outline" size={16} color={appTheme.colors.primary} />
-                  <Text style={styles.adjustBtnText}>Adjust</Text>
-                </Pressable>
-                <Pressable style={styles.approveBtnFlex} onPress={() => approveMutation.mutate(p.id)} disabled={anyBusy}>
-                  <Ionicons name="checkmark" size={16} color={appTheme.colors.onPrimary} />
-                  <Text style={styles.actBtnText}>{approveMutation.isPending || approvingAll ? "Approving…" : "Approve"}</Text>
-                </Pressable>
-              </View>
-            </View>
-          );
-        })}
+        {pending.map((p) => (
+          <PendingApprovalCard key={p.id} row={p} disabled={anyBusy} onDone={refresh} />
+        ))}
       </View>
-
-      {/* Adjust times before approving */}
-      <Modal visible={editing !== null} transparent animationType="fade" onRequestClose={() => setEditing(null)}>
-        <View style={styles.sheetBackdrop} onStartShouldSetResponder={dismissKeyboardOnTap}>
-          <View style={styles.sheetCard}>
-            <View style={styles.sheetHeader}>
-              <View style={styles.sheetIcon}>
-                <Ionicons name="create-outline" size={22} color={appTheme.colors.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.modalTitleSm}>Adjust times</Text>
-                <Text style={styles.muted} numberOfLines={1}>
-                  {editing?.userName} · {editing?.shiftName || "Shift"}
-                </Text>
-              </View>
-            </View>
-            {editing?.shiftStart ? (
-              <Text style={styles.mutedSmall}>Scheduled {timeRange(editing.shiftStart, editing.shiftEnd)}</Text>
-            ) : null}
-            <View style={styles.row}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.fieldLabel}>Check in</Text>
-                <DateTimeField mode="time" value={editIn} onChange={setEditIn} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.fieldLabel}>Check out</Text>
-                <DateTimeField mode="time" value={editOut} onChange={setEditOut} />
-              </View>
-            </View>
-            {editIn && editOut && isOvernight(editIn, editOut) && editOut !== editIn ? (
-              <Text style={styles.mutedSmall}>Overnight — check-out is on the next day.</Text>
-            ) : editIn && editOut === editIn ? (
-              <Text style={[styles.mutedSmall, { color: appTheme.colors.danger }]}>Check-in and check-out can’t be the same.</Text>
-            ) : null}
-            <View style={styles.noticeRow}>
-              <Ionicons name="information-circle-outline" size={15} color={appTheme.colors.textMuted} />
-              <Text style={styles.mutedSmall}>Saving approves this entry with the adjusted times.</Text>
-            </View>
-            <PrimaryButton
-              label={adjustMutation.isPending ? "Saving…" : "Save & approve"}
-              onPress={() => adjustMutation.mutate()}
-              disabled={adjustMutation.isPending || !editIn || editOut === editIn}
-            />
-            <PrimaryButton label="Cancel" tone="neutral" onPress={() => setEditing(null)} disabled={adjustMutation.isPending} />
-          </View>
-        </View>
-      </Modal>
     </ScreenContainer>
   );
 }
@@ -4640,6 +4672,69 @@ const styles = StyleSheet.create({
   },
   recTimeRow: { flexDirection: "row", gap: appTheme.spacing.sm },
   recActions: { gap: appTheme.spacing.xs, marginTop: appTheme.spacing.xs },
+  approvalSectionLabel: {
+    color: appTheme.colors.textMuted,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    marginTop: appTheme.spacing.xs,
+  },
+  approvalOptionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.sm,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: 10,
+  },
+  approvalOptionRowActive: {
+    borderColor: appTheme.colors.primary,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+  },
+  approvalOptionRowDisabled: { opacity: 0.5 },
+  radioOff: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: appTheme.colors.border,
+  },
+  radioOn: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: appTheme.colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: appTheme.colors.primary },
+  approvalOptionLabel: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14, lineHeight: 18 },
+  approvalOptionSub: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 13, lineHeight: 17 },
+  approvalOptionHours: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.heading,
+    fontSize: 20,
+    lineHeight: 24,
+    textAlign: "right",
+    minWidth: 64,
+  },
+  approvalOptionHoursActive: { color: appTheme.colors.primary },
+  approvedSummary: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: appTheme.spacing.xs,
+    paddingVertical: 8,
+    paddingHorizontal: appTheme.spacing.sm,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceSuccessSoft,
+  },
+  approvedSummaryText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13, lineHeight: 17, flex: 1 },
   actionsRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   actBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 11, borderRadius: appTheme.radius.md, backgroundColor: appTheme.colors.primary },
   actBtnOut: { backgroundColor: appTheme.colors.danger },
