@@ -334,16 +334,30 @@ function RecordHoursModal({
   shopId,
   onClose,
   onSaved,
+  seedShift,
 }: {
   visible: boolean;
   shopId: string;
   onClose: () => void;
   onSaved: () => void;
+  // When opened from a specific shift card, pre-select that shift + its date and pre-fill the times.
+  seedShift?: RotaShift;
 }) {
   const [date, setDate] = useState(() => formatDateValue(new Date()));
   const [fromTime, setFromTime] = useState("09:00");
   const [toTime, setToTime] = useState("17:00");
   const [selectedShiftId, setSelectedShiftId] = useState<string | null>(null);
+
+  // Seed from the shift the modal was opened for (if any) each time it opens.
+  useEffect(() => {
+    if (!visible || !seedShift) return;
+    setDate(seedShift.shiftDate);
+    setSelectedShiftId(seedShift.id);
+    const att = seedShift.myAttendance;
+    setFromTime(att?.checkInAt ? toHHmm(att.checkInAt) : shortTime(seedShift.startTime));
+    setToTime(att?.checkOutAt ? toHHmm(att.checkOutAt) : shortTime(seedShift.endTime));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, seedShift?.id]);
 
   // Shifts scheduled for the chosen date, so the hours can be linked to one and any existing record shown.
   const shiftsQuery = useQuery({
@@ -425,65 +439,86 @@ function RecordHoursModal({
           <ScrollView contentContainerStyle={styles.recScroll} keyboardShouldPersistTaps="handled">
             <View style={styles.recCard}>
               <Text style={styles.recTitle}>Record hours</Text>
-              <Text style={styles.muted}>Log hours you worked, even if you weren't on the rota. A manager approves it before it counts.</Text>
+              <Text style={styles.muted}>
+                {seedShift
+                  ? "Record your worked hours for this shift. A manager approves it before it counts."
+                  : "Log hours you worked, even if you weren't on the rota. A manager approves it before it counts."}
+              </Text>
 
-              <Text style={styles.fieldLabel}>Date</Text>
-              <View style={styles.recDateRow}>
-                <Pressable
-                  style={({ pressed }) => [styles.recDateNav, pressed ? styles.recordHoursBtnPressed : null]}
-                  onPress={() => changeDate(-1)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Previous day"
-                >
-                  <Ionicons name="chevron-back" size={18} color={appTheme.colors.text} />
-                </Pressable>
-                <View style={{ flex: 1 }}>
-                  <DateTimeField mode="date" value={date} onChange={(v) => { setDate(v); setSelectedShiftId(null); }} />
-                </View>
-                <Pressable
-                  style={({ pressed }) => [styles.recDateNav, pressed ? styles.recordHoursBtnPressed : null]}
-                  onPress={() => changeDate(1)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Next day"
-                >
-                  <Ionicons name="chevron-forward" size={18} color={appTheme.colors.text} />
-                </Pressable>
-              </View>
-
-              {shifts.length > 0 ? (
+              {seedShift ? (
                 <>
-                  <Text style={styles.fieldLabel}>Shift on this day</Text>
-                  <View style={styles.recShiftWrap}>
-                    <Pressable
-                      onPress={() => setSelectedShiftId(null)}
-                      style={[styles.recShiftChip, selectedShiftId === null ? styles.recShiftChipActive : null]}
-                    >
-                      <Text style={[styles.recShiftChipText, selectedShiftId === null ? styles.recShiftChipTextActive : null]}>No shift (unscheduled)</Text>
-                    </Pressable>
-                    {shifts.map((s) => {
-                      const active = s.id === selectedShiftId;
-                      const hasRecord = Boolean(s.myAttendance?.checkInAt);
-                      return (
-                        <Pressable key={s.id} onPress={() => setSelectedShiftId(s.id)} style={[styles.recShiftChip, active ? styles.recShiftChipActive : null]}>
-                          <Text style={[styles.recShiftChipText, active ? styles.recShiftChipTextActive : null]}>
-                            {(s.shiftName || "Shift")} · {shortTime(s.startTime)}–{shortTime(s.endTime)}
-                          </Text>
-                          {hasRecord ? (
-                            <Text style={[styles.recShiftChipSub, active ? styles.recShiftChipTextActive : null]}>
-                              Recorded {clockTime(s.myAttendance!.checkInAt)}{s.myAttendance!.checkOutAt ? `–${clockTime(s.myAttendance!.checkOutAt)}` : ""}
-                            </Text>
-                          ) : null}
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                  {selectedShift?.myAttendance?.checkInAt ? (
+                  {/* Opened from a shift card: date + shift are fixed (read-only); only the times are editable. */}
+                  <Text style={styles.fieldLabel}>Date</Text>
+                  <Text style={styles.recReadonlyValue}>{dayLabel(date)}</Text>
+                  <Text style={styles.fieldLabel}>Shift</Text>
+                  <Text style={styles.recReadonlyValue}>
+                    {(seedShift.shiftName || "Shift")} · {shortTime(seedShift.startTime)}–{shortTime(seedShift.endTime)}
+                  </Text>
+                  {seedShift.myAttendance?.checkInAt ? (
                     <Text style={styles.mutedSmall}>This shift already has a record — saving updates it.</Text>
                   ) : null}
                 </>
-              ) : shiftsQuery.isLoading ? (
-                <Text style={styles.mutedSmall}>Checking your rota…</Text>
-              ) : null}
+              ) : (
+                <>
+                  <Text style={styles.fieldLabel}>Date</Text>
+                  <View style={styles.recDateRow}>
+                    <Pressable
+                      style={({ pressed }) => [styles.recDateNav, pressed ? styles.recordHoursBtnPressed : null]}
+                      onPress={() => changeDate(-1)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Previous day"
+                    >
+                      <Ionicons name="chevron-back" size={18} color={appTheme.colors.text} />
+                    </Pressable>
+                    <View style={{ flex: 1 }}>
+                      <DateTimeField mode="date" value={date} onChange={(v) => { setDate(v); setSelectedShiftId(null); }} />
+                    </View>
+                    <Pressable
+                      style={({ pressed }) => [styles.recDateNav, pressed ? styles.recordHoursBtnPressed : null]}
+                      onPress={() => changeDate(1)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Next day"
+                    >
+                      <Ionicons name="chevron-forward" size={18} color={appTheme.colors.text} />
+                    </Pressable>
+                  </View>
+
+                  {shifts.length > 0 ? (
+                    <>
+                      <Text style={styles.fieldLabel}>Shift on this day</Text>
+                      <View style={styles.recShiftWrap}>
+                        <Pressable
+                          onPress={() => setSelectedShiftId(null)}
+                          style={[styles.recShiftChip, selectedShiftId === null ? styles.recShiftChipActive : null]}
+                        >
+                          <Text style={[styles.recShiftChipText, selectedShiftId === null ? styles.recShiftChipTextActive : null]}>No shift (unscheduled)</Text>
+                        </Pressable>
+                        {shifts.map((s) => {
+                          const active = s.id === selectedShiftId;
+                          const hasRecord = Boolean(s.myAttendance?.checkInAt);
+                          return (
+                            <Pressable key={s.id} onPress={() => setSelectedShiftId(s.id)} style={[styles.recShiftChip, active ? styles.recShiftChipActive : null]}>
+                              <Text style={[styles.recShiftChipText, active ? styles.recShiftChipTextActive : null]}>
+                                {(s.shiftName || "Shift")} · {shortTime(s.startTime)}–{shortTime(s.endTime)}
+                              </Text>
+                              {hasRecord ? (
+                                <Text style={[styles.recShiftChipSub, active ? styles.recShiftChipTextActive : null]}>
+                                  Recorded {clockTime(s.myAttendance!.checkInAt)}{s.myAttendance!.checkOutAt ? `–${clockTime(s.myAttendance!.checkOutAt)}` : ""}
+                                </Text>
+                              ) : null}
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                      {selectedShift?.myAttendance?.checkInAt ? (
+                        <Text style={styles.mutedSmall}>This shift already has a record — saving updates it.</Text>
+                      ) : null}
+                    </>
+                  ) : shiftsQuery.isLoading ? (
+                    <Text style={styles.mutedSmall}>Checking your rota…</Text>
+                  ) : null}
+                </>
+              )}
 
               <View style={styles.recTimeRow}>
                 <View style={{ flex: 1 }}>
@@ -522,6 +557,11 @@ export function MyShiftsScreen() {
   const [range, setRange] = useState(() => next7());
   const { from, to } = range;
   const [recordHoursOpen, setRecordHoursOpen] = useState(false);
+  const [recordSeed, setRecordSeed] = useState<RotaShift | null>(null);
+  const openRecordHours = (shift?: RotaShift) => {
+    setRecordSeed(shift ?? null);
+    setRecordHoursOpen(true);
+  };
 
   const attendanceQuery = useQuery({
     queryKey: ["rota-attendance", shopId],
@@ -614,6 +654,16 @@ export function MyShiftsScreen() {
 
         {/* Primary daily action stays on the row; edit/manual + full breakdown live on the detail screen. */}
         <View style={styles.actionsRow}>
+          <Pressable
+            style={({ pressed }) => [styles.recordHoursShiftBtn, pressed ? styles.recordHoursBtnPressed : null]}
+            onPress={() => openRecordHours(shift)}
+            disabled={busy}
+            accessibilityRole="button"
+            accessibilityLabel={`Record hours for ${shift.shiftName || "this shift"}`}
+          >
+            <Ionicons name="create-outline" size={15} color={appTheme.colors.primary} />
+            <Text style={styles.recordHoursShiftText}>Record hours</Text>
+          </Pressable>
           {open ? (
             <Pressable style={({ pressed }) => [styles.actBtn, styles.actBtnOut, pressed && styles.actBtnPressed]} onPress={() => checkOutMutation.mutate()} disabled={busy}>
               <Ionicons name="log-out-outline" size={16} color={appTheme.colors.onPrimary} />
@@ -689,7 +739,7 @@ export function MyShiftsScreen() {
 
         <Pressable
           style={({ pressed }) => [styles.recordHoursBtn, pressed ? styles.recordHoursBtnPressed : null]}
-          onPress={() => setRecordHoursOpen(true)}
+          onPress={() => openRecordHours()}
           accessibilityRole="button"
           accessibilityLabel="Record hours you worked"
         >
@@ -735,6 +785,7 @@ export function MyShiftsScreen() {
       <RecordHoursModal
         visible={recordHoursOpen}
         shopId={shopId as string}
+        seedShift={recordSeed ?? undefined}
         onClose={() => setRecordHoursOpen(false)}
         onSaved={refresh}
       />
@@ -4629,6 +4680,19 @@ const styles = StyleSheet.create({
   },
   recordHoursBtnPressed: { opacity: 0.7 },
   recordHoursBtnText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 14 },
+  recordHoursShiftBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderWidth: 1,
+    borderColor: appTheme.colors.primary,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.surface,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginRight: "auto",
+  },
+  recordHoursShiftText: { color: appTheme.colors.primary, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   recBackdrop: {
     flex: 1,
     backgroundColor: appTheme.colors.overlay,
@@ -4659,6 +4723,18 @@ const styles = StyleSheet.create({
   recShiftChipText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   recShiftChipTextActive: { color: appTheme.colors.primary },
   recShiftChipSub: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12 },
+  recReadonlyValue: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surfaceMuted,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: 10,
+  },
   recDateRow: { flexDirection: "row", alignItems: "center", gap: appTheme.spacing.xs },
   recDateNav: {
     width: 40,
