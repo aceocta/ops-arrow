@@ -1302,28 +1302,8 @@ export function TemperatureLogScreen() {
         ) : null} */}
       </View>
 
-      <View style={styles.summaryRow}>
-        {/* <View style={styles.summaryCard}>
-          <Text style={styles.summaryCardLabel} numberOfLines={1}>Done</Text>
-          <Text
-            numberOfLines={1}
-            style={[
-              styles.summaryCardValue,
-              summary.total > 0 && summary.recorded === summary.total ? styles.summaryValueSuccess : null,
-            ]}
-          >
-            {summary.recorded}/{summary.total}
-          </Text>
-        </View> */}
-      </View>
-
-      {/* <Text style={styles.quickAddLabel}>Add reading to check</Text> */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.quickAddRow}
-        keyboardShouldPersistTaps="handled"
-      >
+      {/* All checks wrap onto one screen (no horizontal scroll); each chip is a single compact row. */}
+      <View style={styles.quickAddWrap}>
         {(schedulesQuery.data ?? [])
           .slice()
           .sort((a, b) => a.expectedTime.localeCompare(b.expectedTime))
@@ -1331,14 +1311,12 @@ export function TemperatureLogScreen() {
             <Pressable
               key={schedule.id}
               onPress={() => openQuickEntry(schedule.id)}
-              style={[styles.quickAddChip, styles.quickAddChipColumn]}
+              style={styles.quickAddChip}
               accessibilityRole="button"
               accessibilityLabel={`Add ${schedule.label} reading`}
             >
-              <View style={styles.quickAddChipTop}>
-                <Ionicons name="add" size={14} color={appTheme.colors.primary} />
-                <Text style={styles.quickAddChipText}>{schedule.label}</Text>
-              </View>
+              <Ionicons name="add" size={14} color={appTheme.colors.primary} />
+              <Text style={styles.quickAddChipText}>{schedule.label}</Text>
               <Text style={styles.quickAddChipTime}>{schedule.expectedTime.slice(0, 5)}</Text>
             </Pressable>
           ))}
@@ -1360,7 +1338,7 @@ export function TemperatureLogScreen() {
           <Ionicons name="settings-outline" size={14} color={appTheme.colors.textMuted} />
           <Text style={styles.quickAddManageText}>Edit</Text>
         </Pressable>
-      </ScrollView>
+      </View>
     </View>
   );
 
@@ -1647,46 +1625,21 @@ export function TemperatureLogScreen() {
               {unitScheduleOptions.length > 0 ? (
                 <View style={styles.checkPickerWrap}>
                   <View style={styles.checkPickerRow}>
-                    {unitScheduleOptions.map((option) => {
-                      const selected = selectedScheduleId === option.id;
-                      return (
-                        <Pressable
-                          key={option.id ?? "random"}
-                          onPress={() => setSelectedScheduleId(option.id)}
-                          style={[styles.checkChip, selected ? styles.checkChipSelected : null]}
-                          accessibilityRole="button"
-                          accessibilityState={{ selected }}
-                          accessibilityLabel={`${option.label} at ${option.time}`}
-                        >
-                          <Text style={[styles.checkChipTime, selected ? styles.checkChipTextSelected : null]}>
-                            {option.time}
-                          </Text>
-                          <Text
-                            style={[styles.checkChipLabel, selected ? styles.checkChipTextSelected : null]}
-                            numberOfLines={1}
-                          >
-                            {option.label}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                    <Pressable
-                      onPress={() => setSelectedScheduleId(null)}
-                      style={[styles.checkChip, selectedScheduleId === null ? styles.checkChipSelected : null]}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: selectedScheduleId === null }}
-                      accessibilityLabel="Random or extra check"
+                    {/* Show only the check this entry is logged against (auto-picked from the time
+                        window), not the full list of slots. */}
+                    <View
+                      style={[styles.checkChip, styles.checkChipSelected]}
+                      accessibilityLabel={
+                        currentCheck ? `${currentCheck.label} at ${currentCheck.time}` : "Random or extra check"
+                      }
                     >
-                      <Text style={[styles.checkChipTime, selectedScheduleId === null ? styles.checkChipTextSelected : null]}>
-                        Random
+                      <Text style={[styles.checkChipTime, styles.checkChipTextSelected]}>
+                        {currentCheck ? currentCheck.time : "Random"}
                       </Text>
-                      <Text
-                        style={[styles.checkChipLabel, selectedScheduleId === null ? styles.checkChipTextSelected : null]}
-                        numberOfLines={1}
-                      >
-                        Extra check
+                      <Text style={[styles.checkChipLabel, styles.checkChipTextSelected]} numberOfLines={1}>
+                        {currentCheck ? currentCheck.label : "Extra check"}
                       </Text>
-                    </Pressable>
+                    </View>
                   </View>
                 </View>
               ) : null}
@@ -2028,6 +1981,8 @@ const styles = StyleSheet.create({
   },
   quickEntryCard: {
     gap: appTheme.spacing.sm,
+    // Tighter top/bottom than the default card padding (spacing.lg); horizontal padding is unchanged.
+    paddingVertical: appTheme.spacing.sm,
   },
   quickEntryHeader: {
     flexDirection: "row",
@@ -2731,12 +2686,18 @@ const styles = StyleSheet.create({
     gap: appTheme.spacing.xs,
     paddingVertical: 2,
   },
+  quickAddWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: appTheme.spacing.xs,
+    paddingVertical: 2,
+  },
   quickAddChip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
     paddingHorizontal: appTheme.spacing.sm,
-    paddingVertical: 8,
+    paddingVertical: 5,
     borderRadius: appTheme.radius.pill,
     borderWidth: 1,
     borderColor: appTheme.colors.primary,
