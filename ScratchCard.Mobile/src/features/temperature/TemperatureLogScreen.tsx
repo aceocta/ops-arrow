@@ -746,21 +746,8 @@ export function TemperatureLogScreen() {
       const trimmedAction = actionTaken.trim();
       const isFail = verdict === TemperatureResult.Fail;
 
-      // §17/§26: a Warning/Fail reading requires a real corrective action (a chip or free text);
-      // "Other" needs a note. §12/§14: a Fail must answer the equipment/manager questions.
-      if (verdict !== TemperatureResult.Pass && correctiveActions.length === 0 && !trimmedAction) {
-        throw new Error("Select a corrective action for this reading.");
-      }
-      if (correctiveActionsRequireNotes(correctiveActions) && !trimmedAction) {
-        throw new Error("Add details for the 'Other' corrective action.");
-      }
-      if (isFail && equipmentWorking === null) {
-        throw new Error("Confirm whether the equipment is working.");
-      }
-      if (isFail && managerInformed === null) {
-        throw new Error("Confirm whether the manager has been informed.");
-      }
-
+      // Corrective action and the §12/§14 fail answers are OPTIONAL — captured when provided, but a
+      // Warning/Fail can be saved without them. triggerSave() confirms before an actionless save.
       return recordTemperatureReading({
         shopId,
         temperatureMonitoringUnitId: selectedUnitId,
@@ -1199,12 +1186,32 @@ export function TemperatureLogScreen() {
   };
 
   const triggerSave = (postAction: RecordPostAction) => {
-    if (postAction === "next") {
-      pendingNextUnitRef.current = nextPendingUnitId;
-    } else {
-      pendingNextUnitRef.current = null;
+    const doSave = () => {
+      if (postAction === "next") {
+        pendingNextUnitRef.current = nextPendingUnitId;
+      } else {
+        pendingNextUnitRef.current = null;
+      }
+      recordMutation.mutate(postAction);
+    };
+
+    // Corrective action is optional, but a Warning/Fail reading with none recorded gets a confirm
+    // rather than a silent save, so it's a deliberate choice.
+    const result = liveStatus?.result;
+    const hasNoAction = correctiveActions.length === 0 && !actionTaken.trim();
+    if (result && result !== TemperatureResult.Pass && hasNoAction) {
+      const isFail = result === TemperatureResult.Fail;
+      Alert.alert(
+        isFail ? "Fail with no corrective action" : "Warning with no corrective action",
+        `This reading is a ${isFail ? "FAIL" : "warning"} and no corrective action is recorded. Save it anyway?`,
+        [
+          { text: "Go back", style: "cancel" },
+          { text: "Save anyway", style: "destructive", onPress: doSave },
+        ],
+      );
+      return;
     }
-    recordMutation.mutate(postAction);
+    doSave();
   };
   const moveSelectedDate = (days: number) => {
     setSelectedDate((current) => shiftDateByDays(current, days));
@@ -1835,7 +1842,7 @@ export function TemperatureLogScreen() {
                     onPress={() => openTextEditor("action")}
                   >
                     <Text style={styles.noteActionLabel}>
-                      {correctiveActionsRequireNotes(correctiveActions) ? "Details (required for 'Other')" : "Extra detail (optional)"}
+                      {correctiveActionsRequireNotes(correctiveActions) ? "Details for 'Other'" : "Extra detail (optional)"}
                     </Text>
                     <Text style={[styles.noteActionValue, !actionTaken.trim() ? styles.noteActionPlaceholder : null]} numberOfLines={2}>
                       {actionTaken.trim() || "Tap to add detail"}

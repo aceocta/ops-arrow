@@ -445,13 +445,8 @@ public class TemperatureLogService : ITemperatureLogService
             request.TemperatureCelsius,
             new TemperatureBand(unit.MinTemperatureCelsius, unit.MaxTemperatureCelsius));
         var isOutOfRange = result != TemperatureResult.Pass;
-        if (isOutOfRange
-            && string.IsNullOrWhiteSpace(request.ActionTaken)
-            && string.IsNullOrWhiteSpace(request.Notes)
-            && string.IsNullOrWhiteSpace(request.CorrectiveActions))
-        {
-            throw new AppException(ErrorCodes.TemperatureActionRequired, "A corrective action is required for a warning or fail reading.");
-        }
+        // A corrective action for a Warning/Fail reading is OPTIONAL (captured when supplied). The mobile
+        // client confirms an actionless save so it stays a deliberate choice; the server no longer blocks it.
 
         var now = DateTimeOffset.UtcNow;
         var checkedByInitials = BuildInitials(request.CheckedByInitials, _currentUserService.FullName, _currentUserService.Email);
@@ -730,18 +725,8 @@ public class TemperatureLogService : ITemperatureLogService
             throw new AppException("temperature_no_readings", "At least one reading is required before signoff.");
         }
 
-        // A Warning/Fail reading is "actioned" if it carries a free-text action, notes, OR structured
-        // corrective-action codes — mirror the same three fields the recording path accepts, otherwise a
-        // reading saved with only structured CorrectiveActions would permanently block sign-off.
-        var hasOutOfRangeWithoutAction = readings.Any(x =>
-            x.IsOutOfRange
-            && string.IsNullOrWhiteSpace(x.ActionTaken)
-            && string.IsNullOrWhiteSpace(x.Notes)
-            && string.IsNullOrWhiteSpace(x.CorrectiveActions));
-        if (hasOutOfRangeWithoutAction)
-        {
-            throw new AppException(ErrorCodes.TemperatureActionRequired, "Out-of-range entries require action or notes before signoff.");
-        }
+        // Corrective actions are optional (see RecordReadingAsync), so sign-off no longer blocks on an
+        // out-of-range reading that has no action/notes — a manager can sign off the day regardless.
 
         var now = DateTimeOffset.UtcNow;
         var signedByUserId = _currentUserService.UserId
