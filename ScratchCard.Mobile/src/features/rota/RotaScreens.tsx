@@ -367,6 +367,13 @@ function RecordHoursModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedShiftId]);
 
+  const changeDate = (delta: number) => {
+    const d = new Date(`${date}T00:00:00`);
+    d.setDate(d.getDate() + delta);
+    setDate(formatDateValue(d));
+    setSelectedShiftId(null);
+  };
+
   const reset = () => {
     setDate(formatDateValue(new Date()));
     setFromTime("09:00");
@@ -421,7 +428,27 @@ function RecordHoursModal({
               <Text style={styles.muted}>Log hours you worked, even if you weren't on the rota. A manager approves it before it counts.</Text>
 
               <Text style={styles.fieldLabel}>Date</Text>
-              <DateTimeField mode="date" value={date} onChange={(v) => { setDate(v); setSelectedShiftId(null); }} />
+              <View style={styles.recDateRow}>
+                <Pressable
+                  style={({ pressed }) => [styles.recDateNav, pressed ? styles.recordHoursBtnPressed : null]}
+                  onPress={() => changeDate(-1)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Previous day"
+                >
+                  <Ionicons name="chevron-back" size={18} color={appTheme.colors.text} />
+                </Pressable>
+                <View style={{ flex: 1 }}>
+                  <DateTimeField mode="date" value={date} onChange={(v) => { setDate(v); setSelectedShiftId(null); }} />
+                </View>
+                <Pressable
+                  style={({ pressed }) => [styles.recDateNav, pressed ? styles.recordHoursBtnPressed : null]}
+                  onPress={() => changeDate(1)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Next day"
+                >
+                  <Ionicons name="chevron-forward" size={18} color={appTheme.colors.text} />
+                </Pressable>
+              </View>
 
               {shifts.length > 0 ? (
                 <>
@@ -1186,8 +1213,10 @@ function emptyDraft(): ShiftDraft {
 }
 
 export function RotaManageScreen() {
-  const { activeShopId, activeShop } = useAuth();
+  const { activeShopId, activeShop, profile } = useAuth();
   const shopId = activeShopId;
+  // Cashiers & sales assistants see the rota read-only (staff per day/shift); only Owner/Manager can act.
+  const canManage = (profile?.roles ?? []).some((r) => r === "CompanyOwner" || r === "Manager");
   // Weeks run from the shop's configured start-of-week day (0 = Sunday … 6 = Saturday).
   const weekStartDay = activeShop?.weekStartDay ?? DEFAULT_WEEK_START_DAY;
   const queryClient = useQueryClient();
@@ -1963,7 +1992,7 @@ export function RotaManageScreen() {
     >
       {/* Auto-generate is a bootstrap for an empty week — once the rota has shifts it's hidden so it
           can't wipe/duplicate an existing rota; the manager edits shifts directly instead. */}
-      {!rotaQuery.isLoading && weekShiftCount === 0 ? (
+      {canManage && !rotaQuery.isLoading && weekShiftCount === 0 ? (
         <PrimaryButton
           label={generateMutation.isPending ? "Generating…" : "Auto-generate this week"}
           icon="sparkles-outline"
@@ -1997,15 +2026,17 @@ export function RotaManageScreen() {
                   </View>
                 ) : null}
               </View>
-              <Pressable
-                style={({ pressed }) => [styles.dayAddBtn, pressed ? styles.dayAddBtnPressed : null]}
-                onPress={() => openAdd(date)}
-                disabled={!shopId}
-                accessibilityRole="button"
-                accessibilityLabel={`Add shift on ${weekday(date)}`}
-              >
-                <Ionicons name="add" size={18} color={appTheme.colors.primary} />
-              </Pressable>
+              {canManage ? (
+                <Pressable
+                  style={({ pressed }) => [styles.dayAddBtn, pressed ? styles.dayAddBtnPressed : null]}
+                  onPress={() => openAdd(date)}
+                  disabled={!shopId}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Add shift on ${weekday(date)}`}
+                >
+                  <Ionicons name="add" size={18} color={appTheme.colors.primary} />
+                </Pressable>
+              ) : null}
             </View>
 
             {/* Who's on approved leave this day (Leave Management feature) */}
@@ -2021,7 +2052,7 @@ export function RotaManageScreen() {
 
             {shifts.length === 0 ? (
               // While searching, a shift-less card is leave-only — skip the add prompt.
-              rotaQ ? null : (
+              rotaQ ? null : canManage ? (
                 <Pressable
                   style={({ pressed }) => [styles.dayEmptyAdd, pressed ? styles.dayEmptyAddPressed : null]}
                   onPress={() => openAdd(date)}
@@ -2032,6 +2063,8 @@ export function RotaManageScreen() {
                   <Ionicons name="add-circle-outline" size={16} color={appTheme.colors.textSubtle} />
                   <Text style={styles.dayEmptyAddText}>No shifts — tap to add</Text>
                 </Pressable>
+              ) : (
+                <Text style={styles.dayEmptyAddText}>No shifts</Text>
               )
             ) : (
               <View style={styles.rotaTable}>
@@ -2043,14 +2076,14 @@ export function RotaManageScreen() {
                       style={({ pressed }) => [
                         styles.rotaShiftBlock,
                         unstaffed ? styles.rotaShiftBlockUnstaffed : null,
-                        pressed ? styles.rotaShiftBlockPressed : null,
+                        pressed && canManage ? styles.rotaShiftBlockPressed : null,
                       ]}
-                      onPress={() => openEdit(shift)}
+                      onPress={canManage ? () => openEdit(shift) : undefined}
                     >
                       <View style={styles.rotaShiftTopRow}>
                         <Text style={[styles.weekShiftTitle, styles.rotaShiftName]} numberOfLines={1}>{shift.shiftName || "Shift"}</Text>
                         <Text style={[styles.tdSub, styles.rotaShiftTime]} numberOfLines={1}>{timeRange(shift.startTime, shift.endTime)}{overnightSuffix(shift.shiftDate, shift.endDate)}</Text>
-                        {!unstaffed ? (
+                        {canManage && !unstaffed ? (
                           <Pressable
                             style={({ pressed }) => [styles.rotaShiftIconBtn, pressed ? styles.rotaShiftIconPressed : null]}
                             onPress={() => openEdit(shift)}
@@ -2070,26 +2103,28 @@ export function RotaManageScreen() {
                         >
                           <Ionicons name="create-outline" size={16} color={appTheme.colors.primary} />
                         </Pressable> */}
-                        <Pressable
-                          style={({ pressed }) => [styles.rotaShiftIconBtn, pressed ? styles.rotaShiftIconPressed : null]}
-                          onPress={() => confirmDelete(shift)}
-                          hitSlop={4}
-                          accessibilityRole="button"
-                          accessibilityLabel="Delete shift"
-                        >
-                          <Ionicons name="trash-outline" size={19} color={appTheme.colors.danger} />
-                        </Pressable>
+                        {canManage ? (
+                          <Pressable
+                            style={({ pressed }) => [styles.rotaShiftIconBtn, pressed ? styles.rotaShiftIconPressed : null]}
+                            onPress={() => confirmDelete(shift)}
+                            hitSlop={4}
+                            accessibilityRole="button"
+                            accessibilityLabel="Delete shift"
+                          >
+                            <Ionicons name="trash-outline" size={19} color={appTheme.colors.danger} />
+                          </Pressable>
+                        ) : null}
                       </View>
                       {shift.assignees.length > 0 ? (
                         <View style={styles.rotaAssigneeList}>
                           {shift.assignees.map((a) => (
                             <Pressable
                               key={a.rotaStaffMemberId ?? a.userId ?? a.name}
-                              onPress={() => openAssigneeSheet(a, shift)}
+                              onPress={canManage ? () => openAssigneeSheet(a, shift) : undefined}
                               hitSlop={4}
                             >
                               <View style={styles.rotaStaffLine}>
-                                <Text style={[styles.rotaStaffText, styles.tdLink]} numberOfLines={1}>{a.name}</Text>
+                                <Text style={[styles.rotaStaffText, canManage ? styles.tdLink : null]} numberOfLines={1}>{a.name}</Text>
                                 {a.reason ? (
                                   <View style={styles.reasonTag}>
                                     <Text style={styles.reasonTagText} numberOfLines={1}>{a.reason}</Text>
@@ -2103,20 +2138,24 @@ export function RotaManageScreen() {
                       {/* Loud assign call-to-action only where it's needed — unstaffed shifts.
                           Staffed shifts get the quiet person-add icon in the top row instead. */}
                       {unstaffed ? (
-                        <Pressable
-                          style={({ pressed }) => [
-                            styles.assignPill,
-                            styles.assignPillUnstaffed,
-                            pressed ? styles.assignPillPressed : null,
-                          ]}
-                          onPress={() => openEdit(shift)}
-                          hitSlop={4}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Assign staff to ${shift.shiftName || "Shift"} on ${dayLabel(date)}`}
-                        >
-                          <Ionicons name="person-add-outline" size={13} color={appTheme.colors.textWarningStrong} />
-                          <Text style={[styles.assignPillText, styles.assignPillTextUnstaffed]}>Assign staff</Text>
-                        </Pressable>
+                        canManage ? (
+                          <Pressable
+                            style={({ pressed }) => [
+                              styles.assignPill,
+                              styles.assignPillUnstaffed,
+                              pressed ? styles.assignPillPressed : null,
+                            ]}
+                            onPress={() => openEdit(shift)}
+                            hitSlop={4}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Assign staff to ${shift.shiftName || "Shift"} on ${dayLabel(date)}`}
+                          >
+                            <Ionicons name="person-add-outline" size={13} color={appTheme.colors.textWarningStrong} />
+                            <Text style={[styles.assignPillText, styles.assignPillTextUnstaffed]}>Assign staff</Text>
+                          </Pressable>
+                        ) : (
+                          <Text style={styles.mutedSmall}>Unassigned</Text>
+                        )
                       ) : null}
                     </Pressable>
                   );
@@ -2184,10 +2223,10 @@ export function RotaManageScreen() {
                             {dayShifts.map((shift) => (
                               <Pressable
                                 key={shift.id}
-                                style={({ pressed }) => [styles.staffDayShift, pressed ? styles.staffDayShiftPressed : null]}
-                                onPress={() => openEdit(shift)}
-                                accessibilityRole="button"
-                                accessibilityLabel={`Edit ${row.name}'s ${shift.shiftName || "shift"} shift on ${formatDayLabel(date)}`}
+                                style={({ pressed }) => [styles.staffDayShift, pressed && canManage ? styles.staffDayShiftPressed : null]}
+                                onPress={canManage ? () => openEdit(shift) : undefined}
+                                accessibilityRole={canManage ? "button" : undefined}
+                                accessibilityLabel={`${row.name}'s ${shift.shiftName || "shift"} shift on ${formatDayLabel(date)}`}
                               >
                                 <Text style={styles.staffDayShiftName} numberOfLines={1}>
                                   {shift.shiftName || "Shift"}
@@ -2201,7 +2240,7 @@ export function RotaManageScreen() {
                             <Ionicons name="airplane-outline" size={13} color={appTheme.colors.textInfoStrong} />
                             <Text style={styles.staffDayLeaveText}>On leave</Text>
                           </View>
-                        ) : (
+                        ) : canManage ? (
                           <Pressable
                             style={({ pressed }) => [styles.staffDayEmpty, pressed ? styles.dayEmptyAddPressed : null]}
                             onPress={() => setQuickAssign({ name: row.name, date, userId: row.userId, rotaStaffMemberId: row.rotaStaffMemberId })}
@@ -2212,6 +2251,8 @@ export function RotaManageScreen() {
                             <Ionicons name="add" size={13} color={appTheme.colors.textSubtle} />
                             <Text style={styles.staffDayEmptyText}>Assign</Text>
                           </Pressable>
+                        ) : (
+                          <View style={styles.staffDayEmpty} />
                         )}
                       </View>
                     );
@@ -4586,6 +4627,17 @@ const styles = StyleSheet.create({
   recShiftChipText: { color: appTheme.colors.text, fontFamily: appTheme.fonts.bodyMedium, fontSize: 13 },
   recShiftChipTextActive: { color: appTheme.colors.primary },
   recShiftChipSub: { color: appTheme.colors.textMuted, fontFamily: appTheme.fonts.body, fontSize: 12 },
+  recDateRow: { flexDirection: "row", alignItems: "center", gap: appTheme.spacing.xs },
+  recDateNav: {
+    width: 40,
+    height: 40,
+    borderRadius: appTheme.radius.sm,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   recTimeRow: { flexDirection: "row", gap: appTheme.spacing.sm },
   recActions: { gap: appTheme.spacing.xs, marginTop: appTheme.spacing.xs },
   actionsRow: { flexDirection: "row", alignItems: "center", gap: 8 },

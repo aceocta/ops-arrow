@@ -212,7 +212,8 @@ const shiftItems: MenuItem[] = [
   // Single staff hub → My Shifts / My Timesheet / My Leave (each tile feature-gated inside the screen).
   { label: "My Work", screen: "MyWork", icon: "briefcase-outline", requiredFeature: "StaffRota" },
   { label: "Shift Swaps", screen: "ShiftSwaps", icon: "swap-horizontal-outline", requiredFeature: "staff_rota.shift_swap" },
-  { label: "Shift Rota", screen: "RotaManage", icon: "calendar-number-outline", allowedRoles: ["CompanyOwner", "Manager"], requiredFeature: "StaffRota" },
+  // Cashiers & sales assistants get a read-only view (staff per day/shift); Owner/Manager can edit.
+  { label: "Shift Rota", screen: "RotaManage", icon: "calendar-number-outline", allowedRoles: ["CompanyOwner", "Manager", "Cashier", "SalesAssistant"], requiredFeature: "StaffRota" },
   { label: "External Staff", screen: "RotaStaffMembers", icon: "people-circle-outline", allowedRoles: ["CompanyOwner", "Manager"], requiredFeature: "StaffRota" },
   { label: "Time Approvals", screen: "RotaApprovals", icon: "checkmark-done-outline", allowedRoles: ["CompanyOwner", "Manager"], requiredFeature: "staff_rota.manual_approval" },
   { label: "Timesheet", screen: "RotaTimesheet", icon: "documents-outline", allowedRoles: ["CompanyOwner", "Manager"], requiredFeature: "StaffRota" },

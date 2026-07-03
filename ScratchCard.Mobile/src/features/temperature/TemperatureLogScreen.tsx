@@ -1586,7 +1586,7 @@ export function TemperatureLogScreen() {
           >
             <ModalBackdropBlur />
             <View style={styles.modalCard}>
-              <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalScrollContent} keyboardShouldPersistTaps="handled">
+              {/* Sticky fridge header — pinned at the top while the form below scrolls. */}
               <View style={styles.unitHeaderRow}>
                 <Pressable
                   style={[styles.unitNavButton, !prevUnitId ? styles.unitNavButtonDisabled : null]}
@@ -1629,6 +1629,7 @@ export function TemperatureLogScreen() {
                 </Text>
               ) : null}
               <View style={styles.unitHeaderDivider} />
+              <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalScrollContent} keyboardShouldPersistTaps="handled">
               {unitScheduleOptions.length > 0 ? (
                 <View style={styles.checkPickerWrap}>
                   <View style={styles.checkPickerRow}>
@@ -3216,6 +3217,7 @@ const styles = StyleSheet.create({
   },
   modalScroll: {
     flexGrow: 0,
+    flexShrink: 1,
   },
   modalScrollContent: {
     gap: appTheme.spacing.sm,
