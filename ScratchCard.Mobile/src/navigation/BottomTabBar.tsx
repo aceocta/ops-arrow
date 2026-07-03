@@ -8,6 +8,26 @@ import type { MainStackParamList } from "../types/navigation";
 
 const MANAGE_ROLES = ["PlatformAdmin", "CompanyOwner", "Manager"];
 
+// The bar is "home-base" chrome: show it only on the tab destinations and their landing screens — not
+// on every deep detail / report / config / entry screen, where the header's Home + menu buttons already
+// cover navigation. Keeps the bar from feeling like clutter on the ~90-screen stack.
+const BOTTOM_BAR_ROUTES = new Set<string>([
+  "BestEntry", // Home
+  "Dashboard", // Day (redirect landing)
+  "DayEndClose", // Day hub
+  "OwnerDashboard", // Insights
+  // My work area
+  "MyWork",
+  "MyShifts",
+  "MyTimesheet",
+  "MyLeave",
+]);
+
+/** Whether the persistent bottom bar should appear on the given route. */
+export function shouldShowBottomBar(routeName?: string): boolean {
+  return routeName ? BOTTOM_BAR_ROUTES.has(routeName) : false;
+}
+
 type TabDef = {
   key: string;
   label: string;

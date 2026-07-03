@@ -100,7 +100,7 @@ import { appInfo } from "../config/appInfo";
 import { getRoleDisplayName } from "../utils/roleLabels";
 import { useIsTablet } from "../utils/useIsTablet";
 import { navigationRef } from "./navigationRef";
-import { BottomTabBar } from "./BottomTabBar";
+import { BottomTabBar, shouldShowBottomBar } from "./BottomTabBar";
 
 type MainDrawerParamList = {
   MainStack: NavigatorScreenParams<MainStackParamList> | undefined;
@@ -1382,9 +1382,9 @@ export function MainNavigator() {
     navigationRef.dispatch(DrawerActions.openDrawer());
   }, []);
 
-  const barHidden = currentRouteName
-    ? HIDE_SHORTCUT_ROUTES.has(currentRouteName as keyof MainStackParamList)
-    : false;
+  // Show the bar only on its "home-base" routes (tab destinations + their landings), not on every
+  // deep screen — the header's Home/menu buttons cover navigation elsewhere.
+  const showBar = shouldShowBottomBar(currentRouteName);
 
   return (
     <BestEntryProvider>
@@ -1408,7 +1408,7 @@ export function MainNavigator() {
             <Drawer.Screen name="MainStack" component={MainStackScreens} />
           </Drawer.Navigator>
         </View>
-        {!barHidden ? (
+        {showBar ? (
           <BottomTabBar currentRouteName={currentRouteName} onSelectScreen={goToTabScreen} onOpenMore={openMore} />
         ) : null}
       </View>
