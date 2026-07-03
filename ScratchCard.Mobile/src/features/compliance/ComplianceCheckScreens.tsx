@@ -1048,8 +1048,12 @@ export function ComplianceChecksScreen() {
     },
   });
 
+  type ReportResult =
+    | { action: "print"; html: string }
+    | { action: "share"; uri: string }
+    | { action: "email" };
   const complianceMatrixReportMutation = useMutation({
-    mutationFn: async (action: ComplianceReportAction) => {
+    mutationFn: async (action: ComplianceReportAction): Promise<ReportResult> => {
       if (!shopId) {
         throw new Error("No shop selected.");
       }
@@ -1164,14 +1168,13 @@ export function ComplianceChecksScreen() {
       });
 
       const fileName = `compliance-${frequency.toLowerCase()}-${scope.filePeriodLabel}.pdf`;
+
+      // Print / Share open a NATIVE dialog whose promise can fail to settle when the user cancels or
+      // backgrounds the app — running them here would leave the mutation pending forever and permanently
+      // disable the report buttons. So the mutation only does the headless work (data + PDF render, which
+      // have request/IO timeouts) and hands off to onSuccess, which opens the dialog OUTSIDE isPending.
       if (action === "print") {
-        await Print.printAsync({
-          html,
-          width: 1123,
-          height: 794,
-          orientation: Print.Orientation.landscape,
-        });
-        return;
+        return { action, html };
       }
 
       const { uri } = await Print.printToFileAsync({
@@ -1181,19 +1184,10 @@ export function ComplianceChecksScreen() {
       });
 
       if (action === "share") {
-        const canShare = await Sharing.isAvailableAsync();
-        if (!canShare) {
-          await FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
-          throw new Error("Sharing is not available on this device.");
-        }
-
-        await shareFileAndCleanup(uri, {
-          mimeType: "application/pdf",
-          dialogTitle: "Share Compliance Report",
-        });
-        return;
+        return { action, uri };
       }
 
+      // Email is a network send (has a request timeout), with no native dialog — safe to await here.
       const attachmentBase64 = await FileSystem.readAsStringAsync(uri, {
         encoding: FileSystem.EncodingType.Base64,
       });
@@ -1206,10 +1200,26 @@ export function ComplianceChecksScreen() {
         attachmentFileName: fileName,
         attachmentBase64,
       });
+      return { action };
     },
-    onSuccess: (_value, action) => {
-      if (action === "email") {
-        toastSuccess("Compliance report emailed.");
+    onSuccess: async (result) => {
+      // Native dialogs run here, after isPending has cleared, so a cancelled/hung sheet can't lock the UI.
+      try {
+        if (result.action === "print") {
+          await Print.printAsync({ html: result.html, width: 1123, height: 794, orientation: Print.Orientation.landscape });
+        } else if (result.action === "share") {
+          const canShare = await Sharing.isAvailableAsync();
+          if (!canShare) {
+            await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => {});
+            toastError("Sharing isn't available on this device.");
+            return;
+          }
+          await shareFileAndCleanup(result.uri, { mimeType: "application/pdf", dialogTitle: "Share Compliance Report" });
+        } else {
+          toastSuccess("Compliance report emailed.");
+        }
+      } catch (error: any) {
+        toastError(error?.response?.data?.message ?? error?.message ?? "Unable to open the report.");
       }
     },
     onError: (error: any) => {
