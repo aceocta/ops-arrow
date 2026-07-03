@@ -21,6 +21,9 @@ const equipmentTypeOptions: TemperatureEquipmentType[] = [
   TemperatureEquipmentType.CoolRoom,
   TemperatureEquipmentType.DisplayChill,
   TemperatureEquipmentType.HotFoodDisplay,
+  TemperatureEquipmentType.HotFoodCounter,
+  TemperatureEquipmentType.BainMarie,
+  TemperatureEquipmentType.PieWarmer,
   TemperatureEquipmentType.Other,
 ];
 

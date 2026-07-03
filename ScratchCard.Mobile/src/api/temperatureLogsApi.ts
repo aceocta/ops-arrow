@@ -1,7 +1,14 @@
 import { apiClient } from "./client";
 import { ApiResponse } from "./types";
-import { TemperatureDailyLog, TemperatureMonitoringUnit, TemperatureReading, TemperatureSchedule, TemperatureScheduleGrid, TemperatureUnitDailyLog } from "../types/models";
-import { TemperatureEquipmentType } from "../types/enums";
+import { TemperatureAttachment, TemperatureDailyLog, TemperatureEquipmentIssue, TemperatureMonitoringUnit, TemperatureReading, TemperatureSchedule, TemperatureScheduleGrid, TemperatureUnitDailyLog } from "../types/models";
+import { EquipmentWorkingStatus, FoodCategory, TemperatureEquipmentType, TemperatureResult } from "../types/enums";
+
+// A photo to upload with a reading/issue: base64 payload plus optional filename/content type.
+export type TemperatureAttachmentUpload = {
+  fileName: string;
+  base64: string;
+  contentType?: string;
+};
 
 function normalizeDateOnly(value: unknown) {
   const raw = typeof value === "string" ? value : "";
@@ -16,15 +23,27 @@ function normalizeTimeOnly(value: unknown) {
   return raw.length >= 5 ? raw.slice(0, 5) : raw;
 }
 
+function mapAttachment(raw: any): TemperatureAttachment {
+  return {
+    id: String(raw.id),
+    fileName: String(raw.fileName ?? ""),
+    contentType: raw.contentType ?? undefined,
+    fileSizeBytes: Number(raw.fileSizeBytes ?? 0),
+    uploadedOn: String(raw.uploadedOn ?? ""),
+  };
+}
+
 function mapUnit(raw: any): TemperatureMonitoringUnit {
   return {
     id: String(raw.id),
     shopId: String(raw.shopId),
     unitName: String(raw.unitName ?? ""),
     equipmentType: (raw.equipmentType as TemperatureEquipmentType) ?? TemperatureEquipmentType.Other,
+    foodCategory: (raw.foodCategory as FoodCategory) ?? FoodCategory.ColdFood,
     minTemperatureCelsius: Number(raw.minTemperatureCelsius ?? 0),
     maxTemperatureCelsius: Number(raw.maxTemperatureCelsius ?? 0),
     isActive: Boolean(raw.isActive),
+    currentWorkingStatus: (raw.currentWorkingStatus as EquipmentWorkingStatus) ?? EquipmentWorkingStatus.Working,
     location: raw.location ?? undefined,
     notes: raw.notes ?? undefined,
     displayOrder: Number(raw.displayOrder ?? 0),
@@ -44,14 +63,52 @@ function mapReading(raw: any): TemperatureReading {
     readingTime: normalizeTimeOnly(raw.readingTime),
     temperatureCelsius: Number(raw.temperatureCelsius ?? 0),
     isOutOfRange: Boolean(raw.isOutOfRange),
+    result: (raw.result as TemperatureResult) ?? TemperatureResult.Pass,
     checkedByInitials: String(raw.checkedByInitials ?? ""),
     notes: raw.notes ?? undefined,
     actionTaken: raw.actionTaken ?? undefined,
+    correctiveActions: raw.correctiveActions ?? undefined,
+    temperatureEquipmentIssueId: raw.temperatureEquipmentIssueId ? String(raw.temperatureEquipmentIssueId) : undefined,
     recordedOn: String(raw.recordedOn ?? ""),
     recordedByName: raw.recordedByName ?? undefined,
     scheduleId: raw.scheduleId ? String(raw.scheduleId) : undefined,
     scheduleLabel: raw.scheduleLabel ?? undefined,
     isLateForSchedule: Boolean(raw.isLateForSchedule),
+    attachments: (raw.attachments ?? []).map(mapAttachment),
+  };
+}
+
+function mapIssue(raw: any): TemperatureEquipmentIssue {
+  return {
+    id: String(raw.id),
+    shopId: String(raw.shopId),
+    temperatureMonitoringUnitId: String(raw.temperatureMonitoringUnitId),
+    unitName: String(raw.unitName ?? ""),
+    foodCategory: (raw.foodCategory as FoodCategory) ?? FoodCategory.ColdFood,
+    status: (raw.status as EquipmentWorkingStatus) ?? EquipmentWorkingStatus.NotWorking,
+    reason: String(raw.reason ?? ""),
+    temperatureAtOpenCelsius: raw.temperatureAtOpenCelsius ?? undefined,
+    openedFromReading: Boolean(raw.openedFromReading),
+    issueStartedOn: String(raw.issueStartedOn ?? ""),
+    openedByName: raw.openedByName ?? undefined,
+    foodAffected: raw.foodAffected ?? undefined,
+    foodMoved: raw.foodMoved ?? undefined,
+    foodMovedTo: raw.foodMovedTo ?? undefined,
+    foodDiscarded: raw.foodDiscarded ?? undefined,
+    managerInformed: raw.managerInformed ?? undefined,
+    correctiveActions: raw.correctiveActions ?? undefined,
+    maintenanceStartedOn: raw.maintenanceStartedOn ?? undefined,
+    resolvedOn: raw.resolvedOn ?? undefined,
+    resolvedByName: raw.resolvedByName ?? undefined,
+    finalTemperatureCelsius: raw.finalTemperatureCelsius ?? undefined,
+    resolutionNotes: raw.resolutionNotes ?? undefined,
+    engineerContacted: raw.engineerContacted ?? undefined,
+    foodActionCompleted: raw.foodActionCompleted ?? undefined,
+    resolvedWithWarning: Boolean(raw.resolvedWithWarning),
+    approvedByName: raw.approvedByName ?? undefined,
+    approvedOn: raw.approvedOn ?? undefined,
+    notes: raw.notes ?? undefined,
+    attachments: (raw.attachments ?? []).map(mapAttachment),
   };
 }
 
@@ -93,6 +150,7 @@ export async function createTemperatureUnit(payload: {
   shopId: string;
   unitName: string;
   equipmentType: TemperatureEquipmentType;
+  foodCategory?: FoodCategory;
   minTemperatureCelsius: number;
   maxTemperatureCelsius: number;
   isActive?: boolean;
@@ -110,6 +168,7 @@ export async function updateTemperatureUnit(
   payload: {
     unitName: string;
     equipmentType: TemperatureEquipmentType;
+    foodCategory?: FoodCategory;
     minTemperatureCelsius: number;
     maxTemperatureCelsius: number;
     isActive: boolean;
@@ -194,12 +253,116 @@ export async function recordTemperatureReading(payload: {
   checkedByInitials?: string;
   notes?: string;
   actionTaken?: string;
+  // Comma-separated TemperatureCorrectiveAction names selected for a Warning/Fail reading (§17).
+  correctiveActions?: string;
+  // §12/§14 questions answered on a FAIL reading. equipmentWorking !== true opens an equipment issue.
+  equipmentWorking?: boolean;
+  managerInformed?: boolean;
+  foodMoved?: boolean;
+  foodMovedTo?: string;
+  foodDiscarded?: boolean;
+  // Optional §16 time-control anchor (ISO): when the food is known to have first gone out of range.
+  foodOutOfRangeSince?: string;
+  // §10 photos for the check.
+  attachments?: TemperatureAttachmentUpload[];
   // Scheduled slot to log against, or the shop's random-check schedule for an ad-hoc check.
   // Omit to let the server place the reading (window-match a slot, else the random bucket).
   scheduleId?: string;
 }) {
   const response = await apiClient.post<ApiResponse<TemperatureReading>>("/temperature-logs/readings", payload);
   return mapReading(response.data.data);
+}
+
+// ── Equipment-issue lifecycle (spec §15/§20/§22/§23) ──
+
+export async function listTemperatureEquipmentIssues(shopId: string, openOnly = true) {
+  const response = await apiClient.get<ApiResponse<TemperatureEquipmentIssue[]>>("/temperature-logs/issues", {
+    params: { shopId, openOnly },
+  });
+  return (response.data.data ?? []).map(mapIssue);
+}
+
+export async function getTemperatureEquipmentIssue(issueId: string) {
+  const response = await apiClient.get<ApiResponse<TemperatureEquipmentIssue>>(`/temperature-logs/issues/${issueId}`);
+  return mapIssue(response.data.data);
+}
+
+export async function markTemperatureUnitNotWorking(
+  unitId: string,
+  payload: {
+    shopId: string;
+    reason: string;
+    currentTemperatureCelsius?: number;
+    issueNoticedOn?: string;
+    foodAffected?: boolean;
+    foodMoved?: boolean;
+    foodMovedTo?: string;
+    foodDiscarded?: boolean;
+    managerInformed?: boolean;
+    correctiveActions?: string;
+    notes?: string;
+    attachments?: TemperatureAttachmentUpload[];
+  },
+) {
+  const response = await apiClient.post<ApiResponse<TemperatureEquipmentIssue>>(
+    `/temperature-logs/units/${unitId}/mark-not-working`,
+    payload,
+  );
+  return mapIssue(response.data.data);
+}
+
+export async function setTemperatureIssueUnderMaintenance(issueId: string, payload: { notes?: string }) {
+  const response = await apiClient.post<ApiResponse<TemperatureEquipmentIssue>>(
+    `/temperature-logs/issues/${issueId}/under-maintenance`,
+    payload,
+  );
+  return mapIssue(response.data.data);
+}
+
+export async function resolveTemperatureIssue(
+  issueId: string,
+  payload: {
+    finalTemperatureCelsius: number;
+    resolutionNotes: string;
+    engineerContacted?: boolean;
+    foodActionCompleted?: boolean;
+    notes?: string;
+    attachments?: TemperatureAttachmentUpload[];
+  },
+) {
+  const response = await apiClient.post<ApiResponse<TemperatureEquipmentIssue>>(
+    `/temperature-logs/issues/${issueId}/resolve`,
+    payload,
+  );
+  return mapIssue(response.data.data);
+}
+
+// §24 equipment-issue history report (not-working / under-maintenance / resolved), filterable.
+export async function getTemperatureIssuesReport(
+  shopId: string,
+  from: string,
+  to: string,
+  filters?: { unitId?: string; category?: string; status?: string },
+) {
+  const response = await apiClient.get<ApiResponse<TemperatureEquipmentIssue[]>>("/reports/temperature-issues", {
+    params: {
+      shopId,
+      from,
+      to,
+      unitId: filters?.unitId,
+      category: filters?.category,
+      status: filters?.status,
+    },
+  });
+  return (response.data.data ?? []).map(mapIssue);
+}
+
+// Returns a reading/issue photo as a data URL (data:...;base64,...) for preview/download.
+export async function getTemperatureAttachmentContent(attachmentId: string) {
+  const response = await apiClient.get<ApiResponse<string | null>>(
+    `/temperature-logs/attachments/${attachmentId}/content`,
+  );
+  return response.data.data ?? null;
 }
 
 export async function signOffTemperatureDailyLog(payload: {

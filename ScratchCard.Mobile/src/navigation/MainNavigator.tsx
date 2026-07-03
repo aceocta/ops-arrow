@@ -23,6 +23,7 @@ import { TemperatureLogScreen } from "../features/temperature/TemperatureLogScre
 import { TemperatureLogsByDayScreen } from "../features/temperature/TemperatureLogsByDayScreen";
 import { TemperatureLogsReportScreen } from "../features/temperature/TemperatureLogsReportScreen";
 import { TemperatureUnitsScreen } from "../features/temperature/TemperatureUnitsScreen";
+import { TemperatureIssuesScreen } from "../features/temperature/TemperatureIssuesScreen";
 import { TemperatureUnitEditScreen } from "../features/temperature/TemperatureUnitEditScreen";
 import { TemperatureSchedulesScreen } from "../features/temperature/TemperatureSchedulesScreen";
 import { TemperatureScheduleGridScreen } from "../features/temperature/TemperatureScheduleGridScreen";
@@ -600,6 +601,7 @@ function MainStackScreens() {
       <Stack.Screen name="TemperatureLogsReport" component={TemperatureLogsReportScreen} options={{ title: "Temperature Logs Report" }} />
       <Stack.Screen name="TemperatureLogsDateRangeReport" component={TemperatureLogsReportScreen} options={{ title: "Temperature Logs Date Range Report" }} />
       <Stack.Screen name="TemperatureUnits" component={TemperatureUnitsScreen} options={{ title: "Temperature Units" }} />
+      <Stack.Screen name="TemperatureIssues" component={TemperatureIssuesScreen} options={{ title: "Equipment Issues" }} />
       <Stack.Screen name="TemperatureUnitEdit" component={TemperatureUnitEditScreen} options={{ title: "Edit Unit" }} />
       <Stack.Screen name="TemperatureSchedules" component={TemperatureSchedulesScreen} options={{ title: "Scheduled Checks" }} />
       <Stack.Screen name="TemperatureScheduleGrid" component={TemperatureScheduleGridScreen} options={{ title: "Temperature Report" }} />

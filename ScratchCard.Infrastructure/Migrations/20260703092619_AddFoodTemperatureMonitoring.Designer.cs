@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ScratchCard.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using ScratchCard.Infrastructure.Persistence;
 namespace ScratchCard.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260703092619_AddFoodTemperatureMonitoring")]
+    partial class AddFoodTemperatureMonitoring
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -5014,10 +5017,7 @@ namespace ScratchCard.Infrastructure.Migrations
 
                     b.HasIndex("TemperatureReadingId");
 
-                    b.ToTable("TemperatureAttachments", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_TemperatureAttachments_OwnerXor", "([TemperatureReadingId] IS NOT NULL AND [TemperatureEquipmentIssueId] IS NULL) OR ([TemperatureReadingId] IS NULL AND [TemperatureEquipmentIssueId] IS NOT NULL)");
-                        });
+                    b.ToTable("TemperatureAttachments");
                 });
 
             modelBuilder.Entity("ScratchCard.Domain.Entities.TemperatureDailySignoff", b =>
@@ -5102,15 +5102,9 @@ namespace ScratchCard.Infrastructure.Migrations
                     b.Property<DateTimeOffset>("CreatedOn")
                         .HasColumnType("datetimeoffset");
 
-                    b.Property<bool?>("EngineerContacted")
-                        .HasColumnType("bit");
-
                     b.Property<decimal?>("FinalTemperatureCelsius")
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
-
-                    b.Property<bool?>("FoodActionCompleted")
-                        .HasColumnType("bit");
 
                     b.Property<bool?>("FoodAffected")
                         .HasColumnType("bit");

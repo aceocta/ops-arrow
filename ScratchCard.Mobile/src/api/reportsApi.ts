@@ -1,6 +1,7 @@
 import { apiClient } from "./client";
 import { ApiResponse } from "./types";
 import { AuditLogRow, DailySalesReportRow, ManualEntryReviewRow, NotificationLogRow, OwnerOverview, StockReportRow, TemperatureReading } from "../types/models";
+import { TemperatureResult } from "../types/enums";
 
 export async function getOwnerOverview(from: string, to: string) {
   const response = await apiClient.get<ApiResponse<OwnerOverview>>("/reports/owner-overview", {
@@ -93,20 +94,44 @@ function mapTemperatureReading(raw: any): TemperatureReading {
     readingTime: normalizeTimeOnly(raw.readingTime),
     temperatureCelsius: Number(raw.temperatureCelsius ?? 0),
     isOutOfRange: Boolean(raw.isOutOfRange),
+    result: (raw.result as TemperatureResult) ?? TemperatureResult.Pass,
     checkedByInitials: String(raw.checkedByInitials ?? ""),
     notes: raw.notes ?? undefined,
     actionTaken: raw.actionTaken ?? undefined,
+    correctiveActions: raw.correctiveActions ?? undefined,
+    temperatureEquipmentIssueId: raw.temperatureEquipmentIssueId ? String(raw.temperatureEquipmentIssueId) : undefined,
     recordedOn: String(raw.recordedOn ?? ""),
     recordedByName: raw.recordedByName ?? undefined,
     scheduleId: raw.scheduleId ? String(raw.scheduleId) : undefined,
     scheduleLabel: raw.scheduleLabel ?? undefined,
     isLateForSchedule: Boolean(raw.isLateForSchedule),
+    attachments: (raw.attachments ?? []).map((a: any) => ({
+      id: String(a.id),
+      fileName: String(a.fileName ?? ""),
+      contentType: a.contentType ?? undefined,
+      fileSizeBytes: Number(a.fileSizeBytes ?? 0),
+      uploadedOn: String(a.uploadedOn ?? ""),
+    })),
   };
 }
 
-export async function getTemperatureLogsReport(shopId: string, from: string, to: string, unitId?: string) {
+export async function getTemperatureLogsReport(
+  shopId: string,
+  from: string,
+  to: string,
+  unitId?: string,
+  filters?: { category?: string; result?: string; checkedBy?: string },
+) {
   const response = await apiClient.get<ApiResponse<TemperatureReading[]>>("/reports/temperature-logs", {
-    params: { shopId, from, to, unitId },
+    params: {
+      shopId,
+      from,
+      to,
+      unitId,
+      category: filters?.category,
+      result: filters?.result,
+      checkedBy: filters?.checkedBy,
+    },
   });
   return response.data.data.map(mapTemperatureReading);
 }

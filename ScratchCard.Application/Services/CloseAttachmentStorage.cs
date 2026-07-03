@@ -160,6 +160,56 @@ internal static class CloseAttachmentStorage
         return saved;
     }
 
+    public static async Task<IReadOnlyCollection<SavedAttachment>> SaveTemperatureAttachmentsAsync(
+        IReadOnlyCollection<AttachmentInput> inputs,
+        IAttachmentStorageService attachmentStorageService,
+        Guid shopId,
+        DateOnly businessDate,
+        string scope,
+        CancellationToken cancellationToken)
+    {
+        if (inputs.Count == 0)
+        {
+            return [];
+        }
+
+        var safeScope = SanitizeToken(scope, fallback: "reading", maxLength: 40).ToLowerInvariant();
+        var saved = new List<SavedAttachment>(inputs.Count);
+
+        foreach (var input in inputs)
+        {
+            if (string.IsNullOrWhiteSpace(input.Base64))
+            {
+                continue;
+            }
+
+            var parsed = ParseAttachment(input.FileName, input.Base64, input.ContentType);
+            var fileGuid = Guid.NewGuid().ToString("N");
+            var storedFileName = $"{fileGuid}_{businessDate:yyyyMMdd}_{safeScope}{parsed.Extension}";
+            var relativePath = BuildTemperatureAttachmentPath(shopId, safeScope, businessDate, storedFileName);
+            var storedPath = await attachmentStorageService.SaveAsync(parsed.Bytes, relativePath, cancellationToken);
+
+            saved.Add(new SavedAttachment(
+                parsed.OriginalFileName,
+                storedFileName,
+                storedPath,
+                parsed.ContentType,
+                parsed.Bytes.Length));
+        }
+
+        return saved;
+    }
+
+    private static string BuildTemperatureAttachmentPath(Guid shopId, string scope, DateOnly businessDate, string storedFileName)
+    {
+        return string.Join('/',
+            shopId.ToString("N"),
+            "temperature",
+            scope,
+            businessDate.ToString("yyyyMMdd"),
+            storedFileName);
+    }
+
     private static string BuildShiftAttachmentPath(Guid shopId, DateOnly businessDate, string storedFileName)
     {
         return string.Join('/',

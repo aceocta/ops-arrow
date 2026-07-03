@@ -301,9 +301,11 @@ internal static class ServiceMappingExtensions
         ShopId = unit.ShopId,
         UnitName = unit.UnitName,
         EquipmentType = unit.EquipmentType,
+        FoodCategory = unit.FoodCategory,
         MinTemperatureCelsius = unit.MinTemperatureCelsius,
         MaxTemperatureCelsius = unit.MaxTemperatureCelsius,
         IsActive = unit.IsActive,
+        CurrentWorkingStatus = unit.CurrentWorkingStatus,
         Location = unit.Location,
         Notes = unit.Notes,
         DisplayOrder = unit.DisplayOrder
@@ -322,14 +324,64 @@ internal static class ServiceMappingExtensions
         ReadingTime = reading.ReadingTime,
         TemperatureCelsius = reading.TemperatureCelsius,
         IsOutOfRange = reading.IsOutOfRange,
+        Result = reading.Result,
         CheckedByInitials = reading.CheckedByInitials,
         Notes = reading.Notes,
         ActionTaken = reading.ActionTaken,
+        CorrectiveActions = reading.CorrectiveActions,
+        TemperatureEquipmentIssueId = reading.TemperatureEquipmentIssueId,
         RecordedOn = reading.RecordedOn,
         RecordedByName = reading.RecordedByName,
         ScheduleId = reading.ScheduleId,
         ScheduleLabel = reading.Schedule?.Label,
-        IsLateForSchedule = reading.IsLateForSchedule
+        IsLateForSchedule = reading.IsLateForSchedule,
+        Attachments = reading.Attachments is { Count: > 0 }
+            ? reading.Attachments.OrderByDescending(a => a.CreatedOn).Select(a => a.ToDto()).ToArray()
+            : []
+    };
+
+    public static CloseAttachmentDto ToDto(this TemperatureAttachment attachment) => new()
+    {
+        Id = attachment.Id,
+        FileName = attachment.OriginalFileName,
+        ContentType = attachment.ContentType,
+        FileSizeBytes = attachment.FileSizeBytes,
+        UploadedOn = attachment.CreatedOn
+    };
+
+    public static TemperatureEquipmentIssueDto ToDto(this TemperatureEquipmentIssue issue) => new()
+    {
+        Id = issue.Id,
+        ShopId = issue.ShopId,
+        TemperatureMonitoringUnitId = issue.TemperatureMonitoringUnitId,
+        UnitName = issue.TemperatureMonitoringUnit?.UnitName ?? string.Empty,
+        FoodCategory = issue.TemperatureMonitoringUnit?.FoodCategory ?? Domain.Enums.FoodCategory.ColdFood,
+        Status = issue.Status,
+        Reason = issue.Reason,
+        TemperatureAtOpenCelsius = issue.TemperatureAtOpenCelsius,
+        OpenedFromReading = issue.OpenedFromReading,
+        IssueStartedOn = issue.IssueStartedOn,
+        OpenedByName = issue.OpenedByName,
+        FoodAffected = issue.FoodAffected,
+        FoodMoved = issue.FoodMoved,
+        FoodMovedTo = issue.FoodMovedTo,
+        FoodDiscarded = issue.FoodDiscarded,
+        ManagerInformed = issue.ManagerInformed,
+        CorrectiveActions = issue.CorrectiveActions,
+        MaintenanceStartedOn = issue.MaintenanceStartedOn,
+        ResolvedOn = issue.ResolvedOn,
+        ResolvedByName = issue.ResolvedByName,
+        FinalTemperatureCelsius = issue.FinalTemperatureCelsius,
+        ResolutionNotes = issue.ResolutionNotes,
+        EngineerContacted = issue.EngineerContacted,
+        FoodActionCompleted = issue.FoodActionCompleted,
+        ResolvedWithWarning = issue.ResolvedWithWarning,
+        ApprovedByName = issue.ApprovedByName,
+        ApprovedOn = issue.ApprovedOn,
+        Notes = issue.Notes,
+        Attachments = issue.Attachments is { Count: > 0 }
+            ? issue.Attachments.OrderByDescending(a => a.CreatedOn).Select(a => a.ToDto()).ToArray()
+            : []
     };
 
     public static TemperatureDailySignoffDto ToDto(this TemperatureDailySignoff signoff) => new()

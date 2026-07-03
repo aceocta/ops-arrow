@@ -7,6 +7,7 @@ using ScratchCard.Application.DTOs.Notifications;
 using ScratchCard.Application.DTOs.Reports;
 using ScratchCard.Application.DTOs.TemperatureLogs;
 using ScratchCard.Domain.Entities;
+using ScratchCard.Domain.Enums;
 
 namespace ScratchCard.Application.Services;
 
@@ -20,6 +21,7 @@ public class ReportService : IReportService
     private readonly IRepository<TemperatureReading> _temperatureReadingRepository;
     private readonly IRepository<CfgTemperatureSchedule> _temperatureScheduleRepository;
     private readonly IRepository<TemperatureMonitoringUnit> _temperatureUnitRepository;
+    private readonly IRepository<TemperatureEquipmentIssue> _temperatureIssueRepository;
     private readonly IRepository<AuditLog> _auditLogRepository;
     private readonly IRepository<NotificationLog> _notificationRepository;
     private readonly IEmailSender _emailSender;
@@ -34,6 +36,7 @@ public class ReportService : IReportService
         IRepository<TemperatureReading> temperatureReadingRepository,
         IRepository<CfgTemperatureSchedule> temperatureScheduleRepository,
         IRepository<TemperatureMonitoringUnit> temperatureUnitRepository,
+        IRepository<TemperatureEquipmentIssue> temperatureIssueRepository,
         IRepository<AuditLog> auditLogRepository,
         IRepository<NotificationLog> notificationRepository,
         IEmailSender emailSender,
@@ -47,6 +50,7 @@ public class ReportService : IReportService
         _temperatureReadingRepository = temperatureReadingRepository;
         _temperatureScheduleRepository = temperatureScheduleRepository;
         _temperatureUnitRepository = temperatureUnitRepository;
+        _temperatureIssueRepository = temperatureIssueRepository;
         _auditLogRepository = auditLogRepository;
         _notificationRepository = notificationRepository;
         _emailSender = emailSender;
@@ -113,6 +117,9 @@ public class ReportService : IReportService
         DateOnly from,
         DateOnly to,
         Guid? unitId = null,
+        FoodCategory? category = null,
+        TemperatureResult? result = null,
+        string? checkedBy = null,
         CancellationToken cancellationToken = default)
     {
         if (from > to)
@@ -129,6 +136,20 @@ public class ReportService : IReportService
         {
             query = query.Where(x => x.TemperatureMonitoringUnitId == unitId.Value);
         }
+        // §24 filters: hot/cold/frozen category, Pass/Warning/Fail result, and staff member.
+        if (category.HasValue)
+        {
+            query = query.Where(x => x.TemperatureMonitoringUnit.FoodCategory == category.Value);
+        }
+        if (result.HasValue)
+        {
+            query = query.Where(x => x.Result == result.Value);
+        }
+        if (!string.IsNullOrWhiteSpace(checkedBy))
+        {
+            var term = checkedBy.Trim();
+            query = query.Where(x => x.CheckedByInitials.Contains(term) || (x.RecordedByName != null && x.RecordedByName.Contains(term)));
+        }
 
         var readings = await query
             .OrderByDescending(x => x.ReadingDate)
@@ -136,6 +157,49 @@ public class ReportService : IReportService
             .ToListAsync(cancellationToken);
 
         return readings.Select(x => x.ToDto()).ToArray();
+    }
+
+    public async Task<IReadOnlyCollection<TemperatureEquipmentIssueDto>> GetTemperatureIssuesReportAsync(
+        Guid shopId,
+        DateOnly from,
+        DateOnly to,
+        Guid? unitId = null,
+        FoodCategory? category = null,
+        EquipmentWorkingStatus? status = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (from > to)
+        {
+            throw new AppException("temperature_invalid_range", "From date cannot be after to date.");
+        }
+
+        // Inclusive date range on the dwell-timer anchor (when the issue started).
+        var fromBound = new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+        var toBound = new DateTimeOffset(to.ToDateTime(TimeOnly.MaxValue), TimeSpan.Zero);
+
+        var query = _temperatureIssueRepository.Query()
+            .AsNoTracking()
+            .Include(x => x.TemperatureMonitoringUnit)
+            .Where(x => x.ShopId == shopId && x.IssueStartedOn >= fromBound && x.IssueStartedOn <= toBound);
+
+        if (unitId.HasValue)
+        {
+            query = query.Where(x => x.TemperatureMonitoringUnitId == unitId.Value);
+        }
+        if (category.HasValue)
+        {
+            query = query.Where(x => x.TemperatureMonitoringUnit.FoodCategory == category.Value);
+        }
+        if (status.HasValue)
+        {
+            query = query.Where(x => x.Status == status.Value);
+        }
+
+        var issues = await query
+            .OrderByDescending(x => x.IssueStartedOn)
+            .ToListAsync(cancellationToken);
+
+        return issues.Select(x => x.ToDto()).ToArray();
     }
 
     public async Task<TemperatureScheduleGridDto> GetTemperatureScheduleGridAsync(

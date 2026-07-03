@@ -45,6 +45,7 @@ public class TemperatureLogsController : BaseApiController
     }
 
     [HttpGet("units")]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant)]
     public async Task<IActionResult> ListUnits([FromQuery] Guid shopId, CancellationToken cancellationToken)
     {
         var result = await _temperatureLogService.ListUnitsAsync(shopId, cancellationToken);
@@ -74,6 +75,7 @@ public class TemperatureLogsController : BaseApiController
     }
 
     [HttpPost("readings")]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant)]
     public async Task<IActionResult> RecordReading([FromBody] RecordTemperatureReadingRequest request, CancellationToken cancellationToken)
     {
         var result = await _temperatureLogService.RecordReadingAsync(request, cancellationToken);
@@ -81,6 +83,7 @@ public class TemperatureLogsController : BaseApiController
     }
 
     [HttpGet("readings")]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant)]
     public async Task<IActionResult> ListReadings(
         [FromQuery] Guid shopId,
         [FromQuery] DateOnly from,
@@ -107,6 +110,7 @@ public class TemperatureLogsController : BaseApiController
     }
 
     [HttpGet("daily")]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant)]
     public async Task<IActionResult> Daily([FromQuery] Guid shopId, [FromQuery] DateOnly date, CancellationToken cancellationToken)
     {
         var result = await _temperatureLogService.GetDailyLogAsync(shopId, date, cancellationToken);
@@ -125,6 +129,7 @@ public class TemperatureLogsController : BaseApiController
     // Pro-only: configure expected reading slots for each day. The background sweeper compares
     // recorded readings against these slots and alerts on misses.
     [HttpGet("schedules")]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant)]
     public async Task<IActionResult> ListSchedules([FromQuery] Guid shopId, CancellationToken cancellationToken)
     {
         var result = await _temperatureLogService.ListSchedulesAsync(shopId, cancellationToken);
@@ -154,6 +159,58 @@ public class TemperatureLogsController : BaseApiController
     {
         await _temperatureLogService.DeleteScheduleAsync(id, cancellationToken);
         return Success(new { Deleted = true });
+    }
+
+    // ── Equipment-issue lifecycle (Not Working -> Under Maintenance -> Resolved + manager approval) ──
+
+    [HttpGet("issues")]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant)]
+    public async Task<IActionResult> ListIssues([FromQuery] Guid shopId, [FromQuery] bool? openOnly, CancellationToken cancellationToken)
+    {
+        var result = await _temperatureLogService.ListEquipmentIssuesAsync(shopId, openOnly ?? true, cancellationToken);
+        return Success(result);
+    }
+
+    [HttpGet("issues/{id:guid}")]
+    public async Task<IActionResult> GetIssue(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _temperatureLogService.GetEquipmentIssueAsync(id, cancellationToken);
+        return Success(result);
+    }
+
+    // Reading/issue photo content as a data URL. Shop membership is enforced in the service (the route
+    // carries only the attachment id, so [RequireShopRole] can't bind a shopId here).
+    [HttpGet("attachments/{attachmentId:guid}/content")]
+    public async Task<IActionResult> GetAttachmentContent(Guid attachmentId, CancellationToken cancellationToken)
+    {
+        var result = await _temperatureLogService.GetAttachmentDataUrlAsync(attachmentId, cancellationToken);
+        return Success(result);
+    }
+
+    [HttpPost("units/{id:guid}/mark-not-working")]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant)]
+    public async Task<IActionResult> MarkNotWorking(Guid id, [FromBody] MarkUnitNotWorkingRequest request, CancellationToken cancellationToken)
+    {
+        request.TemperatureMonitoringUnitId = id;
+        var result = await _temperatureLogService.MarkUnitNotWorkingAsync(request, cancellationToken);
+        return Success(result);
+    }
+
+    [HttpPost("issues/{id:guid}/under-maintenance")]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager, RoleNames.Cashier, RoleNames.SalesAssistant)]
+    public async Task<IActionResult> SetUnderMaintenance(Guid id, [FromBody] SetIssueUnderMaintenanceRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _temperatureLogService.SetIssueUnderMaintenanceAsync(id, request, cancellationToken);
+        return Success(result);
+    }
+
+    [HttpPost("issues/{id:guid}/resolve")]
+    [Authorize(Roles = RoleNames.OwnerAndManager)]
+    [RequireShopRole(RoleNames.CompanyOwner, RoleNames.Manager)]
+    public async Task<IActionResult> ResolveIssue(Guid id, [FromBody] ResolveTemperatureIssueRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _temperatureLogService.ResolveIssueAsync(id, request, cancellationToken);
+        return Success(result);
     }
 }
 

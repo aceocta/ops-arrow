@@ -5,6 +5,7 @@ using ScratchCard.Application.Common.Services;
 using ScratchCard.Application.DTOs.Reports;
 using ScratchCard.Application.Services;
 using ScratchCard.Domain.Constants;
+using ScratchCard.Domain.Enums;
 
 namespace ScratchCard.Api.Controllers;
 
@@ -49,10 +50,29 @@ public class ReportsController : BaseApiController
         [FromQuery] DateOnly from,
         [FromQuery] DateOnly to,
         [FromQuery] Guid? unitId,
+        [FromQuery] FoodCategory? category,
+        [FromQuery] TemperatureResult? result,
+        [FromQuery] string? checkedBy,
         CancellationToken cancellationToken)
     {
-        var result = await _reportService.GetTemperatureLogsReportAsync(shopId, from, to, unitId, cancellationToken);
-        return Success(result);
+        var rows = await _reportService.GetTemperatureLogsReportAsync(shopId, from, to, unitId, category, result, checkedBy, cancellationToken);
+        return Success(rows);
+    }
+
+    // §24 equipment-issue history: not-working / under-maintenance / resolved incidents, with the
+    // corrective actions, food-discarded flag and manager-approval stamp on each.
+    [HttpGet("temperature-issues")]
+    public async Task<IActionResult> TemperatureIssues(
+        [FromQuery] Guid shopId,
+        [FromQuery] DateOnly from,
+        [FromQuery] DateOnly to,
+        [FromQuery] Guid? unitId,
+        [FromQuery] FoodCategory? category,
+        [FromQuery] EquipmentWorkingStatus? status,
+        CancellationToken cancellationToken)
+    {
+        var rows = await _reportService.GetTemperatureIssuesReportAsync(shopId, from, to, unitId, category, status, cancellationToken);
+        return Success(rows);
     }
 
     [HttpGet("temperature-schedule-grid")]

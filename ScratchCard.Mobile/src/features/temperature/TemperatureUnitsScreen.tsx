@@ -1,9 +1,10 @@
 ﻿import React, { useEffect, useRef, useState } from "react";
 import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { createTemperatureUnit, listTemperatureUnits } from "../../api/temperatureLogsApi";
+import { createTemperatureUnit, listTemperatureEquipmentIssues, listTemperatureUnits } from "../../api/temperatureLogsApi";
 import { MainStackParamList } from "../../types/navigation";
 import { useAuth } from "../../auth/AuthContext";
 import { EmptyState } from "../../components/EmptyState";
@@ -15,7 +16,7 @@ import { useFieldValidation } from "../../components/useFieldValidation";
 import { toastError, toastSuccess } from "../../components/toast";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ModalBackdropBlur } from "../../components/ModalBackdropBlur";
-import { TemperatureEquipmentType } from "../../types/enums";
+import { EquipmentWorkingStatus, TemperatureEquipmentType } from "../../types/enums";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 
@@ -34,11 +35,33 @@ const equipmentTypeOptions: TemperatureEquipmentType[] = [
   TemperatureEquipmentType.CoolRoom,
   TemperatureEquipmentType.DisplayChill,
   TemperatureEquipmentType.HotFoodDisplay,
+  TemperatureEquipmentType.HotFoodCounter,
+  TemperatureEquipmentType.BainMarie,
+  TemperatureEquipmentType.PieWarmer,
   TemperatureEquipmentType.Other,
 ];
 
 function formatTemperature(value: number) {
   return `${value.toFixed(1)} C`;
+}
+
+// A secondary badge for a unit whose working status isn't plain "Working" (spec §9/§22).
+function workingStatusBadge(status: EquipmentWorkingStatus): { label: string; tone: "warning" | "danger" } | null {
+  switch (status) {
+    case EquipmentWorkingStatus.NotWorking:
+      return { label: "Not working", tone: "danger" };
+    case EquipmentWorkingStatus.UnderMaintenance:
+      return { label: "Under maintenance", tone: "warning" };
+    case EquipmentWorkingStatus.TemperatureWarning:
+      return { label: "Temp warning", tone: "warning" };
+    default:
+      return null;
+  }
+}
+
+function WorkingStatusBadge({ status }: { status: EquipmentWorkingStatus }) {
+  const badge = workingStatusBadge(status);
+  return badge ? <StatusBadge label={badge.label} tone={badge.tone} /> : null;
 }
 
 export function TemperatureUnitsScreen() {
@@ -70,6 +93,15 @@ export function TemperatureUnitsScreen() {
     enabled: Boolean(shopId),
     staleTime: 10 * 60 * 1000,
   });
+
+  // Open equipment issues, for the header count + per-unit indicator (spec §22).
+  const issuesQuery = useQuery({
+    queryKey: ["temperature-issues", shopId],
+    queryFn: () => listTemperatureEquipmentIssues(shopId as string, true),
+    enabled: Boolean(shopId),
+    staleTime: 60 * 1000,
+  });
+  const openIssueCount = issuesQuery.data?.length ?? 0;
 
   const createUnitMutation = useMutation({
     mutationFn: async (shiftConflicts: boolean) => {
@@ -163,11 +195,26 @@ export function TemperatureUnitsScreen() {
         </View>
         {!canManageUnits ? <Text style={styles.meta}>Only manager or company owner can add new units.</Text> : null}
 
+        <Pressable
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.issuesLink, pressed ? styles.pressed : null]}
+          onPress={() => navigation.navigate("TemperatureIssues")}
+        >
+          <View style={styles.issuesLinkLeft}>
+            <StatusBadge label={String(openIssueCount)} tone={openIssueCount > 0 ? "danger" : "neutral"} />
+            <Text style={styles.issuesLinkText}>Equipment issues</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={appTheme.colors.textMuted} />
+        </Pressable>
+
         {(unitsQuery.data ?? []).map((unit) => (
           <View key={unit.id} style={styles.unitItem}>
             <View style={styles.unitHeader}>
               <Text style={styles.unitTitle}>{unit.displayOrder ? `${unit.displayOrder}. ` : ""}{unit.unitName}</Text>
-              <StatusBadge label={unit.isActive ? "Active" : "Inactive"} tone={unit.isActive ? "success" : "neutral"} />
+              <View style={styles.unitHeaderBadges}>
+                <WorkingStatusBadge status={unit.currentWorkingStatus} />
+                <StatusBadge label={unit.isActive ? "Active" : "Inactive"} tone={unit.isActive ? "success" : "neutral"} />
+              </View>
             </View>
             <Text style={styles.meta}>
               {unit.equipmentType}{unit.location ? ` | ${unit.location}` : ""}
@@ -392,6 +439,35 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     gap: appTheme.spacing.xs,
+  },
+  unitHeaderBadges: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+    flexShrink: 0,
+  },
+  issuesLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: 10,
+    marginTop: appTheme.spacing.xs,
+  },
+  issuesLinkLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: appTheme.spacing.xs,
+  },
+  issuesLinkText: {
+    color: appTheme.colors.text,
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 18,
   },
   unitTitle: {
     color: appTheme.colors.text,

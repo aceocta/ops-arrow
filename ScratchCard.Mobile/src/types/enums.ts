@@ -41,7 +41,34 @@ export enum TemperatureEquipmentType {
   CoolRoom = "CoolRoom",
   DisplayChill = "DisplayChill",
   HotFoodDisplay = "HotFoodDisplay",
+  HotFoodCounter = "HotFoodCounter",
+  BainMarie = "BainMarie",
+  PieWarmer = "PieWarmer",
   Other = "Other",
+}
+
+// Food-safety category that drives the Pass/Warning/Fail bands (spec §5/§7/§8).
+export enum FoodCategory {
+  HotFood = "HotFood",
+  ColdFood = "ColdFood",
+  Frozen = "Frozen",
+}
+
+// Three-tier verdict for a temperature reading (spec §7/§8).
+export enum TemperatureResult {
+  Pass = "Pass",
+  Warning = "Warning",
+  Fail = "Fail",
+}
+
+// Equipment working status, separate from the reading verdict (spec §9/§21).
+export enum EquipmentWorkingStatus {
+  Working = "Working",
+  TemperatureWarning = "TemperatureWarning",
+  NotWorking = "NotWorking",
+  UnderMaintenance = "UnderMaintenance",
+  Resolved = "Resolved",
+  Inactive = "Inactive",
 }
 
 export enum BillingCycle {

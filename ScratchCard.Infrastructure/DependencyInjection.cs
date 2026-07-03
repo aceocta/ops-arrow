@@ -81,6 +81,7 @@ public static class DependencyInjection
         services.AddHostedService<TrialReminderBackgroundService>();
         services.AddHostedService<TemperatureMissedAlertsBackgroundService>();
         services.AddHostedService<TemperaturePredictiveAlertsBackgroundService>();
+        services.AddHostedService<TemperatureTimerAlertsBackgroundService>();
         services.AddHostedService<TemperatureLogReminderBackgroundService>();
         services.AddHostedService<ShiftReminderBackgroundService>();
         services.AddHostedService<WeeklyTimesheetBackgroundService>();

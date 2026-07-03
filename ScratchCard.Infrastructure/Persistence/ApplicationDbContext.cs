@@ -55,6 +55,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<TemperatureMonitoringUnit> TemperatureMonitoringUnits => Set<TemperatureMonitoringUnit>();
     public DbSet<TemperatureReading> TemperatureReadings => Set<TemperatureReading>();
     public DbSet<TemperatureDailySignoff> TemperatureDailySignoffs => Set<TemperatureDailySignoff>();
+    public DbSet<TemperatureEquipmentIssue> TemperatureEquipmentIssues => Set<TemperatureEquipmentIssue>();
+    public DbSet<TemperatureAttachment> TemperatureAttachments => Set<TemperatureAttachment>();
     public DbSet<RotaShift> RotaShifts => Set<RotaShift>();
     public DbSet<RotaStaffMember> RotaStaffMembers => Set<RotaStaffMember>();
     public DbSet<StaffPayRate> StaffPayRates => Set<StaffPayRate>();
@@ -884,11 +886,13 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.CheckedByInitials).HasMaxLength(20).IsRequired();
             entity.Property(x => x.Notes).HasMaxLength(500);
             entity.Property(x => x.ActionTaken).HasMaxLength(500);
+            entity.Property(x => x.CorrectiveActions).HasMaxLength(500);
             entity.Property(x => x.RecordedByName).HasMaxLength(200);
             entity.HasIndex(x => x.ScheduleId);
             entity.HasOne(x => x.Shop).WithMany(x => x.TemperatureReadings).HasForeignKey(x => x.ShopId);
             entity.HasOne(x => x.TemperatureMonitoringUnit).WithMany(x => x.Readings).HasForeignKey(x => x.TemperatureMonitoringUnitId);
             entity.HasOne(x => x.Schedule).WithMany().HasForeignKey(x => x.ScheduleId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.TemperatureEquipmentIssue).WithMany(x => x.Readings).HasForeignKey(x => x.TemperatureEquipmentIssueId).OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<TemperatureDailySignoff>(entity =>
@@ -898,6 +902,43 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.SignedByName).HasMaxLength(200).IsRequired();
             entity.Property(x => x.Notes).HasMaxLength(1000);
             entity.HasOne(x => x.Shop).WithMany(x => x.TemperatureDailySignoffs).HasForeignKey(x => x.ShopId);
+        });
+
+        modelBuilder.Entity<TemperatureEquipmentIssue>(entity =>
+        {
+            entity.HasIndex(x => new { x.ShopId, x.TemperatureMonitoringUnitId, x.Status });
+            entity.Property(x => x.Reason).HasMaxLength(500);
+            entity.Property(x => x.TemperatureAtOpenCelsius).HasPrecision(5, 2);
+            entity.Property(x => x.FinalTemperatureCelsius).HasPrecision(5, 2);
+            entity.Property(x => x.FoodMovedTo).HasMaxLength(200);
+            entity.Property(x => x.CorrectiveActions).HasMaxLength(500);
+            entity.Property(x => x.OpenedByName).HasMaxLength(200);
+            entity.Property(x => x.ResolvedByName).HasMaxLength(200);
+            entity.Property(x => x.ResolutionNotes).HasMaxLength(1000);
+            entity.Property(x => x.ApprovedByName).HasMaxLength(200);
+            entity.Property(x => x.ApprovalSignatureImagePath).HasMaxLength(1000);
+            entity.Property(x => x.Notes).HasMaxLength(1000);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.TemperatureMonitoringUnit).WithMany(x => x.Issues).HasForeignKey(x => x.TemperatureMonitoringUnitId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        modelBuilder.Entity<TemperatureAttachment>(entity =>
+        {
+            entity.HasIndex(x => x.TemperatureReadingId);
+            entity.HasIndex(x => x.TemperatureEquipmentIssueId);
+            entity.Property(x => x.OriginalFileName).HasMaxLength(260).IsRequired();
+            entity.Property(x => x.StoredFileName).HasMaxLength(320).IsRequired();
+            entity.Property(x => x.StoredPath).HasMaxLength(1000).IsRequired();
+            entity.Property(x => x.ContentType).HasMaxLength(120);
+            entity.HasOne(x => x.Shop).WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.TemperatureReading).WithMany(x => x.Attachments).HasForeignKey(x => x.TemperatureReadingId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.TemperatureEquipmentIssue).WithMany(x => x.Attachments).HasForeignKey(x => x.TemperatureEquipmentIssueId).OnDelete(DeleteBehavior.NoAction);
+            // Exactly one owner: a row belongs to a reading XOR an equipment issue, never both/neither.
+            entity.ToTable(
+                "TemperatureAttachments",
+                table => table.HasCheckConstraint(
+                    "CK_TemperatureAttachments_OwnerXor",
+                    "([TemperatureReadingId] IS NOT NULL AND [TemperatureEquipmentIssueId] IS NULL) OR ([TemperatureReadingId] IS NULL AND [TemperatureEquipmentIssueId] IS NOT NULL)"));
         });
 
         modelBuilder.Entity<RotaShift>(entity =>

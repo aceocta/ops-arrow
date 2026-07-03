@@ -2,7 +2,9 @@
 using ScratchCard.Application.Common.Exceptions;
 using ScratchCard.Application.Common.Extensions;
 using ScratchCard.Application.Common.Interfaces;
+using ScratchCard.Application.Common.Models;
 using ScratchCard.Application.Common.Services;
+using ScratchCard.Application.DTOs.Common;
 using ScratchCard.Application.DTOs.TemperatureLogs;
 using ScratchCard.Domain.Constants;
 using ScratchCard.Domain.Entities;
@@ -23,6 +25,13 @@ public class TemperatureLogService : ITemperatureLogService
     private readonly IRepository<TemperatureDailySignoff> _signoffRepository;
     private readonly IRepository<CfgTemperatureSchedule> _scheduleRepository;
     private readonly IRepository<TemperatureScheduleUnit> _scheduleUnitRepository;
+    private readonly IRepository<TemperatureEquipmentIssue> _issueRepository;
+    private readonly IRepository<TemperatureAttachment> _attachmentRepository;
+    private readonly IRepository<ShopUser> _shopUserRepository;
+    private readonly IRepository<Shop> _shopRepository;
+    private readonly IRepository<UserPushToken> _pushTokenRepository;
+    private readonly IAttachmentStorageService _attachmentStorageService;
+    private readonly INotificationService _notificationService;
     private readonly IFeatureGateService _featureGateService;
     private readonly IShopMembershipService _shopMembershipService;
     private readonly IAuditService _auditService;
@@ -35,6 +44,13 @@ public class TemperatureLogService : ITemperatureLogService
         IRepository<TemperatureDailySignoff> signoffRepository,
         IRepository<CfgTemperatureSchedule> scheduleRepository,
         IRepository<TemperatureScheduleUnit> scheduleUnitRepository,
+        IRepository<TemperatureEquipmentIssue> issueRepository,
+        IRepository<TemperatureAttachment> attachmentRepository,
+        IRepository<ShopUser> shopUserRepository,
+        IRepository<Shop> shopRepository,
+        IRepository<UserPushToken> pushTokenRepository,
+        IAttachmentStorageService attachmentStorageService,
+        INotificationService notificationService,
         IFeatureGateService featureGateService,
         IShopMembershipService shopMembershipService,
         IAuditService auditService,
@@ -46,6 +62,13 @@ public class TemperatureLogService : ITemperatureLogService
         _signoffRepository = signoffRepository;
         _scheduleRepository = scheduleRepository;
         _scheduleUnitRepository = scheduleUnitRepository;
+        _issueRepository = issueRepository;
+        _attachmentRepository = attachmentRepository;
+        _shopUserRepository = shopUserRepository;
+        _shopRepository = shopRepository;
+        _pushTokenRepository = pushTokenRepository;
+        _attachmentStorageService = attachmentStorageService;
+        _notificationService = notificationService;
         _featureGateService = featureGateService;
         _shopMembershipService = shopMembershipService;
         _auditService = auditService;
@@ -269,9 +292,11 @@ public class TemperatureLogService : ITemperatureLogService
             ShopId = request.ShopId,
             UnitName = unitName,
             EquipmentType = request.EquipmentType,
+            FoodCategory = request.FoodCategory ?? DeriveFoodCategory(request.EquipmentType),
             MinTemperatureCelsius = request.MinTemperatureCelsius,
             MaxTemperatureCelsius = request.MaxTemperatureCelsius,
             IsActive = request.IsActive,
+            CurrentWorkingStatus = request.IsActive ? EquipmentWorkingStatus.Working : EquipmentWorkingStatus.Inactive,
             Location = request.Location?.Trim(),
             Notes = request.Notes?.Trim(),
             DisplayOrder = displayOrder,
@@ -315,9 +340,19 @@ public class TemperatureLogService : ITemperatureLogService
 
         unit.UnitName = unitName;
         unit.EquipmentType = request.EquipmentType;
+        unit.FoodCategory = request.FoodCategory ?? DeriveFoodCategory(request.EquipmentType);
         unit.MinTemperatureCelsius = request.MinTemperatureCelsius;
         unit.MaxTemperatureCelsius = request.MaxTemperatureCelsius;
         unit.IsActive = request.IsActive;
+        // Retiring/reactivating a unit flips its working status when it isn't in an open incident.
+        if (!request.IsActive)
+        {
+            unit.CurrentWorkingStatus = EquipmentWorkingStatus.Inactive;
+        }
+        else if (unit.CurrentWorkingStatus == EquipmentWorkingStatus.Inactive)
+        {
+            unit.CurrentWorkingStatus = EquipmentWorkingStatus.Working;
+        }
         unit.Location = request.Location?.Trim();
         unit.Notes = request.Notes?.Trim();
         unit.DisplayOrder = request.DisplayOrder;
@@ -385,6 +420,11 @@ public class TemperatureLogService : ITemperatureLogService
             throw new AppException("temperature_invalid_date", "Reading date is required.");
         }
 
+        // Recording a reading writes food-safety data for the shop — verify the caller is a member with
+        // an operational role there, not just that they hold the global role (the controller attribute
+        // alone doesn't prove shop membership on the body's ShopId).
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(request.ShopId, TemperatureUnitManagementRoles, cancellationToken);
+
         var unit = await _unitRepository.Query()
             .AsNoTracking()
             .FirstOrDefaultAsync(
@@ -397,11 +437,20 @@ public class TemperatureLogService : ITemperatureLogService
             throw new AppException("temperature_unit_inactive", "Temperature unit is inactive.");
         }
 
-        var isOutOfRange = request.TemperatureCelsius < unit.MinTemperatureCelsius
-            || request.TemperatureCelsius > unit.MaxTemperatureCelsius;
-        if (isOutOfRange && string.IsNullOrWhiteSpace(request.ActionTaken) && string.IsNullOrWhiteSpace(request.Notes))
+        // The 3-tier food-safety verdict (Pass/Warning/Fail) from the single source of truth. Min/Max is
+        // the unit's target band; the legal Warn/Fail lines live in the evaluator. IsOutOfRange is kept
+        // in step (anything not Pass) so existing grid/report queries keep working.
+        var result = TemperatureEvaluator.Evaluate(
+            unit.FoodCategory,
+            request.TemperatureCelsius,
+            new TemperatureBand(unit.MinTemperatureCelsius, unit.MaxTemperatureCelsius));
+        var isOutOfRange = result != TemperatureResult.Pass;
+        if (isOutOfRange
+            && string.IsNullOrWhiteSpace(request.ActionTaken)
+            && string.IsNullOrWhiteSpace(request.Notes)
+            && string.IsNullOrWhiteSpace(request.CorrectiveActions))
         {
-            throw new AppException(ErrorCodes.TemperatureActionRequired, "Action taken or notes are required for out-of-range readings.");
+            throw new AppException(ErrorCodes.TemperatureActionRequired, "A corrective action is required for a warning or fail reading.");
         }
 
         var now = DateTimeOffset.UtcNow;
@@ -444,9 +493,11 @@ public class TemperatureLogService : ITemperatureLogService
                 ReadingTime = request.ReadingTime,
                 TemperatureCelsius = request.TemperatureCelsius,
                 IsOutOfRange = isOutOfRange,
+                Result = result,
                 CheckedByInitials = checkedByInitials,
                 Notes = request.Notes?.Trim(),
                 ActionTaken = request.ActionTaken?.Trim(),
+                CorrectiveActions = request.CorrectiveActions?.Trim(),
                 RecordedOn = now,
                 RecordedByUserId = _currentUserService.UserId,
                 RecordedByName = _currentUserService.FullName,
@@ -462,9 +513,11 @@ public class TemperatureLogService : ITemperatureLogService
         {
             existing.TemperatureCelsius = request.TemperatureCelsius;
             existing.IsOutOfRange = isOutOfRange;
+            existing.Result = result;
             existing.CheckedByInitials = checkedByInitials;
             existing.Notes = request.Notes?.Trim();
             existing.ActionTaken = request.ActionTaken?.Trim();
+            existing.CorrectiveActions = request.CorrectiveActions?.Trim();
             existing.RecordedOn = now;
             existing.RecordedByUserId = _currentUserService.UserId;
             existing.RecordedByName = _currentUserService.FullName;
@@ -478,14 +531,57 @@ public class TemperatureLogService : ITemperatureLogService
             auditAction = "TemperatureReadingUpdated";
         }
 
+        // Spec §12/§14/§16: a FAIL reading where staff report the equipment not working opens (or reuses)
+        // an equipment issue — marking the unit Not Working, anchoring the §16 dwell timer and recording
+        // the food-handling answers. The reading is linked to that incident (or to one already open) so the
+        // app can jump straight to the timer/resolve screen.
+        TemperatureEquipmentIssue? failIncident = null;
+        if (result == TemperatureResult.Fail)
+        {
+            failIncident = await ResolveFailIncidentAsync(unit, request, now, cancellationToken);
+            if (failIncident is not null)
+            {
+                reading.TemperatureEquipmentIssueId = failIncident.Id;
+            }
+        }
+
+        // Reflect the verdict on the unit's working status as a soft flag: Pass clears it back to Working,
+        // Warning/Fail-with-equipment-working flags TemperatureWarning. A unit whose status is owned by an
+        // equipment issue (NotWorking/UnderMaintenance) or retired (Inactive) is left alone — those are
+        // driven by the lifecycle. When the FAIL opened/reused an incident, that already set the status.
+        if (failIncident is null
+            && unit.CurrentWorkingStatus is EquipmentWorkingStatus.Working or EquipmentWorkingStatus.TemperatureWarning)
+        {
+            var desiredStatus = result == TemperatureResult.Pass
+                ? EquipmentWorkingStatus.Working
+                : EquipmentWorkingStatus.TemperatureWarning;
+            if (unit.CurrentWorkingStatus != desiredStatus)
+            {
+                unit.CurrentWorkingStatus = desiredStatus;
+                unit.ModifiedOn = now;
+                unit.ModifiedBy = _currentUserService.UserId;
+                _unitRepository.Update(unit);
+            }
+        }
+
+        // §10: optional photos for the check attach to the reading.
+        var readingAttachments = await SaveAttachmentsAsync(
+            request.Attachments, request.ShopId, request.ReadingDate, "reading",
+            reading.Id, issueId: null, now, cancellationToken);
+        foreach (var att in readingAttachments)
+        {
+            reading.Attachments.Add(att);
+        }
+
         try
         {
-            await _unitOfWork.SaveChangesAsync();
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
-        catch (Exception ex)
+        catch (DbUpdateException)
         {
-            // Surface a clear, actionable message instead of a generic 500 when the write fails
-            // (e.g. a transient DB error or a concurrent save of the same check).
+            // Surface a clear, actionable message for a DB write conflict/error (e.g. a concurrent save
+            // of the same check). Only DB-update failures are remapped — other exceptions propagate so a
+            // genuine bug isn't masked as a benign 409.
             throw new AppException(
                 "temperature_save_failed",
                 "Couldn't save the temperature reading. Please try again.",
@@ -498,6 +594,46 @@ public class TemperatureLogService : ITemperatureLogService
             auditAction,
             request.ShopId,
             cancellationToken: cancellationToken);
+
+        if (failIncident is not null)
+        {
+            await _auditService.LogAsync(
+                nameof(TemperatureEquipmentIssue),
+                failIncident.Id,
+                "TemperatureIssueOpenedFromReading",
+                request.ShopId,
+                cancellationToken: cancellationToken);
+        }
+
+        // Manager alerts (§18/§19), best-effort and post-save. A reading that just opened an equipment
+        // issue → Equipment Not Working (urgent); any other Warning/Fail → excursion alert (Fail = urgent).
+        if (result != TemperatureResult.Pass)
+        {
+            var shopName = await ShopNameAsync(request.ShopId, cancellationToken);
+            var temp = request.TemperatureCelsius.ToString("0.#");
+            if (failIncident is not null && failIncident.CreatedOn == now)
+            {
+                await NotifyTemperatureManagersAsync(
+                    request.ShopId, NotificationType.TemperatureEquipmentNotWorking, isPriority: true,
+                    nameof(TemperatureEquipmentIssue), failIncident.Id,
+                    $"Equipment not working — {unit.UnitName}",
+                    $"{unit.UnitName} at {shopName} was reported not working during a failed check ({temp}°C). Immediate action required.",
+                    cancellationToken);
+            }
+            else
+            {
+                var isFail = result == TemperatureResult.Fail;
+                await NotifyTemperatureManagersAsync(
+                    request.ShopId, NotificationType.TemperatureExcursionAlert, isPriority: isFail,
+                    nameof(TemperatureReading), reading.Id,
+                    $"Temperature {(isFail ? "FAIL" : "warning")} — {unit.UnitName}",
+                    $"{unit.UnitName} at {shopName} read {temp}°C ({result}). "
+                        + (isFail
+                            ? "Do not treat this as a normal pass — follow the food-safety procedure now."
+                            : "Outside the ideal range — check and recheck."),
+                    cancellationToken);
+            }
+        }
 
         reading.TemperatureMonitoringUnit = unit;
         return reading.ToDto();
@@ -518,6 +654,7 @@ public class TemperatureLogService : ITemperatureLogService
         var query = _readingRepository.Query()
             .AsNoTracking()
             .Include(x => x.TemperatureMonitoringUnit)
+            .Include(x => x.Attachments)
             .Where(x => x.ShopId == shopId && x.ReadingDate >= from && x.ReadingDate <= to);
 
         if (unitId.HasValue)
@@ -546,6 +683,7 @@ public class TemperatureLogService : ITemperatureLogService
         var readings = await _readingRepository.Query()
             .AsNoTracking()
             .Include(x => x.TemperatureMonitoringUnit)
+            .Include(x => x.Attachments)
             .Where(x => x.ShopId == shopId && x.ReadingDate == date)
             .OrderBy(x => x.ReadingTime)
             .ToListAsync(cancellationToken);
@@ -592,8 +730,14 @@ public class TemperatureLogService : ITemperatureLogService
             throw new AppException("temperature_no_readings", "At least one reading is required before signoff.");
         }
 
+        // A Warning/Fail reading is "actioned" if it carries a free-text action, notes, OR structured
+        // corrective-action codes — mirror the same three fields the recording path accepts, otherwise a
+        // reading saved with only structured CorrectiveActions would permanently block sign-off.
         var hasOutOfRangeWithoutAction = readings.Any(x =>
-            x.IsOutOfRange && string.IsNullOrWhiteSpace(x.ActionTaken) && string.IsNullOrWhiteSpace(x.Notes));
+            x.IsOutOfRange
+            && string.IsNullOrWhiteSpace(x.ActionTaken)
+            && string.IsNullOrWhiteSpace(x.Notes)
+            && string.IsNullOrWhiteSpace(x.CorrectiveActions));
         if (hasOutOfRangeWithoutAction)
         {
             throw new AppException(ErrorCodes.TemperatureActionRequired, "Out-of-range entries require action or notes before signoff.");
@@ -740,6 +884,513 @@ public class TemperatureLogService : ITemperatureLogService
         }
     }
 
+    // The equipment incident behind a FAIL reading (spec §12/§14). Staff are asked "is the equipment
+    // working?" — a No / Not-sure / omitted answer marks the unit Not Working and opens (or reuses) an
+    // equipment issue carrying the food-handling answers and the §16 dwell-timer anchor. A FAIL where the
+    // equipment IS confirmed working is a food-only situation (equipment fine): no equipment issue is
+    // opened here — the reading still attaches to any incident that is already open, and the caller's
+    // soft-flag marks the unit Temperature Warning. Returns the incident to link, or null when none applies.
+    // The unit's denormalised status is kept in step; the caller persists everything in one SaveChanges.
+    private async Task<TemperatureEquipmentIssue?> ResolveFailIncidentAsync(
+        TemperatureMonitoringUnit unit,
+        RecordTemperatureReadingRequest request,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var equipmentDown = request.EquipmentWorking != true;
+
+        // Reuse a running incident for this unit rather than stacking duplicates.
+        var issue = await _issueRepository.Query()
+            .FirstOrDefaultAsync(
+                x => x.TemperatureMonitoringUnitId == unit.Id
+                    && (x.Status == EquipmentWorkingStatus.NotWorking
+                        || x.Status == EquipmentWorkingStatus.UnderMaintenance),
+                cancellationToken);
+
+        if (issue is null)
+        {
+            // Equipment confirmed working and nothing already open → no equipment incident (the unit is
+            // soft-flagged Temperature Warning by the caller instead). Only a not-working answer opens one.
+            if (!equipmentDown)
+            {
+                return null;
+            }
+
+            issue = new TemperatureEquipmentIssue
+            {
+                ShopId = unit.ShopId,
+                TemperatureMonitoringUnitId = unit.Id,
+                Status = EquipmentWorkingStatus.NotWorking,
+                Reason = "Equipment reported not working during a failed temperature check.",
+                TemperatureAtOpenCelsius = request.TemperatureCelsius,
+                OpenedFromReading = true,
+                IssueStartedOn = request.FoodOutOfRangeSince ?? now,
+                OpenedByUserId = _currentUserService.UserId,
+                OpenedByName = _currentUserService.FullName,
+                FoodAffected = true,
+                FoodMoved = request.FoodMoved,
+                FoodMovedTo = request.FoodMovedTo?.Trim(),
+                FoodDiscarded = request.FoodDiscarded,
+                ManagerInformed = request.ManagerInformed,
+                CorrectiveActions = request.CorrectiveActions?.Trim(),
+                CreatedOn = now,
+                CreatedBy = _currentUserService.UserId
+            };
+            await _issueRepository.AddAsync(issue, cancellationToken);
+        }
+        else
+        {
+            // Refresh the food-handling answers whenever the staff supplied one on this reading; never
+            // downgrade an open NotWorking/UnderMaintenance incident from a reading.
+            if (request.FoodMoved.HasValue) issue.FoodMoved = request.FoodMoved;
+            if (!string.IsNullOrWhiteSpace(request.FoodMovedTo)) issue.FoodMovedTo = request.FoodMovedTo.Trim();
+            if (request.FoodDiscarded.HasValue) issue.FoodDiscarded = request.FoodDiscarded;
+            if (request.ManagerInformed.HasValue) issue.ManagerInformed = request.ManagerInformed;
+            if (!string.IsNullOrWhiteSpace(request.CorrectiveActions)) issue.CorrectiveActions = request.CorrectiveActions.Trim();
+            issue.ModifiedOn = now;
+            issue.ModifiedBy = _currentUserService.UserId;
+            _issueRepository.Update(issue);
+        }
+
+        if (unit.CurrentWorkingStatus != issue.Status)
+        {
+            unit.CurrentWorkingStatus = issue.Status;
+            unit.ModifiedOn = now;
+            unit.ModifiedBy = _currentUserService.UserId;
+            _unitRepository.Update(unit);
+        }
+
+        return issue;
+    }
+
+    public async Task<TemperatureEquipmentIssueDto> MarkUnitNotWorkingAsync(MarkUnitNotWorkingRequest request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Reason))
+        {
+            throw new AppException("temperature_issue_reason_required", "A reason is required to mark a unit as not working.");
+        }
+
+        var unit = await _unitRepository.Query()
+            .FirstOrDefaultAsync(x => x.Id == request.TemperatureMonitoringUnitId && x.ShopId == request.ShopId && !x.IsDeleted, cancellationToken)
+            ?? throw new AppException("temperature_unit_not_found", "Temperature unit not found.", 404);
+
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(unit.ShopId, TemperatureUnitManagementRoles, cancellationToken);
+
+        // One open incident per unit at a time.
+        var existingOpen = await _issueRepository.Query().AnyAsync(
+            x => x.TemperatureMonitoringUnitId == unit.Id
+                && (x.Status == EquipmentWorkingStatus.NotWorking || x.Status == EquipmentWorkingStatus.UnderMaintenance),
+            cancellationToken);
+        if (existingOpen)
+        {
+            throw new AppException("temperature_issue_already_open", "This unit already has an open equipment issue.");
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var issue = new TemperatureEquipmentIssue
+        {
+            ShopId = unit.ShopId,
+            TemperatureMonitoringUnitId = unit.Id,
+            Status = EquipmentWorkingStatus.NotWorking,
+            Reason = request.Reason.Trim(),
+            TemperatureAtOpenCelsius = request.CurrentTemperatureCelsius,
+            OpenedFromReading = false,
+            IssueStartedOn = request.IssueNoticedOn ?? now,
+            OpenedByUserId = _currentUserService.UserId,
+            OpenedByName = _currentUserService.FullName,
+            FoodAffected = request.FoodAffected,
+            FoodMoved = request.FoodMoved,
+            FoodMovedTo = request.FoodMovedTo?.Trim(),
+            FoodDiscarded = request.FoodDiscarded,
+            ManagerInformed = request.ManagerInformed,
+            CorrectiveActions = request.CorrectiveActions?.Trim(),
+            Notes = request.Notes?.Trim(),
+            CreatedOn = now,
+            CreatedBy = _currentUserService.UserId
+        };
+        await _issueRepository.AddAsync(issue, cancellationToken);
+
+        unit.CurrentWorkingStatus = EquipmentWorkingStatus.NotWorking;
+        unit.ModifiedOn = now;
+        unit.ModifiedBy = _currentUserService.UserId;
+        _unitRepository.Update(unit);
+
+        // §15: optional photos for the equipment issue.
+        var markAttachments = await SaveAttachmentsAsync(
+            request.Attachments, unit.ShopId, DateOnly.FromDateTime(now.UtcDateTime), "issue",
+            readingId: null, issueId: issue.Id, now, cancellationToken);
+        foreach (var att in markAttachments)
+        {
+            issue.Attachments.Add(att);
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _auditService.LogAsync(nameof(TemperatureEquipmentIssue), issue.Id, "TemperatureUnitMarkedNotWorking", unit.ShopId, cancellationToken: cancellationToken);
+
+        // §18/§19 urgent manager alert, best-effort and post-save.
+        var markShopName = await ShopNameAsync(unit.ShopId, cancellationToken);
+        await NotifyTemperatureManagersAsync(
+            unit.ShopId, NotificationType.TemperatureEquipmentNotWorking, isPriority: true,
+            nameof(TemperatureEquipmentIssue), issue.Id,
+            $"Equipment not working — {unit.UnitName}",
+            $"{unit.UnitName} at {markShopName} was marked not working. Reason: {issue.Reason} Immediate action required.",
+            cancellationToken);
+
+        issue.TemperatureMonitoringUnit = unit;
+        return issue.ToDto();
+    }
+
+    public async Task<TemperatureEquipmentIssueDto> SetIssueUnderMaintenanceAsync(Guid issueId, SetIssueUnderMaintenanceRequest request, CancellationToken cancellationToken = default)
+    {
+        var issue = await _issueRepository.Query()
+            .Include(x => x.TemperatureMonitoringUnit)
+            .FirstOrDefaultAsync(x => x.Id == issueId, cancellationToken)
+            ?? throw new AppException("temperature_issue_not_found", "Equipment issue not found.", 404);
+
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(issue.ShopId, TemperatureUnitManagementRoles, cancellationToken);
+
+        if (issue.Status != EquipmentWorkingStatus.NotWorking)
+        {
+            throw new AppException("temperature_issue_invalid_transition", "Only a not-working issue can be moved to under maintenance.");
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        issue.Status = EquipmentWorkingStatus.UnderMaintenance;
+        issue.MaintenanceStartedOn = now;
+        issue.MaintenanceByUserId = _currentUserService.UserId;
+        if (!string.IsNullOrWhiteSpace(request.Notes))
+        {
+            issue.Notes = request.Notes.Trim();
+        }
+        issue.ModifiedOn = now;
+        issue.ModifiedBy = _currentUserService.UserId;
+        _issueRepository.Update(issue);
+
+        if (issue.TemperatureMonitoringUnit is { } maintUnit)
+        {
+            maintUnit.CurrentWorkingStatus = EquipmentWorkingStatus.UnderMaintenance;
+            maintUnit.ModifiedOn = now;
+            maintUnit.ModifiedBy = _currentUserService.UserId;
+            _unitRepository.Update(maintUnit);
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _auditService.LogAsync(nameof(TemperatureEquipmentIssue), issue.Id, "TemperatureIssueUnderMaintenance", issue.ShopId, cancellationToken: cancellationToken);
+        return issue.ToDto();
+    }
+
+    public async Task<TemperatureEquipmentIssueDto> ResolveIssueAsync(Guid issueId, ResolveTemperatureIssueRequest request, CancellationToken cancellationToken = default)
+    {
+        var issue = await _issueRepository.Query()
+            .Include(x => x.TemperatureMonitoringUnit)
+            .Include(x => x.Attachments)
+            .FirstOrDefaultAsync(x => x.Id == issueId, cancellationToken)
+            ?? throw new AppException("temperature_issue_not_found", "Equipment issue not found.", 404);
+
+        // Closing an incident requires manager approval.
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(issue.ShopId, TemperatureManagementRoles, cancellationToken);
+
+        if (issue.Status == EquipmentWorkingStatus.Resolved)
+        {
+            throw new AppException("temperature_issue_already_resolved", "This issue is already resolved.");
+        }
+
+        var unit = issue.TemperatureMonitoringUnit
+            ?? throw new AppException("temperature_unit_not_found", "Temperature unit not found.", 404);
+
+        // §20/§26: a final temperature and the action taken must be recorded before a unit returns to
+        // Working — a missing temperature must not default to 0°C and silently pass a cold unit.
+        if (request.FinalTemperatureCelsius is not { } finalTemperature)
+        {
+            throw new AppException("temperature_resolve_final_required",
+                "A final temperature is required to resolve the issue.");
+        }
+        if (string.IsNullOrWhiteSpace(request.ResolutionNotes))
+        {
+            throw new AppException("temperature_resolve_action_required",
+                "The action taken is required to resolve the issue.");
+        }
+        if (request.FoodActionCompleted is null)
+        {
+            throw new AppException("temperature_resolve_food_action_required",
+                "Confirm whether the required food action was completed before resolving.");
+        }
+
+        // Spec §20: a unit can't return to Working on a failing final temperature.
+        var finalResult = TemperatureEvaluator.Evaluate(
+            unit.FoodCategory,
+            finalTemperature,
+            new TemperatureBand(unit.MinTemperatureCelsius, unit.MaxTemperatureCelsius));
+        if (finalResult == TemperatureResult.Fail)
+        {
+            throw new AppException("temperature_resolve_still_failing",
+                "The final temperature is still in the fail range — the unit can't be marked as working yet.");
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var resolvedWithWarning = finalResult == TemperatureResult.Warning;
+        issue.Status = EquipmentWorkingStatus.Resolved;
+        issue.ResolvedOn = now;
+        issue.ResolvedByUserId = _currentUserService.UserId;
+        issue.ResolvedByName = _currentUserService.FullName;
+        issue.FinalTemperatureCelsius = finalTemperature;
+        issue.ResolutionNotes = request.ResolutionNotes.Trim();
+        issue.EngineerContacted = request.EngineerContacted;
+        issue.FoodActionCompleted = request.FoodActionCompleted;
+        issue.ResolvedWithWarning = resolvedWithWarning;
+        issue.ApprovedByUserId = _currentUserService.UserId;
+        issue.ApprovedByName = _currentUserService.FullName;
+        issue.ApprovedOn = now;
+        if (!string.IsNullOrWhiteSpace(request.Notes))
+        {
+            issue.Notes = request.Notes.Trim();
+        }
+        issue.ModifiedOn = now;
+        issue.ModifiedBy = _currentUserService.UserId;
+        _issueRepository.Update(issue);
+
+        unit.CurrentWorkingStatus = resolvedWithWarning ? EquipmentWorkingStatus.TemperatureWarning : EquipmentWorkingStatus.Working;
+        unit.ModifiedOn = now;
+        unit.ModifiedBy = _currentUserService.UserId;
+        _unitRepository.Update(unit);
+
+        // §20: optional photos for the resolution.
+        var resolveAttachments = await SaveAttachmentsAsync(
+            request.Attachments, issue.ShopId, DateOnly.FromDateTime(now.UtcDateTime), "resolution",
+            readingId: null, issueId: issue.Id, now, cancellationToken);
+        foreach (var att in resolveAttachments)
+        {
+            issue.Attachments.Add(att);
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _auditService.LogAsync(nameof(TemperatureEquipmentIssue), issue.Id, "TemperatureIssueResolved", issue.ShopId, cancellationToken: cancellationToken);
+
+        // §18 "issue resolved" — normal (non-priority) manager notification, best-effort and post-save.
+        var resolveShopName = await ShopNameAsync(issue.ShopId, cancellationToken);
+        await NotifyTemperatureManagersAsync(
+            issue.ShopId, NotificationType.TemperatureIssueResolved, isPriority: false,
+            nameof(TemperatureEquipmentIssue), issue.Id,
+            $"Equipment issue resolved — {unit.UnitName}",
+            $"{unit.UnitName} at {resolveShopName} is back in service{(resolvedWithWarning ? " (resolved with warning)" : string.Empty)}. Final temperature {finalTemperature.ToString("0.#")}°C.",
+            cancellationToken);
+
+        return issue.ToDto();
+    }
+
+    public async Task<IReadOnlyCollection<TemperatureEquipmentIssueDto>> ListEquipmentIssuesAsync(Guid shopId, bool openOnly = true, CancellationToken cancellationToken = default)
+    {
+        var query = _issueRepository.Query()
+            .AsNoTracking()
+            .Include(x => x.TemperatureMonitoringUnit)
+            .Include(x => x.Attachments)
+            .Where(x => x.ShopId == shopId);
+        if (openOnly)
+        {
+            query = query.Where(x => x.Status == EquipmentWorkingStatus.NotWorking || x.Status == EquipmentWorkingStatus.UnderMaintenance);
+        }
+        var rows = await query.OrderByDescending(x => x.IssueStartedOn).ToListAsync(cancellationToken);
+        return rows.Select(x => x.ToDto()).ToArray();
+    }
+
+    public async Task<TemperatureEquipmentIssueDto> GetEquipmentIssueAsync(Guid issueId, CancellationToken cancellationToken = default)
+    {
+        var issue = await _issueRepository.Query()
+            .AsNoTracking()
+            .Include(x => x.TemperatureMonitoringUnit)
+            .Include(x => x.Attachments)
+            .FirstOrDefaultAsync(x => x.Id == issueId, cancellationToken)
+            ?? throw new AppException("temperature_issue_not_found", "Equipment issue not found.", 404);
+
+        // The route carries only the issue id (no shopId for [RequireShopRole] to bind), so enforce shop
+        // membership here to stop cross-shop reads of another shop's equipment issue.
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(issue.ShopId, TemperatureUnitManagementRoles, cancellationToken);
+        return issue.ToDto();
+    }
+
+    public async Task<string?> GetAttachmentDataUrlAsync(Guid attachmentId, CancellationToken cancellationToken = default)
+    {
+        var attachment = await _attachmentRepository.Query()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == attachmentId, cancellationToken)
+            ?? throw new AppException("temperature_attachment_not_found", "Attachment not found.", 404);
+
+        // Route carries only the attachment id — enforce shop membership before returning file content.
+        await _shopMembershipService.EnsureCurrentUserShopRoleAsync(attachment.ShopId, TemperatureUnitManagementRoles, cancellationToken);
+
+        var bytes = await _attachmentStorageService.ReadAsync(attachment.StoredPath, cancellationToken);
+        if (bytes is null || bytes.Length == 0)
+        {
+            return null;
+        }
+
+        var mimeType = string.IsNullOrWhiteSpace(attachment.ContentType)
+            ? "application/octet-stream"
+            : attachment.ContentType.Trim();
+        return $"data:{mimeType};base64,{Convert.ToBase64String(bytes)}";
+    }
+
+    // Persists optional photos (spec §10/§15/§20): base64 → blob, one TemperatureAttachment row per file
+    // pointing at EXACTLY ONE of the reading/issue (the XOR is enforced here in code; a DB CHECK is a
+    // follow-up migration). Rows are added to the tracked set and to the parent's nav collection so the
+    // caller's single SaveChanges commits them and the returned DTO includes them.
+    private async Task<IReadOnlyCollection<TemperatureAttachment>> SaveAttachmentsAsync(
+        IReadOnlyCollection<CloseAttachmentUploadRequest>? attachments,
+        Guid shopId,
+        DateOnly businessDate,
+        string scope,
+        Guid? readingId,
+        Guid? issueId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var inputs = CloseAttachmentStorage.BuildInputs(attachments, legacyAttachmentFileName: null, legacyAttachmentBase64: null);
+        if (inputs.Count == 0)
+        {
+            return [];
+        }
+
+        var saved = await CloseAttachmentStorage.SaveTemperatureAttachmentsAsync(
+            inputs, _attachmentStorageService, shopId, businessDate, scope, cancellationToken);
+        if (saved.Count == 0)
+        {
+            return [];
+        }
+
+        var rows = saved.Select(s => new TemperatureAttachment
+        {
+            ShopId = shopId,
+            TemperatureReadingId = readingId,
+            TemperatureEquipmentIssueId = issueId,
+            OriginalFileName = s.OriginalFileName,
+            StoredFileName = s.StoredFileName,
+            StoredPath = s.StoredPath,
+            ContentType = s.ContentType,
+            FileSizeBytes = s.FileSizeBytes,
+            CreatedOn = now,
+            CreatedBy = _currentUserService.UserId
+        }).ToArray();
+
+        await _attachmentRepository.AddRangeAsync(rows, cancellationToken);
+        return rows;
+    }
+
+    private async Task<string> ShopNameAsync(Guid shopId, CancellationToken cancellationToken)
+        => await _shopRepository.Query()
+            .AsNoTracking()
+            .Where(x => x.Id == shopId)
+            .Select(x => x.ShopName)
+            .FirstOrDefaultAsync(cancellationToken) ?? "your shop";
+
+    // Fans a food-safety alert out to a shop's owners & managers across in-app push, email and WhatsApp
+    // (spec §18/§19). Entirely best-effort: this runs AFTER the reading/issue is saved, and a failure to
+    // notify (or one bad recipient) never bubbles up to fail the write. Plan/channel gating is handled
+    // inside INotificationService.SendAsync.
+    private async Task NotifyTemperatureManagersAsync(
+        Guid shopId,
+        NotificationType type,
+        bool isPriority,
+        string relatedEntityName,
+        Guid relatedEntityId,
+        string subject,
+        string body,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var emailRecipients = await _shopUserRepository.Query()
+                .AsNoTracking()
+                .Where(x => x.ShopId == shopId && x.IsActive
+                    && (x.Role.Name == RoleNames.CompanyOwner || x.Role.Name == RoleNames.Manager)
+                    && !string.IsNullOrWhiteSpace(x.User.Email))
+                .Select(x => x.User.Email!)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            foreach (var recipient in emailRecipients)
+            {
+                await SafeSendAsync(new NotificationMessage
+                {
+                    ShopId = shopId,
+                    NotificationType = type,
+                    Channel = NotificationChannel.Email,
+                    Recipient = recipient,
+                    Subject = subject,
+                    Body = body,
+                    IsBodyHtml = false,
+                    IsPriority = isPriority,
+                    RelatedEntityName = relatedEntityName,
+                    RelatedEntityId = relatedEntityId
+                }, cancellationToken);
+            }
+
+            var phoneRecipients = await _shopUserRepository.Query()
+                .AsNoTracking()
+                .Where(x => x.ShopId == shopId && x.IsActive
+                    && (x.Role.Name == RoleNames.CompanyOwner || x.Role.Name == RoleNames.Manager)
+                    && !string.IsNullOrWhiteSpace(x.User.PhoneNumber))
+                .Select(x => x.User.PhoneNumber!)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            foreach (var phone in phoneRecipients)
+            {
+                await SafeSendAsync(new NotificationMessage
+                {
+                    ShopId = shopId,
+                    NotificationType = type,
+                    Channel = NotificationChannel.WhatsApp,
+                    Recipient = phone,
+                    Subject = subject,
+                    Body = body,
+                    IsBodyHtml = false,
+                    IsPriority = isPriority,
+                    RelatedEntityName = relatedEntityName,
+                    RelatedEntityId = relatedEntityId
+                }, cancellationToken);
+            }
+
+            // In-app push to every logged-in device for the shop.
+            var pushTokens = await _pushTokenRepository.Query()
+                .AsNoTracking()
+                .Where(t => t.ShopId == shopId && t.IsActive && t.PushToken != "")
+                .Select(t => t.PushToken)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            foreach (var token in pushTokens)
+            {
+                await SafeSendAsync(new NotificationMessage
+                {
+                    ShopId = shopId,
+                    NotificationType = type,
+                    Channel = NotificationChannel.InApp,
+                    Recipient = token,
+                    Subject = subject,
+                    Body = body,
+                    RelatedEntityName = relatedEntityName,
+                    RelatedEntityId = relatedEntityId
+                }, cancellationToken);
+            }
+        }
+        catch
+        {
+            // Best-effort: an alert failure must never block a saved reading/issue.
+        }
+    }
+
+    private async Task SafeSendAsync(NotificationMessage message, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _notificationService.SendAsync(message, cancellationToken);
+        }
+        catch
+        {
+            // Per-recipient/channel failure must not stop the rest of the fan-out.
+        }
+    }
+
     private static void ValidateTemperatureRange(decimal minTemperatureCelsius, decimal maxTemperatureCelsius)
     {
         if (minTemperatureCelsius >= maxTemperatureCelsius)
@@ -747,6 +1398,17 @@ public class TemperatureLogService : ITemperatureLogService
             throw new AppException("temperature_invalid_range", "Minimum temperature must be lower than maximum temperature.");
         }
     }
+
+    // Fallback food category from the appliance type, for callers (e.g. an older client) that don't send one.
+    private static FoodCategory DeriveFoodCategory(TemperatureEquipmentType equipmentType) => equipmentType switch
+    {
+        TemperatureEquipmentType.HotFoodDisplay
+            or TemperatureEquipmentType.HotFoodCounter
+            or TemperatureEquipmentType.BainMarie
+            or TemperatureEquipmentType.PieWarmer => FoodCategory.HotFood,
+        TemperatureEquipmentType.Freezer => FoodCategory.Frozen,
+        _ => FoodCategory.ColdFood,
+    };
 
     // Order numbers are unique within a shop (0 = "unset", not enforced). On a clash we either reject
     // or, when shiftConflicts is set, bump the unit at that slot and everything below it down by one

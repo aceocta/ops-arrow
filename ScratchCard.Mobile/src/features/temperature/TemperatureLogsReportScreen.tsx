@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { Alert, FlatList, StyleSheet, Text, View } from "react-native";
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
@@ -16,6 +16,7 @@ import { ScreenContainer } from "../../components/ScreenContainer";
 import { SkeletonList } from "../../components/Skeleton";
 import { toastError, toastSuccess } from "../../components/toast";
 import { StatusBadge } from "../../components/StatusBadge";
+import { FoodCategory, TemperatureResult } from "../../types/enums";
 import { ui } from "../../ui/primitives";
 import { appTheme } from "../../ui/theme";
 import { getApiErrorMessage } from "../../utils/apiErrorMessage";
@@ -82,11 +83,18 @@ export function TemperatureLogsReportScreen() {
   const today = useMemo(() => new Date(), []);
   const [fromDate, setFromDate] = useState(formatDateValue(monthAgo(today)));
   const [toDate, setToDate] = useState(formatDateValue(today));
+  // §24 filters: hot/cold/frozen category and Pass/Warning/Fail result (null = all).
+  const [category, setCategory] = useState<FoodCategory | null>(null);
+  const [result, setResult] = useState<TemperatureResult | null>(null);
   const rangeIsValid = isValidRange(fromDate, toDate);
 
   const readingsQuery = useQuery({
-    queryKey: ["temperature-range-report", shopId, fromDate, toDate],
-    queryFn: () => getTemperatureLogsReport(shopId as string, fromDate, toDate),
+    queryKey: ["temperature-range-report", shopId, fromDate, toDate, category, result],
+    queryFn: () =>
+      getTemperatureLogsReport(shopId as string, fromDate, toDate, undefined, {
+        category: category ?? undefined,
+        result: result ?? undefined,
+      }),
     enabled: Boolean(shopId) && rangeIsValid,
   });
 
@@ -282,6 +290,42 @@ export function TemperatureLogsReportScreen() {
             <DateTimeField style={{ flex: 1 }} mode="date" value={toDate} onChange={setToDate} />
           </View>
           {!rangeIsValid ? <Text style={styles.warning}>From date must be earlier than or equal to To date.</Text> : null}
+          <View style={styles.filterGroup}>
+            <View style={styles.filterRow}>
+              {([["All", null], ["Hot", FoodCategory.HotFood], ["Cold", FoodCategory.ColdFood], ["Frozen", FoodCategory.Frozen]] as [string, FoodCategory | null][]).map(
+                ([label, value]) => {
+                  const active = category === value;
+                  return (
+                    <Pressable
+                      key={label}
+                      accessibilityRole="button"
+                      onPress={() => setCategory(value)}
+                      style={[styles.filterChip, active ? styles.filterChipActive : null]}
+                    >
+                      <Text style={[styles.filterChipText, active ? styles.filterChipTextActive : null]}>{label}</Text>
+                    </Pressable>
+                  );
+                },
+              )}
+            </View>
+            <View style={styles.filterRow}>
+              {([["All results", null], ["Pass", TemperatureResult.Pass], ["Warning", TemperatureResult.Warning], ["Fail", TemperatureResult.Fail]] as [string, TemperatureResult | null][]).map(
+                ([label, value]) => {
+                  const active = result === value;
+                  return (
+                    <Pressable
+                      key={label}
+                      accessibilityRole="button"
+                      onPress={() => setResult(value)}
+                      style={[styles.filterChip, active ? styles.filterChipActive : null]}
+                    >
+                      <Text style={[styles.filterChipText, active ? styles.filterChipTextActive : null]}>{label}</Text>
+                    </Pressable>
+                  );
+                },
+              )}
+            </View>
+          </View>
           <View style={styles.metricsRow}>
             <View style={styles.metricCard}>
               <Text style={styles.metricValue}>{readings.length}</Text>
@@ -338,6 +382,8 @@ export function TemperatureLogsReportScreen() {
       reportDateTime,
       fromDate,
       toDate,
+      category,
+      result,
       rangeIsValid,
       readings.length,
       inRangeCount,
@@ -397,6 +443,35 @@ const styles = StyleSheet.create({
   metricsRow: {
     flexDirection: "row",
     gap: appTheme.spacing.xs,
+  },
+  filterGroup: {
+    gap: appTheme.spacing.xs,
+    marginBottom: appTheme.spacing.xs,
+  },
+  filterRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: appTheme.spacing.xs,
+  },
+  filterChip: {
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: 5,
+    borderRadius: appTheme.radius.pill,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surface,
+  },
+  filterChipActive: {
+    borderColor: appTheme.colors.primary,
+    backgroundColor: appTheme.colors.primary,
+  },
+  filterChipText: {
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    color: appTheme.colors.textMuted,
+  },
+  filterChipTextActive: {
+    color: appTheme.colors.onPrimary,
   },
   metricCard: {
     flex: 1,

@@ -1,4 +1,4 @@
-import { BillingCycle, EntryMethod, PackStatus, SellingOrder, ShiftStatus, SubscriptionStatus, SyncStatus, TemperatureEquipmentType, TillLineClassification, TillLineSource, TillReportStatus, TillReportType, TillRuleMatchType } from "./enums";
+import { BillingCycle, EntryMethod, EquipmentWorkingStatus, FoodCategory, PackStatus, SellingOrder, ShiftStatus, SubscriptionStatus, SyncStatus, TemperatureEquipmentType, TemperatureResult, TillLineClassification, TillLineSource, TillReportStatus, TillReportType, TillRuleMatchType } from "./enums";
 
 export type ShopPaymentType = {
   id: string;
@@ -1014,14 +1014,24 @@ export type ComplianceActionReportRow = {
   closedOutOn?: string;
 };
 
+export type TemperatureAttachment = {
+  id: string;
+  fileName: string;
+  contentType?: string;
+  fileSizeBytes: number;
+  uploadedOn: string;
+};
+
 export type TemperatureMonitoringUnit = {
   id: string;
   shopId: string;
   unitName: string;
   equipmentType: TemperatureEquipmentType;
+  foodCategory: FoodCategory;
   minTemperatureCelsius: number;
   maxTemperatureCelsius: number;
   isActive: boolean;
+  currentWorkingStatus: EquipmentWorkingStatus;
   location?: string;
   notes?: string;
   displayOrder: number;
@@ -1039,14 +1049,50 @@ export type TemperatureReading = {
   readingTime: string;
   temperatureCelsius: number;
   isOutOfRange: boolean;
+  result: TemperatureResult;
   checkedByInitials: string;
   notes?: string;
   actionTaken?: string;
+  correctiveActions?: string;
+  temperatureEquipmentIssueId?: string;
   recordedOn: string;
   recordedByName?: string;
   scheduleId?: string;
   scheduleLabel?: string;
   isLateForSchedule: boolean;
+  attachments: TemperatureAttachment[];
+};
+
+export type TemperatureEquipmentIssue = {
+  id: string;
+  shopId: string;
+  temperatureMonitoringUnitId: string;
+  unitName: string;
+  foodCategory: FoodCategory;
+  status: EquipmentWorkingStatus;
+  reason: string;
+  temperatureAtOpenCelsius?: number;
+  openedFromReading: boolean;
+  issueStartedOn: string;
+  openedByName?: string;
+  foodAffected?: boolean;
+  foodMoved?: boolean;
+  foodMovedTo?: string;
+  foodDiscarded?: boolean;
+  managerInformed?: boolean;
+  correctiveActions?: string;
+  maintenanceStartedOn?: string;
+  resolvedOn?: string;
+  resolvedByName?: string;
+  finalTemperatureCelsius?: number;
+  resolutionNotes?: string;
+  engineerContacted?: boolean;
+  foodActionCompleted?: boolean;
+  resolvedWithWarning: boolean;
+  approvedByName?: string;
+  approvedOn?: string;
+  notes?: string;
+  attachments: TemperatureAttachment[];
 };
 
 export type TemperatureSchedule = {

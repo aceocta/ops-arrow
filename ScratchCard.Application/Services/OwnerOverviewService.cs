@@ -176,7 +176,7 @@ public class OwnerOverviewService : IOwnerOverviewService
         // record for the day — not the per-slot grid representative). Each reading carries IsOutOfRange,
         // computed against its unit's safe range when it was logged.
         var readings = await SafeAsync(
-            () => _reportService.GetTemperatureLogsReportAsync(shopId, from, to, null, cancellationToken),
+            () => _reportService.GetTemperatureLogsReportAsync(shopId, from, to, null, cancellationToken: cancellationToken),
             Array.Empty<DTOs.TemperatureLogs.TemperatureReadingDto>() as IReadOnlyCollection<DTOs.TemperatureLogs.TemperatureReadingDto>);
         foreach (var reading in readings)
         {

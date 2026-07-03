@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Image, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { NavigationProp, RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import {
   getTemperatureDailyLog,
   listTemperatureSchedules,
@@ -10,6 +11,10 @@ import {
   recordTemperatureReading,
   runTemperaturePredictiveCheck,
 } from "../../api/temperatureLogsApi";
+import { correctiveActionOptions, correctiveActionsRequireNotes, evaluateTemperature, verdictGuidance } from "./temperatureVerdict";
+import { TemperatureResult } from "../../types/enums";
+import { optimizeImage } from "../../utils/imageOptimizer";
+import { cleanupLocalImage } from "../../utils/shareFile";
 import { useAuth } from "../../auth/AuthContext";
 import { useTemperatureDisplaySettings } from "./useTemperatureDisplaySettings";
 import { DateTimeField, formatDateValue, formatTimeValue, parseDateTimeValue } from "../../components/DateTimeField";
@@ -43,6 +48,45 @@ function formatTemperature(value: number) {
 
 function readingStatusTone(isOutOfRange: boolean): "success" | "danger" {
   return isOutOfRange ? "danger" : "success";
+}
+
+// A photo staged for upload with a reading (base64 + local preview uri), before it's sent to the server.
+type ReadingAttachmentDraft = {
+  id: string;
+  fileName: string;
+  base64: string;
+  contentType?: string;
+  uri?: string;
+  size?: number;
+};
+
+const MAX_READING_PHOTOS = 5;
+// Amber used for the Warning tier (appTheme has success/danger but no warning token).
+const WARNING_TONE = "#B26A00";
+const WARNING_TONE_BG = "#FFF3E0";
+
+// A compact Yes / No toggle for the §12/§14 fail questions. `styles` is the module-level StyleSheet
+// below (resolved at render time), so no need to thread it through props.
+function YesNoPills({ value, onChange }: { value: boolean | null; onChange: (v: boolean) => void }) {
+  return (
+    <View style={styles.yesNoRow}>
+      {[true, false].map((option) => {
+        const active = value === option;
+        return (
+          <Pressable
+            key={String(option)}
+            accessibilityRole="button"
+            onPress={() => onChange(option)}
+            style={[styles.yesNoPill, active ? styles.yesNoPillActive : null]}
+          >
+            <Text style={[styles.yesNoPillText, active ? styles.yesNoPillTextActive : null]}>
+              {option ? "Yes" : "No"}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
 }
 
 function isOutOfRangeTemperature(temperature: number, min: number, max: number) {
@@ -536,6 +580,15 @@ export function TemperatureLogScreen() {
   const [savedFlash, setSavedFlash] = useState<string | null>(null);
   const savedFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [dailyFilter, setDailyFilter] = useState<DailyFilter>("all");
+  // Warning/Fail capture (spec §11–§14): selected corrective-action codes, the §12/§14 fail answers
+  // (null = not answered yet), and photos staged for the reading (§10).
+  const [correctiveActions, setCorrectiveActions] = useState<string[]>([]);
+  const [equipmentWorking, setEquipmentWorking] = useState<boolean | null>(null);
+  const [managerInformed, setManagerInformed] = useState<boolean | null>(null);
+  const [foodMoved, setFoodMoved] = useState<boolean | null>(null);
+  const [foodMovedTo, setFoodMovedTo] = useState("");
+  const [foodDiscarded, setFoodDiscarded] = useState<boolean | null>(null);
+  const [readingAttachments, setReadingAttachments] = useState<ReadingAttachmentDraft[]>([]);
 
   const today = formatDateValue(new Date());
   const isToday = isSameDateValue(selectedDate, today);
@@ -633,6 +686,13 @@ export function TemperatureLogScreen() {
     setNotes("");
     setActionTaken("");
     setReadingTime(formatTimeValue(new Date()));
+    setCorrectiveActions([]);
+    setEquipmentWorking(null);
+    setManagerInformed(null);
+    setFoodMoved(null);
+    setFoodMovedTo("");
+    setFoodDiscarded(null);
+    setReadingAttachments([]);
   }, [unitsQuery.data, dailyLogQuery.data]);
 
   type RecordPostAction = "close" | "next";
@@ -677,17 +737,28 @@ export function TemperatureLogScreen() {
       }
 
       const selectedUnitForRange = (unitsQuery.data ?? []).find((unit) => unit.id === selectedUnitId);
-      let normalizedActionTaken = actionTaken.trim();
-      if (
-        selectedUnitForRange &&
-        isOutOfRangeTemperature(
-          parsedTemperature,
-          selectedUnitForRange.minTemperatureCelsius,
-          selectedUnitForRange.maxTemperatureCelsius
-        ) &&
-        !normalizedActionTaken
-      ) {
-        normalizedActionTaken = "Nothing";
+      const verdict = selectedUnitForRange
+        ? evaluateTemperature(selectedUnitForRange.foodCategory, parsedTemperature, {
+            minCelsius: selectedUnitForRange.minTemperatureCelsius,
+            maxCelsius: selectedUnitForRange.maxTemperatureCelsius,
+          })
+        : TemperatureResult.Pass;
+      const trimmedAction = actionTaken.trim();
+      const isFail = verdict === TemperatureResult.Fail;
+
+      // §17/§26: a Warning/Fail reading requires a real corrective action (a chip or free text);
+      // "Other" needs a note. §12/§14: a Fail must answer the equipment/manager questions.
+      if (verdict !== TemperatureResult.Pass && correctiveActions.length === 0 && !trimmedAction) {
+        throw new Error("Select a corrective action for this reading.");
+      }
+      if (correctiveActionsRequireNotes(correctiveActions) && !trimmedAction) {
+        throw new Error("Add details for the 'Other' corrective action.");
+      }
+      if (isFail && equipmentWorking === null) {
+        throw new Error("Confirm whether the equipment is working.");
+      }
+      if (isFail && managerInformed === null) {
+        throw new Error("Confirm whether the manager has been informed.");
       }
 
       return recordTemperatureReading({
@@ -698,7 +769,17 @@ export function TemperatureLogScreen() {
         temperatureCelsius: parsedTemperature,
         checkedByInitials: checkedByInitials.trim() || undefined,
         notes: notes.trim() || undefined,
-        actionTaken: normalizedActionTaken || undefined,
+        actionTaken: trimmedAction || undefined,
+        correctiveActions: correctiveActions.length > 0 ? correctiveActions.join(",") : undefined,
+        equipmentWorking: isFail ? equipmentWorking ?? undefined : undefined,
+        managerInformed: verdict !== TemperatureResult.Pass ? managerInformed ?? undefined : undefined,
+        foodMoved: isFail ? foodMoved ?? undefined : undefined,
+        foodMovedTo: isFail && foodMoved ? foodMovedTo.trim() || undefined : undefined,
+        foodDiscarded: isFail ? foodDiscarded ?? undefined : undefined,
+        attachments:
+          readingAttachments.length > 0
+            ? readingAttachments.map((a) => ({ fileName: a.fileName, base64: a.base64, contentType: a.contentType }))
+            : undefined,
         // null = Random / extra check → omit so the server stores it against the shop's random bucket.
         scheduleId: selectedScheduleId ?? undefined,
       });
@@ -744,6 +825,13 @@ export function TemperatureLogScreen() {
       setTemperatureCelsius("");
       setNotes("");
       setActionTaken("");
+      setCorrectiveActions([]);
+      setEquipmentWorking(null);
+      setManagerInformed(null);
+      setFoodMoved(null);
+      setFoodMovedTo("");
+      setFoodDiscarded(null);
+      setReadingAttachments([]);
       setReadingTime(formatTimeValue(new Date()));
       setIsLogEntryModalVisible(false);
     },
@@ -865,16 +953,19 @@ export function TemperatureLogScreen() {
     if (!trimmed) return null;
     const parsed = Number(trimmed);
     if (!Number.isFinite(parsed)) return null;
-    const outOfRange = isOutOfRangeTemperature(
-      parsed,
-      selectedUnit.minTemperatureCelsius,
-      selectedUnit.maxTemperatureCelsius
-    );
+    // Three-tier Pass/Warning/Fail verdict (spec §7/§8), mirroring the server evaluator.
+    const result = evaluateTemperature(selectedUnit.foodCategory, parsed, {
+      minCelsius: selectedUnit.minTemperatureCelsius,
+      maxCelsius: selectedUnit.maxTemperatureCelsius,
+    });
+    const outOfRange = result !== TemperatureResult.Pass;
     return {
+      result,
       outOfRange,
       deltaLabel: outOfRange
         ? formatOutOfRangeDelta(parsed, selectedUnit.minTemperatureCelsius, selectedUnit.maxTemperatureCelsius)
         : "",
+      guidance: verdictGuidance(selectedUnit.foodCategory, result),
     };
   }, [selectedUnit, temperatureCelsius]);
 
@@ -904,31 +995,9 @@ export function TemperatureLogScreen() {
       return !!latest && latest.isOutOfRange;
     });
   }, [dailyFilter, dailyUnitLogs]);
-  useEffect(() => {
-    if (!selectedUnit) {
-      return;
-    }
-
-    const parsedTemperature = Number(temperatureCelsius);
-    if (!Number.isFinite(parsedTemperature)) {
-      return;
-    }
-
-    const outOfRange = isOutOfRangeTemperature(
-      parsedTemperature,
-      selectedUnit.minTemperatureCelsius,
-      selectedUnit.maxTemperatureCelsius
-    );
-    if (!outOfRange || actionTaken.trim().length > 0) {
-      return;
-    }
-
-    setActionTaken("Nothing");
-  }, [
-    actionTaken,
-    selectedUnit,
-    temperatureCelsius,
-  ]);
+  // A Warning/Fail reading now requires a real corrective action (chips / notes), so the old
+  // auto-fill of Action Taken = "Nothing" on out-of-range was removed — it would satisfy the
+  // server's action gate without the operator actually choosing one.
   const openTextEditor = (field: "notes" | "action") => {
     setTextEditorField(field);
     setTextEditorValue(field === "notes" ? notes : actionTaken);
@@ -969,6 +1038,72 @@ export function TemperatureLogScreen() {
     closeTextEditor();
     pendingNextUnitRef.current = null;
     setIsLogEntryModalVisible(false);
+  };
+
+  const toggleCorrectiveAction = (value: string) => {
+    setCorrectiveActions((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]));
+  };
+
+  const ingestReadingAssets = async (assets: { uri: string; fileName?: string | null }[]) => {
+    const drafts: ReadingAttachmentDraft[] = [];
+    for (const asset of assets) {
+      try {
+        const optimized = await optimizeImage(asset.uri, { maxDimension: 1600, compress: 0.7 });
+        void cleanupLocalImage(asset.uri);
+        drafts.push({
+          id: `${Date.now()}-${Math.random()}`,
+          fileName: asset.fileName ?? `temperature-${Date.now()}.jpg`,
+          base64: optimized.base64,
+          contentType: "image/jpeg",
+          uri: optimized.uri,
+          size: optimized.byteSize,
+        });
+      } catch {
+        // Skip an image that couldn't be processed; the reading still saves without it.
+      }
+    }
+    if (drafts.length > 0) {
+      setReadingAttachments((prev) => [...prev, ...drafts].slice(0, MAX_READING_PHOTOS));
+    }
+  };
+
+  const pickReadingPhotos = async () => {
+    if (readingAttachments.length >= MAX_READING_PHOTOS) {
+      toastError(`Up to ${MAX_READING_PHOTOS} photos per reading.`);
+      return;
+    }
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      toastError("Photo library permission is required to attach a photo.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: "images",
+      quality: 1,
+      allowsMultipleSelection: true,
+      selectionLimit: MAX_READING_PHOTOS - readingAttachments.length,
+    });
+    if (result.canceled) return;
+    await ingestReadingAssets(result.assets.map((a) => ({ uri: a.uri, fileName: a.fileName })));
+  };
+
+  const captureReadingPhoto = async () => {
+    if (readingAttachments.length >= MAX_READING_PHOTOS) {
+      toastError(`Up to ${MAX_READING_PHOTOS} photos per reading.`);
+      return;
+    }
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      toastError("Camera permission is required to take a photo.");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({ quality: 1 });
+    if (result.canceled) return;
+    await ingestReadingAssets(result.assets.map((a) => ({ uri: a.uri, fileName: a.fileName })));
+  };
+
+  const removeReadingPhoto = (id: string) => {
+    setReadingAttachments((prev) => prev.filter((p) => p.id !== id));
   };
 
 
@@ -1667,24 +1802,49 @@ export function TemperatureLogScreen() {
                 <View
                   style={[
                     styles.liveStatusBanner,
-                    liveStatus.outOfRange ? styles.liveStatusBannerDanger : styles.liveStatusBannerOk,
+                    liveStatus.result === TemperatureResult.Pass
+                      ? styles.liveStatusBannerOk
+                      : liveStatus.result === TemperatureResult.Fail
+                        ? styles.liveStatusBannerDanger
+                        : styles.liveStatusBannerWarn,
                   ]}
                 >
                   <Ionicons
-                    name={liveStatus.outOfRange ? "warning" : "checkmark-circle"}
+                    name={
+                      liveStatus.result === TemperatureResult.Pass
+                        ? "checkmark-circle"
+                        : liveStatus.result === TemperatureResult.Fail
+                          ? "warning"
+                          : "alert-circle"
+                    }
                     size={16}
-                    color={liveStatus.outOfRange ? appTheme.colors.danger : appTheme.colors.success}
+                    color={
+                      liveStatus.result === TemperatureResult.Pass
+                        ? appTheme.colors.success
+                        : liveStatus.result === TemperatureResult.Fail
+                          ? appTheme.colors.danger
+                          : WARNING_TONE
+                    }
                   />
-                  <Text
-                    style={[
-                      styles.liveStatusText,
-                      liveStatus.outOfRange ? styles.liveStatusTextDanger : styles.liveStatusTextOk,
-                    ]}
-                  >
-                    {liveStatus.outOfRange
-                      ? `Out of range · ${liveStatus.deltaLabel}`
-                      : "In range"}
-                  </Text>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={[
+                        styles.liveStatusText,
+                        liveStatus.result === TemperatureResult.Pass
+                          ? styles.liveStatusTextOk
+                          : liveStatus.result === TemperatureResult.Fail
+                            ? styles.liveStatusTextDanger
+                            : styles.liveStatusTextWarn,
+                      ]}
+                    >
+                      {liveStatus.result === TemperatureResult.Pass
+                        ? "Pass · In range"
+                        : `${liveStatus.result === TemperatureResult.Fail ? "FAIL" : "Warning"}${liveStatus.deltaLabel ? ` · ${liveStatus.deltaLabel}` : ""}`}
+                    </Text>
+                    {liveStatus.result !== TemperatureResult.Pass ? (
+                      <Text style={styles.liveStatusGuidance}>{liveStatus.guidance}</Text>
+                    ) : null}
+                  </View>
                 </View>
               ) : savedFlash ? (
                 <View style={[styles.liveStatusBanner, styles.liveStatusBannerOk]}>
@@ -1693,21 +1853,100 @@ export function TemperatureLogScreen() {
                 </View>
               ) : null}
 
-              {/* Notes hidden — managers wanted a tighter form. Action Taken only surfaces when the
-                  live reading is out of range, since that's the only case where a corrective
-                  action is meaningful to record. */}
-              {liveStatus?.outOfRange ? (
-                <View style={styles.entryRow}>
+              {/* Warning/Fail capture: corrective action (§17), the §12/§14 fail questions, and
+                  optional §10 photos — only surfaced when the live reading is outside the safe range. */}
+              {liveStatus?.outOfRange && selectedUnit ? (
+                <View style={styles.correctiveSection}>
+                  <Text style={styles.correctiveMiniLabel}>Corrective action</Text>
+                  <View style={styles.chipWrap}>
+                    {correctiveActionOptions(selectedUnit.foodCategory).map((opt) => {
+                      const selected = correctiveActions.includes(opt.value);
+                      return (
+                        <Pressable
+                          key={opt.value}
+                          accessibilityRole="button"
+                          onPress={() => toggleCorrectiveAction(opt.value)}
+                          style={[styles.actionChip, selected ? styles.actionChipSelected : null]}
+                        >
+                          <Text style={[styles.actionChipText, selected ? styles.actionChipTextSelected : null]}>
+                            {opt.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+
                   <Pressable
                     accessibilityRole="button"
                     style={styles.noteActionTile}
                     onPress={() => openTextEditor("action")}
                   >
-                    <Text style={styles.noteActionLabel}>Action Taken</Text>
+                    <Text style={styles.noteActionLabel}>
+                      {correctiveActionsRequireNotes(correctiveActions) ? "Details (required for 'Other')" : "Extra detail (optional)"}
+                    </Text>
                     <Text style={[styles.noteActionValue, !actionTaken.trim() ? styles.noteActionPlaceholder : null]} numberOfLines={2}>
-                      {actionTaken.trim() || "Tap to record corrective action"}
+                      {actionTaken.trim() || "Tap to add detail"}
                     </Text>
                   </Pressable>
+
+                  {liveStatus.result === TemperatureResult.Fail ? (
+                    <>
+                      <Text style={styles.correctiveMiniLabel}>Fail checks</Text>
+                      <View style={styles.failQuestionRow}>
+                        <Text style={styles.failQuestionLabel}>Is the equipment working?</Text>
+                        <YesNoPills value={equipmentWorking} onChange={setEquipmentWorking} />
+                      </View>
+                      <View style={styles.failQuestionRow}>
+                        <Text style={styles.failQuestionLabel}>Has the manager been informed?</Text>
+                        <YesNoPills value={managerInformed} onChange={setManagerInformed} />
+                      </View>
+                      <View style={styles.failQuestionRow}>
+                        <Text style={styles.failQuestionLabel}>Has the food been moved?</Text>
+                        <YesNoPills value={foodMoved} onChange={setFoodMoved} />
+                      </View>
+                      {foodMoved ? (
+                        <TextInput
+                          style={styles.movedToInput}
+                          value={foodMovedTo}
+                          onChangeText={setFoodMovedTo}
+                          placeholder="Moved to (e.g. walk-in chiller)"
+                          placeholderTextColor={appTheme.colors.textSubtle}
+                        />
+                      ) : null}
+                      <View style={styles.failQuestionRow}>
+                        <Text style={styles.failQuestionLabel}>Has the food been discarded?</Text>
+                        <YesNoPills value={foodDiscarded} onChange={setFoodDiscarded} />
+                      </View>
+                    </>
+                  ) : null}
+
+                  <Text style={styles.correctiveMiniLabel}>Photos (optional)</Text>
+                  <View style={styles.photoRow}>
+                    {readingAttachments.map((photo) => (
+                      <View key={photo.id} style={styles.photoThumb}>
+                        {photo.uri ? <Image source={{ uri: photo.uri }} style={styles.photoThumbImage} /> : null}
+                        <Pressable
+                          accessibilityRole="button"
+                          style={styles.photoRemove}
+                          onPress={() => removeReadingPhoto(photo.id)}
+                        >
+                          <Ionicons name="close" size={13} color="#fff" />
+                        </Pressable>
+                      </View>
+                    ))}
+                    {readingAttachments.length < MAX_READING_PHOTOS ? (
+                      <>
+                        <Pressable accessibilityRole="button" style={styles.addPhotoTile} onPress={captureReadingPhoto}>
+                          <Ionicons name="camera" size={18} color={appTheme.colors.textMuted} />
+                          <Text style={styles.addPhotoText}>Camera</Text>
+                        </Pressable>
+                        <Pressable accessibilityRole="button" style={styles.addPhotoTile} onPress={pickReadingPhotos}>
+                          <Ionicons name="images" size={18} color={appTheme.colors.textMuted} />
+                          <Text style={styles.addPhotoText}>Library</Text>
+                        </Pressable>
+                      </>
+                    ) : null}
+                  </View>
                 </View>
               ) : null}
 
@@ -2676,6 +2915,149 @@ const styles = StyleSheet.create({
   },
   liveStatusTextDanger: {
     color: appTheme.colors.danger,
+  },
+  liveStatusBannerWarn: {
+    backgroundColor: WARNING_TONE_BG,
+  },
+  liveStatusTextWarn: {
+    color: WARNING_TONE,
+  },
+  liveStatusGuidance: {
+    fontFamily: appTheme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
+    color: appTheme.colors.textSubtle,
+    marginTop: 2,
+  },
+  correctiveSection: {
+    marginTop: appTheme.spacing.sm,
+    gap: appTheme.spacing.xs,
+  },
+  correctiveMiniLabel: {
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    color: appTheme.colors.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  chipWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: appTheme.spacing.xs,
+  },
+  actionChip: {
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: 6,
+    borderRadius: appTheme.radius.pill,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surface,
+  },
+  actionChipSelected: {
+    borderColor: appTheme.colors.primary,
+    backgroundColor: appTheme.colors.surfaceBrandSoft,
+  },
+  actionChipText: {
+    fontFamily: appTheme.fonts.body,
+    fontSize: 13,
+    color: appTheme.colors.text,
+  },
+  actionChipTextSelected: {
+    fontFamily: appTheme.fonts.bodyMedium,
+    color: appTheme.colors.primary,
+  },
+  failQuestionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: appTheme.spacing.sm,
+    marginTop: appTheme.spacing.xs,
+  },
+  failQuestionLabel: {
+    flex: 1,
+    fontFamily: appTheme.fonts.body,
+    fontSize: 13,
+    color: appTheme.colors.text,
+  },
+  yesNoRow: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  yesNoPill: {
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: 5,
+    borderRadius: appTheme.radius.pill,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.surface,
+  },
+  yesNoPillActive: {
+    borderColor: appTheme.colors.primary,
+    backgroundColor: appTheme.colors.primary,
+  },
+  yesNoPillText: {
+    fontFamily: appTheme.fonts.bodyMedium,
+    fontSize: 12,
+    color: appTheme.colors.textMuted,
+  },
+  yesNoPillTextActive: {
+    color: appTheme.colors.onPrimary,
+  },
+  movedToInput: {
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: appTheme.radius.sm,
+    backgroundColor: appTheme.colors.surface,
+    paddingHorizontal: appTheme.spacing.sm,
+    paddingVertical: 8,
+    color: appTheme.colors.text,
+    marginTop: appTheme.spacing.xs,
+    fontFamily: appTheme.fonts.body,
+  },
+  photoRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: appTheme.spacing.xs,
+    marginTop: appTheme.spacing.xs,
+  },
+  photoThumb: {
+    width: 64,
+    height: 64,
+    borderRadius: appTheme.radius.sm,
+    overflow: "hidden",
+    backgroundColor: appTheme.colors.surfaceMuted,
+  },
+  photoThumbImage: {
+    width: "100%",
+    height: "100%",
+  },
+  photoRemove: {
+    position: "absolute",
+    top: 2,
+    right: 2,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addPhotoTile: {
+    width: 64,
+    height: 64,
+    borderRadius: appTheme.radius.sm,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: appTheme.colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+    backgroundColor: appTheme.colors.surface,
+  },
+  addPhotoText: {
+    fontFamily: appTheme.fonts.body,
+    fontSize: 10,
+    color: appTheme.colors.textMuted,
   },
   unitRowBottom: {
     flexDirection: "row",

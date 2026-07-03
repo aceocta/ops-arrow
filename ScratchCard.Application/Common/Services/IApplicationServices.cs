@@ -422,7 +422,10 @@ public interface IReportService
     Task<IReadOnlyCollection<DailySalesReportRowDto>> GetDailySalesAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<DailySalesReportRowDto>> GetShiftSalesAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<ManualEntryReviewRowDto>> GetManualEntryReviewAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
-    Task<IReadOnlyCollection<TemperatureReadingDto>> GetTemperatureLogsReportAsync(Guid shopId, DateOnly from, DateOnly to, Guid? unitId = null, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<TemperatureReadingDto>> GetTemperatureLogsReportAsync(Guid shopId, DateOnly from, DateOnly to, Guid? unitId = null, FoodCategory? category = null, TemperatureResult? result = null, string? checkedBy = null, CancellationToken cancellationToken = default);
+    // §24 issues report: equipment-not-working / open / resolved / corrective-action / food-discarded /
+    // manager-approval history, filterable by date, status, category, unit and staff.
+    Task<IReadOnlyCollection<TemperatureEquipmentIssueDto>> GetTemperatureIssuesReportAsync(Guid shopId, DateOnly from, DateOnly to, Guid? unitId = null, FoodCategory? category = null, EquipmentWorkingStatus? status = null, CancellationToken cancellationToken = default);
     Task<TemperatureScheduleGridDto> GetTemperatureScheduleGridAsync(Guid shopId, DateOnly from, DateOnly to, Guid? unitId = null, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<StockReportRowDto>> GetStockReportAsync(Guid shopId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<AuditLogReportRowDto>> GetAuditLogReportAsync(Guid shopId, DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
@@ -464,6 +467,16 @@ public interface ITemperatureLogService
     Task<TemperatureScheduleDto> CreateScheduleAsync(UpsertTemperatureScheduleRequest request, CancellationToken cancellationToken = default);
     Task<TemperatureScheduleDto> UpdateScheduleAsync(Guid id, UpsertTemperatureScheduleRequest request, CancellationToken cancellationToken = default);
     Task DeleteScheduleAsync(Guid id, CancellationToken cancellationToken = default);
+
+    // Equipment-issue lifecycle (Not Working -> Under Maintenance -> Resolved + manager approval).
+    Task<TemperatureEquipmentIssueDto> MarkUnitNotWorkingAsync(MarkUnitNotWorkingRequest request, CancellationToken cancellationToken = default);
+    Task<TemperatureEquipmentIssueDto> SetIssueUnderMaintenanceAsync(Guid issueId, SetIssueUnderMaintenanceRequest request, CancellationToken cancellationToken = default);
+    Task<TemperatureEquipmentIssueDto> ResolveIssueAsync(Guid issueId, ResolveTemperatureIssueRequest request, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<TemperatureEquipmentIssueDto>> ListEquipmentIssuesAsync(Guid shopId, bool openOnly = true, CancellationToken cancellationToken = default);
+    Task<TemperatureEquipmentIssueDto> GetEquipmentIssueAsync(Guid issueId, CancellationToken cancellationToken = default);
+
+    // Returns a reading/issue photo as a data URL (base64), shop-membership checked. Null if the blob is gone.
+    Task<string?> GetAttachmentDataUrlAsync(Guid attachmentId, CancellationToken cancellationToken = default);
 }
 
 public interface IRefusalRegisterService

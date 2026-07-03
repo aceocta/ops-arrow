@@ -1,4 +1,5 @@
 using ScratchCard.Domain.Common;
+using ScratchCard.Domain.Enums;
 
 namespace ScratchCard.Domain.Entities;
 
@@ -9,10 +10,18 @@ public class TemperatureReading : AuditableEntity
     public DateOnly ReadingDate { get; set; }
     public TimeOnly ReadingTime { get; set; }
     public decimal TemperatureCelsius { get; set; }
+    // Legacy binary flag — kept so existing grid/report queries keep working. Set alongside Result.
     public bool IsOutOfRange { get; set; }
+    // Three-tier food-safety verdict from TemperatureEvaluator (Pass / Warning / Fail).
+    public TemperatureResult Result { get; set; } = TemperatureResult.Pass;
     public string CheckedByInitials { get; set; } = string.Empty;
     public string? Notes { get; set; }
+    // Free-text action (retained, used for "Other" detail); structured codes go in CorrectiveActions.
     public string? ActionTaken { get; set; }
+    // Comma-separated TemperatureCorrectiveAction codes selected for a Warning/Fail reading.
+    public string? CorrectiveActions { get; set; }
+    // Set when a Fail reading opens or attaches to an equipment issue.
+    public Guid? TemperatureEquipmentIssueId { get; set; }
     public DateTimeOffset RecordedOn { get; set; }
     public Guid? RecordedByUserId { get; set; }
     public string? RecordedByName { get; set; }
@@ -27,4 +36,6 @@ public class TemperatureReading : AuditableEntity
     public Shop Shop { get; set; } = null!;
     public TemperatureMonitoringUnit TemperatureMonitoringUnit { get; set; } = null!;
     public CfgTemperatureSchedule? Schedule { get; set; }
+    public TemperatureEquipmentIssue? TemperatureEquipmentIssue { get; set; }
+    public ICollection<TemperatureAttachment> Attachments { get; set; } = new List<TemperatureAttachment>();
 }
